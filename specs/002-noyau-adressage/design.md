@@ -218,7 +218,9 @@ découpage courant/historique relèvent de la 004.
 | `anomaly` | `id`, `rule_id`, `object_id`, `details`, `acknowledged_by`, `acknowledged_at`, `motive`, `object_version` | — |
 | `special_registry` | `family`, `block`, drapeaux, `registry_version`, `iana_updated` | données de référence, chargées par migration |
 
-- `inetrange` : type intervalle sur `inet` avec `subtype_diff` (à prototyper).
+- `inetrange` : type intervalle sur `inet` **sans** `subtype_diff`, avec
+  `CHECK (family(lower(range)) = family(upper(range)))` — amendement proposé par le
+  [prototype 001](../../docs/spikes/001-gist-exclusions.md), **à valider**.
 - `domain_id WITH =` utilise btree_gist sur `uuid` (fiable) ; jamais de btree_gist sur
   `inet`/`cidr` (ADR 0004).
 - Les contraintes s'appliquent aux versions courantes côté système (dispositif exact :
@@ -317,7 +319,8 @@ découpage courant/historique relèvent de la 004.
 - **Couplage avec 003 et 004** : la 002 ne peut être livrée seule ; les tâches
   imbriquent les trois specs. Risque de dérive : chaque tâche cite ses REQ.
 - **Type `inetrange`** : la combinaison de btree_gist (uuid), d'un intervalle d'adresses
-  et d'un intervalle de temps dans un même GiST n'est pas encore prouvée (tâche de prototype). Repli :
+  et d'un intervalle de temps dans un même GiST est **prouvée** par le prototype 001. Repli
+  devenu inutile :
   vérification applicative sous verrou de domaine seulement.
 - **Registre IANA** : une mise à jour peut faire basculer des objets en « public » et
   créer des conflits a posteriori ; traité par migration et anomalies.

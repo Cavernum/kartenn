@@ -30,7 +30,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `10.0.0.0/8`, conteneurs sur ≥ 6 niveaux, 10⁵ réseaux, 10⁶ adresses, IPv4 et IPv6, part
   d'espace public — prépare REQ-002-45 — verify : génération reproductible (graine) en
   < 2 min, décompte attendu
-- [ ] 6. **Prototype GiST** (`docs/spikes/001-gist-exclusions.md`) : (a) exclusion
+- [x] 6. **Prototype GiST** (`docs/spikes/001-gist-exclusions.md`) : (a) exclusion
   `domain_id WITH =, prefix inet_ops WITH =, valid_period WITH &&` ; (b) type `inetrange`
   avec `subtype_diff` et exclusion de chevauchement combinée à btree_gist (uuid) et
   `tstzrange` ; (c) exclusion partielle publique non anycast ; (d) deux transactions
