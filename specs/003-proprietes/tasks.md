@@ -10,7 +10,7 @@ voir [`../README.md`](../README.md).
 
 ## P1 — Prototype de risque
 
-- [ ] 1. **Prototype de résolution matérialisée** (`docs/spikes/003-resolution.md`) sur le
+- [x] 1. **Prototype de résolution matérialisée** (`docs/spikes/003-resolution.md`) sur le
   jeu de 002-5 avec 10 propriétés dont 3 héritables : volume de `property_resolved`
   (avec historique), résolution expliquée d'un objet, page filtrée par valeur résolue,
   différentiel d'une insertion de conteneur touchant 10⁴ puis 10⁶ objets ; requête
