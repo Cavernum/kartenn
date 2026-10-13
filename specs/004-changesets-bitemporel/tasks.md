@@ -31,7 +31,7 @@ voir [`../README.md`](../README.md).
   tables + déclencheurs + partitions) — REQ-004-16 — verify : tests (temps système
   identique dans une transaction ; `UPDATE` SQL direct historisé ; refus sur
   l'historique)
-- [ ] 5. Tables `person`, `changeset`, `changeset_operation`, `changeset_diff`,
+- [x] 5. Tables `person`, `changeset`, `changeset_operation`, `changeset_diff`,
   `idempotency_key`, `approval_policy`, `outbox`, `import`, `import_batch` — prépare
   REQ-004-1, 10, 31, 36 — verify : migrations appliquées, tests de contraintes
 - [ ] 6. Lectures datées génériques (`valid_at`, `as_of`) et historique d'un objet —
