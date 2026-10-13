@@ -27,3 +27,4 @@ Chaque note contient :
 | [ipv8-draft.md](ipv8-draft.md) | État de draft-thain-ipv8 | 002 (point d'extension) |
 | [postgresql-18-reseau.md](postgresql-18-reseau.md) | Types `inet`/`cidr`, opérateurs, index, contraintes d'exclusion ; apports de la 19 (bêta) | 002 |
 | [temporel-sql2011-postgresql.md](temporel-sql2011-postgresql.md) | Modèle temporel SQL:2011 et support réel de PostgreSQL 18 | 002, 004 |
+| [noms-dates-texte.md](noms-dates-texte.md) | Noms d'hôte, IDNA2008 / UTS #46, dates RFC 3339, texte Unicode | 003 |
