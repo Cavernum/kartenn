@@ -43,7 +43,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 7. Valeurs d'adresse et de préfixe (`u128`, famille, longueur), contrat
   `AddressFamily`, inclusion, ordre, arithmétique — REQ-002-1 — verify : tests unitaires
   et de propriétés
-- [ ] 8. Familles IPv4 et IPv6 sur `std::net` : analyse, forme canonique, tests de
+- [x] 8. Familles IPv4 et IPv6 sur `std::net` : analyse, forme canonique, tests de
   non-régression du comportement vérifié (cas de la conception) — REQ-002-2, 3, 4, 6, 7
   — verify : tests ; propriété analyse(canonique(x)) = x
 - [ ] 9. Analyse des préfixes (longueur stricte, alignement, suggestion) ; refus des zones
