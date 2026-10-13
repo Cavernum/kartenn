@@ -54,7 +54,11 @@ Fonctions utiles : `family`, `masklen`, `network`, `broadcast`, `hostmask`, `net
   the index entries. This is unfixable ». Le défaut existe donc aussi en 18. Une
   contrainte d'exclusion appuyée sur ces classes peut **laisser passer un conflit**.
   En 18, si btree_gist est installé, ce sont elles qui servent par défaut pour `inet`
-  et `cidr` en GiST.
+  et `cidr` en GiST. **Ce n'est pas un bug corrigé par une version mineure** : c'est un
+  défaut de conception connu
+  ([BUG #19000](https://www.postgresql.org/message-id/2107725.1753985855%40sss.pgh.pa.us)) ;
+  la seule correction est le changement de classe par défaut de la 19, non rétroporté
+  (la doc 18 ne le mentionne pas).
 
 ### Contraintes d'exclusion (CREATE TABLE)
 - La méthode d'accès doit gérer `amgettuple` (pas GIN) ; les opérateurs doivent être
@@ -116,8 +120,6 @@ Fonctions utiles : `family`, `masklen`, `network`, `broadcast`, `hostmask`, `net
    sur `inet` (avec `subtype_diff`) et `EXCLUDE USING GIST (domain_id WITH =, plage WITH &&,
    valid_period WITH &&)`. **À prototyper** : vérifier qu'un même index GiST combine
    btree_gist (pour `uuid` uniquement), l'intervalle d'adresses et l'intervalle de temps.
-8. **Garde-fou** : un test de migration vérifie qu'aucun index n'utilise
-   `gist_inet_ops`/`gist_cidr_ops` (requête sur `pg_index` et `pg_opclass`).
 
 ## PostgreSQL 19 (état au 2026-10-13)
 
