@@ -188,8 +188,9 @@ Acceptation :
 Si un changeset modifie la valeur résolue d'une propriété sur un objet existant, y compris
 indirectement par une modification de structure (préfixe inséré, redimensionné, clos,
 changement de nature), alors kartenn doit exiger de l'auteur la permission de cette
-propriété sur chacun de ces objets, et refuser le changeset à défaut, sauf politique de
-demande (004/REQ-004-41) (P7).
+propriété sur chacun de ces objets, et refuser le changeset à défaut, sauf si l'auteur
+détient le droit de proposer : le changeset devient alors une proposition
+(004/REQ-004-41) (P7).
 
 Acceptation :
 - Conteneur `10.0.0.0/8` en `{prod}`, conteneur `10.5.0.0/16` en `{dev}` : un prestataire

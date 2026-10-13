@@ -165,8 +165,9 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   permission. L'appel au RBAC (005) est **groupé** : `authorize_many(subject,
   permission, objets)` renvoie les objets refusés. Le RBAC résout les périmètres par
   `core.owner` et l'arbre d'adressage, eux-mêmes matérialisés.
-- Sans droit, refus `prop.forbidden_effect`, sauf si une politique de demande
-  s'applique (004/REQ-004-41) : le changeset passe alors en attente.
+- Sans droit d'écriture, refus `prop.forbidden_effect`, sauf si l'auteur détient
+  `prop.<key>.propose` : le changeset devient une proposition en attente
+  (004/REQ-004-41).
 
 ### Différentiel (REQ-003-19, 20)
 

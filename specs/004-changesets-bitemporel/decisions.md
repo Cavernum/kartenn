@@ -78,3 +78,24 @@ besoins des specs 002 et 003 (différentiel, simulation, approbation, verrous pa
 - Amende C1 (modalités d'approbation inchangées quand une politique s'applique) et la
   spec 003 (une déclaration de propriété ne porte plus d'exigence d'approbation).
 - Décidé par : l'utilisateur
+
+## C7 — Droit de proposer (collaboration)
+- Décision : chaque permission d'écriture `X.write` a un niveau inférieur `X.propose`.
+  Une identité qui a `propose` mais pas `write` sur ce qu'un changeset modifie (objets
+  visés et effets, 003) peut le soumettre : il devient une **proposition**, toujours mise
+  en attente, quelle que soit la configuration des politiques. Elle est validée par
+  quelqu'un qui détient **réellement** le droit d'écriture sur tout ce qu'elle touche (les
+  **mainteneurs** du périmètre), jamais par son auteur.
+- Notification : à la soumission, les mainteneurs concernés voient la proposition dans
+  une **file de propositions** filtrée par leur périmètre, et un événement est émis
+  (outbox) pour des notifications externes (courriel, messagerie) via un consommateur
+  ultérieur. L'auteur est notifié de la décision (appliquée, rejetée avec motif,
+  expirée).
+- Exemple (utilisateur) : je trouve une erreur sur ma VM, je propose la correction, les
+  mainteneurs sont notifiés et valident.
+- Remplace le mode « demande » de C6 (REQ-004-41 réécrite) : la collaboration ne dépend
+  plus d'une politique. Les politiques d'approbation (C6) restent une option distincte,
+  pour des écritures que l'auteur a le droit de faire mais qu'on veut faire relire.
+- Modalités : celles de C1 (revalidation, expiration, retrait, rejet motivé, pas de
+  modification en attente).
+- Décidé par : l'utilisateur (besoin), recommandation (mécanisme)

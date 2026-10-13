@@ -193,14 +193,31 @@ déclencheurs : volume (opérations ou objets du différentiel au-delà d'un seu
 propriété (changement direct ou indirect), périmètre, auteur (rôle, groupe, compte de
 service).
 
-#### REQ-004-41 — Demande
-Là où une politique l'autorise, si l'auteur n'a pas le droit requis par une opération ou
-un effet (003/REQ-003-17, 18), alors kartenn doit mettre le changeset en attente au lieu
-de le refuser ; l'approbateur doit alors détenir ce droit.
+#### REQ-004-41 — Proposition
+Si l'auteur n'a pas le droit d'écriture requis par une opération ou un effet
+(003/REQ-003-17, 18) mais détient le droit de proposer correspondant (`…propose`), alors
+kartenn doit enregistrer le changeset comme **proposition** en attente au lieu de le
+refuser (C7). Sans l'un ni l'autre, le changeset est refusé.
 
 Acceptation :
-- Sans politique de demande, un prestataire sans `prop.policy.environment.write` est
-  refusé ; avec, son changeset attend l'approbation de l'équipe sécurité.
+- Un utilisateur avec `core.address.propose` sur son réseau propose de passer l'usage de
+  l'adresse de sa VM de « réservée » à « hôte » : la proposition est en attente ; sans
+  `propose`, le changeset est refusé.
+
+#### REQ-004-42 — Validation d'une proposition
+kartenn doit n'accepter la validation d'une proposition que d'une identité qui détient le
+droit d'écriture sur tout ce que la proposition modifie (objets et effets) et qui n'en est
+pas l'auteur ; la proposition est revalidée à l'application (REQ-004-22).
+
+#### REQ-004-43 — File des propositions et notifications
+Quand une proposition est soumise, kartenn doit la rendre visible dans la file des
+propositions de chaque mainteneur concerné (identités qui détiennent le droit d'écriture
+requis sur son périmètre) et émettre un événement ; quand elle est appliquée, rejetée ou
+expire, kartenn doit en notifier l'auteur.
+
+Acceptation :
+- Un mainteneur ne voit dans sa file que les propositions qu'il peut valider.
+- Le rejet porte un motif, restitué à l'auteur.
 
 #### REQ-004-21 — Approbateur
 kartenn doit n'accepter l'approbation que d'une identité qui détient la permission
@@ -318,6 +335,10 @@ seconde soutenus.
 - Branches ou espaces de travail à la Git (D11).
 - Approbations multiples (C1 : évolution possible).
 - Toute approbation imposée par défaut ou par un module (C6).
+- L'envoi de notifications externes (courriel, messagerie) : un consommateur des
+  événements, ultérieur ; ici, la file des propositions et l'événement (C7).
+- Les discussions en fil sur une proposition (seulement motif de soumission et motif de
+  rejet).
 - Modification d'un changeset en attente (C1).
 - Purge de l'historique (C4).
 - Webhooks et leur configuration : un consommateur d'événements ultérieur ; ici seulement
@@ -330,4 +351,4 @@ seconde soutenus.
 - [ ] Durée de rétention des clés d'idempotence (24 h proposées). (Claude, conception)
 - [ ] Ordre des événements : global, ou par domaine d'adressage (suffisant pour la plupart
   des consommateurs et moins contraignant) ? (conception)
-- [ ] Délai de pseudonymisation après départ : valeur par défaut. (utilisateur)
+- [ ] Délai de pseudonymisation après départ : 1 an proposé par défaut, configurable. (utilisateur)
