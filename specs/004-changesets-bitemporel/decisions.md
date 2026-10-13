@@ -63,3 +63,18 @@ besoins des specs 002 et 003 (différentiel, simulation, approbation, verrous pa
 - Rejeté : pas d'annulation (pénible après un import raté), annulation physique
   (contraire à INV-11).
 - Décidé par : recommandation acceptée
+
+## C6 — L'approbation est une option, jamais un défaut
+- Décision : **aucune approbation n'existe par défaut** : un changeset autorisé
+  s'applique immédiatement. L'approbation n'intervient que si un **administrateur
+  configure une politique d'approbation**, qu'aucun module ne peut imposer. Déclencheurs
+  possibles d'une politique, combinables : **volume** (nombre d'opérations ou d'objets du
+  différentiel au-delà d'un seuil), **propriété** (changement direct ou indirect d'une
+  propriété donnée), **périmètre** (entité, site, domaine, sous-arbre), **auteur** (rôle,
+  groupe OIDC, compte de service). Une politique peut aussi autoriser la **demande** :
+  un auteur sans le droit requis soumet, un approbateur qui a ce droit approuve.
+- Pourquoi (utilisateur) : la maintenance courante de l'équipe réseau ne doit pas être
+  ralentie ; l'approbation est utile pour les changements massifs ou sensibles.
+- Amende C1 (modalités d'approbation inchangées quand une politique s'applique) et la
+  spec 003 (une déclaration de propriété ne porte plus d'exigence d'approbation).
+- Décidé par : l'utilisateur

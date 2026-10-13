@@ -28,7 +28,8 @@ des droits à chaque changeset (REQ-003-18, 19). La décision centrale :
 
 **Modules.** Un module expose ses déclarations dans le code (descripteurs statiques :
 clé, type et paramètres, cardinalité, porteurs, héritage et arbre, obligations,
-approbation, source de valeurs attendues). Une migration du module les enregistre en base ;
+source de valeurs attendues ; jamais d'approbation, 004/C6). Une migration du module les
+enregistre en base ;
 leur évolution passe par une migration de module (P8).
 
 **Administrateurs.** Déclarations de l'espace `custom`, créées et modifiées par
@@ -39,7 +40,7 @@ changeset (opérations `declare_property`, `update_property`, `close_property`,
 
 | Table | Contenu |
 |---|---|
-| `property_declaration` | `id`, `key`, `namespace`, `value_type`, `type_params` (JSON validé par le type), `cardinality` (`single`, `set`), `carriers` (types d'objets), `inherit_tree` (null, `addressing`, `entity`, `site`, ou arbre d'un module), `requires_approval`, `expected_source` (id, mode : `suggest`, `default`, `check`) |
+| `property_declaration` | `id`, `key`, `namespace`, `value_type`, `type_params` (JSON validé par le type), `cardinality` (`single`, `set`), `carriers` (types d'objets), `inherit_tree` (null, `addressing`, `entity`, `site`, ou arbre d'un module), `expected_source` (id, mode : `suggest`, `default`, `check`) |
 | `property_obligation` | `property_id`, portée (`domain` + id, `entity` + id, ou `object_type`) |
 | `property_enum_value` | `id`, `property_id`, `key` (`[a-z0-9-]`), période de validité |
 
@@ -164,9 +165,8 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   permission. L'appel au RBAC (005) est **groupé** : `authorize_many(subject,
   permission, objets)` renvoie les objets refusés. Le RBAC résout les périmètres par
   `core.owner` et l'arbre d'adressage, eux-mêmes matérialisés.
-- Si `requires_approval` est vrai pour une propriété du différentiel, le changeset passe
-  en attente au lieu d'être refusé quand l'auteur n'a pas le droit, si une politique
-  d'approbation existe (004, 005) ; sinon refus `prop.forbidden_effect`.
+- Sans droit, refus `prop.forbidden_effect`, sauf si une politique de demande
+  s'applique (004/REQ-004-41) : le changeset passe alors en attente.
 
 ### Différentiel (REQ-003-19, 20)
 

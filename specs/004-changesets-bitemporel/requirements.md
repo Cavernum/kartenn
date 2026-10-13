@@ -170,10 +170,37 @@ stateDiagram-v2
   en_attente --> expiré: délai dépassé
 ```
 
-#### REQ-004-20 — Approbation requise
-Quand un changeset touche une propriété exigeant l'approbation (003) ou un périmètre
-soumis à une politique d'approbation (005), kartenn doit le mettre en attente au lieu de
-l'appliquer.
+#### REQ-004-20 — Approbation selon une politique
+Là où un administrateur a configuré une politique d'approbation dont les déclencheurs
+correspondent au changeset, kartenn doit mettre le changeset en attente au lieu de
+l'appliquer (C6).
+
+Acceptation :
+- Politique « plus de 500 objets dans le différentiel » : un changeset qui reclasse 4 096
+  adresses passe en attente ; un changeset de 3 adresses s'applique immédiatement.
+
+#### REQ-004-39 — Aucune approbation par défaut
+kartenn doit appliquer immédiatement tout changeset autorisé tant qu'aucune politique
+d'approbation ne le vise ; aucune déclaration de module ne doit pouvoir imposer une
+approbation (C6).
+
+Acceptation :
+- Instance neuve, modules v0.1 et v0.2 installés : aucun changeset ne passe en attente.
+
+#### REQ-004-40 — Déclencheurs d'une politique
+kartenn doit permettre de définir une politique d'approbation par une combinaison de
+déclencheurs : volume (opérations ou objets du différentiel au-delà d'un seuil),
+propriété (changement direct ou indirect), périmètre, auteur (rôle, groupe, compte de
+service).
+
+#### REQ-004-41 — Demande
+Là où une politique l'autorise, si l'auteur n'a pas le droit requis par une opération ou
+un effet (003/REQ-003-17, 18), alors kartenn doit mettre le changeset en attente au lieu
+de le refuser ; l'approbateur doit alors détenir ce droit.
+
+Acceptation :
+- Sans politique de demande, un prestataire sans `prop.policy.environment.write` est
+  refusé ; avec, son changeset attend l'approbation de l'équipe sécurité.
 
 #### REQ-004-21 — Approbateur
 kartenn doit n'accepter l'approbation que d'une identité qui détient la permission
@@ -290,6 +317,7 @@ seconde soutenus.
 
 - Branches ou espaces de travail à la Git (D11).
 - Approbations multiples (C1 : évolution possible).
+- Toute approbation imposée par défaut ou par un module (C6).
 - Modification d'un changeset en attente (C1).
 - Purge de l'historique (C4).
 - Webhooks et leur configuration : un consommateur d'événements ultérieur ; ici seulement

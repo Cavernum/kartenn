@@ -105,3 +105,9 @@ leur déclarant, héritables ou non.
 - Rejeté : modification libre (données invalides en base, contraire à D1), déclarations
   immuables (lourd pour ajouter une valeur).
 - Décidé par : recommandation acceptée
+
+## Note — amendement par 004/C6
+P6 prévoyait qu'une propriété puisse « exiger l'approbation ». Remplacé par 004/C6 :
+aucune déclaration (de module ou d'administrateur) ne porte d'exigence d'approbation ;
+l'approbation relève uniquement de politiques facultatives configurées par un
+administrateur (déclencheurs : volume, propriété, périmètre, auteur).

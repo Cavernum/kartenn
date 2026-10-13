@@ -55,7 +55,8 @@ Acceptation :
 #### REQ-003-3 — Contenu d'une déclaration
 kartenn doit exiger qu'une déclaration précise : type et paramètres du type,
 cardinalité (valeur unique ou ensemble), types d'objets porteurs, héritabilité et arbre
-suivi (REQ-003-11), permission d'écriture et exigence d'approbation (REQ-003-17).
+suivi (REQ-003-11) et permission d'écriture (REQ-003-17). Une déclaration ne porte
+aucune exigence d'approbation (004/C6).
 
 #### REQ-003-4 — Objets porteurs
 Si une affectation vise un objet d'un type non déclaré porteur de la propriété, alors
@@ -176,7 +177,8 @@ Acceptation :
 #### REQ-003-17 — Permission par propriété
 kartenn doit exiger, pour toute affectation, la permission d'écriture propre à la
 propriété sur le périmètre de l'objet (D36), indépendamment du droit de modifier
-l'objet ; là où la déclaration l'exige, le changeset passe en approbation (D11) (P6).
+l'objet (P6). L'approbation éventuelle relève des politiques facultatives de la 004
+(004/C6).
 
 Acceptation :
 - Un prestataire autorisé à modifier le réseau `10.5.0.0/24` mais pas
@@ -186,8 +188,8 @@ Acceptation :
 Si un changeset modifie la valeur résolue d'une propriété sur un objet existant, y compris
 indirectement par une modification de structure (préfixe inséré, redimensionné, clos,
 changement de nature), alors kartenn doit exiger de l'auteur la permission de cette
-propriété sur chacun de ces objets, et refuser le changeset (ou le mettre en
-approbation) à défaut (P7).
+propriété sur chacun de ces objets, et refuser le changeset à défaut, sauf politique de
+demande (004/REQ-004-41) (P7).
 
 Acceptation :
 - Conteneur `10.0.0.0/8` en `{prod}`, conteneur `10.5.0.0/16` en `{dev}` : un prestataire
