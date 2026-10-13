@@ -15,4 +15,24 @@ publish = false
 # are managed by hakari.
 
 ### BEGIN HAKARI SECTION
+[dependencies]
+crypto-common = { version = "0.1", default-features = false, features = ["std"] }
+digest = { version = "0.10", features = ["std"] }
+sha2 = { version = "0.10" }
+smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
+sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+typenum = { version = "1", default-features = false, features = ["const-generics"] }
+
+[build-dependencies]
+crypto-common = { version = "0.1", default-features = false, features = ["std"] }
+digest = { version = "0.10", features = ["std"] }
+sha2 = { version = "0.10" }
+smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
+sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
+syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "fold", "full", "visit"] }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2", default-features = false, features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit-mut"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+typenum = { version = "1", default-features = false, features = ["const-generics"] }
+
 ### END HAKARI SECTION

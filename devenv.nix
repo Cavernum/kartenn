@@ -31,8 +31,25 @@
     enable = true;
     package = pkgs.postgresql_18;
     listen_addresses = "127.0.0.1";
-    initialDatabases = [{name = "kartenn";}];
+    # Development owner role: creates the throwaway test databases of #[sqlx::test].
+    initialDatabases = [
+      {
+        name = "kartenn";
+        user = "kartenn";
+      }
+    ];
+    # Application role without administration rights (INV-11): tests switch to it
+    # with SET ROLE to prove what the application can and cannot do.
+    initialScript = ''
+      ALTER ROLE kartenn CREATEDB;
+      CREATE ROLE kartenn_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+      GRANT kartenn_app TO kartenn;
+    '';
   };
+
+  # sqlx (compile-time checks, #[sqlx::test]) and integration tests use the local
+  # server; #[sqlx::test] creates a throwaway database per test.
+  env.DATABASE_URL = "postgres://kartenn@127.0.0.1:5432/kartenn";
 
   git-hooks.hooks = {
     # Generic hygiene, every project.

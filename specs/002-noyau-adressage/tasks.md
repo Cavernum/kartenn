@@ -18,7 +18,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 2. cargo-hakari : crate `kartenn-workspace-hack`, `.config/hakari.toml`, vérification
   dans `devenv test` (`cargo hakari generate --diff`, `manage-deps --dry-run`) — verify :
   `devenv test`
-- [ ] 3. Base de test PostgreSQL : harnais d'intégration (une base jetable par test, via le
+- [x] 3. Base de test PostgreSQL : harnais d'intégration (une base jetable par test, via le
   PostgreSQL de devenv), extension btree_gist, rôle applicatif sans droits d'administration
   — verify : un test d'intégration trivial passe
 - [ ] 4. sqlx : dépendance, mode hors ligne (`.sqlx/` versionné, `SQLX_OFFLINE`),
