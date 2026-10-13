@@ -1,0 +1,120 @@
+---
+status: draft
+updated: 2026-10-14
+---
+
+# kartenn — spécification système
+
+> État : **cible de la v0.1**. Il n'existe pas encore de code ; ce document décrit le
+> système tel qu'il est conçu. Il sera resynchronisé (mode *sync*) à chaque livraison.
+
+## Contexte
+
+Les grands SI (≈ 10⁶ adresses et interfaces, ≈ 10⁵ réseaux, plusieurs entités juridiques
+dont des SI hérités de rachats, des prestataires interconnectés) tiennent leur
+cartographie réseau dans des outils vieillissants, peu extensibles, sans contrôle de
+cohérence fort et sans vérification de sécurité.
+
+kartenn est un **référentiel réseau déclaratif** : il est la source de vérité de
+l'adressage et de la topologie, refuse toute écriture incohérente, garde l'historique
+bitemporel, et sert de socle à des contrôles de sécurité (environnements, matrice de
+flux, v0.2).
+
+Systèmes externes :
+- fournisseurs d'identité **OIDC** (plusieurs émetteurs : organisation, prestataires) ;
+- **PostgreSQL ≥ 18** ;
+- collecteur **OpenTelemetry** (OTLP) ;
+- sources de données existantes, via des **connecteurs** hors processus (à terme).
+
+## Objectifs et non-objectifs
+
+Objectifs :
+- Validation stricte : aucune incohérence acceptée en écriture (D1).
+- Performance à l'échelle : budgets p95 chiffrés sur 10⁶ objets (D14), vérifiés en CI.
+- Historique bitemporel interrogeable (D8, D10).
+- Modularité : modules métier compilés, plugins UI à chaud, connecteurs externes (D6).
+- Accès : OIDC multi-émetteurs et Basic Auth, RBAC par périmètre et par propriété
+  (D13, D36, 003/P6–P7).
+- Interfaces : REST et Web en v0.1 ; CLI, TUI et MCP ensuite, comme clients REST (D7).
+
+Non-objectifs :
+- Découverte automatique du réseau (D1) : la source est déclarative ; des connecteurs
+  pourront importer.
+- Pilotage des équipements (DHCP, DNS, pare-feu) : autre classe de produit (D1).
+- Multi-tenant strict : un déploiement par organisation (D3).
+- Atteignabilité effective des flux en v0.1/v0.2 : étape ultérieure (D20).
+
+## Feuille de route (D31)
+
+| Version | Contenu |
+|---|---|
+| v0.1 | Noyau d'adressage (002), propriétés (003), changesets et bitemporel (004), authentification et RBAC (005), API REST (006), shell Web et plugins (007), VLAN (008), machines et interfaces (009) |
+| v0.2 | Politique de flux (010), registre de flux (011) — spécifiés avant de figer le noyau |
+| v0.3 | Passerelles, routes, NAT |
+| ensuite | Atteignabilité, connecteur de la source historique, CLI, TUI, MCP |
+
+## Glossaire
+
+| Terme | Définition |
+|---|---|
+| Entité | Organisation propriétaire (groupe, filiale, prestataire…), en arbre. Ancre RBAC. |
+| Site | Emplacement (région, site, bâtiment…), en arbre. Ancre RBAC. |
+| Domaine d'adressage | Espace où une adresse est unique (VRF, espace de routage). Toute donnée d'adressage y appartient. |
+| Préfixe | Bloc CIDR d'un domaine ; soit **conteneur**, soit **réseau**. |
+| Conteneur | Préfixe qui ne contient que des préfixes (agrégat, supernet). |
+| Réseau | Préfixe de niveau 3 qui contient plages et adresses ; feuille de l'arbre des préfixes. |
+| Plage | Intervalle d'adresses d'un réseau, avec un usage (DHCP, réservée, statique). |
+| Adresse | Adresse IP d'un réseau, avec un usage (hôte, passerelle, VIP, anycast, réservée). |
+| Famille d'adresses | Implémentation d'un protocole d'adressage (IPv4, IPv6) : analyse, forme canonique, arithmétique, registre à usage spécial. |
+| Slug | Identifiant technique lisible et unique d'une entité, d'un site ou d'un domaine ; pas un nom affiché. |
+| Propriété | Attribut typé attaché à un objet, déclaré par un module ou un administrateur, éventuellement héritable. |
+| Affectation | Valeur posée explicitement sur un objet pour une propriété (y compris « aucune valeur »). |
+| Valeur résolue | Valeur effective d'une propriété pour un objet à une date (affectation propre, sinon héritée). |
+| Changeset | Ensemble d'opérations d'écriture validé puis appliqué atomiquement ; unité d'audit, d'approbation et d'événement. |
+| Différentiel | Objets existants dont une valeur résolue change du fait d'un changeset. |
+| Temps applicatif (`valid_at`) | Période où un fait est vrai dans le réseau réel ; fournie par l'utilisateur. |
+| Temps système (`as_of`) | Période où kartenn a affirmé ce fait ; fixée par la base, immuable. |
+| Anomalie | Résultat d'une règle d'avertissement : écriture acceptée, signalement consultable et acquittable. |
+| Module | Paquet compilé qui ajoute objets, propriétés, règles, permissions, routes et vues. |
+| Plugin UI | Extension du shell Web chargée à l'exécution (Web Component). |
+| Connecteur | Processus externe qui importe ou synchronise des données via l'API. |
+
+## Index
+
+| Document | Contenu |
+|---|---|
+| [architecture.md](architecture.md) | Composants, pipeline d'écriture, modules, déploiement |
+| [interfaces.md](interfaces.md) | API REST, authentification, SDK de plugins, connecteurs, configuration |
+| [data.md](data.md) | Modèle de données, bitemporel, propriétés, stockage PostgreSQL |
+| [invariants.md](invariants.md) | Propriétés qui doivent toujours tenir, et comment elles sont garanties |
+| [`../adr/`](../adr/) | Architecture Decision Records |
+| [`../../specs/`](../../specs/) | Specs de fonctionnalités et journaux de décisions |
+| [`../reference/`](../reference/README.md) | Notes de lecture des sources primaires |
+| [`../practices/`](../practices/) | Bonnes pratiques |
+
+## Décisions
+
+| ADR | Titre | Statut |
+|---|---|---|
+| [0001](../adr/0001-architecture-hexagonale-modulaire.md) | Architecture hexagonale, modularité par couche | accepted |
+| [0002](../adr/0002-rest-frontiere-publique-unique.md) | L'API REST, seule frontière publique | accepted |
+| [0003](../adr/0003-rust-backend.md) | Rust pour le backend | accepted |
+| [0004](../adr/0004-postgresql-18.md) | PostgreSQL ≥ 18 comme premier adaptateur de stockage | accepted |
+| [0005](../adr/0005-bitemporel.md) | Modèle bitemporel natif | accepted |
+| [0006](../adr/0006-changesets.md) | Toute écriture passe par un changeset | accepted |
+| [0007](../adr/0007-domaines-arbre-deduit.md) | Domaines d'adressage et arbre de préfixes déduit | accepted |
+| [0008](../adr/0008-noyau-minimal-proprietes.md) | Noyau minimal et propriétés typées | accepted |
+| [0009](../adr/0009-authentification.md) | OIDC multi-émetteurs et Basic Auth | accepted |
+| [0010](../adr/0010-rbac.md) | RBAC composable, par périmètre et par propriété | accepted |
+| [0011](../adr/0011-frontend-web-components.md) | Shell Vue 3 et plugins Web Components | accepted |
+| [0012](../adr/0012-instances-sans-etat.md) | Instances sans état, base comme point de cohérence | accepted |
+| [0013](../adr/0013-licence-agpl.md) | Licence AGPL-3.0 | accepted |
+
+## Questions ouvertes
+
+- Q-ouv-1 à Q-ouv-7 de [`001-cadrage`](../../specs/001-cadrage/decisions.md#questions-ouvertes)
+  (licence du SDK, volumétrie réelle, critères d'inférence, stockage IPv8, identités
+  multi-émetteurs, langue, versionnement d'API).
+- Implémentation du temps système : table courante + historique, ou table unique
+  (ADR à venir, spec 004).
+- Entité propriétaire : propriété du noyau ou cas particulier (conception 002/003).
