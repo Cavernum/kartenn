@@ -128,6 +128,7 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Besoin : les référentiels actuels ne permettent pas d'y intégrer des vérifications de sécurité. Sous forme de module, il faut pouvoir : (1) **classer** les éléments réseau (environnement : sandbox, recette, production…) ; (2) déclarer une **matrice de flux** (quelles classes peuvent communiquer, avec quelles catégories de flux, par exemple « administration » = SSH, RDP) ; (3) **répondre à des questions** du type « la machine A (prod) peut-elle ouvrir un flux d'administration vers la machine B (dev) selon la matrice ? ».
 - Impact sur le noyau (porte à sens unique) : il faut un mécanisme de **classification typée attachable à tout objet, avec héritage** (entité → site → domaine → préfixe → adresse → machine), résolu à une date donnée (bitemporel). Sans cela, le module sécurité serait impossible ou dupliquerait le modèle. C'est le point B « tags et attributs » remonté en A.
 - Statut : à approfondir (D20 et suivantes).
+- Amendé par 002/A10 : les propriétés sont **typées** (liste fermée, texte, FQDN…), validées par le module qui les déclare, héritables ou non ; tout attribut descriptif du noyau devient une propriété.
 
 ## D20 — Sens de « peut communiquer »
 - Décision : **étape 1, conformité à la politique** : résolution des classifications héritées de A et de B, consultation de la matrice, et réponse expliquée (règle appliquée, chaîne d'héritage). **Étape 2, module ultérieur : atteignabilité effective** (routes, NAT, pare-feu) confrontée à la politique.

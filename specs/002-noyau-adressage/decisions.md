@@ -62,7 +62,7 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
 ## A5 — Usage plutôt que statut
 - Décision : aucun statut temporel (planifiée, active, dépréciée…) : la période de
   validité (D10) est la seule source de vérité sur le temps. Une adresse porte un
-  **usage** en liste fermée : hôte, passerelle, VIP ou anycast, réservée. Une plage porte
+  **usage** en liste fermée : hôte, passerelle, VIP, anycast, réservée (scindé par A11). Une plage porte
   un usage : DHCP, réservée, statique. Les usages alimentent des validations (une
   adresse réservée ne peut pas être attachée à une interface, module 009).
 - Une adresse reste **unique dans son domaine** (A3 pour le public) : le partage d'une
@@ -72,7 +72,7 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
   aucun attribut.
 - Décidé par : recommandation acceptée
 
-## A6 — Nom DNS des adresses
+## A6 — Nom DNS des adresses (remplacée par A10)
 - Décision : champ optionnel `dns_name` sur l'adresse, validé strictement : nom d'hôte
   LDH (RFC 1123 §2.1), labels de 63 caractères au plus, 253 au total, forme canonique
   en minuscules sans point final, noms internationalisés stockés en A-label. Pas
@@ -120,3 +120,33 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
 - Rejeté : UUID seul (imports et CLI illisibles), clés naturelles seules (renommer ou
   corriger change l'identité, casse l'historique).
 - Décidé par : recommandation acceptée
+
+## A10 — Noyau minimal : pas d'attribut d'interprétation
+- Décision : un attribut n'entre dans le noyau que si un **invariant du noyau** ou une
+  **ancre du RBAC** en dépend. Tout attribut dont le sens dépend de l'interprétation
+  (nom affiché, FQDN, description, coordonnées…) est une **propriété** (spec 003).
+  Objets du noyau : entité (slug, parent), site (slug, parent), domaine (slug, entité),
+  préfixe (domaine, valeur, nature, point à point, entité, site), plage (domaine, bornes,
+  usage), adresse (domaine, valeur, usage), plus UUID et période de validité.
+- Pourquoi (utilisateur) : le « vrai » nom d'un objet n'existe pas : un nom mémorisable,
+  un FQDN technique ou autre selon le lecteur. Le noyau reste petit, les modules y
+  attachent leurs propriétés.
+- Conséquences :
+  - **remplace A6** : `dns_name` sort du noyau (REQ-002-30 retirée) ;
+  - **amende A9** : le slug est conservé, requalifié en **identifiant technique**
+    (`[a-z0-9-]`, unique par type, modifiable), pas en nom affiché ;
+  - **élargit D19 et la spec 003** : les propriétés deviennent **typées** (liste fermée,
+    texte, FQDN…), validées par le module qui les déclare (validation stricte, D1), et
+    **héritables ou non** (un environnement s'hérite, un FQDN non). Les règles
+    d'inférence (D24) filtrent sur ces propriétés.
+- Rejeté : UUID seul pour les ancres (imports, CLI et RBAC illisibles).
+- Décidé par : l'utilisateur (principe), recommandation acceptée (critère, slug)
+
+## A11 — Anycast
+- Décision : l'usage d'adresse « VIP ou anycast » est scindé en **VIP** et **anycast**.
+  Une adresse publique d'usage anycast peut figurer dans plusieurs domaines si toutes
+  ses occurrences sont anycast ; un avertissement liste les autres domaines. Ne
+  s'applique qu'aux adresses, jamais aux réseaux.
+- Pourquoi : mécanisme minimal, sans nouveau type d'objet.
+- Rejeté : déclaration séparée liant les occurrences (nouvel objet pour un cas rare).
+- Décidé par : délégué (l'utilisateur ne savait pas)

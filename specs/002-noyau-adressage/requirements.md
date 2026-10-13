@@ -121,11 +121,11 @@ Acceptation :
 ### C. Domaines d'adressage
 
 #### REQ-002-11 — Domaine et propriétaire
-kartenn doit exiger que chaque domaine d'adressage ait un slug unique et une entité
+kartenn doit exiger que chaque domaine d'adressage ait un slug (REQ-002-47) et une entité
 propriétaire.
 
 Acceptation :
-- Créer un domaine sans entité est refusé ; deux domaines de même slug sont refusés.
+- Créer un domaine sans entité est refusé.
 
 #### REQ-002-12 — Appartenance au domaine
 kartenn doit exiger que chaque préfixe, plage et adresse appartienne à exactement un
@@ -238,8 +238,8 @@ Si deux adresses d'un même domaine ont la même valeur sur une période commune
 kartenn doit refuser l'écriture.
 
 #### REQ-002-27 — Usage d'adresse
-kartenn doit exiger qu'une adresse porte un usage parmi hôte, passerelle, VIP/anycast et
-réservée (A5).
+kartenn doit exiger qu'une adresse porte un usage parmi hôte, passerelle, VIP, anycast et
+réservée (A5, A11).
 
 #### REQ-002-28 — Adresses et plages
 Si une adresse est déclarée dans une plage DHCP sans l'usage « réservée », ou dans une
@@ -260,16 +260,10 @@ Acceptation :
 - `10.1.2.0` et `10.1.2.255` dans `10.1.2.0/24` refusées ; `2001:db8:1::` dans
   `2001:db8:1::/64` refusée ; `2001:db8:1::` dans un `/127` point à point acceptée.
 
-#### REQ-002-30 — Nom DNS
-Là où une adresse porte un `dns_name`, kartenn doit le valider comme nom d'hôte
-(RFC 1123 §2.1 : lettres, chiffres, tirets, labels de 1 à 63 caractères ne commençant ni
-ne finissant par un tiret, 253 caractères au plus), le stocker en minuscules sans point
-final, et convertir un nom internationalisé en A-label (A6).
-
-Acceptation :
-- `Srv-01.Example.ORG.` stocké `srv-01.example.org` ; `-srv.example.org`, `srv_01.example.org`
-  et un label de 64 caractères refusés ; `café.example` stocké `xn--caf-dma.example`.
-- Même nom sur deux adresses du domaine : accepté avec un avertissement.
+#### ~~REQ-002-30 — Nom DNS~~
+Retirée (A10) : le nom DNS est une propriété d'interprétation, hors du noyau. Elle sera
+déclarée comme propriété typée « FQDN » (spec 003) par le module qui en a besoin, avec
+la même validation (RFC 1123 §2.1, A-label, minuscules sans point final).
 
 #### REQ-002-31 — Pas d'IPv4-mapped
 Si un préfixe ou une adresse IPv6 appartient à `::ffff:0:0/96`, alors kartenn doit
@@ -280,14 +274,22 @@ refuser l'écriture en indiquant l'adresse IPv4 équivalente (A4).
 #### REQ-002-32 — Public unique entre domaines
 Si deux réseaux, plages ou adresses de domaines différents se chevauchent sur une période
 commune dans l'espace public (aucune entrée du registre à usage spécial, ou entrée
-« Globally Reachable »), alors kartenn doit refuser l'écriture, sauf exception anycast
-déclarée (A3).
+« Globally Reachable »), alors kartenn doit refuser l'écriture (A3), sauf entre adresses
+d'usage « anycast » (A11).
 
 Acceptation :
 - `198.51.100.0/24` est de la documentation, donc non concerné ; un même bloc public
   réseau dans les domaines A et B est refusé ; un même bloc RFC 1918 dans A et B est accepté.
-- Une adresse VIP/anycast marquée « exception anycast » avec un motif est acceptée dans
-  plusieurs domaines.
+
+#### REQ-002-46 — Anycast entre domaines
+Quand une adresse publique d'usage « anycast » est présente dans plusieurs domaines sur
+une période commune, kartenn doit accepter l'écriture si toutes ces occurrences sont
+d'usage « anycast », et renvoyer un avertissement qui liste les autres domaines (A11).
+
+Acceptation :
+- Soit P une adresse publique : P anycast dans A et anycast dans B → accepté avec
+  avertissement ; P anycast dans A et hôte dans B → refusé ; un **réseau** public dupliqué reste refusé même s'il ne contient
+  que des adresses anycast.
 
 ### H. Classification et anomalies
 
@@ -311,8 +313,8 @@ Acceptation :
 #### REQ-002-35 — Avertissements
 Quand une écriture produit un cas listé en avertissement par A4 (bloc de documentation,
 100.64.0.0/10, réseau IPv6 plus long qu'un /64 hors point à point, ULA au Global ID non
-aléatoire, nom DNS en double), kartenn doit accepter l'écriture et renvoyer une anomalie
-qui cite l'identifiant de la règle et l'objet.
+aléatoire, adresse anycast présente dans plusieurs domaines), kartenn doit accepter
+l'écriture et renvoyer une anomalie qui cite l'identifiant de la règle et l'objet.
 
 #### REQ-002-36 — Anomalies consultables et acquittables
 kartenn doit permettre de lister les anomalies en cours (par domaine, entité, règle) et
@@ -351,7 +353,31 @@ par source.
 Acceptation :
 - Deux objets ne peuvent pas porter le même identifiant externe pour une même source.
 
-### K. Lecture et performance
+#### REQ-002-47 — Slug, identifiant technique
+kartenn doit exiger pour chaque entité, site et domaine un slug : identifiant technique
+(pas un nom affiché) de 1 à 63 caractères `[a-z0-9-]`, ne commençant ni ne finissant par
+un tiret, unique par type d'objet à tout instant. Un slug peut être modifié ; l'identité
+reste l'UUID (A9, A10).
+
+Acceptation :
+- `siege-paris` accepté ; `Siège`, `-x`, `a_b` refusés ; deux domaines `prod` valides sur
+  une même période refusés ; renommer `prod` en `prod-eu` conserve l'UUID et l'historique.
+
+### K. Périmètre du noyau
+
+#### REQ-002-48 — Noyau sans attribut d'interprétation
+kartenn ne doit porter dans les objets du noyau que les attributs dont dépend un invariant
+du noyau ou une ancre du RBAC (A10) ; tout attribut descriptif (nom affiché, FQDN,
+description, commentaire, coordonnées…) doit être une propriété (spec 003).
+
+Acceptation :
+- Revue de conception : chaque attribut du noyau est justifié par l'exigence qui
+  l'utilise (table de traçabilité dans `design.md`).
+- Les objets du noyau sont : entité (slug, parent), site (slug, parent), domaine (slug,
+  entité), préfixe (domaine, valeur, nature, point à point, entité, site), plage (domaine,
+  bornes, usage), adresse (domaine, valeur, usage), plus UUID et période de validité.
+
+### L. Lecture et performance
 
 #### REQ-002-42 — Navigation dans l'arbre
 kartenn doit restituer, pour un préfixe, ses enfants directs et ses ancêtres à un instant
@@ -387,7 +413,8 @@ Acceptation :
 - Familles autres qu'IPv4 et IPv6 (IPv8 : seul le contrat doit le permettre, REQ-002-1).
 - Changesets, bitemporel et API (specs 004 et 006) : la 002 n'en décrit que les règles de
   validité.
-- Propriétés héritables génériques et environnements (003, v0.2).
+- Propriétés (typées, héritables ou non) et environnements (003, v0.2), y compris tous
+  les attributs descriptifs : noms affichés, FQDN, descriptions (A10).
 - VLAN, machines, interfaces (008, 009), DNS (module futur), DHCP (module futur),
   passerelles, routes et NAT (v0.3).
 - Masques non contigus et notation `adresse masque`.
@@ -399,10 +426,10 @@ Acceptation :
   (conception 002/003, Claude)
 - [ ] Critère précis de « Global ID ULA manifestement non aléatoire » (REQ-002-35) :
   zéros, motifs répétés, séquence ? (conception, Claude)
-- [ ] L'exception anycast (REQ-002-32) est-elle portée par l'adresse ou par une
-  déclaration séparée liant les objets concernés ? (conception, utilisateur)
-- [ ] Note de référence sur les noms DNS (RFC 1123, 1035, 5890–5891) à rédiger avant la
-  conception, pour confirmer REQ-002-30. (Claude)
-- [ ] Les niveaux et attributs des sites (adresse postale, coordonnées) relèvent du module
-  de détail physique (D12) : confirmer que le noyau ne porte que nom, slug et parent.
-  (utilisateur)
+- [ ] Dépendance : la spec 003 doit offrir des propriétés **typées** (liste fermée, texte,
+  FQDN…), validées par le module qui les déclare, héritables ou non (A10). À vérifier
+  quand la 003 sera rédigée. (Claude)
+- [x] ~~Exception anycast~~ : tranchée par A11 (usage « anycast » sur l'adresse).
+- [x] ~~Attributs des sites~~ : tranché par A10 (slug et parent seulement).
+- [x] ~~Note de référence sur les noms DNS~~ : sans objet pour la 002 (REQ-002-30
+  retirée) ; à rédiger pour la spec 003.
