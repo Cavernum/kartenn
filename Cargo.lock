@@ -5,15 +5,31 @@ version = 4
 [[package]]
 name = "kartenn-core"
 version = "0.0.0"
+dependencies = [
+ "kartenn-workspace-hack",
+]
 
 [[package]]
 name = "kartenn-server"
 version = "0.0.0"
+dependencies = [
+ "kartenn-workspace-hack",
+]
 
 [[package]]
 name = "kartenn-service"
 version = "0.0.0"
+dependencies = [
+ "kartenn-workspace-hack",
+]
 
 [[package]]
 name = "kartenn-store-pg"
 version = "0.0.0"
+dependencies = [
+ "kartenn-workspace-hack",
+]
+
+[[package]]
+name = "kartenn-workspace-hack"
+version = "0.1.0"

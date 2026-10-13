@@ -15,7 +15,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   (dépendances optimisées en dev, `profiling`, release), `Cargo.lock` versionné,
   `rust-toolchain` non figé (nixpkgs) — prépare tout — verify : `cargo build --workspace`,
   `cargo clippy --workspace -- -D warnings`, `devenv test`
-- [ ] 2. cargo-hakari : crate `kartenn-workspace-hack`, `.config/hakari.toml`, vérification
+- [x] 2. cargo-hakari : crate `kartenn-workspace-hack`, `.config/hakari.toml`, vérification
   dans `devenv test` (`cargo hakari generate --diff`, `manage-deps --dry-run`) — verify :
   `devenv test`
 - [ ] 3. Base de test PostgreSQL : harnais d'intégration (une base jetable par test, via le

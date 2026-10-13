@@ -11,6 +11,14 @@
     # `packages`.
   };
 
+  # Workspace tooling (docs/practices/rust-build.md): feature unification,
+  # sqlx offline metadata, per-process test runner.
+  packages = [
+    pkgs.cargo-hakari
+    pkgs.sqlx-cli
+    pkgs.cargo-nextest
+  ];
+
   # Frontend (D17): Vue 3 + TypeScript shell and plugin SDK under web/.
   languages.javascript = {
     enable = true;
@@ -42,6 +50,8 @@
   enterTest = ''
     # No application code yet: the workspace appears with the first crate.
     if [ -f Cargo.toml ]; then
+      cargo hakari generate --diff
+      cargo hakari manage-deps --dry-run
       cargo test --workspace --all-targets
     fi
     postgres --version

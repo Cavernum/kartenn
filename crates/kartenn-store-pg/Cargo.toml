@@ -9,3 +9,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
