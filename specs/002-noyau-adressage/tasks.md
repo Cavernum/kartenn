@@ -21,7 +21,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 3. Base de test PostgreSQL : harnais d'intégration (une base jetable par test, via le
   PostgreSQL de devenv), extension btree_gist, rôle applicatif sans droits d'administration
   — verify : un test d'intégration trivial passe
-- [ ] 4. sqlx : dépendance, mode hors ligne (`.sqlx/` versionné, `SQLX_OFFLINE`),
+- [x] 4. sqlx : dépendance, mode hors ligne (`.sqlx/` versionné, `SQLX_OFFLINE`),
   `cargo sqlx prepare --check` dans `devenv test` — verify : `devenv test`
 
 ## P1 — Prototypes de risque

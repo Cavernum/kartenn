@@ -50,6 +50,18 @@
   # sqlx (compile-time checks, #[sqlx::test]) and integration tests use the local
   # server; #[sqlx::test] creates a throwaway database per test.
   env.DATABASE_URL = "postgres://kartenn@127.0.0.1:5432/kartenn";
+  # Builds never need the database: sqlx macros read the versioned .sqlx/ metadata
+  # (docs/practices/rust-build.md §2.3). Refresh it with `db-prepare`.
+  env.SQLX_OFFLINE = "true";
+
+  scripts.db-prepare = {
+    description = "Migrate the development database and refresh the sqlx offline metadata";
+    exec = ''
+      set -euo pipefail
+      sqlx migrate run --source crates/kartenn-store-pg/migrations
+      cargo sqlx prepare --workspace -- --all-targets
+    '';
+  };
 
   git-hooks.hooks = {
     # Generic hygiene, every project.
@@ -69,6 +81,8 @@
     if [ -f Cargo.toml ]; then
       cargo hakari generate --diff
       cargo hakari manage-deps --dry-run
+      sqlx migrate run --source crates/kartenn-store-pg/migrations
+      cargo sqlx prepare --workspace --check -- --all-targets
       cargo test --workspace --all-targets
     fi
     postgres --version

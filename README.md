@@ -39,9 +39,16 @@ Point d'entrée : [`specs/001-cadrage/decisions.md`](specs/001-cadrage/decisions
 
 ```sh
 devenv shell   # outils
-devenv up      # PostgreSQL local (base « kartenn »)
-devenv test    # tests et hooks
+devenv up -d   # PostgreSQL local en arrière-plan (base « kartenn », rôles kartenn et kartenn_app)
+db-prepare     # migre la base de dev et régénère les métadonnées sqlx (.sqlx/)
+devenv test    # hooks, hakari, sqlx --check, tests (lance son propre PostgreSQL : arrêter
+               # d'abord celui de `devenv up` avec `devenv processes down`)
 ```
+
+Les builds n'ont jamais besoin de la base (`SQLX_OFFLINE=true`) : après avoir modifié une
+requête SQL vérifiée, lancer `db-prepare` et versionner `.sqlx/`. Après une modification
+de l'initialisation PostgreSQL dans `devenv.nix`, supprimer `.devenv/state/postgres` et
+`.devenv/test-state/postgres` pour la rejouer.
 
 ## Licence
 
