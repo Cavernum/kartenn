@@ -1,0 +1,36 @@
+---
+status: proposed
+date: 2026-10-14
+---
+
+# 0015 — Sérialisation des écritures par domaine d'adressage
+
+## Context
+
+Les règles globales du noyau (doublons, chevauchements, appartenance à un réseau,
+unicité publique) décident en lisant l'état. Sans précaution, deux changesets
+concurrents valides séparément produiraient ensemble une incohérence (INV-2, INV-5,
+INV-6). Toutes ne sont pas exprimables en contraintes PostgreSQL (un réseau est une
+feuille, unicité publique entre réseaux). Volume visé : 50 écritures/s soutenues (D14).
+
+## Decision
+
+Un changeset prend, dans sa transaction et dans un ordre déterministe, un verrou
+consultatif (`pg_advisory_xact_lock`) par domaine d'adressage touché, plus un verrou
+« espace public » s'il écrit un objet public. Les contraintes d'exclusion restent le
+dernier rempart. Les lectures ne prennent aucun verrou.
+
+## Alternatives
+
+- Isolation SERIALIZABLE : correcte sans verrou explicite, mais échecs de sérialisation
+  à rejouer et coût difficile à prévoir sur des prédicats d'inclusion. À réévaluer si
+  les verrous deviennent un goulet.
+- Contraintes en base seules : ne couvrent pas tous les invariants.
+
+## Consequences
+
+- Les écritures d'un même domaine sont sérialisées ; des domaines distincts écrivent en
+  parallèle, sauf dans l'espace public.
+- Un import massif dans un domaine bloque les autres écritures de ce domaine pendant
+  sa transaction : les imports doivent être découpés en changesets de taille bornée
+  (spec 004).
