@@ -2,3 +2,4 @@
 
 pub mod addr;
 pub mod family;
+pub mod registry;
