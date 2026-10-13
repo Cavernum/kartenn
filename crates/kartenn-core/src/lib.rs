@@ -5,6 +5,7 @@ pub mod family;
 pub mod inheritance;
 pub mod objects;
 pub mod occupancy;
+pub mod period;
 pub mod properties;
 pub mod registry;
 pub mod rules;

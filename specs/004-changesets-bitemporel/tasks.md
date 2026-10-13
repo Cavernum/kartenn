@@ -18,9 +18,9 @@ voir [`../README.md`](../README.md).
 
 ## P2 — Domaine pur
 
-- [ ] 2. Périodes `[début, fin)`, validation, soustraction (0, 1 ou 2 morceaux), fusion
+- [x] 2. Périodes `[début, fin)`, validation, soustraction (0, 1 ou 2 morceaux), fusion
   des segments adjacents — REQ-004-13 — verify : tests de propriétés
-- [ ] 3. Découpage « FOR PORTION OF » et clôture sur un modèle en mémoire (référence pour
+- [x] 3. Découpage « FOR PORTION OF » et clôture sur un modèle en mémoire (référence pour
   les tests d'intégration) — REQ-004-14, 15 — verify : tests de propriétés sur des suites
   aléatoires d'opérations
 
