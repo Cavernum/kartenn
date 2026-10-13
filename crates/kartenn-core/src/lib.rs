@@ -2,6 +2,7 @@
 
 pub mod addr;
 pub mod family;
+pub mod inheritance;
 pub mod objects;
 pub mod occupancy;
 pub mod properties;

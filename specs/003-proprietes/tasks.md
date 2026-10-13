@@ -29,7 +29,7 @@ voir [`../README.md`](../README.md).
 - [x] 4. Déclarations : descripteurs de module, clés et espaces, porteurs, héritage,
   obligations ; vérificateur de compatibilité (un cas par ligne du tableau) —
   REQ-003-1 à 6 — verify : tests unitaires
-- [ ] 5. Trait `InheritanceTree` et arbres `entity`, `site`, `addressing` (ancêtres en
+- [x] 5. Trait `InheritanceTree` et arbres `entity`, `site`, `addressing` (ancêtres en
   pur) ; résolveur naïf de référence (oracle) — REQ-003-11 à 14 — verify : tests
   unitaires de l'oracle sur des arbres construits à la main
 
