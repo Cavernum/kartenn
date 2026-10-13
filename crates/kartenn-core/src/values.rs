@@ -312,6 +312,33 @@ impl ValueType for RefType {
     }
 }
 
+/// Host name (`fqdn`), RFC 1123 §2.1 with IDNA (REQ-003-8): UTS #46 non-transitional
+/// processing with STD3 rules, hyphen checks and DNS length checks; stored as A-labels,
+/// lowercase, without trailing dot. Fake A-labels and dotted-decimal IPv4 forms are refused
+/// (`docs/reference/noms-dates-texte.md`).
+#[derive(Debug, Clone, Copy)]
+pub struct FqdnType;
+
+impl ValueType for FqdnType {
+    fn id(&self) -> &'static str {
+        "fqdn"
+    }
+
+    fn parse(&self, raw: &Raw, _ctx: &dyn ValueContext) -> Result<Scalar, String> {
+        let text = expect_text(raw, self.id())?;
+        let name = text.strip_suffix('.').unwrap_or(text);
+        let ascii = idna::domain_to_ascii_strict(name).map_err(|_| {
+            format!("{text:?} is not a valid host name (RFC 1123, IDNA2008 / UTS #46)")
+        })?;
+        if crate::addr::Addr::parse(crate::family::IPV4, &ascii).is_ok() {
+            return Err(format!(
+                "{text:?} is an IPv4 address, not a host name (RFC 1123 §2.1)"
+            ));
+        }
+        Ok(Scalar::Text(ascii))
+    }
+}
+
 /// Parses a value of the given cardinality (REQ-003-9): a set is sorted and deduplicated.
 ///
 /// # Errors
@@ -486,6 +513,54 @@ pub(crate) mod tests {
                 &c
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn host_names() {
+        // REQ-003-8 acceptance and the cases of the reference note.
+        let ok = |t: &str| FqdnType.parse(&text(t), &ctx());
+        assert_eq!(
+            ok("Srv-01.Example.ORG."),
+            Ok(Scalar::Text("srv-01.example.org".into()))
+        );
+        assert_eq!(
+            ok("café.example"),
+            Ok(Scalar::Text("xn--caf-dma.example".into()))
+        );
+        assert_eq!(
+            ok("straße.example"),
+            Ok(Scalar::Text("xn--strae-oqa.example".into())),
+            "non-transitional"
+        );
+        assert_eq!(
+            ok("1password.com"),
+            Ok(Scalar::Text("1password.com".into())),
+            "leading digit allowed"
+        );
+        assert!(ok(&format!("{}.example", "a".repeat(63))).is_ok());
+        for bad in [
+            "srv_01.example.org",
+            "-srv.example.org",
+            "srv-.example",
+            "ab--cd.example",
+            "xn--a.example",
+            "xn--zz-.example",
+            "a..b",
+            "",
+            ".",
+            "exa mple.org",
+            "10.1.2.3",
+        ] {
+            assert!(ok(bad).is_err(), "{bad:?} must be refused");
+        }
+        assert!(
+            ok(&format!("{}.example", "a".repeat(64))).is_err(),
+            "label over 63"
+        );
+        assert!(
+            ok(&format!("{}.example", ["abcdefghij"; 25].join("."))).is_err(),
+            "name over 253"
         );
     }
 

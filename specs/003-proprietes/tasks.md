@@ -22,7 +22,7 @@ voir [`../README.md`](../README.md).
 - [x] 2. Trait `ValueType`, types intégrés `enum`, `text` (NFC, contrôle, regex),
   `int`, `bool`, `date` (RFC 3339), `ref` ; ensembles triés et dédoublonnés —
   REQ-003-7, 8, 9 — verify : tests unitaires et de propriétés (normalisation idempotente)
-- [ ] 3. Type `fqdn` (crate `idna`, UTS #46 non transitional, STD3, CheckHyphens,
+- [x] 3. Type `fqdn` (crate `idna`, UTS #46 non transitional, STD3, CheckHyphens,
   longueurs, Fake A-labels, forme IPv4) avec les cas de la
   [note](../../docs/reference/noms-dates-texte.md) — REQ-003-8 — verify : tests
   (`straße.example`, `café.example`, `xn--` invalide, `10.1.2.3`)
