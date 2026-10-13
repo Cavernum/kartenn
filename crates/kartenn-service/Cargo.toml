@@ -1,0 +1,11 @@
+[package]
+name = "kartenn-service"
+version = "0.0.0"
+description = "Use cases and the changeset write pipeline of kartenn"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

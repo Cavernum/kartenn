@@ -1,0 +1,11 @@
+[package]
+name = "kartenn-store-pg"
+version = "0.0.0"
+description = "PostgreSQL storage adapter of kartenn"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

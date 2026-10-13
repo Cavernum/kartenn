@@ -1,0 +1,11 @@
+[package]
+name = "kartenn-core"
+version = "0.0.0"
+description = "Domain core of kartenn: address families, core objects, validation rules, properties"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

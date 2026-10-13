@@ -10,7 +10,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 
 ## P0 — Fondations
 
-- [ ] 1. Workspace Cargo : crates vides `kartenn-core`, `kartenn-service`,
+- [x] 1. Workspace Cargo : crates vides `kartenn-core`, `kartenn-service`,
   `kartenn-store-pg`, `kartenn-server`, profils de [rust-build](../../docs/practices/rust-build.md)
   (dépendances optimisées en dev, `profiling`, release), `Cargo.lock` versionné,
   `rust-toolchain` non figé (nixpkgs) — prépare tout — verify : `cargo build --workspace`,

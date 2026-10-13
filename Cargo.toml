@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints that fight the domain vocabulary or add noise without value here.
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+# docs/practices/rust-build.md §2.1: optimise dependencies, keep workspace members fast to rebuild.
+[profile.dev.package."*"]
+opt-level = 2
+
+# docs/practices/rust-build.md §2.2: sqlx query macros run much faster when optimised.
+[profile.dev.package.sqlx-macros]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# docs/practices/rust-build.md §2.6: optimised build with line tables for benches and profiling.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
