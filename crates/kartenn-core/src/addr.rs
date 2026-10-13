@@ -399,6 +399,15 @@ impl Prefix {
         })
     }
 
+    /// The full-length prefix of a single address (`/32` in IPv4, `/128` in IPv6).
+    #[must_use]
+    pub fn host(addr: Addr) -> Self {
+        Self {
+            network: addr,
+            len: addr.family.width(),
+        }
+    }
+
     /// The prefix of length `len` that contains `addr` (host bits cleared).
     ///
     /// # Errors

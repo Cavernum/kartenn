@@ -248,3 +248,31 @@ pub mod test64 {
         }
     }
 }
+
+/// Blocks whose addresses are never assigned to a host, whatever the network
+/// (REQ-002-29): unspecified, loopback, "this network", reserved, limited broadcast and
+/// multicast. Network, broadcast and zero-IID addresses depend on the network and are
+/// checked separately.
+#[must_use]
+pub fn intrinsically_unassignable(family: Family) -> &'static [crate::addr::Prefix] {
+    use std::sync::LazyLock;
+    static V4: LazyLock<Vec<crate::addr::Prefix>> = LazyLock::new(|| {
+        ["0.0.0.0/8", "127.0.0.0/8", "224.0.0.0/4", "240.0.0.0/4"]
+            .iter()
+            .map(|p| crate::addr::Prefix::parse(IPV4, p).expect("literal IPv4 prefix"))
+            .collect()
+    });
+    static V6: LazyLock<Vec<crate::addr::Prefix>> = LazyLock::new(|| {
+        ["::/128", "::1/128", "ff00::/8"]
+            .iter()
+            .map(|p| crate::addr::Prefix::parse(IPV6, p).expect("literal IPv6 prefix"))
+            .collect()
+    });
+    if family == IPV4 {
+        &V4
+    } else if family == IPV6 {
+        &V6
+    } else {
+        &[]
+    }
+}

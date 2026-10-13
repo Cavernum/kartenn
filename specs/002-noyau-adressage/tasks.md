@@ -56,7 +56,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 12. Cadre des règles : identifiant stable, sévérité, source, exigences ; catalogue
   généré (Markdown) — REQ-002-37 — verify : test qui compare le catalogue généré au
   fichier versionné
-- [ ] 13. Objets du noyau et règles locales : slugs, nature, point à point, bornes de
+- [x] 13. Objets du noyau et règles locales : slugs, nature, point à point, bornes de
   plage, usages, adresses non attribuables, IPv4-mapped, heuristique ULA, documentation,
   espace partagé, IPv6 > /64 — REQ-002-13, 19, 21, 23, 24, 27, 29, 31, 35, 47, 48 — verify :
   un test valide et un test refusé par règle

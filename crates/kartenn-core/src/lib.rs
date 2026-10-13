@@ -2,5 +2,6 @@
 
 pub mod addr;
 pub mod family;
+pub mod objects;
 pub mod registry;
 pub mod rules;
