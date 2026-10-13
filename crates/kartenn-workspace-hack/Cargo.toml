@@ -18,15 +18,18 @@ publish = false
 [dependencies]
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["std"] }
+rand = { version = "0.10" }
 sha2 = { version = "0.10" }
 smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }
+uuid = { version = "1", features = ["v7"] }
 
 [build-dependencies]
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["std"] }
+rand = { version = "0.10" }
 sha2 = { version = "0.10" }
 smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
@@ -34,5 +37,12 @@ syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-trai
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", default-features = false, features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit-mut"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }
+uuid = { version = "1", features = ["v7"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+libc = { version = "0.2" }
+
+[target.x86_64-unknown-linux-gnu.build-dependencies]
+libc = { version = "0.2" }
 
 ### END HAKARI SECTION
