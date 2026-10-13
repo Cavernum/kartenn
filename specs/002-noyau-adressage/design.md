@@ -319,9 +319,8 @@ découpage courant/historique relèvent de la 004.
 - **Couplage avec 003 et 004** : la 002 ne peut être livrée seule ; les tâches
   imbriquent les trois specs. Risque de dérive : chaque tâche cite ses REQ.
 - **Type `inetrange`** : la combinaison de btree_gist (uuid), d'un intervalle d'adresses
-  et d'un intervalle de temps dans un même GiST est **prouvée** par le prototype 001. Repli
-  devenu inutile :
-  vérification applicative sous verrou de domaine seulement.
+  et d'un intervalle de temps dans un même GiST est **prouvée** par le prototype 001 ; le
+  repli (vérification applicative seule, sous verrou de domaine) n'est plus nécessaire.
 - **Registre IANA** : une mise à jour peut faire basculer des objets en « public » et
   créer des conflits a posteriori ; traité par migration et anomalies.
 - **Comportement de `std::net`** : une évolution future de la bibliothèque standard

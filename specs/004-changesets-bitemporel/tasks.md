@@ -10,7 +10,7 @@ voir [`../README.md`](../README.md).
 
 ## P1 — Prototype de risque
 
-- [ ] 1. **Prototype temps système** (`docs/spikes/004-historique.md`) : paire de tables
+- [x] 1. **Prototype temps système** (`docs/spikes/004-historique.md`) : paire de tables
   courante + historique avec le déclencheur générique, sur le jeu de 002-5 et 3 ans
   d'historique simulé : lecture courante vs `as_of` passé (≤ ×2), coût du déclencheur sur
   une mise à jour de 10⁵ lignes, partitionnement mensuel de l'historique — REQ-004-16,
