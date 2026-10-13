@@ -60,7 +60,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   plage, usages, adresses non attribuables, IPv4-mapped, heuristique ULA, documentation,
   espace partagé, IPv6 > /64 — REQ-002-13, 19, 21, 23, 24, 27, 29, 31, 35, 47, 48 — verify :
   un test valide et un test refusé par règle
-- [ ] 14. Capacité, prochain libre et occupation en pur (sur des listes triées) —
+- [x] 14. Capacité, prochain libre et occupation en pur (sur des listes triées) —
   REQ-002-43, 44 — verify : tests de propriétés (occupation ≤ capacité, prochain libre
   valide et minimal)
 

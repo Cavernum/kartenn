@@ -3,5 +3,6 @@
 pub mod addr;
 pub mod family;
 pub mod objects;
+pub mod occupancy;
 pub mod registry;
 pub mod rules;
