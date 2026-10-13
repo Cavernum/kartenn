@@ -1,6 +1,6 @@
 <!-- Généré par kartenn-core (rules::catalogue_markdown) : ne pas modifier à la main. -->
 
-# Catalogue des règles du noyau
+# Catalogue des règles du noyau et des propriétés
 
 Identifiants stables (REQ-002-37) : un identifiant n'est jamais réutilisé pour un autre sens.
 Sévérités fixées par la spécification (002/A4).
@@ -37,3 +37,12 @@ Sévérités fixées par la spécification (002/A4).
 | `core.prefix.ipv6_long_subnet` | avertissement | Les réseaux d'hôtes IPv6 sont des /64, sauf point à point /127 et /128. | REQ-002-35 | RFC 7136 §5 |
 | `core.prefix.ula_global_id` | avertissement | Un préfixe unique local utilise un Global ID pseudo-aléatoire. | REQ-002-35 | RFC 4193 §3.2 |
 | `core.public.anycast_shared` | avertissement | Une adresse publique anycast figure dans plusieurs domaines. | REQ-002-46 | 002/A11 |
+| `prop.declaration.invalid` | erreur | Une déclaration de propriété a une clé, un type et des paramètres valides. | REQ-003-2, REQ-003-3 | 003/P1, P2 |
+| `prop.declaration.namespace` | erreur | Un module déclare dans son espace, un administrateur dans l'espace custom avec les seuls types intégrés. | REQ-003-1, REQ-003-2 | 003/P1 |
+| `prop.declaration.incompatible` | erreur | Une évolution de déclaration n'invalide aucune affectation et ne change aucune valeur résolue sans affectation explicite. | REQ-003-6 | 003/P8 |
+| `prop.assignment.not_carrier` | erreur | Une propriété n'est affectée qu'aux types d'objets qui la portent. | REQ-003-4 | 003/P1 |
+| `prop.assignment.invalid_value` | erreur | Une valeur respecte son type et ses paramètres. | REQ-003-8 | 003/P2 |
+| `prop.assignment.required` | erreur | Un objet de la portée d'une propriété obligatoire a une valeur résolue. | REQ-003-16 | 003/P4, D27 |
+| `prop.assignment.forbidden_effect` | erreur | L'auteur détient la permission de la propriété sur chaque objet dont la valeur résolue change. | REQ-003-17, REQ-003-18 | 003/P6, P7 |
+| `prop.assignment.dangling_reference` | erreur | Une référence désigne un objet valide sur toute la période de l'affectation. | REQ-003-10 | D33 |
+| `prop.resolution.expected_mismatch` | avertissement | La valeur résolue diffère de la valeur attendue par la source configurée. | REQ-003-24 | D23 |

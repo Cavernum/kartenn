@@ -4,6 +4,7 @@ pub mod addr;
 pub mod family;
 pub mod objects;
 pub mod occupancy;
+pub mod properties;
 pub mod registry;
 pub mod rules;
 pub mod values;

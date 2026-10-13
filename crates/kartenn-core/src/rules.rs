@@ -1,6 +1,6 @@
 //! Validation rules: stable identifiers, severities, sources (REQ-002-35 to 37).
 //!
-//! Every rule of the core is declared once in [`CORE_RULES`]; the published catalogue
+//! Every rule is declared once, in [`CORE_RULES`] or [`PROPERTY_RULES`]; the published catalogue
 //! (`docs/spec/regles-noyau.md`) is generated from it and checked by a test, so code and
 //! documentation cannot drift.
 
@@ -84,7 +84,7 @@ impl fmt::Display for Violation {
 }
 
 macro_rules! rules {
-    ($($name:ident = $id:literal, $sev:ident, [$($req:literal),*], $source:literal, $summary:literal;)*) => {
+    ($list:ident; $($name:ident = $id:literal, $sev:ident, [$($req:literal),*], $source:literal, $summary:literal;)*) => {
         $(
             #[doc = $summary]
             pub static $name: Rule = Rule {
@@ -95,12 +95,13 @@ macro_rules! rules {
                 source: $source,
             };
         )*
-        /// Every rule of the core, in catalogue order.
-        pub static CORE_RULES: &[&Rule] = &[$(&$name),*];
+        /// Rules of this group, in catalogue order.
+        pub static $list: &[&Rule] = &[$(&$name),*];
     };
 }
 
 rules! {
+    CORE_RULES;
     ADDR_SYNTAX = "core.addr.syntax", Error, ["REQ-002-2", "REQ-002-3"], "RFC 6943 §3.1.1, RFC 4291 §2.2",
         "Une adresse est écrite sous la forme stricte de sa famille.";
     ADDR_ZONE = "core.addr.zone", Error, ["REQ-002-4"], "RFC 4007 §6",
@@ -163,24 +164,51 @@ rules! {
         "Une adresse publique anycast figure dans plusieurs domaines.";
 }
 
-/// The rule of `id`, if the core defines it.
-#[must_use]
-pub fn rule(id: &str) -> Option<&'static Rule> {
-    CORE_RULES.iter().copied().find(|r| r.id == id)
+rules! {
+    PROPERTY_RULES;
+    PROP_INVALID_DECLARATION = "prop.declaration.invalid", Error, ["REQ-003-2", "REQ-003-3"], "003/P1, P2",
+        "Une déclaration de propriété a une clé, un type et des paramètres valides.";
+    PROP_NAMESPACE_FORBIDDEN = "prop.declaration.namespace", Error, ["REQ-003-1", "REQ-003-2"], "003/P1",
+        "Un module déclare dans son espace, un administrateur dans l'espace custom avec les seuls types intégrés.";
+    PROP_INCOMPATIBLE_CHANGE = "prop.declaration.incompatible", Error, ["REQ-003-6"], "003/P8",
+        "Une évolution de déclaration n'invalide aucune affectation et ne change aucune valeur résolue sans affectation explicite.";
+    PROP_NOT_CARRIER = "prop.assignment.not_carrier", Error, ["REQ-003-4"], "003/P1",
+        "Une propriété n'est affectée qu'aux types d'objets qui la portent.";
+    PROP_INVALID_VALUE = "prop.assignment.invalid_value", Error, ["REQ-003-8"], "003/P2",
+        "Une valeur respecte son type et ses paramètres.";
+    PROP_REQUIRED = "prop.assignment.required", Error, ["REQ-003-16"], "003/P4, D27",
+        "Un objet de la portée d'une propriété obligatoire a une valeur résolue.";
+    PROP_FORBIDDEN_EFFECT = "prop.assignment.forbidden_effect", Error, ["REQ-003-17", "REQ-003-18"], "003/P6, P7",
+        "L'auteur détient la permission de la propriété sur chaque objet dont la valeur résolue change.";
+    PROP_DANGLING_REFERENCE = "prop.assignment.dangling_reference", Error, ["REQ-003-10"], "D33",
+        "Une référence désigne un objet valide sur toute la période de l'affectation.";
+    PROP_EXPECTED_MISMATCH = "prop.resolution.expected_mismatch", Warning, ["REQ-003-24"], "D23",
+        "La valeur résolue diffère de la valeur attendue par la source configurée.";
 }
 
-/// The catalogue of the core rules as Markdown (REQ-002-37).
+/// Every rule, all groups, in catalogue order.
+pub fn all_rules() -> impl Iterator<Item = &'static Rule> {
+    CORE_RULES.iter().chain(PROPERTY_RULES.iter()).copied()
+}
+
+/// The rule of `id`, if defined.
+#[must_use]
+pub fn rule(id: &str) -> Option<&'static Rule> {
+    all_rules().find(|r| r.id == id)
+}
+
+/// The catalogue of all rules as Markdown (REQ-002-37).
 #[must_use]
 pub fn catalogue_markdown() -> String {
     let mut out = String::from(
         "<!-- Généré par kartenn-core (rules::catalogue_markdown) : ne pas modifier à la main. -->\n\n\
-         # Catalogue des règles du noyau\n\n\
+         # Catalogue des règles du noyau et des propriétés\n\n\
          Identifiants stables (REQ-002-37) : un identifiant n'est jamais réutilisé pour un autre sens.\n\
          Sévérités fixées par la spécification (002/A4).\n\n\
          | Identifiant | Sévérité | Règle | Exigences | Source |\n\
          |---|---|---|---|---|\n",
     );
-    for r in CORE_RULES {
+    for r in all_rules() {
         let _ = writeln!(
             out,
             "| `{}` | {} | {} | {} | {} |",
@@ -201,11 +229,14 @@ mod tests {
 
     #[test]
     fn identifiers_are_unique_and_well_formed() {
-        let ids: BTreeSet<_> = CORE_RULES.iter().map(|r| r.id).collect();
-        assert_eq!(ids.len(), CORE_RULES.len(), "duplicate rule identifier");
+        let ids: BTreeSet<_> = all_rules().map(|r| r.id).collect();
+        assert_eq!(ids.len(), all_rules().count(), "duplicate rule identifier");
         for id in ids {
             let parts: Vec<_> = id.split('.').collect();
-            assert!(parts.len() == 3 && parts[0] == "core", "{id}");
+            assert!(
+                parts.len() == 3 && (parts[0] == "core" || parts[0] == "prop"),
+                "{id}"
+            );
             assert!(
                 id.bytes().all(|b| b.is_ascii_lowercase()
                     || b.is_ascii_digit()

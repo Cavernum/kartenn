@@ -26,7 +26,7 @@ voir [`../README.md`](../README.md).
   longueurs, Fake A-labels, forme IPv4) avec les cas de la
   [note](../../docs/reference/noms-dates-texte.md) — REQ-003-8 — verify : tests
   (`straße.example`, `café.example`, `xn--` invalide, `10.1.2.3`)
-- [ ] 4. Déclarations : descripteurs de module, clés et espaces, porteurs, héritage,
+- [x] 4. Déclarations : descripteurs de module, clés et espaces, porteurs, héritage,
   obligations ; vérificateur de compatibilité (un cas par ligne du tableau) —
   REQ-003-1 à 6 — verify : tests unitaires
 - [ ] 5. Trait `InheritanceTree` et arbres `entity`, `site`, `addressing` (ancêtres en
