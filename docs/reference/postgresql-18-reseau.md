@@ -47,6 +47,14 @@ Fonctions utiles : `family`, `masklen`, `network`, `broadcast`, `hostmask`, `net
 - **btree_gist** fournit des classes GiST pour des scalaires, dont `inet`, `cidr`, `uuid`,
   `bool` et les `enum`, avec un comportement équivalent au B-tree (égalité et ordre), pas
   l'inclusion réseau. Extension « trusted ».
+- ⚠ **Les classes `gist_inet_ops` et `gist_cidr_ops` de btree_gist sont défectueuses.**
+  La documentation de PostgreSQL 19
+  ([F.8 btree_gist](https://www.postgresql.org/docs/19/btree-gist.html)) indique :
+  « index searches may fail to find relevant rows due to approximations used in creating
+  the index entries. This is unfixable ». Le défaut existe donc aussi en 18. Une
+  contrainte d'exclusion appuyée sur ces classes peut **laisser passer un conflit**.
+  En 18, si btree_gist est installé, ce sont elles qui servent par défaut pour `inet`
+  et `cidr` en GiST.
 
 ### Contraintes d'exclusion (CREATE TABLE)
 - La méthode d'accès doit gérer `amgettuple` (pas GIN) ; les opérateurs doivent être
@@ -76,8 +84,14 @@ Fonctions utiles : `family`, `masklen`, `network`, `broadcast`, `hostmask`, `net
 - `&&` sur `inet` signifie « inclusion dans un sens ou dans l'autre ». Pour deux blocs
   CIDR, c'est exactement le chevauchement (ils sont soit imbriqués, soit disjoints),
   mais ce n'est **pas** un test de chevauchement de plages arbitraires.
-- Un index GiST sur `inet` créé sans `inet_ops` n'accélère pas l'inclusion (il prend
-  la classe par défaut, celle de btree_gist si l'extension est installée).
+- Un index GiST sur `inet` créé sans `inet_ops` prend en 18 la classe par défaut, celle
+  de btree_gist si l'extension est installée : elle n'accélère pas l'inclusion et elle est
+  **défectueuse** (voir ci-dessus). Toujours nommer `inet_ops` explicitement.
+- `UNIQUE (…, prefix, période WITHOUT OVERLAPS)` sur une colonne `cidr` utiliserait cette
+  classe défectueuse, et la syntaxe `UNIQUE` ne permet pas de choisir la classe : il faut
+  écrire la contrainte sous forme `EXCLUDE` avec `prefix inet_ops WITH =`.
+- pg_upgrade vers la 19 **refuse** une base contenant des index `gist_inet_ops` ou
+  `gist_cidr_ops` : ne jamais en créer.
 - Saisie abrégée « classful » en `cidr` : `10` devient `10.0.0.0/8`. Toujours envoyer
   une valeur déjà analysée et canonique (paramètre typé), jamais le texte de
   l'utilisateur.
@@ -89,15 +103,43 @@ Fonctions utiles : `family`, `masklen`, `network`, `broadcast`, `hostmask`, `net
 1. **Stockage** : `cidr` pour les préfixes, `inet` (longueur /32 ou /128) ou `cidr` hôte
    pour les adresses. Le choix précis va dans un ADR de l'adaptateur PostgreSQL.
 2. **Unicité temporelle des préfixes** (D10, D34) :
-   `UNIQUE (domain_id, prefix, valid_period WITHOUT OVERLAPS)` avec btree_gist. Garantit
-   « pas de doublon dans un domaine sur des périodes qui se recouvrent ». À combiner avec
+   `EXCLUDE USING GIST (domain_id WITH =, prefix inet_ops WITH =, valid_period WITH &&)`
+   (btree_gist seulement pour `domain_id`, de type `uuid`). Garantit « pas de doublon dans
+   un domaine sur des périodes qui se recouvrent ». La forme `UNIQUE … WITHOUT OVERLAPS`
+   est à proscrire sur la colonne `cidr` en 18 (classe défectueuse). Les clés `WITHOUT
+   OVERLAPS` sur l'identifiant (`id`, `uuid`) restent possibles et nécessaires pour les
+   clés étrangères `PERIOD`. À combiner avec
    le temps système (voir [temporel-sql2011-postgresql.md](temporel-sql2011-postgresql.md)) :
    la contrainte ne doit porter que sur les lignes **courantes** côté système, ce qui
    oriente vers un `EXCLUDE … WHERE (…)` partiel ou une table d'historique séparée.
 3. **Plages non CIDR** (D34, pas de chevauchement partiel) : type intervalle personnalisé
    sur `inet` (avec `subtype_diff`) et `EXCLUDE USING GIST (domain_id WITH =, plage WITH &&,
    valid_period WITH &&)`. **À prototyper** : vérifier qu'un même index GiST combine
-   btree_gist, l'intervalle d'adresses et l'intervalle de temps.
+   btree_gist (pour `uuid` uniquement), l'intervalle d'adresses et l'intervalle de temps.
+8. **Garde-fou** : un test de migration vérifie qu'aucun index n'utilise
+   `gist_inet_ops`/`gist_cidr_ops` (requête sur `pg_index` et `pg_opclass`).
+
+## PostgreSQL 19 (état au 2026-10-13)
+
+En **bêta** (Beta 4 publiée le 2026-09-24) ; date de sortie non annoncée, notes de
+version datées « 2026-??-?? ». Sources :
+[notes de version 19](https://www.postgresql.org/docs/19/release-19.html),
+[btree_gist 19](https://www.postgresql.org/docs/19/btree-gist.html),
+[CREATE TABLE 19](https://www.postgresql.org/docs/19/sql-createtable.html),
+[UPDATE 19](https://www.postgresql.org/docs/19/sql-update.html).
+
+| Sujet | Apport de la 19 | Intérêt pour kartenn |
+|---|---|---|
+| `inet_ops` devient la classe GiST par défaut pour `inet`/`cidr` | corrige le piège ci-dessus ; `UNIQUE … WITHOUT OVERLAPS` sur `cidr` devient sûr | fort, mais contournable en 18 avec `EXCLUDE` et `inet_ops` explicite |
+| `range_minus_multi()`, `multirange_minus_multi()` | soustraction d'intervalles avec trous | utile pour calculer le découpage « FOR PORTION OF » dans la couche service |
+| Section de documentation sur les tables temporelles | documentation | faible |
+| Casts `bytea` ↔ `uuid` | — | faible |
+| `UPDATE/DELETE … FOR PORTION OF` | **absent** : ajouté pendant le cycle, puis **retiré** le 2026-09-15 ([commit de revert](https://www.postgresql.org/message-id/E1x6QRv-00000000QOT-0jWk@gemulon.postgresql.org)) ; absent de la synopsis d'UPDATE de la doc 19 | aucun en 19 ; à surveiller pour la 20 |
+| Tables versionnées système | absent | aucun |
+| Clés étrangères temporelles : `CASCADE`, `SET NULL`… | toujours « not supported » | aucun |
+
+Conclusion : la 19 ne change pas l'architecture (le temps système et le découpage
+restent à la charge de kartenn) ; elle supprime un piège que l'on sait contourner en 18.
 4. **Requêtes d'arbre** (D34, plus petit préfixe englobant) : index GiST `inet_ops` ou
    SP-GiST `inet_ops` sur les préfixes ; à mesurer sur 10⁶ objets (budgets D14).
 5. **Suppression** (D33) : cohérent avec `NO ACTION` ; la cascade explicite du changeset

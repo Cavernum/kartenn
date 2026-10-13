@@ -47,7 +47,7 @@ Base des décisions D8 et D10 (bitemporel natif).
 | Clés `WITHOUT OVERLAPS` sur une colonne intervalle | **Oui** (nouveauté de la v18) |
 | Clés étrangères `PERIOD` | **Oui**, avec `NO ACTION` seulement |
 | `PERIOD FOR` (période déclarée sur deux colonnes) | Non : on utilise une colonne de type intervalle (`tstzrange`) |
-| `UPDATE/DELETE … FOR PORTION OF` | **Absent** (ni la doc de CREATE TABLE ni les notes de version de la v18 ne le mentionnent) |
+| `UPDATE/DELETE … FOR PORTION OF` | **Absent** en 18 ; ajouté puis retiré pendant le cycle de la 19 (voir la note PostgreSQL) |
 | Tables versionnées système (`WITH SYSTEM VERSIONING`, `FOR SYSTEM_TIME AS OF`) | **Absent** |
 
 ## Pièges

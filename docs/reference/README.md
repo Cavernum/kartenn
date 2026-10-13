@@ -25,5 +25,5 @@ Chaque note contient :
 | [representation-textuelle.md](representation-textuelle.md) | Analyse stricte et forme canonique des adresses et préfixes | 002 |
 | [registres-usage-special.md](registres-usage-special.md) | Registres IANA des adresses à usage spécial | 002 |
 | [ipv8-draft.md](ipv8-draft.md) | État de draft-thain-ipv8 | 002 (point d'extension) |
-| [postgresql-18-reseau.md](postgresql-18-reseau.md) | Types `inet`/`cidr`, opérateurs, index, contraintes d'exclusion | 002 |
+| [postgresql-18-reseau.md](postgresql-18-reseau.md) | Types `inet`/`cidr`, opérateurs, index, contraintes d'exclusion ; apports de la 19 (bêta) | 002 |
 | [temporel-sql2011-postgresql.md](temporel-sql2011-postgresql.md) | Modèle temporel SQL:2011 et support réel de PostgreSQL 18 | 002, 004 |
