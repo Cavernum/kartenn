@@ -3,9 +3,9 @@
 | Spec | Exigences | Conception | Tâches |
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
-| [002-noyau-adressage](002-noyau-adressage/) | approuvées | approuvée | [tasks](002-noyau-adressage/tasks.md) |
-| [003-proprietes](003-proprietes/) | approuvées | approuvée | [tasks](003-proprietes/tasks.md) |
-| [004-changesets-bitemporel](004-changesets-bitemporel/) | approuvées | approuvée | [tasks](004-changesets-bitemporel/tasks.md) |
+| [002-noyau-adressage](002-noyau-adressage/) | approuvées | approuvée | [tasks](002-noyau-adressage/tasks.md) (approuvées) |
+| [003-proprietes](003-proprietes/) | approuvées | approuvée | [tasks](003-proprietes/tasks.md) (approuvées) |
+| [004-changesets-bitemporel](004-changesets-bitemporel/) | approuvées | approuvée | [tasks](004-changesets-bitemporel/tasks.md) (approuvées) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
 | 007-web-shell-plugins | à écrire | — | — |
