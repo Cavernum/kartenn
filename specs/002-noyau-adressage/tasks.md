@@ -48,7 +48,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   — verify : tests ; propriété analyse(canonique(x)) = x
 - [x] 9. Analyse des préfixes (longueur stricte, alignement, suggestion) ; refus des zones
   avec message dédié — REQ-002-4, 5 — verify : tests par cas de la table des erreurs
-- [ ] 10. Famille de test fictive de 64 bits passant la batterie de contrat commune —
+- [x] 10. Famille de test fictive de 64 bits passant la batterie de contrat commune —
   REQ-002-1 — verify : `cargo test -p kartenn-core --features test-family`
 - [ ] 11. Registres IANA : CSV versionnés dans `crates/kartenn-core/data/iana/`, structure
   de recherche du bloc le plus spécifique, indicateur public — REQ-002-33, 34 — verify :

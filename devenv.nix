@@ -83,7 +83,7 @@
       cargo hakari manage-deps --dry-run
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace --check -- --all-targets
-      cargo test --workspace --all-targets
+      cargo test --workspace --all-targets --all-features
     fi
     postgres --version
   '';

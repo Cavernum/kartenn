@@ -16,3 +16,8 @@ thiserror = "2.0.21"
 
 [dev-dependencies]
 proptest = "1.12.0"
+
+[features]
+# Fictitious 64-bit family (eight dotted octets, shaped like draft-thain-ipv8) used to
+# prove that nothing outside the family implementations assumes 32 or 128 bits.
+test-family = []

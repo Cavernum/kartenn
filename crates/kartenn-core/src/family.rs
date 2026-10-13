@@ -188,3 +188,63 @@ mod tests {
         }
     }
 }
+
+#[cfg(feature = "test-family")]
+pub mod test64 {
+    //! A fictitious 64-bit family written as eight dotted octets, compiled only with the
+    //! `test-family` feature (REQ-002-1).
+    use std::fmt;
+
+    use crate::addr::{AddrError, AddressFamily, Family};
+
+    /// Eight dotted decimal octets, without leading zeros.
+    #[derive(Debug)]
+    pub struct Octet8;
+
+    static OCTET8_IMPL: Octet8 = Octet8;
+
+    /// Handle on the fictitious 64-bit family.
+    pub const OCTET8: Family = Family::new(&OCTET8_IMPL);
+
+    fn syntax(text: &str) -> AddrError {
+        AddrError::Syntax {
+            family: "test-octet8",
+            text: text.to_owned(),
+            expected: "eight decimal numbers from 0 to 255 separated by dots",
+        }
+    }
+
+    impl AddressFamily for Octet8 {
+        fn id(&self) -> &'static str {
+            "test-octet8"
+        }
+
+        fn width(&self) -> u8 {
+            64
+        }
+
+        fn parse(&self, text: &str) -> Result<u128, AddrError> {
+            let parts: Vec<&str> = text.split('.').collect();
+            if parts.len() != 8 {
+                return Err(syntax(text));
+            }
+            parts.iter().try_fold(0u128, |acc, part| {
+                let well_formed = !part.is_empty()
+                    && part.bytes().all(|b| b.is_ascii_digit())
+                    && (*part == "0" || !part.starts_with('0'));
+                let octet: u8 = if well_formed {
+                    part.parse().map_err(|_| syntax(text))?
+                } else {
+                    return Err(syntax(text));
+                };
+                Ok((acc << 8) | u128::from(octet))
+            })
+        }
+
+        fn write_canonical(&self, bits: u128, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let bytes = u64::try_from(bits).map_err(|_| fmt::Error)?.to_be_bytes();
+            let text: Vec<String> = bytes.iter().map(u8::to_string).collect();
+            f.write_str(&text.join("."))
+        }
+    }
+}
