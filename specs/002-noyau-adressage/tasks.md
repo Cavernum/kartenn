@@ -40,7 +40,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 
 ## P2 — Domaine pur (`kartenn-core`)
 
-- [ ] 7. Valeurs d'adresse et de préfixe (`u128`, famille, longueur), contrat
+- [x] 7. Valeurs d'adresse et de préfixe (`u128`, famille, longueur), contrat
   `AddressFamily`, inclusion, ordre, arithmétique — REQ-002-1 — verify : tests unitaires
   et de propriétés
 - [ ] 8. Familles IPv4 et IPv6 sur `std::net` : analyse, forme canonique, tests de

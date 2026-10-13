@@ -12,3 +12,7 @@ workspace = true
 
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+thiserror = "2.0.21"
+
+[dev-dependencies]
+proptest = "1.12.0"
