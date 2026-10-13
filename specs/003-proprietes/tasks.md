@@ -19,7 +19,7 @@ voir [`../README.md`](../README.md).
 
 ## P2 — Domaine pur
 
-- [ ] 2. Trait `ValueType`, types intégrés `enum`, `text` (NFC, contrôle, regex),
+- [x] 2. Trait `ValueType`, types intégrés `enum`, `text` (NFC, contrôle, regex),
   `int`, `bool`, `date` (RFC 3339), `ref` ; ensembles triés et dédoublonnés —
   REQ-003-7, 8, 9 — verify : tests unitaires et de propriétés (normalisation idempotente)
 - [ ] 3. Type `fqdn` (crate `idna`, UTS #46 non transitional, STD3, CheckHyphens,

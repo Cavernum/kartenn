@@ -6,3 +6,4 @@ pub mod objects;
 pub mod occupancy;
 pub mod registry;
 pub mod rules;
+pub mod values;
