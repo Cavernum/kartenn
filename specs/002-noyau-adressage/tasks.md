@@ -46,7 +46,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 8. Familles IPv4 et IPv6 sur `std::net` : analyse, forme canonique, tests de
   non-régression du comportement vérifié (cas de la conception) — REQ-002-2, 3, 4, 6, 7
   — verify : tests ; propriété analyse(canonique(x)) = x
-- [ ] 9. Analyse des préfixes (longueur stricte, alignement, suggestion) ; refus des zones
+- [x] 9. Analyse des préfixes (longueur stricte, alignement, suggestion) ; refus des zones
   avec message dédié — REQ-002-4, 5 — verify : tests par cas de la table des erreurs
 - [ ] 10. Famille de test fictive de 64 bits passant la batterie de contrat commune —
   REQ-002-1 — verify : `cargo test -p kartenn-core --features test-family`

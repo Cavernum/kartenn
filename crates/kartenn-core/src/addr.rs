@@ -144,6 +144,28 @@ pub enum AddrError {
         /// Aligned prefix suggested instead.
         aligned: Prefix,
     },
+    /// The text carries a zone index (`%…`), meaningful only on one node (RFC 4007 §6).
+    #[error(
+        "{text:?} carries a zone index (%…), which is only meaningful on one node (RFC 4007 §6); remove it"
+    )]
+    Zone {
+        /// Text that was given.
+        text: String,
+    },
+    /// The text is not a prefix in `address/length` form.
+    #[error("{text:?} is not a prefix: {reason}")]
+    PrefixSyntax {
+        /// Text that was given.
+        text: String,
+        /// What is wrong.
+        reason: &'static str,
+    },
+    /// The text is not an address of any compiled family.
+    #[error("{text:?} is not an address of any supported family")]
+    UnknownFamily {
+        /// Text that was given.
+        text: String,
+    },
     /// Two values of different families were combined.
     #[error("{left} and {right} are not of the same family")]
     FamilyMismatch {
@@ -196,8 +218,25 @@ impl Addr {
     ///
     /// The family's parse error.
     pub fn parse(family: Family, text: &str) -> Result<Self, AddrError> {
+        refuse_zone(text)?;
         let bits = family.implementation().parse(text)?;
         Self::new(family, bits)
+    }
+
+    /// Parses an address of whichever family among `families` accepts the text. Families
+    /// have disjoint textual forms, so at most one accepts it.
+    ///
+    /// # Errors
+    ///
+    /// [`AddrError::Zone`], or [`AddrError::UnknownFamily`] when no family accepts it.
+    pub fn parse_any(families: &[Family], text: &str) -> Result<Self, AddrError> {
+        refuse_zone(text)?;
+        families
+            .iter()
+            .find_map(|&family| Self::parse(family, text).ok())
+            .ok_or_else(|| AddrError::UnknownFamily {
+                text: text.to_owned(),
+            })
     }
 
     /// Family of the address.
@@ -237,6 +276,32 @@ impl Addr {
         same_family(self.family, base.family)?;
         Ok(self.bits.checked_sub(base.bits))
     }
+}
+
+fn refuse_zone(text: &str) -> Result<(), AddrError> {
+    if text.contains('%') {
+        return Err(AddrError::Zone {
+            text: text.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+/// Parses a prefix length: decimal digits only, no sign, no leading zero, no spaces.
+fn parse_prefix_len(text: &str, digits: &str) -> Result<u8, AddrError> {
+    let well_formed = !digits.is_empty()
+        && digits.bytes().all(|b| b.is_ascii_digit())
+        && (digits == "0" || !digits.starts_with('0'));
+    if !well_formed {
+        return Err(AddrError::PrefixSyntax {
+            text: text.to_owned(),
+            reason: "the length must be a decimal number without leading zeros",
+        });
+    }
+    digits.parse().map_err(|_| AddrError::PrefixSyntax {
+        text: text.to_owned(),
+        reason: "the length is too large",
+    })
 }
 
 fn same_family(left: Family, right: Family) -> Result<(), AddrError> {
@@ -299,6 +364,39 @@ impl Prefix {
             });
         }
         Ok(aligned)
+    }
+
+    /// Parses `address/length` strictly (REQ-002-4, 5): explicit length, no host bits, no
+    /// zone, no implicit classful length.
+    ///
+    /// # Errors
+    ///
+    /// [`AddrError::Zone`], [`AddrError::PrefixSyntax`], the family's syntax error,
+    /// [`AddrError::LengthOutOfRange`] or [`AddrError::HostBitsSet`] with a suggestion.
+    pub fn parse(family: Family, text: &str) -> Result<Self, AddrError> {
+        let (addr, len) = Self::split(text)?;
+        Self::new(Addr::parse(family, addr)?, parse_prefix_len(text, len)?)
+    }
+
+    /// Parses a prefix of whichever family among `families` accepts its address part.
+    ///
+    /// # Errors
+    ///
+    /// As [`Prefix::parse`], or [`AddrError::UnknownFamily`].
+    pub fn parse_any(families: &[Family], text: &str) -> Result<Self, AddrError> {
+        let (addr, len) = Self::split(text)?;
+        Self::new(
+            Addr::parse_any(families, addr)?,
+            parse_prefix_len(text, len)?,
+        )
+    }
+
+    fn split(text: &str) -> Result<(&str, &str), AddrError> {
+        refuse_zone(text)?;
+        text.split_once('/').ok_or_else(|| AddrError::PrefixSyntax {
+            text: text.to_owned(),
+            reason: "expected address/length, the length is mandatory",
+        })
     }
 
     /// The prefix of length `len` that contains `addr` (host bits cleared).
