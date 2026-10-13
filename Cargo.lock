@@ -668,6 +668,7 @@ dependencies = [
  "kartenn-workspace-hack",
  "proptest",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -700,6 +701,7 @@ dependencies = [
  "bitflags",
  "crypto-common 0.1.6",
  "digest 0.10.7",
+ "getrandom",
  "libc",
  "once_cell",
  "rand",

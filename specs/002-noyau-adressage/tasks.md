@@ -53,7 +53,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 11. Registres IANA : CSV versionnés dans `crates/kartenn-core/data/iana/`, structure
   de recherche du bloc le plus spécifique, indicateur public — REQ-002-33, 34 — verify :
   `192.0.0.9` → PCP Anycast ; `10.1.2.3` → Private-Use ; adresse publique → aucune entrée
-- [ ] 12. Cadre des règles : identifiant stable, sévérité, source, exigences ; catalogue
+- [x] 12. Cadre des règles : identifiant stable, sévérité, source, exigences ; catalogue
   généré (Markdown) — REQ-002-37 — verify : test qui compare le catalogue généré au
   fichier versionné
 - [ ] 13. Objets du noyau et règles locales : slugs, nature, point à point, bornes de

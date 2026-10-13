@@ -87,6 +87,7 @@ Non-objectifs :
 | [interfaces.md](interfaces.md) | API REST, authentification, SDK de plugins, connecteurs, configuration |
 | [data.md](data.md) | Modèle de données, bitemporel, propriétés, stockage PostgreSQL |
 | [invariants.md](invariants.md) | Propriétés qui doivent toujours tenir, et comment elles sont garanties |
+| [regles-noyau.md](regles-noyau.md) | Catalogue des règles de validation du noyau (généré depuis le code) |
 | [`../adr/`](../adr/) | Architecture Decision Records |
 | [`../../specs/`](../../specs/) | Specs de fonctionnalités et journaux de décisions |
 | [`../reference/`](../reference/README.md) | Notes de lecture des sources primaires |

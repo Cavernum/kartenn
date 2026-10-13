@@ -3,3 +3,4 @@
 pub mod addr;
 pub mod family;
 pub mod registry;
+pub mod rules;

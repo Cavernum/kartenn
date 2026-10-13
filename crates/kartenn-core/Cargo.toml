@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 thiserror = "2.0.21"
+uuid = { version = "1.28.0", features = ["v7"] }
 
 [dev-dependencies]
 proptest = "1.12.0"
