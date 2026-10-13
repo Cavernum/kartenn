@@ -26,7 +26,7 @@ voir [`../README.md`](../README.md).
 
 ## P3 — Stockage
 
-- [ ] 4. Fonction PL/pgSQL générique d'historisation et rôle applicatif sans
+- [x] 4. Fonction PL/pgSQL générique d'historisation et rôle applicatif sans
   `UPDATE`/`DELETE` sur l'historique ; aide de migration « table versionnée » (paire de
   tables + déclencheurs + partitions) — REQ-004-16 — verify : tests (temps système
   identique dans une transaction ; `UPDATE` SQL direct historisé ; refus sur
