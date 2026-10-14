@@ -40,9 +40,10 @@ voir [`../README.md`](../README.md).
   `property_origin` (propriétés héritables seules, P9) ; tables courantes + historique
   (004) ; index de filtrage dont `(property_id, origin_object_id)` —
   REQ-003-5, 12, 13, 25 — après 004-5 — verify : tests d'intégration des contraintes
-- [ ] 7. Enregistrement des déclarations de module par migration ; déclarations
+- [x] 7. Enregistrement des déclarations de module par migration ; déclarations
   d'administrateur par changeset (opérations dédiées) — REQ-003-1, 2 — après 004-7 —
-  verify : tests d'intégration
+  verify : tests d'intégration (`kartenn-service/tests/declarations.rs`) — synchronisation
+  depuis le code (P12) ; obligations reportées à 003-10
 
 ## P4 — Pipeline
 

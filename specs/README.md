@@ -33,8 +33,8 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-14
 
-Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 6/17 (tables
-des propriétés) · 004 : 13/24 ; 159 tests, `devenv test` vert.
+Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 7/17 (tables
+et déclarations des propriétés) · 004 : 13/24 ; 164 tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 
