@@ -110,7 +110,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   — fait sans les plages (I2) : les plages DHCP et réservées s'y ajouteront
 - [x] 25. Anomalies : création, fermeture, acquittement, réouverture — REQ-002-35, 36 —
   verify : tests d'intégration
-- [ ] 26. Catalogue des règles exposé en lecture (pour 006) — REQ-002-37 — verify : test
+- [x] 26. Catalogue des règles exposé en lecture (pour 006) — REQ-002-37 — verify : test
 
 ## P6 — Budgets et synchronisation
 

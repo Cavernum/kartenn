@@ -209,6 +209,38 @@ pub fn rule(id: &str) -> Option<&'static Rule> {
     all_rules().find(|r| r.id == id)
 }
 
+/// Serialisable view of a rule, for interfaces (REQ-002-37).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct RuleView {
+    /// Stable identifier.
+    pub id: &'static str,
+    /// `error` or `warning`.
+    pub severity: &'static str,
+    /// What the rule guarantees.
+    pub summary: &'static str,
+    /// Requirements served.
+    pub requirements: &'static [&'static str],
+    /// Normative source.
+    pub source: &'static str,
+}
+
+/// Every rule as a serialisable list, in catalogue order (REQ-002-37).
+#[must_use]
+pub fn catalogue() -> Vec<RuleView> {
+    all_rules()
+        .map(|r| RuleView {
+            id: r.id,
+            severity: match r.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            },
+            summary: r.summary,
+            requirements: r.requirements,
+            source: r.source,
+        })
+        .collect()
+}
+
 /// The catalogue of all rules as Markdown (REQ-002-37).
 #[must_use]
 pub fn catalogue_markdown() -> String {
@@ -287,6 +319,17 @@ mod tests {
         assert_eq!(
             published, generated,
             "docs/spec/regles-noyau.md is stale: run `KARTENN_BLESS=1 cargo test -p kartenn-core rules`"
+        );
+    }
+
+    #[test]
+    fn the_catalogue_is_exposed_in_order() {
+        let view = catalogue();
+        assert_eq!(view.len(), all_rules().count());
+        assert_eq!(view[0].id, "core.addr.syntax");
+        assert!(
+            view.iter()
+                .any(|r| r.id == "core.addr.documentation" && r.severity == "warning")
         );
     }
 
