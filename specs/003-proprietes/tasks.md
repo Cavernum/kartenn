@@ -47,11 +47,13 @@ voir [`../README.md`](../README.md).
 
 ## P4 — Pipeline
 
-- [ ] 8. Résolution matérialisée incrémentale de l'origine : les quatre règles de
+- [x] 8. Résolution matérialisée incrémentale de l'origine : les quatre règles de
   maintenance (design), cibles dont l'origine change, segmentation temporelle, calcul
   ensembliste, écriture des segments modifiés —
   REQ-003-11, 12, 13, 15 — verify : **tests de propriétés contre l'oracle** sur des suites
-  aléatoires de changesets, y compris dans le temps
+  aléatoires de changesets, y compris dans le temps (`kartenn-service/tests/resolution.rs`)
+  — arbre d'adressage ; entités et sites avec 002-22 ; ciblage fin d'une affectation au
+  banc 003-16
 - [ ] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
   tests d'intégration (insertion d'un conteneur au-dessus de 4 096 adresses)
 - [ ] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
