@@ -85,6 +85,26 @@ pub fn select_at(
     Ok(AssertSqlSafe(sql))
 }
 
+/// A relation (to use in `FROM`) of the rows of `table` valid at `$1` and asserted at `$2`
+/// (`timestamptz`; null for the current assertions), with `columns`.
+///
+/// # Errors
+///
+/// [`TemporalError::Identifier`] for an invalid table or column name.
+pub fn snapshot(table: &str, columns: &[&str]) -> Result<String, TemporalError> {
+    let table = identifier(table)?;
+    let cols = column_list(columns)?;
+    Ok(format!(
+        "(SELECT {cols} FROM {table} \
+          WHERE valid_period @> $1::timestamptz \
+            AND ($2::timestamptz IS NULL OR sys_start <= $2::timestamptz) \
+          UNION ALL \
+          SELECT {cols} FROM {table}_history \
+          WHERE $2::timestamptz IS NOT NULL AND valid_period @> $1::timestamptz \
+            AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz)"
+    ))
+}
+
 /// Every version of the object `$1` of `table`, on both axes, with the changeset that
 /// produced it: `columns`, `valid_period`, `sys_start`, `sys_end` (null when current),
 /// `changeset_id`, ordered by application then system time (REQ-004-18).
