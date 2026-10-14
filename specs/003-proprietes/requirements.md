@@ -111,10 +111,12 @@ Acceptation :
 
 #### REQ-003-9 — Ensembles
 kartenn doit traiter une valeur d'ensemble comme un ensemble mathématique : sans
-doublon, sans ordre, comparé par égalité d'ensemble.
+doublon, sans ordre, comparé par égalité d'ensemble, et non vide (P11).
 
 Acceptation :
 - `{prod, global}` et `{global, prod}` sont égaux ; `{prod, prod}` est stocké `{prod}`.
+- `{}` est refusé : l'absence de valeur s'exprime par l'effacement (REQ-003-13).
+  Ajouté le 2026-10-14 (P11).
 
 #### REQ-003-10 — Références et clôture
 Si la clôture d'un objet laisserait une affectation de type référence sans cible valide

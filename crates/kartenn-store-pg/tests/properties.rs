@@ -179,6 +179,12 @@ async fn one_assignment_per_object_and_property(pool: PgPool) -> sqlx::Result<()
             .is_err(),
         "one value column"
     );
+    assert!(
+        assign(&pool, o3, p, "value", "v_texts", "ARRAY[]::text[]", FOREVER)
+            .await
+            .is_err(),
+        "P11: no empty set"
+    );
     assign(
         &pool,
         o3,

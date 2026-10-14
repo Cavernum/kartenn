@@ -339,11 +339,12 @@ impl ValueType for FqdnType {
     }
 }
 
-/// Parses a value of the given cardinality (REQ-003-9): a set is sorted and deduplicated.
+/// Parses a value of the given cardinality (REQ-003-9): a set is sorted, deduplicated and
+/// never empty (P11).
 ///
 /// # Errors
 ///
-/// The first scalar error, or a cardinality mismatch.
+/// The first scalar error, a cardinality mismatch or an empty set.
 pub fn parse_value(
     ty: &dyn ValueType,
     cardinality: Cardinality,
@@ -353,6 +354,9 @@ pub fn parse_value(
     match (cardinality, raws) {
         (Cardinality::Single, [raw]) => ty.parse(raw, ctx).map(Value::One),
         (Cardinality::Single, _) => Err(format!("expected exactly one value, got {}", raws.len())),
+        (Cardinality::Set, []) => {
+            Err("a set has at least one value; clear the property instead".to_owned())
+        }
         (Cardinality::Set, raws) => raws
             .iter()
             .map(|r| ty.parse(r, ctx))
@@ -505,6 +509,10 @@ pub(crate) mod tests {
         assert_eq!(a, b);
         let Value::Set(s) = b else { panic!("a set") };
         assert_eq!(s.len(), 2);
+        assert!(
+            parse_value(&EnumType, Cardinality::Set, &[], &c).is_err(),
+            "P11: no empty set"
+        );
         assert!(
             parse_value(
                 &EnumType,

@@ -132,3 +132,11 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
 - Rejeté : imposer un import par lots (casse l'atomicité) ; garder < 10 s (aucune
   solution connue).
 - Décidé par : recommandation acceptée (2026-10-14)
+
+## P11 — Pas d'ensemble vide
+- Décision : une valeur d'ensemble contient au moins un élément ; l'absence de valeur
+  s'exprime par l'effacement (REQ-003-13).
+- Pourquoi : deux façons de dire « rien » (ensemble vide, effacement) donneraient deux
+  résultats de filtrage et d'obligation différents pour la même intention.
+- Rejeté : ensemble vide distinct de l'effacement (ambigu, non demandé).
+- Décidé par : recommandation acceptée (2026-10-14)
