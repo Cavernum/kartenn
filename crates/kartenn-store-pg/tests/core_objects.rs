@@ -244,3 +244,27 @@ async fn ranges_are_disjoint_per_domain_and_single_family(pool: PgPool) -> sqlx:
     );
     Ok(())
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn only_networks_are_anycast_and_history_keeps_the_mark(pool: PgPool) -> sqlx::Result<()> {
+    let insert = |value: &'static str, nature: &'static str| {
+        sqlx::query(
+            "INSERT INTO prefix (id, domain_id, prefix, nature, anycast, public, registry_version, valid_period, changeset_id)
+             VALUES (gen_random_uuid(), gen_random_uuid(), $1::cidr, $2, true, true, '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid())",
+        )
+        .bind(value)
+        .bind(nature)
+    };
+    insert("192.0.2.0/24", "network").execute(&pool).await?;
+    let err = insert("198.51.100.0/24", "container")
+        .execute(&pool)
+        .await
+        .expect_err("REQ-002-49");
+    assert!(err.to_string().contains("prefix_anycast_network"), "{err}");
+    sqlx::query("DELETE FROM prefix").execute(&pool).await?;
+    let kept: bool = sqlx::query_scalar("SELECT anycast FROM prefix_history")
+        .fetch_one(&pool)
+        .await?;
+    assert!(kept);
+    Ok(())
+}
