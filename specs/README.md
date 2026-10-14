@@ -33,9 +33,9 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-14
 
-Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 11/17 (tables,
-déclarations, affectations, origines matérialisées, différentiel, obligations, droits) ·
-004 : 13/24 (004-11 partiel) ; 176 tests, `devenv test` vert.
+Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 12/17 (tables,
+déclarations, affectations, origines matérialisées, différentiel, obligations, droits,
+références) · 004 : 13/24 (004-11 partiel) ; 178 tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 
