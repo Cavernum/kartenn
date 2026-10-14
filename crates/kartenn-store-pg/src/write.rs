@@ -4,7 +4,7 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::period::Period;
-use kartenn_core::properties::Declaration;
+use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
     DiffCount, DiffItem, Journal, PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
@@ -875,7 +875,10 @@ impl WriteTx for PgTx {
     ) -> Result<(), WriteError> {
         let (a, b) = bounds(period)?;
         self.write_declaration(id, declaration, a, Bind::Time(b), changeset)
-            .await
+            .await?;
+        Ok(self
+            .set_obligations(id, &declaration.obligations, a, b, changeset)
+            .await?)
     }
 
     async fn declaration(
@@ -893,7 +896,11 @@ impl WriteTx for PgTx {
         .fetch_optional(&mut *self.tx)
         .await
         .map_err(store_err)?;
-        row.map(decode_declaration).transpose()
+        let Some(mut declaration) = row.map(decode_declaration).transpose()? else {
+            return Ok(None);
+        };
+        declaration.obligations = self.obligations_at(id, at).await?;
+        Ok(Some(declaration))
     }
 
     async fn replace_declaration(
@@ -934,7 +941,46 @@ impl WriteTx for PgTx {
         self.guarded(sqlx::AssertSqlSafe(shorten.to_owned()), binds, id)
             .await?;
         self.write_declaration(id, declaration, at, Bind::Time(end), changeset)
+            .await?;
+        Ok(self
+            .set_obligations(id, &declaration.obligations, at, end, changeset)
+            .await?)
+    }
+
+    async fn objects_without_value(
+        &mut self,
+        property: Uuid,
+        carriers: &[String],
+        heritable: bool,
+        scope: &ObligationScope,
+        candidates: Option<&[Uuid]>,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, _) = bounds(period)?;
+        self.without_value(property, carriers, heritable, scope, candidates, a)
             .await
+    }
+
+    async fn obligated(
+        &mut self,
+        period: Option<Period>,
+    ) -> Result<Vec<(Uuid, Declaration)>, StoreError> {
+        let (a, _) = bounds(period)?;
+        let ids: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT DISTINCT property_id FROM property_obligation
+             WHERE valid_period @> coalesce($1::timestamptz, now())",
+        )
+        .bind(a)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(d) = self.declaration(id, period).await? {
+                out.push((id, d));
+            }
+        }
+        Ok(out)
     }
 
     async fn declarations_in(

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::future::Future;
 
 use kartenn_core::inheritance::Assigned;
-use kartenn_core::properties::{CurrentAssignment, Declaration};
+use kartenn_core::properties::{CurrentAssignment, Declaration, ObligationScope};
 
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::objects::{Address, AddressUsage, IpRange, PrefixObject};
@@ -454,6 +454,24 @@ pub trait WriteTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Carrier objects of `scope` (among `candidates` if given) without a resolved value of
+    /// `property` at some instant from the start of `period` on (REQ-003-16).
+    fn objects_without_value(
+        &mut self,
+        property: Uuid,
+        carriers: &[String],
+        heritable: bool,
+        scope: &ObligationScope,
+        candidates: Option<&[Uuid]>,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Properties with obligations at the start of `period`, with their declaration.
+    fn obligated(
+        &mut self,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Declaration)>, StoreError>> + Send;
 
     /// Records, for later restitution, the objects among `objects` whose resolved value of
     /// `property` differs before and after this transaction, from the start of `period`

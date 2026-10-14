@@ -101,6 +101,7 @@ fn input(key: &str, value_type: TypeInput) -> DeclarationInput {
         carriers: vec!["prefix".into(), "address".into()],
         inherit: Some("addressing".into()),
         module: None,
+        obligations: Vec::new(),
     }
 }
 

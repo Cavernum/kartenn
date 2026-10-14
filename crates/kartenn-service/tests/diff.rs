@@ -48,6 +48,7 @@ impl Fixture {
             carriers: vec!["prefix".into(), "address".into()],
             inherit: Some("addressing".into()),
             module: None,
+            obligations: Vec::new(),
         };
         f.applied(
             vec![

@@ -145,6 +145,30 @@ pub struct DeclarationInput {
     /// (P12). `None` means an administrator.
     #[serde(skip_deserializing, default)]
     pub module: Option<String>,
+    /// Scopes where a resolved value is mandatory (REQ-003-16).
+    #[serde(default)]
+    pub obligations: Vec<ObligationInput>,
+}
+
+/// Scope of an obligation, as received (REQ-003-16, P4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "scope", rename_all = "snake_case")]
+pub enum ObligationInput {
+    /// Every carrier object of an addressing domain.
+    Domain {
+        /// Domain.
+        id: Uuid,
+    },
+    /// Every carrier object owned by an entity.
+    Entity {
+        /// Entity.
+        id: Uuid,
+    },
+    /// Every object of a kind.
+    ObjectType {
+        /// Kind.
+        kind: String,
+    },
 }
 
 /// Application-time period of an operation, in microseconds since the epoch; `None` end

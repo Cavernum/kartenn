@@ -255,16 +255,7 @@ pub(crate) async fn diff<T: WriteTx>(
     refreshed: BTreeMap<Uuid, Vec<Uuid>>,
     period: Option<Period>,
 ) -> Result<Vec<DiffCount>, StoreError> {
-    let created: Vec<Uuid> = planned
-        .iter()
-        .filter_map(|p| match p {
-            Planned::Domain { id, .. } => Some(*id),
-            Planned::Prefix { object, .. } => Some(object.id),
-            Planned::Range { object, .. } => Some(object.id),
-            Planned::Address { object, .. } => Some(object.id),
-            _ => None,
-        })
-        .collect();
+    let created = created(planned);
     let mut direct: BTreeMap<Uuid, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         if let Planned::Assign {
@@ -288,4 +279,67 @@ pub(crate) async fn diff<T: WriteTx>(
             .await?;
     }
     tx.diff_summary().await
+}
+
+/// Objects the changeset creates.
+fn created(planned: &[Planned]) -> Vec<Uuid> {
+    planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Domain { id, .. } => Some(*id),
+            Planned::Prefix { object, .. } => Some(object.id),
+            Planned::Range { object, .. } => Some(object.id),
+            Planned::Address { object, .. } => Some(object.id),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Obligations after resolution (REQ-003-16, P4): every object the changeset creates,
+/// whose origin it refreshed or that it assigns directly, if it is a carrier in the scope
+/// of an obligation, has a value over the whole window; explicit "no value" does not
+/// count. The objects left without one are listed.
+pub(crate) async fn check_obligations<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    refreshed: &BTreeMap<Uuid, Vec<Uuid>>,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let obligated = tx.obligated(period).await?;
+    if obligated.is_empty() {
+        return Ok(());
+    }
+    let mut touched: BTreeSet<Uuid> = created(planned).into_iter().collect();
+    touched.extend(refreshed.values().flatten());
+    for p in planned {
+        if let Planned::Assign { object, .. } | Planned::Unassign { object, .. } = p {
+            touched.insert(*object);
+        }
+    }
+    let touched: Vec<Uuid> = touched.into_iter().collect();
+    for (property, declaration) in obligated {
+        let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
+        let mut missing = BTreeSet::new();
+        for scope in &declaration.obligations {
+            missing.extend(
+                tx.objects_without_value(
+                    property,
+                    &carriers,
+                    declaration.inherit.is_some(),
+                    scope,
+                    Some(&touched),
+                    period,
+                )
+                .await?,
+            );
+        }
+        if !missing.is_empty() {
+            violations.push(crate::declarations::required(
+                &declaration.key,
+                missing.into_iter().collect(),
+            ));
+        }
+    }
+    Ok(())
 }

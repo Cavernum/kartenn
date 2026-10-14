@@ -4,6 +4,7 @@ pub mod anomalies;
 pub mod audit;
 mod diff;
 pub mod keys;
+mod obligations;
 mod origins;
 pub mod outbox;
 mod properties;

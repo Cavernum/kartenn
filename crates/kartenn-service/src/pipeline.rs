@@ -541,8 +541,7 @@ async fn apply<T: WriteTx>(
                 }
             }
             Planned::Declare { id, declaration } => {
-                tx.insert_declaration(*id, declaration, period, changeset)
-                    .await
+                crate::declarations::declare(tx, *id, declaration, period, changeset).await
             }
             Planned::UpdateDeclaration { id, declaration } => {
                 crate::declarations::update(tx, *id, declaration, period, changeset, violations)
@@ -643,11 +642,25 @@ pub async fn submit<S: Store>(
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
     }
-    let diff = match crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
-        Ok(targets) => crate::resolution::diff(&mut tx, &planned, targets, period).await,
-        Err(e) => Err(e),
+    let refreshed = match crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
+        Ok(refreshed) => refreshed,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
     };
-    let diff = match diff {
+    if let Err(e) =
+        crate::resolution::check_obligations(&mut tx, &planned, &refreshed, period, &mut violations)
+            .await
+    {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    if has_errors(&violations) {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, violations).await;
+    }
+    let diff = match crate::resolution::diff(&mut tx, &planned, refreshed, period).await {
         Ok(diff) => diff,
         Err(e) => {
             tx.rollback().await?;

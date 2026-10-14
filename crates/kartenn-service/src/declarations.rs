@@ -1,7 +1,7 @@
 //! Property declarations through changesets: administrator operations and module
 //! synchronisation (spec 003, REQ-003-1 to 6; task 003-7; decisions P1, P8, P12).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
@@ -14,7 +14,7 @@ use kartenn_core::values::{Scalar, Value, ValueContext, ValueType};
 use uuid::{Uuid, uuid};
 
 use crate::operations::{
-    ChangesetRequest, DeclarationInput, ObjectKind, Operation, Ref, TypeInput,
+    ChangesetRequest, DeclarationInput, ObjectKind, ObligationInput, Operation, Ref, TypeInput,
 };
 use crate::pipeline::{Outcome, Planned, RequestError, submit};
 use crate::port::{PropertyFacts, Store, StoreError, WriteError, WriteTx};
@@ -83,6 +83,19 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
             return Err(invalid(format!("{key}: {tree} is not a known tree")));
         }
     }
+    let mut obligations = BTreeSet::new();
+    for o in &input.obligations {
+        obligations.insert(match o {
+            ObligationInput::Domain { id } => ObligationScope::Domain(*id),
+            ObligationInput::ObjectType { kind } => ObligationScope::ObjectType(kind.clone()),
+            // No object has an owner before the anchors (002-22).
+            ObligationInput::Entity { .. } => {
+                return Err(invalid(format!(
+                    "{key}: an obligation scoped by entity needs the owners of objects (002-22)"
+                )));
+            }
+        });
+    }
     let declaration = Declaration {
         key,
         declarant,
@@ -90,7 +103,7 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
         cardinality: input.cardinality,
         carriers,
         inherit,
-        obligations: BTreeSet::new(),
+        obligations,
     };
     declaration.validate()?;
     Ok(declaration)
@@ -170,11 +183,82 @@ fn input(declaration: &Declaration) -> DeclarationInput {
             Declarant::Module(m) => Some(m.clone()),
             Declarant::Administrator => None,
         },
+        obligations: declaration
+            .obligations
+            .iter()
+            .map(|o| match o {
+                ObligationScope::Domain(id) => ObligationInput::Domain { id: *id },
+                ObligationScope::Entity(id) => ObligationInput::Entity { id: *id },
+                ObligationScope::ObjectType(kind) => {
+                    ObligationInput::ObjectType { kind: kind.clone() }
+                }
+            })
+            .collect(),
     }
 }
 
+/// Objects without a value for each scope `declaration` adds to `old` (all its scopes
+/// for a new declaration), from the start of `period` on (REQ-003-16).
+async fn missing_values<T: WriteTx>(
+    tx: &mut T,
+    id: Uuid,
+    old: Option<&Declaration>,
+    declaration: &Declaration,
+    period: Option<Period>,
+) -> Result<BTreeMap<ObligationScope, Vec<Uuid>>, StoreError> {
+    let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
+    // Origins are materialised under the current declaration.
+    let heritable = old.unwrap_or(declaration).inherit.is_some();
+    let mut out = BTreeMap::new();
+    for scope in &declaration.obligations {
+        if old.is_some_and(|o| o.obligations.contains(scope)) {
+            continue;
+        }
+        let missing = tx
+            .objects_without_value(id, &carriers, heritable, scope, None, period)
+            .await?;
+        out.insert(scope.clone(), missing);
+    }
+    Ok(out)
+}
+
+/// Declares a property; refused if a scope of its obligations already holds objects,
+/// which have no value yet (REQ-003-16).
+pub(crate) async fn declare<T: WriteTx>(
+    tx: &mut T,
+    id: Uuid,
+    declaration: &Declaration,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    tx.insert_declaration(id, declaration, period, changeset)
+        .await?;
+    let missing: Vec<Uuid> = missing_values(tx, id, None, declaration, period)
+        .await?
+        .into_values()
+        .flatten()
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(WriteError::Rule(required(&declaration.key, missing)))
+    }
+}
+
+/// The violation listing objects left without a mandatory value.
+pub(crate) fn required(key: &PropertyKey, objects: Vec<Uuid>) -> Violation {
+    Violation::new(
+        &rules::PROP_REQUIRED,
+        format!(
+            "{key} is mandatory here: {} object(s) have no value",
+            objects.len()
+        ),
+    )
+    .with_subjects(objects)
+}
+
 /// Use of a property read from storage, as the compatibility checker sees it.
-struct Usage(PropertyFacts);
+struct Usage(PropertyFacts, BTreeMap<ObligationScope, Vec<Uuid>>);
 
 impl ValueContext for Usage {
     fn enum_value(&self, key: &str) -> Option<Uuid> {
@@ -195,10 +279,9 @@ impl PropertyUsage for Usage {
         self.0.inheriting.clone()
     }
 
-    fn objects_without_value(&self, _scope: &ObligationScope) -> Vec<Uuid> {
-        // Obligations do not change through declarations before 003-10: the checker never
-        // asks (old and new declarations carry the same, empty, obligations).
-        Vec::new()
+    fn objects_without_value(&self, scope: &ObligationScope) -> Vec<Uuid> {
+        // Read beforehand for every scope the new declaration adds.
+        self.1.get(scope).cloned().unwrap_or_default()
     }
 
     fn revalidate(&self, ty: &dyn ValueType, value: &Value) -> Result<(), String> {
@@ -230,7 +313,8 @@ pub(crate) async fn update<T: WriteTx>(
         return Ok(());
     }
     let facts = tx.property_facts(id, old.spec.id(), period).await?;
-    match check_evolution(&old, new, &Usage(facts)) {
+    let missing = missing_values(tx, id, Some(&old), new, period).await?;
+    match check_evolution(&old, new, &Usage(facts, missing)) {
         Ok(()) => tx.replace_declaration(id, new, period, changeset).await,
         Err(v) => {
             violations.push(v.with_subjects([id]));
