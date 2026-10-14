@@ -136,6 +136,13 @@ impl PgTx {
         .fetch_one(&mut *self.tx)
         .await
         .map_err(store_err)?;
+        // Equality joins only: hash and merge joins scale with the volume, whereas the
+        // statistics of a property written in this changeset are stale and lead the
+        // planner into nested loops over every origin (bench 003-16).
+        sqlx::raw_sql("SET LOCAL enable_nestloop = off")
+            .execute(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
         sqlx::query(sqlx::AssertSqlSafe(record_sql()))
             .bind(property)
             .bind(objects)
@@ -143,6 +150,10 @@ impl PgTx {
             .bind(heritable)
             .bind(closed_list)
             .bind(excluded)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        sqlx::raw_sql("SET LOCAL enable_nestloop TO DEFAULT")
             .execute(&mut *self.tx)
             .await
             .map_err(store_err)?;
