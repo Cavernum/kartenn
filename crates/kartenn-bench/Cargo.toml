@@ -16,3 +16,8 @@ rand = "0.10.3"
 rand_chacha = "0.10.0"
 uuid = { version = "1.28.0", features = ["v7"] }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

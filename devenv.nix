@@ -63,6 +63,17 @@
     '';
   };
 
+  # Budgets of the properties (spec 003, REQ-003-26) on the reference dataset of
+  # REQ-002-45, in a database recreated for the run: `bench-properties [seed] [small]`.
+  scripts.bench-properties = {
+    description = "Check the budgets of the properties on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- props "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   git-hooks.hooks = {
     # Generic hygiene, every project.
     check-merge-conflicts.enable = true;

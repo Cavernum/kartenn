@@ -671,9 +671,14 @@ name = "kartenn-bench"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "kartenn-core",
+ "kartenn-service",
+ "kartenn-store-pg",
  "kartenn-workspace-hack",
  "rand",
  "rand_chacha",
+ "sqlx",
+ "tokio",
  "uuid",
 ]
 

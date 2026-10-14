@@ -15,6 +15,8 @@ use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
+pub mod props;
+
 /// Address family of a generated value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Family {
@@ -107,7 +109,9 @@ pub enum Nature {
 }
 
 impl Nature {
-    const fn as_str(self) -> &'static str {
+    /// Name, as stored.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Container => "container",
             Self::Network => "network",
