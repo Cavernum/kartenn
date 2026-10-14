@@ -88,10 +88,9 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   table des erreurs
   — **partiel** : doublon et réseau feuille faits ; nature et redimensionnement attendent les
   opérations de modification (implementation.md, I3)
-- [ ] 20. Règles globales des plages et adresses : dans un réseau, chevauchement, usage
+- [x] 20. Règles globales des plages et adresses : dans un réseau, chevauchement, usage
   de plage, unicité — REQ-002-21, 22, 25, 26, 28 — verify : idem
-  — **partiel** : adresses faites (dans un réseau sur toute leur période, unicité, positions
-  réservées) ; plages en attente (I2)
+  (`kartenn-service/tests/ranges.rs`)
 - [ ] 21. Espace public et anycast entre domaines, verrou « espace public » —
   REQ-002-32, 46, 49 — verify : tests, dont concurrence
   — **partiel** : adresses faites ; réseaux anycast (A13, REQ-002-49) à ajouter

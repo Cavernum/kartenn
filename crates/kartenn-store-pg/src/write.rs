@@ -2,7 +2,7 @@
 
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
-use kartenn_core::objects::{Address, AddressUsage, Nature, PrefixObject};
+use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::period::Period;
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
@@ -31,6 +31,8 @@ fn constraint_rule(name: &str) -> Option<&'static Rule> {
         "address_unique_per_domain" => &rules::ADDRESS_DUPLICATE,
         "address_public_unique" => &rules::PUBLIC_OVERLAP,
         "address_is_host" => &rules::ADDR_SYNTAX,
+        "ip_range_disjoint" => &rules::RANGE_OVERLAP,
+        "ip_range_bounds" => &rules::RANGE_BOUNDS,
         "addressing_domain_slug_unique" | "entity_slug_unique" | "site_slug_unique" => {
             &rules::SLUG_DUPLICATE
         }
@@ -163,8 +165,33 @@ fn table(kind: ObjectKind) -> &'static str {
     match kind {
         ObjectKind::Domain => "addressing_domain",
         ObjectKind::Prefix => "prefix",
+        ObjectKind::Range => "ip_range",
         ObjectKind::Address => "address",
     }
+}
+
+fn address_usage(text: &str) -> Result<AddressUsage, StoreError> {
+    Ok(match text {
+        "host" => AddressUsage::Host,
+        "gateway" => AddressUsage::Gateway,
+        "vip" => AddressUsage::Vip,
+        "anycast" => AddressUsage::Anycast,
+        "reserved" => AddressUsage::Reserved,
+        other => return Err(store_err(format!("unknown address usage {other}"))),
+    })
+}
+
+fn range_usage(text: &str) -> Result<RangeUsage, StoreError> {
+    Ok(match text {
+        "dhcp" => RangeUsage::Dhcp,
+        "reserved" => RangeUsage::Reserved,
+        "static" => RangeUsage::Static,
+        other => return Err(store_err(format!("unknown range usage {other}"))),
+    })
+}
+
+fn addr(text: &str) -> Result<Addr, StoreError> {
+    Addr::parse_any(&ALL, text).map_err(store_err)
 }
 
 fn violations_json(violations: &[Violation]) -> serde_json::Value {
@@ -339,6 +366,7 @@ impl WriteTx for PgTx {
         let sql = match kind {
             ObjectKind::Domain => return Ok(Some(id)),
             ObjectKind::Prefix => "SELECT domain_id FROM prefix WHERE id = $1 LIMIT 1",
+            ObjectKind::Range => "SELECT domain_id FROM ip_range WHERE id = $1 LIMIT 1",
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
         };
         sqlx::query_scalar(sql)
@@ -607,16 +635,147 @@ impl WriteTx for PgTx {
             .await
             .map_err(store_err)?;
         rows.into_iter()
-            .map(|(id, usage)| {
-                let usage = match usage.as_str() {
-                    "host" => AddressUsage::Host,
-                    "gateway" => AddressUsage::Gateway,
-                    "vip" => AddressUsage::Vip,
-                    "anycast" => AddressUsage::Anycast,
-                    "reserved" => AddressUsage::Reserved,
-                    other => return Err(store_err(format!("unknown usage {other}"))),
-                };
-                Ok((id, usage))
+            .map(|(id, usage)| Ok((id, address_usage(&usage)?)))
+            .collect()
+    }
+
+    async fn insert_range(
+        &mut self,
+        r: &IpRange,
+        public: bool,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version, valid_period, changeset_id)
+             VALUES ($1, $2, inetrange($3::inet, $4::inet, '[]'), $5, $6, $7, {}, $10)",
+            period_sql(8, 9)
+        );
+        let binds = vec![
+            Bind::Uuid(r.id),
+            Bind::Uuid(r.domain),
+            Bind::Text(r.first.to_string()),
+            Bind::Text(r.last.to_string()),
+            Bind::Text(r.usage.as_str().to_owned()),
+            Bind::Bool(public),
+            Bind::Text(kartenn_core::registry::UPDATED.to_owned()),
+            Bind::Time(a),
+            Bind::Time(b),
+            Bind::Uuid(changeset),
+        ];
+        self.guarded(sqlx::AssertSqlSafe(sql), binds, r.id)
+            .await
+            .map(|_| ())
+    }
+
+    async fn range_covered(&mut self, range: Uuid) -> Result<bool, StoreError> {
+        // As for addresses (multirange containment); networks never nest, so the networks
+        // holding both bounds at an instant are a single one.
+        sqlx::query_scalar(
+            "SELECT coalesce(bool_and(coalesce((
+                 SELECT range_agg(n.valid_period) FROM prefix n
+                 WHERE n.domain_id = r.domain_id AND n.nature = 'network'
+                   AND n.prefix >>= lower(r.range) AND n.prefix >>= upper(r.range)
+               ), '{}'::tstzmultirange) @> r.valid_period), true)
+             FROM ip_range r WHERE r.id = $1",
+        )
+        .bind(range)
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn ranges_overlapping(
+        &mut self,
+        domain: Uuid,
+        first: Addr,
+        last: Addr,
+        period: Option<Period>,
+    ) -> Result<Vec<IpRange>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT ON (id) id, host(lower(range)), host(upper(range)), usage FROM ip_range
+             WHERE domain_id = $1 AND range && inetrange($2::inet, $3::inet, '[]')
+               AND valid_period && {}",
+            period_sql(4, 5)
+        );
+        let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(first.to_string())
+            .bind(last.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(id, first, last, usage)| {
+                Ok(IpRange {
+                    id,
+                    domain,
+                    first: addr(&first)?,
+                    last: addr(&last)?,
+                    usage: range_usage(&usage)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn ranges_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id FROM ip_range
+             WHERE domain_id = $1 AND lower(range) <<= $2::cidr AND upper(range) <<= $2::cidr
+               AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(prefix.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn addresses_between(
+        &mut self,
+        domain: Uuid,
+        first: Addr,
+        last: Addr,
+        period: Option<Period>,
+    ) -> Result<Vec<Address>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT ON (id) id, host(address), usage FROM address
+             WHERE domain_id = $1 AND address BETWEEN $2::inet AND $3::inet
+               AND family(address) = family($2::inet) AND valid_period && {}",
+            period_sql(4, 5)
+        );
+        let rows: Vec<(Uuid, String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(first.to_string())
+            .bind(last.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(id, value, usage)| {
+                Ok(Address {
+                    id,
+                    domain,
+                    value: addr(&value)?,
+                    usage: address_usage(&usage)?,
+                })
             })
             .collect()
     }

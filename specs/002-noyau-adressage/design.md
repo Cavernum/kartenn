@@ -180,6 +180,13 @@ ensemble ; les avertissements produisent des anomalies.
 l'objet à la date : `prefix >> $valeur` (ou `>>=` pour une plage ou une adresse), tri par
 longueur décroissante, premier résultat. Servi par l'index GiST `inet_ops`.
 
+**Plages** (REQ-002-21 à 24, 28) : une plage est couverte, sur toute sa période, par les
+réseaux de son domaine qui contiennent ses deux bornes ; ses bornes évitent les positions
+réservées de ce réseau ; les adresses qu'elle couvre respectent son usage, que la plage ou
+l'adresse soit créée en premier. Clore un réseau revérifie ses plages comme ses adresses.
+Une plage n'a pas de contrôle d'espace public propre : son réseau est déjà unique entre
+domaines.
+
 **Espace public** (REQ-002-32, 46) : chaque préfixe, plage et adresse reçoit à l'écriture
 un indicateur `public` calculé depuis le registre à usage spécial (entrée la plus
 spécifique, Globally Reachable ou absence d'entrée), avec la version du registre utilisée.

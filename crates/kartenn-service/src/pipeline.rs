@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use kartenn_core::addr::{Addr, AddrError, Prefix};
 use kartenn_core::family::ALL;
-use kartenn_core::objects::{self, Address, PrefixObject, Slug};
+use kartenn_core::objects::{self, Address, IpRange, PrefixObject, RangeUsage, Slug};
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::registry::special_registry;
 use kartenn_core::rules::{self, Severity, Violation};
@@ -128,6 +128,10 @@ pub(crate) enum Planned {
         object: PrefixObject,
         public: bool,
     },
+    Range {
+        object: IpRange,
+        public: bool,
+    },
     Address {
         object: Address,
         public: bool,
@@ -145,6 +149,7 @@ impl Planned {
         match self {
             Self::Domain { id, .. } | Self::Close { id, .. } => *id,
             Self::Prefix { object, .. } => object.id,
+            Self::Range { object, .. } => object.id,
             Self::Address { object, .. } => object.id,
         }
     }
@@ -168,7 +173,9 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
     let mut defined: HashMap<u32, ObjectKind> = HashMap::new();
     for (i, op) in req.operations.iter().enumerate() {
         let uses: Vec<(Ref, ObjectKind)> = match op {
-            Operation::CreatePrefix { domain, .. } | Operation::CreateAddress { domain, .. } => {
+            Operation::CreatePrefix { domain, .. }
+            | Operation::CreateRange { domain, .. }
+            | Operation::CreateAddress { domain, .. } => {
                 vec![(*domain, ObjectKind::Domain)]
             }
             Operation::Close { kind, id, .. } => vec![(*id, *kind)],
@@ -198,6 +205,7 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
             let kind = match op {
                 Operation::CreateDomain { .. } => ObjectKind::Domain,
                 Operation::CreatePrefix { .. } => ObjectKind::Prefix,
+                Operation::CreateRange { .. } => ObjectKind::Range,
                 _ => ObjectKind::Address,
             };
             if defined.insert(local, kind).is_some() {
@@ -206,6 +214,45 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
         }
     }
     Ok(period)
+}
+
+/// Parses and checks a range locally (REQ-002-21 bounds, 31, 35): the range is planned
+/// unless a violation is an error; warnings are returned either way.
+fn plan_range(
+    id: Uuid,
+    domain: Uuid,
+    first: &str,
+    last: &str,
+    usage: RangeUsage,
+) -> (Option<Planned>, Vec<Violation>) {
+    let (first, last) = match (Addr::parse_any(&ALL, first), Addr::parse_any(&ALL, last)) {
+        (Ok(first), Ok(last)) => (first, last),
+        (first, last) => {
+            let violations = [first.err(), last.err()]
+                .iter()
+                .flatten()
+                .map(addr_violation)
+                .collect();
+            return (None, violations);
+        }
+    };
+    let object = IpRange {
+        id,
+        domain,
+        first,
+        last,
+        usage,
+    };
+    let violations = objects::check_range(&object);
+    if has_errors(&violations) {
+        return (None, violations);
+    }
+    // Classified by its bounds; a valid range lies in one network, hence in one block of
+    // the special-purpose registry or none.
+    let public = [first, last]
+        .into_iter()
+        .any(|a| special_registry(a.family()).is_none_or(|r| r.is_public(Prefix::host(a))));
+    (Some(Planned::Range { object, public }), violations)
 }
 
 /// Parses every operation and runs the local rules (no database).
@@ -249,6 +296,18 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 }
                 Err(e) => violations.push(addr_violation(&e)),
             },
+            Operation::CreateRange {
+                domain,
+                first,
+                last,
+                usage,
+                ..
+            } => {
+                let domain = resolve(*domain, &ids);
+                let (range, found) = plan_range(id, domain, first, last, *usage);
+                planned.extend(range);
+                violations.extend(found);
+            }
             Operation::CreateAddress {
                 domain,
                 address,
@@ -307,6 +366,13 @@ async fn lock_targets<T: WriteTx>(
                 domains.insert(object.domain);
                 public |= is_public;
             }
+            Planned::Range {
+                object,
+                public: is_public,
+            } => {
+                domains.insert(object.domain);
+                public |= is_public;
+            }
             Planned::Address {
                 object,
                 public: is_public,
@@ -315,7 +381,7 @@ async fn lock_targets<T: WriteTx>(
                 public |= is_public;
             }
             Planned::Close {
-                kind: kind @ (ObjectKind::Prefix | ObjectKind::Address),
+                kind: kind @ (ObjectKind::Prefix | ObjectKind::Range | ObjectKind::Address),
                 id,
                 ..
             } => {
@@ -345,6 +411,9 @@ async fn apply<T: WriteTx>(
             }
             Planned::Prefix { object, public } => {
                 tx.insert_prefix(object, *public, period, changeset).await
+            }
+            Planned::Range { object, public } => {
+                tx.insert_range(object, *public, period, changeset).await
             }
             Planned::Address { object, public } => {
                 tx.insert_address(object, *public, period, changeset).await

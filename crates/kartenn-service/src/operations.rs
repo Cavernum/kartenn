@@ -1,6 +1,6 @@
 //! Operations of a changeset (REQ-004-1 to 5).
 
-use kartenn_core::objects::{AddressUsage, Nature};
+use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -23,6 +23,8 @@ pub enum ObjectKind {
     Domain,
     /// Prefix.
     Prefix,
+    /// Range of addresses.
+    Range,
     /// Address.
     Address,
 }
@@ -62,6 +64,19 @@ pub enum Operation {
         #[serde(default)]
         point_to_point: bool,
     },
+    /// Creates a range of addresses inside a network.
+    CreateRange {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Domain.
+        domain: Ref,
+        /// First address.
+        first: String,
+        /// Last address, included.
+        last: String,
+        /// DHCP, reserved or static.
+        usage: RangeUsage,
+    },
     /// Creates an address.
     CreateAddress {
         /// Local name for later operations.
@@ -93,6 +108,7 @@ impl Operation {
         match self {
             Self::CreateDomain { local, .. }
             | Self::CreatePrefix { local, .. }
+            | Self::CreateRange { local, .. }
             | Self::CreateAddress { local, .. } => *local,
             Self::Close { .. } => None,
         }

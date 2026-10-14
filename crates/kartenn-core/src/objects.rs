@@ -416,6 +416,38 @@ pub fn check_range_in_network(r: &IpRange, network: &PrefixObject) -> Vec<Violat
     })
 }
 
+/// Rules of an address against a range that contains it (REQ-002-28, 002/A8): only DHCP
+/// reservations in a DHCP range, nothing in a reserved range, anything in a static one.
+#[must_use]
+pub fn check_address_in_range(a: &Address, r: &IpRange) -> Vec<Violation> {
+    if a.value < r.first || r.last < a.value {
+        return Vec::new();
+    }
+    let refused = match r.usage {
+        RangeUsage::Dhcp => a.usage != AddressUsage::Reserved,
+        RangeUsage::Reserved => true,
+        RangeUsage::Static => false,
+    };
+    if refused {
+        vec![
+            Violation::new(
+                &rules::ADDRESS_RANGE_USAGE,
+                format!(
+                    "{} ({}) is inside the {} range {} – {}",
+                    a.value,
+                    a.usage.as_str(),
+                    r.usage.as_str(),
+                    r.first,
+                    r.last
+                ),
+            )
+            .with_subjects([a.id, r.id]),
+        ]
+    } else {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -647,5 +679,40 @@ mod tests {
             vec!["core.range.reserved_bounds"]
         );
         assert!(check_range_in_network(&range("10.1.2.10", "10.1.2.50"), &n).is_empty());
+    }
+
+    #[test]
+    fn addresses_respect_the_usage_of_their_range() {
+        // REQ-002-28 acceptance.
+        let with = |usage| Address {
+            usage,
+            ..address("10.1.2.150")
+        };
+        let dhcp = range("10.1.2.100", "10.1.2.199");
+        assert_eq!(
+            ids(&check_address_in_range(&with(AddressUsage::Host), &dhcp)),
+            vec!["core.address.range_usage"]
+        );
+        assert!(check_address_in_range(&with(AddressUsage::Reserved), &dhcp).is_empty());
+        let reserved = IpRange {
+            usage: RangeUsage::Reserved,
+            ..range("10.1.2.100", "10.1.2.199")
+        };
+        assert_eq!(
+            ids(&check_address_in_range(
+                &with(AddressUsage::Reserved),
+                &reserved
+            )),
+            vec!["core.address.range_usage"]
+        );
+        let static_range = IpRange {
+            usage: RangeUsage::Static,
+            ..range("10.1.2.100", "10.1.2.199")
+        };
+        assert!(check_address_in_range(&with(AddressUsage::Host), &static_range).is_empty());
+        assert!(
+            check_address_in_range(&address("10.1.2.7"), &dhcp).is_empty(),
+            "outside the range"
+        );
     }
 }

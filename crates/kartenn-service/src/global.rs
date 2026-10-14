@@ -1,5 +1,5 @@
 //! Global addressing rules, checked on the final state inside the changeset transaction
-//! (spec 002, REQ-002-16, 25, 29, 32, 46; tasks 002-18 to 21). Ranges are not covered yet.
+//! (spec 002, REQ-002-16, 21 to 23, 25, 28, 29, 32, 46; tasks 002-18 to 21).
 
 use std::collections::BTreeSet;
 
@@ -21,12 +21,16 @@ pub(crate) async fn validate<T: WriteTx>(
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
     let mut addresses_to_recheck: BTreeSet<Uuid> = BTreeSet::new();
+    let mut ranges_to_recheck: BTreeSet<Uuid> = BTreeSet::new();
     for p in planned {
         match p {
             Planned::Prefix { object, public } => {
                 check_prefix(tx, object, *public, period, violations).await?;
                 // A new network may leave addresses inside a former network uncovered only
                 // through closure; creation never removes coverage.
+            }
+            Planned::Range { object, .. } => {
+                check_range(tx, object, period, violations).await?;
             }
             Planned::Address { object, public } => {
                 check_address(tx, object, *public, period, violations).await?;
@@ -38,6 +42,7 @@ pub(crate) async fn validate<T: WriteTx>(
             } => {
                 if let Some((domain, value)) = tx.prefix_of(*id).await? {
                     addresses_to_recheck.extend(tx.addresses_inside(domain, value, None).await?);
+                    ranges_to_recheck.extend(tx.ranges_inside(domain, value, None).await?);
                 }
             }
             Planned::Domain { .. } | Planned::Close { .. } => {}
@@ -51,6 +56,17 @@ pub(crate) async fn validate<T: WriteTx>(
                     format!("address {address} would no longer be in a network"),
                 )
                 .with_subjects([address]),
+            );
+        }
+    }
+    for range in ranges_to_recheck {
+        if !tx.range_covered(range).await? {
+            violations.push(
+                Violation::new(
+                    &rules::RANGE_OUTSIDE_NETWORK,
+                    format!("range {range} would no longer be in a network"),
+                )
+                .with_subjects([range]),
             );
         }
     }
@@ -119,6 +135,45 @@ async fn check_prefix<T: WriteTx>(
     Ok(())
 }
 
+/// A range lies in a network of its domain, avoids its reserved positions and respects
+/// the addresses it covers (REQ-002-21, 23, 28). Overlap between ranges is enforced by the
+/// database (REQ-002-22). Public space needs no check of its own: the network holding the
+/// range is already unique across domains (REQ-002-32).
+async fn check_range<T: WriteTx>(
+    tx: &mut T,
+    object: &objects::IpRange,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    if !tx.range_covered(object.id).await? {
+        violations.push(
+            Violation::new(
+                &rules::RANGE_OUTSIDE_NETWORK,
+                format!(
+                    "{} – {} is not inside a single network of its domain",
+                    object.first, object.last
+                ),
+            )
+            .with_subjects([object.id]),
+        );
+    }
+    for network in tx
+        .networks_containing(object.domain, Prefix::host(object.first), true, period)
+        .await?
+    {
+        if network.value.contains_addr(object.last) {
+            violations.extend(objects::check_range_in_network(object, &network));
+        }
+    }
+    for address in tx
+        .addresses_between(object.domain, object.first, object.last, period)
+        .await?
+    {
+        violations.extend(objects::check_address_in_range(&address, object));
+    }
+    Ok(())
+}
+
 async fn check_address<T: WriteTx>(
     tx: &mut T,
     object: &objects::Address,
@@ -142,6 +197,13 @@ async fn check_address<T: WriteTx>(
         .await?
     {
         violations.extend(objects::check_address_in_network(object, &network));
+    }
+    // REQ-002-28: usage of the range it falls in.
+    for range in tx
+        .ranges_overlapping(object.domain, object.value, object.value, period)
+        .await?
+    {
+        violations.extend(objects::check_address_in_range(object, &range));
     }
     // REQ-002-32, 46: public space across domains, anycast exception.
     if public {

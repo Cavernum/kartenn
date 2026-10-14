@@ -3,7 +3,7 @@
 use std::future::Future;
 
 use kartenn_core::addr::{Addr, Prefix};
-use kartenn_core::objects::{Address, AddressUsage, PrefixObject};
+use kartenn_core::objects::{Address, AddressUsage, IpRange, PrefixObject};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use uuid::Uuid;
@@ -180,6 +180,48 @@ pub trait WriteTx {
         prefix: Prefix,
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Writes a new range.
+    fn insert_range(
+        &mut self,
+        range: &IpRange,
+        public: bool,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Whether every version of the range lies, over its whole period, in networks of its
+    /// domain that contain both its bounds (REQ-002-21).
+    fn range_covered(
+        &mut self,
+        range: Uuid,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Ranges of `domain` overlapping `[first, last]` over part of `period`.
+    fn ranges_overlapping(
+        &mut self,
+        domain: Uuid,
+        first: Addr,
+        last: Addr,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<IpRange>, StoreError>> + Send;
+
+    /// Ranges of `domain` inside `prefix` over part of `period`.
+    fn ranges_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Addresses of `domain` within `[first, last]` over part of `period`.
+    fn addresses_between(
+        &mut self,
+        domain: Uuid,
+        first: Addr,
+        last: Addr,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Address>, StoreError>> + Send;
 
     /// Public networks of other domains overlapping `prefix` over part of `period`
     /// (REQ-002-32), with their domain.
