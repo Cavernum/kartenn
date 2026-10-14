@@ -140,3 +140,13 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
   résultats de filtrage et d'obligation différents pour la même intention.
 - Rejeté : ensemble vide distinct de l'effacement (ambigu, non demandé).
 - Décidé par : recommandation acceptée (2026-10-14)
+
+## P12 — Déclarations de module synchronisées depuis le code
+- Décision : le code du module est la seule source de ses déclarations ; le job de
+  migration les synchronise par un changeset de l'auteur « système » (ajout, évolution
+  contrôlée par P8, clôture), et un refus fait échouer le déploiement.
+- Pourquoi : écritures auditées et contrôle de compatibilité automatique ; aucune copie
+  SQL à maintenir à côté du code.
+- Rejeté : `INSERT` dans les migrations SQL du module (contourne changeset, audit et
+  contrôle de compatibilité ; deux sources à garder alignées).
+- Décidé par : recommandation acceptée (2026-10-14)

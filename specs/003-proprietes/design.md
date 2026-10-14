@@ -33,9 +33,31 @@ source de valeurs attendues ; jamais d'approbation, 004/C6). Une migration du mo
 enregistre en base ;
 leur évolution passe par une migration de module (P8).
 
+**Synchronisation des modules** (P12). Le code du module reste la seule source. Après les
+migrations SQL, le job de migration appelle `sync_modules` : pour chaque module, il
+compare ses descripteurs aux déclarations courantes de son espace et soumet les écarts
+dans **un changeset** de l'auteur `système` (personne créée par migration), de motif
+`module sync <module>@<version>` : déclaration d'une clé nouvelle, évolution d'une clé
+modifiée (contrôlée par `check_evolution`), ajout des valeurs de liste fermée absentes,
+clôture d'une clé disparue du code. Un refus fait échouer le déploiement. Les valeurs de
+liste fermée ajoutées par un administrateur ne sont jamais closes par la synchronisation.
+Le déclarant d'une opération n'est pas désérialisé depuis l'API : seule la
+synchronisation peut déclarer au nom d'un module.
+
 **Administrateurs.** Déclarations de l'espace `custom`, créées et modifiées par
-changeset (opérations `declare_property`, `update_property`, `close_property`,
-`add_enum_value`, `close_enum_value`). Seuls les types intégrés sont proposés (P1).
+changeset (opérations `declare_property`, `update_property`, `add_enum_value` ;
+clôtures par `close` sur les types `property` et `enum_value`). Seuls les types intégrés
+sont proposés (P1). Les porteurs d'une déclaration d'administrateur sont des types
+connus du noyau, en attendant le registre des types des modules.
+
+- `update_property` remplace la version courante à partir du début de la période du
+  changeset, jusqu'à la fin de cette version ; les périodes bornées relèvent du découpage
+  général (004-8).
+- Clore une propriété clôt ses valeurs de liste fermée (ses composants, pas des
+  dépendants) ; elle est refusée s'il reste des affectations sur la période (P8 : on les
+  clôt dans le même changeset).
+- Les obligations viennent avec 003-10 ; d'ici là, ni l'API ni la synchronisation ne
+  les modifient.
 
 **Stockage** (temporel selon la 004) :
 
