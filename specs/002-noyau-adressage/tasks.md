@@ -67,6 +67,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 ## P3 — Stockage (`kartenn-store-pg`)
 
 - [ ] 15. Migrations des objets du noyau (entité, site, domaine, préfixe, plage, adresse)
+  — **partiel** : tout sauf la plage, en attente de l'amendement du prototype 001
   en tables courantes + historique (004), contraintes d'exclusion `inet_ops`, `CHECK`,
   index — REQ-002-15, 22, 26, 32 — après 004-5 — verify : tests d'intégration des
   contraintes, y compris concurrence
