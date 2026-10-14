@@ -38,7 +38,7 @@ struct Fixture {
 impl Fixture {
     /// Domain `prod` and `custom.environment` (closed list `a`, `b`), heritable along the
     /// addressing tree, carried by every kind of the tree; created on day 0.
-    async fn new(pool: &PgPool) -> Self {
+    async fn new(pool: &PgPool, store: PgStore) -> Self {
         let author = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
         )
@@ -47,7 +47,7 @@ impl Fixture {
         .unwrap();
         let mut f = Self {
             pool: pool.clone(),
-            store: PgStore::new(pool.clone()),
+            store,
             author,
             domain: Uuid::nil(),
             property: Uuid::nil(),
@@ -184,7 +184,7 @@ fn instant(micros: i64) -> OffsetDateTime {
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn values_are_inherited_replaced_cleared_and_dated(pool: PgPool) {
-    let f = Fixture::new(&pool).await;
+    let f = Fixture::new(&pool, PgStore::new(pool.clone())).await;
     f.applied(
         vec![
             f.prefix("10.0.0.0/8", Nature::Container),
@@ -270,7 +270,7 @@ async fn values_are_inherited_replaced_cleared_and_dated(pool: PgPool) {
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn assignments_respect_carriers_types_and_existence(pool: PgPool) {
-    let f = Fixture::new(&pool).await;
+    let f = Fixture::new(&pool, PgStore::new(pool.clone())).await;
     f.applied(vec![f.prefix("10.0.0.0/8", Nature::Container)], 0, None)
         .await;
     let root = f.id("prefix", "prefix", "10.0.0.0/8").await;
@@ -546,7 +546,18 @@ async fn random_step(f: &Fixture, rng: &mut Rng) -> (Vec<Operation>, i64, Option
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn the_materialisation_matches_the_oracle(pool: PgPool) {
-    let f = Fixture::new(&pool).await;
+    matches_the_oracle(&pool, PgStore::new(pool.clone())).await;
+}
+
+/// The same, the origins being recomputed going down from the carriers of an assignment
+/// (the way of the large changesets).
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn going_down_matches_the_oracle(pool: PgPool) {
+    matches_the_oracle(&pool, PgStore::new(pool.clone()).with_down_from(0)).await;
+}
+
+async fn matches_the_oracle(pool: &PgPool, store: PgStore) {
+    let f = Fixture::new(pool, store).await;
     for seed in 1..=4_u64 {
         let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15));
         let mut applied = 0;
@@ -582,7 +593,7 @@ async fn the_materialisation_matches_the_oracle(pool: PgPool) {
               AND upper(a.valid_period) = lower(b.valid_period)
               AND a.origin_object_id = b.origin_object_id",
         )
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .unwrap();
         assert_eq!(touching, 0, "seed {seed}");

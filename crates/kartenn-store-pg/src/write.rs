@@ -94,13 +94,26 @@ fn request_hash(request: &ChangesetRequest) -> Result<Vec<u8>, StoreError> {
 #[derive(Debug, Clone)]
 pub struct PgStore {
     pool: PgPool,
+    down_from: usize,
 }
 
 impl PgStore {
     /// A store on a pool.
     #[must_use]
     pub const fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            down_from: crate::origins::DOWN_FROM,
+        }
+    }
+
+    /// The number of targets from which origins are recomputed going down from the
+    /// objects that carry an assignment rather than up from each target (both give the
+    /// same origins; tests use it to cover either way).
+    #[must_use]
+    pub const fn with_down_from(mut self, targets: usize) -> Self {
+        self.down_from = targets;
+        self
     }
 }
 
@@ -108,6 +121,7 @@ impl PgStore {
 #[derive(Debug)]
 pub struct PgTx {
     pub(crate) tx: Transaction<'static, Postgres>,
+    pub(crate) down_from: usize,
 }
 
 impl PgTx {
@@ -218,6 +232,7 @@ impl Store for PgStore {
     async fn begin(&self) -> Result<PgTx, StoreError> {
         Ok(PgTx {
             tx: self.pool.begin().await.map_err(store_err)?,
+            down_from: self.down_from,
         })
     }
 

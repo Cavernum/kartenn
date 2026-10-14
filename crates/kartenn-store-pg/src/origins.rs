@@ -6,7 +6,9 @@
 //! a range or an address) and its domain; the timeline is cut at every bound of their
 //! versions and of their assignments; on each segment the nearest candidate carrying an
 //! assignment is the origin. Only the segments that differ from the stored ones are
-//! written, merged with their unchanged neighbours.
+//! written, merged with their unchanged neighbours. The candidates are found going up
+//! from each target, or for many targets going down from the objects that carry an
+//! assignment (same result, see [`DOWN_FROM`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,19 +25,50 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 /// A segment of the timeline of one object: origin, start, end (`None`: unbounded).
 type Segment = (Uuid, OffsetDateTime, Option<OffsetDateTime>);
 
-/// Origin of each target on each segment of `[from, ∞)`, before merging.
-///
-/// Containment is written `>>=` plus `id <>` (prefixes are unique per domain) so that the
-/// `GiST` index of `prefix` applies; the assignments are looked up per candidate behind an
-/// `OFFSET 0` fence, as the statistics of a property assigned in this very changeset are
-/// stale and would otherwise drive a nested loop over every candidate (bench 003-16).
-const SEGMENTS: &str = "
+/// Targets of a refresh: `$1` objects, `$3` window start, `$4` carrier kinds.
+macro_rules! targets {
+    () => {
+        "
 WITH w AS (SELECT tstzrange($3, NULL) AS r),
 t AS (
     SELECT o.id, o.domain_id, o.value, o.kind, o.valid_period * w.r AS vp
     FROM addressing_object o, w
     WHERE o.id = ANY($1) AND o.kind = ANY($4) AND o.valid_period && w.r
+),"
+    };
+}
+
+/// Origin of each target on each segment, from `t` and `hit` (candidates carrying an
+/// assignment of `$2`, with their priority and the period of the pair).
+macro_rules! segments {
+    () => {
+        "
+pts AS (
+    SELECT id AS target, lower(vp) AS p FROM t
+    UNION SELECT id, coalesce(upper(vp), 'infinity') FROM t
+    UNION SELECT target, lower(vp) FROM hit
+    UNION SELECT target, coalesce(upper(vp), 'infinity') FROM hit
 ),
+seg AS (SELECT target, p AS s, lead(p) OVER (PARTITION BY target ORDER BY p) AS e FROM pts)
+SELECT DISTINCT ON (g.target, g.s) g.target, h.cand, g.s, nullif(g.e, 'infinity')
+FROM seg g
+JOIN t ON t.id = g.target AND t.vp @> g.s
+JOIN hit h ON h.target = g.target AND h.vp @> g.s
+WHERE g.e IS NOT NULL
+ORDER BY g.target, g.s, h.prio DESC"
+    };
+}
+
+/// Origin of each target on each segment of `[from, ∞)`, before merging, going up from
+/// each target to its candidates.
+///
+/// Containment is written `>>=` plus `id <>` (prefixes are unique per domain) so that the
+/// `GiST` index of `prefix` applies; the assignments are looked up per candidate behind an
+/// `OFFSET 0` fence, as the statistics of a property assigned in this very changeset are
+/// stale and would otherwise drive a nested loop over every candidate (bench 003-16).
+const SEGMENTS_UP: &str = concat!(
+    targets!(),
+    "
 cand AS (
     SELECT t.id AS target, t.id AS cand, 1000 AS prio, t.vp FROM t
     UNION ALL
@@ -54,20 +87,46 @@ hit AS (
         SELECT a.valid_period FROM property_assignment a
         WHERE a.object_id = c.cand AND a.property_id = $2 AND a.valid_period && c.vp
         OFFSET 0) a
+),",
+    segments!()
+);
+
+/// As [`SEGMENTS_UP`], going down from each object carrying an assignment to the targets
+/// below it: one index scan per carrier rather than one per target, but every carrier of
+/// the targets' domains is walked whatever the number of targets.
+const SEGMENTS_DOWN: &str = concat!(
+    targets!(),
+    "
+a AS (
+    SELECT a.object_id, a.valid_period * w.r AS vp FROM property_assignment a, w
+    WHERE a.property_id = $2 AND a.valid_period && w.r
 ),
-pts AS (
-    SELECT id AS target, lower(vp) AS p FROM t
-    UNION SELECT id, coalesce(upper(vp), 'infinity') FROM t
-    UNION SELECT target, lower(vp) FROM hit
-    UNION SELECT target, coalesce(upper(vp), 'infinity') FROM hit
-),
-seg AS (SELECT target, p AS s, lead(p) OVER (PARTITION BY target ORDER BY p) AS e FROM pts)
-SELECT DISTINCT ON (g.target, g.s) g.target, h.cand, g.s, nullif(g.e, 'infinity')
-FROM seg g
-JOIN t ON t.id = g.target AND t.vp @> g.s
-JOIN hit h ON h.target = g.target AND h.vp @> g.s
-WHERE g.e IS NOT NULL
-ORDER BY g.target, g.s, h.prio DESC";
+hit AS (
+    SELECT target, cand, prio, vp FROM (
+        SELECT t.id AS target, t.id AS cand, 1000 AS prio, t.vp * a.vp AS vp
+        FROM t JOIN a ON a.object_id = t.id
+        UNION ALL
+        SELECT x.id, p.id, masklen(p.prefix), x.valid_period * p.valid_period * a.vp
+        FROM a JOIN prefix p ON p.id = a.object_id AND p.valid_period && a.vp
+            AND p.domain_id IN (SELECT DISTINCT domain_id FROM t)
+        JOIN addressing_object x ON x.domain_id = p.domain_id AND x.value <<= p.prefix
+            AND x.id <> p.id AND x.valid_period && a.vp
+            AND x.id = ANY($1) AND x.kind = ANY($4)
+        UNION ALL
+        SELECT x.id, d.id, -1, x.valid_period * d.valid_period * a.vp
+        FROM a JOIN addressing_domain d ON d.id = a.object_id AND d.valid_period && a.vp
+            AND d.id IN (SELECT DISTINCT domain_id FROM t)
+        JOIN addressing_object x ON x.domain_id = d.id AND x.kind <> 'domain'
+            AND x.valid_period && a.vp AND x.id = ANY($1) AND x.kind = ANY($4)
+    ) h WHERE NOT isempty(vp)
+),",
+    segments!()
+);
+
+/// From this many targets on, [`SEGMENTS_DOWN`] is used: on the reference dataset going
+/// up costs about 30 µs per target, going down about 7 µs per object below a carrier of
+/// the targets' domains (a domain holds about 6·10⁴ objects).
+pub(crate) const DOWN_FROM: usize = 50_000;
 
 /// Merges touching segments of the same origin; `segments` sorted by start.
 fn merge(segments: Vec<Segment>) -> Vec<Segment> {
@@ -164,7 +223,12 @@ impl PgTx {
             return Ok(0);
         }
         let from = self.window_start(start).await?;
-        let computed: Vec<Row> = sqlx::query_as(SEGMENTS)
+        let segments = if targets.len() >= self.down_from {
+            SEGMENTS_DOWN
+        } else {
+            SEGMENTS_UP
+        };
+        let computed: Vec<Row> = sqlx::query_as(segments)
             .bind(targets)
             .bind(property)
             .bind(from)
