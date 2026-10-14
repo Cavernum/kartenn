@@ -635,7 +635,15 @@ impl WriteTx for PgTx {
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
-        write_journal(&mut self.tx, journal).await
+        write_journal(&mut self.tx, journal).await?;
+        crate::anomalies::record(
+            &mut self.tx,
+            journal.id,
+            journal.objects,
+            journal.violations,
+        )
+        .await
+        .map_err(store_err)
     }
 
     async fn commit(self) -> Result<(), StoreError> {

@@ -1,5 +1,6 @@
 //! PostgreSQL storage adapter of kartenn.
 
+pub mod anomalies;
 pub mod audit;
 pub mod keys;
 pub mod outbox;
