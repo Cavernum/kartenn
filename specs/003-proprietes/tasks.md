@@ -54,8 +54,9 @@ voir [`../README.md`](../README.md).
   aléatoires de changesets, y compris dans le temps (`kartenn-service/tests/resolution.rs`)
   — arbre d'adressage ; entités et sites avec 002-22 ; ciblage fin d'une affectation au
   banc 003-16
-- [ ] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
+- [x] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
   tests d'intégration (insertion d'un conteneur au-dessus de 4 096 adresses)
+  (`kartenn-service/tests/diff.rs`)
 - [ ] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
 - [ ] 11. Droits : permission directe et droit sur l'effet via `Authorizer::authorize_many`
   (implémentation de test), bascule en proposition si `…propose` (004) — REQ-003-17, 18 —
