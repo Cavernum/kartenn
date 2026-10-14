@@ -21,6 +21,9 @@ use sqlx::types::time::OffsetDateTime;
 const T0: i64 = 1_893_456_000_000_000;
 const DAY: i64 = 86_400_000_000;
 
+/// `prod` as JSON.
+const PROD: &str = r#""prod""#;
+
 fn day(d: i64) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(T0 + d * DAY) * 1_000).unwrap()
 }
@@ -193,10 +196,6 @@ impl Fixture {
     }
 }
 
-fn prod() -> Option<String> {
-    Some(r#""prod""#.into())
-}
-
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
     let f = Fixture::new(&pool, None).await;
@@ -206,7 +205,7 @@ async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
         at(f.addr, 1, None).await.unwrap(),
         Some(Explanation {
             property: "custom.environment".into(),
-            value: prod(),
+            value: Some(PROD.into()),
             origin: Some(f.root),
             chain: vec![f.addr, f.net, f.root],
             provenance: Some("input".into()),
@@ -219,7 +218,7 @@ async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
     let now = at(f.addr, 3, None).await.unwrap().unwrap();
     assert_eq!(now.value, Some(r#""dev""#.into()));
     assert_eq!(now.chain, vec![f.addr, f.net]);
-    assert_eq!(now.replaces, Some((f.root, prod())));
+    assert_eq!(now.replaces, Some((f.root, Some(PROD.into()))));
     // REQ-003-15: before day 2 in application time, or as asserted before the change.
     assert_eq!(
         at(f.addr, 1, None).await.unwrap().unwrap().origin,
@@ -234,7 +233,7 @@ async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
     let cleared = at(f.addr, 5, None).await.unwrap().unwrap();
     assert_eq!(
         (cleared.value, cleared.origin, cleared.replaces),
-        (None, Some(f.net), Some((f.root, prod())))
+        (None, Some(f.net), Some((f.root, Some(PROD.into()))))
     );
     // Before day 0 the property is not declared: nothing to explain.
     assert_eq!(at(f.root, -1, None).await.unwrap(), None);
@@ -272,5 +271,5 @@ async fn a_default_value_shows_its_source(pool: PgPool) {
         .unwrap();
     assert_eq!(e.origin, Some(f.addr));
     assert_eq!(e.provenance.as_deref(), Some("source:addresses@3"));
-    assert_eq!(e.replaces, Some((f.root, prod())));
+    assert_eq!(e.replaces, Some((f.root, Some(PROD.into()))));
 }
