@@ -1,6 +1,7 @@
 //! Audit search, retroactive marking and pseudonymisation (REQ-004-27, 31 to 33).
 
 use kartenn_core::objects::Nature;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::PeriodSpec;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
@@ -40,7 +41,9 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
         }],
     );
     let Outcome::Applied { changeset: c1, .. } =
-        submit(&store, &create, MAX_OPERATIONS).await.unwrap()
+        submit(&store, &Unrestricted, &create, MAX_OPERATIONS)
+            .await
+            .unwrap()
     else {
         panic!()
     };
@@ -64,12 +67,15 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
         end: None,
     }); // 2025-01-01, retroactive
     let Outcome::Applied { changeset: c2, .. } =
-        submit(&store, &past, MAX_OPERATIONS).await.unwrap()
+        submit(&store, &Unrestricted, &past, MAX_OPERATIONS)
+            .await
+            .unwrap()
     else {
         panic!()
     };
     submit(
         &store,
+        &Unrestricted,
         &request(
             bob,
             vec![Operation::CreateDomain {
@@ -90,7 +96,9 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
         }],
     );
     let Outcome::Applied { changeset: c4, .. } =
-        submit(&store, &close, MAX_OPERATIONS).await.unwrap()
+        submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
+            .await
+            .unwrap()
     else {
         panic!()
     };
@@ -160,6 +168,7 @@ async fn pseudonymisation_keeps_the_history(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let Outcome::Applied { changeset, .. } = submit(
         &store,
+        &Unrestricted,
         &request(
             alice,
             vec![Operation::CreateDomain {

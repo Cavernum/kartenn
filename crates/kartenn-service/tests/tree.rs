@@ -4,6 +4,7 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::occupancy::Occupancy;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::tree::{
@@ -70,7 +71,9 @@ async fn the_tree_is_deduced_and_measured(pool: PgPool) {
         simulate: false,
         idempotency_key: None,
     };
-    let outcome = submit(&store, &req, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     let now = OffsetDateTime::now_utc();
     let (root, mid, net) = (

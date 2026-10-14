@@ -12,6 +12,7 @@ use kartenn_core::rules::{self, Severity, Violation};
 use kartenn_core::values::Raw;
 use uuid::Uuid;
 
+use crate::authz::Authorizer;
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
 use crate::port::{DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx};
 
@@ -600,8 +601,9 @@ async fn apply<T: WriteTx>(
 ///
 /// [`RequestError`] for a malformed request, a reused idempotency key or an
 /// infrastructure failure.
-pub async fn submit<S: Store>(
+pub async fn submit<S: Store, A: Authorizer>(
     store: &S,
+    authorizer: &A,
     req: &ChangesetRequest,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
@@ -642,26 +644,22 @@ pub async fn submit<S: Store>(
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
     }
-    let refreshed = match crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
-        Ok(refreshed) => refreshed,
-        Err(e) => {
+    let props = properties(
+        &mut tx,
+        authorizer,
+        req.author,
+        &planned,
+        period,
+        changeset,
+        &mut violations,
+    )
+    .await;
+    let diff = match props {
+        Ok(Some(diff)) => diff,
+        Ok(None) => {
             tx.rollback().await?;
-            return Err(e.into());
+            return refuse(store, req, changeset, violations).await;
         }
-    };
-    if let Err(e) =
-        crate::resolution::check_obligations(&mut tx, &planned, &refreshed, period, &mut violations)
-            .await
-    {
-        tx.rollback().await?;
-        return Err(e.into());
-    }
-    if has_errors(&violations) {
-        tx.rollback().await?;
-        return refuse(store, req, changeset, violations).await;
-    }
-    let diff = match crate::resolution::diff(&mut tx, &planned, refreshed, period).await {
-        Ok(diff) => diff,
         Err(e) => {
             tx.rollback().await?;
             return Err(e.into());
@@ -697,6 +695,28 @@ pub async fn submit<S: Store>(
 
 /// Entries of the differential detail returned by a simulation (003/design).
 const SIMULATION_SAMPLE: i64 = 100;
+
+/// Properties after the writes (spec 003): origins, obligations, differential, then the
+/// rights on the assignments and on their effects (REQ-003-17, 18). `None` when a rule
+/// refuses the changeset; the violations say why.
+async fn properties<T: WriteTx, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    author: Uuid,
+    planned: &[Planned],
+    period: Option<Period>,
+    changeset: Uuid,
+    violations: &mut Vec<Violation>,
+) -> Result<Option<Vec<DiffCount>>, StoreError> {
+    let refreshed = crate::resolution::maintain(tx, planned, period, changeset).await?;
+    crate::resolution::check_obligations(tx, planned, &refreshed, period, violations).await?;
+    if has_errors(violations) {
+        return Ok(None);
+    }
+    let diff = crate::resolution::diff(tx, planned, refreshed, period).await?;
+    crate::rights::check(tx, authorizer, author, planned, &diff, period, violations).await?;
+    Ok((!has_errors(violations)).then_some(diff))
+}
 
 async fn refuse<S: Store>(
     store: &S,

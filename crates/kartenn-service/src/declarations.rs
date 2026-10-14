@@ -13,6 +13,7 @@ use kartenn_core::rules::{self, Violation};
 use kartenn_core::values::{Scalar, Value, ValueContext, ValueType};
 use uuid::{Uuid, uuid};
 
+use crate::authz::Authorizer;
 use crate::operations::{
     ChangesetRequest, DeclarationInput, ObjectKind, ObligationInput, Operation, Ref, TypeInput,
 };
@@ -451,8 +452,9 @@ fn sync_operations(
 /// # Errors
 ///
 /// [`RequestError`] on infrastructure failure.
-pub async fn sync_modules<S: Store>(
+pub async fn sync_modules<S: Store, A: Authorizer>(
     store: &S,
+    authorizer: &A,
     modules: &[ModuleDeclarations],
     max_operations: usize,
 ) -> Result<Vec<Outcome>, RequestError> {
@@ -473,7 +475,7 @@ pub async fn sync_modules<S: Store>(
             simulate: false,
             idempotency_key: None,
         };
-        outcomes.push(submit(store, &request, max_operations).await?);
+        outcomes.push(submit(store, authorizer, &request, max_operations).await?);
     }
     Ok(outcomes)
 }

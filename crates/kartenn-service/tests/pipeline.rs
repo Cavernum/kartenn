@@ -1,6 +1,7 @@
 //! The changeset pipeline against PostgreSQL (spec 004, task 004-7).
 
 use kartenn_core::objects::{AddressUsage, Nature};
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::{PgStore, operations_of};
@@ -62,6 +63,7 @@ async fn new_domain(pool: &PgPool, author: Uuid, slug: &str) -> Uuid {
     let store = PgStore::new(pool.clone());
     let outcome = submit(
         &store,
+        &Unrestricted,
         &request(author, vec![domain(1, slug)]),
         MAX_OPERATIONS,
     )
@@ -90,9 +92,14 @@ async fn a_changeset_creates_objects_through_local_references(pool: PgPool) {
         address(Ref::Local(1), "10.1.2.10", AddressUsage::Host),
         address(Ref::Local(1), "10.1.2.11", AddressUsage::Gateway),
     ];
-    let outcome = submit(&store, &request(author, ops.clone()), MAX_OPERATIONS)
-        .await
-        .unwrap();
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, ops.clone()),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
     let Outcome::Applied {
         changeset,
         warnings,
@@ -140,7 +147,7 @@ async fn one_error_refuses_everything_and_is_journaled(pool: PgPool) {
         })
         .collect();
     ops[72] = prefix(Ref::Id(d), "10.5.0.0/16", Nature::Container);
-    let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)
+    let outcome = submit(&store, &Unrestricted, &request(author, ops), MAX_OPERATIONS)
         .await
         .unwrap();
     let Outcome::Refused {
@@ -181,7 +188,7 @@ async fn every_database_violation_is_reported(pool: PgPool) {
         address(Ref::Id(d), "10.1.1.1", AddressUsage::Host),
         address(Ref::Id(d), "10.1.1.1", AddressUsage::Host),
     ];
-    let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)
+    let outcome = submit(&store, &Unrestricted, &request(author, ops), MAX_OPERATIONS)
         .await
         .unwrap();
     let Outcome::Refused { violations, .. } = outcome else {
@@ -206,7 +213,9 @@ async fn simulation_writes_nothing(pool: PgPool) {
         ],
     );
     req.simulate = true;
-    let outcome = submit(&store, &req, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap();
     let Outcome::Simulated { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
@@ -236,8 +245,8 @@ async fn concurrent_changesets_never_combine_into_an_invalid_state(pool: PgPool)
         vec![prefix(Ref::Id(d), "10.0.0.0/8", Nature::Container)],
     );
     let (a, b) = tokio::join!(
-        submit(&store, &req, MAX_OPERATIONS),
-        submit(&store, &req, MAX_OPERATIONS)
+        submit(&store, &Unrestricted, &req, MAX_OPERATIONS),
+        submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
     );
     let applied = [a.unwrap(), b.unwrap()]
         .iter()
@@ -257,7 +266,9 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
         author,
         vec![prefix(Ref::Id(d), "10.0.0.0/8", Nature::Container)],
     );
-    submit(&store, &create, MAX_OPERATIONS).await.unwrap();
+    submit(&store, &Unrestricted, &create, MAX_OPERATIONS)
+        .await
+        .unwrap();
     let p: Uuid = sqlx::query_scalar("SELECT id FROM prefix")
         .fetch_one(&pool)
         .await
@@ -270,7 +281,9 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
             expected: None,
         }],
     );
-    let outcome = submit(&store, &close, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     assert_eq!(
         count(
@@ -293,7 +306,9 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
             expected: None,
         }],
     );
-    let outcome = submit(&store, &missing, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &missing, MAX_OPERATIONS)
+        .await
+        .unwrap();
     let Outcome::Refused { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
@@ -315,7 +330,7 @@ async fn public_space_is_unique_across_domains(pool: PgPool) {
         address(Ref::Id(d1), "45.0.0.53", AddressUsage::Anycast),
         address(Ref::Id(d1), "45.0.0.10", AddressUsage::Host),
     ];
-    let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)
+    let outcome = submit(&store, &Unrestricted, &request(author, ops), MAX_OPERATIONS)
         .await
         .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
@@ -323,7 +338,9 @@ async fn public_space_is_unique_across_domains(pool: PgPool) {
         author,
         vec![prefix(Ref::Id(d2), "45.0.0.0/25", Nature::Network)],
     );
-    let outcome = submit(&store, &dup_network, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &dup_network, MAX_OPERATIONS)
+        .await
+        .unwrap();
     let Outcome::Refused { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
@@ -332,7 +349,9 @@ async fn public_space_is_unique_across_domains(pool: PgPool) {
         author,
         vec![prefix(Ref::Id(d2), "10.0.0.0/24", Nature::Network)],
     );
-    let outcome = submit(&store, &private, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &private, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(
         matches!(outcome, Outcome::Applied { .. }),
         "private space is per domain: {outcome:?}"
@@ -351,9 +370,14 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
         address(Ref::Id(d), "10.1.2.10", AddressUsage::Host),
     ];
     assert!(matches!(
-        submit(&store, &request(author, base), MAX_OPERATIONS)
-            .await
-            .unwrap(),
+        submit(
+            &store,
+            &Unrestricted,
+            &request(author, base),
+            MAX_OPERATIONS
+        )
+        .await
+        .unwrap(),
         Outcome::Applied { .. }
     ));
     let ids = |o: &Outcome| match o {
@@ -364,6 +388,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     };
     let nested = submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![prefix(Ref::Id(d), "10.1.2.0/25", Nature::Network)],
@@ -379,6 +404,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     );
     let over = submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![prefix(Ref::Id(d), "10.1.0.0/16", Nature::Network)],
@@ -394,6 +420,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     );
     let container = submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![prefix(Ref::Id(d), "10.1.0.0/16", Nature::Container)],
@@ -408,6 +435,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     );
     let orphan = submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![address(Ref::Id(d), "10.9.9.9", AddressUsage::Host)],
@@ -419,6 +447,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     assert_eq!(ids(&orphan), vec!["core.address.outside_network"]);
     let broadcast = submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![address(Ref::Id(d), "10.1.2.255", AddressUsage::Host)],
@@ -440,7 +469,9 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
             expected: None,
         }],
     );
-    let closing = submit(&store, &close, MAX_OPERATIONS).await.unwrap();
+    let closing = submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert_eq!(
         ids(&closing),
         vec!["core.address.outside_network"],
@@ -455,11 +486,15 @@ async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let mut req = request(author, vec![domain(1, "prod")]);
     req.idempotency_key = Some("key-1".into());
-    let Outcome::Applied { changeset, .. } = submit(&store, &req, MAX_OPERATIONS).await.unwrap()
+    let Outcome::Applied { changeset, .. } = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap()
     else {
         panic!()
     };
-    let again = submit(&store, &req, MAX_OPERATIONS).await.unwrap();
+    let again = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(
         matches!(again, Outcome::Replayed { changeset: c, ref state } if c == changeset && state == "applied"),
         "{again:?}"
@@ -472,14 +507,14 @@ async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
     let mut other = request(author, vec![domain(1, "other")]);
     other.idempotency_key = Some("key-1".into());
     assert!(matches!(
-        submit(&store, &other, MAX_OPERATIONS).await,
+        submit(&store, &Unrestricted, &other, MAX_OPERATIONS).await,
         Err(kartenn_service::RequestError::IdempotencyConflict)
     ));
     let mut parallel = request(author, vec![domain(1, "par")]);
     parallel.idempotency_key = Some("key-2".into());
     let (a, b) = tokio::join!(
-        submit(&store, &parallel, MAX_OPERATIONS),
-        submit(&store, &parallel, MAX_OPERATIONS)
+        submit(&store, &Unrestricted, &parallel, MAX_OPERATIONS),
+        submit(&store, &Unrestricted, &parallel, MAX_OPERATIONS)
     );
     let outcomes = [a.unwrap(), b.unwrap()];
     assert_eq!(
@@ -510,7 +545,9 @@ async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
         author,
         vec![prefix(Ref::Id(d), "10.0.0.0/8", Nature::Container)],
     );
-    let Outcome::Applied { changeset, .. } = submit(&store, &create, MAX_OPERATIONS).await.unwrap()
+    let Outcome::Applied { changeset, .. } = submit(&store, &Unrestricted, &create, MAX_OPERATIONS)
+        .await
+        .unwrap()
     else {
         panic!()
     };
@@ -526,7 +563,9 @@ async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
             expected: Some(Uuid::now_v7()),
         }],
     );
-    let Outcome::Refused { violations, .. } = submit(&store, &stale, MAX_OPERATIONS).await.unwrap()
+    let Outcome::Refused { violations, .. } = submit(&store, &Unrestricted, &stale, MAX_OPERATIONS)
+        .await
+        .unwrap()
     else {
         panic!()
     };
@@ -540,7 +579,9 @@ async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
         }],
     );
     assert!(matches!(
-        submit(&store, &fresh, MAX_OPERATIONS).await.unwrap(),
+        submit(&store, &Unrestricted, &fresh, MAX_OPERATIONS)
+            .await
+            .unwrap(),
         Outcome::Applied { .. }
     ));
 }

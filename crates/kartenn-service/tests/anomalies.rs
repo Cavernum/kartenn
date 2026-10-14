@@ -1,6 +1,7 @@
 //! Anomalies: recording, acknowledgement, reappearance, closure (REQ-002-35, 36).
 
 use kartenn_core::objects::Nature;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::anomalies::{acknowledge, open};
@@ -50,7 +51,7 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
             anycast: false,
         },
     ];
-    let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)
+    let outcome = submit(&store, &Unrestricted, &request(author, ops), MAX_OPERATIONS)
         .await
         .unwrap();
     let Outcome::Applied { warnings, .. } = outcome else {
@@ -116,7 +117,9 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
         }],
     );
     assert!(matches!(
-        submit(&store, &close, MAX_OPERATIONS).await.unwrap(),
+        submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
+            .await
+            .unwrap(),
         Outcome::Applied { .. }
     ));
     let remaining = open(&pool, None).await.unwrap();

@@ -488,6 +488,12 @@ pub trait WriteTx {
     /// Counts of the differential recorded so far.
     fn diff_summary(&mut self) -> impl Future<Output = Result<Vec<DiffCount>, StoreError>> + Send;
 
+    /// Objects of the differential recorded so far for a property key.
+    fn diff_objects(
+        &mut self,
+        property: &str,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
     /// First `limit` entries of the differential recorded so far.
     fn diff_sample(
         &mut self,

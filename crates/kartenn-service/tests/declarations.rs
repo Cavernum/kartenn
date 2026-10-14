@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 
 use kartenn_core::properties::{Declarant, Declaration, InheritTree, PropertyKey, TypeSpec};
 use kartenn_core::values::Cardinality;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::declarations::{ModuleDeclarations, SYSTEM_AUTHOR, sync_modules};
 use kartenn_service::operations::{DeclarationInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
@@ -43,7 +44,9 @@ impl Fixture {
             simulate: false,
             idempotency_key: None,
         };
-        submit(&self.store, &request, MAX_OPERATIONS).await.unwrap()
+        submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
     }
 
     async fn applied(&self, operations: Vec<Operation>) {
@@ -323,7 +326,7 @@ async fn module_declarations_follow_the_code(pool: PgPool) {
     let sync = |module: ModuleDeclarations| {
         let store = f.store.clone();
         async move {
-            sync_modules(&store, &[module], MAX_OPERATIONS)
+            sync_modules(&store, &Unrestricted, &[module], MAX_OPERATIONS)
                 .await
                 .unwrap()
         }

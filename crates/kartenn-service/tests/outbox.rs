@@ -1,6 +1,7 @@
 //! Events of applied changesets and their relay (REQ-004-36, 37; ADR 0018 amended).
 
 use kartenn_core::objects::Nature;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::outbox::{Event, RelayError, relay};
@@ -60,7 +61,9 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
             },
         ],
     );
-    let Outcome::Applied { changeset, .. } = submit(&store, &req, MAX_OPERATIONS).await.unwrap()
+    let Outcome::Applied { changeset, .. } = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap()
     else {
         panic!()
     };
@@ -71,7 +74,9 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
             slug: "Bad".into(),
         }],
     );
-    submit(&store, &refused, MAX_OPERATIONS).await.unwrap();
+    submit(&store, &Unrestricted, &refused, MAX_OPERATIONS)
+        .await
+        .unwrap();
     let events = drain(&pool, "test").await;
     assert_eq!(events.len(), 1, "refused changesets emit nothing");
     let e = &events[0];
@@ -148,6 +153,7 @@ async fn a_refused_event_is_delivered_again(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     submit(
         &store,
+        &Unrestricted,
         &request(
             author,
             vec![Operation::CreateDomain {

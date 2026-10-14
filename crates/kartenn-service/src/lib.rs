@@ -4,12 +4,14 @@
 //! through a storage port ([`Store`], [`WriteTx`]) implemented by an adapter
 //! (`kartenn-store-pg`). This module owns the orchestration; the adapter owns SQL.
 
+pub mod authz;
 pub mod declarations;
 mod global;
 pub mod operations;
 pub mod pipeline;
 pub mod port;
 mod resolution;
+mod rights;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 pub use pipeline::{Outcome, RequestError, submit};

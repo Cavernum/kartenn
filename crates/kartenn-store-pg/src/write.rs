@@ -1427,6 +1427,10 @@ impl WriteTx for PgTx {
         self.diff_counts().await
     }
 
+    async fn diff_objects(&mut self, property: &str) -> Result<Vec<Uuid>, StoreError> {
+        self.diff_objects_of(property).await
+    }
+
     async fn diff_sample(&mut self, limit: i64) -> Result<Vec<DiffItem>, StoreError> {
         self.diff_first(limit).await
     }

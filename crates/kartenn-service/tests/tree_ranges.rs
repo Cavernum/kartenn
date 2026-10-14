@@ -4,6 +4,7 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
 use kartenn_core::occupancy::Occupancy;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::tree::{Node, ancestors, children, next_free_address, occupancy};
@@ -68,7 +69,9 @@ async fn ranges_are_children_of_their_network_and_count_in_occupancy(pool: PgPoo
         simulate: false,
         idempotency_key: None,
     };
-    let outcome = submit(&store, &request, MAX_OPERATIONS).await.unwrap();
+    let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     let now = OffsetDateTime::now_utc();
     let (container, net): (Uuid, Uuid) = sqlx::query_as(

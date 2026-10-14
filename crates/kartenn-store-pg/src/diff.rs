@@ -202,3 +202,20 @@ impl PgTx {
         Ok(())
     }
 }
+
+impl PgTx {
+    /// Objects of the recorded differential for a property key.
+    pub(crate) async fn diff_objects_of(
+        &mut self,
+        property: &str,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        self.diff_table().await?;
+        sqlx::query_scalar(
+            "SELECT DISTINCT object_id FROM pg_temp.diff_detail WHERE property_key = $1 ORDER BY 1",
+        )
+        .bind(property)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+}

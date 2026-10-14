@@ -3,6 +3,7 @@
 
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::{DeclarationInput, ObligationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
@@ -52,7 +53,9 @@ impl Fixture {
             simulate: false,
             idempotency_key: None,
         };
-        submit(&self.store, &request, MAX_OPERATIONS).await.unwrap()
+        submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
     }
 
     async fn applied(&self, operations: Vec<Operation>) {

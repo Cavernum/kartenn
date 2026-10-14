@@ -2,6 +2,7 @@
 
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::{DeclarationInput, PeriodSpec, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::DiffCount;
@@ -118,6 +119,7 @@ impl Fixture {
     async fn submit(&self, operations: Vec<Operation>, day: i64, simulate: bool) -> Outcome {
         submit(
             &self.store,
+            &Unrestricted,
             &self.request(operations, day, simulate),
             MAX_OPERATIONS,
         )

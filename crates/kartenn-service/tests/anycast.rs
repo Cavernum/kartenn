@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use kartenn_core::objects::{AddressUsage, Nature};
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
@@ -91,9 +92,14 @@ impl Fixture {
     }
 
     async fn submit(&self, operations: Vec<Operation>) -> Outcome {
-        submit(&self.store, &self.request(operations), MAX_OPERATIONS)
-            .await
-            .unwrap()
+        submit(
+            &self.store,
+            &Unrestricted,
+            &self.request(operations),
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
     }
 
     /// Applies and returns the identifiers of the warnings.
@@ -237,7 +243,11 @@ async fn concurrent_occurrences_are_serialised_by_the_public_space_lock(pool: Pg
     let spawn = |operations| {
         let store = f.store.clone();
         let request = f.request(operations);
-        tokio::spawn(async move { submit(&store, &request, MAX_OPERATIONS).await.unwrap() })
+        tokio::spawn(async move {
+            submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        })
     };
     let first = spawn(vec![Fixture::network(f.a, N, true)]);
     let second = spawn(vec![Fixture::network(f.b, N, false)]);

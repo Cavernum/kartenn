@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
@@ -28,6 +29,7 @@ async fn closing_a_domain_waits_for_its_lock(pool: PgPool) {
     };
     let created = submit(
         &store,
+        &Unrestricted,
         &request(vec![Operation::CreateDomain {
             local: None,
             slug: "prod".into(),
@@ -57,7 +59,11 @@ async fn closing_a_domain_waits_for_its_lock(pool: PgPool) {
     }]);
     let pending = tokio::spawn({
         let store = store.clone();
-        async move { submit(&store, &close, MAX_OPERATIONS).await.unwrap() }
+        async move {
+            submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }
     });
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert!(!pending.is_finished(), "the closure waits for the lock");
