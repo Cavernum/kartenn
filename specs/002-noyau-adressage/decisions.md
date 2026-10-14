@@ -170,3 +170,8 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
 - Rejeté : renoncer à REQ-002-46 (perd un cas réel) ; dispenser les adresses anycast de
   REQ-002-25 (affaiblit l'arbre d'héritage).
 - Décidé par : recommandation acceptée (2026-10-14)
+- Précisé le 2026-10-14 (recommandation acceptée) : les conteneurs publics restent hors de
+  l'unicité entre domaines (A3) ; un réseau anycast n'est toléré face à un autre domaine
+  que si celui-ci a le même réseau, de même valeur, marqué anycast. Le critère qui
+  refusait un conteneur public de B contenant N rendait A13 inutilisable sous un bloc
+  public.

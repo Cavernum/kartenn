@@ -193,7 +193,10 @@ spécifique, Globally Reachable ou absence d'entrée), avec la version du regist
 La règle `core.public.overlap` cherche les objets publics d'autres domaines qui
 chevauchent la valeur ; un chevauchement est toléré si et seulement si les deux objets
 sont anycast (adresse d'usage « anycast » ou réseau marqué anycast, A11, A13). Ainsi une
-adresse anycast de A ne se heurte pas au réseau anycast de B qui la contient. La règle
+adresse anycast de A ne se heurte pas au réseau anycast de B qui la contient. Entre
+réseaux, la tolérance exige en plus la même valeur : ce sont deux occurrences du même
+réseau. Les conteneurs n'entrent pas dans l'unicité (A3) : seuls les réseaux et les
+adresses sont comparés, les plages l'étant à travers leur réseau. La règle
 `core.public.anycast_shared` avertit pour chaque chevauchement toléré ; la règle
 `core.anycast.address_usage` refuse une adresse non anycast dans un réseau anycast
 (REQ-002-49).

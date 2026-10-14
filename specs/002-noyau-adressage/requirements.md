@@ -292,8 +292,11 @@ Acceptation :
   avertissement ; P anycast dans A et hôte dans B → refusé.
 - Soit N un réseau public : N anycast dans A et anycast dans B → accepté avec
   avertissement, et une adresse anycast de N peut alors figurer dans A et dans B ; N
-  anycast dans A et non anycast dans B → refusé ; un **conteneur** public dupliqué reste
-  refusé, et un conteneur public de B qui contient N (anycast dans A) aussi.
+  anycast dans A et non anycast dans B → refusé ; N /24 anycast dans A et un /25 anycast
+  de N dans B → refusé (les occurrences d'un réseau anycast ont la même valeur) ; un
+  **conteneur** public n'entre pas dans l'unicité (A3) : un conteneur public de B qui
+  contient N reste accepté.
+- Précisé le 2026-10-14 : conteneurs hors unicité, occurrences de même valeur.
 - Amendé le 2026-10-14 (A13) : la version précédente refusait tout réseau public
   dupliqué, ce qui rendait l'anycast entre domaines inatteignable (REQ-002-25).
 
