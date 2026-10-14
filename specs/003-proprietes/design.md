@@ -94,6 +94,12 @@ index GIN sur `v_uuids` et B-tree sur `v_uuid`.
 Contrainte : une seule affectation par (objet, propriété) et par période (exclusion GiST
 sur `object_id` et `property_id` en `uuid` via btree_gist, et `valid_period`).
 
+Une affectation n'a pas d'identifiant propre : elle est désignée par (objet, propriété),
+qui sert de clé de version (clé primaire `WITHOUT OVERLAPS` et index d'historique) ;
+de même pour `property_origin`. Les déclarations, obligations et valeurs de liste fermée
+ont un `id`. Une valeur porte exactement une colonne de valeur, une affectation
+`cleared` aucune (contrainte `CHECK`). Migration 0011.
+
 ### Arbres d'héritage (REQ-003-11)
 
 Trait `InheritanceTree` (`kartenn-core`) :

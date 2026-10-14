@@ -44,3 +44,10 @@ colonnes de la table courante en argument, figée à sa création (aucune lectur
 catalogue par ligne) ; la procédure `kartenn_add_versioned_column` ajoute une colonne
 aux deux tables et recrée le déclencheur (migration 0009). Toute évolution de schéma
 d'une table versionnée passe par elle.
+
+## Amendement (2026-10-14) — clé de version composée
+
+Une table dont les versions ne sont pas identifiées par `id` (affectations et origines des
+propriétés, désignées par objet et propriété) se versionne avec
+`kartenn_make_versioned(table, ARRAY[colonnes de clé])` ; l'index d'historique suit la
+clé. La forme à un argument équivaut à la clé `id` (migration 0011).
