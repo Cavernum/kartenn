@@ -3,6 +3,7 @@
 pub mod anomalies;
 pub mod audit;
 mod diff;
+mod expected;
 pub mod keys;
 mod obligations;
 mod origins;

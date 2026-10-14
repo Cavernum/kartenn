@@ -62,6 +62,7 @@ impl Fixture {
             inherit: Some("addressing".into()),
             module: None,
             obligations: Vec::new(),
+            expected: None,
         };
         let outcome = f
             .submit(
@@ -309,6 +310,7 @@ async fn assignments_respect_carriers_types_and_existence(pool: PgPool) {
                 inherit: None,
                 module: None,
                 obligations: Vec::new(),
+                expected: None,
             },
         }],
         0,

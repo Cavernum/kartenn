@@ -12,7 +12,7 @@ use kartenn_core::inheritance::Assigned;
 use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, TypeSpec};
 use kartenn_core::rules::{self, Violation};
-use kartenn_core::values::{Raw, ValueContext, parse_value};
+use kartenn_core::values::{Raw, Value, ValueContext, parse_value};
 use uuid::Uuid;
 
 use crate::operations::{ObjectKind, Operation, Ref};
@@ -107,14 +107,59 @@ async fn carried<T: WriteTx>(
     Ok(declaration)
 }
 
+/// Parses and validates raw values of a property for `object` over `period`, as an
+/// assignment would (REQ-003-8): closed-list keys valid over the period, references to
+/// objects of the target kind covering it.
+pub(crate) async fn parse<T: WriteTx>(
+    tx: &mut T,
+    declaration: &Declaration,
+    property: Uuid,
+    object: Uuid,
+    raws: &[Raw],
+    period: Option<Period>,
+) -> Result<Value, WriteError> {
+    let ty = declaration
+        .spec
+        .value_type()
+        .map_err(|e| invalid_value(object, format!("{}: {e}", declaration.key)))?;
+    let texts: Vec<String> = raws
+        .iter()
+        .filter_map(|r| match r {
+            Raw::Text(t) => Some(t.clone()),
+            _ => None,
+        })
+        .collect();
+    let mut facts = Facts {
+        enum_values: HashMap::new(),
+        kinds: HashMap::new(),
+    };
+    match declaration.spec {
+        TypeSpec::Enum => {
+            facts.enum_values = tx.enum_values_covering(property, &texts, period).await?;
+        }
+        TypeSpec::Ref { .. } => {
+            for id in texts.iter().filter_map(|t| t.parse::<Uuid>().ok()) {
+                if let Some(k) = tx.object_kind_covering(id, period).await? {
+                    facts.kinds.insert(id, k);
+                }
+            }
+        }
+        _ => {}
+    }
+    parse_value(ty.as_ref(), declaration.cardinality, raws, &facts)
+        .map_err(|e| invalid_value(object, format!("{}: {e}", declaration.key)))
+}
+
 /// Writes an assignment, or explicit "no value" when `values` is `None` (REQ-003-4, 8,
-/// 12, 13).
+/// 12, 13), with its provenance (`input`, or `source:<id>@<version>`, REQ-003-22).
+#[allow(clippy::too_many_arguments)] // one per column of the assignment and its context
 pub(crate) async fn assign<T: WriteTx>(
     tx: &mut T,
     object: Uuid,
     kind: ObjectKind,
     property: Uuid,
     values: Option<&[Raw]>,
+    provenance: &str,
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
@@ -122,41 +167,19 @@ pub(crate) async fn assign<T: WriteTx>(
     let assigned = match values {
         None => Assigned::Cleared,
         Some(raws) => {
-            let ty = declaration
-                .spec
-                .value_type()
-                .map_err(|e| invalid_value(object, format!("{}: {e}", declaration.key)))?;
-            let texts: Vec<String> = raws
-                .iter()
-                .filter_map(|r| match r {
-                    Raw::Text(t) => Some(t.clone()),
-                    _ => None,
-                })
-                .collect();
-            let mut facts = Facts {
-                enum_values: HashMap::new(),
-                kinds: HashMap::new(),
-            };
-            match declaration.spec {
-                TypeSpec::Enum => {
-                    facts.enum_values = tx.enum_values_covering(property, &texts, period).await?;
-                }
-                TypeSpec::Ref { .. } => {
-                    for id in texts.iter().filter_map(|t| t.parse::<Uuid>().ok()) {
-                        if let Some(k) = tx.object_kind_covering(id, period).await? {
-                            facts.kinds.insert(id, k);
-                        }
-                    }
-                }
-                _ => {}
-            }
-            let value = parse_value(ty.as_ref(), declaration.cardinality, raws, &facts)
-                .map_err(|e| invalid_value(object, format!("{}: {e}", declaration.key)))?;
-            Assigned::Value(value)
+            Assigned::Value(parse(tx, &declaration, property, object, raws, period).await?)
         }
     };
-    tx.assign(object, kind.name(), property, &assigned, period, changeset)
-        .await
+    tx.assign(
+        object,
+        kind.name(),
+        property,
+        &assigned,
+        provenance,
+        period,
+        changeset,
+    )
+    .await
 }
 
 /// Removes an assignment over the period; the object inherits again.
@@ -295,6 +318,18 @@ fn created(planned: &[Planned]) -> Vec<Uuid> {
         .collect()
 }
 
+/// Objects the changeset creates, whose origin it refreshed or that it assigns directly.
+pub(crate) fn touched(planned: &[Planned], refreshed: &BTreeMap<Uuid, Vec<Uuid>>) -> Vec<Uuid> {
+    let mut touched: BTreeSet<Uuid> = created(planned).into_iter().collect();
+    touched.extend(refreshed.values().flatten());
+    for p in planned {
+        if let Planned::Assign { object, .. } | Planned::Unassign { object, .. } = p {
+            touched.insert(*object);
+        }
+    }
+    touched.into_iter().collect()
+}
+
 /// Obligations after resolution (REQ-003-16, P4): every object the changeset creates,
 /// whose origin it refreshed or that it assigns directly, if it is a carrier in the scope
 /// of an obligation, has a value over the whole window; explicit "no value" does not
@@ -310,14 +345,7 @@ pub(crate) async fn check_obligations<T: WriteTx>(
     if obligated.is_empty() {
         return Ok(());
     }
-    let mut touched: BTreeSet<Uuid> = created(planned).into_iter().collect();
-    touched.extend(refreshed.values().flatten());
-    for p in planned {
-        if let Planned::Assign { object, .. } | Planned::Unassign { object, .. } = p {
-            touched.insert(*object);
-        }
-    }
-    let touched: Vec<Uuid> = touched.into_iter().collect();
+    let touched = touched(planned, refreshed);
     for (property, declaration) in obligated {
         let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
         let mut missing = BTreeSet::new();

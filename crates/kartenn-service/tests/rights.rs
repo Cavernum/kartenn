@@ -50,6 +50,7 @@ impl Fixture {
             inherit: Some("addressing".into()),
             module: None,
             obligations: Vec::new(),
+            expected: None,
         };
         let assign = |local, value: &str| Operation::AssignProperty {
             object: Ref::Local(local),

@@ -245,6 +245,52 @@ pub struct Declaration {
     pub inherit: Option<InheritTree>,
     /// Scopes where a resolved value is mandatory.
     pub obligations: BTreeSet<ObligationScope>,
+    /// Source of expected values and what it does (REQ-003-21 to 24).
+    pub expected: Option<Expected>,
+}
+
+/// What a source of expected values does for a property (003/design, § Valeurs attendues).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpectedMode {
+    /// Suggestions only.
+    Suggest,
+    /// Value written when an object is created without one.
+    Default,
+    /// Anomaly when the resolved value differs.
+    Check,
+}
+
+impl ExpectedMode {
+    /// Name, as stored.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Suggest => "suggest",
+            Self::Default => "default",
+            Self::Check => "check",
+        }
+    }
+
+    /// The mode of a stored name.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "suggest" => Some(Self::Suggest),
+            "default" => Some(Self::Default),
+            "check" => Some(Self::Check),
+            _ => None,
+        }
+    }
+}
+
+/// The source of expected values of a property and its mode.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Expected {
+    /// Identifier of the source.
+    pub source: String,
+    /// Mode.
+    pub mode: ExpectedMode,
 }
 
 impl Declaration {
@@ -463,6 +509,7 @@ mod tests {
             carriers: BTreeSet::from(["address".to_owned(), "prefix".to_owned()]),
             inherit: None,
             obligations: BTreeSet::new(),
+            expected: None,
         }
     }
 

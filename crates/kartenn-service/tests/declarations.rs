@@ -105,6 +105,7 @@ fn input(key: &str, value_type: TypeInput) -> DeclarationInput {
         inherit: Some("addressing".into()),
         module: None,
         obligations: Vec::new(),
+        expected: None,
     }
 }
 
@@ -314,6 +315,7 @@ fn policy(values: &[&str], carriers: &[&str]) -> ModuleDeclarations {
                 carriers: carriers.iter().map(|c| (*c).to_owned()).collect(),
                 inherit: Some(InheritTree::Addressing),
                 obligations: BTreeSet::new(),
+                expected: None,
             },
             values.iter().map(|v| (*v).to_owned()).collect(),
         )],

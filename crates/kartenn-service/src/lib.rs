@@ -6,6 +6,7 @@
 
 pub mod authz;
 pub mod declarations;
+pub mod expected;
 mod global;
 pub mod operations;
 pub mod pipeline;
@@ -14,5 +15,5 @@ mod resolution;
 mod rights;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
-pub use pipeline::{Outcome, RequestError, submit};
+pub use pipeline::{Outcome, RequestError, submit, submit_with};
 pub use port::{Replay, Store, StoreError, WriteError, WriteTx};

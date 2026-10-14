@@ -13,6 +13,7 @@ use kartenn_core::values::Raw;
 use uuid::Uuid;
 
 use crate::authz::Authorizer;
+use crate::expected::Sources;
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
 use crate::port::{DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx};
 
@@ -127,7 +128,7 @@ fn to_period(spec: Option<PeriodSpec>) -> Result<Option<Period>, RequestError> {
 }
 
 /// An operation ready to be written: parsed, locally validated, references resolved.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Planned {
     Domain {
         id: Uuid,
@@ -564,6 +565,7 @@ async fn apply<T: WriteTx>(
                     *kind,
                     *property,
                     values.as_deref(),
+                    "input",
                     period,
                     changeset,
                 )
@@ -607,6 +609,21 @@ pub async fn submit<S: Store, A: Authorizer>(
     req: &ChangesetRequest,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
+    submit_with(store, authorizer, &Sources::none(), req, max_operations).await
+}
+
+/// [`submit`] with the sources of expected values of the deployment (REQ-003-21 to 24).
+///
+/// # Errors
+///
+/// As [`submit`].
+pub async fn submit_with<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    sources: &Sources,
+    req: &ChangesetRequest,
+    max_operations: usize,
+) -> Result<Outcome, RequestError> {
     let period = check_request(req, max_operations)?;
     let changeset = Uuid::now_v7();
     let mut tx = store.begin().await?;
@@ -624,6 +641,7 @@ pub async fn submit<S: Store, A: Authorizer>(
         }
     }
     let (planned, mut violations) = plan(req);
+    crate::expected::check_declared_sources(&planned, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
@@ -647,6 +665,7 @@ pub async fn submit<S: Store, A: Authorizer>(
     let props = properties(
         &mut tx,
         authorizer,
+        sources,
         req.author,
         &planned,
         period,
@@ -699,23 +718,53 @@ const SIMULATION_SAMPLE: i64 = 100;
 /// Properties after the writes (spec 003): origins, obligations, differential, then the
 /// rights on the assignments and on their effects (REQ-003-17, 18). `None` when a rule
 /// refuses the changeset; the violations say why.
+#[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 async fn properties<T: WriteTx, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
+    sources: &Sources,
     author: Uuid,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
     violations: &mut Vec<Violation>,
 ) -> Result<Option<Vec<DiffCount>>, StoreError> {
-    let refreshed = crate::resolution::maintain(tx, planned, period, changeset).await?;
-    crate::resolution::check_obligations(tx, planned, &refreshed, period, violations).await?;
+    // REQ-003-22: default values first, so that they are resolved, obliged and diffed like
+    // any assignment.
+    let defaults = match crate::expected::defaults(tx, sources, planned, period, changeset).await {
+        Ok(defaults) => defaults,
+        Err(WriteError::Store(e)) => return Err(e),
+        Err(WriteError::Rule(v)) => {
+            violations.push(v);
+            return Ok(None);
+        }
+        Err(WriteError::NoVersion(id)) => {
+            violations.push(
+                Violation::new(
+                    &rules::CHANGESET_NO_VERSION,
+                    format!("{id} does not exist at the targeted time"),
+                )
+                .with_subjects([id]),
+            );
+            return Ok(None);
+        }
+    };
+    let mut all = planned.to_vec();
+    all.extend(defaults);
+    let refreshed = crate::resolution::maintain(tx, &all, period, changeset).await?;
+    crate::resolution::check_obligations(tx, &all, &refreshed, period, violations).await?;
     if has_errors(violations) {
         return Ok(None);
     }
-    let diff = crate::resolution::diff(tx, planned, refreshed, period).await?;
+    let touched = crate::resolution::touched(&all, &refreshed);
+    let diff = crate::resolution::diff(tx, &all, refreshed, period).await?;
+    // Default values are not the author's choice: only their effects need rights.
     crate::rights::check(tx, authorizer, author, planned, &diff, period, violations).await?;
-    Ok((!has_errors(violations)).then_some(diff))
+    if has_errors(violations) {
+        return Ok(None);
+    }
+    crate::expected::check(tx, sources, &touched, period, violations).await?;
+    Ok(Some(diff))
 }
 
 async fn refuse<S: Store>(

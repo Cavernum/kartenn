@@ -1,6 +1,7 @@
 //! Operations of a changeset (REQ-004-1 to 5).
 
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
+use kartenn_core::properties::Expected;
 use kartenn_core::values::{Cardinality, Raw};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -148,6 +149,9 @@ pub struct DeclarationInput {
     /// Scopes where a resolved value is mandatory (REQ-003-16).
     #[serde(default)]
     pub obligations: Vec<ObligationInput>,
+    /// Source of expected values and its mode (REQ-003-21 to 24).
+    #[serde(default)]
+    pub expected: Option<Expected>,
 }
 
 /// Scope of an obligation, as received (REQ-003-16, P4).

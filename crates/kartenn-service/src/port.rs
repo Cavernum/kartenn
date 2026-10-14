@@ -1,10 +1,11 @@
 //! Storage port of the write pipeline (hexagonal architecture, ADR 0001).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 
 use kartenn_core::inheritance::Assigned;
 use kartenn_core::properties::{CurrentAssignment, Declaration, ObligationScope};
+use kartenn_core::values::Value;
 
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::objects::{Address, AddressUsage, IpRange, PrefixObject};
@@ -64,6 +65,22 @@ pub struct PropertyFacts {
     pub enum_values: HashMap<String, Uuid>,
     /// Kinds of the objects referenced by the assignments.
     pub ref_kinds: HashMap<Uuid, &'static str>,
+}
+
+/// What a source of expected values sees of an object (REQ-003-21): the core object and
+/// the resolved values of its properties, read only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectView {
+    /// Object.
+    pub id: Uuid,
+    /// Kind (`domain`, `prefix`, `range`, `address`).
+    pub kind: String,
+    /// Addressing domain.
+    pub domain: Uuid,
+    /// Prefix, first address of a range, or address; `None` for a domain.
+    pub value: Option<String>,
+    /// Resolved values by property key, as JSON (closed-list keys); `None` is "no value".
+    pub properties: BTreeMap<String, Option<String>>,
 }
 
 /// Count of objects whose resolved value of a property goes from `before` to `after`
@@ -385,15 +402,41 @@ pub trait WriteTx {
     ) -> impl Future<Output = Result<HashMap<String, Uuid>, StoreError>> + Send;
 
     /// Writes an assignment over `period`, replacing any assignment there (REQ-003-12, 13).
+    #[allow(clippy::too_many_arguments)] // one per column of the assignment and its context
     fn assign(
         &mut self,
         object: Uuid,
         object_type: &str,
         property: Uuid,
         assigned: &Assigned,
+        provenance: &str,
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// A frozen view of an object of the addressing tree at the start of `period`, for
+    /// sources of expected values (REQ-003-21); `None` if it does not exist then.
+    fn object_view(
+        &mut self,
+        object: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<ObjectView>, StoreError>> + Send;
+
+    /// Resolved value of a property for an object at the start of `period`; `None` when
+    /// absent or explicitly "no value".
+    fn resolved_value(
+        &mut self,
+        object: Uuid,
+        property: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<Value>, StoreError>> + Send;
+
+    /// Properties with a source of expected values at the start of `period`.
+    fn with_expected(
+        &mut self,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Declaration)>, StoreError>> + Send;
 
     /// Removes the assignment of a property over `period`; with `property` `None`, every
     /// assignment of the object from the start of `period` on (closure of the object).

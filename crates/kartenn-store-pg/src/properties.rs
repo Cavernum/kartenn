@@ -4,7 +4,8 @@
 use std::collections::BTreeSet;
 
 use kartenn_core::properties::{
-    CurrentAssignment, Declarant, Declaration, InheritTree, PropertyKey, REF_TARGETS, TypeSpec,
+    CurrentAssignment, Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey,
+    REF_TARGETS, TypeSpec,
 };
 use kartenn_core::values::{Cardinality, Date, Scalar, Value};
 use kartenn_service::port::StoreError;
@@ -67,19 +68,33 @@ fn decode_type(id: &str, params: &str) -> Result<TypeSpec, StoreError> {
     })
 }
 
-/// Row of `property_declaration`: key, type, parameters, cardinality, carriers, tree.
-pub(crate) type DeclarationRow = (String, String, String, String, Vec<String>, Option<String>);
+/// Row of `property_declaration`: key, type, parameters, cardinality, carriers, tree,
+/// expected source and mode.
+pub(crate) type DeclarationRow = (
+    String,
+    String,
+    String,
+    String,
+    Vec<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 /// Columns of [`DeclarationRow`].
-pub(crate) const DECLARATION_COLUMNS: &str =
-    "key, value_type, type_params::text, cardinality, carriers, inherit_tree";
+pub(crate) const DECLARATION_COLUMNS: &str = "key, value_type, type_params::text, cardinality, carriers, inherit_tree, expected_source, expected_mode";
 
-/// Decodes a declaration; its obligations are not read (003-10).
+/// Decodes a declaration; its obligations are read separately (`property_obligation`).
 pub(crate) fn decode_declaration(
-    (key, value_type, params, cardinality, carriers, inherit): DeclarationRow,
+    (key, value_type, params, cardinality, carriers, inherit, source, mode): DeclarationRow,
 ) -> Result<Declaration, StoreError> {
     let key = PropertyKey::parse(&key).map_err(|v| decode_err(v.message))?;
+    let expected = match (source, mode.as_deref().and_then(ExpectedMode::from_name)) {
+        (Some(source), Some(mode)) => Some(Expected { source, mode }),
+        _ => None,
+    };
     Ok(Declaration {
+        expected,
         declarant: Declarant::of(&key),
         key,
         spec: decode_type(&value_type, &params)?,

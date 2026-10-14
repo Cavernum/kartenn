@@ -83,6 +83,7 @@ impl Fixture {
             inherit: Some("addressing".into()),
             module: None,
             obligations,
+            expected: None,
         }
     }
 

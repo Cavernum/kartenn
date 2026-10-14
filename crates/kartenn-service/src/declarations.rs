@@ -105,6 +105,7 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
         carriers,
         inherit,
         obligations,
+        expected: input.expected.clone(),
     };
     declaration.validate()?;
     Ok(declaration)
@@ -195,6 +196,7 @@ fn input(declaration: &Declaration) -> DeclarationInput {
                 }
             })
             .collect(),
+        expected: declaration.expected.clone(),
     }
 }
 

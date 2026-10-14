@@ -15,23 +15,28 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
     StoreError(e.to_string())
 }
 
-/// Resolved value of an assignment row `a` as JSON: closed-list keys when `$5`, null for
-/// "no value".
-const VALUE: &str = "CASE
+/// Resolved value of an assignment row `a` as JSON: closed-list keys when the SQL boolean
+/// `closed_list` holds, null for "no value".
+pub(crate) fn value_json(closed_list: &str) -> String {
+    format!(
+        "CASE
     WHEN a.kind = 'cleared' THEN NULL
-    WHEN $5 AND a.v_uuid IS NOT NULL THEN
+    WHEN {closed_list} AND a.v_uuid IS NOT NULL THEN
         to_jsonb((SELECT e.key FROM property_enum_value e WHERE e.id = a.v_uuid LIMIT 1))
-    WHEN $5 THEN
+    WHEN {closed_list} THEN
         (SELECT jsonb_agg(k ORDER BY k) FROM (
             SELECT DISTINCT e.key AS k FROM property_enum_value e WHERE e.id = ANY(a.v_uuids)) x)
     ELSE coalesce(to_jsonb(a.v_uuid), to_jsonb(a.v_uuids), to_jsonb(a.v_text), to_jsonb(a.v_texts),
                   to_jsonb(a.v_int), to_jsonb(a.v_ints), to_jsonb(a.v_bool), to_jsonb(a.v_date),
                   to_jsonb(a.v_dates))
-END";
+END"
+    )
+}
 
 /// Parameters: `$1` property, `$2` objects, `$3` window start, `$4` heritable, `$5` closed
 /// list, `$6` objects created by the changeset.
 fn record_sql() -> String {
+    let value = value_json("$5");
     format!(
         "WITH w AS (SELECT tstzrange($3, NULL) AS r),
 ob AS (
@@ -59,11 +64,11 @@ ab AS (
 ),
 aa AS (SELECT * FROM property_assignment WHERE property_id = $1),
 vb AS (
-    SELECT ob.object_id, ob.valid_period * a.valid_period AS vp, {VALUE} AS v
+    SELECT ob.object_id, ob.valid_period * a.valid_period AS vp, {value} AS v
     FROM ob JOIN ab a ON a.object_id = ob.origin AND a.valid_period && ob.valid_period
 ),
 va AS (
-    SELECT oa.object_id, oa.valid_period * a.valid_period AS vp, {VALUE} AS v
+    SELECT oa.object_id, oa.valid_period * a.valid_period AS vp, {value} AS v
     FROM oa JOIN aa a ON a.object_id = oa.origin AND a.valid_period && oa.valid_period
 ),
 ex AS (

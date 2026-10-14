@@ -67,6 +67,7 @@ impl Fixture {
                         inherit: None,
                         module: None,
                         obligations: Vec::new(),
+                        expected: None,
                     },
                 },
             ])

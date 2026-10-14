@@ -7,7 +7,8 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
-    DiffCount, DiffItem, Journal, PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
+    DiffCount, DiffItem, Journal, ObjectView, PropertyFacts, Replay, Store, StoreError, WriteError,
+    WriteTx,
 };
 
 use crate::properties::{
@@ -15,6 +16,7 @@ use crate::properties::{
     decode_assignment, decode_declaration, encode_type, encode_value, ref_kind, referenced,
 };
 use kartenn_core::inheritance::Assigned;
+use kartenn_core::values::Value;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation};
 use sha2::{Digest, Sha256};
 use sqlx::types::Uuid;
@@ -122,8 +124,9 @@ impl PgTx {
         let (value_type, params) = encode_type(&d.spec);
         let sql = format!(
             "INSERT INTO property_declaration
-                 (id, key, value_type, type_params, cardinality, carriers, inherit_tree, valid_period, changeset_id)
-             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, {}, $10)",
+                 (id, key, value_type, type_params, cardinality, carriers, inherit_tree, valid_period, changeset_id,
+                  expected_source, expected_mode)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, {}, $10, $11, $12)",
             period_sql(8, 9)
         );
         let binds = vec![
@@ -137,6 +140,8 @@ impl PgTx {
             Bind::Time(start),
             end,
             Bind::Uuid(changeset),
+            Bind::OptText(d.expected.as_ref().map(|e| e.source.clone())),
+            Bind::OptText(d.expected.as_ref().map(|e| e.mode.as_str().to_owned())),
         ];
         self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
             .await
@@ -1248,6 +1253,7 @@ impl WriteTx for PgTx {
         object_type: &str,
         property: Uuid,
         assigned: &Assigned,
+        provenance: &str,
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
@@ -1270,7 +1276,7 @@ impl WriteTx for PgTx {
                  v_uuid, v_uuids, v_text, v_texts, v_int, v_ints, v_bool, v_date, v_dates,
                  provenance, valid_period, changeset_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::date[],
-                 'input', {}, $16)",
+                 $17, {}, $16)",
             period_sql(14, 15)
         );
         let binds = vec![
@@ -1290,10 +1296,53 @@ impl WriteTx for PgTx {
             Bind::Time(a),
             Bind::Time(b),
             Bind::Uuid(changeset),
+            Bind::Text(provenance.to_owned()),
         ];
         self.guarded(sqlx::AssertSqlSafe(sql), binds, object)
             .await
             .map(|_| ())
+    }
+
+    async fn object_view(
+        &mut self,
+        object: Uuid,
+        period: Option<Period>,
+    ) -> Result<Option<ObjectView>, StoreError> {
+        let (a, _) = bounds(period)?;
+        self.view_of(object, a).await
+    }
+
+    async fn resolved_value(
+        &mut self,
+        object: Uuid,
+        property: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+    ) -> Result<Option<Value>, StoreError> {
+        let (a, _) = bounds(period)?;
+        self.resolved_at(object, property, declaration, a).await
+    }
+
+    async fn with_expected(
+        &mut self,
+        period: Option<Period>,
+    ) -> Result<Vec<(Uuid, Declaration)>, StoreError> {
+        let (a, _) = bounds(period)?;
+        let ids: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM property_declaration
+             WHERE expected_source IS NOT NULL AND valid_period @> coalesce($1::timestamptz, now())",
+        )
+        .bind(a)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(d) = self.declaration(id, period).await? {
+                out.push((id, d));
+            }
+        }
+        Ok(out)
     }
 
     async fn unassign(
