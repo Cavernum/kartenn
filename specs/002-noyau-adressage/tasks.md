@@ -73,9 +73,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 16. Table des registres à usage spécial chargée par migration ; recalcul de
   `public` à la mise à jour avec rapport — REQ-002-34 — verify : test de migration
   — rapport fait ; la réécriture des drapeaux passera par un changeset système (P4, 004-7)
-- [ ] 17. Identifiants externes et résolution de clé naturelle à une date — REQ-002-40,
+- [x] 17. Identifiants externes et résolution de clé naturelle à une date — REQ-002-40,
   41 — verify : tests d'unicité et de résolution
-  — fait sauf la clé naturelle des plages (table en attente, voir 15)
 
 ## P4 — Validation globale (dans le pipeline 004)
 

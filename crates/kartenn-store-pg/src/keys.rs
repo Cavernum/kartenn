@@ -2,7 +2,7 @@
 //!
 //! Every object has an immutable UUID; humans, imports and connectors may designate it
 //! by a natural key instead, resolved at a date: a slug for entities, sites and domains,
-//! `(domain, prefix)` and `(domain, address)` for addressing objects, or an external
+//! `(domain, prefix)`, `(domain, first–last)` and `(domain, address)` for addressing objects, or an external
 //! identifier of a connector.
 
 use sqlx::types::Uuid;
@@ -77,6 +77,34 @@ pub async fn prefix_by_value(
         .bind(valid_at)
         .bind(domain)
         .bind(prefix)
+        .fetch_optional(pool)
+        .await
+}
+
+/// UUID of the range `first`–`last` of `domain` at `valid_at` (both bounds must match).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn range_by_bounds(
+    pool: &PgPool,
+    domain: Uuid,
+    first: &str,
+    last: &str,
+    valid_at: OffsetDateTime,
+) -> sqlx::Result<Option<Uuid>> {
+    let sql = select_at(
+        "ip_range",
+        &["id"],
+        AsOf::Now,
+        "domain_id = $2 AND range = inetrange($3::inet, $4::inet, '[]')",
+    )
+    .map_err(|e| sqlx::Error::Configuration(e.into()))?;
+    sqlx::query_scalar(sql)
+        .bind(valid_at)
+        .bind(domain)
+        .bind(first)
+        .bind(last)
         .fetch_optional(pool)
         .await
 }

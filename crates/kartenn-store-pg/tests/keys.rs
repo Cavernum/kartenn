@@ -2,6 +2,7 @@
 
 use kartenn_store_pg::keys::{
     SlugKind, address_by_value, bind_external, by_external, by_slug, prefix_by_value,
+    range_by_bounds,
 };
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -81,6 +82,39 @@ async fn addressing_keys_are_per_domain(pool: PgPool) -> sqlx::Result<()> {
     assert_eq!(address_by_value(&pool, d1, "10.1.2.3", at).await?, Some(a1));
     assert_eq!(
         address_by_value(&pool, d1, "10.1.2.3", day(MARCH_2025)).await?,
+        None
+    );
+    Ok(())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn ranges_are_designated_by_both_bounds(pool: PgPool) -> sqlx::Result<()> {
+    let (d1, d2, r1) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
+    sqlx::query(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version, valid_period, changeset_id)
+         VALUES ($1, $2, inetrange('10.1.2.100', '10.1.2.199', '[]'), 'dhcp', false, 'v',
+                 tstzrange('2026-01-01', NULL), gen_random_uuid())",
+    )
+    .bind(r1)
+    .bind(d1)
+    .execute(&pool)
+    .await?;
+    let at = day(MARCH_2026);
+    assert_eq!(
+        range_by_bounds(&pool, d1, "10.1.2.100", "10.1.2.199", at).await?,
+        Some(r1)
+    );
+    assert_eq!(
+        range_by_bounds(&pool, d1, "10.1.2.100", "10.1.2.150", at).await?,
+        None,
+        "both bounds"
+    );
+    assert_eq!(
+        range_by_bounds(&pool, d2, "10.1.2.100", "10.1.2.199", at).await?,
+        None
+    );
+    assert_eq!(
+        range_by_bounds(&pool, d1, "10.1.2.100", "10.1.2.199", day(MARCH_2025)).await?,
         None
     );
     Ok(())
