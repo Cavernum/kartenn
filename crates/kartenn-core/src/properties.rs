@@ -117,7 +117,9 @@ pub enum TypeSpec {
 }
 
 impl TypeSpec {
-    fn id(&self) -> &str {
+    /// Identifier of the type (`enum`, `text`…, or the module type), as stored.
+    #[must_use]
+    pub fn id(&self) -> &str {
         match self {
             Self::Enum => "enum",
             Self::Text { .. } => "text",
@@ -155,6 +157,50 @@ impl TypeSpec {
             Self::Ref { target } => Box::new(RefType { target }),
             Self::Module(id) => return Err(format!("type {id} is provided by a module")),
         })
+    }
+}
+
+/// Kinds of objects a reference may target (REQ-003-10): a stored `ref` type names one.
+pub const REF_TARGETS: [&str; 6] = ["entity", "site", "domain", "prefix", "range", "address"];
+
+/// Kinds of core objects that may carry a property declared by an administrator, until
+/// modules register theirs (003/design, § Déclarations).
+pub const CORE_CARRIERS: [&str; 6] = REF_TARGETS;
+
+impl InheritTree {
+    /// Name, as stored.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Addressing => "addressing",
+            Self::Entity => "entity",
+            Self::Site => "site",
+            Self::Module(name) => name,
+        }
+    }
+
+    /// The tree of a stored name; any other name is a module's tree.
+    #[must_use]
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "addressing" => Self::Addressing,
+            "entity" => Self::Entity,
+            "site" => Self::Site,
+            other => Self::Module(other.to_owned()),
+        }
+    }
+}
+
+impl Declarant {
+    /// The declarant a key implies: `custom` for administrators, otherwise the module
+    /// named by the namespace (P1).
+    #[must_use]
+    pub fn of(key: &PropertyKey) -> Self {
+        if key.namespace() == CUSTOM_NAMESPACE {
+            Self::Administrator
+        } else {
+            Self::Module(key.namespace().to_owned())
+        }
     }
 }
 

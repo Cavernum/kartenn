@@ -1,6 +1,7 @@
 //! Operations of a changeset (REQ-004-1 to 5).
 
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
+use kartenn_core::values::Cardinality;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -27,6 +28,74 @@ pub enum ObjectKind {
     Range,
     /// Address.
     Address,
+    /// Property declaration (spec 003).
+    Property,
+    /// Value of a closed list.
+    EnumValue,
+}
+
+/// Type of a declared property and its parameters, as received (003/design).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum TypeInput {
+    /// Closed list.
+    Enum,
+    /// Text.
+    Text {
+        /// Minimum length in code points.
+        #[serde(default)]
+        min_len: usize,
+        /// Maximum length in code points.
+        max_len: usize,
+        /// Anchored pattern.
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    /// Integer.
+    Int {
+        /// Minimum.
+        min: i64,
+        /// Maximum.
+        max: i64,
+    },
+    /// Boolean.
+    Bool,
+    /// Calendar date.
+    Date,
+    /// Host name.
+    Fqdn,
+    /// Reference to an object kind.
+    Ref {
+        /// Target kind.
+        target: String,
+    },
+    /// Type compiled by a module; only module synchronisation declares it (P1, P12).
+    #[serde(skip_deserializing)]
+    Module {
+        /// Type identifier.
+        id: String,
+    },
+}
+
+/// Content of a property declaration, shared by declaration and update.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeclarationInput {
+    /// `<namespace>.<name>`.
+    pub key: String,
+    /// Type and parameters.
+    #[serde(flatten)]
+    pub value_type: TypeInput,
+    /// One value or a set.
+    pub cardinality: Cardinality,
+    /// Object types that carry it.
+    pub carriers: Vec<String>,
+    /// Inheritance tree, if heritable.
+    #[serde(default)]
+    pub inherit: Option<String>,
+    /// Module declaring it; never read from the API, set by module synchronisation only
+    /// (P12). `None` means an administrator.
+    #[serde(skip_deserializing, default)]
+    pub module: Option<String>,
 }
 
 /// Application-time period of an operation, in microseconds since the epoch; `None` end
@@ -92,6 +161,33 @@ pub enum Operation {
         usage: AddressUsage,
     },
     /// Ends an object (REQ-004-15); nothing before the end is erased.
+    /// Declares a property (REQ-003-1 to 3).
+    DeclareProperty {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Declaration.
+        #[serde(flatten)]
+        declaration: DeclarationInput,
+    },
+    /// Replaces the current declaration of a property from the start of the changeset
+    /// period, if compatible with its use (REQ-003-6).
+    UpdateProperty {
+        /// Property.
+        id: Ref,
+        /// New declaration; the key never changes.
+        #[serde(flatten)]
+        declaration: DeclarationInput,
+    },
+    /// Adds a value to a closed list (REQ-003-5, 7).
+    AddEnumValue {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Property of type `enum`.
+        property: Ref,
+        /// Key, `[a-z0-9-]`.
+        key: String,
+    },
+    /// Closes an object (D33), a property or a closed-list value (REQ-003-6).
     Close {
         /// Kind of the object.
         kind: ObjectKind,
@@ -112,8 +208,10 @@ impl Operation {
             Self::CreateDomain { local, .. }
             | Self::CreatePrefix { local, .. }
             | Self::CreateRange { local, .. }
-            | Self::CreateAddress { local, .. } => *local,
-            Self::Close { .. } => None,
+            | Self::CreateAddress { local, .. }
+            | Self::DeclareProperty { local, .. }
+            | Self::AddEnumValue { local, .. } => *local,
+            Self::Close { .. } | Self::UpdateProperty { .. } => None,
         }
     }
 }

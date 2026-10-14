@@ -1,6 +1,9 @@
 //! Storage port of the write pipeline (hexagonal architecture, ADR 0001).
 
+use std::collections::HashMap;
 use std::future::Future;
+
+use kartenn_core::properties::{CurrentAssignment, Declaration};
 
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::objects::{Address, AddressUsage, IpRange, PrefixObject};
@@ -44,6 +47,19 @@ pub struct Journal<'a> {
     pub domains: &'a [Uuid],
     /// Objects created or modified.
     pub objects: &'a [Uuid],
+}
+
+/// Use of a property, as needed to check an evolution of its declaration (REQ-003-6).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropertyFacts {
+    /// Assignments over the period.
+    pub assignments: Vec<CurrentAssignment>,
+    /// Objects that inherit their value from another object.
+    pub inheriting: Vec<Uuid>,
+    /// Current closed-list values, by key.
+    pub enum_values: HashMap<String, Uuid>,
+    /// Kinds of the objects referenced by the assignments.
+    pub ref_kinds: HashMap<Uuid, &'static str>,
 }
 
 /// Earlier submission found for an idempotency key (REQ-004-10).
@@ -246,6 +262,79 @@ pub trait WriteTx {
         &mut self,
         id: Uuid,
     ) -> impl Future<Output = Result<Option<(Uuid, Prefix)>, StoreError>> + Send;
+
+    /// Inserts a property declaration (REQ-003-1 to 3).
+    fn insert_declaration(
+        &mut self,
+        id: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// The declaration of a property valid at the start of `period`.
+    fn declaration(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<Declaration>, StoreError>> + Send;
+
+    /// Replaces the version of a declaration valid at the start of `period`, from that
+    /// start to the end of the version (REQ-003-6).
+    fn replace_declaration(
+        &mut self,
+        id: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Current declarations of a namespace, with the keys of their closed-list values.
+    fn declarations_in(
+        &mut self,
+        namespace: &str,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Declaration, Vec<String>)>, StoreError>> + Send;
+
+    /// Inserts a closed-list value (REQ-003-5, 7).
+    fn insert_enum_value(
+        &mut self,
+        id: Uuid,
+        property: Uuid,
+        key: &str,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Closes the closed-list values of a property over `period`.
+    fn close_enum_values_of(
+        &mut self,
+        property: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// What the compatibility checker needs about the use of a property over `period`
+    /// (REQ-003-6), values decoded for the type `type_id`.
+    fn property_facts(
+        &mut self,
+        property: Uuid,
+        type_id: &str,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<PropertyFacts, StoreError>> + Send;
+
+    /// Objects with an assignment of a property over part of `period`.
+    fn objects_assigned(
+        &mut self,
+        property: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Objects whose assignment contains a closed-list value over part of `period`.
+    fn objects_carrying(
+        &mut self,
+        enum_value: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
     /// Journals the applied changeset in this transaction.
     fn journal_applied(

@@ -6,6 +6,7 @@ use kartenn_core::addr::{Addr, AddrError, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{self, Address, IpRange, PrefixObject, RangeUsage, Slug};
 use kartenn_core::period::{Instant, Period};
+use kartenn_core::properties::Declaration;
 use kartenn_core::registry::special_registry;
 use kartenn_core::rules::{self, Severity, Violation};
 use uuid::Uuid;
@@ -141,13 +142,30 @@ pub(crate) enum Planned {
         id: Uuid,
         expected: Option<Uuid>,
     },
+    Declare {
+        id: Uuid,
+        declaration: Declaration,
+    },
+    UpdateDeclaration {
+        id: Uuid,
+        declaration: Declaration,
+    },
+    EnumValue {
+        id: Uuid,
+        property: Uuid,
+        key: Slug,
+    },
 }
 
 impl Planned {
     /// The object the operation creates or modifies.
     pub(crate) const fn object(&self) -> Uuid {
         match self {
-            Self::Domain { id, .. } | Self::Close { id, .. } => *id,
+            Self::Domain { id, .. }
+            | Self::Close { id, .. }
+            | Self::Declare { id, .. }
+            | Self::UpdateDeclaration { id, .. }
+            | Self::EnumValue { id, .. } => *id,
             Self::Prefix { object, .. } => object.id,
             Self::Range { object, .. } => object.id,
             Self::Address { object, .. } => object.id,
@@ -179,7 +197,9 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 vec![(*domain, ObjectKind::Domain)]
             }
             Operation::Close { kind, id, .. } => vec![(*id, *kind)],
-            Operation::CreateDomain { .. } => vec![],
+            Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
+            Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
+            Operation::CreateDomain { .. } | Operation::DeclareProperty { .. } => vec![],
         };
         for (r, expected) in uses {
             if let Ref::Local(local) = r {
@@ -206,6 +226,8 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 Operation::CreateDomain { .. } => ObjectKind::Domain,
                 Operation::CreatePrefix { .. } => ObjectKind::Prefix,
                 Operation::CreateRange { .. } => ObjectKind::Range,
+                Operation::DeclareProperty { .. } => ObjectKind::Property,
+                Operation::AddEnumValue { .. } => ObjectKind::EnumValue,
                 _ => ObjectKind::Address,
             };
             if defined.insert(local, kind).is_some() {
@@ -341,6 +363,14 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     expected: *expected,
                 });
             }
+            Operation::DeclareProperty { .. }
+            | Operation::UpdateProperty { .. }
+            | Operation::AddEnumValue { .. } => {
+                match crate::declarations::plan(op, id, |r| resolve(r, &ids)) {
+                    Ok(p) => planned.push(p),
+                    Err(v) => violations.push(v),
+                }
+            }
         }
     }
     (planned, violations)
@@ -399,7 +429,15 @@ async fn lock_targets<T: WriteTx>(
                 domains.insert(*id);
             }
             // A new domain is invisible to others until commit: nothing to serialise.
-            Planned::Domain { .. } => {}
+            // Declarations are serialised by their constraints (unique key, versions).
+            Planned::Domain { .. }
+            | Planned::Close {
+                kind: ObjectKind::Property | ObjectKind::EnumValue,
+                ..
+            }
+            | Planned::Declare { .. }
+            | Planned::UpdateDeclaration { .. }
+            | Planned::EnumValue { .. } => {}
         }
     }
     Ok((domains.into_iter().collect(), public))
@@ -441,7 +479,26 @@ async fn apply<T: WriteTx>(
                     );
                     continue;
                 }
-                tx.close(*kind, *id, period, changeset).await
+                match tx.close(*kind, *id, period, changeset).await {
+                    // A property's closed-list values are its components (003/design).
+                    Ok(()) if *kind == ObjectKind::Property => tx
+                        .close_enum_values_of(*id, period, changeset)
+                        .await
+                        .map_err(WriteError::from),
+                    other => other,
+                }
+            }
+            Planned::Declare { id, declaration } => {
+                tx.insert_declaration(*id, declaration, period, changeset)
+                    .await
+            }
+            Planned::UpdateDeclaration { id, declaration } => {
+                crate::declarations::update(tx, *id, declaration, period, changeset, violations)
+                    .await
+            }
+            Planned::EnumValue { id, property, key } => {
+                crate::declarations::add_enum_value(tx, *id, *property, key, period, changeset)
+                    .await
             }
         };
         match written {

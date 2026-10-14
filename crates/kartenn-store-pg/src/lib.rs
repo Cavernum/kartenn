@@ -4,6 +4,7 @@ pub mod anomalies;
 pub mod audit;
 pub mod keys;
 pub mod outbox;
+mod properties;
 pub mod registry;
 pub mod temporal;
 pub mod tree;

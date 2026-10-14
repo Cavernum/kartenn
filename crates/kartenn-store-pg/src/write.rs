@@ -4,8 +4,16 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::period::Period;
+use kartenn_core::properties::Declaration;
 use kartenn_core::rules::{self, Rule, Violation};
-use kartenn_service::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
+use kartenn_service::port::{
+    Journal, PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
+};
+
+use crate::properties::{
+    ASSIGNMENT_COLUMNS, AssignmentRow, DECLARATION_COLUMNS, DeclarationRow, decode_assignment,
+    decode_declaration, encode_type, ref_kind, referenced,
+};
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation};
 use sha2::{Digest, Sha256};
 use sqlx::types::Uuid;
@@ -36,6 +44,8 @@ fn constraint_rule(name: &str) -> Option<&'static Rule> {
         "addressing_domain_slug_unique" | "entity_slug_unique" | "site_slug_unique" => {
             &rules::SLUG_DUPLICATE
         }
+        "property_key_unique" => &rules::PROP_DUPLICATE_KEY,
+        "property_enum_key_unique" => &rules::PROP_ENUM_VALUE_INVALID,
         _ => return None,
     })
 }
@@ -97,6 +107,40 @@ pub struct PgTx {
 }
 
 impl PgTx {
+    /// Inserts a version of a declaration from `start` (transaction time if `None`) to
+    /// `end`.
+    async fn write_declaration(
+        &mut self,
+        id: Uuid,
+        d: &Declaration,
+        start: Option<OffsetDateTime>,
+        end: Bind,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (value_type, params) = encode_type(&d.spec);
+        let sql = format!(
+            "INSERT INTO property_declaration
+                 (id, key, value_type, type_params, cardinality, carriers, inherit_tree, valid_period, changeset_id)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, {}, $10)",
+            period_sql(8, 9)
+        );
+        let binds = vec![
+            Bind::Uuid(id),
+            Bind::Text(d.key.to_string()),
+            Bind::Text(value_type),
+            Bind::Text(params),
+            Bind::Text(d.cardinality.as_str().to_owned()),
+            Bind::Texts(d.carriers.iter().cloned().collect()),
+            Bind::OptText(d.inherit.as_ref().map(|t| t.as_str().to_owned())),
+            Bind::Time(start),
+            end,
+            Bind::Uuid(changeset),
+        ];
+        self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
+            .await
+            .map(|_| ())
+    }
+
     /// Runs one write under a savepoint, so that a refused write keeps the transaction.
     async fn guarded(
         &mut self,
@@ -115,6 +159,8 @@ impl PgTx {
                 Bind::Text(v) => q.bind(v),
                 Bind::Bool(v) => q.bind(v),
                 Bind::Time(v) => q.bind(v),
+                Bind::OptText(v) => q.bind(v),
+                Bind::Texts(v) => q.bind(v),
             };
         }
         match q.execute(&mut *self.tx).await {
@@ -141,6 +187,8 @@ enum Bind {
     Text(String),
     Bool(bool),
     Time(Option<OffsetDateTime>),
+    OptText(Option<String>),
+    Texts(Vec<String>),
 }
 
 type Binds = Vec<Bind>;
@@ -167,6 +215,8 @@ fn table(kind: ObjectKind) -> &'static str {
         ObjectKind::Prefix => "prefix",
         ObjectKind::Range => "ip_range",
         ObjectKind::Address => "address",
+        ObjectKind::Property => "property_declaration",
+        ObjectKind::EnumValue => "property_enum_value",
     }
 }
 
@@ -384,6 +434,7 @@ impl WriteTx for PgTx {
             ObjectKind::Prefix => "SELECT domain_id FROM prefix WHERE id = $1 LIMIT 1",
             ObjectKind::Range => "SELECT domain_id FROM ip_range WHERE id = $1 LIMIT 1",
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
+            ObjectKind::Property | ObjectKind::EnumValue => return Ok(None),
         };
         sqlx::query_scalar(sql)
             .bind(id)
@@ -798,6 +849,272 @@ impl WriteTx for PgTx {
         .map_err(store_err)?;
         row.map(|(domain, text)| Ok((domain, Prefix::parse_any(&ALL, &text).map_err(store_err)?)))
             .transpose()
+    }
+
+    async fn insert_declaration(
+        &mut self,
+        id: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        self.write_declaration(id, declaration, a, Bind::Time(b), changeset)
+            .await
+    }
+
+    async fn declaration(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Option<Declaration>, StoreError> {
+        let (at, _) = bounds(period)?;
+        let row: Option<DeclarationRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT {DECLARATION_COLUMNS} FROM property_declaration
+             WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())"
+        )))
+        .bind(id)
+        .bind(at)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        row.map(decode_declaration).transpose()
+    }
+
+    async fn replace_declaration(
+        &mut self,
+        id: Uuid,
+        declaration: &Declaration,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (at, _) = bounds(period)?;
+        let version: Option<(bool, Option<OffsetDateTime>)> = sqlx::query_as(
+            "SELECT lower(valid_period) = coalesce($2::timestamptz, now()), upper(valid_period)
+             FROM property_declaration WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(id)
+        .bind(at)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let Some((starts_here, end)) = version else {
+            return Err(WriteError::NoVersion(id));
+        };
+        // A version starting at the same instant is replaced; an older one is shortened
+        // and followed by the new version up to its former end.
+        let shorten = if starts_here {
+            "DELETE FROM property_declaration
+             WHERE id = $1 AND lower(valid_period) = coalesce($2::timestamptz, now())"
+        } else {
+            "UPDATE property_declaration
+             SET valid_period = tstzrange(lower(valid_period), coalesce($2::timestamptz, now())),
+                 changeset_id = $3
+             WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())"
+        };
+        let mut binds = vec![Bind::Uuid(id), Bind::Time(at)];
+        if !starts_here {
+            binds.push(Bind::Uuid(changeset));
+        }
+        self.guarded(sqlx::AssertSqlSafe(shorten.to_owned()), binds, id)
+            .await?;
+        self.write_declaration(id, declaration, at, Bind::Time(end), changeset)
+            .await
+    }
+
+    async fn declarations_in(
+        &mut self,
+        namespace: &str,
+    ) -> Result<Vec<(Uuid, Declaration, Vec<String>)>, StoreError> {
+        let ids: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM property_declaration
+             WHERE split_part(key, '.', 1) = $1 AND valid_period @> now() ORDER BY key",
+        )
+        .bind(namespace)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            let Some(declaration) = self.declaration(id, None).await? else {
+                continue;
+            };
+            let keys: Vec<String> = sqlx::query_scalar(
+                "SELECT key FROM property_enum_value
+                 WHERE property_id = $1 AND valid_period @> now() ORDER BY key",
+            )
+            .bind(id)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+            out.push((id, declaration, keys));
+        }
+        Ok(out)
+    }
+
+    async fn insert_enum_value(
+        &mut self,
+        id: Uuid,
+        property: Uuid,
+        key: &str,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "INSERT INTO property_enum_value (id, property_id, key, valid_period, changeset_id)
+             VALUES ($1, $2, $3, {}, $6)",
+            period_sql(4, 5)
+        );
+        let binds = vec![
+            Bind::Uuid(id),
+            Bind::Uuid(property),
+            Bind::Text(key.to_owned()),
+            Bind::Time(a),
+            Bind::Time(b),
+            Bind::Uuid(changeset),
+        ];
+        self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
+            .await
+            .map(|_| ())
+    }
+
+    async fn close_enum_values_of(
+        &mut self,
+        property: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), StoreError> {
+        let (at, _) = bounds(period)?;
+        sqlx::query(
+            "UPDATE property_enum_value
+             SET valid_period = tstzrange(lower(valid_period), coalesce($2::timestamptz, now())),
+                 changeset_id = $3
+             WHERE property_id = $1 AND valid_period @> coalesce($2::timestamptz, now())
+               AND lower(valid_period) < coalesce($2::timestamptz, now())",
+        )
+        .bind(property)
+        .bind(at)
+        .bind(changeset)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        sqlx::query(
+            "DELETE FROM property_enum_value
+             WHERE property_id = $1 AND lower(valid_period) >= coalesce($2::timestamptz, now())",
+        )
+        .bind(property)
+        .bind(at)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn property_facts(
+        &mut self,
+        property: Uuid,
+        type_id: &str,
+        period: Option<Period>,
+    ) -> Result<PropertyFacts, StoreError> {
+        let (a, b) = bounds(period)?;
+        let rows: Vec<AssignmentRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT DISTINCT ON (object_id) {ASSIGNMENT_COLUMNS} FROM property_assignment
+             WHERE property_id = $1 AND valid_period && {}",
+            period_sql(2, 3)
+        )))
+        .bind(property)
+        .bind(a)
+        .bind(b)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let assignments = rows
+            .into_iter()
+            .map(|r| decode_assignment(type_id, r))
+            .collect::<Result<Vec<_>, _>>()?;
+        let inheriting: Vec<Uuid> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT DISTINCT object_id FROM property_origin
+             WHERE property_id = $1 AND origin_object_id IS NOT NULL
+               AND origin_object_id <> object_id AND valid_period && {}",
+            period_sql(2, 3)
+        )))
+        .bind(property)
+        .bind(a)
+        .bind(b)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let enum_values: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT DISTINCT ON (key) key, id FROM property_enum_value
+             WHERE property_id = $1 AND valid_period && {}",
+            period_sql(2, 3)
+        )))
+        .bind(property)
+        .bind(a)
+        .bind(b)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let kinds: Vec<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, kind FROM (
+                 SELECT id, 'entity' AS kind FROM entity UNION ALL SELECT id, 'site' FROM site
+                 UNION ALL SELECT id, 'domain' FROM addressing_domain
+                 UNION ALL SELECT id, 'prefix' FROM prefix UNION ALL SELECT id, 'range' FROM ip_range
+                 UNION ALL SELECT id, 'address' FROM address) o
+             WHERE id = ANY($1)",
+        )
+        .bind(referenced(&assignments))
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(PropertyFacts {
+            assignments,
+            inheriting,
+            enum_values: enum_values.into_iter().collect(),
+            ref_kinds: kinds
+                .into_iter()
+                .filter_map(|(id, kind)| ref_kind(&kind).map(|k| (id, k)))
+                .collect(),
+        })
+    }
+
+    async fn objects_assigned(
+        &mut self,
+        property: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT DISTINCT object_id FROM property_assignment
+             WHERE property_id = $1 AND valid_period && {}",
+            period_sql(2, 3)
+        )))
+        .bind(property)
+        .bind(a)
+        .bind(b)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn objects_carrying(
+        &mut self,
+        enum_value: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT DISTINCT object_id FROM property_assignment
+             WHERE (v_uuid = $1 OR $1 = ANY(v_uuids)) AND valid_period && {}",
+            period_sql(2, 3)
+        )))
+        .bind(enum_value)
+        .bind(a)
+        .bind(b)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {

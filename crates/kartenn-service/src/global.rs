@@ -45,7 +45,18 @@ pub(crate) async fn validate<T: WriteTx>(
                     ranges_to_recheck.extend(tx.ranges_inside(domain, value, None).await?);
                 }
             }
-            Planned::Domain { .. } | Planned::Close { .. } => {}
+            Planned::Close {
+                kind: kind @ (ObjectKind::Property | ObjectKind::EnumValue),
+                id,
+                ..
+            } => {
+                crate::declarations::check_closure(tx, *kind, *id, period, violations).await?;
+            }
+            Planned::Domain { .. }
+            | Planned::Close { .. }
+            | Planned::Declare { .. }
+            | Planned::UpdateDeclaration { .. }
+            | Planned::EnumValue { .. } => {}
         }
     }
     for address in addresses_to_recheck {

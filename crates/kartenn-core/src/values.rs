@@ -108,12 +108,40 @@ pub enum Raw {
 }
 
 /// Cardinality of a property.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Cardinality {
     /// One value.
     Single,
     /// A set of values.
     Set,
+}
+
+impl Cardinality {
+    /// Name, as stored.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Set => "set",
+        }
+    }
+}
+
+impl Scalar {
+    /// The raw input that yields this scalar again, to revalidate a stored value under
+    /// new parameters; `None` for a closed-list value, stored by identifier.
+    #[must_use]
+    pub fn to_raw(&self) -> Option<Raw> {
+        Some(match self {
+            Self::Enum(_) => return None,
+            Self::Text(t) => Raw::Text(t.clone()),
+            Self::Int(i) => Raw::Int(*i),
+            Self::Bool(b) => Raw::Bool(*b),
+            Self::Date(d) => Raw::Text(d.to_string()),
+            Self::Ref(id) => Raw::Text(id.to_string()),
+        })
+    }
 }
 
 /// Facts a type needs from the rest of the system to validate a value.
