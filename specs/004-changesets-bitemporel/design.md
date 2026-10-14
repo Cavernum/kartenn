@@ -209,15 +209,17 @@ Le changeset généré n'est pas soumis automatiquement.
   `org.kartenn.changeset.applied` (préfixe à confirmer), `time` = temps système (RFC 3339),
   `data` = objets touchés et différentiel résumé. Les consommateurs dédoublonnent par
   `source` + `id`.
-- **Relais** (worker unique à la fois, par verrou consultatif) : ne lit que les lignes
+- **Relais** (un à la fois par consommateur, verrou consultatif) : ne lit que les lignes
   dont `xid < pg_snapshot_xmin(pg_current_snapshot())`, c'est-à-dire de transactions
-  terminées, par `seq` croissant, et mémorise le dernier `seq` livré. Les transactions
-  plus récentes ou en cours sont attendues : **aucun trou**.
+  terminées, non encore livrées à ce consommateur, par `seq` croissant, et **enregistre
+  chaque livraison** (`outbox_delivery`). Un curseur unique « dernier `seq` livré » est
+  proscrit : il peut sauter l'événement d'une transaction encore en cours (amendement
+  de l'ADR 0018).
 - **Ordre garanti par domaine d'adressage** (réponse à la question ouverte) : les
   changesets d'un même domaine sont sérialisés par le verrou de domaine, donc leurs `seq`
   suivent l'ordre d'application. Entre domaines différents, l'ordre global n'est pas
   garanti (et n'est pas nécessaire).
-- Livraison au moins une fois : le dernier `seq` livré n'avance qu'après accusé du
+- Livraison au moins une fois : une livraison n'est enregistrée qu'après accusé du
   consommateur.
 
 ## Erreurs et cas limites

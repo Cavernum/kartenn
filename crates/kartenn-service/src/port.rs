@@ -40,6 +40,10 @@ pub struct Journal<'a> {
     pub state: &'static str,
     /// Violations (errors and warnings).
     pub violations: &'a [Violation],
+    /// Addressing domains written by the changeset (event ordering key, ADR 0018).
+    pub domains: &'a [Uuid],
+    /// Objects created or modified.
+    pub objects: &'a [Uuid],
 }
 
 /// Earlier submission found for an idempotency key (REQ-004-10).

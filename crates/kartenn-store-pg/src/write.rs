@@ -12,6 +12,10 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgPool, Postgres, Transaction};
 
+/// CloudEvents `source` of the events of this instance (to be made configurable with the
+/// server configuration).
+const EVENT_SOURCE: &str = "urn:kartenn:instance";
+
 /// Advisory lock key of public space (ADR 0015).
 const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennP"
 
@@ -226,6 +230,23 @@ async fn write_journal(
         .bind(key)
         .bind(request_hash(journal.request)?)
         .bind(journal.id)
+        .execute(&mut **tx)
+        .await
+        .map_err(store_err)?;
+    }
+    if journal.state == "applied" {
+        // REQ-004-36: one CloudEvents 1.0 event per applied changeset, in its transaction.
+        sqlx::query(
+            "INSERT INTO outbox (changeset_id, domain_ids, payload) VALUES ($1, $2, jsonb_build_object(
+                'specversion', '1.0', 'id', $1::text, 'source', $3::text,
+                'type', 'org.kartenn.changeset.applied', 'time', now(),
+                'datacontenttype', 'application/json',
+                'data', jsonb_build_object('changeset', $1, 'domains', $2, 'objects', $4)))",
+        )
+        .bind(journal.id)
+        .bind(journal.domains)
+        .bind(EVENT_SOURCE)
+        .bind(journal.objects)
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;

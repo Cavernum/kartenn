@@ -139,6 +139,17 @@ pub(crate) enum Planned {
     },
 }
 
+impl Planned {
+    /// The object the operation creates or modifies.
+    pub(crate) const fn object(&self) -> Uuid {
+        match self {
+            Self::Domain { id, .. } | Self::Close { id, .. } => *id,
+            Self::Prefix { object, .. } => object.id,
+            Self::Address { object, .. } => object.id,
+        }
+    }
+}
+
 /// Checks the shape of the request (REQ-004-1 to 5): size, motive, period, references.
 fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, RequestError> {
     if req.operations.is_empty() {
@@ -424,11 +435,14 @@ pub async fn submit<S: Store>(
         tx.rollback().await?;
         return Ok(Outcome::Simulated { violations });
     }
+    let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
     let journal = Journal {
         id: changeset,
         request: req,
         state: "applied",
         violations: &violations,
+        domains: &domains,
+        objects: &objects,
     };
     tx.journal_applied(&journal).await?;
     tx.commit().await?;
@@ -452,6 +466,8 @@ async fn refuse<S: Store>(
         request: req,
         state: "refused",
         violations: &violations,
+        domains: &[],
+        objects: &[],
     };
     store.journal_refused(&journal).await?;
     Ok(Outcome::Refused {
