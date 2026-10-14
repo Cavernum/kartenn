@@ -150,3 +150,13 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
 - Rejeté : `INSERT` dans les migrations SQL du module (contourne changeset, audit et
   contrôle de compatibilité ; deux sources à garder alignées).
 - Décidé par : recommandation acceptée (2026-10-14)
+
+## P13 — Pas de ligne d'origine sans origine
+- Décision : `property_origin` ne contient une ligne que là où un objet a une origine
+  (affectation propre ou d'un ancêtre, effacement compris) ; l'absence de ligne vaut
+  « aucune valeur héritée ».
+- Pourquoi : déclarer une propriété héritable ou ajouter un porteur écrirait sinon une
+  ligne nulle par objet (≈ 10⁶), et chaque objet créé une ligne par propriété.
+- Rejeté : une ligne nulle par objet porteur (filtre « absent » par index simple, au prix
+  de ces écritures massives).
+- Décidé par : recommandation acceptée (2026-10-14)

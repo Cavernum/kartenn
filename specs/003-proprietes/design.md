@@ -147,6 +147,10 @@ Une adresse ou une plage a pour premier ancêtre son réseau, jamais une plage (
 - Une ligne par (objet porteur ou héritier, propriété **héritable**) et par segment de
   temps applicatif où l'origine est constante. Les propriétés non héritables ne sont
   pas matérialisées : leur affectation est la valeur (P9).
+- **Pas de ligne sans origine** (P13) : un objet sans affectation propre ni héritée n'a
+  pas de ligne ; l'origine d'une ligne n'est jamais nulle (un effacement est une
+  origine). Déclarer une propriété ou créer un objet n'écrit donc rien par défaut ; le
+  filtre « absent » est une anti-jointure.
 - **Valeur** : jointure de `origin_object_id` sur l'affectation courante de la même
   propriété (index `(property_id, object_id)` des affectations).
 - **Versionnée en temps système** comme le reste (004) : `as_of` dans le passé se sert
@@ -187,6 +191,22 @@ flowchart TD
 - **Segmentation temporelle** : la période visée par le changeset est découpée aux bornes
   des versions des objets concernés (préfixes ancêtres et affectations) ; chaque segment
   est résolu, puis les segments adjacents de même valeur sont fusionnés.
+- **Mise en œuvre (003-8)** : le service classe les écritures du changeset et donne
+  les cibles par propriété (objets nouveaux ; sous-arbre d'un objet dont l'affectation
+  est écrite ou retirée ; objet clos et objets dont il est l'origine ; tous les porteurs
+  quand la déclaration change) ; l'adaptateur recalcule leurs segments à partir du
+  début de la période du changeset jusqu'à l'infini (requête ensembliste
+  `refresh_origins`), fusionne les segments contigus de même origine et n'écrit que les
+  lignes qui diffèrent. **Écart provisoire** : pour une affectation, toute la portée est
+  relue, pas seulement les objets dont l'origine est au-dessus de l'objet ; seules les
+  écritures sont proportionnelles aux changements d'origine. Le ciblage fin attend le
+  banc 003-16.
+- **Affectations** : opérations `assign_property`, `clear_property` (effacement
+  explicite) et `unassign_property` sur la période du changeset ; la portion visée des
+  affectations existantes est retirée (fonction `kartenn_unassign`, migration 0014).
+  Clore un objet clôt ses affectations (ce sont ses attributs).
+- **Arbres `entity` et `site`** : leur maintenance viendra avec les ancres (002-22) ;
+  aucune opération ne crée encore d'entité ni de site.
 - **Objets nouveaux** : résolus de la même façon, mais exclus du contrôle de droit sur
   l'effet (REQ-003-18).
 
