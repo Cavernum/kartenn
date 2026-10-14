@@ -282,6 +282,26 @@ Quand la version d'une source change, un **job** de worker réévalue les écart
 les porteurs, par lots. La v0.1 ne fournit **aucune** source ; le moteur de règles arrive
 en v0.2 (spec 010).
 
+**Mise en œuvre (003-13)** :
+
+- Le trait (service) reçoit une **vue figée** de l'objet : identifiant, type, domaine,
+  valeur (préfixe, première adresse, adresse) et valeurs résolues de ses propriétés à la
+  date (JSON par clé) ; il renvoie des valeurs brutes (comme une saisie) et une
+  explication. Les sources sont compilées et réunies dans un registre (`Sources`) passé à
+  `submit_with` ; `submit` n'en a aucune (la v0.1 n'en livre pas).
+- La déclaration nomme la source et le mode (`expected`) ; une source absente du
+  registre est refusée (`prop.declaration.invalid`). Une suggestion reste possible quel
+  que soit le mode.
+- **`default`** : après les écritures, avant la résolution, pour chaque objet créé d'un
+  type porteur sans affectation de la propriété dans le changeset ; la valeur est
+  validée comme une saisie, puis écrite avec la provenance `source:<id>@<version>`. Elle
+  entre dans la résolution, les obligations et le différentiel comme une affectation ; elle
+  n'exige pas de droit direct (ce n'est pas un choix de l'auteur), mais ses effets sur des
+  objets existants restent soumis au droit sur l'effet.
+- **`check`** : sur les objets touchés (comme les obligations), à la date d'effet ; un
+  écart produit l'avertissement `prop.resolution.expected_mismatch`, donc une anomalie
+  ouverte sur l'objet, qui cite la propriété, les deux valeurs et l'explication.
+
 ### Filtrage (REQ-003-25)
 
 Propriété héritable : la requête part des **affectations** qui portent la valeur
