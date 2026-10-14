@@ -1,6 +1,6 @@
 //! Validation rules: stable identifiers, severities, sources (REQ-002-35 to 37).
 //!
-//! Every rule is declared once, in [`CORE_RULES`] or [`PROPERTY_RULES`]; the published catalogue
+//! Every rule is declared once, in [`CORE_RULES`], [`PROPERTY_RULES`] or [`CHANGESET_RULES`]; the catalogue
 //! (`docs/spec/regles-noyau.md`) is generated from it and checked by a test, so code and
 //! documentation cannot drift.
 
@@ -186,9 +186,19 @@ rules! {
         "La valeur résolue diffère de la valeur attendue par la source configurée.";
 }
 
+rules! {
+    CHANGESET_RULES;
+    CHANGESET_NO_VERSION = "changeset.operation.no_version", Error, ["REQ-004-14", "REQ-004-15"], "004/design",
+        "Une opération ne vise un objet que sur une période où il existe.";
+}
+
 /// Every rule, all groups, in catalogue order.
 pub fn all_rules() -> impl Iterator<Item = &'static Rule> {
-    CORE_RULES.iter().chain(PROPERTY_RULES.iter()).copied()
+    CORE_RULES
+        .iter()
+        .chain(PROPERTY_RULES.iter())
+        .chain(CHANGESET_RULES.iter())
+        .copied()
 }
 
 /// The rule of `id`, if defined.

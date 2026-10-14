@@ -11,4 +11,14 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+uuid = { version = "1.28.0", features = ["v7", "serde"] }
+
+[dev-dependencies]
+kartenn-store-pg = { path = "../kartenn-store-pg" }
+serde_json = "1.0.154"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

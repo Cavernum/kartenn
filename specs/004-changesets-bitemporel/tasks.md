@@ -39,14 +39,14 @@ voir [`../README.md`](../README.md).
 
 ## P4 — Pipeline
 
-- [ ] 7. Pipeline de base : décodage, taille max, verrous de domaine, application en
+- [x] 7. Pipeline de base : décodage, taille max, verrous de domaine, application en
   transaction avec références internes, validation (point d'accroche 002/003),
   atomicité, journalisation séparée des refus — REQ-004-1 à 7, 12 — verify : tests
   d'intégration, dont concurrence
 - [ ] 8. Découpage en base (`UPDATE` + `INSERT` des morceaux), clôture, validation sur
   toute la période visée (versions futures) — REQ-004-8, 14, 15 — verify : comparaison
   au modèle en mémoire de la tâche 3
-- [ ] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
+- [x] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
 - [ ] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
   parallèles
 - [ ] 11. Interface `Authorizer` (`authorize`, `authorize_many`, permission d'approbation,

@@ -14,6 +14,7 @@ workspace = true
 idna = "1.1.0"
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
 unicode-normalization = "0.1.25"
 uuid = { version = "1.28.0", features = ["v7"] }

@@ -89,12 +89,24 @@ pub struct Domain {
 }
 
 /// Nature of a prefix (002/A2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Nature {
     /// Aggregate or supernet: contains only prefixes.
     Container,
     /// Layer-3 subnet: contains ranges and addresses; a leaf of the prefix tree.
     Network,
+}
+
+impl Nature {
+    /// Stored form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Container => "container",
+            Self::Network => "network",
+        }
+    }
 }
 
 /// A prefix of an addressing domain.
@@ -113,7 +125,8 @@ pub struct PrefixObject {
 }
 
 /// Usage of a range (002/A5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RangeUsage {
     /// Dynamic pool: no individual address except DHCP reservations.
     Dhcp,
@@ -121,6 +134,18 @@ pub enum RangeUsage {
     Reserved,
     /// Static: individual addresses only.
     Static,
+}
+
+impl RangeUsage {
+    /// Stored form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Dhcp => "dhcp",
+            Self::Reserved => "reserved",
+            Self::Static => "static",
+        }
+    }
 }
 
 /// A range of addresses inside a network.
@@ -139,7 +164,8 @@ pub struct IpRange {
 }
 
 /// Usage of an address (002/A5, A11).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AddressUsage {
     /// Host.
     Host,
@@ -151,6 +177,20 @@ pub enum AddressUsage {
     Anycast,
     /// Reserved (also a DHCP reservation inside a DHCP range).
     Reserved,
+}
+
+impl AddressUsage {
+    /// Stored form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Host => "host",
+            Self::Gateway => "gateway",
+            Self::Vip => "vip",
+            Self::Anycast => "anycast",
+            Self::Reserved => "reserved",
+        }
+    }
 }
 
 /// An address of a network.
