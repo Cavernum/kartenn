@@ -134,3 +134,23 @@ async fn tables_without_versioning_columns_are_refused(pool: PgPool) -> sqlx::Re
     );
     Ok(())
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_added_column_is_historised_by_name(pool: PgPool) -> sqlx::Result<()> {
+    demo_table(&pool).await?;
+    sqlx::raw_sql(
+        "INSERT INTO demo (id, label, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'old', tstzrange(now(), NULL), gen_random_uuid());
+         CALL kartenn_add_versioned_column('demo', 'flag boolean NOT NULL DEFAULT false');
+         UPDATE demo SET flag = true, label = 'new';
+         DELETE FROM demo;",
+    )
+    .execute(&pool)
+    .await?;
+    let rows: Vec<(String, bool)> =
+        sqlx::query_as("SELECT label, flag FROM demo_history ORDER BY label")
+            .fetch_all(&pool)
+            .await?;
+    assert_eq!(rows, vec![("new".into(), true), ("old".into(), false)]);
+    Ok(())
+}

@@ -34,3 +34,13 @@ modifier ni supprimer l'historique.
 - Les lectures `as_of` passées font une union courante + historique.
 - Chaque migration de module crée la paire de tables et attache le déclencheur.
 - Le découpage des périodes (« FOR PORTION OF ») reste à la charge de la couche service.
+
+## Amendement (2026-10-14) — copie par nom de colonne
+
+Le déclencheur copiait la version remplacée par position (`($1).*`). Après un
+`ALTER TABLE … ADD COLUMN`, l'historique avait `sys_end` avant la nouvelle colonne et
+toute modification de la table échouait. Le déclencheur reçoit désormais la liste des
+colonnes de la table courante en argument, figée à sa création (aucune lecture du
+catalogue par ligne) ; la procédure `kartenn_add_versioned_column` ajoute une colonne
+aux deux tables et recrée le déclencheur (migration 0009). Toute évolution de schéma
+d'une table versionnée passe par elle.
