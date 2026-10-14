@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 003 — Propriétés : conception
@@ -197,10 +197,15 @@ flowchart TD
   quand la déclaration change) ; l'adaptateur recalcule leurs segments à partir du
   début de la période du changeset jusqu'à l'infini (requête ensembliste
   `refresh_origins`), fusionne les segments contigus de même origine et n'écrit que les
-  lignes qui diffèrent. **Écart provisoire** : pour une affectation, toute la portée est
-  relue, pas seulement les objets dont l'origine est au-dessus de l'objet ; seules les
-  écritures sont proportionnelles aux changements d'origine. Le ciblage fin attend le
-  banc 003-16.
+  lignes qui diffèrent. **Ciblage (003-16)** : une affectation qui ne change que la
+  valeur (l'objet portait déjà une affectation, valeur ou effacement, sur toute la
+  fenêtre) ne déplace aucune origine : ses héritiers sont listés, rien n'est recalculé.
+  Sinon toute la portée de l'objet est recalculée (sur-ensemble : seules les écritures
+  sont proportionnelles aux changements d'origine ; mesuré suffisant au banc). Les
+  candidats sont cherchés en remontant de chaque cible (un sondage d'index par cible) ou,
+  à partir de 50 000 cibles, en descendant des objets qui portent une affectation dans
+  les domaines des cibles (un parcours d'index par porteur) : même résultat, 8,6 s au
+  lieu de 34 s pour 1,19·10⁶ cibles ; le test contre l'oracle couvre les deux sens.
 - **Affectations** : opérations `assign_property`, `clear_property` (effacement
   explicite) et `unassign_property` sur la période du changeset ; la portion visée des
   affectations existantes est retirée (fonction `kartenn_unassign`, migration 0014).
@@ -262,6 +267,16 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   entrée par (propriété, objet, avant, après) distincts. Objets exclus : ceux que le
   changeset crée, et les instants où l'objet n'existe plus. Valeur : clés pour une liste
   fermée, JSON sinon ; absence et effacement sont tous deux « aucune valeur ».
+- **Origine revalorisée (003-16)** : pour les héritiers d'une origine dont seule la
+  valeur change, les valeurs avant et après sont celles de l'origine : sa chronologie
+  est découpée une fois et ses héritiers sont lus par l'index des origines, au lieu de
+  découper la chronologie de chaque héritier (8,4 s au lieu de 128 s pour 10⁶ héritiers,
+  changeset entier).
+- **Plans** : les statistiques d'une propriété écrite dans le changeset en cours sont
+  périmées ; le calcul général joint donc sans boucle imbriquée (`enable_nestloop` coupé
+  pour cette instruction), et la recherche des affectations des candidats est isolée
+  (`OFFSET 0`). Sans ces précautions, un changeset sur une propriété neuve ne finissait
+  pas en 90 min au banc.
 - **Restitution** : le résultat d'un changeset appliqué porte le décompte ; le détail est
   stocké (`changeset_diff`, ordonné) et lu par pages. Une simulation renvoie le décompte
   et les 100 premières entrées du détail.
@@ -306,8 +321,11 @@ en v0.2 (spec 010).
 
 Propriété héritable : la requête part des **affectations** qui portent la valeur
 cherchée dans le domaine (petit ensemble d'origines), puis des objets résolus vers elles
-par `property_origin` (index `(property_id, origin_object_id)`) ; un objet et son origine
-sont toujours dans le même domaine. Partir des objets coûtait 1,25 s au prototype ;
+par `property_origin` (index couvrant `(property_id, origin_object_id, object_id)`, migration
+0017, lu sans accès à la table) ; un objet et son origine sont toujours dans le même
+domaine, et une ligne d'origine reste dans la validité de son objet : aucune jointure sur
+les objets. Les filtres s'exécutent en instructions non préparées : un plan générique ne
+distingue pas une borne ouverte d'une borne fermée et délaisse les index de valeur. Partir des objets coûtait 1,25 s au prototype ;
 partir des origines, 27 à 78 ms. Propriété non héritable : filtre direct sur les
 affectations.
 
@@ -400,6 +418,38 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
 | 21 à 24 | Source de test dans les tests : suggestion, défaut avec provenance, anomalie d'écart, job de réévaluation |
 | 25 | Intégration : chaque type de filtre ; plans d'exécution vérifiés (index utilisés) |
 | 26 | Banc CI sur le jeu synthétique de la 002 + 10 propriétés ; seuils bloquants |
+
+**Banc REQ-003-26 (003-16)** : `kartenn-bench props <base> <graine>` migre une base vide,
+y charge le jeu de la 002 (`COPY`), déclare 3 propriétés héritables (ensembles de liste
+fermée) et 7 non héritables (entiers, 20 % des adresses, chargés par `COPY`), affecte les
+héritables par le pipeline (racines des domaines, puis 3 % des préfixes), puis mesure,
+par le service et l'adaptateur réels :
+
+| Mesure | Seuil | Mesuré (2026-10-15, graine 42) |
+|---|---|---|
+| Première valeur sur toutes les racines (1,19·10⁶ changements d'origine, P10) | < 60 s | 40,9 s |
+| Explication d'une propriété pour une adresse, p95 sur 200 tirages | < 50 ms | 42 ms |
+| Page filtrée de 100, égalité sur héritable, p95 sur 100 tirages | < 150 ms | 19 ms |
+| Page filtrée de 100, intervalle sur non héritable, p95 sur 100 tirages | < 150 ms | 67 ms |
+| Changeset dont le différentiel touche ≤ 10⁴ objets (affectation d'un conteneur de 7 409 adresses ; 8 315 objets changent) | < 1 s | **2,07 s** |
+| Changement de valeur de toutes les racines (≈ 10⁶ objets, sans changement d'origine) | < 10 s | 8,4 s |
+| Retrait des racines de 3 domaines (> 10⁵ changements d'origine, P10) | < 60 s | 13,6 s |
+
+Les mesures portent sur le changeset entier (pipeline, historique, journal, validation).
+Pour le cas ≤ 10⁴, le temps se répartit entre l'écriture des origines avec leur historique
+(≈ 0,55 s), le calcul des segments (≈ 0,45 s : un sondage d'index d'environ 30 µs par
+cible), le différentiel (≈ 0,4 s), la relecture des origines et le journal (≈ 0,2 s).
+Le prototype (1 s visé, 0,63 s mesuré) ne comptait ni l'historique ni le journal.
+
+> Question ouverte (exigences, budget du cas ≤ 10⁴) : garder 1 s impose de
+> nouvelles optimisations (différentiel tiré des origines déjà calculées en mémoire,
+> troncature par mise à jour plutôt que suppression et insertion), gain estimé à 0,5 s,
+> incertain ; ou porter le seuil à 2,5 s pour le changeset entier, historique et journal
+> compris. Bloque la clôture de 003-16.
+
+Le programme sort en erreur si un seuil est dépassé. Il s'exécute par le script devenv
+`bench-properties` (base `kartenn_bench` recréée) ; son branchement dans la CI attend la
+mise en place de celle-ci, comme le banc de la 002 (002-27).
 
 ## ADR
 

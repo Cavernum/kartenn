@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 003 — Propriétés : tâches
@@ -85,6 +85,7 @@ voir [`../README.md`](../README.md).
 
 - [ ] 16. Banc CI : résolution expliquée, page filtrée, différentiel de valeur sur 10⁶
   objets, changement d'origine sur 10⁴ et plus de 10⁵ objets (P10) — REQ-003-26 —
-  verify : seuils bloquants
+  verify : seuils bloquants — banc et script `bench-properties` en place, 6 seuils sur 7
+  tenus ; seuil du cas ≤ 10⁴ en attente (question ouverte des exigences)
 - [ ] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
   rapport spec-keeper sans écart

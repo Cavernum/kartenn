@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 003 — Propriétés : exigences
@@ -273,5 +273,9 @@ simulation donnant d'abord le décompte (P10).
   héritable du noyau, ou reste-t-elle un cas particulier ? (conception 002/003, Claude)
 - [x] Budgets du différentiel (REQ-003-26) : confirmés par le prototype 003, sauf les
   changements d'origine de plus de 10⁵ objets, assouplis à < 60 s (P10). (Claude)
+- [ ] Budget du changeset touchant jusqu'à 10⁴ objets (REQ-003-26) : le banc 003-16 mesure
+  2,07 s pour 8 315 objets, changeset entier (historique et journal compris), pour 1 s
+  visé. Garder 1 s (nouvelles optimisations, gain incertain) ou porter le seuil à 2,5 s ?
+  Voir design, § Stratégie de test. Bloque la clôture de 003-16. (utilisateur)
 - [ ] Note de référence à rédiger avant la conception : noms de domaine (RFC 1123 §2.1,
   RFC 1035, RFC 5890–5891 IDNA), RFC 3339 et normalisation Unicode (UAX #15). (Claude)
