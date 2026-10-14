@@ -2,7 +2,8 @@
 
 use std::future::Future;
 
-use kartenn_core::objects::{Address, PrefixObject};
+use kartenn_core::addr::{Addr, Prefix};
+use kartenn_core::objects::{Address, AddressUsage, PrefixObject};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use uuid::Uuid;
@@ -141,6 +142,64 @@ pub trait WriteTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Networks of `domain` strictly containing `prefix` over part of `period` (002/A2).
+    /// With `include_equal`, a network equal to `prefix` counts (for addresses: a /32 or
+    /// /128 network holds its single address).
+    fn networks_containing(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        include_equal: bool,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<PrefixObject>, StoreError>> + Send;
+
+    /// Prefixes of `domain` strictly inside `prefix` over part of `period`.
+    fn prefixes_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Whether every version of the address lies, over its whole period, in networks of
+    /// its domain (REQ-002-25).
+    fn address_covered(
+        &mut self,
+        address: Uuid,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Addresses of `domain` inside `prefix` over part of `period`.
+    fn addresses_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Public networks of other domains overlapping `prefix` over part of `period`
+    /// (REQ-002-32), with their domain.
+    fn public_networks_overlapping(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Uuid)>, StoreError>> + Send;
+
+    /// Public addresses equal to `address` in other domains over part of `period`, with
+    /// their usage.
+    fn public_addresses_equal(
+        &mut self,
+        domain: Uuid,
+        address: Addr,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, AddressUsage)>, StoreError>> + Send;
+
+    /// Domain and value of a prefix (any version).
+    fn prefix_of(
+        &mut self,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<(Uuid, Prefix)>, StoreError>> + Send;
 
     /// Journals the applied changeset in this transaction.
     fn journal_applied(

@@ -299,43 +299,151 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
-async fn public_addresses_are_unique_across_domains(pool: PgPool) {
-    // REQ-002-32 through the pipeline (last line of defence) and anycast (REQ-002-46).
+async fn public_space_is_unique_across_domains(pool: PgPool) {
+    // REQ-002-32 (application rule and last line of defence). REQ-002-46 cannot be met
+    // together with REQ-002-25 and REQ-002-32: see specs/002-noyau-adressage/implementation.md.
     let author = person(&pool).await;
     let (d1, d2) = (
         new_domain(&pool, author, "one").await,
         new_domain(&pool, author, "two").await,
     );
     let store = PgStore::new(pool.clone());
-    let create = |d, value: &str, usage| request(author, vec![address(Ref::Id(d), value, usage)]);
-    for d in [d1, d2] {
-        let outcome = submit(
-            &store,
-            &create(d, "45.0.0.53", AddressUsage::Anycast),
-            MAX_OPERATIONS,
-        )
+    let ops = vec![
+        prefix(Ref::Id(d1), "45.0.0.0/24", Nature::Network),
+        address(Ref::Id(d1), "45.0.0.53", AddressUsage::Anycast),
+        address(Ref::Id(d1), "45.0.0.10", AddressUsage::Host),
+    ];
+    let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)
         .await
         .unwrap();
-        assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    }
-    submit(
-        &store,
-        &create(d1, "45.0.0.10", AddressUsage::Host),
-        MAX_OPERATIONS,
-    )
-    .await
-    .unwrap();
-    let outcome = submit(
-        &store,
-        &create(d2, "45.0.0.10", AddressUsage::Host),
-        MAX_OPERATIONS,
-    )
-    .await
-    .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let dup_network = request(
+        author,
+        vec![prefix(Ref::Id(d2), "45.0.0.0/25", Nature::Network)],
+    );
+    let outcome = submit(&store, &dup_network, MAX_OPERATIONS).await.unwrap();
     let Outcome::Refused { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
     assert_eq!(violations[0].rule.id, "core.public.overlap");
+    let private = request(
+        author,
+        vec![prefix(Ref::Id(d2), "10.0.0.0/24", Nature::Network)],
+    );
+    let outcome = submit(&store, &private, MAX_OPERATIONS).await.unwrap();
+    assert!(
+        matches!(outcome, Outcome::Applied { .. }),
+        "private space is per domain: {outcome:?}"
+    );
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
+    // REQ-002-16, 25, 29.
+    let author = person(&pool).await;
+    let d = new_domain(&pool, author, "prod").await;
+    let store = PgStore::new(pool.clone());
+    let base = vec![
+        prefix(Ref::Id(d), "10.0.0.0/8", Nature::Container),
+        prefix(Ref::Id(d), "10.1.2.0/24", Nature::Network),
+        address(Ref::Id(d), "10.1.2.10", AddressUsage::Host),
+    ];
+    assert!(matches!(
+        submit(&store, &request(author, base), MAX_OPERATIONS)
+            .await
+            .unwrap(),
+        Outcome::Applied { .. }
+    ));
+    let ids = |o: &Outcome| match o {
+        Outcome::Refused { violations, .. } => {
+            violations.iter().map(|v| v.rule.id).collect::<Vec<_>>()
+        }
+        other => panic!("{other:?}"),
+    };
+    let nested = submit(
+        &store,
+        &request(
+            author,
+            vec![prefix(Ref::Id(d), "10.1.2.0/25", Nature::Network)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        ids(&nested),
+        vec!["core.prefix.network_not_leaf"],
+        "inside a network"
+    );
+    let over = submit(
+        &store,
+        &request(
+            author,
+            vec![prefix(Ref::Id(d), "10.1.0.0/16", Nature::Network)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        ids(&over),
+        vec!["core.prefix.network_not_leaf"],
+        "a network over a network"
+    );
+    let container = submit(
+        &store,
+        &request(
+            author,
+            vec![prefix(Ref::Id(d), "10.1.0.0/16", Nature::Container)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(container, Outcome::Applied { .. }),
+        "a container may be inserted above: {container:?}"
+    );
+    let orphan = submit(
+        &store,
+        &request(
+            author,
+            vec![address(Ref::Id(d), "10.9.9.9", AddressUsage::Host)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(ids(&orphan), vec!["core.address.outside_network"]);
+    let broadcast = submit(
+        &store,
+        &request(
+            author,
+            vec![address(Ref::Id(d), "10.1.2.255", AddressUsage::Host)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(ids(&broadcast), vec!["core.address.not_assignable"]);
+    let net: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.1.2.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let close = request(
+        author,
+        vec![Operation::Close {
+            kind: ObjectKind::Prefix,
+            id: Ref::Id(net),
+            expected: None,
+        }],
+    );
+    let closing = submit(&store, &close, MAX_OPERATIONS).await.unwrap();
+    assert_eq!(
+        ids(&closing),
+        vec!["core.address.outside_network"],
+        "closing a network that holds addresses"
+    );
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]

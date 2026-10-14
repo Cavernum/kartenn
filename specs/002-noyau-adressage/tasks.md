@@ -80,16 +80,22 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 
 ## P4 — Validation globale (dans le pipeline 004)
 
-- [ ] 18. Port `AddressingView` : parent déduit, enfants, chevauchements, publics des
+- [x] 18. Port `AddressingView` : parent déduit, enfants, chevauchements, publics des
   autres domaines, à une date — REQ-002-14, 42 — après 004-7 — verify : tests
   d'intégration sur le jeu réduit
+  — faits de validation livrés ; la navigation générale (parent, enfants) vient en 002-23
 - [ ] 19. Règles globales des préfixes : doublon, réseau feuille, changement de nature,
   redimensionnement — REQ-002-15 à 18 — verify : un test par règle et par cas de la
   table des erreurs
+  — **partiel** : doublon et réseau feuille faits ; nature et redimensionnement attendent les
+  opérations de modification (implementation.md, I3)
 - [ ] 20. Règles globales des plages et adresses : dans un réseau, chevauchement, usage
   de plage, unicité — REQ-002-21, 22, 25, 26, 28 — verify : idem
+  — **partiel** : adresses faites (dans un réseau sur toute leur période, unicité, positions
+  réservées) ; plages en attente (I2)
 - [ ] 21. Espace public et anycast entre domaines, verrou « espace public » —
   REQ-002-32, 46 — verify : tests, dont concurrence
+  — **fait**, mais REQ-002-46 est inatteignable en l'état (contradiction, I1)
 - [ ] 22. Ancres : cycles d'entités et de sites, clôture d'une ancre utilisée, domaine
   immuable ; `core.owner` et `core.site` déclarés comme propriétés du noyau (avec 003) —
   REQ-002-8 à 12, 20, 38 — après 003-8 — verify : tests, dont refus d'une manœuvre de

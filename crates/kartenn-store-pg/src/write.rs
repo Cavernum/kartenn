@@ -1,6 +1,8 @@
 //! PostgreSQL implementation of the write port of the pipeline (spec 004, ADR 0015).
 
-use kartenn_core::objects::{Address, PrefixObject};
+use kartenn_core::addr::{Addr, Prefix};
+use kartenn_core::family::ALL;
+use kartenn_core::objects::{Address, AddressUsage, Nature, PrefixObject};
 use kartenn_core::period::Period;
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
@@ -443,6 +445,172 @@ impl WriteTx for PgTx {
         } else {
             Ok(())
         }
+    }
+
+    async fn networks_containing(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        include_equal: bool,
+        period: Option<Period>,
+    ) -> Result<Vec<PrefixObject>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let op = if include_equal { ">>=" } else { ">>" };
+        let sql = format!(
+            "SELECT DISTINCT ON (id) id, prefix::text, point_to_point FROM prefix
+             WHERE domain_id = $1 AND nature = 'network' AND prefix {op} $2::cidr
+               AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        let rows: Vec<(Uuid, String, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(prefix.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(id, text, point_to_point)| {
+                let value = Prefix::parse_any(&ALL, &text).map_err(store_err)?;
+                Ok(PrefixObject {
+                    id,
+                    domain,
+                    value,
+                    nature: Nature::Network,
+                    point_to_point,
+                })
+            })
+            .collect()
+    }
+
+    async fn prefixes_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id FROM prefix WHERE domain_id = $1 AND prefix << $2::cidr AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(prefix.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn address_covered(&mut self, address: Uuid) -> Result<bool, StoreError> {
+        // Every version of the address must be covered by the union of the periods of the
+        // networks of its domain that contain it (multirange containment).
+        sqlx::query_scalar(
+            "SELECT coalesce(bool_and(coalesce((
+                 SELECT range_agg(n.valid_period) FROM prefix n
+                 WHERE n.domain_id = a.domain_id AND n.nature = 'network' AND n.prefix >>= a.address
+               ), '{}'::tstzmultirange) @> a.valid_period), true)
+             FROM address a WHERE a.id = $1",
+        )
+        .bind(address)
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn addresses_inside(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id FROM address WHERE domain_id = $1 AND address <<= $2::cidr AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(prefix.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn public_networks_overlapping(
+        &mut self,
+        domain: Uuid,
+        prefix: Prefix,
+        period: Option<Period>,
+    ) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id, domain_id FROM prefix
+             WHERE public AND nature = 'network' AND domain_id <> $1 AND prefix && $2::cidr
+               AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(prefix.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn public_addresses_equal(
+        &mut self,
+        domain: Uuid,
+        address: Addr,
+        period: Option<Period>,
+    ) -> Result<Vec<(Uuid, AddressUsage)>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id, usage FROM address
+             WHERE public AND domain_id <> $1 AND address = $2::inet AND valid_period && {}",
+            period_sql(3, 4)
+        );
+        let rows: Vec<(Uuid, String)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(domain)
+            .bind(address.to_string())
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(id, usage)| {
+                let usage = match usage.as_str() {
+                    "host" => AddressUsage::Host,
+                    "gateway" => AddressUsage::Gateway,
+                    "vip" => AddressUsage::Vip,
+                    "anycast" => AddressUsage::Anycast,
+                    "reserved" => AddressUsage::Reserved,
+                    other => return Err(store_err(format!("unknown usage {other}"))),
+                };
+                Ok((id, usage))
+            })
+            .collect()
+    }
+
+    async fn prefix_of(&mut self, id: Uuid) -> Result<Option<(Uuid, Prefix)>, StoreError> {
+        let row: Option<(Uuid, String)> = sqlx::query_as(
+            "SELECT domain_id, prefix::text FROM prefix WHERE id = $1
+             UNION ALL SELECT domain_id, prefix::text FROM prefix_history WHERE id = $1 LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        row.map(|(domain, text)| Ok((domain, Prefix::parse_any(&ALL, &text).map_err(store_err)?)))
+            .transpose()
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {

@@ -4,6 +4,7 @@
 //! through a storage port ([`Store`], [`WriteTx`]) implemented by an adapter
 //! (`kartenn-store-pg`). This module owns the orchestration; the adapter owns SQL.
 
+mod global;
 pub mod operations;
 pub mod pipeline;
 pub mod port;

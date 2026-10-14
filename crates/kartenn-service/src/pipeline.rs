@@ -119,7 +119,7 @@ fn to_period(spec: Option<PeriodSpec>) -> Result<Option<Period>, RequestError> {
 
 /// An operation ready to be written: parsed, locally validated, references resolved.
 #[derive(Debug)]
-enum Planned {
+pub(crate) enum Planned {
     Domain {
         id: Uuid,
         slug: Slug,
@@ -407,6 +407,12 @@ pub async fn submit<S: Store>(
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     if let Err(e) = apply(&mut tx, &planned, period, changeset, &mut violations).await {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    if !has_errors(&violations)
+        && let Err(e) = crate::global::validate(&mut tx, &planned, period, &mut violations).await
+    {
         tx.rollback().await?;
         return Err(e.into());
     }
