@@ -701,6 +701,7 @@ dependencies = [
 name = "kartenn-store-pg"
 version = "0.0.0"
 dependencies = [
+ "kartenn-core",
  "kartenn-workspace-hack",
  "sqlx",
  "thiserror",

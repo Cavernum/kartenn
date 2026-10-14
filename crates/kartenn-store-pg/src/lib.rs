@@ -1,5 +1,6 @@
 //! PostgreSQL storage adapter of kartenn.
 
+pub mod registry;
 pub mod temporal;
 
 /// Schema migrations of the core, applied by the dedicated migration job (D9).

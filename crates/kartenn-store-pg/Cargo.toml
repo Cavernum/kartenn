@@ -11,6 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
 thiserror = "2.0.21"
