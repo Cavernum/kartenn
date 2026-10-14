@@ -235,6 +235,18 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   changeset pour consultation ultérieure).
 - **Simulation** : même pipeline, transaction annulée (`ROLLBACK`) à la fin ; le résultat
   est renvoyé sans rien écrire.
+- **Calcul (003-9)** : sur toute la fenêtre du changeset (du début de sa période à
+  l'infini), pas seulement à sa date d'effet, pour qu'aucun effet différé n'échappe aux
+  contrôles qui en dépendent (droits, approbation). L'état « avant » est celui d'avant la
+  transaction : versions courantes antérieures à elle et versions qu'elle a remplacées
+  (historique de temps système clos à l'instant de la transaction). Pour chaque objet
+  cible, les valeurs résolues avant et après sont comparées segment par segment ; une
+  entrée par (propriété, objet, avant, après) distincts. Objets exclus : ceux que le
+  changeset crée, et les instants où l'objet n'existe plus. Valeur : clés pour une liste
+  fermée, JSON sinon ; absence et effacement sont tous deux « aucune valeur ».
+- **Restitution** : le résultat d'un changeset appliqué porte le décompte ; le détail est
+  stocké (`changeset_diff`, ordonné) et lu par pages. Une simulation renvoie le décompte
+  et les 100 premières entrées du détail.
 
 ### Valeurs attendues (REQ-003-21 à 24)
 
