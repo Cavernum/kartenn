@@ -90,9 +90,9 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 20. Règles globales des plages et adresses : dans un réseau, chevauchement, usage
   de plage, unicité — REQ-002-21, 22, 25, 26, 28 — verify : idem
   (`kartenn-service/tests/ranges.rs`)
-- [ ] 21. Espace public et anycast entre domaines, verrou « espace public » —
+- [x] 21. Espace public et anycast entre domaines, verrou « espace public » —
   REQ-002-32, 46, 49 — verify : tests, dont concurrence
-  — **partiel** : adresses faites ; réseaux anycast (A13, REQ-002-49) à ajouter
+  (`kartenn-service/tests/anycast.rs` ; migrations 0009 et 0010)
 - [ ] 22. Ancres : cycles d'entités et de sites, clôture d'une ancre utilisée, domaine
   immuable ; `core.owner` et `core.site` déclarés comme propriétés du noyau (avec 003) —
   REQ-002-8 à 12, 20, 38 — après 003-8 — verify : tests, dont refus d'une manœuvre de

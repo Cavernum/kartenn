@@ -33,8 +33,8 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-14
 
-Avancement : 002 : 23/28 tâches (plages faites) · 003 : 5/17 · 004 : 13/24 ; 147 tests,
-`devenv test` vert.
+Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 5/17 ·
+004 : 13/24 ; 154 tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 
@@ -52,6 +52,11 @@ Toutes tranchées le 2026-10-14, selon la recommandation : 002/A12 (1), 003/P9 (
 
 - ADR 0018 : le curseur unique de l'outbox pouvait sauter un événement ; remplacé par un
   enregistrement des livraisons (migration 0006, test qui reproduit le cas).
+- ADR 0018 (second amendement) : la barrière `xmin` du relais d'outbox couvrait toute
+  l'instance ; retirée, l'ordre reste garanti par domaine.
+- ADR 0017 (amendement) : l'historique copiait les colonnes par position, ce qui cassait
+  toute table versionnée après un `ADD COLUMN` ; copie par nom (migration 0009).
+- REQ-002-46 précisée : conteneurs publics hors unicité, occurrences anycast de même valeur.
 - Règles de migration issues des prototypes : pas de bloc `EXCEPTION` dans les fonctions
   utilisées par types, index ou déclencheurs ; noms qualifiés ou `search_path` fixé.
 
