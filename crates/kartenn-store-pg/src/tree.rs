@@ -7,7 +7,7 @@
 
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
-use kartenn_core::objects::{Nature, PrefixObject};
+use kartenn_core::objects::{IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::occupancy::{self, Occupancy};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -24,6 +24,17 @@ pub enum Node {
         value: Prefix,
         /// Container or network.
         nature: Nature,
+    },
+    /// A range of addresses (always the child of a network).
+    Range {
+        /// Identifier.
+        id: Uuid,
+        /// First address.
+        first: Addr,
+        /// Last address, included.
+        last: Addr,
+        /// DHCP, reserved or static.
+        usage: RangeUsage,
     },
     /// An address.
     Address {
@@ -46,7 +57,21 @@ fn nature(text: &str) -> Result<Nature, sqlx::Error> {
     }
 }
 
-/// Ancestors of a prefix or an address at `at`, nearest first (REQ-002-14, 42).
+fn range_usage(text: &str) -> Result<RangeUsage, sqlx::Error> {
+    match text {
+        "dhcp" => Ok(RangeUsage::Dhcp),
+        "reserved" => Ok(RangeUsage::Reserved),
+        "static" => Ok(RangeUsage::Static),
+        other => Err(decode_err(format!("unknown range usage {other}"))),
+    }
+}
+
+fn addr(text: &str) -> Result<Addr, sqlx::Error> {
+    Addr::parse_any(&ALL, text).map_err(decode_err)
+}
+
+/// Ancestors of a prefix, a range or an address at `at`, nearest first (REQ-002-14, 42).
+/// A range lies in a single network, so the prefixes holding its first address hold it all.
 ///
 /// # Errors
 ///
@@ -55,6 +80,7 @@ pub async fn ancestors(pool: &PgPool, object: Uuid, at: OffsetDateTime) -> sqlx:
     let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
         "WITH o AS (
              SELECT domain_id, prefix::inet AS v FROM prefix WHERE id = $1 AND valid_period @> $2
+             UNION ALL SELECT domain_id, lower(range) FROM ip_range WHERE id = $1 AND valid_period @> $2
              UNION ALL SELECT domain_id, address FROM address WHERE id = $1 AND valid_period @> $2)
          SELECT p.id, p.prefix::text, p.nature FROM prefix p, o
          WHERE p.domain_id = o.domain_id AND p.prefix >> o.v AND p.valid_period @> $2
@@ -75,25 +101,35 @@ pub async fn ancestors(pool: &PgPool, object: Uuid, at: OffsetDateTime) -> sqlx:
         .collect()
 }
 
-/// Direct children of a prefix at `at`: prefixes and addresses whose deduced parent it is,
-/// in address order (REQ-002-42).
+/// Row of [`children`]: kind, identifier and up to three text columns.
+type ChildRow = (String, Uuid, String, Option<String>, Option<String>);
+
+/// Direct children of a prefix at `at`: prefixes, ranges and addresses whose deduced parent
+/// it is, in address order (REQ-002-42).
 ///
 /// # Errors
 ///
 /// Database or decoding errors.
 pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::Result<Vec<Node>> {
-    let rows: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+    // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
+    // 'a' address (a = value).
+    let rows: Vec<ChildRow> = sqlx::query_as(
         "WITH p AS (SELECT domain_id, prefix FROM prefix WHERE id = $1 AND valid_period @> $2)
-         SELECT q.id, q.prefix::text, q.nature FROM prefix q, p
+         SELECT 'p', q.id, q.prefix::text, q.nature, NULL FROM prefix q, p
          WHERE q.domain_id = p.domain_id AND q.prefix << p.prefix AND q.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND q.prefix << r.prefix)
          UNION ALL
-         SELECT a.id, host(a.address), NULL FROM address a, p
+         SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage FROM ip_range g, p
+         WHERE g.domain_id = p.domain_id AND lower(g.range) <<= p.prefix AND upper(g.range) <<= p.prefix
+           AND g.valid_period @> $2
+           AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
+                           AND r.prefix << p.prefix AND lower(g.range) <<= r.prefix)
+         UNION ALL
+         SELECT 'a', a.id, host(a.address), NULL, NULL FROM address a, p
          WHERE a.domain_id = p.domain_id AND a.address <<= p.prefix AND a.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
-                           AND r.prefix << p.prefix AND a.address <<= r.prefix)
-         ORDER BY 2",
+                           AND r.prefix << p.prefix AND a.address <<= r.prefix)",
     )
     .bind(prefix)
     .bind(at)
@@ -101,21 +137,30 @@ pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::
     .await?;
     let mut nodes: Vec<Node> = rows
         .into_iter()
-        .map(|(id, value, n)| match n {
-            Some(n) => Ok(Node::Prefix {
+        .map(|(kind, id, a, b, c)| match (kind.as_str(), b, c) {
+            ("p", Some(n), _) => Ok(Node::Prefix {
                 id,
-                value: Prefix::parse_any(&ALL, &value).map_err(decode_err)?,
+                value: Prefix::parse_any(&ALL, &a).map_err(decode_err)?,
                 nature: nature(&n)?,
             }),
-            None => Ok(Node::Address {
+            ("r", Some(last), Some(usage)) => Ok(Node::Range {
                 id,
-                value: Addr::parse_any(&ALL, &value).map_err(decode_err)?,
+                first: addr(&a)?,
+                last: addr(&last)?,
+                usage: range_usage(&usage)?,
             }),
+            ("a", _, _) => Ok(Node::Address {
+                id,
+                value: addr(&a)?,
+            }),
+            _ => Err(decode_err(format!("malformed child row of kind {kind}"))),
         })
         .collect::<Result<_, sqlx::Error>>()?;
+    // Address order; at the same start, the wider node first (prefix, range, address).
     nodes.sort_by_key(|n| match n {
-        Node::Prefix { value, .. } => (value.network(), value.prefix_len()),
-        Node::Address { value, .. } => (*value, value.family().width()),
+        Node::Prefix { value, .. } => (value.network(), 0, value.prefix_len()),
+        Node::Range { first, .. } => (*first, 1, 0),
+        Node::Address { value, .. } => (*value, 2, 0),
     });
     Ok(nodes)
 }
@@ -157,6 +202,31 @@ fn addresses_of(children: &[Node]) -> Vec<Addr> {
         .collect()
 }
 
+fn ranges_of(children: &[Node], domain: Uuid) -> Vec<IpRange> {
+    children
+        .iter()
+        .filter_map(|n| {
+            if let Node::Range {
+                id,
+                first,
+                last,
+                usage,
+            } = n
+            {
+                Some(IpRange {
+                    id: *id,
+                    domain,
+                    first: *first,
+                    last: *last,
+                    usage: *usage,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn prefixes_of(children: &[Node]) -> Vec<Prefix> {
     children
         .iter()
@@ -170,8 +240,8 @@ fn prefixes_of(children: &[Node]) -> Vec<Prefix> {
         .collect()
 }
 
-/// Occupancy of a prefix at `at` (REQ-002-43); `None` if it does not exist then.
-/// Ranges are not stored yet: a network's occupancy counts its addresses.
+/// Occupancy of a prefix at `at` (REQ-002-43); `None` if it does not exist then. A
+/// network counts its addresses plus its DHCP and reserved ranges in full.
 ///
 /// # Errors
 ///
@@ -186,12 +256,17 @@ pub async fn occupancy(
     };
     let content = children(pool, prefix, at).await?;
     Ok(Some(match p.nature {
-        Nature::Network => occupancy::network_occupancy(&p, &[], &addresses_of(&content)),
+        Nature::Network => occupancy::network_occupancy(
+            &p,
+            &ranges_of(&content, p.domain),
+            &addresses_of(&content),
+        ),
         Nature::Container => occupancy::container_occupancy(p.value, &prefixes_of(&content)),
     }))
 }
 
-/// First free address of a network at `at` (REQ-002-44).
+/// First free address of a network at `at`, outside DHCP and reserved ranges
+/// (REQ-002-44).
 ///
 /// # Errors
 ///
@@ -210,7 +285,7 @@ pub async fn next_free_address(
     let content = children(pool, network, at).await?;
     Ok(occupancy::next_free_address(
         &p,
-        &[],
+        &ranges_of(&content, p.domain),
         &addresses_of(&content),
     ))
 }

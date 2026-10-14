@@ -102,9 +102,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 
 - [x] 23. Navigation : enfants directs, ancêtres, à une date — REQ-002-42 — verify : tests
   d'intégration
-- [ ] 24. Occupation et prochain libre en base — REQ-002-43, 44 — verify : tests
+- [x] 24. Occupation et prochain libre en base — REQ-002-43, 44 — verify : tests
   d'intégration, comparaison avec l'implémentation pure (tâche 14)
-  — fait sans les plages (I2) : les plages DHCP et réservées s'y ajouteront
 - [x] 25. Anomalies : création, fermeture, acquittement, réouverture — REQ-002-35, 36 —
   verify : tests d'intégration
 - [x] 26. Catalogue des règles exposé en lecture (pour 006) — REQ-002-37 — verify : test
