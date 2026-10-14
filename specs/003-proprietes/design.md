@@ -319,6 +319,24 @@ affectations.
 
 Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédicats SQL).
 
+**Mise en œuvre (003-15)** :
+
+- Lecture `filter(propriété, domaine, condition, date, curseur, taille)` : page d'objets
+  triés par identifiant (curseur = dernier identifiant). Conditions : égalité,
+  appartenance (une valeur parmi plusieurs ; pour un ensemble, au moins un élément en
+  commun), intervalle (entier, date, texte), présence, absence. Les valeurs se donnent
+  comme une saisie (clé de liste fermée, texte, entier, date, identifiant) et sont
+  traduites selon le type de la propriété. Absence = porteurs du domaine sans origine
+  portant une valeur (P13) ; l'effacement compte comme absence.
+- Date d'application seule ; la lecture à une date système passée viendra avec l'API
+  (006), sur le même principe que l'explication.
+- **Réévaluation des écarts** : chaque source a un état (`expected_source_state` :
+  version évaluée) ; `reevaluate_outdated` réévalue, par lots, tous les porteurs des
+  propriétés en mode `check` dont la source a changé de version, ouvre et ferme les
+  anomalies, puis enregistre la version. Chaque lot est journalisé comme un changeset de
+  l'auteur « système » sans opération (motif `expected re-evaluation <source>@<version>`),
+  pour que les anomalies aient un changeset d'ouverture et que l'audit montre le passage.
+
 ## Erreurs et cas limites
 
 | Cas | Comportement | REQ |
