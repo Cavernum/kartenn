@@ -66,8 +66,10 @@ voir [`../README.md`](../README.md).
 - [x] 12. Références : intégrité à la clôture d'une cible — REQ-003-10 — verify : tests
   (`kartenn-service/tests/references.rs`) — cibles du noyau d'adressage ; entités et
   sites avec 002-22
-- [ ] 13. Contrat `ExpectedValueSource`, modes `suggest`, `default`, `check` (source de
+- [x] 13. Contrat `ExpectedValueSource`, modes `suggest`, `default`, `check` (source de
   test), anomalie d'écart — REQ-003-21 à 24 — verify : tests d'intégration
+  (`kartenn-service/tests/expected.rs`) — job de réévaluation au changement de version
+  avec 003-15
 
 ## P5 — Lectures et exploitation
 
