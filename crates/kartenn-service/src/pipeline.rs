@@ -9,6 +9,7 @@ use kartenn_core::period::{Instant, Period};
 use kartenn_core::properties::Declaration;
 use kartenn_core::registry::special_registry;
 use kartenn_core::rules::{self, Severity, Violation};
+use kartenn_core::values::Raw;
 use uuid::Uuid;
 
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
@@ -155,6 +156,18 @@ pub(crate) enum Planned {
         property: Uuid,
         key: Slug,
     },
+    /// `values` `None`: explicit "no value".
+    Assign {
+        object: Uuid,
+        kind: ObjectKind,
+        property: Uuid,
+        values: Option<Vec<Raw>>,
+    },
+    Unassign {
+        object: Uuid,
+        kind: ObjectKind,
+        property: Uuid,
+    },
 }
 
 impl Planned {
@@ -166,6 +179,7 @@ impl Planned {
             | Self::Declare { id, .. }
             | Self::UpdateDeclaration { id, .. }
             | Self::EnumValue { id, .. } => *id,
+            Self::Assign { object, .. } | Self::Unassign { object, .. } => *object,
             Self::Prefix { object, .. } => object.id,
             Self::Range { object, .. } => object.id,
             Self::Address { object, .. } => object.id,
@@ -198,6 +212,22 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
             }
             Operation::Close { kind, id, .. } => vec![(*id, *kind)],
             Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
+            Operation::AssignProperty {
+                object,
+                kind,
+                property,
+                ..
+            }
+            | Operation::ClearProperty {
+                object,
+                kind,
+                property,
+            }
+            | Operation::UnassignProperty {
+                object,
+                kind,
+                property,
+            } => vec![(*object, *kind), (*property, ObjectKind::Property)],
             Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
             Operation::CreateDomain { .. } | Operation::DeclareProperty { .. } => vec![],
         };
@@ -371,6 +401,11 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     Err(v) => violations.push(v),
                 }
             }
+            Operation::AssignProperty { .. }
+            | Operation::ClearProperty { .. }
+            | Operation::UnassignProperty { .. } => {
+                planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
+            }
         }
     }
     (planned, violations)
@@ -438,6 +473,12 @@ async fn lock_targets<T: WriteTx>(
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. } => {}
+            // An assignment is written under the lock of its object's domain.
+            Planned::Assign { object, kind, .. } | Planned::Unassign { object, kind, .. } => {
+                if let Some(d) = tx.domain_of(*kind, *object).await? {
+                    domains.insert(d);
+                }
+            }
         }
     }
     Ok((domains.into_iter().collect(), public))
@@ -485,6 +526,11 @@ async fn apply<T: WriteTx>(
                         .close_enum_values_of(*id, period, changeset)
                         .await
                         .map_err(WriteError::from),
+                    // Assignments end with their object (003/design).
+                    Ok(()) if kind.is_addressing() => tx
+                        .unassign(*id, None, period, changeset)
+                        .await
+                        .map_err(WriteError::from),
                     other => other,
                 }
             }
@@ -499,6 +545,30 @@ async fn apply<T: WriteTx>(
             Planned::EnumValue { id, property, key } => {
                 crate::declarations::add_enum_value(tx, *id, *property, key, period, changeset)
                     .await
+            }
+            Planned::Assign {
+                object,
+                kind,
+                property,
+                values,
+            } => {
+                crate::resolution::assign(
+                    tx,
+                    *object,
+                    *kind,
+                    *property,
+                    values.as_deref(),
+                    period,
+                    changeset,
+                )
+                .await
+            }
+            Planned::Unassign {
+                object,
+                kind,
+                property,
+            } => {
+                crate::resolution::unassign(tx, *object, *kind, *property, period, changeset).await
             }
         };
         match written {
@@ -566,6 +636,10 @@ pub async fn submit<S: Store>(
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
+    }
+    if let Err(e) = crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
+        tx.rollback().await?;
+        return Err(e.into());
     }
     if req.simulate {
         tx.rollback().await?;

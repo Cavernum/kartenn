@@ -184,3 +184,80 @@ pub(crate) fn referenced(assignments: &[CurrentAssignment]) -> Vec<Uuid> {
     }
     ids.into_iter().collect()
 }
+
+/// Value columns of an assignment; exactly one is set for a value, none for "no value".
+#[derive(Debug, Default)]
+pub(crate) struct ValueColumns {
+    pub(crate) uuid: Option<Uuid>,
+    pub(crate) uuids: Option<Vec<Uuid>>,
+    pub(crate) text: Option<String>,
+    pub(crate) texts: Option<Vec<String>>,
+    pub(crate) int: Option<i64>,
+    pub(crate) ints: Option<Vec<i64>>,
+    pub(crate) boolean: Option<bool>,
+    pub(crate) date: Option<String>,
+    pub(crate) dates: Option<Vec<String>>,
+}
+
+/// The columns of a value (003/design, § Types de valeurs); sets are already sorted.
+///
+/// # Errors
+///
+/// A set of booleans, which has no column.
+pub(crate) fn encode_value(value: &Value) -> Result<ValueColumns, String> {
+    let mut c = ValueColumns::default();
+    match value {
+        Value::One(Scalar::Enum(v) | Scalar::Ref(v)) => c.uuid = Some(*v),
+        Value::One(Scalar::Text(v)) => c.text = Some(v.clone()),
+        Value::One(Scalar::Int(v)) => c.int = Some(*v),
+        Value::One(Scalar::Bool(v)) => c.boolean = Some(*v),
+        Value::One(Scalar::Date(v)) => c.date = Some(v.to_string()),
+        Value::Set(set) => {
+            let first = set.iter().next().ok_or("a set has at least one value")?;
+            match first {
+                Scalar::Enum(_) | Scalar::Ref(_) => {
+                    c.uuids = Some(
+                        set.iter()
+                            .filter_map(|s| match s {
+                                Scalar::Enum(v) | Scalar::Ref(v) => Some(*v),
+                                _ => None,
+                            })
+                            .collect(),
+                    );
+                }
+                Scalar::Text(_) => {
+                    c.texts = Some(
+                        set.iter()
+                            .filter_map(|s| match s {
+                                Scalar::Text(v) => Some(v.clone()),
+                                _ => None,
+                            })
+                            .collect(),
+                    );
+                }
+                Scalar::Int(_) => {
+                    c.ints = Some(
+                        set.iter()
+                            .filter_map(|s| match s {
+                                Scalar::Int(v) => Some(*v),
+                                _ => None,
+                            })
+                            .collect(),
+                    );
+                }
+                Scalar::Date(_) => {
+                    c.dates = Some(
+                        set.iter()
+                            .filter_map(|s| match s {
+                                Scalar::Date(v) => Some(v.to_string()),
+                                _ => None,
+                            })
+                            .collect(),
+                    );
+                }
+                Scalar::Bool(_) => return Err("a set of booleans is not supported".to_owned()),
+            }
+        }
+    }
+    Ok(c)
+}

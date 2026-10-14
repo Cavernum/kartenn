@@ -1,7 +1,7 @@
 //! Operations of a changeset (REQ-004-1 to 5).
 
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
-use kartenn_core::values::Cardinality;
+use kartenn_core::values::{Cardinality, Raw};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -75,6 +75,55 @@ pub enum TypeInput {
         /// Type identifier.
         id: String,
     },
+}
+
+/// One raw value of an assignment, as received: text (closed-list key, text, host name,
+/// date, reference), integer or boolean (REQ-003-8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RawInput {
+    /// Boolean.
+    Bool(bool),
+    /// Integer.
+    Int(i64),
+    /// Text.
+    Text(String),
+}
+
+impl RawInput {
+    /// The raw scalar the value types parse.
+    #[must_use]
+    pub fn to_raw(&self) -> Raw {
+        match self {
+            Self::Bool(b) => Raw::Bool(*b),
+            Self::Int(i) => Raw::Int(*i),
+            Self::Text(t) => Raw::Text(t.clone()),
+        }
+    }
+}
+
+impl ObjectKind {
+    /// Name of the kind, as carriers and references name it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Domain => "domain",
+            Self::Prefix => "prefix",
+            Self::Range => "range",
+            Self::Address => "address",
+            Self::Property => "property",
+            Self::EnumValue => "enum_value",
+        }
+    }
+
+    /// Whether objects of this kind belong to the addressing tree.
+    #[must_use]
+    pub const fn is_addressing(self) -> bool {
+        matches!(
+            self,
+            Self::Domain | Self::Prefix | Self::Range | Self::Address
+        )
+    }
 }
 
 /// Content of a property declaration, shared by declaration and update.
@@ -187,6 +236,37 @@ pub enum Operation {
         /// Key, `[a-z0-9-]`.
         key: String,
     },
+    /// Assigns a value to a property of an object over the changeset period, replacing
+    /// any assignment there (REQ-003-4, 8, 12).
+    AssignProperty {
+        /// Object.
+        object: Ref,
+        /// Its kind.
+        kind: ObjectKind,
+        /// Property.
+        property: Ref,
+        /// One value, or the elements of a set.
+        values: Vec<RawInput>,
+    },
+    /// Assigns "no value", which stops inheritance (REQ-003-13).
+    ClearProperty {
+        /// Object.
+        object: Ref,
+        /// Its kind.
+        kind: ObjectKind,
+        /// Property.
+        property: Ref,
+    },
+    /// Removes the assignment of a property from an object over the changeset period;
+    /// the object inherits again.
+    UnassignProperty {
+        /// Object.
+        object: Ref,
+        /// Its kind.
+        kind: ObjectKind,
+        /// Property.
+        property: Ref,
+    },
     /// Closes an object (D33), a property or a closed-list value (REQ-003-6).
     Close {
         /// Kind of the object.
@@ -211,7 +291,11 @@ impl Operation {
             | Self::CreateAddress { local, .. }
             | Self::DeclareProperty { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
-            Self::Close { .. } | Self::UpdateProperty { .. } => None,
+            Self::Close { .. }
+            | Self::UpdateProperty { .. }
+            | Self::AssignProperty { .. }
+            | Self::ClearProperty { .. }
+            | Self::UnassignProperty { .. } => None,
         }
     }
 }

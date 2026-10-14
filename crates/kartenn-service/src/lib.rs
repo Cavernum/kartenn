@@ -9,6 +9,7 @@ mod global;
 pub mod operations;
 pub mod pipeline;
 pub mod port;
+mod resolution;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 pub use pipeline::{Outcome, RequestError, submit};

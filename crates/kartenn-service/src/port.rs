@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 
+use kartenn_core::inheritance::Assigned;
 use kartenn_core::properties::{CurrentAssignment, Declaration};
 
 use kartenn_core::addr::{Addr, Prefix};
@@ -335,6 +336,93 @@ pub trait WriteTx {
         enum_value: Uuid,
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Kind of an object of the addressing tree that exists over the whole of `period`.
+    fn object_kind_covering(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<&'static str>, StoreError>> + Send;
+
+    /// Identifiers of closed-list values of a property valid over the whole of `period`,
+    /// by key.
+    fn enum_values_covering(
+        &mut self,
+        property: Uuid,
+        keys: &[String],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<HashMap<String, Uuid>, StoreError>> + Send;
+
+    /// Writes an assignment over `period`, replacing any assignment there (REQ-003-12, 13).
+    fn assign(
+        &mut self,
+        object: Uuid,
+        object_type: &str,
+        property: Uuid,
+        assigned: &Assigned,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Removes the assignment of a property over `period`; with `property` `None`, every
+    /// assignment of the object from the start of `period` on (closure of the object).
+    fn unassign(
+        &mut self,
+        object: Uuid,
+        property: Option<Uuid>,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Properties heritable along the addressing tree at the start of `period`, with their
+    /// carrier kinds.
+    fn addressing_heritable(
+        &mut self,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Vec<String>)>, StoreError>> + Send;
+
+    /// The object and the objects below it in the addressing tree, from the start of
+    /// `period` on.
+    fn subtree(
+        &mut self,
+        object: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Every object of the given kinds, from the start of `period` on.
+    fn objects_of_kinds(
+        &mut self,
+        kinds: &[String],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// `(property, object)` pairs whose origin is `origin` from the start of `period` on.
+    fn inheritors(
+        &mut self,
+        origin: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, Uuid)>, StoreError>> + Send;
+
+    /// Recomputes the origin of a heritable property for `targets` (those of a carrier
+    /// kind) from the start of `period` on, and writes the segments that changed
+    /// (003/design, § Résolution matérialisée). Returns the number of objects whose
+    /// origin changed.
+    fn refresh_origins(
+        &mut self,
+        property: Uuid,
+        carriers: &[String],
+        targets: &[Uuid],
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<usize, StoreError>> + Send;
+
+    /// Ends every origin of a property from the start of `period` on (closed property).
+    fn drop_origins(
+        &mut self,
+        property: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Journals the applied changeset in this transaction.
     fn journal_applied(

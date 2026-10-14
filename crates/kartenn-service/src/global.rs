@@ -56,7 +56,9 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Close { .. }
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
-            | Planned::EnumValue { .. } => {}
+            | Planned::EnumValue { .. }
+            | Planned::Assign { .. }
+            | Planned::Unassign { .. } => {}
         }
     }
     for address in addresses_to_recheck {
