@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::operations::{ObjectKind, Operation, Ref};
 use crate::pipeline::Planned;
-use crate::port::{StoreError, WriteError, WriteTx};
+use crate::port::{DiffCount, StoreError, WriteError, WriteTx};
 
 /// Plans an assignment operation; nothing to check without the database.
 pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
@@ -183,7 +183,7 @@ pub(crate) async fn maintain<T: WriteTx>(
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
-) -> Result<BTreeMap<Uuid, usize>, StoreError> {
+) -> Result<BTreeMap<Uuid, Vec<Uuid>>, StoreError> {
     let heritable: HashMap<Uuid, Vec<String>> =
         tx.addressing_heritable(period).await?.into_iter().collect();
     let mut targets: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
@@ -236,15 +236,56 @@ pub(crate) async fn maintain<T: WriteTx>(
         let all = tx.objects_of_kinds(&heritable[&property], period).await?;
         targets.entry(property).or_default().extend(all);
     }
-    let mut changed = BTreeMap::new();
+    let mut refreshed = BTreeMap::new();
     for (property, objects) in targets {
         let objects: Vec<Uuid> = objects.into_iter().collect();
-        let n = tx
-            .refresh_origins(property, &heritable[&property], &objects, period, changeset)
+        tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
             .await?;
-        if n > 0 {
-            changed.insert(property, n);
+        refreshed.insert(property, objects);
+    }
+    Ok(refreshed)
+}
+
+/// Records the differential of resolved values (REQ-003-19): the heritable properties on
+/// the objects whose origin was refreshed, the others on the objects assigned directly.
+/// New objects are left out (only existing objects change value).
+pub(crate) async fn diff<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    refreshed: BTreeMap<Uuid, Vec<Uuid>>,
+    period: Option<Period>,
+) -> Result<Vec<DiffCount>, StoreError> {
+    let created: Vec<Uuid> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Domain { id, .. } => Some(*id),
+            Planned::Prefix { object, .. } => Some(object.id),
+            Planned::Range { object, .. } => Some(object.id),
+            Planned::Address { object, .. } => Some(object.id),
+            _ => None,
+        })
+        .collect();
+    let mut direct: BTreeMap<Uuid, BTreeSet<Uuid>> = BTreeMap::new();
+    for p in planned {
+        if let Planned::Assign {
+            object, property, ..
+        }
+        | Planned::Unassign {
+            object, property, ..
+        } = p
+            && !refreshed.contains_key(property)
+        {
+            direct.entry(*property).or_default().insert(*object);
         }
     }
-    Ok(changed)
+    for (property, objects) in &refreshed {
+        tx.record_diff(*property, objects, true, &created, period)
+            .await?;
+    }
+    for (property, objects) in direct {
+        let objects: Vec<Uuid> = objects.into_iter().collect();
+        tx.record_diff(property, &objects, false, &created, period)
+            .await?;
+    }
+    tx.diff_summary().await
 }

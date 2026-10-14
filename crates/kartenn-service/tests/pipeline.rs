@@ -96,6 +96,7 @@ async fn a_changeset_creates_objects_through_local_references(pool: PgPool) {
     let Outcome::Applied {
         changeset,
         warnings,
+        ..
     } = outcome
     else {
         panic!("{outcome:?}")
@@ -206,7 +207,7 @@ async fn simulation_writes_nothing(pool: PgPool) {
     );
     req.simulate = true;
     let outcome = submit(&store, &req, MAX_OPERATIONS).await.unwrap();
-    let Outcome::Simulated { violations } = outcome else {
+    let Outcome::Simulated { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
     assert_eq!(

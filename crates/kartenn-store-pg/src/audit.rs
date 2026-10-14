@@ -111,3 +111,48 @@ pub async fn pseudonymise(pool: &PgPool, delay_days: i32) -> sqlx::Result<u64> {
     .await?;
     Ok(done.rows_affected())
 }
+
+/// Row of `changeset_diff`: order, property key, object, value before, value after.
+type DiffRow = (i64, String, Uuid, Option<String>, Option<String>);
+
+/// One page of the differential detail of a changeset (REQ-003-19), in a stable order:
+/// the entries after `after` (the `seq` of the last entry of the previous page), at most
+/// `limit`, optionally for one property. Each entry comes with its `seq`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn diff_page(
+    pool: &PgPool,
+    changeset: Uuid,
+    property: Option<&str>,
+    after: Option<i64>,
+    limit: i64,
+) -> sqlx::Result<Vec<(i64, kartenn_service::port::DiffItem)>> {
+    let rows: Vec<DiffRow> = sqlx::query_as(
+        "SELECT seq, property_key, object_id, before::text, after::text FROM changeset_diff
+         WHERE changeset_id = $1 AND ($2::text IS NULL OR property_key = $2)
+           AND seq > coalesce($3, 0)
+         ORDER BY seq LIMIT $4",
+    )
+    .bind(changeset)
+    .bind(property)
+    .bind(after)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(seq, property, object, before, after)| {
+            (
+                seq,
+                kartenn_service::port::DiffItem {
+                    property,
+                    object,
+                    before,
+                    after,
+                },
+            )
+        })
+        .collect())
+}

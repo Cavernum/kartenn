@@ -48,6 +48,9 @@ pub struct Journal<'a> {
     pub domains: &'a [Uuid],
     /// Objects created or modified.
     pub objects: &'a [Uuid],
+    /// Differential of resolved values (REQ-003-19); its detail is the one recorded in
+    /// the transaction by [`WriteTx::record_diff`].
+    pub diff: &'a [DiffCount],
 }
 
 /// Use of a property, as needed to check an evolution of its declaration (REQ-003-6).
@@ -61,6 +64,34 @@ pub struct PropertyFacts {
     pub enum_values: HashMap<String, Uuid>,
     /// Kinds of the objects referenced by the assignments.
     pub ref_kinds: HashMap<Uuid, &'static str>,
+}
+
+/// Count of objects whose resolved value of a property goes from `before` to `after`
+/// (REQ-003-19). Values are JSON texts (closed-list keys for a closed list); `None` is
+/// "no value".
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct DiffCount {
+    /// Property key.
+    pub property: String,
+    /// Value before.
+    pub before: Option<String>,
+    /// Value after.
+    pub after: Option<String>,
+    /// Objects.
+    pub count: u64,
+}
+
+/// One object of the differential (REQ-003-19).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct DiffItem {
+    /// Property key.
+    pub property: String,
+    /// Object.
+    pub object: Uuid,
+    /// Value before.
+    pub before: Option<String>,
+    /// Value after.
+    pub after: Option<String>,
 }
 
 /// Earlier submission found for an idempotency key (REQ-004-10).
@@ -423,6 +454,27 @@ pub trait WriteTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Records, for later restitution, the objects among `objects` whose resolved value of
+    /// `property` differs before and after this transaction, from the start of `period`
+    /// on (REQ-003-19); `excluded` are the objects the changeset creates.
+    fn record_diff(
+        &mut self,
+        property: Uuid,
+        objects: &[Uuid],
+        heritable: bool,
+        excluded: &[Uuid],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Counts of the differential recorded so far.
+    fn diff_summary(&mut self) -> impl Future<Output = Result<Vec<DiffCount>, StoreError>> + Send;
+
+    /// First `limit` entries of the differential recorded so far.
+    fn diff_sample(
+        &mut self,
+        limit: i64,
+    ) -> impl Future<Output = Result<Vec<DiffItem>, StoreError>> + Send;
 
     /// Journals the applied changeset in this transaction.
     fn journal_applied(

@@ -2,6 +2,7 @@
 
 pub mod anomalies;
 pub mod audit;
+mod diff;
 pub mod keys;
 mod origins;
 pub mod outbox;

@@ -13,7 +13,7 @@ use kartenn_core::values::Raw;
 use uuid::Uuid;
 
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
-use crate::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
+use crate::port::{DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx};
 
 /// Default maximum number of operations of a changeset (004/C3).
 pub const MAX_OPERATIONS: usize = 10_000;
@@ -78,6 +78,8 @@ pub enum Outcome {
         changeset: Uuid,
         /// Warnings.
         warnings: Vec<Violation>,
+        /// Differential of resolved values, counted; the detail is stored (REQ-003-19).
+        diff: Vec<DiffCount>,
     },
     /// Refused by at least one error rule; nothing was written but the journal.
     Refused {
@@ -97,6 +99,10 @@ pub enum Outcome {
     Simulated {
         /// All violations found (errors and warnings).
         violations: Vec<Violation>,
+        /// Differential that applying would produce (REQ-003-20).
+        diff: Vec<DiffCount>,
+        /// Its first entries.
+        sample: Vec<DiffItem>,
     },
 }
 
@@ -637,13 +643,25 @@ pub async fn submit<S: Store>(
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
     }
-    if let Err(e) = crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
-        tx.rollback().await?;
-        return Err(e.into());
-    }
+    let diff = match crate::resolution::maintain(&mut tx, &planned, period, changeset).await {
+        Ok(targets) => crate::resolution::diff(&mut tx, &planned, targets, period).await,
+        Err(e) => Err(e),
+    };
+    let diff = match diff {
+        Ok(diff) => diff,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
+    };
     if req.simulate {
+        let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
         tx.rollback().await?;
-        return Ok(Outcome::Simulated { violations });
+        return Ok(Outcome::Simulated {
+            violations,
+            diff,
+            sample: sample?,
+        });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
     let journal = Journal {
@@ -653,14 +671,19 @@ pub async fn submit<S: Store>(
         violations: &violations,
         domains: &domains,
         objects: &objects,
+        diff: &diff,
     };
     tx.journal_applied(&journal).await?;
     tx.commit().await?;
     Ok(Outcome::Applied {
         changeset,
         warnings: violations,
+        diff,
     })
 }
+
+/// Entries of the differential detail returned by a simulation (003/design).
+const SIMULATION_SAMPLE: i64 = 100;
 
 async fn refuse<S: Store>(
     store: &S,
@@ -669,7 +692,11 @@ async fn refuse<S: Store>(
     violations: Vec<Violation>,
 ) -> Result<Outcome, RequestError> {
     if req.simulate {
-        return Ok(Outcome::Simulated { violations });
+        return Ok(Outcome::Simulated {
+            violations,
+            diff: Vec::new(),
+            sample: Vec::new(),
+        });
     }
     let journal = Journal {
         id: changeset,
@@ -678,6 +705,7 @@ async fn refuse<S: Store>(
         violations: &violations,
         domains: &[],
         objects: &[],
+        diff: &[],
     };
     store.journal_refused(&journal).await?;
     Ok(Outcome::Refused {

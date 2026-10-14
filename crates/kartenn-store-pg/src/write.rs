@@ -7,7 +7,7 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::Declaration;
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
-    Journal, PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
+    DiffCount, DiffItem, Journal, PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
 };
 
 use crate::properties::{
@@ -309,9 +309,9 @@ async fn write_journal(
         .cloned()
         .partition(|v| v.rule.severity == rules::Severity::Error);
     sqlx::query(
-        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at, violations, anomalies)
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at, violations, anomalies, diff_summary)
          VALUES ($1, $2, $3, $4, 'direct', tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
-                 coalesce($5::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8)",
+                 coalesce($5::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9)",
     )
     .bind(journal.id)
     .bind(journal.request.author)
@@ -321,6 +321,7 @@ async fn write_journal(
     .bind(end)
     .bind(violations_json(&errors))
     .bind(violations_json(&warnings))
+    .bind(serde_json::to_value(journal.diff).map_err(store_err)?)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
@@ -1363,8 +1364,30 @@ impl WriteTx for PgTx {
         self.drop_origins_from(property, a, changeset).await
     }
 
+    async fn record_diff(
+        &mut self,
+        property: Uuid,
+        objects: &[Uuid],
+        heritable: bool,
+        excluded: &[Uuid],
+        period: Option<Period>,
+    ) -> Result<(), StoreError> {
+        let (a, _) = bounds(period)?;
+        self.record_diff_from(property, objects, heritable, excluded, a)
+            .await
+    }
+
+    async fn diff_summary(&mut self) -> Result<Vec<DiffCount>, StoreError> {
+        self.diff_counts().await
+    }
+
+    async fn diff_sample(&mut self, limit: i64) -> Result<Vec<DiffItem>, StoreError> {
+        self.diff_first(limit).await
+    }
+
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
         write_journal(&mut self.tx, journal).await?;
+        self.store_diff(journal.id).await?;
         crate::anomalies::record(
             &mut self.tx,
             journal.id,

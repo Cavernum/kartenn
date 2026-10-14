@@ -57,8 +57,10 @@ pts AS (
 ),
 seg AS (SELECT target, p AS s, lead(p) OVER (PARTITION BY target ORDER BY p) AS e FROM pts)
 SELECT DISTINCT ON (g.target, g.s) g.target, h.cand, g.s, nullif(g.e, 'infinity')
-FROM seg g JOIN hit h ON h.target = g.target AND h.vp @> g.s
-WHERE g.e IS NOT NULL AND EXISTS (SELECT 1 FROM t WHERE t.id = g.target AND t.vp @> g.s)
+FROM seg g
+JOIN t ON t.id = g.target AND t.vp @> g.s
+JOIN hit h ON h.target = g.target AND h.vp @> g.s
+WHERE g.e IS NOT NULL
 ORDER BY g.target, g.s, h.prio DESC";
 
 /// Merges touching segments of the same origin; `segments` sorted by start.
