@@ -389,7 +389,15 @@ async fn lock_targets<T: WriteTx>(
                     domains.insert(d);
                 }
             }
-            Planned::Domain { .. } | Planned::Close { .. } => {}
+            Planned::Close {
+                kind: ObjectKind::Domain,
+                id,
+                ..
+            } => {
+                domains.insert(*id);
+            }
+            // A new domain is invisible to others until commit: nothing to serialise.
+            Planned::Domain { .. } => {}
         }
     }
     Ok((domains.into_iter().collect(), public))
