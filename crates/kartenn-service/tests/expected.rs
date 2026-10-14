@@ -24,7 +24,7 @@ struct ByPrefix {
 }
 
 impl ExpectedValueSource for ByPrefix {
-    fn id(&self) -> &str {
+    fn id(&self) -> &'static str {
         "by-prefix"
     }
 
