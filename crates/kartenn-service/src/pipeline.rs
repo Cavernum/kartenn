@@ -673,8 +673,8 @@ pub async fn submit_with<S: Store, A: Authorizer>(
         &mut violations,
     )
     .await;
-    let diff = match props {
-        Ok(Some(diff)) => diff,
+    let (diff, checked) = match props {
+        Ok(Some(found)) => found,
         Ok(None) => {
             tx.rollback().await?;
             return refuse(store, req, changeset, violations).await;
@@ -694,6 +694,7 @@ pub async fn submit_with<S: Store, A: Authorizer>(
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
+    let reevaluated = reevaluated(&planned, &checked);
     let journal = Journal {
         id: changeset,
         request: req,
@@ -701,6 +702,7 @@ pub async fn submit_with<S: Store, A: Authorizer>(
         violations: &violations,
         domains: &domains,
         objects: &objects,
+        reevaluated: &reevaluated,
         diff: &diff,
     };
     tx.journal_applied(&journal).await?;
@@ -728,7 +730,7 @@ async fn properties<T: WriteTx, A: Authorizer>(
     period: Option<Period>,
     changeset: Uuid,
     violations: &mut Vec<Violation>,
-) -> Result<Option<Vec<DiffCount>>, StoreError> {
+) -> Result<Option<(Vec<DiffCount>, Vec<Uuid>)>, StoreError> {
     // REQ-003-22: default values first, so that they are resolved, obliged and diffed like
     // any assignment.
     let defaults = match crate::expected::defaults(tx, sources, planned, period, changeset).await {
@@ -763,8 +765,31 @@ async fn properties<T: WriteTx, A: Authorizer>(
     if has_errors(violations) {
         return Ok(None);
     }
-    crate::expected::check(tx, sources, &touched, period, violations).await?;
-    Ok(Some(diff))
+    let checked = crate::expected::check(tx, sources, &touched, period, violations).await?;
+    Ok(Some((diff, checked)))
+}
+
+/// Rules evaluated anew by the changeset, per object (REQ-002-35, 36): the core rules on
+/// the objects it creates, every rule on those it closes, the expected values on the
+/// objects checked.
+fn reevaluated(planned: &[Planned], checked: &[Uuid]) -> Vec<(Uuid, &'static str)> {
+    let mut out: Vec<(Uuid, &'static str)> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Domain { id, .. } => Some((*id, "core.")),
+            Planned::Prefix { object, .. } => Some((object.id, "core.")),
+            Planned::Range { object, .. } => Some((object.id, "core.")),
+            Planned::Address { object, .. } => Some((object.id, "core.")),
+            Planned::Close { kind, id, .. } if kind.is_addressing() => Some((*id, "")),
+            _ => None,
+        })
+        .collect();
+    out.extend(
+        checked
+            .iter()
+            .map(|o| (*o, rules::PROP_EXPECTED_MISMATCH.id)),
+    );
+    out
 }
 
 async fn refuse<S: Store>(
@@ -787,6 +812,7 @@ async fn refuse<S: Store>(
         violations: &violations,
         domains: &[],
         objects: &[],
+        reevaluated: &[],
         diff: &[],
     };
     store.journal_refused(&journal).await?;

@@ -131,3 +131,75 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
         vec!["core.addr.shared_space"]
     );
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_changeset_closes_only_the_anomalies_of_the_rules_it_evaluated(pool: PgPool) {
+    let author: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let store = PgStore::new(pool.clone());
+    let declaration = kartenn_service::operations::DeclarationInput {
+        key: "custom.label".into(),
+        value_type: kartenn_service::operations::TypeInput::Text {
+            min_len: 0,
+            max_len: 20,
+            pattern: None,
+        },
+        cardinality: kartenn_core::values::Cardinality::Single,
+        carriers: vec!["prefix".into()],
+        inherit: None,
+        module: None,
+        obligations: Vec::new(),
+        expected: None,
+    };
+    let ops = vec![
+        Operation::CreateDomain {
+            local: Some(1),
+            slug: "lab".into(),
+        },
+        Operation::CreatePrefix {
+            local: None,
+            domain: Ref::Local(1),
+            prefix: "192.0.2.0/24".into(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        },
+        Operation::DeclareProperty {
+            local: None,
+            declaration,
+        },
+    ];
+    let outcome = submit(&store, &Unrestricted, &request(author, ops), MAX_OPERATIONS)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let (net, label): (Uuid, Uuid) =
+        sqlx::query_as("SELECT (SELECT id FROM prefix), (SELECT id FROM property_declaration)")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    // Assigning a property does not evaluate the core rules of the prefix: its
+    // documentation anomaly stays open.
+    let assign = vec![Operation::AssignProperty {
+        object: Ref::Id(net),
+        kind: ObjectKind::Prefix,
+        property: Ref::Id(label),
+        values: vec![kartenn_service::operations::RawInput::Text("lab".into())],
+    }];
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, assign),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let still_open = open(&pool, Some("core.addr.documentation")).await.unwrap();
+    assert_eq!(still_open.len(), 1);
+    assert_eq!(still_open[0].object_id, net);
+}

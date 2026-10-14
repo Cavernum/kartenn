@@ -188,14 +188,14 @@ pub(crate) async fn defaults<T: WriteTx>(
 
 /// Deviations (REQ-003-24): on every touched object of a carrier kind, a resolved value
 /// that differs from the expected one is a warning citing the property, both values and
-/// the explanation; it becomes an anomaly of the object.
+/// the explanation; it becomes an anomaly of the object. Returns the objects evaluated.
 pub(crate) async fn check<T: WriteTx>(
     tx: &mut T,
     sources: &Sources,
     touched: &[Uuid],
     period: Option<Period>,
     violations: &mut Vec<Violation>,
-) -> Result<(), StoreError> {
+) -> Result<Vec<Uuid>, StoreError> {
     let checked: Vec<(Uuid, Declaration)> = tx
         .with_expected(period)
         .await?
@@ -207,12 +207,14 @@ pub(crate) async fn check<T: WriteTx>(
         })
         .collect();
     if checked.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
+    let mut evaluated = Vec::new();
     for object in touched {
         let Some(view) = tx.object_view(*object, period).await? else {
             continue;
         };
+        evaluated.push(*object);
         for (property, declaration) in &checked {
             let key = declaration.key.to_string();
             let source = declaration
@@ -262,7 +264,7 @@ pub(crate) async fn check<T: WriteTx>(
             }
         }
     }
-    Ok(())
+    Ok(evaluated)
 }
 
 /// The value a property's source expects for an object at the start of `period`, written

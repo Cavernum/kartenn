@@ -262,6 +262,10 @@ découpage courant/historique relèvent de la 004.
 
 - Une anomalie est (règle, objet, détails, version d'objet). Elle est créée ou mise à
   jour à chaque changeset qui touche l'objet, et close quand la règle ne se déclenche plus.
+- Seul un changeset qui **réévalue** une règle sur un objet peut clore son anomalie : les
+  règles du noyau sur les objets qu'il crée (et modifie, 004-8), toutes les règles sur
+  ceux qu'il clôt, l'écart de valeur attendue sur les objets contrôlés (003). Affecter une
+  propriété à un objet ne clôt donc pas son anomalie « bloc de documentation ».
 - Acquitter : motif, auteur, date, version de l'objet acquittée. Une modification
   ultérieure de l'objet rouvre l'anomalie si la règle se déclenche encore.
 

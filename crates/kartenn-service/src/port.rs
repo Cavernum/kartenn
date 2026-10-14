@@ -49,6 +49,10 @@ pub struct Journal<'a> {
     pub domains: &'a [Uuid],
     /// Objects created or modified.
     pub objects: &'a [Uuid],
+    /// Rules evaluated anew on objects, as `(object, rule-id prefix)`: their anomalies that
+    /// no longer fire are closed, and only those (REQ-002-35, 36). An empty prefix covers
+    /// every rule (a closed object).
+    pub reevaluated: &'a [(Uuid, &'static str)],
     /// Differential of resolved values (REQ-003-19); its detail is the one recorded in
     /// the transaction by [`WriteTx::record_diff`].
     pub diff: &'a [DiffCount],

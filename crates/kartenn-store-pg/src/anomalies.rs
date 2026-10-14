@@ -10,9 +10,9 @@ use sqlx::{PgPool, Postgres, Transaction};
 /// Versioned tables whose current rows tell which changeset last wrote an object.
 const VERSIONED: [&str; 3] = ["addressing_domain", "prefix", "address"];
 
-/// Records the warnings of an applied changeset on the objects it touched: anomalies that
-/// still fire are opened or refreshed, those that no longer fire on a touched object are
-/// closed.
+/// Records the warnings of an applied changeset: anomalies that fire are opened or
+/// refreshed; on the `(object, rule-id prefix)` pairs it evaluated anew, those that no
+/// longer fire are closed. An anomaly of a rule the changeset did not evaluate stays open.
 ///
 /// # Errors
 ///
@@ -20,9 +20,13 @@ const VERSIONED: [&str; 3] = ["addressing_domain", "prefix", "address"];
 pub async fn record(
     tx: &mut Transaction<'static, Postgres>,
     changeset: Uuid,
-    touched: &[Uuid],
+    reevaluated: &[(Uuid, &str)],
     violations: &[Violation],
 ) -> sqlx::Result<()> {
+    let (scope_objects, scope_rules): (Vec<Uuid>, Vec<String>) = reevaluated
+        .iter()
+        .map(|(o, prefix)| (*o, (*prefix).to_owned()))
+        .unzip();
     let mut firing: BTreeMap<(Uuid, &str), &str> = BTreeMap::new();
     for v in violations
         .iter()
@@ -34,12 +38,16 @@ pub async fn record(
     }
     let rules: Vec<String> = firing.keys().map(|(_, r)| (*r).to_owned()).collect();
     let objects: Vec<Uuid> = firing.keys().map(|(o, _)| *o).collect();
+    // Only the rules evaluated anew on an object can tell that its anomaly is gone.
     sqlx::query(
-        "UPDATE anomaly SET closed_at = now()
-         WHERE closed_at IS NULL AND object_id = ANY($1)
-           AND (object_id, rule_id) NOT IN (SELECT * FROM unnest($2::uuid[], $3::text[]))",
+        "UPDATE anomaly a SET closed_at = now()
+         FROM unnest($1::uuid[], $2::text[]) AS s(object_id, prefix)
+         WHERE a.closed_at IS NULL AND a.object_id = s.object_id
+           AND starts_with(a.rule_id, s.prefix)
+           AND (a.object_id, a.rule_id) NOT IN (SELECT * FROM unnest($3::uuid[], $4::text[]))",
     )
-    .bind(touched)
+    .bind(&scope_objects)
+    .bind(&scope_rules)
     .bind(&objects)
     .bind(&rules)
     .execute(&mut **tx)

@@ -1509,7 +1509,7 @@ impl WriteTx for PgTx {
         crate::anomalies::record(
             &mut self.tx,
             journal.id,
-            journal.objects,
+            journal.reevaluated,
             journal.violations,
         )
         .await
