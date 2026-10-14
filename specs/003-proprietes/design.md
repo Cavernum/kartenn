@@ -56,8 +56,8 @@ connus du noyau, en attendant le registre des types des modules.
 - Clore une propriété clôt ses valeurs de liste fermée (ses composants, pas des
   dépendants) ; elle est refusée s'il reste des affectations sur la période (P8 : on les
   clôt dans le même changeset).
-- Les obligations viennent avec 003-10 ; d'ici là, ni l'API ni la synchronisation ne
-  les modifient.
+- Les obligations (003-10) se déclarent avec la propriété et évoluent avec elle
+  (§ Obligations).
 
 **Stockage** (temporel selon la 004) :
 
@@ -216,6 +216,16 @@ Après résolution, pour chaque propriété obligatoire dont la portée contient
 touché ou créé : toute valeur résolue absente (ou effacée) produit une erreur
 `prop.required` listant les objets. Les valeurs par défaut (REQ-003-22) sont appliquées
 **avant** ce contrôle.
+
+- **Objets touchés** : ceux que le changeset crée, ceux dont l'origine a été recalculée
+  et ceux qu'il affecte directement. Le contrôle porte sur toute la fenêtre du changeset
+  (comme le différentiel) et sur les seuls porteurs de la portée.
+- **Déclaration** : les obligations font partie de la déclaration (`obligations`, liste
+  de portées) ; une déclaration nouvelle ou une évolution qui ajoute une portée est
+  refusée si des objets de cette portée n'ont pas de valeur, en les listant
+  (`prop.assignment.required`).
+- **Portée « entité »** : refusée jusqu'aux ancres (002-22), faute de propriétaire des
+  objets ; seules les portées « domaine » et « type d'objet » sont acceptées.
 
 ### Droits (REQ-003-17, 18)
 
