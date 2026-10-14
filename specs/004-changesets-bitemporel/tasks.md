@@ -47,7 +47,7 @@ voir [`../README.md`](../README.md).
   toute la période visée (versions futures) — REQ-004-8, 14, 15 — verify : comparaison
   au modèle en mémoire de la tâche 3
 - [x] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
-- [ ] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
+- [x] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
   parallèles
 - [ ] 11. Interface `Authorizer` (`authorize`, `authorize_many`, permission d'approbation,
   `…propose`) et implémentation de test configurable — prépare REQ-004-21, 41, 42 —

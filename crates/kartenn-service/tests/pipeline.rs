@@ -23,6 +23,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         period: None,
         operations,
         simulate: false,
+        idempotency_key: None,
     }
 }
 
@@ -264,6 +265,7 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
         vec![Operation::Close {
             kind: ObjectKind::Prefix,
             id: Ref::Id(p),
+            expected: None,
         }],
     );
     let outcome = submit(&store, &close, MAX_OPERATIONS).await.unwrap();
@@ -286,6 +288,7 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
         vec![Operation::Close {
             kind: ObjectKind::Prefix,
             id: Ref::Id(Uuid::now_v7()),
+            expected: None,
         }],
     );
     let outcome = submit(&store, &missing, MAX_OPERATIONS).await.unwrap();
@@ -333,4 +336,101 @@ async fn public_addresses_are_unique_across_domains(pool: PgPool) {
         panic!("{outcome:?}")
     };
     assert_eq!(violations[0].rule.id, "core.public.overlap");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
+    // REQ-004-10.
+    let author = person(&pool).await;
+    let store = PgStore::new(pool.clone());
+    let mut req = request(author, vec![domain(1, "prod")]);
+    req.idempotency_key = Some("key-1".into());
+    let Outcome::Applied { changeset, .. } = submit(&store, &req, MAX_OPERATIONS).await.unwrap()
+    else {
+        panic!()
+    };
+    let again = submit(&store, &req, MAX_OPERATIONS).await.unwrap();
+    assert!(
+        matches!(again, Outcome::Replayed { changeset: c, ref state } if c == changeset && state == "applied"),
+        "{again:?}"
+    );
+    assert_eq!(
+        count(&pool, "SELECT count(*) FROM addressing_domain").await,
+        1,
+        "not applied twice"
+    );
+    let mut other = request(author, vec![domain(1, "other")]);
+    other.idempotency_key = Some("key-1".into());
+    assert!(matches!(
+        submit(&store, &other, MAX_OPERATIONS).await,
+        Err(kartenn_service::RequestError::IdempotencyConflict)
+    ));
+    let mut parallel = request(author, vec![domain(1, "par")]);
+    parallel.idempotency_key = Some("key-2".into());
+    let (a, b) = tokio::join!(
+        submit(&store, &parallel, MAX_OPERATIONS),
+        submit(&store, &parallel, MAX_OPERATIONS)
+    );
+    let outcomes = [a.unwrap(), b.unwrap()];
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|o| matches!(o, Outcome::Applied { .. }))
+            .count(),
+        1,
+        "parallel same key: one applies"
+    );
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|o| matches!(o, Outcome::Replayed { .. }))
+            .count(),
+        1,
+        "the other waits and replays"
+    );
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
+    // REQ-004-11.
+    let author = person(&pool).await;
+    let d = new_domain(&pool, author, "prod").await;
+    let store = PgStore::new(pool.clone());
+    let create = request(
+        author,
+        vec![prefix(Ref::Id(d), "10.0.0.0/8", Nature::Container)],
+    );
+    let Outcome::Applied { changeset, .. } = submit(&store, &create, MAX_OPERATIONS).await.unwrap()
+    else {
+        panic!()
+    };
+    let p: Uuid = sqlx::query_scalar("SELECT id FROM prefix")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let stale = request(
+        author,
+        vec![Operation::Close {
+            kind: ObjectKind::Prefix,
+            id: Ref::Id(p),
+            expected: Some(Uuid::now_v7()),
+        }],
+    );
+    let Outcome::Refused { violations, .. } = submit(&store, &stale, MAX_OPERATIONS).await.unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(violations[0].rule.id, "changeset.operation.conflict");
+    let fresh = request(
+        author,
+        vec![Operation::Close {
+            kind: ObjectKind::Prefix,
+            id: Ref::Id(p),
+            expected: Some(changeset),
+        }],
+    );
+    assert!(matches!(
+        submit(&store, &fresh, MAX_OPERATIONS).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
 }

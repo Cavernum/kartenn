@@ -73,12 +73,16 @@ pub enum Operation {
         /// Usage.
         usage: AddressUsage,
     },
-    /// Ends an object (REQ-004-15); nothing before `at` is erased.
+    /// Ends an object (REQ-004-15); nothing before the end is erased.
     Close {
         /// Kind of the object.
         kind: ObjectKind,
         /// Object.
         id: Ref,
+        /// Changeset that last wrote the object, as the caller saw it (REQ-004-11):
+        /// a different current version is a conflict.
+        #[serde(default)]
+        expected: Option<Uuid>,
     },
 }
 
@@ -109,4 +113,8 @@ pub struct ChangesetRequest {
     /// Validate and report without writing anything (REQ-004-9).
     #[serde(default)]
     pub simulate: bool,
+    /// Idempotency key (REQ-004-10): a second submission with the same key by the same
+    /// author within 24 h returns the first result.
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
 }

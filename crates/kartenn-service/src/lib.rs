@@ -10,4 +10,4 @@ pub mod port;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 pub use pipeline::{Outcome, RequestError, submit};
-pub use port::{Store, StoreError, WriteError, WriteTx};
+pub use port::{Replay, Store, StoreError, WriteError, WriteTx};

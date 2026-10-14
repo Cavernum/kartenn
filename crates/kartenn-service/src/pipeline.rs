@@ -11,7 +11,7 @@ use kartenn_core::rules::{self, Severity, Violation};
 use uuid::Uuid;
 
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
-use crate::port::{Journal, Store, StoreError, WriteError, WriteTx};
+use crate::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
 
 /// Default maximum number of operations of a changeset (004/C3).
 pub const MAX_OPERATIONS: usize = 10_000;
@@ -58,6 +58,9 @@ pub enum RequestError {
         /// Kind expected.
         expected: ObjectKind,
     },
+    /// The idempotency key was already used with a different content (REQ-004-10).
+    #[error("the idempotency key was already used for a different changeset")]
+    IdempotencyConflict,
     /// Infrastructure failure.
     #[error(transparent)]
     Store(#[from] StoreError),
@@ -80,6 +83,13 @@ pub enum Outcome {
         changeset: Uuid,
         /// All violations found.
         violations: Vec<Violation>,
+    },
+    /// Same idempotency key and content as an earlier submission: its result (REQ-004-10).
+    Replayed {
+        /// The earlier changeset.
+        changeset: Uuid,
+        /// Its state.
+        state: String,
     },
     /// Simulation: what would happen, nothing written (REQ-004-9).
     Simulated {
@@ -110,10 +120,23 @@ fn to_period(spec: Option<PeriodSpec>) -> Result<Option<Period>, RequestError> {
 /// An operation ready to be written: parsed, locally validated, references resolved.
 #[derive(Debug)]
 enum Planned {
-    Domain { id: Uuid, slug: Slug },
-    Prefix { object: PrefixObject, public: bool },
-    Address { object: Address, public: bool },
-    Close { kind: ObjectKind, id: Uuid },
+    Domain {
+        id: Uuid,
+        slug: Slug,
+    },
+    Prefix {
+        object: PrefixObject,
+        public: bool,
+    },
+    Address {
+        object: Address,
+        public: bool,
+    },
+    Close {
+        kind: ObjectKind,
+        id: Uuid,
+        expected: Option<Uuid>,
+    },
 }
 
 /// Checks the shape of the request (REQ-004-1 to 5): size, motive, period, references.
@@ -137,7 +160,7 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
             Operation::CreatePrefix { domain, .. } | Operation::CreateAddress { domain, .. } => {
                 vec![(*domain, ObjectKind::Domain)]
             }
-            Operation::Close { kind, id } => vec![(*id, *kind)],
+            Operation::Close { kind, id, .. } => vec![(*id, *kind)],
             Operation::CreateDomain { .. } => vec![],
         };
         for (r, expected) in uses {
@@ -235,10 +258,15 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 }
                 Err(e) => violations.push(addr_violation(&e)),
             },
-            Operation::Close { kind, id: target } => {
+            Operation::Close {
+                kind,
+                id: target,
+                expected,
+            } => {
                 planned.push(Planned::Close {
                     kind: *kind,
                     id: resolve(*target, &ids),
+                    expected: *expected,
                 });
             }
         }
@@ -252,29 +280,14 @@ fn has_errors(violations: &[Violation]) -> bool {
         .any(|v| v.rule.severity == Severity::Error)
 }
 
-/// Submits a changeset (REQ-004-1 to 12): checks the request, plans and validates the
-/// operations locally, then applies them atomically under domain locks; the result is
-/// journaled whether applied or refused.
-///
-/// # Errors
-///
-/// [`RequestError`] for a malformed request or an infrastructure failure.
-pub async fn submit<S: Store>(
-    store: &S,
-    req: &ChangesetRequest,
-    max_operations: usize,
-) -> Result<Outcome, RequestError> {
-    let period = check_request(req, max_operations)?;
-    let changeset = Uuid::now_v7();
-    let (planned, mut violations) = plan(req);
-    if has_errors(&violations) {
-        return refuse(store, req, changeset, violations).await;
-    }
-
-    let mut tx = store.begin().await?;
+/// Domains to lock and whether public space is written (ADR 0015).
+async fn lock_targets<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+) -> Result<(Vec<Uuid>, bool), StoreError> {
     let mut domains = BTreeSet::new();
     let mut public = false;
-    for p in &planned {
+    for p in planned {
         match p {
             Planned::Prefix {
                 object,
@@ -293,6 +306,7 @@ pub async fn submit<S: Store>(
             Planned::Close {
                 kind: kind @ (ObjectKind::Prefix | ObjectKind::Address),
                 id,
+                ..
             } => {
                 if let Some(d) = tx.domain_of(*kind, *id).await? {
                     domains.insert(d);
@@ -301,10 +315,18 @@ pub async fn submit<S: Store>(
             Planned::Domain { .. } | Planned::Close { .. } => {}
         }
     }
-    let domains: Vec<Uuid> = domains.into_iter().collect();
-    tx.lock(&domains, public).await?;
+    Ok((domains.into_iter().collect(), public))
+}
 
-    for p in &planned {
+/// Writes the planned operations in order, collecting every violation (REQ-004-7).
+async fn apply<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    period: Option<Period>,
+    changeset: Uuid,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    for p in planned {
         let written = match p {
             Planned::Domain { id, slug } => {
                 tx.insert_domain(*id, slug.as_str(), period, changeset)
@@ -316,7 +338,21 @@ pub async fn submit<S: Store>(
             Planned::Address { object, public } => {
                 tx.insert_address(object, *public, period, changeset).await
             }
-            Planned::Close { kind, id } => tx.close(*kind, *id, period, changeset).await,
+            Planned::Close { kind, id, expected } => {
+                if let Some(expected) = expected
+                    && tx.current_changeset(*kind, *id, period).await? != Some(*expected)
+                {
+                    violations.push(
+                        Violation::new(
+                            &rules::CHANGESET_CONFLICT,
+                            format!("{id} was modified since changeset {expected}"),
+                        )
+                        .with_subjects([*id]),
+                    );
+                    continue;
+                }
+                tx.close(*kind, *id, period, changeset).await
+            }
         };
         match written {
             Ok(()) => {}
@@ -328,13 +364,52 @@ pub async fn submit<S: Store>(
                 )
                 .with_subjects([id]),
             ),
-            Err(WriteError::Store(e)) => {
+            Err(WriteError::Store(e)) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+/// Submits a changeset (REQ-004-1 to 12): checks the request, honours its idempotency key,
+/// plans and validates the operations locally, then applies them atomically under domain
+/// locks; the result is journaled whether applied or refused.
+///
+/// # Errors
+///
+/// [`RequestError`] for a malformed request, a reused idempotency key or an
+/// infrastructure failure.
+pub async fn submit<S: Store>(
+    store: &S,
+    req: &ChangesetRequest,
+    max_operations: usize,
+) -> Result<Outcome, RequestError> {
+    let period = check_request(req, max_operations)?;
+    let changeset = Uuid::now_v7();
+    let mut tx = store.begin().await?;
+    if req.idempotency_key.is_some() && !req.simulate {
+        match tx.replay(req).await? {
+            Replay::Fresh => {}
+            Replay::Same { changeset, state } => {
                 tx.rollback().await?;
-                return Err(e.into());
+                return Ok(Outcome::Replayed { changeset, state });
+            }
+            Replay::Conflict => {
+                tx.rollback().await?;
+                return Err(RequestError::IdempotencyConflict);
             }
         }
     }
-
+    let (planned, mut violations) = plan(req);
+    if has_errors(&violations) {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, violations).await;
+    }
+    let (domains, public) = lock_targets(&mut tx, &planned).await?;
+    tx.lock(&domains, public).await?;
+    if let Err(e) = apply(&mut tx, &planned, period, changeset, &mut violations).await {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations).await;
@@ -391,6 +466,7 @@ mod tests {
             period: None,
             operations,
             simulate: false,
+            idempotency_key: None,
         }
     }
 

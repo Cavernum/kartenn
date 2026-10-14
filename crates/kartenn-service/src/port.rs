@@ -41,6 +41,22 @@ pub struct Journal<'a> {
     pub violations: &'a [Violation],
 }
 
+/// Earlier submission found for an idempotency key (REQ-004-10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Replay {
+    /// No live submission under this key.
+    Fresh,
+    /// Same key, same content: the first changeset and its state.
+    Same {
+        /// First changeset.
+        changeset: Uuid,
+        /// Its state (`applied`, `refused`…).
+        state: String,
+    },
+    /// Same key, different content.
+    Conflict,
+}
+
 /// A store able to open write transactions.
 pub trait Store: Send + Sync {
     /// Transaction type.
@@ -66,6 +82,22 @@ pub trait WriteTx {
         domains: &[Uuid],
         public_space: bool,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Serialises submissions of the same idempotency key (advisory lock held until the
+    /// end of the transaction) and looks up a live earlier submission.
+    fn replay(
+        &mut self,
+        request: &ChangesetRequest,
+    ) -> impl Future<Output = Result<Replay, StoreError>> + Send;
+
+    /// Changeset that wrote the version of an object valid at the start of `period`
+    /// (transaction time if `None`).
+    fn current_changeset(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
 
     /// Domain of an existing addressing object.
     fn domain_of(

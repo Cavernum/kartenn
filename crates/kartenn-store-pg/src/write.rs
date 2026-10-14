@@ -3,8 +3,9 @@
 use kartenn_core::objects::{Address, PrefixObject};
 use kartenn_core::period::Period;
 use kartenn_core::rules::{self, Rule, Violation};
-use kartenn_service::port::{Journal, Store, StoreError, WriteError, WriteTx};
-use kartenn_service::{ObjectKind, Operation};
+use kartenn_service::port::{Journal, Replay, Store, StoreError, WriteError, WriteTx};
+use kartenn_service::{ChangesetRequest, ObjectKind, Operation};
+use sha2::{Digest, Sha256};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgPool, Postgres, Transaction};
@@ -59,6 +60,12 @@ fn bounds(
 /// SQL of a period from bound parameters `$a`, `$b`: transaction time when `$a` is null.
 fn period_sql(a: u8, b: u8) -> String {
     format!("tstzrange(coalesce(${a}::timestamptz, now()), ${b}::timestamptz)")
+}
+
+/// Stable digest of a request, to recognise a resubmission under the same idempotency key.
+fn request_hash(request: &ChangesetRequest) -> Result<Vec<u8>, StoreError> {
+    let bytes = serde_json::to_vec(request).map_err(store_err)?;
+    Ok(Sha256::digest(&bytes).to_vec())
 }
 
 /// PostgreSQL store.
@@ -204,6 +211,23 @@ async fn write_journal(
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
+    if let Some(key) = &journal.request.idempotency_key {
+        sqlx::query(
+            "INSERT INTO idempotency_key (identity_id, key, request_hash, changeset_id, expires_at)
+             VALUES ($1, $2, $3, $4, now() + interval '24 hours')
+             ON CONFLICT (identity_id, key) DO UPDATE
+               SET request_hash = EXCLUDED.request_hash, changeset_id = EXCLUDED.changeset_id,
+                   expires_at = EXCLUDED.expires_at
+             WHERE idempotency_key.expires_at <= now()",
+        )
+        .bind(journal.request.author)
+        .bind(key)
+        .bind(request_hash(journal.request)?)
+        .bind(journal.id)
+        .execute(&mut **tx)
+        .await
+        .map_err(store_err)?;
+    }
     for (ordinal, op) in journal.request.operations.iter().enumerate() {
         let payload = serde_json::to_value(op).map_err(store_err)?;
         sqlx::query(
@@ -238,6 +262,54 @@ impl WriteTx for PgTx {
                 .map_err(store_err)?;
         }
         Ok(())
+    }
+
+    async fn replay(&mut self, request: &ChangesetRequest) -> Result<Replay, StoreError> {
+        let Some(key) = &request.idempotency_key else {
+            return Ok(Replay::Fresh);
+        };
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || '/' || $2, 0))")
+            .bind(request.author)
+            .bind(key)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        let found: Option<(Uuid, Vec<u8>, String)> = sqlx::query_as(
+            "SELECT k.changeset_id, k.request_hash, c.state FROM idempotency_key k
+             JOIN changeset c ON c.id = k.changeset_id
+             WHERE k.identity_id = $1 AND k.key = $2 AND k.expires_at > now()",
+        )
+        .bind(request.author)
+        .bind(key)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(match found {
+            None => Replay::Fresh,
+            Some((changeset, hash, state)) if hash == request_hash(request)? => {
+                Replay::Same { changeset, state }
+            }
+            Some(_) => Replay::Conflict,
+        })
+    }
+
+    async fn current_changeset(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Option<Uuid>, StoreError> {
+        let (at, _) = bounds(period)?;
+        let sql = format!(
+            "SELECT changeset_id FROM {} WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+            table(kind)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(at)
+            .fetch_optional(&mut *self.tx)
+            .await
+            .map_err(store_err)
     }
 
     async fn domain_of(&mut self, kind: ObjectKind, id: Uuid) -> Result<Option<Uuid>, StoreError> {

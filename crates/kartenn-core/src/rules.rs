@@ -190,6 +190,8 @@ rules! {
     CHANGESET_RULES;
     CHANGESET_NO_VERSION = "changeset.operation.no_version", Error, ["REQ-004-14", "REQ-004-15"], "004/design",
         "Une opération ne vise un objet que sur une période où il existe.";
+    CHANGESET_CONFLICT = "changeset.operation.conflict", Error, ["REQ-004-11"], "004/design",
+        "Une opération qui précise la version attendue d'un objet échoue si la version courante diffère.";
 }
 
 /// Every rule, all groups, in catalogue order.

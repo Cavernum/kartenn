@@ -162,6 +162,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
 name = "core_detect"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -266,6 +272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
  "block-buffer 0.12.1",
+ "const-oid",
  "crypto-common 0.2.2",
  "ctutils",
 ]
@@ -714,6 +721,7 @@ dependencies = [
  "kartenn-service",
  "kartenn-workspace-hack",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror",
  "tokio",
@@ -726,6 +734,7 @@ dependencies = [
  "bitflags",
  "crypto-common 0.1.6",
  "digest 0.10.7",
+ "digest 0.11.3",
  "getrandom",
  "idna",
  "libc",
@@ -735,13 +744,13 @@ dependencies = [
  "serde",
  "serde_core",
  "sha2 0.10.9",
+ "sha2 0.11.1",
  "smallvec",
  "sqlx-core",
  "syn 2.0.119",
  "syn 3.0.9",
  "thiserror",
  "tokio",
- "typenum",
  "uuid",
 ]
 
