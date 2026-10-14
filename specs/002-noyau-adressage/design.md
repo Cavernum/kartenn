@@ -136,6 +136,8 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.prefix.not_empty_for_nature` | erreur | REQ-002-17 | 002/A2 |
 | `core.prefix.p2p_length` | erreur | REQ-002-19 | RFC 3021, RFC 6164 |
 | `core.prefix.site_on_container` | erreur | REQ-002-20 | 002/A7 |
+| `core.prefix.anycast_network` | erreur | REQ-002-49 | 002/A13 |
+| `core.anycast.address_usage` | erreur | REQ-002-49 | 002/A13 |
 | `core.range.bounds` | erreur | REQ-002-21 | — |
 | `core.range.outside_network` | erreur | REQ-002-21 | 002/A2 |
 | `core.range.overlap` | erreur | REQ-002-22 | D34 |
@@ -144,7 +146,7 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.address.duplicate` | erreur | REQ-002-26 | D4 |
 | `core.address.range_usage` | erreur | REQ-002-28 | 002/A8 |
 | `core.address.not_assignable` | erreur | REQ-002-29 | RFC 1122, RFC 4291, registres IANA |
-| `core.public.overlap` | erreur | REQ-002-32, 46 | 002/A3, A11 |
+| `core.public.overlap` | erreur | REQ-002-32, 46 | 002/A3, A11, A13 |
 | `core.domain.immutable` | erreur | REQ-002-12 | 002/A1 |
 | `core.anchor.cycle` | erreur | REQ-002-8, 9 | — |
 | `core.anchor.in_use` | erreur | REQ-002-10 | D33 |
@@ -155,7 +157,7 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.addr.shared_space` | avertissement | REQ-002-35 | RFC 6598 |
 | `core.prefix.ipv6_long_subnet` | avertissement | REQ-002-35 | RFC 7136 §5 |
 | `core.prefix.ula_global_id` | avertissement | REQ-002-35 | RFC 4193 §3.2 |
-| `core.public.anycast_shared` | avertissement | REQ-002-46 | 002/A11 |
+| `core.public.anycast_shared` | avertissement | REQ-002-46 | 002/A11, A13 |
 
 **Heuristique ULA** (`core.prefix.ula_global_id`, question ouverte de la 002) : le Global
 ID (40 bits) est jugé non aléatoire s'il est nul, s'il vaut au plus `0xFFFF` (numérotation

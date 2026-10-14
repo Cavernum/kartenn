@@ -122,6 +122,9 @@ pub struct PrefixObject {
     pub nature: Nature,
     /// Point-to-point network (RFC 3021, RFC 6164).
     pub point_to_point: bool,
+    /// Anycast network: may exist in several domains, holds anycast addresses only
+    /// (REQ-002-46, 49).
+    pub anycast: bool,
 }
 
 /// Usage of a range (002/A5).
@@ -282,6 +285,15 @@ pub fn check_prefix(p: &PrefixObject) -> Vec<Violation> {
             .with_subjects([p.id]),
         );
     }
+    if p.anycast && p.nature != Nature::Network {
+        out.push(
+            Violation::new(
+                &rules::PREFIX_ANYCAST_NETWORK,
+                format!("{} is a container and cannot be anycast", p.value),
+            )
+            .with_subjects([p.id]),
+        );
+    }
     if p.value.family() == IPV6
         && p.nature == Nature::Network
         && len > 64
@@ -375,11 +387,13 @@ pub fn reserved_in_network(addr: Addr, network: &PrefixObject) -> bool {
     }
 }
 
-/// Rules of an address against its network (REQ-002-29 positional part).
+/// Rules of an address against its network: positional reservations (REQ-002-29) and
+/// anycast usage (REQ-002-49).
 #[must_use]
 pub fn check_address_in_network(a: &Address, network: &PrefixObject) -> Vec<Violation> {
+    let mut out = Vec::new();
     if reserved_in_network(a.value, network) {
-        vec![
+        out.push(
             Violation::new(
                 &rules::ADDRESS_NOT_ASSIGNABLE,
                 format!(
@@ -388,10 +402,21 @@ pub fn check_address_in_network(a: &Address, network: &PrefixObject) -> Vec<Viol
                 ),
             )
             .with_subjects([a.id, network.id]),
-        ]
-    } else {
-        Vec::new()
+        );
     }
+    if network.anycast && a.usage != AddressUsage::Anycast {
+        out.push(
+            Violation::new(
+                &rules::ANYCAST_ADDRESS_USAGE,
+                format!(
+                    "{} is in the anycast network {} and must be of usage anycast",
+                    a.value, network.value
+                ),
+            )
+            .with_subjects([a.id, network.id]),
+        );
+    }
+    out
 }
 
 /// Rules of a range against its network (REQ-002-23).
@@ -464,6 +489,7 @@ mod tests {
             value: Prefix::parse_any(&ALL, t).unwrap(),
             nature,
             point_to_point: p2p,
+            anycast: false,
         }
     }
 
@@ -536,6 +562,34 @@ mod tests {
                 true
             )))
             .contains(&"core.prefix.p2p_length")
+        );
+    }
+
+    #[test]
+    fn only_networks_are_anycast_and_hold_anycast_addresses() {
+        // REQ-002-49 acceptance.
+        let anycast = |nature| PrefixObject {
+            anycast: true,
+            ..prefix("45.0.0.0/24", nature, false)
+        };
+        assert!(check_prefix(&anycast(Nature::Network)).is_empty());
+        assert!(
+            ids(&check_prefix(&anycast(Nature::Container)))
+                .contains(&"core.prefix.anycast_network")
+        );
+        let host = address("45.0.0.1");
+        let any = Address {
+            usage: AddressUsage::Anycast,
+            ..address("45.0.0.2")
+        };
+        assert_eq!(
+            ids(&check_address_in_network(&host, &anycast(Nature::Network))),
+            vec!["core.anycast.address_usage"]
+        );
+        assert!(check_address_in_network(&any, &anycast(Nature::Network)).is_empty());
+        assert!(
+            check_address_in_network(&any, &net("45.0.0.0/24")).is_empty(),
+            "an anycast address in a plain network stays accepted (A11)"
         );
     }
 

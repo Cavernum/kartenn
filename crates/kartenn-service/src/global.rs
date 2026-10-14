@@ -113,21 +113,48 @@ async fn check_prefix<T: WriteTx>(
                 .with_subjects(std::iter::once(object.id).chain(inside)),
             );
         }
-        // REQ-002-32: public networks are unique across domains.
-        if public {
-            for (other, other_domain) in tx
-                .public_networks_overlapping(object.domain, object.value, period)
+        // REQ-002-49: an anycast network holds anycast addresses only, whichever comes first.
+        if object.anycast {
+            let (first, last) = (object.value.network(), object.value.last());
+            for address in tx
+                .addresses_between(object.domain, first, last, period)
                 .await?
             {
+                violations.extend(objects::check_address_in_network(&address, object));
+            }
+        }
+        // REQ-002-32, 46: public networks are unique across domains, except occurrences of
+        // the same network marked anycast everywhere (A13). Containers stay out (A3).
+        if public {
+            let others = tx
+                .public_networks_overlapping(object.domain, object.value, period)
+                .await?;
+            let shared =
+                |o: &objects::PrefixObject| object.anycast && o.anycast && o.value == object.value;
+            for other in others.iter().filter(|o| !shared(o)) {
                 violations.push(
                     Violation::new(
                         &rules::PUBLIC_OVERLAP,
                         format!(
-                            "{} overlaps a public network of domain {other_domain}",
-                            object.value
+                            "{} overlaps the public network {} of domain {} (anycast only if the same network is anycast everywhere)",
+                            object.value, other.value, other.domain
                         ),
                     )
-                    .with_subjects([object.id, other]),
+                    .with_subjects([object.id, other.id]),
+                );
+            }
+            if !others.is_empty() && others.iter().all(shared) {
+                let domains: BTreeSet<Uuid> = others.iter().map(|o| o.domain).collect();
+                violations.push(
+                    Violation::new(
+                        &rules::PUBLIC_ANYCAST_SHARED,
+                        format!(
+                            "{} is anycast in {} other domain(s)",
+                            object.value,
+                            domains.len()
+                        ),
+                    )
+                    .with_subjects(std::iter::once(object.id).chain(others.iter().map(|o| o.id))),
                 );
             }
         }

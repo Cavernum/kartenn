@@ -41,6 +41,7 @@ fn prefix(domain: Ref, value: &str, nature: Nature) -> Operation {
         prefix: value.into(),
         nature,
         point_to_point: false,
+        anycast: false,
     }
 }
 

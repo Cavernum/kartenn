@@ -224,13 +224,13 @@ pub trait WriteTx {
     ) -> impl Future<Output = Result<Vec<Address>, StoreError>> + Send;
 
     /// Public networks of other domains overlapping `prefix` over part of `period`
-    /// (REQ-002-32), with their domain.
+    /// (REQ-002-32, 46).
     fn public_networks_overlapping(
         &mut self,
         domain: Uuid,
         prefix: Prefix,
         period: Option<Period>,
-    ) -> impl Future<Output = Result<Vec<(Uuid, Uuid)>, StoreError>> + Send;
+    ) -> impl Future<Output = Result<Vec<PrefixObject>, StoreError>> + Send;
 
     /// Public addresses equal to `address` in other domains over part of `period`, with
     /// their usage.

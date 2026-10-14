@@ -170,20 +170,21 @@ async fn prefix_object(
     id: Uuid,
     at: OffsetDateTime,
 ) -> sqlx::Result<Option<PrefixObject>> {
-    let row: Option<(Uuid, String, String, bool)> = sqlx::query_as(
-        "SELECT domain_id, prefix::text, nature, point_to_point FROM prefix WHERE id = $1 AND valid_period @> $2",
+    let row: Option<(Uuid, String, String, bool, bool)> = sqlx::query_as(
+        "SELECT domain_id, prefix::text, nature, point_to_point, anycast FROM prefix WHERE id = $1 AND valid_period @> $2",
     )
     .bind(id)
     .bind(at)
     .fetch_optional(pool)
     .await?;
-    row.map(|(domain, value, n, point_to_point)| {
+    row.map(|(domain, value, n, point_to_point, anycast)| {
         Ok(PrefixObject {
             id,
             domain,
             value: Prefix::parse_any(&ALL, &value).map_err(decode_err)?,
             nature: nature(&n)?,
             point_to_point,
+            anycast,
         })
     })
     .transpose()

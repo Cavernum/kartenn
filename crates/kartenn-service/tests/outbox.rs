@@ -56,6 +56,7 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
                 prefix: "10.0.0.0/8".into(),
                 nature: Nature::Container,
                 point_to_point: false,
+                anycast: false,
             },
         ],
     );

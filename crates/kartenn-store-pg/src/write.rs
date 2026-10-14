@@ -170,6 +170,22 @@ fn table(kind: ObjectKind) -> &'static str {
     }
 }
 
+/// Row of a network: id, domain, value, point-to-point, anycast.
+type NetworkRow = (Uuid, Uuid, String, bool, bool);
+
+fn network(
+    (id, domain, text, point_to_point, anycast): NetworkRow,
+) -> Result<PrefixObject, StoreError> {
+    Ok(PrefixObject {
+        id,
+        domain,
+        value: Prefix::parse_any(&ALL, &text).map_err(store_err)?,
+        nature: Nature::Network,
+        point_to_point,
+        anycast,
+    })
+}
+
 fn address_usage(text: &str) -> Result<AddressUsage, StoreError> {
     Ok(match text {
         "host" => AddressUsage::Host,
@@ -409,8 +425,8 @@ impl WriteTx for PgTx {
     ) -> Result<(), WriteError> {
         let (a, b) = bounds(period)?;
         let sql = format!(
-            "INSERT INTO prefix (id, domain_id, prefix, nature, point_to_point, public, registry_version, valid_period, changeset_id)
-             VALUES ($1, $2, $3::cidr, $4, $5, $6, $7, {}, $10)",
+            "INSERT INTO prefix (id, domain_id, prefix, nature, point_to_point, public, registry_version, valid_period, changeset_id, anycast)
+             VALUES ($1, $2, $3::cidr, $4, $5, $6, $7, {}, $10, $11)",
             period_sql(8, 9)
         );
         let binds = vec![
@@ -424,6 +440,7 @@ impl WriteTx for PgTx {
             Bind::Time(a),
             Bind::Time(b),
             Bind::Uuid(changeset),
+            Bind::Bool(p.anycast),
         ];
         self.guarded(sqlx::AssertSqlSafe(sql), binds, p.id)
             .await
@@ -506,12 +523,12 @@ impl WriteTx for PgTx {
         let (a, b) = bounds(period)?;
         let op = if include_equal { ">>=" } else { ">>" };
         let sql = format!(
-            "SELECT DISTINCT ON (id) id, prefix::text, point_to_point FROM prefix
+            "SELECT DISTINCT ON (id) id, domain_id, prefix::text, point_to_point, anycast FROM prefix
              WHERE domain_id = $1 AND nature = 'network' AND prefix {op} $2::cidr
                AND valid_period && {}",
             period_sql(3, 4)
         );
-        let rows: Vec<(Uuid, String, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        let rows: Vec<NetworkRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
             .bind(domain)
             .bind(prefix.to_string())
             .bind(a)
@@ -519,18 +536,7 @@ impl WriteTx for PgTx {
             .fetch_all(&mut *self.tx)
             .await
             .map_err(store_err)?;
-        rows.into_iter()
-            .map(|(id, text, point_to_point)| {
-                let value = Prefix::parse_any(&ALL, &text).map_err(store_err)?;
-                Ok(PrefixObject {
-                    id,
-                    domain,
-                    value,
-                    nature: Nature::Network,
-                    point_to_point,
-                })
-            })
-            .collect()
+        rows.into_iter().map(network).collect()
     }
 
     async fn prefixes_inside(
@@ -596,22 +602,23 @@ impl WriteTx for PgTx {
         domain: Uuid,
         prefix: Prefix,
         period: Option<Period>,
-    ) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    ) -> Result<Vec<PrefixObject>, StoreError> {
         let (a, b) = bounds(period)?;
         let sql = format!(
-            "SELECT DISTINCT id, domain_id FROM prefix
+            "SELECT DISTINCT ON (id) id, domain_id, prefix::text, point_to_point, anycast FROM prefix
              WHERE public AND nature = 'network' AND domain_id <> $1 AND prefix && $2::cidr
                AND valid_period && {}",
             period_sql(3, 4)
         );
-        sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        let rows: Vec<NetworkRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
             .bind(domain)
             .bind(prefix.to_string())
             .bind(a)
             .bind(b)
             .fetch_all(&mut *self.tx)
             .await
-            .map_err(store_err)
+            .map_err(store_err)?;
+        rows.into_iter().map(network).collect()
     }
 
     async fn public_addresses_equal(

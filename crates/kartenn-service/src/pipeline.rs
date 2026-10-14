@@ -279,6 +279,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 prefix,
                 nature,
                 point_to_point,
+                anycast,
                 ..
             } => match Prefix::parse_any(&ALL, prefix) {
                 Ok(value) => {
@@ -288,6 +289,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                         value,
                         nature: *nature,
                         point_to_point: *point_to_point,
+                        anycast: *anycast,
                     };
                     violations.extend(objects::check_prefix(&object));
                     let public =
@@ -583,6 +585,7 @@ mod tests {
             prefix: prefix.into(),
             nature: Nature::Network,
             point_to_point: false,
+            anycast: false,
         }
     }
 
@@ -643,6 +646,7 @@ mod tests {
             prefix: "10.0.0.0/8".into(),
             nature: Nature::Container,
             point_to_point: false,
+            anycast: false,
         };
         let a = Operation::CreateAddress {
             local: None,

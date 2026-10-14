@@ -53,6 +53,7 @@ impl Fixture {
             prefix: value.into(),
             nature: Nature::Network,
             point_to_point: false,
+            anycast: false,
         }
     }
 

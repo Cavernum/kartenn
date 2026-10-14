@@ -120,6 +120,10 @@ rules! {
         "Un préfixe ne change de nature que si son contenu le permet.";
     PREFIX_P2P_LENGTH = "core.prefix.p2p_length", Error, ["REQ-002-19"], "RFC 3021, RFC 6164",
         "Seuls les réseaux /31 et /32 (IPv4) ou /127 et /128 (IPv6) sont point à point.";
+    PREFIX_ANYCAST_NETWORK = "core.prefix.anycast_network", Error, ["REQ-002-49"], "002/A13",
+        "Seuls les réseaux sont marqués anycast.";
+    ANYCAST_ADDRESS_USAGE = "core.anycast.address_usage", Error, ["REQ-002-49"], "002/A13",
+        "Les adresses d'un réseau anycast sont d'usage anycast.";
     PREFIX_SITE_ON_CONTAINER = "core.prefix.site_on_container", Error, ["REQ-002-20"], "002/A7",
         "Seuls les réseaux sont rattachés à un site.";
     RANGE_BOUNDS = "core.range.bounds", Error, ["REQ-002-21"], "002/design",
@@ -138,8 +142,8 @@ rules! {
         "Les adresses respectent l'usage de la plage où elles tombent.";
     ADDRESS_NOT_ASSIGNABLE = "core.address.not_assignable", Error, ["REQ-002-29"], "RFC 1122 §3.2.1.3, RFC 4291 §2.6.1, registres IANA",
         "Les adresses de réseau, de diffusion, d'IID nul, de boucle locale, non spécifiées, réservées et multicast ne sont pas attribuées.";
-    PUBLIC_OVERLAP = "core.public.overlap", Error, ["REQ-002-32", "REQ-002-46"], "002/A3, 002/A11",
-        "L'espace public est unique entre domaines, sauf adresses anycast partout.";
+    PUBLIC_OVERLAP = "core.public.overlap", Error, ["REQ-002-32", "REQ-002-46"], "002/A3, 002/A11, 002/A13",
+        "L'espace public est unique entre domaines, sauf adresses anycast partout et réseaux anycast partout, de même valeur.";
     DOMAIN_IMMUTABLE = "core.domain.immutable", Error, ["REQ-002-12"], "002/A1",
         "Un objet d'adressage ne change jamais de domaine.";
     ANCHOR_CYCLE = "core.anchor.cycle", Error, ["REQ-002-8", "REQ-002-9"], "002/design",
@@ -160,8 +164,8 @@ rules! {
         "Les réseaux d'hôtes IPv6 sont des /64, sauf point à point /127 et /128.";
     PREFIX_ULA_GLOBAL_ID = "core.prefix.ula_global_id", Warning, ["REQ-002-35"], "RFC 4193 §3.2",
         "Un préfixe unique local utilise un Global ID pseudo-aléatoire.";
-    PUBLIC_ANYCAST_SHARED = "core.public.anycast_shared", Warning, ["REQ-002-46"], "002/A11",
-        "Une adresse publique anycast figure dans plusieurs domaines.";
+    PUBLIC_ANYCAST_SHARED = "core.public.anycast_shared", Warning, ["REQ-002-46"], "002/A11, 002/A13",
+        "Une adresse ou un réseau public anycast figure dans plusieurs domaines.";
 }
 
 rules! {
@@ -293,7 +297,7 @@ mod tests {
 
     #[test]
     fn the_design_catalogue_is_complete() {
-        assert_eq!(CORE_RULES.len(), 30);
+        assert_eq!(CORE_RULES.len(), 32);
         assert_eq!(
             CORE_RULES
                 .iter()

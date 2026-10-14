@@ -16,6 +16,8 @@ Sévérités fixées par la spécification (002/A4).
 | `core.prefix.network_not_leaf` | erreur | Un réseau ne contient aucun autre préfixe. | REQ-002-16, REQ-002-17 | 002/A2 |
 | `core.prefix.not_empty_for_nature` | erreur | Un préfixe ne change de nature que si son contenu le permet. | REQ-002-17 | 002/A2 |
 | `core.prefix.p2p_length` | erreur | Seuls les réseaux /31 et /32 (IPv4) ou /127 et /128 (IPv6) sont point à point. | REQ-002-19 | RFC 3021, RFC 6164 |
+| `core.prefix.anycast_network` | erreur | Seuls les réseaux sont marqués anycast. | REQ-002-49 | 002/A13 |
+| `core.anycast.address_usage` | erreur | Les adresses d'un réseau anycast sont d'usage anycast. | REQ-002-49 | 002/A13 |
 | `core.prefix.site_on_container` | erreur | Seuls les réseaux sont rattachés à un site. | REQ-002-20 | 002/A7 |
 | `core.range.bounds` | erreur | Une plage a des bornes d'une même famille, la première au plus égale à la dernière. | REQ-002-21 | 002/design |
 | `core.range.outside_network` | erreur | Une plage est entièrement contenue dans un seul réseau de son domaine. | REQ-002-21 | 002/A2 |
@@ -25,7 +27,7 @@ Sévérités fixées par la spécification (002/A4).
 | `core.address.duplicate` | erreur | Une adresse existe au plus une fois par domaine sur toute période. | REQ-002-26 | D4 |
 | `core.address.range_usage` | erreur | Les adresses respectent l'usage de la plage où elles tombent. | REQ-002-28 | 002/A8 |
 | `core.address.not_assignable` | erreur | Les adresses de réseau, de diffusion, d'IID nul, de boucle locale, non spécifiées, réservées et multicast ne sont pas attribuées. | REQ-002-29 | RFC 1122 §3.2.1.3, RFC 4291 §2.6.1, registres IANA |
-| `core.public.overlap` | erreur | L'espace public est unique entre domaines, sauf adresses anycast partout. | REQ-002-32, REQ-002-46 | 002/A3, 002/A11 |
+| `core.public.overlap` | erreur | L'espace public est unique entre domaines, sauf adresses anycast partout et réseaux anycast partout, de même valeur. | REQ-002-32, REQ-002-46 | 002/A3, 002/A11, 002/A13 |
 | `core.domain.immutable` | erreur | Un objet d'adressage ne change jamais de domaine. | REQ-002-12 | 002/A1 |
 | `core.anchor.cycle` | erreur | Les arbres des entités et des sites n'ont pas de cycle. | REQ-002-8, REQ-002-9 | 002/design |
 | `core.anchor.in_use` | erreur | Une entité ou un site n'est clos que si rien ne le référence. | REQ-002-10 | D33 |
@@ -36,7 +38,7 @@ Sévérités fixées par la spécification (002/A4).
 | `core.addr.shared_space` | avertissement | L'espace partagé est destiné au NAT d'opérateur (CGN). | REQ-002-35 | RFC 6598 |
 | `core.prefix.ipv6_long_subnet` | avertissement | Les réseaux d'hôtes IPv6 sont des /64, sauf point à point /127 et /128. | REQ-002-35 | RFC 7136 §5 |
 | `core.prefix.ula_global_id` | avertissement | Un préfixe unique local utilise un Global ID pseudo-aléatoire. | REQ-002-35 | RFC 4193 §3.2 |
-| `core.public.anycast_shared` | avertissement | Une adresse publique anycast figure dans plusieurs domaines. | REQ-002-46 | 002/A11 |
+| `core.public.anycast_shared` | avertissement | Une adresse ou un réseau public anycast figure dans plusieurs domaines. | REQ-002-46 | 002/A11, 002/A13 |
 | `prop.declaration.invalid` | erreur | Une déclaration de propriété a une clé, un type et des paramètres valides. | REQ-003-2, REQ-003-3 | 003/P1, P2 |
 | `prop.declaration.namespace` | erreur | Un module déclare dans son espace, un administrateur dans l'espace custom avec les seuls types intégrés. | REQ-003-1, REQ-003-2 | 003/P1 |
 | `prop.declaration.incompatible` | erreur | Une évolution de déclaration n'invalide aucune affectation et ne change aucune valeur résolue sans affectation explicite. | REQ-003-6 | 003/P8 |

@@ -56,6 +56,7 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
             prefix: "10.0.0.0/8".into(),
             nature: Nature::Container,
             point_to_point: false,
+            anycast: false,
         }],
     );
     past.period = Some(PeriodSpec {

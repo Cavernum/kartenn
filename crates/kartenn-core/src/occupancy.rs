@@ -184,6 +184,7 @@ mod tests {
             value: pfx(t),
             nature: Nature::Network,
             point_to_point: p2p,
+            anycast: false,
         }
     }
 

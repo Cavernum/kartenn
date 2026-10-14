@@ -39,6 +39,7 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
             prefix: "192.0.2.0/24".into(),
             nature: Nature::Network,
             point_to_point: false,
+            anycast: false,
         },
         Operation::CreatePrefix {
             local: None,
@@ -46,6 +47,7 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
             prefix: "100.64.1.0/24".into(),
             nature: Nature::Network,
             point_to_point: false,
+            anycast: false,
         },
     ];
     let outcome = submit(&store, &request(author, ops), MAX_OPERATIONS)

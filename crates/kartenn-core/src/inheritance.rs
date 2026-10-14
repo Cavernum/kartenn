@@ -209,6 +209,7 @@ mod tests {
             value: Prefix::parse_any(&ALL, t).unwrap(),
             nature,
             point_to_point: false,
+            anycast: false,
         }
     }
 

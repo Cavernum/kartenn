@@ -31,6 +31,7 @@ async fn ranges_are_children_of_their_network_and_count_in_occupancy(pool: PgPoo
         prefix: v.into(),
         nature,
         point_to_point: false,
+        anycast: false,
     };
     let range = |first: &str, last: &str, usage| Operation::CreateRange {
         local: None,

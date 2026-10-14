@@ -41,6 +41,7 @@ async fn the_tree_is_deduced_and_measured(pool: PgPool) {
         prefix: v.into(),
         nature: n,
         point_to_point: false,
+        anycast: false,
     };
     let addr = |v: &str| Operation::CreateAddress {
         local: None,

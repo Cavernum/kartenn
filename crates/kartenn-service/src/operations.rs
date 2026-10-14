@@ -63,6 +63,9 @@ pub enum Operation {
         /// Point-to-point network.
         #[serde(default)]
         point_to_point: bool,
+        /// Anycast network (REQ-002-46, 49).
+        #[serde(default)]
+        anycast: bool,
     },
     /// Creates a range of addresses inside a network.
     CreateRange {
