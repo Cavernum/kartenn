@@ -35,7 +35,7 @@ voir [`../README.md`](../README.md).
 
 ## P3 — Stockage
 
-- [ ] 6. Migrations : `property_declaration`, `property_obligation`, `property_enum_value`,
+- [x] 6. Migrations : `property_declaration`, `property_obligation`, `property_enum_value`,
   `property_assignment` (colonnes typées, exclusion par objet et propriété),
   `property_origin` (propriétés héritables seules, P9) ; tables courantes + historique
   (004) ; index de filtrage dont `(property_id, origin_object_id)` —
