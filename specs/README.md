@@ -30,3 +30,29 @@ Une phase ne commence que lorsque la précédente est verte.
 Le RBAC (005) n'est pas encore spécifié : en P4, les contrôles de droits passent par une
 interface (`Authorizer`, avec `authorize_many`) et une implémentation de test
 configurable ; l'implémentation réelle viendra avec la 005.
+
+## Point d'étape — 2026-10-14
+
+Avancement : 002 : 19/28 tâches · 003 : 5/17 · 004 : 13/24 ; 138 tests, `devenv test` vert.
+
+### Décisions attendues (bloquent la suite)
+
+| # | Sujet | Où | Ce qui attend |
+|---|---|---|---|
+| 1 | Plages : type `inetrange` **sans** `subtype_diff`, `CHECK` de famille | [prototype 001](../docs/spikes/001-gist-exclusions.md) | table des plages (002-15), règles des plages (002-20), clé naturelle (002-17), occupation avec plages (002-24) |
+| 2 | Résolution des propriétés : matérialiser l'**origine** et non la valeur | [prototype 003](../docs/spikes/003-resolution.md) | tables des propriétés (003-6) et toute la P4 de la 003 ; ancres `core.owner`/`core.site` (002-22) |
+| 3 | Budget des changements d'origine au-delà de 10⁵ objets | [prototype 003](../docs/spikes/003-resolution.md) | REQ-003-26 |
+| 4 | Contradiction anycast entre domaines (REQ-002-25, 32, 46) | [002/implementation.md](002-noyau-adressage/implementation.md) (I1) | REQ-002-46 inatteignable en l'état |
+
+### Écarts corrigés en cours de route
+
+- ADR 0018 : le curseur unique de l'outbox pouvait sauter un événement ; remplacé par un
+  enregistrement des livraisons (migration 0006, test qui reproduit le cas).
+- Règles de migration issues des prototypes : pas de bloc `EXCEPTION` dans les fonctions
+  utilisées par types, index ou déclencheurs ; noms qualifiés ou `search_path` fixé.
+
+### Restent, sans décision bloquante mais à spécifier d'abord
+
+- Autorisations, approbations et propositions (004-11 à 14) : demandent la spec 005 (RBAC).
+- Opérations de modification (nature, redimensionnement, usage) et découpage en base (004-8).
+- Imports (004-18, 19), changeset inverse (004-20), bancs CI (P6).
