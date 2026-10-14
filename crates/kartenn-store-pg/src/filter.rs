@@ -93,11 +93,15 @@ fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String 
            AND ({})",
         predicate.unwrap_or("true")
     );
+    // An object and its origin are in the same domain, and an origin row lies within the
+    // validity of its object: the matching origins of the domain are enough.
     let resolved = if heritable {
         format!(
             "SELECT p.object_id AS id FROM property_origin p
              WHERE p.property_id = $1 AND p.valid_period @> $3
-               AND p.origin_object_id IN ({matching})"
+               AND p.origin_object_id IN ({matching}
+                   AND a.object_id IN (SELECT o.id FROM addressing_object o
+                                       WHERE o.domain_id = $2 AND o.valid_period @> $3))"
         )
     } else {
         format!("SELECT object_id AS id FROM ({matching}) m")
@@ -108,6 +112,8 @@ fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String 
              WHERE o.domain_id = $2 AND o.kind = ANY($6) AND o.valid_period @> $3
                AND NOT EXISTS (SELECT 1 FROM ({resolved}) r WHERE r.id = o.id)"
         )
+    } else if heritable {
+        resolved
     } else {
         format!(
             "SELECT r.id FROM ({resolved}) r
@@ -138,7 +144,10 @@ pub async fn filter(
     limit: i64,
 ) -> Result<Vec<Uuid>, FilterError> {
     let (sql, values, low, high, carriers) = prepare(pool, property, condition, at).await?;
+    // Planned with the values each time: a generic plan cannot tell an open bound from a
+    // closed one and leaves the value indexes aside (bench 003-16).
     Ok(sqlx::query_scalar(AssertSqlSafe(sql))
+        .persistent(false)
         .bind(property)
         .bind(domain)
         .bind(at)
