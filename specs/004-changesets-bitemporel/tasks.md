@@ -65,8 +65,8 @@ voir [`../README.md`](../README.md).
 
 ## P5 — Exploitation
 
-- [ ] 16. Marquage rétroactif et recherche d'audit — REQ-004-27, 31, 32 — verify : tests
-- [ ] 17. Personnes et pseudonymisation (job, délai configurable, 1 an par défaut) —
+- [x] 16. Marquage rétroactif et recherche d'audit — REQ-004-27, 31, 32 — verify : tests
+- [x] 17. Personnes et pseudonymisation (job, délai configurable, 1 an par défaut) —
   REQ-004-33 — verify : historique intact après pseudonymisation
 - [ ] 18. Imports : tri par dépendance, lots, worker, pause sur erreur, reprise —
   REQ-004-28, 30 — verify : import de 10⁵ opérations avec un lot fautif
