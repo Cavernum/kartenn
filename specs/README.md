@@ -33,7 +33,8 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-14
 
-Avancement : 002 : 19/28 tâches · 003 : 5/17 · 004 : 13/24 ; 138 tests, `devenv test` vert.
+Avancement : 002 : 23/28 tâches (plages faites) · 003 : 5/17 · 004 : 13/24 ; 147 tests,
+`devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 

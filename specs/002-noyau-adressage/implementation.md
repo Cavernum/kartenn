@@ -25,7 +25,7 @@ domaines) ; ses adresses sont alors anycast. Alternative : renoncer à REQ-002-4
 
 Table `ip_range`, règles REQ-002-21 à 24 et 28, clé naturelle des plages : l'amendement
 (type `inetrange` sans `subtype_diff`, `CHECK` de famille) est validé le 2026-10-14 ; les
-tâches 15, 17, 20 et 24 reprennent.
+tâches 15, 17, 20 et 24 sont faites (migration 0008).
 
 ## I3 — Opérations pas encore exposées par le pipeline
 
