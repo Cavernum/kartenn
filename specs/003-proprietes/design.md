@@ -237,6 +237,14 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
 - Sans droit d'écriture, refus `prop.forbidden_effect`, sauf si l'auteur détient
   `prop.<key>.propose` : le changeset devient une proposition en attente
   (004/REQ-004-41).
+- **Mise en œuvre (003-11)** : contrôle après le différentiel, dans la transaction ;
+  objets demandés = objets affectés directement (objets nouveaux compris) ∪ objets du
+  différentiel (existants seulement), une requête `authorize_many` par propriété ; le
+  refus liste les objets. `submit` reçoit l'`Authorizer` ; d'ici la 005, `Grants`
+  (droits explicites, pour les tests) et `Unrestricted` (tâches système, tests hors
+  droits) en sont les implémentations. **Écart provisoire** : la bascule en proposition
+  arrive avec la machine d'états (004-12, 004-14) ; d'ici là, un auteur qui ne détient
+  que `…propose` est refusé, avec un message qui le signale.
 
 ### Différentiel (REQ-003-19, 20)
 
