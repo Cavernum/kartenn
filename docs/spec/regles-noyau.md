@@ -46,3 +46,4 @@ Sévérités fixées par la spécification (002/A4).
 | `prop.assignment.forbidden_effect` | erreur | L'auteur détient la permission de la propriété sur chaque objet dont la valeur résolue change. | REQ-003-17, REQ-003-18 | 003/P6, P7 |
 | `prop.assignment.dangling_reference` | erreur | Une référence désigne un objet valide sur toute la période de l'affectation. | REQ-003-10 | D33 |
 | `prop.resolution.expected_mismatch` | avertissement | La valeur résolue diffère de la valeur attendue par la source configurée. | REQ-003-24 | D23 |
+| `changeset.operation.no_version` | erreur | Une opération ne vise un objet que sur une période où il existe. | REQ-004-14, REQ-004-15 | 004/design |

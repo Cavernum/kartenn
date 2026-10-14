@@ -244,7 +244,7 @@ mod tests {
         for id in ids {
             let parts: Vec<_> = id.split('.').collect();
             assert!(
-                parts.len() == 3 && (parts[0] == "core" || parts[0] == "prop"),
+                parts.len() == 3 && ["core", "prop", "changeset"].contains(&parts[0]),
                 "{id}"
             );
             assert!(
