@@ -1429,10 +1429,15 @@ impl WriteTx for PgTx {
             "WITH w AS (SELECT tstzrange(coalesce($2::timestamptz, now()), NULL) AS r),
                   o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
                         WHERE id = $1 AND valid_period && w.r)
-             SELECT DISTINCT x.id FROM addressing_object x, o, w
-             WHERE x.domain_id = o.domain_id AND x.valid_period && w.r
-               AND (x.id = $1 OR o.kind = 'domain'
-                    OR (o.kind = 'prefix' AND x.kind <> 'domain' AND x.value <<= o.value))",
+             -- three branches rather than an OR, so that each uses its index
+             SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
+             UNION
+             SELECT x.id FROM addressing_object x, o, w
+             WHERE o.kind = 'domain' AND x.domain_id = o.domain_id AND x.valid_period && w.r
+             UNION
+             SELECT x.id FROM addressing_object x, o, w
+             WHERE o.kind = 'prefix' AND x.domain_id = o.domain_id AND x.kind <> 'domain'
+               AND x.value <<= o.value AND x.valid_period && w.r",
         )
         .bind(object)
         .bind(a)

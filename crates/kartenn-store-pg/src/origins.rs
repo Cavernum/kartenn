@@ -24,6 +24,11 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 type Segment = (Uuid, OffsetDateTime, Option<OffsetDateTime>);
 
 /// Origin of each target on each segment of `[from, ∞)`, before merging.
+///
+/// Containment is written `>>=` plus `id <>` (prefixes are unique per domain) so that the
+/// `GiST` index of `prefix` applies; the assignments are looked up per candidate behind an
+/// `OFFSET 0` fence, as the statistics of a property assigned in this very changeset are
+/// stale and would otherwise drive a nested loop over every candidate (bench 003-16).
 const SEGMENTS: &str = "
 WITH w AS (SELECT tstzrange($3, NULL) AS r),
 t AS (
@@ -37,8 +42,7 @@ cand AS (
     SELECT t.id, p.id, masklen(p.prefix), p.valid_period * t.vp
     FROM t JOIN prefix p ON p.domain_id = t.domain_id AND t.kind <> 'domain'
         AND p.valid_period && t.vp
-        AND CASE WHEN t.kind = 'prefix' THEN p.prefix::inet >> t.value
-                 ELSE p.prefix::inet >>= t.value END
+        AND p.prefix >>= t.value AND p.id <> t.id
     UNION ALL
     SELECT t.id, d.id, -1, d.valid_period * t.vp
     FROM t JOIN addressing_domain d ON d.id = t.domain_id AND t.kind <> 'domain'
@@ -46,8 +50,10 @@ cand AS (
 ),
 hit AS (
     SELECT c.target, c.cand, c.prio, c.vp * a.valid_period AS vp
-    FROM cand c JOIN property_assignment a
-        ON a.object_id = c.cand AND a.property_id = $2 AND a.valid_period && c.vp
+    FROM cand c CROSS JOIN LATERAL (
+        SELECT a.valid_period FROM property_assignment a
+        WHERE a.object_id = c.cand AND a.property_id = $2 AND a.valid_period && c.vp
+        OFFSET 0) a
 ),
 pts AS (
     SELECT id AS target, lower(vp) AS p FROM t

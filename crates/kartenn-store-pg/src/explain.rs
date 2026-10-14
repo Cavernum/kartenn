@@ -43,13 +43,13 @@ fn ancestors_sql() -> Result<String, TemporalError> {
     let address = snapshot("address", &["id", "domain_id", "address"])?;
     Ok(format!(
         "WITH o AS (
-             SELECT id, domain_id, prefix::inet AS v, true AS is_prefix FROM {prefix} x WHERE id = $3
-             UNION ALL SELECT id, domain_id, lower(range), false FROM {range} x WHERE id = $3
-             UNION ALL SELECT id, domain_id, address, false FROM {address} x WHERE id = $3)
+             SELECT id, domain_id, prefix::inet AS v FROM {prefix} x WHERE id = $3
+             UNION ALL SELECT id, domain_id, lower(range) FROM {range} x WHERE id = $3
+             UNION ALL SELECT id, domain_id, address FROM {address} x WHERE id = $3)
          SELECT id FROM (
              SELECT p.id, masklen(p.prefix) AS depth FROM {prefix} p, o
              WHERE p.domain_id = o.domain_id
-               AND CASE WHEN o.is_prefix THEN p.prefix::inet >> o.v ELSE p.prefix::inet >>= o.v END
+               AND p.prefix >>= o.v AND p.id <> o.id
              UNION ALL SELECT o.domain_id, -1 FROM o) a
          ORDER BY depth DESC"
     ))
