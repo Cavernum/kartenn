@@ -57,7 +57,8 @@ voir [`../README.md`](../README.md).
 - [x] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
   tests d'intégration (insertion d'un conteneur au-dessus de 4 096 adresses)
   (`kartenn-service/tests/diff.rs`)
-- [ ] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
+- [x] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
+  (`kartenn-service/tests/obligations.rs`) — portée « entité » avec 002-22
 - [ ] 11. Droits : permission directe et droit sur l'effet via `Authorizer::authorize_many`
   (implémentation de test), bascule en proposition si `…propose` (004) — REQ-003-17, 18 —
   verify : chaque ligne de la table des cas limites
