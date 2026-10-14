@@ -199,8 +199,9 @@ pub(crate) async fn unassign<T: WriteTx>(
 
 /// Brings the materialised origins in line with the writes of the changeset (the four
 /// maintenance rules of the 003 design): new objects, assignments written or removed,
-/// closed objects and properties, declarations whose carriers or tree changed. Returns
-/// the number of objects whose origin changed, per property.
+/// closed objects and properties, declarations whose carriers or tree changed. Returns,
+/// per heritable property, the objects whose origin was recomputed or whose origin carries
+/// a new value.
 pub(crate) async fn maintain<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
@@ -210,6 +211,8 @@ pub(crate) async fn maintain<T: WriteTx>(
     let heritable: HashMap<Uuid, Vec<String>> =
         tx.addressing_heritable(period).await?.into_iter().collect();
     let mut targets: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
+    // Heirs of an origin whose value changed: values change, origins stay.
+    let mut revalued: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
     let mut everything: BTreeSet<Uuid> = BTreeSet::new();
     let add_all = |targets: &mut HashMap<Uuid, BTreeSet<Uuid>>, objects: &[Uuid]| {
         for p in heritable.keys() {
@@ -223,15 +226,24 @@ pub(crate) async fn maintain<T: WriteTx>(
             Planned::Range { object, .. } => add_all(&mut targets, &[object.id]),
             Planned::Address { object, .. } => add_all(&mut targets, &[object.id]),
             // Rules 2 and 3: an assignment written or removed changes the origin of the
-            // object and of the objects below it that do not carry their own.
+            // object and of the objects below it that do not carry their own; a new value
+            // where one was already carried moves no origin, only its heirs' values.
             Planned::Assign {
                 object, property, ..
             }
             | Planned::Unassign {
                 object, property, ..
             } if heritable.contains_key(property) => {
-                let below = tx.subtree(*object, period).await?;
-                targets.entry(*property).or_default().extend(below);
+                if tx
+                    .assignment_presence_changed(*object, *property, period)
+                    .await?
+                {
+                    let below = tx.subtree(*object, period).await?;
+                    targets.entry(*property).or_default().extend(below);
+                } else {
+                    let heirs = tx.heirs(*property, *object, period).await?;
+                    revalued.entry(*property).or_default().extend(heirs);
+                }
             }
             // Rule 3: a closed object loses its rows; its inheritors look further up.
             Planned::Close { kind, id, .. } if kind.is_addressing() => {
@@ -264,7 +276,10 @@ pub(crate) async fn maintain<T: WriteTx>(
         let objects: Vec<Uuid> = objects.into_iter().collect();
         tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
             .await?;
-        refreshed.insert(property, objects);
+        revalued.entry(property).or_default().extend(objects);
+    }
+    for (property, objects) in revalued {
+        refreshed.insert(property, objects.into_iter().collect());
     }
     Ok(refreshed)
 }

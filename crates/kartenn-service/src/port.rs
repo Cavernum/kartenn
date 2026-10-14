@@ -494,6 +494,24 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<(Uuid, Uuid)>, StoreError>> + Send;
 
+    /// Whether the changeset changed when `object` carries an assignment of `property`
+    /// (a value or an explicit clearing) from the start of `period` on; when it did not,
+    /// only values changed and no origin moves.
+    fn assignment_presence_changed(
+        &mut self,
+        object: Uuid,
+        property: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Objects whose origin of `property` is `origin` from the start of `period` on.
+    fn heirs(
+        &mut self,
+        property: Uuid,
+        origin: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
     /// Recomputes the origin of a heritable property for `targets` (those of a carrier
     /// kind) from the start of `period` on, and writes the segments that changed
     /// (003/design, § Résolution matérialisée). Returns the number of objects whose

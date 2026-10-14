@@ -1481,6 +1481,57 @@ impl WriteTx for PgTx {
         .map_err(store_err)
     }
 
+    async fn assignment_presence_changed(
+        &mut self,
+        object: Uuid,
+        property: Uuid,
+        period: Option<Period>,
+    ) -> Result<bool, StoreError> {
+        let (a, _) = bounds(period)?;
+        // Before: the versions the transaction did not write, current or replaced by it.
+        sqlx::query_scalar(
+            "WITH w AS (SELECT tstzrange(coalesce($3::timestamptz, now()), NULL) AS r),
+                  b AS (SELECT valid_period FROM property_assignment
+                        WHERE object_id = $1 AND property_id = $2 AND sys_start < now()
+                        UNION ALL
+                        SELECT valid_period FROM property_assignment_history
+                        WHERE object_id = $1 AND property_id = $2 AND sys_start < now()
+                          AND sys_end = now())
+             SELECT coalesce((SELECT range_agg(b.valid_period * w.r) FROM b, w
+                              WHERE b.valid_period && w.r), '{}')
+                    IS DISTINCT FROM
+                    coalesce((SELECT range_agg(a.valid_period * w.r) FROM property_assignment a, w
+                              WHERE a.object_id = $1 AND a.property_id = $2
+                                AND a.valid_period && w.r), '{}')",
+        )
+        .bind(object)
+        .bind(property)
+        .bind(a)
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn heirs(
+        &mut self,
+        property: Uuid,
+        origin: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, _) = bounds(period)?;
+        sqlx::query_scalar(
+            "SELECT DISTINCT object_id FROM property_origin
+             WHERE property_id = $1 AND origin_object_id = $2
+               AND valid_period && tstzrange(coalesce($3::timestamptz, now()), NULL)",
+        )
+        .bind(property)
+        .bind(origin)
+        .bind(a)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
     async fn refresh_origins(
         &mut self,
         property: Uuid,

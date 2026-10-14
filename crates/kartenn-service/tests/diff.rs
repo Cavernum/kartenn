@@ -278,13 +278,20 @@ async fn every_effect_in_the_window_counts_and_only_existing_objects(pool: PgPoo
     .await;
     // A value change on the origin: the origin and every inheritor change value (root,
     // network, two addresses); no origin moves.
-    let (_, diff) = f
+    let (changeset, diff) = f
         .applied(
             vec![f.assign(Ref::Id(root), ObjectKind::Prefix, &["prod", "dev"])],
             2,
         )
         .await;
     assert_eq!(diff, vec![change(r#"["prod"]"#, r#"["dev", "prod"]"#, 4)]);
+    let moved: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM property_origin WHERE changeset_id = $1")
+            .bind(changeset)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(moved, 0, "a value change rewrites no origin");
     // A new address inherits, but is not an existing object whose value changes.
     let (_, diff) = f
         .applied(
