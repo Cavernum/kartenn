@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
+thiserror = "2.0.21"
 
 [dev-dependencies]
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

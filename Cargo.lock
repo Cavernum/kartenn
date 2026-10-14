@@ -703,6 +703,7 @@ version = "0.0.0"
 dependencies = [
  "kartenn-workspace-hack",
  "sqlx",
+ "thiserror",
  "tokio",
 ]
 
