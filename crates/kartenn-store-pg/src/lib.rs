@@ -1,5 +1,6 @@
 //! PostgreSQL storage adapter of kartenn.
 
+pub mod keys;
 pub mod registry;
 pub mod temporal;
 
