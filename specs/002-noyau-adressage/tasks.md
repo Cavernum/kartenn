@@ -94,8 +94,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   — **partiel** : adresses faites (dans un réseau sur toute leur période, unicité, positions
   réservées) ; plages en attente (I2)
 - [ ] 21. Espace public et anycast entre domaines, verrou « espace public » —
-  REQ-002-32, 46 — verify : tests, dont concurrence
-  — **fait**, mais REQ-002-46 est inatteignable en l'état (contradiction, I1)
+  REQ-002-32, 46, 49 — verify : tests, dont concurrence
+  — **partiel** : adresses faites ; réseaux anycast (A13, REQ-002-49) à ajouter
 - [ ] 22. Ancres : cycles d'entités et de sites, clôture d'une ancre utilisée, domaine
   immuable ; `core.owner` et `core.site` déclarés comme propriétés du noyau (avec 003) —
   REQ-002-8 à 12, 20, 38 — après 003-8 — verify : tests, dont refus d'une manœuvre de

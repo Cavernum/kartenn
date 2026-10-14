@@ -251,7 +251,10 @@ date, présence ou absence), à une date donnée.
 kartenn doit respecter, sur le jeu de 10⁶ objets de REQ-002-45 avec 10 propriétés dont 3
 héritables : résolution expliquée d'une propriété pour un objet < 50 ms ; page filtrée
 par valeur résolue < 150 ms ; différentiel d'un changeset touchant jusqu'à 10⁴ objets
-< 1 s ; jusqu'à 10⁶ objets < 10 s, décompte d'abord, détail paginé (p95 serveur).
+< 1 s ; jusqu'à 10⁶ objets < 10 s, décompte d'abord, détail paginé (p95 serveur). Par
+exception, quand plus de 10⁵ objets changent d'**objet d'origine** (clôture ou effacement
+très haut dans l'arbre), le différentiel et l'application doivent tenir en < 60 s, la
+simulation donnant d'abord le décompte (P10).
 
 ## Non-objectifs
 
@@ -266,7 +269,7 @@ par valeur résolue < 150 ms ; différentiel d'un changeset touchant jusqu'à 10
 
 - [ ] L'entité propriétaire héritée (REQ-002-38) devient-elle une propriété de référence
   héritable du noyau, ou reste-t-elle un cas particulier ? (conception 002/003, Claude)
-- [ ] Budgets du différentiel (REQ-003-26) : à confirmer par un prototype sur 10⁶ objets.
-  (Claude)
+- [x] Budgets du différentiel (REQ-003-26) : confirmés par le prototype 003, sauf les
+  changements d'origine de plus de 10⁵ objets, assouplis à < 60 s (P10). (Claude)
 - [ ] Note de référence à rédiger avant la conception : noms de domaine (RFC 1123 §2.1,
   RFC 1035, RFC 5890–5891 IDNA), RFC 3339 et normalisation Unicode (UAX #15). (Claude)

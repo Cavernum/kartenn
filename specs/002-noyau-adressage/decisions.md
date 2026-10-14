@@ -150,3 +150,23 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
 - Pourquoi : mécanisme minimal, sans nouveau type d'objet.
 - Rejeté : déclaration séparée liant les occurrences (nouvel objet pour un cas rare).
 - Décidé par : délégué (l'utilisateur ne savait pas)
+- Amendée par A13 (réseaux anycast).
+
+## A12 — Type de plage sans `subtype_diff` (prototype 001)
+- Décision : le type de plage sur `inet` est déclaré **sans** `subtype_diff` ; un `CHECK`
+  interdit une plage dont les bornes sont de familles différentes.
+- Pourquoi : le prototype 001 montre un index GiST plus rapide et plus sûr sans ce
+  paramètre ; `inet` ordonne les familles entre elles, donc une plage mixte serait
+  acceptée sans le `CHECK`.
+- Rejeté : conserver `subtype_diff` (index moins bon, aucun gain mesuré).
+- Décidé par : recommandation acceptée (2026-10-14)
+
+## A13 — Réseaux anycast (amende A11, lève I1)
+- Décision : un **réseau** public peut être marqué anycast et figurer dans plusieurs
+  domaines si toutes ses occurrences le sont ; un avertissement liste les autres
+  domaines. Ses adresses sont alors anycast.
+- Pourquoi : A11, limité aux adresses, était inatteignable : REQ-002-25 impose un réseau
+  dans chaque domaine, et REQ-002-32 refusait ce réseau dupliqué.
+- Rejeté : renoncer à REQ-002-46 (perd un cas réel) ; dispenser les adresses anycast de
+  REQ-002-25 (affaiblit l'arbre d'héritage).
+- Décidé par : recommandation acceptée (2026-10-14)

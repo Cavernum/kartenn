@@ -37,7 +37,8 @@ voir [`../README.md`](../README.md).
 
 - [ ] 6. Migrations : `property_declaration`, `property_obligation`, `property_enum_value`,
   `property_assignment` (colonnes typées, exclusion par objet et propriété),
-  `property_resolved` ; tables courantes + historique (004) ; index de filtrage —
+  `property_origin` (propriétés héritables seules, P9) ; tables courantes + historique
+  (004) ; index de filtrage dont `(property_id, origin_object_id)` —
   REQ-003-5, 12, 13, 25 — après 004-5 — verify : tests d'intégration des contraintes
 - [ ] 7. Enregistrement des déclarations de module par migration ; déclarations
   d'administrateur par changeset (opérations dédiées) — REQ-003-1, 2 — après 004-7 —
@@ -45,8 +46,9 @@ voir [`../README.md`](../README.md).
 
 ## P4 — Pipeline
 
-- [ ] 8. Résolution matérialisée incrémentale : objets touchés, portée structurelle,
-  segmentation temporelle, calcul ensembliste, écriture des segments modifiés —
+- [ ] 8. Résolution matérialisée incrémentale de l'origine : les quatre règles de
+  maintenance (design), cibles dont l'origine change, segmentation temporelle, calcul
+  ensembliste, écriture des segments modifiés —
   REQ-003-11, 12, 13, 15 — verify : **tests de propriétés contre l'oracle** sur des suites
   aléatoires de changesets, y compris dans le temps
 - [ ] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
@@ -63,13 +65,14 @@ voir [`../README.md`](../README.md).
 
 - [ ] 14. Explication de résolution (origine, chaîne, provenance, valeur remplacée) —
   REQ-003-14 — verify : tests
-- [ ] 15. Filtrage par valeur résolue (égalité, appartenance, intervalle,
-  présence/absence) à une date ; job de réévaluation des écarts quand une source change
+- [ ] 15. Filtrage par valeur résolue en partant des origines qui portent la valeur
+  (égalité, appartenance, intervalle, présence/absence) à une date ; job de réévaluation des écarts quand une source change
   de version — REQ-003-24, 25 — verify : tests d'intégration ; plans d'exécution vérifiés
 
 ## P6 — Budgets et synchronisation
 
-- [ ] 16. Banc CI : résolution expliquée, page filtrée, différentiel 10⁴ et 10⁶ — REQ-003-26
-  — verify : seuils bloquants
+- [ ] 16. Banc CI : résolution expliquée, page filtrée, différentiel de valeur sur 10⁶
+  objets, changement d'origine sur 10⁴ et plus de 10⁵ objets (P10) — REQ-003-26 —
+  verify : seuils bloquants
 - [ ] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
   rapport spec-keeper sans écart

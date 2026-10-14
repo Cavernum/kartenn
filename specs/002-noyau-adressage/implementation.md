@@ -2,7 +2,10 @@
 
 Écarts et questions découverts en implémentant, à trancher avant de finir la spec.
 
-## I1 — Contradiction : anycast entre domaines (REQ-002-25, 32, 46) — **décision requise**
+## I1 — Contradiction : anycast entre domaines (REQ-002-25, 32, 46) — **tranché (A13)**
+
+Décidé le 2026-10-14 : la proposition ci-dessous est retenue (A13) ; REQ-002-32 et 46
+amendées, REQ-002-49 ajoutée.
 
 - REQ-002-25 : toute adresse appartient à un réseau de son domaine.
 - REQ-002-32 : les réseaux publics sont uniques entre domaines.
@@ -18,10 +21,11 @@ Proposition : étendre A11 aux **réseaux** : un réseau public peut être marqu
 figurer dans plusieurs domaines si toutes ses occurrences le sont (avertissement listant les
 domaines) ; ses adresses sont alors anycast. Alternative : renoncer à REQ-002-46.
 
-## I2 — Plages en attente de l'amendement du prototype 001
+## I2 — Plages en attente de l'amendement du prototype 001 — **tranché (A12)**
 
-Table `ip_range`, règles REQ-002-21 à 24 et 28, clé naturelle des plages : en attente de la
-validation de l'amendement (type `inetrange` sans `subtype_diff`).
+Table `ip_range`, règles REQ-002-21 à 24 et 28, clé naturelle des plages : l'amendement
+(type `inetrange` sans `subtype_diff`, `CHECK` de famille) est validé le 2026-10-14 ; les
+tâches 15, 17, 20 et 24 reprennent.
 
 ## I3 — Opérations pas encore exposées par le pipeline
 

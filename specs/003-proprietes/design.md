@@ -16,11 +16,12 @@ Le point dur est la performance de la **résolution** sous trois contraintes à 
 héritage le long d'un arbre déduit (D34), bitemporel (D10), et différentiel avec contrôle
 des droits à chaque changeset (REQ-003-18, 19). La décision centrale :
 
-> Les **valeurs résolues sont matérialisées** dans une table versionnée comme les autres
-> données (temps applicatif et temps système), maintenue **incrémentalement par la
-> couche service dans la transaction du changeset**. Le différentiel est la différence
-> entre les valeurs matérialisées avant et après, sur l'ensemble des objets touchés.
-> (ADR 0016, proposé.)
+> L'**origine** de chaque propriété héritable (l'objet qui porte l'affectation
+> applicable) est matérialisée dans une table versionnée comme les autres données (temps
+> applicatif et temps système), maintenue **incrémentalement par la couche service dans
+> la transaction du changeset**. La valeur se lit par jointure sur l'affectation de
+> l'origine. Le différentiel porte sur les objets dont l'origine ou la valeur de
+> l'origine change. (ADR 0016, amendé par P9 après le prototype 003.)
 
 ## Changements
 
@@ -113,35 +114,45 @@ Une adresse ou une plage a pour premier ancêtre son réseau, jamais une plage (
 
 | Table | Contenu |
 |---|---|
-| `property_resolved` | `object_id`, `property_id`, valeur résolue (mêmes colonnes typées, ou absente), `origin_object_id` (objet qui porte l'affectation retenue, ou null), période de validité, période système |
+| `property_origin` | `object_id`, `property_id`, `origin_object_id` (objet qui porte l'affectation retenue, ou null si aucune), période de validité, période système |
 
-- Une ligne par (objet porteur ou héritier, propriété héritable ou affectée) et par
-  segment de temps applicatif où la valeur est constante. Pour une propriété non
-  héritable, la table reflète simplement les affectations (uniformité du filtrage).
+- Une ligne par (objet porteur ou héritier, propriété **héritable**) et par segment de
+  temps applicatif où l'origine est constante. Les propriétés non héritables ne sont
+  pas matérialisées : leur affectation est la valeur (P9).
+- **Valeur** : jointure de `origin_object_id` sur l'affectation courante de la même
+  propriété (index `(property_id, object_id)` des affectations).
 - **Versionnée en temps système** comme le reste (004) : `as_of` dans le passé se sert
-  de l'historique de la table, sans recalcul (budget INV-33).
+  de l'historique de la table et de celui des affectations, sans recalcul (budget
+  INV-33).
 - **Explication** (REQ-003-14) : `origin_object_id` donne l'origine ; la chaîne est
   reconstituée par `ancestors(object, valid_at)` jusqu'à l'origine ; la provenance et la
   valeur remplacée viennent des affectations.
 
 **Maintenance incrémentale** dans la transaction du changeset, après les écritures du
-noyau :
+noyau. Le travail est proportionnel au nombre d'objets dont l'**origine** change, pas à
+la taille de la portée structurelle ([prototype 003](../../docs/spikes/003-resolution.md)) :
+
+| Changement | Effet sur `property_origin` | Différentiel |
+|---|---|---|
+| Valeur d'une affectation existante modifiée | aucun | objets dont l'origine est cet objet |
+| Nouvelle affectation sur P, ou insertion d'un préfixe P qui en porte | pour les seules propriétés affectées sur P : objets de la portée de P dont l'origine est strictement plus haut que P → origine P | ces objets |
+| Effacement ou suppression d'affectation, clôture ou redimensionnement de P | objets dont l'origine est P → ancêtre le plus proche portant une affectation | ces objets |
+| Insertion d'un préfixe sans affectation | aucun | aucun |
 
 ```mermaid
 flowchart TD
-  A[Opérations du changeset appliquées en mémoire de transaction] --> B[Objets touchés directement : affectations, créations, clôtures]
-  B --> C[Portée structurelle : scope_of_change pour chaque changement de préfixe ou de parent]
-  C --> D[Ensemble E des objets à recalculer, par propriété héritable concernée]
-  D --> E[Segmentation temporelle : bornes des versions de E et de leurs ancêtres dans la période visée]
-  E --> F[Calcul ensembliste SQL : pour chaque objet et segment, ancêtre le plus proche portant une affectation]
-  F --> G[Différentiel : nouvelles valeurs comparées à property_resolved]
-  G --> H[Contrôles : obligations, droit sur l'effet, valeurs attendues]
-  H --> I[Écriture des segments modifiés dans property_resolved]
+  A[Opérations du changeset appliquées en mémoire de transaction] --> B[Classement des changements selon le tableau ci-dessus]
+  B --> C[Cibles : objets dont l'origine change, par propriété héritable]
+  C --> D[Segmentation temporelle : bornes des versions des cibles et de leurs ancêtres dans la période visée]
+  D --> E[Calcul ensembliste SQL : nouvelle origine par cible et segment]
+  E --> F[Différentiel : anciennes et nouvelles valeurs, par jointure sur les affectations]
+  F --> G[Contrôles : obligations, droit sur l'effet, valeurs attendues]
+  G --> H[Écriture des segments modifiés dans property_origin]
 ```
 
 - **Arrêt de propagation** : un descendant qui porte sa propre affectation borne la
-  propagation (REQ-003-12) ; le calcul ensembliste le prend en compte naturellement
-  (ancêtre le plus proche).
+  propagation (REQ-003-12) : son origine est lui-même, jamais un ancêtre, donc il n'est
+  jamais ciblé par la règle 2.
 - **Calcul ensembliste** : une requête par propriété héritable, `LATERAL` sur les ancêtres
   (`prefix >>= objet` dans le domaine, trié par longueur décroissante) joints aux
   affectations courantes ; pas de boucle objet par objet.
@@ -195,13 +206,18 @@ en v0.2 (spec 010).
 
 ### Filtrage (REQ-003-25)
 
-Sur `property_resolved` (versions courantes, segment contenant `valid_at`) :
+Propriété héritable : la requête part des **affectations** qui portent la valeur
+cherchée dans le domaine (petit ensemble d'origines), puis des objets résolus vers elles
+par `property_origin` (index `(property_id, origin_object_id)`) ; un objet et son origine
+sont toujours dans le même domaine. Partir des objets coûtait 1,25 s au prototype ;
+partir des origines, 27 à 78 ms. Propriété non héritable : filtre direct sur les
+affectations.
 
-| Filtre | Index |
+| Filtre sur les affectations | Index |
 |---|---|
 | égalité, intervalle (int, date, text) | B-tree `(property_id, v_int)`, `(property_id, v_date)`, `(property_id, v_text)` |
 | appartenance (enum, ref, ensembles) | B-tree `(property_id, v_uuid)` ; GIN sur `v_uuids`, `v_texts` |
-| présence / absence | index partiel sur valeur absente |
+| présence / absence | `property_origin` avec origine nulle (héritable) ; anti-jointure (non héritable) |
 
 Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédicats SQL).
 
@@ -216,13 +232,17 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
 | Insertion d'un conteneur sans affectation entre un parent `{prod}` et un enfant `{dev}` | Aucun changement de valeur résolue : pas de contrôle de droit | 18 |
 | Clôture d'un préfixe qui porte `{dev}` sous un parent `{prod}` | Différentiel `{dev}` → `{prod}` sur ses descendants ; `prop.forbidden_effect` sans droit | 18, 19 |
 | Changeset qui crée un réseau, ses adresses et affecte une propriété au réseau | Objets nouveaux : pas de contrôle d'effet ; droit direct exigé pour l'affectation | 17, 18 |
-| Changeset qui reclasse 10⁶ objets | Différentiel : décompte immédiat, détail paginé ; budget < 10 s | 19, 26 |
+| Changeset qui change la valeur portée par 10⁶ objets | Aucune réécriture ; différentiel : décompte immédiat, détail paginé ; budget < 10 s | 19, 26 |
+| Changeset qui change l'origine de plus de 10⁵ objets (clôture très haute) | Décompte d'abord (simulation) ; application atomique ; budget < 60 s (P10) | 19, 26 |
 | Effacement explicite sur une portée obligatoire | `prop.required` | 13, 16 |
 | Référence vers un objet qui sera clos dans le même changeset | Évalué sur l'état final : refus `prop.dangling_reference` | 10 |
 | Cycle d'entités ou de sites | Refusé par le noyau (`core.anchor.cycle`) avant la résolution | 11 |
 
 ## Alternatives considérées
 
+- **Matérialiser la valeur résolue** (conception initiale) : lecture sans jointure, mais
+  chaque changement réécrit la valeur sur tous les héritiers ; 3,2 s pour 1,6×10⁴
+  objets et 16 s pour 7,6×10⁵ au prototype 003. Rejetée (P9).
 - **Résolution à la lecture, sans matérialisation** : simple et toujours juste, mais
   filtrer 10⁶ objets par valeur héritée et calculer un différentiel de 10⁴ objets en
   moins d'1 s deviennent hors budget. Rejetée.
@@ -238,12 +258,12 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
 
 ## Risques et migration
 
-- **Volume de `property_resolved`** : environ 3 propriétés héritables × 10⁶ objets ×
-  segments × versions système. Estimation et mesure par le prototype ; partitionnement par
-  `property_id` si nécessaire.
-- **Coût des changements structurels hauts dans l'arbre** (conteneur `/8` clos) : borné
-  par le budget de 10 s pour 10⁶ objets ; au-delà, refus avec demande de découpage (le
-  différentiel complet doit rester calculable).
+- **Volume de `property_origin`** : environ 3 propriétés héritables × 10⁶ objets ×
+  segments × versions système (3,6×10⁶ lignes courantes au prototype) ; partitionnement
+  par `property_id` si nécessaire.
+- **Coût des changements d'origine hauts dans l'arbre** (racine ou conteneur `/8` clos) :
+  ≈ 30 µs par objet, doublé par l'historique ; au-delà de 10⁵ objets, budget < 60 s avec
+  décompte préalable (P10).
 - **Segmentation temporelle** : source probable de bugs subtils ; couverte par des tests
   de propriétés comparant la table matérialisée à une résolution naïve.
 - **Dépendance au RBAC (005)** pour `authorize_many` : interface fixée ici, implémentée là.
@@ -257,7 +277,7 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
 | 1 à 6 | Intégration : déclarations de module et d'administrateur ; vérificateur de compatibilité, un cas par ligne du tableau |
 | 7 à 9 | Unitaires par type ; tests de propriétés (normalisation idempotente, encodage ↔ décodage) ; FQDN : cas de la note de référence (`straße`, Fake A-label, `10.1.2.3`) |
 | 10 | Intégration : clôture d'une cible référencée |
-| 11 à 15 | **Oracle naïf** : un résolveur de référence non matérialisé, comparé à `property_resolved` après des suites aléatoires de changesets (tests de propriétés), y compris dans le temps |
+| 11 à 15 | **Oracle naïf** : un résolveur de référence non matérialisé, comparé à `property_origin` (jointe aux affectations) après des suites aléatoires de changesets (tests de propriétés), y compris dans le temps |
 | 16 | Intégration : obligation, effacement, valeur par défaut avant contrôle |
 | 17, 18 | Intégration avec un RBAC de test : chaque ligne de la table des cas limites |
 | 19, 20 | Intégration : décompte et détail ; simulation sans écriture (état inchangé) |

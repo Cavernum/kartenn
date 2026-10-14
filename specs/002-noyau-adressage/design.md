@@ -184,8 +184,12 @@ longueur décroissante, premier résultat. Servi par l'index GiST `inet_ops`.
 un indicateur `public` calculé depuis le registre à usage spécial (entrée la plus
 spécifique, Globally Reachable ou absence d'entrée), avec la version du registre utilisée.
 La règle `core.public.overlap` cherche les objets publics d'autres domaines qui
-chevauchent la valeur ; les adresses anycast ne se heurtent qu'à des occurrences non
-anycast.
+chevauchent la valeur ; un chevauchement est toléré si et seulement si les deux objets
+sont anycast (adresse d'usage « anycast » ou réseau marqué anycast, A11, A13). Ainsi une
+adresse anycast de A ne se heurte pas au réseau anycast de B qui la contient. La règle
+`core.public.anycast_shared` avertit pour chaque chevauchement toléré ; la règle
+`core.anycast.address_usage` refuse une adresse non anycast dans un réseau anycast
+(REQ-002-49).
 
 ### Concurrence (INV-2, INV-5, INV-6) — ADR 0015
 
@@ -219,8 +223,10 @@ découpage courant/historique relèvent de la 004.
 | `special_registry` | `family`, `block`, drapeaux, `registry_version`, `iana_updated` | données de référence, chargées par migration |
 
 - `inetrange` : type intervalle sur `inet` **sans** `subtype_diff`, avec
-  `CHECK (family(lower(range)) = family(upper(range)))` — amendement proposé par le
-  [prototype 001](../../docs/spikes/001-gist-exclusions.md), **à valider**.
+  `CHECK (family(lower(range)) = family(upper(range)))` — amendement issu du
+  [prototype 001](../../docs/spikes/001-gist-exclusions.md), validé (A12).
+- `prefix.anycast boolean NOT NULL DEFAULT false` avec
+  `CHECK (NOT anycast OR nature = 'network')` (REQ-002-49, A13).
 - `domain_id WITH =` utilise btree_gist sur `uuid` (fiable) ; jamais de btree_gist sur
   `inet`/`cidr` (ADR 0004).
 - Les contraintes s'appliquent aux versions courantes côté système (dispositif exact :

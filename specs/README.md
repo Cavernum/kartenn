@@ -37,6 +37,9 @@ Avancement : 002 : 19/28 tâches · 003 : 5/17 · 004 : 13/24 ; 138 tests, `deve
 
 ### Décisions attendues (bloquent la suite)
 
+Toutes tranchées le 2026-10-14, selon la recommandation : 002/A12 (1), 003/P9 (2),
+003/P10 (3), 002/A13 (4). Exigences, conceptions et ADR 0016 amendés en conséquence.
+
 | # | Sujet | Où | Ce qui attend |
 |---|---|---|---|
 | 1 | Plages : type `inetrange` **sans** `subtype_diff`, `CHECK` de famille | [prototype 001](../docs/spikes/001-gist-exclusions.md) | table des plages (002-15), règles des plages (002-20), clé naturelle (002-17), occupation avec plages (002-24) |

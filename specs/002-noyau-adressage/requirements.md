@@ -275,21 +275,37 @@ refuser l'écriture en indiquant l'adresse IPv4 équivalente (A4).
 Si deux réseaux, plages ou adresses de domaines différents se chevauchent sur une période
 commune dans l'espace public (aucune entrée du registre à usage spécial, ou entrée
 « Globally Reachable »), alors kartenn doit refuser l'écriture (A3), sauf entre adresses
-d'usage « anycast » (A11).
+d'usage « anycast » et entre réseaux marqués anycast (A11, A13).
 
 Acceptation :
 - `198.51.100.0/24` est de la documentation, donc non concerné ; un même bloc public
   réseau dans les domaines A et B est refusé ; un même bloc RFC 1918 dans A et B est accepté.
 
 #### REQ-002-46 — Anycast entre domaines
-Quand une adresse publique d'usage « anycast » est présente dans plusieurs domaines sur
-une période commune, kartenn doit accepter l'écriture si toutes ces occurrences sont
-d'usage « anycast », et renvoyer un avertissement qui liste les autres domaines (A11).
+Quand une adresse publique d'usage « anycast », ou un réseau public marqué anycast, est
+présent dans plusieurs domaines sur une période commune, kartenn doit accepter l'écriture
+si toutes ces occurrences sont anycast, et renvoyer un avertissement qui liste les autres
+domaines (A11, A13).
 
 Acceptation :
 - Soit P une adresse publique : P anycast dans A et anycast dans B → accepté avec
-  avertissement ; P anycast dans A et hôte dans B → refusé ; un **réseau** public dupliqué reste refusé même s'il ne contient
-  que des adresses anycast.
+  avertissement ; P anycast dans A et hôte dans B → refusé.
+- Soit N un réseau public : N anycast dans A et anycast dans B → accepté avec
+  avertissement, et une adresse anycast de N peut alors figurer dans A et dans B ; N
+  anycast dans A et non anycast dans B → refusé ; un **conteneur** public dupliqué reste
+  refusé, et un conteneur public de B qui contient N (anycast dans A) aussi.
+- Amendé le 2026-10-14 (A13) : la version précédente refusait tout réseau public
+  dupliqué, ce qui rendait l'anycast entre domaines inatteignable (REQ-002-25).
+
+#### REQ-002-49 — Réseau anycast
+kartenn doit n'accepter la marque anycast que sur un préfixe de nature **réseau**, et si
+une adresse d'un réseau marqué anycast n'est pas d'usage « anycast », alors kartenn doit
+refuser l'écriture (A13).
+
+Acceptation :
+- Marquer anycast un conteneur → refusé ; une adresse d'usage « hôte » dans un réseau
+  anycast → refusée ; une adresse anycast dans un réseau non anycast reste acceptée
+  (A11).
 
 ### H. Classification et anomalies
 

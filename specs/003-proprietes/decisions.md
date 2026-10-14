@@ -111,3 +111,24 @@ P6 prévoyait qu'une propriété puisse « exiger l'approbation ». Remplacé pa
 aucune déclaration (de module ou d'administrateur) ne porte d'exigence d'approbation ;
 l'approbation relève uniquement de politiques facultatives configurées par un
 administrateur (déclencheurs : volume, propriété, périmètre, auteur).
+
+## P9 — Matérialiser l'origine, pas la valeur (prototype 003)
+- Décision : la résolution matérialisée stocke, par objet et propriété héritable,
+  l'**objet d'origine** de l'affectation applicable ; la valeur se lit par jointure sur
+  cette affectation. Les propriétés non héritables ne sont pas matérialisées. La
+  maintenance suit les quatre règles du prototype 003. Amende l'ADR 0016.
+- Pourquoi : matérialiser la valeur dépasse les budgets (16 s pour 7,6×10⁵ objets) ;
+  l'origine les tient (0,63 s pour 1,6×10⁴ objets, changement de valeur sans
+  réécriture, pages filtrées en 27 à 78 ms).
+- Rejeté : matérialiser la valeur (réécriture massive, doublée par l'historique).
+- Décidé par : recommandation acceptée (2026-10-14)
+
+## P10 — Budget des grands changements d'origine
+- Décision : quand plus de 10⁵ objets changent d'origine dans un changeset, le budget
+  du différentiel et de l'application passe à **< 60 s** ; la simulation donne d'abord
+  le décompte ; le changeset reste atomique.
+- Pourquoi : cas rare (clôture ou effacement très haut dans l'arbre), ≈ 30 µs par
+  objet mesurés, hors de portée de < 10 s pour 10⁶ objets.
+- Rejeté : imposer un import par lots (casse l'atomicité) ; garder < 10 s (aucune
+  solution connue).
+- Décidé par : recommandation acceptée (2026-10-14)
