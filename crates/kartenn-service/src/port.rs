@@ -570,6 +570,17 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
+    /// Records the differential of a heritable `property` on the heirs of `origins`, whose
+    /// value changed while no origin moved, from the start of `period` on; `excluded` are
+    /// the objects the changeset creates or whose origin it recomputed.
+    fn record_value_diff(
+        &mut self,
+        property: Uuid,
+        origins: &[Uuid],
+        excluded: &[Uuid],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// Counts of the differential recorded so far.
     fn diff_summary(&mut self) -> impl Future<Output = Result<Vec<DiffCount>, StoreError>> + Send;
 

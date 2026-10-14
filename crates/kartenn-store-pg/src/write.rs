@@ -1583,6 +1583,18 @@ impl WriteTx for PgTx {
             .await
     }
 
+    async fn record_value_diff(
+        &mut self,
+        property: Uuid,
+        origins: &[Uuid],
+        excluded: &[Uuid],
+        period: Option<Period>,
+    ) -> Result<(), StoreError> {
+        let (a, _) = bounds(period)?;
+        self.record_value_diff_from(property, origins, excluded, a)
+            .await
+    }
+
     async fn diff_summary(&mut self) -> Result<Vec<DiffCount>, StoreError> {
         self.diff_counts().await
     }

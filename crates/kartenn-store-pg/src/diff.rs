@@ -98,6 +98,56 @@ FROM cmp WHERE before IS DISTINCT FROM after"
     )
 }
 
+/// Differential of the heirs of origins whose value changed while no origin moved: the
+/// timeline of each origin's value before and after, then the heirs over each segment that
+/// changed, from the origin index. Parameters: `$1` property, `$2` origins, `$3` window
+/// start, `$4` excluded objects, `$5` closed list.
+fn value_sql() -> String {
+    let value = value_json("$5");
+    format!(
+        "WITH w AS (SELECT tstzrange($3, NULL) AS r),
+ab AS (
+    SELECT * FROM property_assignment
+    WHERE property_id = $1 AND object_id = ANY($2) AND sys_start < now()
+    UNION ALL
+    SELECT object_id, object_type, property_id, kind, v_uuid, v_uuids, v_text, v_texts, v_int,
+           v_ints, v_bool, v_date, v_dates, provenance, valid_period, sys_start, changeset_id
+    FROM property_assignment_history
+    WHERE property_id = $1 AND object_id = ANY($2) AND sys_start < now() AND sys_end = now()
+),
+aa AS (SELECT * FROM property_assignment WHERE property_id = $1 AND object_id = ANY($2)),
+vb AS (
+    SELECT a.object_id AS origin, a.valid_period * w.r AS vp, {value} AS v
+    FROM ab a, w WHERE a.valid_period && w.r
+),
+va AS (
+    SELECT a.object_id AS origin, a.valid_period * w.r AS vp, {value} AS v
+    FROM aa a, w WHERE a.valid_period && w.r
+),
+pts AS (
+    SELECT origin, lower(vp) AS p FROM vb
+    UNION SELECT origin, coalesce(upper(vp), 'infinity') FROM vb
+    UNION SELECT origin, lower(vp) FROM va
+    UNION SELECT origin, coalesce(upper(vp), 'infinity') FROM va
+),
+seg AS (SELECT origin, p AS s, lead(p) OVER (PARTITION BY origin ORDER BY p) AS e FROM pts),
+chg AS (
+    SELECT g.origin, tstzrange(g.s, nullif(g.e, 'infinity')) AS sp, vb.v AS before, va.v AS after
+    FROM seg g
+    LEFT JOIN vb ON vb.origin = g.origin AND vb.vp @> g.s
+    LEFT JOIN va ON va.origin = g.origin AND va.vp @> g.s
+    WHERE g.e IS NOT NULL
+)
+INSERT INTO pg_temp.diff_detail (property_key, object_id, before, after)
+SELECT DISTINCT (SELECT key FROM property_declaration WHERE id = $1 LIMIT 1), r.object_id,
+       c.before, c.after
+FROM chg c
+JOIN property_origin r ON r.property_id = $1 AND r.origin_object_id = c.origin
+    AND r.valid_period && c.sp
+WHERE c.before IS DISTINCT FROM c.after AND NOT r.object_id = ANY($4)"
+    )
+}
+
 impl PgTx {
     async fn diff_table(&mut self) -> Result<(), StoreError> {
         sqlx::raw_sql(
@@ -108,6 +158,52 @@ impl PgTx {
         .execute(&mut *self.tx)
         .await
         .map_err(store_err)?;
+        Ok(())
+    }
+
+    /// Window start and whether the property is a closed list.
+    async fn diff_context(
+        &mut self,
+        property: Uuid,
+        start: Option<OffsetDateTime>,
+    ) -> Result<(OffsetDateTime, bool), StoreError> {
+        let from: OffsetDateTime = sqlx::query_scalar("SELECT coalesce($1::timestamptz, now())")
+            .bind(start)
+            .fetch_one(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        let closed_list: bool = sqlx::query_scalar(
+            "SELECT coalesce(bool_or(value_type = 'enum'), false) FROM property_declaration WHERE id = $1",
+        )
+        .bind(property)
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok((from, closed_list))
+    }
+
+    /// Records the differential of the heirs of `origins` (see [`value_sql`]).
+    pub(crate) async fn record_value_diff_from(
+        &mut self,
+        property: Uuid,
+        origins: &[Uuid],
+        excluded: &[Uuid],
+        start: Option<OffsetDateTime>,
+    ) -> Result<(), StoreError> {
+        self.diff_table().await?;
+        if origins.is_empty() {
+            return Ok(());
+        }
+        let (from, closed_list) = self.diff_context(property, start).await?;
+        sqlx::query(sqlx::AssertSqlSafe(value_sql()))
+            .bind(property)
+            .bind(origins)
+            .bind(from)
+            .bind(excluded)
+            .bind(closed_list)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
         Ok(())
     }
 
@@ -124,18 +220,7 @@ impl PgTx {
         if objects.is_empty() {
             return Ok(());
         }
-        let from: OffsetDateTime = sqlx::query_scalar("SELECT coalesce($1::timestamptz, now())")
-            .bind(start)
-            .fetch_one(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
-        let closed_list: bool = sqlx::query_scalar(
-            "SELECT coalesce(bool_or(value_type = 'enum'), false) FROM property_declaration WHERE id = $1",
-        )
-        .bind(property)
-        .fetch_one(&mut *self.tx)
-        .await
-        .map_err(store_err)?;
+        let (from, closed_list) = self.diff_context(property, start).await?;
         // Equality joins only: hash and merge joins scale with the volume, whereas the
         // statistics of a property written in this changeset are stale and lead the
         // planner into nested loops over every origin (bench 003-16).

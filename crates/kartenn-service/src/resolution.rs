@@ -197,22 +197,34 @@ pub(crate) async fn unassign<T: WriteTx>(
         .await?)
 }
 
+/// What the maintenance of the origins did, per heritable property.
+#[derive(Debug, Default)]
+pub(crate) struct Maintained {
+    /// Objects whose origin was recomputed.
+    pub(crate) recomputed: BTreeMap<Uuid, Vec<Uuid>>,
+    /// Origins whose value changed while carrying an assignment throughout: no origin
+    /// moved because of them.
+    pub(crate) revalued: BTreeMap<Uuid, Vec<Uuid>>,
+    /// Objects whose resolved value may have changed: recomputed, or heirs of a revalued
+    /// origin.
+    pub(crate) affected: BTreeMap<Uuid, Vec<Uuid>>,
+}
+
 /// Brings the materialised origins in line with the writes of the changeset (the four
 /// maintenance rules of the 003 design): new objects, assignments written or removed,
-/// closed objects and properties, declarations whose carriers or tree changed. Returns,
-/// per heritable property, the objects whose origin was recomputed or whose origin carries
-/// a new value.
+/// closed objects and properties, declarations whose carriers or tree changed.
 pub(crate) async fn maintain<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
-) -> Result<BTreeMap<Uuid, Vec<Uuid>>, StoreError> {
+) -> Result<Maintained, StoreError> {
     let heritable: HashMap<Uuid, Vec<String>> =
         tx.addressing_heritable(period).await?.into_iter().collect();
     let mut targets: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
-    // Heirs of an origin whose value changed: values change, origins stay.
+    // Origins whose value changed, and their heirs: values change, origins stay.
     let mut revalued: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
+    let mut affected: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
     let mut everything: BTreeSet<Uuid> = BTreeSet::new();
     let add_all = |targets: &mut HashMap<Uuid, BTreeSet<Uuid>>, objects: &[Uuid]| {
         for p in heritable.keys() {
@@ -242,7 +254,8 @@ pub(crate) async fn maintain<T: WriteTx>(
                     targets.entry(*property).or_default().extend(below);
                 } else {
                     let heirs = tx.heirs(*property, *object, period).await?;
-                    revalued.entry(*property).or_default().extend(heirs);
+                    affected.entry(*property).or_default().extend(heirs);
+                    revalued.entry(*property).or_default().insert(*object);
                 }
             }
             // Rule 3: a closed object loses its rows; its inheritors look further up.
@@ -271,26 +284,28 @@ pub(crate) async fn maintain<T: WriteTx>(
         let all = tx.objects_of_kinds(&heritable[&property], period).await?;
         targets.entry(property).or_default().extend(all);
     }
-    let mut refreshed = BTreeMap::new();
+    let mut out = Maintained::default();
     for (property, objects) in targets {
         let objects: Vec<Uuid> = objects.into_iter().collect();
         tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
             .await?;
-        revalued.entry(property).or_default().extend(objects);
+        affected.entry(property).or_default().extend(&objects);
+        out.recomputed.insert(property, objects);
     }
-    for (property, objects) in revalued {
-        refreshed.insert(property, objects.into_iter().collect());
-    }
-    Ok(refreshed)
+    let list = |set: BTreeSet<Uuid>| set.into_iter().collect::<Vec<_>>();
+    out.revalued = revalued.into_iter().map(|(p, s)| (p, list(s))).collect();
+    out.affected = affected.into_iter().map(|(p, s)| (p, list(s))).collect();
+    Ok(out)
 }
 
 /// Records the differential of resolved values (REQ-003-19): the heritable properties on
-/// the objects whose origin was refreshed, the others on the objects assigned directly.
-/// New objects are left out (only existing objects change value).
+/// the objects whose origin was recomputed and on the heirs of the revalued origins, the
+/// others on the objects assigned directly. New objects are left out (only existing
+/// objects change value).
 pub(crate) async fn diff<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
-    refreshed: BTreeMap<Uuid, Vec<Uuid>>,
+    maintained: &Maintained,
     period: Option<Period>,
 ) -> Result<Vec<DiffCount>, StoreError> {
     let created = created(planned);
@@ -302,13 +317,20 @@ pub(crate) async fn diff<T: WriteTx>(
         | Planned::Unassign {
             object, property, ..
         } = p
-            && !refreshed.contains_key(property)
+            && !maintained.affected.contains_key(property)
         {
             direct.entry(*property).or_default().insert(*object);
         }
     }
-    for (property, objects) in &refreshed {
+    for (property, objects) in &maintained.recomputed {
         tx.record_diff(*property, objects, true, &created, period)
+            .await?;
+    }
+    // Heirs whose origin did not move: their origin's change of value, once for all.
+    for (property, origins) in &maintained.revalued {
+        let mut excluded = created.clone();
+        excluded.extend(maintained.recomputed.get(property).into_iter().flatten());
+        tx.record_value_diff(*property, origins, &excluded, period)
             .await?;
     }
     for (property, objects) in direct {

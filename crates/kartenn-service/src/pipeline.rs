@@ -753,13 +753,14 @@ async fn properties<T: WriteTx, A: Authorizer>(
     };
     let mut all = planned.to_vec();
     all.extend(defaults);
-    let refreshed = crate::resolution::maintain(tx, &all, period, changeset).await?;
-    crate::resolution::check_obligations(tx, &all, &refreshed, period, violations).await?;
+    let maintained = crate::resolution::maintain(tx, &all, period, changeset).await?;
+    let refreshed = &maintained.affected;
+    crate::resolution::check_obligations(tx, &all, refreshed, period, violations).await?;
     if has_errors(violations) {
         return Ok(None);
     }
-    let touched = crate::resolution::touched(&all, &refreshed);
-    let diff = crate::resolution::diff(tx, &all, refreshed, period).await?;
+    let touched = crate::resolution::touched(&all, refreshed);
+    let diff = crate::resolution::diff(tx, &all, &maintained, period).await?;
     // Default values are not the author's choice: only their effects need rights.
     crate::rights::check(tx, authorizer, author, planned, &diff, period, violations).await?;
     if has_errors(violations) {
