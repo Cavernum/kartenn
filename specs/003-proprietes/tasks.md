@@ -75,9 +75,11 @@ voir [`../README.md`](../README.md).
 
 - [x] 14. Explication de résolution (origine, chaîne, provenance, valeur remplacée) —
   REQ-003-14 — verify : tests (`kartenn-service/tests/explain.rs`, deux axes du temps)
-- [ ] 15. Filtrage par valeur résolue en partant des origines qui portent la valeur
+- [x] 15. Filtrage par valeur résolue en partant des origines qui portent la valeur
   (égalité, appartenance, intervalle, présence/absence) à une date ; job de réévaluation des écarts quand une source change
   de version — REQ-003-24, 25 — verify : tests d'intégration ; plans d'exécution vérifiés
+  (`kartenn-service/tests/filter.rs`, `expected.rs`) — date d'application seule ; date
+  système avec l'API (006)
 
 ## P6 — Budgets et synchronisation
 
