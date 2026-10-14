@@ -467,6 +467,13 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
+    /// Objects carrying a reference assignment to `target` over a time when `target` does
+    /// not exist (REQ-003-10).
+    fn dangling_references(
+        &mut self,
+        target: Uuid,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
     /// Properties with obligations at the start of `period`, with their declaration.
     fn obligated(
         &mut self,

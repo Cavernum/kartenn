@@ -961,6 +961,25 @@ impl WriteTx for PgTx {
             .await
     }
 
+    async fn dangling_references(&mut self, target: Uuid) -> Result<Vec<Uuid>, StoreError> {
+        sqlx::query_scalar(
+            "WITH life AS (
+                 SELECT range_agg(valid_period) AS m FROM (
+                     SELECT valid_period FROM addressing_object WHERE id = $1
+                     UNION ALL SELECT valid_period FROM entity WHERE id = $1
+                     UNION ALL SELECT valid_period FROM site WHERE id = $1) x)
+             SELECT DISTINCT a.object_id FROM property_assignment a
+             JOIN property_declaration d ON d.id = a.property_id AND d.value_type = 'ref'
+             WHERE a.kind = 'value' AND (a.v_uuid = $1 OR $1 = ANY(a.v_uuids))
+               AND NOT coalesce((SELECT m FROM life) @> a.valid_period, false)
+             ORDER BY 1",
+        )
+        .bind(target)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
     async fn obligated(
         &mut self,
         period: Option<Period>,

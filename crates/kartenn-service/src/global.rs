@@ -61,6 +61,27 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Unassign { .. } => {}
         }
     }
+    // REQ-003-10: a closed object leaves no reference assignment without its target, on
+    // the final state (a reference removed in the same changeset no longer counts).
+    for p in planned {
+        if let Planned::Close { kind, id, .. } = p
+            && kind.is_addressing()
+        {
+            let referring = tx.dangling_references(*id).await?;
+            if !referring.is_empty() {
+                violations.push(
+                    Violation::new(
+                        &rules::PROP_DANGLING_REFERENCE,
+                        format!(
+                            "{id} is still referenced by {} object(s) after its closure",
+                            referring.len()
+                        ),
+                    )
+                    .with_subjects(std::iter::once(*id).chain(referring)),
+                );
+            }
+        }
+    }
     for address in addresses_to_recheck {
         if !tx.address_covered(address).await? {
             violations.push(
