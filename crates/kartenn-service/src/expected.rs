@@ -299,3 +299,81 @@ pub fn suggest_for(
     let source = sources.get(&declaration.expected.as_ref()?.source)?;
     source.expected(&declaration.key.to_string(), view?)
 }
+
+/// Re-evaluates the deviations of every source of the registry whose version changed since
+/// the last evaluation (REQ-003-24): all carrier objects of its properties in `check`
+/// mode, by batches of `batch` objects, each journaled as a system changeset that opens
+/// and closes the anomalies; then records the version. Returns the objects evaluated.
+///
+/// # Errors
+///
+/// [`RequestError`] on infrastructure failure.
+pub async fn reevaluate_outdated<S: Store>(
+    store: &S,
+    sources: &Sources,
+    batch: usize,
+) -> Result<usize, crate::RequestError> {
+    let mut tx = store.begin().await?;
+    let mut outdated: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
+    for (_, declaration) in tx.with_expected(None).await? {
+        let Some(expected) = declaration
+            .expected
+            .filter(|e| e.mode == ExpectedMode::Check)
+        else {
+            continue;
+        };
+        let Some(source) = sources.get(&expected.source) else {
+            continue;
+        };
+        if tx.source_version(source.id()).await?.as_deref() == Some(source.version()) {
+            continue;
+        }
+        outdated
+            .entry(source.id().to_owned())
+            .or_insert_with(|| (source.version().to_owned(), BTreeSet::new()))
+            .1
+            .extend(declaration.carriers);
+    }
+    tx.rollback().await?;
+    let mut evaluated = 0;
+    for (source, (version, carriers)) in outdated {
+        let mut tx = store.begin().await?;
+        let carriers: Vec<String> = carriers.into_iter().collect();
+        let objects = tx.objects_of_kinds(&carriers, None).await?;
+        tx.rollback().await?;
+        for chunk in objects.chunks(batch.max(1)) {
+            let mut tx = store.begin().await?;
+            let mut violations = Vec::new();
+            let checked = check(&mut tx, sources, chunk, None, &mut violations).await?;
+            let request = crate::ChangesetRequest {
+                author: crate::declarations::SYSTEM_AUTHOR,
+                motive: format!("expected re-evaluation {source}@{version}"),
+                period: None,
+                operations: Vec::new(),
+                simulate: false,
+                idempotency_key: None,
+            };
+            let reevaluated: Vec<(Uuid, &'static str)> = checked
+                .iter()
+                .map(|o| (*o, rules::PROP_EXPECTED_MISMATCH.id))
+                .collect();
+            let journal = crate::port::Journal {
+                id: Uuid::now_v7(),
+                request: &request,
+                state: "applied",
+                violations: &violations,
+                domains: &[],
+                objects: &checked,
+                reevaluated: &reevaluated,
+                diff: &[],
+            };
+            tx.journal_applied(&journal).await?;
+            tx.commit().await?;
+            evaluated += checked.len();
+        }
+        let mut tx = store.begin().await?;
+        tx.set_source_version(&source, &version).await?;
+        tx.commit().await?;
+    }
+    Ok(evaluated)
+}

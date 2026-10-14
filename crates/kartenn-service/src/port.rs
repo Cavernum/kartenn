@@ -436,6 +436,19 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Option<Value>, StoreError>> + Send;
 
+    /// Version of a source whose deviations were last re-evaluated (REQ-003-24).
+    fn source_version(
+        &mut self,
+        source: &str,
+    ) -> impl Future<Output = Result<Option<String>, StoreError>> + Send;
+
+    /// Records that the deviations of a source were re-evaluated at `version`.
+    fn set_source_version(
+        &mut self,
+        source: &str,
+        version: &str,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// Properties with a source of expected values at the start of `period`.
     fn with_expected(
         &mut self,

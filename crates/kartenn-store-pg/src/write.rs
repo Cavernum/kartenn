@@ -1323,6 +1323,27 @@ impl WriteTx for PgTx {
         self.resolved_at(object, property, declaration, a).await
     }
 
+    async fn source_version(&mut self, source: &str) -> Result<Option<String>, StoreError> {
+        sqlx::query_scalar("SELECT version FROM expected_source_state WHERE source = $1")
+            .bind(source)
+            .fetch_optional(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn set_source_version(&mut self, source: &str, version: &str) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO expected_source_state (source, version) VALUES ($1, $2)
+             ON CONFLICT (source) DO UPDATE SET version = EXCLUDED.version, evaluated_at = now()",
+        )
+        .bind(source)
+        .bind(version)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn with_expected(
         &mut self,
         period: Option<Period>,

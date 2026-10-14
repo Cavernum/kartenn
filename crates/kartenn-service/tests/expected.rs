@@ -8,7 +8,9 @@ use kartenn_core::objects::Nature;
 use kartenn_core::properties::{Expected, ExpectedMode};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
-use kartenn_service::expected::{ExpectedValueSource, Sources, Suggestion, suggest, suggest_for};
+use kartenn_service::expected::{
+    ExpectedValueSource, Sources, Suggestion, reevaluate_outdated, suggest, suggest_for,
+};
 use kartenn_service::operations::{DeclarationInput, ObligationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ObjectView;
@@ -343,4 +345,56 @@ async fn suggestions_write_nothing(pool: PgPool) {
     };
     let s = suggest_for(&sources("1"), declaration.as_ref(), Some(&draft)).expect("a suggestion");
     assert_eq!(s.values, vec![RawInput::Text("prod".into())]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_new_source_version_reevaluates_the_deviations(pool: PgPool) {
+    let f = Fixture::new(&pool, ExpectedMode::Check, false).await;
+    // Version 1 expects `dev` under 10.66: both containers match their expectation.
+    let v1 = sources("1");
+    let warnings = f
+        .applied(
+            &v1,
+            vec![
+                f.container(1, "10.66.0.0/16"),
+                f.assign(Ref::Local(1), "dev"),
+                f.container(2, "10.67.0.0/16"),
+                f.assign(Ref::Local(2), "prod"),
+            ],
+        )
+        .await;
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(reevaluate_outdated(&f.store, &v1, 1).await.unwrap(), 2);
+    assert_eq!(
+        reevaluate_outdated(&f.store, &v1, 1).await.unwrap(),
+        0,
+        "up to date"
+    );
+    // Version 2 expects `dev` under 10.67 instead: both containers deviate now.
+    let v2 = Sources::none().with(Arc::new(ByPrefix {
+        version: "2",
+        prefix: "10.67.",
+    }));
+    assert_eq!(reevaluate_outdated(&f.store, &v2, 1).await.unwrap(), 2);
+    let open: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT object_id FROM anomaly
+         WHERE rule_id = 'prop.resolution.expected_mismatch' AND closed_at IS NULL ORDER BY 1",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let mut expected = vec![
+        f.prefix_id("10.66.0.0/16").await,
+        f.prefix_id("10.67.0.0/16").await,
+    ];
+    expected.sort();
+    assert_eq!(open, expected);
+    // Each batch is journaled as a system changeset.
+    let batches: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM changeset WHERE motive = 'expected re-evaluation by-prefix@2'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(batches, 2);
 }
