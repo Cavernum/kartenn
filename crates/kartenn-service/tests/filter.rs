@@ -40,6 +40,40 @@ fn declaration(
     }
 }
 
+/// `custom.environment` as local 1 with its values, `custom.floor` as local 2.
+fn declarations() -> Vec<Operation> {
+    let value = |key: &str| Operation::AddEnumValue {
+        local: None,
+        property: Ref::Local(1),
+        key: key.into(),
+    };
+    vec![
+        Operation::DeclareProperty {
+            local: Some(1),
+            declaration: declaration(
+                "custom.environment",
+                TypeInput::Enum,
+                Cardinality::Set,
+                &["prefix", "address"],
+                true,
+            ),
+        },
+        value("prod"),
+        value("dev"),
+        value("rec"),
+        Operation::DeclareProperty {
+            local: Some(2),
+            declaration: declaration(
+                "custom.floor",
+                TypeInput::Int { min: 0, max: 99 },
+                Cardinality::Single,
+                &["address"],
+                false,
+            ),
+        },
+    ]
+}
+
 impl Fixture {
     /// `custom.environment` (set of `prod`, `dev`, `rec`, heritable, prefixes and
     /// addresses) and `custom.floor` (integer, addresses only); `10.0.0.0/8` in `{prod}`,
@@ -59,11 +93,6 @@ impl Fixture {
             domain: Uuid::nil(),
             env: Uuid::nil(),
             floor: Uuid::nil(),
-        };
-        let value = |key: &str| Operation::AddEnumValue {
-            local: None,
-            property: Ref::Local(1),
-            key: key.into(),
         };
         let prefix = |local, value: &str, nature| Operation::CreatePrefix {
             local: Some(local),
@@ -85,30 +114,8 @@ impl Fixture {
             property: Ref::Local(property),
             values: values.iter().map(|v| RawInput::Text((*v).into())).collect(),
         };
-        f.applied(vec![
-            Operation::DeclareProperty {
-                local: Some(1),
-                declaration: declaration(
-                    "custom.environment",
-                    TypeInput::Enum,
-                    Cardinality::Set,
-                    &["prefix", "address"],
-                    true,
-                ),
-            },
-            value("prod"),
-            value("dev"),
-            value("rec"),
-            Operation::DeclareProperty {
-                local: Some(2),
-                declaration: declaration(
-                    "custom.floor",
-                    TypeInput::Int { min: 0, max: 99 },
-                    Cardinality::Single,
-                    &["address"],
-                    false,
-                ),
-            },
+        let mut operations = declarations();
+        operations.extend([
             Operation::CreateDomain {
                 local: Some(3),
                 slug: "prod".into(),
@@ -132,8 +139,8 @@ impl Fixture {
                 property: Ref::Local(2),
                 values: vec![RawInput::Int(7)],
             },
-        ])
-        .await;
+        ]);
+        f.applied(operations).await;
         f.domain = sqlx::query_scalar("SELECT id FROM addressing_domain")
             .fetch_one(pool)
             .await
