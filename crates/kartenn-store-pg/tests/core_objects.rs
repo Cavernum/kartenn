@@ -178,3 +178,69 @@ async fn external_ids_are_unique_per_source(pool: PgPool) -> sqlx::Result<()> {
     );
     Ok(())
 }
+
+async fn range(
+    pool: &PgPool,
+    domain: Uuid,
+    first: &str,
+    last: &str,
+    period: &str,
+) -> sqlx::Result<()> {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1, inetrange($2::inet, $3::inet, '[]'), 'dhcp', false, '2025-10-09', {period}, gen_random_uuid())"
+    )))
+    .bind(domain)
+    .bind(first)
+    .bind(last)
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn ranges_are_disjoint_per_domain_and_single_family(pool: PgPool) -> sqlx::Result<()> {
+    // Behaviour of variant A of spike 001, now in the real schema (002/A12).
+    let (d1, d2) = (Uuid::now_v7(), Uuid::now_v7());
+    range(&pool, d1, "10.1.2.10", "10.1.2.50", FOREVER).await?;
+    for (first, last) in [
+        ("10.1.2.40", "10.1.2.60"),
+        ("10.1.2.20", "10.1.2.30"),
+        ("10.1.2.50", "10.1.2.50"),
+    ] {
+        assert!(
+            range(&pool, d1, first, last, FOREVER).await.is_err(),
+            "REQ-002-22: {first}–{last}"
+        );
+    }
+    range(&pool, d1, "10.1.2.51", "10.1.2.60", FOREVER).await?;
+    range(&pool, d2, "10.1.2.40", "10.1.2.60", FOREVER).await?;
+    range(
+        &pool,
+        d1,
+        "10.1.2.40",
+        "10.1.2.45",
+        "tstzrange('2025-01-01', '2026-01-01')",
+    )
+    .await?;
+    range(&pool, d1, "2001:db8::10", "2001:db8::50", FOREVER).await?;
+    assert!(
+        range(&pool, d1, "2001:db8::40", "2001:db8::60", FOREVER)
+            .await
+            .is_err(),
+        "IPv6 overlap"
+    );
+    assert!(
+        range(&pool, d1, "10.9.0.1", "2001:db8:9::1", FOREVER)
+            .await
+            .is_err(),
+        "mixed families"
+    );
+    assert!(
+        range(&pool, d1, "10.9.0.0/24", "10.9.0.20", FOREVER)
+            .await
+            .is_err(),
+        "bounds are host values"
+    );
+    Ok(())
+}
