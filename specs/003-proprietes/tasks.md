@@ -59,9 +59,10 @@ voir [`../README.md`](../README.md).
   (`kartenn-service/tests/diff.rs`)
 - [x] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
   (`kartenn-service/tests/obligations.rs`) — portée « entité » avec 002-22
-- [ ] 11. Droits : permission directe et droit sur l'effet via `Authorizer::authorize_many`
+- [x] 11. Droits : permission directe et droit sur l'effet via `Authorizer::authorize_many`
   (implémentation de test), bascule en proposition si `…propose` (004) — REQ-003-17, 18 —
-  verify : chaque ligne de la table des cas limites
+  verify : chaque ligne de la table des cas limites (`kartenn-service/tests/rights.rs`)
+  — bascule en proposition avec 004-14
 - [ ] 12. Références : intégrité à la clôture d'une cible — REQ-003-10 — verify : tests
 - [ ] 13. Contrat `ExpectedValueSource`, modes `suggest`, `default`, `check` (source de
   test), anomalie d'écart — REQ-003-21 à 24 — verify : tests d'intégration

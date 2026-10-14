@@ -52,6 +52,8 @@ voir [`../README.md`](../README.md).
 - [ ] 11. Interface `Authorizer` (`authorize`, `authorize_many`, permission d'approbation,
   `…propose`) et implémentation de test configurable — prépare REQ-004-21, 41, 42 —
   verify : tests unitaires
+  — **partiel** : `authorize_many`, `Grants`, `Unrestricted` faits (003-11) ; `authorize`
+  et permission d'approbation avec 004-13
 - [ ] 12. Machine d'états, retrait, rejet, expiration (job) — REQ-004-19, 23, 24 —
   verify : tests de chaque transition
 - [ ] 13. Politiques d'approbation (volume, propriété, périmètre, auteur), aucune par
