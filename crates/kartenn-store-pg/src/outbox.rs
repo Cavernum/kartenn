@@ -1,9 +1,13 @@
 //! Outbox relay (REQ-004-36, 37; ADR 0018 amended).
 //!
-//! Events are written in the changeset transaction. The relay reads only events of
-//! finished transactions (`xid` below the snapshot `xmin`), never delivered to this
-//! consumer, in sequence order, and records each delivery after the sink accepted it:
-//! delivery is at least once, without gaps, ordered within an addressing domain.
+//! Events are written in the changeset transaction. The relay reads the committed events
+//! never delivered to this consumer, in sequence order, and records each delivery after
+//! the sink accepted it: delivery is at least once, without gaps, ordered within an
+//! addressing domain. An event of a transaction still running is invisible and delivered
+//! on a later run; it can only be overtaken by events of other domains, since changesets
+//! of a domain are serialised by its lock (ADR 0015) and so number their events in commit
+//! order. There is no barrier on the oldest running transaction: it is cluster-wide, and
+//! any long transaction (a backup, a report) would stall every consumer.
 
 use std::future::Future;
 
@@ -64,8 +68,7 @@ where
         .await?;
     let rows: Vec<(i64, Uuid, Vec<Uuid>, serde_json::Value)> = sqlx::query_as(
         "SELECT o.seq, o.changeset_id, o.domain_ids, o.payload FROM outbox o
-         WHERE o.xid < pg_snapshot_xmin(pg_current_snapshot())
-           AND NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = o.seq)
+         WHERE NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = o.seq)
          ORDER BY o.seq LIMIT $2",
     )
     .bind(consumer)

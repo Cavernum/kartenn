@@ -28,6 +28,17 @@ livraisons supprime ce trou (test `a_running_transaction_is_never_skipped`). L'o
 (les changesets d'un domaine sont sérialisés par ADR 0015). Format CloudEvents 1.0 :
 `id` = UUID du changeset, dédoublonnage par `source` + `id`.
 
+**Second amendement (implémentation, 2026-10-14)** : la barrière
+`xid < pg_snapshot_xmin(pg_current_snapshot())` est retirée. Elle imposait un ordre
+global que la décision ne promet pas, et `xmin` vaut pour **toute l'instance** PostgreSQL :
+une transaction longue dans n'importe quelle base (sauvegarde, rapport, test) bloquait
+tous les consommateurs. Sans elle, le relais lit les événements validés et non livrés par
+numéro croissant ; un événement d'une transaction en cours, invisible, est livré au
+passage suivant (l'enregistrement des livraisons empêche tout trou). Il ne peut être
+dépassé que par des événements d'autres domaines : deux changesets d'un même domaine sont
+sérialisés par son verrou (ADR 0015) et numérotent donc leurs événements dans l'ordre de
+validation. La colonne `xid` est conservée pour le diagnostic.
+
 ## Alternatives
 
 - Lecture par numéro seul : risque de trou.
@@ -36,5 +47,8 @@ livraisons supprime ce trou (test `a_running_transaction_is_never_skipped`). L'o
 
 ## Consequences
 
-- Une transaction très longue retarde la livraison des événements suivants.
+- Une transaction longue ne retarde que ses propres événements ; entre domaines
+  différents, l'ordre de livraison peut différer de l'ordre de numérotation.
+- La garantie d'ordre par domaine repose sur les verrous de domaine : toute écriture
+  dans un domaine doit prendre son verrou.
 - Les consommateurs doivent être idempotents (dédoublonnage par `id`).

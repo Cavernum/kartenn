@@ -116,17 +116,29 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
         .execute(&pool)
         .await
         .unwrap();
-    assert!(
-        drain(&pool, "c").await.is_empty(),
-        "the later event waits for the running transaction"
+    // Without domain in common, the later event does not wait for the running
+    // transaction (ordering is per domain, ADR 0018) …
+    assert_eq!(
+        drain(&pool, "c")
+            .await
+            .iter()
+            .map(|e| e.changeset)
+            .collect::<Vec<_>>(),
+        vec![c2],
+        "committed events are not held back"
     );
     long.commit().await.unwrap();
-    let events = drain(&pool, "c").await;
+    // … and the earlier one, committed afterwards, is not skipped.
     assert_eq!(
-        events.iter().map(|e| e.changeset).collect::<Vec<_>>(),
-        vec![c1, c2],
-        "both, in sequence order"
+        drain(&pool, "c")
+            .await
+            .iter()
+            .map(|e| e.changeset)
+            .collect::<Vec<_>>(),
+        vec![c1],
+        "delivered once committed"
     );
+    assert!(drain(&pool, "c").await.is_empty(), "each event once");
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
