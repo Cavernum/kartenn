@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use kartenn_core::inheritance::Assigned;
 use kartenn_core::period::Period;
-use kartenn_core::properties::{Declaration, TypeSpec};
+use kartenn_core::properties::{Declaration, InheritTree, ObligationScope, TypeSpec};
 use kartenn_core::rules::{self, Violation};
 use kartenn_core::values::{Raw, Value, ValueContext, parse_value};
 use uuid::Uuid;
@@ -197,9 +197,17 @@ pub(crate) async fn unassign<T: WriteTx>(
         .await?)
 }
 
-/// Kinds that inherit along the addressing tree (a range or an address inherits from its
-/// network, never from a range).
-pub(crate) const HEIRS: [&str; 4] = ["domain", "prefix", "range", "address"];
+/// The core tree an object of `kind` belongs to, if any.
+const fn tree_of(kind: ObjectKind) -> Option<InheritTree> {
+    match kind {
+        ObjectKind::Domain | ObjectKind::Prefix | ObjectKind::Range | ObjectKind::Address => {
+            Some(InheritTree::Addressing)
+        }
+        ObjectKind::Entity => Some(InheritTree::Entity),
+        ObjectKind::Site => Some(InheritTree::Site),
+        _ => None,
+    }
+}
 
 /// What the maintenance of the origins did, per heritable property.
 #[derive(Debug, Default)]
@@ -223,24 +231,28 @@ pub(crate) async fn maintain<T: WriteTx>(
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<Maintained, StoreError> {
-    let heritable: HashMap<Uuid, Vec<String>> =
-        tx.addressing_heritable(period).await?.into_iter().collect();
+    let heritable: HashMap<Uuid, InheritTree> = tx.heritable(period).await?.into_iter().collect();
     let mut targets: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
     // Origins whose value changed, and their heirs: values change, origins stay.
     let mut revalued: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
     let mut affected: HashMap<Uuid, BTreeSet<Uuid>> = HashMap::new();
     let mut everything: BTreeSet<Uuid> = BTreeSet::new();
-    let add_all = |targets: &mut HashMap<Uuid, BTreeSet<Uuid>>, objects: &[Uuid]| {
-        for p in heritable.keys() {
-            targets.entry(*p).or_default().extend(objects);
-        }
-    };
+    // Every property heritable along the tree of `kind` targets `objects`.
+    let add_all =
+        |targets: &mut HashMap<Uuid, BTreeSet<Uuid>>, kind: ObjectKind, objects: &[Uuid]| {
+            let tree = tree_of(kind);
+            for (p, t) in &heritable {
+                if tree.as_ref() == Some(t) {
+                    targets.entry(*p).or_default().extend(objects);
+                }
+            }
+        };
     for p in planned {
+        if let Some((kind, id)) = new_object(p) {
+            add_all(&mut targets, kind, &[id]);
+            continue;
+        }
         match p {
-            Planned::Domain { id, .. } => add_all(&mut targets, &[*id]),
-            Planned::Prefix { object, .. } => add_all(&mut targets, &[object.id]),
-            Planned::Range { object, .. } => add_all(&mut targets, &[object.id]),
-            Planned::Address { object, .. } => add_all(&mut targets, &[object.id]),
             // Rules 2 and 3: an assignment written or removed changes the origin of the
             // object and of the objects below it that do not carry their own; a new value
             // where one was already carried moves no origin, only its heirs' values.
@@ -263,11 +275,9 @@ pub(crate) async fn maintain<T: WriteTx>(
                 }
             }
             // Rule 3: a closed object loses its rows; its inheritors look further up.
-            Planned::Close { kind, id, .. } if kind.is_addressing() => {
-                add_all(&mut targets, &[*id]);
-                for (property, object) in tx.inheritors(*id, period).await? {
-                    targets.entry(property).or_default().insert(object);
-                }
+            Planned::Close { kind, id, .. } if tree_of(*kind).is_some() => {
+                add_all(&mut targets, *kind, &[*id]);
+                inheritors(tx, *id, &mut targets, period).await?;
             }
             Planned::Restore {
                 kind, id, property, ..
@@ -281,19 +291,23 @@ pub(crate) async fn maintain<T: WriteTx>(
                 )
                 .await?;
             }
-            // A resized prefix moves the tree: the objects now below it, and those that
-            // inherited from it and may have left (004-8).
+            // A resized prefix or a moved entity or site moves the tree: the objects now
+            // below it, and those that inherited from it and may have left (004-8, 003-18).
             Planned::Modify {
-                kind: ObjectKind::Prefix,
+                kind: kind @ ObjectKind::Prefix,
                 id,
                 change: Change::Prefix { value: Some(_), .. },
                 ..
+            }
+            | Planned::Modify {
+                kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
+                id,
+                change: Change::Parent(_),
+                ..
             } => {
                 let below = tx.subtree(*id, period).await?;
-                add_all(&mut targets, &below);
-                for (property, object) in tx.inheritors(*id, period).await? {
-                    targets.entry(property).or_default().insert(object);
-                }
+                add_all(&mut targets, *kind, &below);
+                inheritors(tx, *id, &mut targets, period).await?;
             }
             Planned::Close {
                 kind: ObjectKind::Property,
@@ -310,17 +324,61 @@ pub(crate) async fn maintain<T: WriteTx>(
             _ => {}
         }
     }
-    // Every object of the tree inherits, whatever the carriers (003/design: a row per
-    // carrier or heir).
-    let heirs: Vec<String> = HEIRS.map(String::from).to_vec();
+    let tree = (heritable, targets, everything);
+    refresh(tx, tree, revalued, affected, (period, changeset)).await
+}
+
+/// The object a planned operation creates in a tree, with its kind.
+const fn new_object(p: &Planned) -> Option<(ObjectKind, Uuid)> {
+    match p {
+        Planned::Domain { id, .. } => Some((ObjectKind::Domain, *id)),
+        Planned::Prefix { object, .. } => Some((ObjectKind::Prefix, object.id)),
+        Planned::Range { object, .. } => Some((ObjectKind::Range, object.id)),
+        Planned::Address { object, .. } => Some((ObjectKind::Address, object.id)),
+        Planned::Anchor { kind, id, .. } => Some((*kind, *id)),
+        _ => None,
+    }
+}
+
+/// The objects that inherit from `origin` look for their origin again.
+async fn inheritors<T: WriteTx>(
+    tx: &mut T,
+    origin: Uuid,
+    targets: &mut HashMap<Uuid, BTreeSet<Uuid>>,
+    period: Option<Period>,
+) -> Result<(), StoreError> {
+    for (property, object) in tx.inheritors(origin, period).await? {
+        targets.entry(property).or_default().insert(object);
+    }
+    Ok(())
+}
+
+/// Objects per property.
+type PerProperty = HashMap<Uuid, BTreeSet<Uuid>>;
+
+/// Recomputes the origins of `targets`, and of every object of the tree for the
+/// properties in `everything` (003/design: a row per carrier or heir, whatever the
+/// carriers); what was done, with the origins revalued and the objects affected.
+async fn refresh<T: WriteTx>(
+    tx: &mut T,
+    (heritable, mut targets, everything): (HashMap<Uuid, InheritTree>, PerProperty, BTreeSet<Uuid>),
+    revalued: PerProperty,
+    mut affected: PerProperty,
+    (period, changeset): (Option<Period>, Uuid),
+) -> Result<Maintained, StoreError> {
+    let mut out = Maintained::default();
     for property in everything {
-        let all = tx.objects_of_kinds(&heirs, period).await?;
+        let kinds: Vec<String> = heritable[&property]
+            .kinds()
+            .iter()
+            .map(|k| (*k).to_owned())
+            .collect();
+        let all = tx.objects_of_kinds(&kinds, period).await?;
         targets.entry(property).or_default().extend(all);
     }
-    let mut out = Maintained::default();
     for (property, objects) in targets {
         let objects: Vec<Uuid> = objects.into_iter().collect();
-        tx.refresh_origins(property, &heirs, &objects, period, changeset)
+        tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
             .await?;
         affected.entry(property).or_default().extend(&objects);
         out.recomputed.insert(property, objects);
@@ -337,22 +395,26 @@ pub(crate) async fn maintain<T: WriteTx>(
 async fn restored<T: WriteTx>(
     tx: &mut T,
     (kind, id, property): (ObjectKind, Uuid, Option<Uuid>),
-    heritable: &HashMap<Uuid, Vec<String>>,
+    heritable: &HashMap<Uuid, InheritTree>,
     targets: &mut HashMap<Uuid, BTreeSet<Uuid>>,
     period: Option<Period>,
 ) -> Result<(), StoreError> {
     match property {
-        None if kind.is_addressing() => {
+        None if tree_of(kind).is_some() => {
             let mut objects = vec![id];
-            if kind == ObjectKind::Prefix {
+            if matches!(
+                kind,
+                ObjectKind::Prefix | ObjectKind::Entity | ObjectKind::Site
+            ) {
                 objects.extend(tx.subtree(id, period).await?);
             }
-            for p in heritable.keys() {
-                targets.entry(*p).or_default().extend(&objects);
+            let tree = tree_of(kind);
+            for (p, t) in heritable {
+                if tree.as_ref() == Some(t) {
+                    targets.entry(*p).or_default().extend(&objects);
+                }
             }
-            for (property, object) in tx.inheritors(id, period).await? {
-                targets.entry(property).or_default().insert(object);
-            }
+            inheritors(tx, id, targets, period).await?;
         }
         Some(property) if heritable.contains_key(&property) => {
             let below = tx.subtree(id, period).await?;
@@ -420,7 +482,7 @@ fn created(planned: &[Planned]) -> Vec<Uuid> {
     planned
         .iter()
         .filter_map(|p| match p {
-            Planned::Domain { id, .. } => Some(*id),
+            Planned::Domain { id, .. } | Planned::Anchor { id, .. } => Some(*id),
             Planned::Prefix { object, .. } => Some(object.id),
             Planned::Range { object, .. } => Some(object.id),
             Planned::Address { object, .. } => Some(object.id),
@@ -460,17 +522,30 @@ pub(crate) async fn check_obligations<T: WriteTx>(
         return Ok(());
     }
     let touched = touched(planned, refreshed);
+    // A moved entity carries the objects it owns into or out of the scope of its
+    // ancestors: those scopes are checked whole.
+    let moved = planned.iter().any(|p| {
+        matches!(
+            p,
+            Planned::Modify {
+                kind: ObjectKind::Entity,
+                change: Change::Parent(_),
+                ..
+            }
+        )
+    });
     for (property, declaration) in obligated {
         let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
         let mut missing = BTreeSet::new();
         for scope in &declaration.obligations {
+            let whole = moved && matches!(scope, ObligationScope::Entity(_));
             missing.extend(
                 tx.objects_without_value(
                     property,
                     &carriers,
                     declaration.inherit.is_some(),
                     scope,
-                    Some(&touched),
+                    (!whole).then_some(touched.as_slice()),
                     period,
                 )
                 .await?,

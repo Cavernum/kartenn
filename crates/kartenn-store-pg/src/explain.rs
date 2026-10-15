@@ -2,8 +2,8 @@
 //!
 //! At any `(valid_at, as_of)`: the resolved value, the object carrying the applicable
 //! assignment (the materialised origin), the chain of objects walked from the object up
-//! to it in the addressing tree of that instant, the provenance of the assignment and,
-//! when it overrides one, the inherited value it replaces.
+//! to it in the tree of that instant (addressing, entities or sites), the provenance of
+//! the assignment and, when it overrides one, the inherited value it replaces.
 
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -55,6 +55,19 @@ fn ancestors_sql() -> Result<String, TemporalError> {
     ))
 }
 
+/// Ancestors of `$3` at `($1, $2)` in an entity or site `table`, parent first (003-18).
+fn anchor_ancestors_sql(table: &str) -> Result<String, TemporalError> {
+    let anchor = snapshot(table, &["id", "parent_id"])?;
+    Ok(format!(
+        "WITH RECURSIVE c(id, depth) AS (
+             SELECT parent_id, 1 FROM {anchor} x WHERE id = $3 AND parent_id IS NOT NULL
+             UNION ALL
+             SELECT x.parent_id, c.depth + 1 FROM c JOIN {anchor} x ON x.id = c.id
+             WHERE x.parent_id IS NOT NULL AND c.depth < 1000)
+         SELECT id FROM c ORDER BY depth"
+    ))
+}
+
 /// Explains the resolution of `property` for `object` at `valid_at`, as asserted at
 /// `as_of` (now when `None`). `None` when the property is not declared then.
 ///
@@ -84,8 +97,14 @@ pub async fn explain(
     let Some((key, value_type, inherit)) = row else {
         return Ok(None);
     };
-    let ancestors: Vec<Uuid> = if inherit.is_some() {
-        sqlx::query_scalar(AssertSqlSafe(ancestors_sql().map_err(|e| sql_err(&e))?))
+    let ancestors_of = match inherit.as_deref() {
+        Some("entity") => Some(anchor_ancestors_sql("entity")),
+        Some("site") => Some(anchor_ancestors_sql("site")),
+        Some(_) => Some(ancestors_sql()),
+        None => None,
+    };
+    let ancestors: Vec<Uuid> = if let Some(sql) = ancestors_of {
+        sqlx::query_scalar(AssertSqlSafe(sql.map_err(|e| sql_err(&e))?))
             .bind(valid_at)
             .bind(as_of)
             .bind(object)

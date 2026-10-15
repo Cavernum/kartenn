@@ -1,5 +1,5 @@
 //! Materialised origins of heritable properties along the addressing tree (spec 003,
-//! task 003-8; ADR 0016, P9).
+//! task 003-8; ADR 0016, P9), and along the entity and site trees (task 003-18).
 //!
 //! The origin of a target over time is computed set-wise: its candidates are itself, the
 //! prefixes of its domain that contain it (strictly for a prefix; from its network up for
@@ -12,6 +12,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use kartenn_core::properties::InheritTree;
 use kartenn_service::port::StoreError;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -123,6 +124,45 @@ hit AS (
     segments!()
 );
 
+/// Origin of each target on each segment of `[from, ∞)` along the stored parents of an
+/// entity or site tree (003-18): the candidates are the target, then each parent in turn
+/// over the time the link holds, nearest first (a cycle is refused by the core;
+/// the depth is bounded all the same).
+macro_rules! segments_anchor {
+    ($table:literal) => {
+        concat!(
+            "
+WITH RECURSIVE w AS (SELECT tstzrange($3, NULL) AS r),
+t AS (
+    SELECT o.id, o.valid_period * w.r AS vp FROM ",
+            $table,
+            " o, w
+    WHERE o.id = ANY($1) AND o.valid_period && w.r AND cardinality($4::text[]) >= 0
+),
+cand(target, cand, depth, vp) AS (
+    SELECT t.id, t.id, 0, t.vp FROM t
+    UNION ALL
+    SELECT c.target, x.parent_id, c.depth + 1, c.vp * x.valid_period
+    FROM cand c JOIN ",
+            $table,
+            " x ON x.id = c.cand AND x.valid_period && c.vp AND x.parent_id IS NOT NULL
+    WHERE c.depth < 1000
+),
+hit AS (
+    SELECT c.target, c.cand, 1000 - c.depth AS prio, c.vp * a.valid_period AS vp
+    FROM cand c CROSS JOIN LATERAL (
+        SELECT a.valid_period FROM property_assignment a
+        WHERE a.object_id = c.cand AND a.property_id = $2 AND a.valid_period && c.vp
+        OFFSET 0) a
+),",
+            segments!()
+        )
+    };
+}
+
+const SEGMENTS_ENTITY: &str = segments_anchor!("entity");
+const SEGMENTS_SITE: &str = segments_anchor!("site");
+
 /// From this many targets on, [`SEGMENTS_DOWN`] is used: on the reference dataset going
 /// up costs about 30 µs per target, going down about 7 µs per object below a carrier of
 /// the targets' domains (a domain holds about 6·10⁴ objects).
@@ -214,7 +254,7 @@ impl PgTx {
     pub(crate) async fn refresh_origins_from(
         &mut self,
         property: Uuid,
-        carriers: &[String],
+        tree: &InheritTree,
         targets: &[Uuid],
         start: Option<OffsetDateTime>,
         changeset: Uuid,
@@ -223,16 +263,18 @@ impl PgTx {
             return Ok(0);
         }
         let from = self.window_start(start).await?;
-        let segments = if targets.len() >= self.down_from {
-            SEGMENTS_DOWN
-        } else {
-            SEGMENTS_UP
+        let segments = match tree {
+            InheritTree::Entity => SEGMENTS_ENTITY,
+            InheritTree::Site => SEGMENTS_SITE,
+            _ if targets.len() >= self.down_from => SEGMENTS_DOWN,
+            _ => SEGMENTS_UP,
         };
+        let carriers: Vec<String> = tree.kinds().iter().map(|k| (*k).to_owned()).collect();
         let computed: Vec<Row> = sqlx::query_as(segments)
             .bind(targets)
             .bind(property)
             .bind(from)
-            .bind(carriers)
+            .bind(&carriers)
             .fetch_all(&mut *self.tx)
             .await
             .map_err(store_err)?;

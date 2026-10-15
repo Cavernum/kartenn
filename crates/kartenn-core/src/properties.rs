@@ -179,6 +179,18 @@ impl InheritTree {
         }
     }
 
+    /// Kinds of the objects of the tree, which inherit along it (a module's tree: none
+    /// known to the core).
+    #[must_use]
+    pub const fn kinds(&self) -> &'static [&'static str] {
+        match self {
+            Self::Addressing => &["domain", "prefix", "range", "address"],
+            Self::Entity => &["entity"],
+            Self::Site => &["site"],
+            Self::Module(_) => &[],
+        }
+    }
+
     /// The tree of a stored name; any other name is a module's tree.
     #[must_use]
     pub fn from_name(name: &str) -> Self {

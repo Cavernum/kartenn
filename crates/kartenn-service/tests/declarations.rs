@@ -462,15 +462,19 @@ async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
-async fn entity_and_site_trees_are_not_inherited_yet(pool: PgPool) {
+async fn entity_and_site_trees_inherit_among_their_objects(pool: PgPool) {
     let f = Fixture::new(&pool).await;
+    // 003-18: a carrier outside the tree is refused, the tree's own kind accepted.
     for tree in ["entity", "site"] {
         let mut declaration = input("custom.cost_centre", text(20));
         declaration.inherit = Some(tree.into());
         assert_eq!(
-            f.refused(vec![declare(1, declaration)]).await,
+            f.refused(vec![declare(1, declaration.clone())]).await,
             vec!["prop.declaration.invalid"],
             "{tree}"
         );
+        declaration.key = format!("custom.cost_centre_{tree}");
+        declaration.carriers = vec![tree.into()];
+        f.applied(vec![declare(1, declaration)]).await;
     }
 }

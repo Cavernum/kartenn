@@ -72,7 +72,7 @@ va AS (
     FROM oa JOIN aa a ON a.object_id = oa.origin AND a.valid_period && oa.valid_period
 ),
 ex AS (
-    SELECT id, valid_period * w.r AS vp FROM addressing_object, w
+    SELECT id, valid_period * w.r AS vp FROM carrier_object, w
     WHERE id = ANY($2) AND NOT id = ANY($6) AND valid_period && w.r
 ),
 pts AS (

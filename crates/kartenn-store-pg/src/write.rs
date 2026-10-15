@@ -4,7 +4,7 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::period::Period;
-use kartenn_core::properties::{Declaration, ObligationScope};
+use kartenn_core::properties::{Declaration, InheritTree, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, ImportRecord, Journal, ObjectView,
@@ -2001,19 +2001,24 @@ impl WriteTx for PgTx {
         Ok(())
     }
 
-    async fn addressing_heritable(
+    async fn heritable(
         &mut self,
         period: Option<Period>,
-    ) -> Result<Vec<(Uuid, Vec<String>)>, StoreError> {
+    ) -> Result<Vec<(Uuid, InheritTree)>, StoreError> {
         let (a, _) = bounds(period)?;
-        sqlx::query_as(
-            "SELECT id, carriers FROM property_declaration
-             WHERE inherit_tree = 'addressing' AND valid_period @> coalesce($1::timestamptz, now())",
+        let rows: Vec<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, inherit_tree FROM property_declaration
+             WHERE inherit_tree IN ('addressing', 'entity', 'site')
+               AND valid_period @> coalesce($1::timestamptz, now())",
         )
         .bind(a)
         .fetch_all(&mut *self.tx)
         .await
-        .map_err(store_err)
+        .map_err(store_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, tree)| (id, InheritTree::from_name(&tree)))
+            .collect())
     }
 
     async fn subtree(
@@ -2025,7 +2030,9 @@ impl WriteTx for PgTx {
         sqlx::query_scalar(
             "WITH w AS (SELECT tstzrange(coalesce($2::timestamptz, now()), NULL) AS r),
                   o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
-                        WHERE id = $1 AND valid_period && w.r)
+                        WHERE id = $1 AND valid_period && w.r),
+                  anchor AS (SELECT id, parent_id, valid_period FROM entity
+                             UNION ALL SELECT id, parent_id, valid_period FROM site)
              -- three branches rather than an OR, so that each uses its index
              SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
              UNION
@@ -2034,7 +2041,18 @@ impl WriteTx for PgTx {
              UNION
              SELECT x.id FROM addressing_object x, o, w
              WHERE o.kind = 'prefix' AND x.domain_id = o.domain_id AND x.kind <> 'domain'
-               AND x.value <<= o.value AND x.valid_period && w.r",
+               AND x.value <<= o.value AND x.valid_period && w.r
+             UNION
+             -- an entity or a site: its descendants at some time of the window
+             SELECT id FROM (
+                 WITH RECURSIVE d(id, vp, depth) AS (
+                     SELECT a.id, a.valid_period * w.r, 0 FROM anchor a, w
+                     WHERE a.id = $1 AND a.valid_period && w.r
+                     UNION ALL
+                     SELECT c.id, c.valid_period * d.vp, d.depth + 1
+                     FROM d JOIN anchor c ON c.parent_id = d.id AND c.valid_period && d.vp
+                     WHERE d.depth < 1000)
+                 SELECT id FROM d) a",
         )
         .bind(object)
         .bind(a)
@@ -2050,7 +2068,7 @@ impl WriteTx for PgTx {
     ) -> Result<Vec<Uuid>, StoreError> {
         let (a, _) = bounds(period)?;
         sqlx::query_scalar(
-            "SELECT DISTINCT id FROM addressing_object
+            "SELECT DISTINCT id FROM carrier_object
              WHERE kind = ANY($1) AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
         )
         .bind(kinds)
@@ -2132,13 +2150,13 @@ impl WriteTx for PgTx {
     async fn refresh_origins(
         &mut self,
         property: Uuid,
-        carriers: &[String],
+        tree: &InheritTree,
         targets: &[Uuid],
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<usize, StoreError> {
         let (a, _) = bounds(period)?;
-        self.refresh_origins_from(property, carriers, targets, a, changeset)
+        self.refresh_origins_from(property, tree, targets, a, changeset)
             .await
     }
 

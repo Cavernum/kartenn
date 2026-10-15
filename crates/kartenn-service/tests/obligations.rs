@@ -253,7 +253,7 @@ async fn an_object_type_obligation_and_declaring_obligations(pool: PgPool) {
     f.applied(vec![assign(Ref::Id(root), ObjectKind::Prefix, env, "prod")])
         .await;
     f.applied(vec![update(with_domain.clone())]).await;
-    // An obligation scoped by entity waits for the anchors.
+    // An obligation scoped by an entity that does not exist (003-18).
     with_domain
         .obligations
         .push(ObligationInput::Entity { id: Uuid::nil() });

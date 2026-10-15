@@ -121,7 +121,9 @@ impl PgTx {
     }
 
     /// Carrier objects of `scope` (among `candidates` if given) without a resolved value
-    /// at some instant from `start` on: no origin, or an origin carrying "no value".
+    /// at some instant from `start` on: no origin, or an origin carrying "no value". An
+    /// object is in the scope of an entity while its resolved owner (`core.owner`) is the
+    /// entity or one of its descendants, an entity while it is one of them (003-18).
     pub(crate) async fn without_value(
         &mut self,
         property: Uuid,
@@ -133,16 +135,43 @@ impl PgTx {
     ) -> Result<Vec<Uuid>, StoreError> {
         let (kind, id, ty) = encode(scope);
         sqlx::query_scalar(
-            "WITH w AS (SELECT tstzrange(coalesce($8::timestamptz, now()), NULL) AS r),
-             o AS (
-                 SELECT x.id, range_agg(x.valid_period * w.r) AS life
-                 FROM addressing_object x, w
+            "WITH RECURSIVE w AS (SELECT tstzrange(coalesce($8::timestamptz, now()), NULL) AS r),
+             -- scope entity: the entity and its descendants, over the time of the link
+             sub(id, vp, depth) AS (
+                 SELECT e.id, e.valid_period * w.r, 0 FROM entity e, w
+                 WHERE $4 = 'entity' AND e.id = $5 AND e.valid_period && w.r
+                 UNION ALL
+                 SELECT c.id, c.valid_period * sub.vp, sub.depth + 1
+                 FROM sub JOIN entity c ON c.parent_id = sub.id AND c.valid_period && sub.vp
+                 WHERE sub.depth < 1000
+             ),
+             scoped AS (
+                 SELECT x.id, x.valid_period * w.r AS vp
+                 FROM carrier_object x, w
                  WHERE x.kind = ANY($2) AND x.valid_period && w.r
                    AND ($7::uuid[] IS NULL OR x.id = ANY($7))
                    AND CASE $4 WHEN 'domain' THEN x.domain_id = $5
                                WHEN 'object_type' THEN x.kind = $6
                                ELSE false END
-                 GROUP BY x.id
+                 UNION ALL
+                 -- the entities of the subtree that carry the property
+                 SELECT sub.id, sub.vp FROM sub
+                 WHERE 'entity' = ANY($2) AND ($7::uuid[] IS NULL OR sub.id = ANY($7))
+                 UNION ALL
+                 -- the objects whose resolved owner is in the subtree
+                 SELECT p.object_id, p.valid_period * a.valid_period * sub.vp * x.valid_period
+                 FROM property_origin p
+                 JOIN property_assignment a ON a.object_id = p.origin_object_id
+                     AND a.property_id = p.property_id AND a.kind = 'value'
+                     AND a.valid_period && p.valid_period
+                 JOIN sub ON sub.id = a.v_uuid AND sub.vp && (p.valid_period * a.valid_period)
+                 JOIN carrier_object x ON x.id = p.object_id AND x.kind = ANY($2)
+                     AND x.valid_period && (p.valid_period * a.valid_period * sub.vp)
+                 WHERE p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
+                   AND ($7::uuid[] IS NULL OR p.object_id = ANY($7))
+             ),
+             o AS (
+                 SELECT id, range_agg(vp) AS life FROM scoped WHERE NOT isempty(vp) GROUP BY id
              ),
              v AS (
                  SELECT p.object_id AS id, p.valid_period * a.valid_period AS vp

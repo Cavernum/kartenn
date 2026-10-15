@@ -84,10 +84,16 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
             return Err(invalid(format!("{key}: {tree} is not a known tree")));
         }
     }
-    // Origins are maintained along the addressing tree only, for now (003, task 18).
-    if let Some(tree @ (InheritTree::Entity | InheritTree::Site)) = &inherit {
+    // Only the objects of a tree inherit along it (003-18): a carrier outside it would
+    // resolve nothing.
+    if let Some(tree @ (InheritTree::Addressing | InheritTree::Entity | InheritTree::Site)) =
+        &inherit
+        && let Some(outside) = carriers
+            .iter()
+            .find(|c| !tree.kinds().contains(&c.as_str()))
+    {
         return Err(invalid(format!(
-            "{key}: inheritance along the {} tree is not maintained yet",
+            "{key}: {outside} is not an object of the {} tree",
             tree.as_str()
         )));
     }
@@ -96,12 +102,7 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
         obligations.insert(match o {
             ObligationInput::Domain { id } => ObligationScope::Domain(*id),
             ObligationInput::ObjectType { kind } => ObligationScope::ObjectType(kind.clone()),
-            // The objects of an entity follow the entity tree (003, task 18).
-            ObligationInput::Entity { .. } => {
-                return Err(invalid(format!(
-                    "{key}: an obligation scoped by entity is not available yet"
-                )));
-            }
+            ObligationInput::Entity { id } => ObligationScope::Entity(*id),
         });
     }
     let declaration = Declaration {
@@ -232,6 +233,33 @@ async fn missing_values<T: WriteTx>(
     Ok(out)
 }
 
+/// The scopes `declaration` adds to `old` name a domain or an entity that exists over
+/// the whole of `period` (003-18).
+async fn check_scopes<T: WriteTx>(
+    tx: &mut T,
+    old: Option<&Declaration>,
+    declaration: &Declaration,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    for scope in &declaration.obligations {
+        let (id, kind) = match scope {
+            ObligationScope::Domain(id) => (*id, "domain"),
+            ObligationScope::Entity(id) => (*id, "entity"),
+            ObligationScope::ObjectType(_) => continue,
+        };
+        if old.is_some_and(|o| o.obligations.contains(scope)) {
+            continue;
+        }
+        if tx.object_kind_covering(id, period).await? != Some(kind) {
+            return Err(WriteError::Rule(invalid(format!(
+                "{}: the obligation names {id}, not a {kind} over the whole period",
+                declaration.key
+            ))));
+        }
+    }
+    Ok(())
+}
+
 /// Declares a property; refused if a scope of its obligations already holds objects,
 /// which have no value yet (REQ-003-16).
 pub(crate) async fn declare<T: WriteTx>(
@@ -241,6 +269,7 @@ pub(crate) async fn declare<T: WriteTx>(
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
+    check_scopes(tx, None, declaration, period).await?;
     tx.insert_declaration(id, declaration, period, changeset)
         .await?;
     let missing: Vec<Uuid> = missing_values(tx, id, None, declaration, period)
@@ -322,6 +351,7 @@ pub(crate) async fn update<T: WriteTx>(
     if old == *new {
         return Ok(());
     }
+    check_scopes(tx, Some(&old), new, period).await?;
     let facts = tx.property_facts(id, old.spec.id(), period).await?;
     let missing = missing_values(tx, id, Some(&old), new, period).await?;
     match check_evolution(&old, new, &Usage(facts, missing)) {

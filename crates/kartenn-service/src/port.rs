@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 
 use kartenn_core::inheritance::Assigned;
-use kartenn_core::properties::{CurrentAssignment, Declaration, ObligationScope};
+use kartenn_core::properties::{CurrentAssignment, Declaration, InheritTree, ObligationScope};
 use kartenn_core::values::Value;
 
 use kartenn_core::addr::{Addr, Prefix};
@@ -793,15 +793,14 @@ pub trait WriteTx {
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
-    /// Properties heritable along the addressing tree at the start of `period`, with their
-    /// carrier kinds.
-    fn addressing_heritable(
+    /// Properties heritable along a tree at the start of `period`, with their tree.
+    fn heritable(
         &mut self,
         period: Option<Period>,
-    ) -> impl Future<Output = Result<Vec<(Uuid, Vec<String>)>, StoreError>> + Send;
+    ) -> impl Future<Output = Result<Vec<(Uuid, InheritTree)>, StoreError>> + Send;
 
-    /// The object and the objects below it in the addressing tree, from the start of
-    /// `period` on.
+    /// The object and the objects below it in its tree (addressing, entities or sites),
+    /// from the start of `period` on.
     fn subtree(
         &mut self,
         object: Uuid,
@@ -840,14 +839,14 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
-    /// Recomputes the origin of a heritable property for `targets` (those of a carrier
-    /// kind) from the start of `period` on, and writes the segments that changed
+    /// Recomputes the origin of a property heritable along `tree` for `targets` (those
+    /// of the tree) from the start of `period` on, and writes the segments that changed
     /// (003/design, § Résolution matérialisée). Returns the number of objects whose
     /// origin changed.
     fn refresh_origins(
         &mut self,
         property: Uuid,
-        carriers: &[String],
+        tree: &InheritTree,
         targets: &[Uuid],
         period: Option<Period>,
         changeset: Uuid,
