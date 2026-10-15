@@ -15,7 +15,9 @@ use uuid::Uuid;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
-use crate::port::{DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx};
+use crate::port::{
+    Change, DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx,
+};
 
 /// Default maximum number of operations of a changeset (004/C3).
 pub const MAX_OPERATIONS: usize = 10_000;
@@ -151,6 +153,12 @@ pub(crate) enum Planned {
         id: Uuid,
         expected: Option<Uuid>,
     },
+    Modify {
+        kind: ObjectKind,
+        id: Uuid,
+        change: Change,
+        expected: Option<Uuid>,
+    },
     Declare {
         id: Uuid,
         declaration: Declaration,
@@ -183,6 +191,7 @@ impl Planned {
     pub(crate) const fn object(&self) -> Uuid {
         match self {
             Self::Domain { id, .. }
+            | Self::Modify { id, .. }
             | Self::Close { id, .. }
             | Self::Declare { id, .. }
             | Self::UpdateDeclaration { id, .. }
@@ -219,6 +228,9 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 vec![(*domain, ObjectKind::Domain)]
             }
             Operation::Close { kind, id, .. } => vec![(*id, *kind)],
+            Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
+            Operation::UpdateAddress { id, .. } => vec![(*id, ObjectKind::Address)],
+            Operation::UpdateRange { id, .. } => vec![(*id, ObjectKind::Range)],
             Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
             Operation::AssignProperty {
                 object,
@@ -315,6 +327,80 @@ fn plan_range(
     (Some(Planned::Range { object, public }), violations)
 }
 
+/// Plans a modification of an addressing object (004-8); a new prefix value is parsed and
+/// classified like a creation.
+fn plan_update(op: &Operation, id: Uuid) -> Result<Option<Planned>, Violation> {
+    let (kind, change, expected) = match op {
+        Operation::UpdatePrefix {
+            prefix,
+            nature,
+            point_to_point,
+            anycast,
+            expected,
+            ..
+        } => {
+            let value = match prefix.as_deref().map(|p| Prefix::parse_any(&ALL, p)) {
+                None => None,
+                Some(Ok(value)) => Some((
+                    value,
+                    special_registry(value.family()).is_none_or(|r| r.is_public(value)),
+                )),
+                Some(Err(e)) => return Err(addr_violation(&e)),
+            };
+            let change = Change::Prefix {
+                value,
+                nature: *nature,
+                point_to_point: *point_to_point,
+                anycast: *anycast,
+            };
+            (ObjectKind::Prefix, change, *expected)
+        }
+        Operation::UpdateAddress {
+            usage, expected, ..
+        } => (ObjectKind::Address, Change::Address(*usage), *expected),
+        Operation::UpdateRange {
+            usage, expected, ..
+        } => (ObjectKind::Range, Change::Range(*usage), *expected),
+        _ => return Ok(None),
+    };
+    Ok(Some(Planned::Modify {
+        kind,
+        id,
+        change,
+        expected,
+    }))
+}
+
+/// Parses and checks a new prefix locally, and classifies it in the public space.
+fn plan_prefix(
+    op: &Operation,
+    id: Uuid,
+    domain: Uuid,
+) -> Result<(Option<Planned>, Vec<Violation>), Violation> {
+    let Operation::CreatePrefix {
+        prefix,
+        nature,
+        point_to_point,
+        anycast,
+        ..
+    } = op
+    else {
+        return Ok((None, Vec::new()));
+    };
+    let value = Prefix::parse_any(&ALL, prefix).map_err(|e| addr_violation(&e))?;
+    let object = PrefixObject {
+        id,
+        domain,
+        value,
+        nature: *nature,
+        point_to_point: *point_to_point,
+        anycast: *anycast,
+    };
+    let violations = objects::check_prefix(&object);
+    let public = special_registry(value.family()).is_none_or(|r| r.is_public(value));
+    Ok((Some(Planned::Prefix { object, public }), violations))
+}
+
 /// Parses every operation and runs the local rules (no database).
 fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
@@ -334,30 +420,15 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 Ok(slug) => planned.push(Planned::Domain { id, slug }),
                 Err(v) => violations.push(v),
             },
-            Operation::CreatePrefix {
-                domain,
-                prefix,
-                nature,
-                point_to_point,
-                anycast,
-                ..
-            } => match Prefix::parse_any(&ALL, prefix) {
-                Ok(value) => {
-                    let object = PrefixObject {
-                        id,
-                        domain: resolve(*domain, &ids),
-                        value,
-                        nature: *nature,
-                        point_to_point: *point_to_point,
-                        anycast: *anycast,
-                    };
-                    violations.extend(objects::check_prefix(&object));
-                    let public =
-                        special_registry(value.family()).is_none_or(|r| r.is_public(value));
-                    planned.push(Planned::Prefix { object, public });
+            Operation::CreatePrefix { domain, .. } => {
+                match plan_prefix(op, id, resolve(*domain, &ids)) {
+                    Ok((p, found)) => {
+                        planned.extend(p);
+                        violations.extend(found);
+                    }
+                    Err(v) => violations.push(v),
                 }
-                Err(e) => violations.push(addr_violation(&e)),
-            },
+            }
             Operation::CreateRange {
                 domain,
                 first,
@@ -400,6 +471,14 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     id: resolve(*target, &ids),
                     expected: *expected,
                 });
+            }
+            Operation::UpdatePrefix { id: target, .. }
+            | Operation::UpdateAddress { id: target, .. }
+            | Operation::UpdateRange { id: target, .. } => {
+                match plan_update(op, resolve(*target, &ids)) {
+                    Ok(p) => planned.extend(p),
+                    Err(v) => violations.push(v),
+                }
             }
             Operation::DeclareProperty { .. }
             | Operation::UpdateProperty { .. }
@@ -464,6 +543,13 @@ async fn lock_targets<T: WriteTx>(
                     domains.insert(d);
                 }
             }
+            // A modified prefix or address may enter or leave public space.
+            Planned::Modify { kind, id, .. } => {
+                if let Some(d) = tx.domain_of(*kind, *id).await? {
+                    domains.insert(d);
+                }
+                public |= *kind != ObjectKind::Range;
+            }
             Planned::Close {
                 kind: ObjectKind::Domain,
                 id,
@@ -493,13 +579,58 @@ async fn lock_targets<T: WriteTx>(
 }
 
 /// Writes the planned operations in order, collecting every violation (REQ-004-7).
+/// A conflict when the version of `id` at the start of `period` was not written by
+/// `expected` (REQ-004-11).
+async fn conflict<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    expected: Option<Uuid>,
+    period: Option<Period>,
+) -> Result<Option<Violation>, StoreError> {
+    let Some(expected) = expected else {
+        return Ok(None);
+    };
+    if tx.current_changeset(kind, id, period).await? == Some(expected) {
+        return Ok(None);
+    }
+    Ok(Some(
+        Violation::new(
+            &rules::CHANGESET_CONFLICT,
+            format!("{id} was modified since changeset {expected}"),
+        )
+        .with_subjects([id]),
+    ))
+}
+
+/// Writes a modification, noting the former extent of a resized prefix.
+async fn modify<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    change: &Change,
+    period: Option<Period>,
+    changeset: Uuid,
+    former: &mut Vec<(Uuid, Prefix)>,
+) -> Result<(), WriteError> {
+    if let Change::Prefix { value: Some(_), .. } = change {
+        for (old, _) in tx.prefix_versions(id, period).await? {
+            former.push((old.domain, old.value));
+        }
+    }
+    tx.modify(kind, id, change, period, changeset).await
+}
+
+/// Applies the planned writes; returns the former domain and value of each prefix whose
+/// value it changes, whose content must be checked again (REQ-002-18).
 async fn apply<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
     violations: &mut Vec<Violation>,
-) -> Result<(), StoreError> {
+) -> Result<Vec<(Uuid, Prefix)>, StoreError> {
+    let mut former = Vec::new();
     for p in planned {
         let written = match p {
             Planned::Domain { id, slug } => {
@@ -515,17 +646,21 @@ async fn apply<T: WriteTx>(
             Planned::Address { object, public } => {
                 tx.insert_address(object, *public, period, changeset).await
             }
+            Planned::Modify {
+                kind,
+                id,
+                change,
+                expected,
+            } => {
+                if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
+                    violations.push(v);
+                    continue;
+                }
+                modify(tx, *kind, *id, change, period, changeset, &mut former).await
+            }
             Planned::Close { kind, id, expected } => {
-                if let Some(expected) = expected
-                    && tx.current_changeset(*kind, *id, period).await? != Some(*expected)
-                {
-                    violations.push(
-                        Violation::new(
-                            &rules::CHANGESET_CONFLICT,
-                            format!("{id} was modified since changeset {expected}"),
-                        )
-                        .with_subjects([*id]),
-                    );
+                if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
+                    violations.push(v);
                     continue;
                 }
                 match tx.close(*kind, *id, period, changeset).await {
@@ -592,7 +727,7 @@ async fn apply<T: WriteTx>(
             Err(WriteError::Store(e)) => return Err(e),
         }
     }
-    Ok(())
+    Ok(former)
 }
 
 /// Submits a changeset (REQ-004-1 to 12): checks the request, honours its idempotency key,
@@ -648,12 +783,16 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     }
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
-    if let Err(e) = apply(&mut tx, &planned, period, changeset, &mut violations).await {
-        tx.rollback().await?;
-        return Err(e.into());
-    }
+    let former = match apply(&mut tx, &planned, period, changeset, &mut violations).await {
+        Ok(former) => former,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
+    };
     if !has_errors(&violations)
-        && let Err(e) = crate::global::validate(&mut tx, &planned, period, &mut violations).await
+        && let Err(e) =
+            crate::global::validate(&mut tx, &planned, &former, period, &mut violations).await
     {
         tx.rollback().await?;
         return Err(e.into());
@@ -777,7 +916,7 @@ fn reevaluated(planned: &[Planned], checked: &[Uuid]) -> Vec<(Uuid, &'static str
     let mut out: Vec<(Uuid, &'static str)> = planned
         .iter()
         .filter_map(|p| match p {
-            Planned::Domain { id, .. } => Some((*id, "core.")),
+            Planned::Domain { id, .. } | Planned::Modify { id, .. } => Some((*id, "core.")),
             Planned::Prefix { object, .. } => Some((object.id, "core.")),
             Planned::Range { object, .. } => Some((object.id, "core.")),
             Planned::Address { object, .. } => Some((object.id, "core.")),

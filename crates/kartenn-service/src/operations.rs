@@ -306,6 +306,47 @@ pub enum Operation {
         #[serde(default)]
         expected: Option<Uuid>,
     },
+    /// Modifies a prefix over the period of the changeset (REQ-002-17, 18; REQ-004-14):
+    /// the fields given change, the others keep their value in each version.
+    UpdatePrefix {
+        /// Prefix.
+        id: Ref,
+        /// New value, `address/length` (resizing; same identifier).
+        #[serde(default)]
+        prefix: Option<String>,
+        /// New nature.
+        #[serde(default)]
+        nature: Option<Nature>,
+        /// Point-to-point network or not.
+        #[serde(default)]
+        point_to_point: Option<bool>,
+        /// Anycast network or not.
+        #[serde(default)]
+        anycast: Option<bool>,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
+    /// Changes the usage of an address over the period of the changeset (REQ-004-14).
+    UpdateAddress {
+        /// Address.
+        id: Ref,
+        /// New usage.
+        usage: AddressUsage,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
+    /// Changes the usage of a range over the period of the changeset (REQ-004-14).
+    UpdateRange {
+        /// Range.
+        id: Ref,
+        /// New usage.
+        usage: RangeUsage,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
 }
 
 impl Operation {
@@ -320,6 +361,9 @@ impl Operation {
             | Self::DeclareProperty { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
             Self::Close { .. }
+            | Self::UpdatePrefix { .. }
+            | Self::UpdateAddress { .. }
+            | Self::UpdateRange { .. }
             | Self::UpdateProperty { .. }
             | Self::AssignProperty { .. }
             | Self::ClearProperty { .. }

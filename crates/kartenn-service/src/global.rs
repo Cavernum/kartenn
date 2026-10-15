@@ -11,12 +11,14 @@ use uuid::Uuid;
 
 use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
-use crate::port::{StoreError, WriteTx};
+use crate::port::{Change, StoreError, WriteTx};
 
 /// Runs the global rules for every planned operation, appending violations.
+/// `former` gives the domain and value of the prefixes resized, before the changeset.
 pub(crate) async fn validate<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
+    former: &[(Uuid, Prefix)],
     period: Option<Period>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
@@ -34,6 +36,11 @@ pub(crate) async fn validate<T: WriteTx>(
             }
             Planned::Address { object, public } => {
                 check_address(tx, object, *public, period, violations).await?;
+            }
+            Planned::Modify {
+                kind, id, change, ..
+            } => {
+                check_modified(tx, *kind, *id, change, former, period, violations).await?;
             }
             Planned::Close {
                 kind: ObjectKind::Prefix,
@@ -300,6 +307,119 @@ async fn check_address<T: WriteTx>(
                 )
                 .with_subjects(std::iter::once(object.id).chain(others.iter().map(|(id, _)| *id))),
             );
+        }
+    }
+    Ok(())
+}
+
+/// A modified object (004-8): every final version over the period passes the local and
+/// global rules of a creation (REQ-004-8); a prefix whose nature changes keeps only the
+/// content its nature allows (REQ-002-17); a resized prefix has the addresses and ranges
+/// of its former and new extent checked again (REQ-002-18).
+async fn check_modified<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    change: &Change,
+    former: &[(Uuid, Prefix)],
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    match change {
+        Change::Prefix { value, nature, .. } => {
+            let versions = tx.prefix_versions(id, period).await?;
+            let mut extents: BTreeSet<(Uuid, Prefix)> = BTreeSet::new();
+            for (object, public) in &versions {
+                violations.extend(objects::check_prefix(object));
+                check_prefix(tx, object, *public, period, violations).await?;
+                if nature.is_some() {
+                    check_nature(tx, object, period, violations).await?;
+                }
+                extents.insert((object.domain, object.value));
+            }
+            if value.is_some() {
+                extents.extend(former.iter().copied());
+                check_content(tx, &extents, period, violations).await?;
+            }
+        }
+        Change::Address(_) => {
+            for (object, public) in tx.address_versions(id, period).await? {
+                violations.extend(objects::check_address(&object));
+                check_address(tx, &object, public, period, violations).await?;
+            }
+        }
+        Change::Range(_) => {
+            debug_assert_eq!(kind, ObjectKind::Range);
+            for object in tx.range_versions(id, period).await? {
+                violations.extend(objects::check_range(&object));
+                check_range(tx, &object, period, violations).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// REQ-002-17: a container holds no address nor range, a network no prefix.
+async fn check_nature<T: WriteTx>(
+    tx: &mut T,
+    object: &objects::PrefixObject,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let inside: Vec<Uuid> = match object.nature {
+        Nature::Container => {
+            let mut inside = tx
+                .addresses_inside(object.domain, object.value, period)
+                .await?;
+            inside.extend(
+                tx.ranges_inside(object.domain, object.value, period)
+                    .await?,
+            );
+            inside
+        }
+        Nature::Network => {
+            tx.prefixes_inside(object.domain, object.value, period)
+                .await?
+        }
+    };
+    if !inside.is_empty() {
+        violations.push(
+            Violation::new(
+                &rules::PREFIX_NOT_EMPTY_FOR_NATURE,
+                format!(
+                    "{} cannot be a {}: it holds {} object(s) its nature does not allow",
+                    object.value,
+                    object.nature.as_str(),
+                    inside.len()
+                ),
+            )
+            .with_subjects(std::iter::once(object.id).chain(inside)),
+        );
+    }
+    Ok(())
+}
+
+/// REQ-002-18: the addresses and ranges of the extents of a resized prefix, checked as at
+/// their creation (their network may have changed or gone).
+async fn check_content<T: WriteTx>(
+    tx: &mut T,
+    extents: &BTreeSet<(Uuid, Prefix)>,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let mut seen: BTreeSet<Uuid> = BTreeSet::new();
+    for (domain, value) in extents {
+        let (first, last) = (value.network(), value.last());
+        for address in tx.addresses_between(*domain, first, last, period).await? {
+            if seen.insert(address.id) {
+                // Public space does not depend on the network: not checked again.
+                check_address(tx, &address, false, period, violations).await?;
+            }
+        }
+        for range in tx.ranges_overlapping(*domain, first, last, period).await? {
+            if seen.insert(range.id) {
+                check_range(tx, &range, period, violations).await?;
+            }
         }
     }
     Ok(())

@@ -8,7 +8,7 @@ use kartenn_core::properties::{CurrentAssignment, Declaration, ObligationScope};
 use kartenn_core::values::Value;
 
 use kartenn_core::addr::{Addr, Prefix};
-use kartenn_core::objects::{Address, AddressUsage, IpRange, PrefixObject};
+use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use uuid::Uuid;
@@ -19,6 +19,26 @@ use crate::operations::{ChangesetRequest, ObjectKind};
 #[derive(Debug, thiserror::Error)]
 #[error("storage failure: {0}")]
 pub struct StoreError(pub String);
+
+/// A modification of an addressing object over a period (004-8): the fields given change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Change {
+    /// A prefix.
+    Prefix {
+        /// New value and its public class (resizing).
+        value: Option<(Prefix, bool)>,
+        /// New nature.
+        nature: Option<Nature>,
+        /// Point-to-point or not.
+        point_to_point: Option<bool>,
+        /// Anycast or not.
+        anycast: Option<bool>,
+    },
+    /// The usage of an address.
+    Address(AddressUsage),
+    /// The usage of a range.
+    Range(RangeUsage),
+}
 
 /// Failure of one write.
 #[derive(Debug, thiserror::Error)]
@@ -206,6 +226,39 @@ pub trait WriteTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Applies a modification to an addressing object over `period` ("FOR PORTION OF",
+    /// REQ-004-14): each version keeps its other fields; touching versions of the same
+    /// state merge (004/design).
+    fn modify(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        change: &Change,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Versions of a prefix over part of `period`, with their public class.
+    fn prefix_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(PrefixObject, bool)>, StoreError>> + Send;
+
+    /// Versions of an address over part of `period`, with their public class.
+    fn address_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Address, bool)>, StoreError>> + Send;
+
+    /// Versions of a range over part of `period`.
+    fn range_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<IpRange>, StoreError>> + Send;
 
     /// Ends an object at the start of `period` (transaction time if `None`).
     fn close(

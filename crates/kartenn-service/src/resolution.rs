@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::operations::{ObjectKind, Operation, Ref};
 use crate::pipeline::Planned;
-use crate::port::{DiffCount, StoreError, WriteError, WriteTx};
+use crate::port::{Change, DiffCount, StoreError, WriteError, WriteTx};
 
 /// Plans an assignment operation; nothing to check without the database.
 pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
@@ -261,6 +261,20 @@ pub(crate) async fn maintain<T: WriteTx>(
             // Rule 3: a closed object loses its rows; its inheritors look further up.
             Planned::Close { kind, id, .. } if kind.is_addressing() => {
                 add_all(&mut targets, &[*id]);
+                for (property, object) in tx.inheritors(*id, period).await? {
+                    targets.entry(property).or_default().insert(object);
+                }
+            }
+            // A resized prefix moves the tree: the objects now below it, and those that
+            // inherited from it and may have left (004-8).
+            Planned::Modify {
+                kind: ObjectKind::Prefix,
+                id,
+                change: Change::Prefix { value: Some(_), .. },
+                ..
+            } => {
+                let below = tx.subtree(*id, period).await?;
+                add_all(&mut targets, &below);
                 for (property, object) in tx.inheritors(*id, period).await? {
                     targets.entry(property).or_default().insert(object);
                 }

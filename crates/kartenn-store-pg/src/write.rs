@@ -7,8 +7,8 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
-    DiffCount, DiffItem, Journal, ObjectView, PropertyFacts, Replay, Store, StoreError, WriteError,
-    WriteTx,
+    Change, DiffCount, DiffItem, Journal, ObjectView, PropertyFacts, Replay, Store, StoreError,
+    WriteError, WriteTx,
 };
 
 use crate::properties::{
@@ -597,6 +597,178 @@ impl WriteTx for PgTx {
         } else {
             Ok(())
         }
+    }
+
+    async fn modify(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        change: &Change,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let mut patch = serde_json::Map::new();
+        match change {
+            Change::Prefix {
+                value,
+                nature,
+                point_to_point,
+                anycast,
+            } => {
+                if let Some((value, public)) = value {
+                    patch.insert("prefix".into(), value.to_string().into());
+                    patch.insert("public".into(), (*public).into());
+                    patch.insert(
+                        "registry_version".into(),
+                        kartenn_core::registry::UPDATED.into(),
+                    );
+                }
+                if let Some(nature) = nature {
+                    patch.insert("nature".into(), nature.as_str().into());
+                }
+                if let Some(p) = point_to_point {
+                    patch.insert("point_to_point".into(), (*p).into());
+                }
+                if let Some(p) = anycast {
+                    patch.insert("anycast".into(), (*p).into());
+                }
+            }
+            Change::Address(usage) => {
+                patch.insert("usage".into(), usage.as_str().into());
+            }
+            Change::Range(usage) => {
+                patch.insert("usage".into(), usage.as_str().into());
+            }
+        }
+        // `kartenn_portion` returns the number of versions over the portion.
+        let touched = self
+            .guarded(
+                sqlx::AssertSqlSafe(
+                    "SELECT 1 WHERE kartenn_portion($1::regclass, $2, coalesce($3::timestamptz, now()), $4, $5::jsonb, $6) > 0"
+                        .to_owned(),
+                ),
+                vec![
+                    Bind::Text(table(kind).to_owned()),
+                    Bind::Uuid(id),
+                    Bind::Time(a),
+                    Bind::Time(b),
+                    Bind::Text(serde_json::Value::Object(patch).to_string()),
+                    Bind::Uuid(changeset),
+                ],
+                id,
+            )
+            .await?;
+        if touched == 0 {
+            Err(WriteError::NoVersion(id))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn prefix_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<(PrefixObject, bool)>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT domain_id, prefix::text, nature, point_to_point, anycast, public FROM prefix
+             WHERE id = $1 AND valid_period && {} ORDER BY lower(valid_period)",
+            period_sql(2, 3)
+        );
+        let rows: Vec<(Uuid, String, String, bool, bool, bool)> =
+            sqlx::query_as(sqlx::AssertSqlSafe(sql))
+                .bind(id)
+                .bind(a)
+                .bind(b)
+                .fetch_all(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(domain, text, nature, point_to_point, anycast, public)| {
+                let nature = match nature.as_str() {
+                    "container" => Nature::Container,
+                    "network" => Nature::Network,
+                    other => return Err(store_err(format!("unknown nature {other}"))),
+                };
+                Ok((
+                    PrefixObject {
+                        id,
+                        domain,
+                        value: Prefix::parse_any(&ALL, &text).map_err(store_err)?,
+                        nature,
+                        point_to_point,
+                        anycast,
+                    },
+                    public,
+                ))
+            })
+            .collect()
+    }
+
+    async fn address_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<(Address, bool)>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT domain_id, host(address), usage, public FROM address
+             WHERE id = $1 AND valid_period && {} ORDER BY lower(valid_period)",
+            period_sql(2, 3)
+        );
+        let rows: Vec<(Uuid, String, String, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(domain, value, usage, public)| {
+                Ok((
+                    Address {
+                        id,
+                        domain,
+                        value: addr(&value)?,
+                        usage: address_usage(&usage)?,
+                    },
+                    public,
+                ))
+            })
+            .collect()
+    }
+
+    async fn range_versions(
+        &mut self,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<IpRange>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT domain_id, host(lower(range)), host(upper(range)), usage FROM ip_range
+             WHERE id = $1 AND valid_period && {} ORDER BY lower(valid_period)",
+            period_sql(2, 3)
+        );
+        let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(domain, first, last, usage)| {
+                Ok(IpRange {
+                    id,
+                    domain,
+                    first: addr(&first)?,
+                    last: addr(&last)?,
+                    usage: range_usage(&usage)?,
+                })
+            })
+            .collect()
     }
 
     async fn networks_containing(
