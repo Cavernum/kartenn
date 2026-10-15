@@ -75,10 +75,12 @@ voir [`../README.md`](../README.md).
 - [x] 16. Marquage rétroactif et recherche d'audit — REQ-004-27, 31, 32 — verify : tests
 - [x] 17. Personnes et pseudonymisation (job, délai configurable, 1 an par défaut) —
   REQ-004-33 — verify : historique intact après pseudonymisation
-- [ ] 18. Imports : tri par dépendance, lots, worker, pause sur erreur, reprise —
+- [x] 18. Imports : tri par dépendance, lots, worker, pause sur erreur, reprise —
   REQ-004-28, 30 — verify : import de 10⁵ opérations avec un lot fautif
-- [ ] 19. Rejeu d'import par identifiant externe — REQ-004-29 — verify : double import
-  sans doublon
+  (`kartenn-service/tests/import.rs`, 203 éléments en lots de 60 ; 10⁵ au banc 23) —
+  `import::{create_import, run_import, import_status}` ; planification du worker (006)
+- [x] 19. Rejeu d'import par identifiant externe — REQ-004-29 — verify : double import
+  sans doublon (`import.rs`) — opération `BindExternal` (REQ-002-41)
 - [x] 20. Changeset inverse et conflits — REQ-004-34, 35 — verify : tests
   (`kartenn-service/tests/undo.rs`) — `undo::inverse`, opération `Restore`, fonction
   `kartenn_restore` (migration 0021) ; déclarations non annulées, listées

@@ -248,6 +248,26 @@ détient ces droits (prédicat RBAC, 005). Volume attendu faible ; pagination st
   (002/REQ-002-41) : un objet déjà importé est mis à jour ou laissé tel quel, jamais
   dupliqué.
 
+**Mise en œuvre (004-18, 19)**, choix délégués le 2026-10-15 :
+- Un import a une **source** (le connecteur) et des éléments `{ external_id, operation }` ;
+  un élément qui crée un objet (il définit une référence locale) porte un identifiant
+  externe, sinon l'import est refusé à sa création. Les références locales valent pour
+  tout l'import.
+- À la création : tri topologique sur les références locales, à rang égal dans l'ordre de
+  la conception (entités, sites, domaines, conteneurs du plus court au plus long, réseaux,
+  plages, adresses, affectations, le reste), puis découpe en lots (deux opérations par
+  création : la création et sa liaison). Rien n'est appliqué.
+- Opération nouvelle `BindExternal { object, kind, source, external_id }` : la
+  correspondance de REQ-002-41, écrite dans le changeset qui crée l'objet ; un doublon
+  est refusé (`core.external_id.duplicate`).
+- `run_import` applique les lots dans l'ordre, chacun comme un changeset de l'auteur de
+  l'import. Avant chaque lot, une création dont l'identifiant externe est déjà lié est
+  **omise** (rejeu sans doublon : l'objet est laissé tel quel), et les références à des
+  objets d'autres lots ou déjà importés deviennent leurs identifiants. Un lot refusé
+  (ou mis en attente par une politique) met l'import en pause avec ses violations ; une
+  relance reprend au premier lot non appliqué. `import_status` donne lots appliqués,
+  restants et l'échec éventuel. La planification du worker vient avec la 006.
+
 ### Annulation (REQ-004-34, 35)
 
 Pour un changeset C appliqué au temps système t :
