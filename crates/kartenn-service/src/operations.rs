@@ -243,6 +243,30 @@ pub enum Operation {
         /// Usage.
         usage: AddressUsage,
     },
+    /// Creates or replaces, by name, an approval policy (REQ-004-20, 40): it holds the
+    /// changesets that match every trigger it defines.
+    SetApprovalPolicy {
+        /// Unique name.
+        name: String,
+        /// At least this many operations.
+        #[serde(default)]
+        min_operations: Option<u32>,
+        /// At least this many objects in the differential.
+        #[serde(default)]
+        min_diff_objects: Option<u64>,
+        /// One of these properties changes, directly or by effect.
+        #[serde(default)]
+        property_keys: Vec<String>,
+        /// The changeset touches one of these addressing domains.
+        #[serde(default)]
+        domains: Vec<Uuid>,
+        /// The author is one of these people.
+        #[serde(default)]
+        authors: Vec<Uuid>,
+        /// A disabled policy holds nothing.
+        #[serde(default = "enabled")]
+        enabled: bool,
+    },
     /// Creates an entity (REQ-002-8).
     CreateEntity {
         /// Local name for later operations.
@@ -425,6 +449,7 @@ impl Operation {
             | Self::UpdateRange { .. }
             | Self::MoveEntity { .. }
             | Self::MoveSite { .. }
+            | Self::SetApprovalPolicy { .. }
             | Self::UpdateProperty { .. }
             | Self::AssignProperty { .. }
             | Self::ClearProperty { .. }
@@ -451,4 +476,8 @@ pub struct ChangesetRequest {
     /// author within 24 h returns the first result.
     #[serde(default)]
     pub idempotency_key: Option<String>,
+}
+
+const fn enabled() -> bool {
+    true
 }

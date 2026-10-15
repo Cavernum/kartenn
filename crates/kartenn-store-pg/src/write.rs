@@ -7,8 +7,8 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
-    Change, DiffCount, DiffItem, Journal, ObjectView, PropertyFacts, Replay, Store, StoreError,
-    WriteError, WriteTx,
+    ApprovalPolicy, Change, DiffCount, DiffItem, Journal, ObjectView, PendingChangeset,
+    PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
 };
 
 use crate::properties::{
@@ -26,7 +26,7 @@ use std::collections::HashMap;
 
 /// CloudEvents `source` of the events of this instance (to be made configurable with the
 /// server configuration).
-const EVENT_SOURCE: &str = "urn:kartenn:instance";
+pub(crate) const EVENT_SOURCE: &str = "urn:kartenn:instance";
 
 /// Advisory lock key of public space (ADR 0015).
 const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennP"
@@ -241,6 +241,28 @@ impl Store for PgStore {
         write_journal(&mut tx, journal).await?;
         tx.commit().await.map_err(store_err)
     }
+
+    async fn pending(&self, id: Uuid) -> Result<Option<PendingChangeset>, StoreError> {
+        crate::pending::find(&self.pool, id).await
+    }
+
+    async fn close_pending(
+        &self,
+        id: Uuid,
+        state: &'static str,
+        by: Uuid,
+        rejection: Option<&str>,
+    ) -> Result<bool, StoreError> {
+        crate::pending::close(&self.pool, id, state, by, rejection).await
+    }
+
+    async fn expire_pending(&self) -> Result<Vec<Uuid>, StoreError> {
+        crate::pending::expire(&self.pool).await
+    }
+
+    async fn pending_proposals(&self) -> Result<Vec<PendingChangeset>, StoreError> {
+        crate::pending::proposals(&self.pool).await
+    }
 }
 
 fn table(kind: ObjectKind) -> &'static str {
@@ -331,9 +353,15 @@ async fn write_journal(
         .cloned()
         .partition(|v| v.rule.severity == rules::Severity::Error);
     sqlx::query(
-        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at, violations, anomalies, diff_summary)
-         VALUES ($1, $2, $3, $4, 'direct', tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
-                 coalesce($5::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9)",
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at,
+                                violations, anomalies, diff_summary, validator_id, expires_at, policy_id,
+                                required_rights, request)
+         VALUES ($1, $2, $3, $4, $10, tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
+                 coalesce($5::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
+                 $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14)
+         ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
+             applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
+             anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary",
     )
     .bind(journal.id)
     .bind(journal.request.author)
@@ -344,26 +372,36 @@ async fn write_journal(
     .bind(violations_json(&errors))
     .bind(violations_json(&warnings))
     .bind(serde_json::to_value(journal.diff).map_err(store_err)?)
+    .bind(journal.kind)
+    .bind(journal.validator)
+    .bind(journal.pending.and_then(|p| p.policy))
+    .bind(
+        journal
+            .pending
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(store_err)?,
+    )
+    .bind(
+        journal
+            .pending
+            .map(|_| serde_json::to_value(journal.request))
+            .transpose()
+            .map_err(store_err)?,
+    )
+    .bind(crate::pending::PENDING_DAYS)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
-    if let Some(key) = &journal.request.idempotency_key {
-        sqlx::query(
-            "INSERT INTO idempotency_key (identity_id, key, request_hash, changeset_id, expires_at)
-             VALUES ($1, $2, $3, $4, now() + interval '24 hours')
-             ON CONFLICT (identity_id, key) DO UPDATE
-               SET request_hash = EXCLUDED.request_hash, changeset_id = EXCLUDED.changeset_id,
-                   expires_at = EXCLUDED.expires_at
-             WHERE idempotency_key.expires_at <= now()",
-        )
-        .bind(journal.request.author)
-        .bind(key)
-        .bind(request_hash(journal.request)?)
-        .bind(journal.id)
-        .execute(&mut **tx)
-        .await
-        .map_err(store_err)?;
-    }
+    crate::pending::journal_event(
+        tx,
+        journal.id,
+        journal.state,
+        journal.request.author,
+        journal.validator,
+    )
+    .await?;
+    record_key(tx, journal).await?;
     if journal.state == "applied" {
         // REQ-004-36: one CloudEvents 1.0 event per applied changeset, in its transaction.
         sqlx::query(
@@ -371,20 +409,59 @@ async fn write_journal(
                 'specversion', '1.0', 'id', $1::text, 'source', $3::text,
                 'type', 'org.kartenn.changeset.applied', 'time', now(),
                 'datacontenttype', 'application/json',
-                'data', jsonb_build_object('changeset', $1, 'domains', $2, 'objects', $4)))",
+                'data', jsonb_strip_nulls(jsonb_build_object('changeset', $1, 'domains', $2, 'objects', $4,
+                                                'author', $5, 'validator', $6))))",
         )
         .bind(journal.id)
         .bind(journal.domains)
         .bind(EVENT_SOURCE)
         .bind(journal.objects)
+        .bind(journal.request.author)
+        .bind(journal.validator)
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;
     }
+    record_operations(tx, journal).await
+}
+
+/// The idempotency key of a submission, for 24 h (REQ-004-10).
+async fn record_key(
+    tx: &mut Transaction<'static, Postgres>,
+    journal: &Journal<'_>,
+) -> Result<(), StoreError> {
+    let Some(key) = &journal.request.idempotency_key else {
+        return Ok(());
+    };
+    sqlx::query(
+        "INSERT INTO idempotency_key (identity_id, key, request_hash, changeset_id, expires_at)
+             VALUES ($1, $2, $3, $4, now() + interval '24 hours')
+             ON CONFLICT (identity_id, key) DO UPDATE
+               SET request_hash = EXCLUDED.request_hash, changeset_id = EXCLUDED.changeset_id,
+                   expires_at = EXCLUDED.expires_at
+             WHERE idempotency_key.expires_at <= now()",
+    )
+    .bind(journal.request.author)
+    .bind(key)
+    .bind(request_hash(journal.request)?)
+    .bind(journal.id)
+    .execute(&mut **tx)
+    .await
+    .map_err(store_err)?;
+    Ok(())
+}
+
+/// The operations of a changeset, once (a validated changeset keeps those of its
+/// submission).
+async fn record_operations(
+    tx: &mut Transaction<'static, Postgres>,
+    journal: &Journal<'_>,
+) -> Result<(), StoreError> {
     for (ordinal, op) in journal.request.operations.iter().enumerate() {
         let payload = serde_json::to_value(op).map_err(store_err)?;
         sqlx::query(
-            "INSERT INTO changeset_operation (changeset_id, ordinal, payload) VALUES ($1, $2, $3)",
+            "INSERT INTO changeset_operation (changeset_id, ordinal, payload) VALUES ($1, $2, $3)
+             ON CONFLICT DO NOTHING",
         )
         .bind(journal.id)
         .bind(i32::try_from(ordinal).map_err(store_err)?)
@@ -1912,6 +1989,22 @@ impl WriteTx for PgTx {
 
     async fn diff_sample(&mut self, limit: i64) -> Result<Vec<DiffItem>, StoreError> {
         self.diff_first(limit).await
+    }
+
+    async fn lock_changeset(&mut self, id: Uuid) -> Result<Option<String>, StoreError> {
+        crate::pending::lock(&mut self.tx, id).await
+    }
+
+    async fn approval_policies(&mut self) -> Result<Vec<ApprovalPolicy>, StoreError> {
+        crate::pending::policies(&mut self.tx).await
+    }
+
+    async fn policy_named(&mut self, name: &str) -> Result<Option<Uuid>, StoreError> {
+        crate::pending::policy_named(&mut self.tx, name).await
+    }
+
+    async fn set_policy(&mut self, policy: &ApprovalPolicy) -> Result<(), WriteError> {
+        crate::pending::set_policy(&mut self.tx, policy).await
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {

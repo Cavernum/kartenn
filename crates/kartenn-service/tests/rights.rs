@@ -5,7 +5,7 @@ use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
-use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::pipeline::{MAX_OPERATIONS, PendingKind};
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
@@ -258,13 +258,11 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
         f.id("10.5.0.2").await,
     ]);
     assert_eq!(f.forbidden(&none, close()).await, below);
-    // With the right to propose only, still refused for now (proposals: 004-14).
+    // With the right to propose only, a proposal (REQ-004-41).
     let propose = Grants::new().everywhere(f.contractor, PROPOSE);
     match f.submit(&propose, f.contractor, close()).await {
-        Outcome::Refused { violations, .. } => {
-            assert!(violations[0].message.contains("004-14"), "{violations:?}");
-        }
-        other => panic!("expected refused, got {other:?}"),
+        Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Proposal),
+        other => panic!("expected a proposal, got {other:?}"),
     }
     f.applied(&Grants::new().everywhere(f.contractor, WRITE), close())
         .await;

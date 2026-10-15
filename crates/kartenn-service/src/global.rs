@@ -73,7 +73,8 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
             | Planned::Assign { .. }
-            | Planned::Unassign { .. } => {}
+            | Planned::Unassign { .. }
+            | Planned::Policy(_) => {}
         }
     }
     check_sites(tx, planned, period, violations).await?;

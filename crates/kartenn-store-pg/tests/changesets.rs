@@ -16,9 +16,10 @@ async fn changeset(
     state: &str,
 ) -> sqlx::Result<sqlx::types::Uuid> {
     sqlx::query_scalar(
-        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, expires_at)
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, expires_at, request)
          VALUES (gen_random_uuid(), $1, 'test', $2, 'direct', tstzrange(now(), NULL),
-                 CASE WHEN $2 = 'pending' THEN now() + interval '30 days' END)
+                 CASE WHEN $2 = 'pending' THEN now() + interval '30 days' END,
+                 CASE WHEN $2 = 'pending' THEN '{}'::jsonb END)
          RETURNING id",
     )
     .bind(author)
@@ -36,6 +37,16 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
         changeset(&pool, author, "lost").await.is_err(),
         "unknown state"
     );
+    // A pending changeset keeps its request, to be replayed (REQ-004-22).
+    let without_request = sqlx::query(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, expires_at)
+         VALUES (gen_random_uuid(), $1, 'test', 'pending', 'approval', tstzrange(now(), NULL),
+                 now() + interval '30 days')",
+    )
+    .bind(author)
+    .execute(&pool)
+    .await;
+    assert!(without_request.is_err());
     let empty_motive = sqlx::query(
         "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
          VALUES (gen_random_uuid(), $1, '', 'applied', 'direct', tstzrange(now(), NULL))",

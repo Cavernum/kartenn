@@ -12,6 +12,7 @@ pub mod operations;
 pub mod pipeline;
 pub mod port;
 mod resolution;
+pub mod review;
 mod rights;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};

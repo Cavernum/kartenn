@@ -63,8 +63,14 @@ pub struct Journal<'a> {
     pub id: Uuid,
     /// The request.
     pub request: &'a ChangesetRequest,
-    /// `applied` or `refused`.
+    /// `applied`, `refused`, `pending` or `failed_revalidation`.
     pub state: &'static str,
+    /// `direct`, `approval` or `proposal` (kept when a pending changeset is decided).
+    pub kind: &'static str,
+    /// Who validated a pending changeset.
+    pub validator: Option<Uuid>,
+    /// What a pending changeset waits for.
+    pub pending: Option<&'a Pending>,
     /// Violations (errors and warnings).
     pub violations: &'a [Violation],
     /// Addressing domains written by the changeset (event ordering key, ADR 0018).
@@ -78,6 +84,54 @@ pub struct Journal<'a> {
     /// Differential of resolved values (REQ-003-19); its detail is the one recorded in
     /// the transaction by [`WriteTx::record_diff`].
     pub diff: &'a [DiffCount],
+}
+
+/// What a pending changeset waits for (004/design, § Approbation et propositions).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Pending {
+    /// The approval policy that holds it, for an approval.
+    pub policy: Option<Uuid>,
+    /// Objects of its operations and of its differential.
+    pub perimeter: Vec<Uuid>,
+    /// Write permissions the author lacks, with the objects concerned, for a proposal.
+    pub required: Vec<(String, Vec<Uuid>)>,
+}
+
+/// A changeset journaled as pending, or decided since.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingChangeset {
+    /// Identifier.
+    pub id: Uuid,
+    /// The request as submitted.
+    pub request: ChangesetRequest,
+    /// `approval` or `proposal`.
+    pub kind: String,
+    /// Current state.
+    pub state: String,
+    /// What it waits for.
+    pub pending: Pending,
+}
+
+/// An approval policy (REQ-004-20, 40): it holds a changeset when every trigger it
+/// defines matches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApprovalPolicy {
+    /// Identifier.
+    pub id: Uuid,
+    /// Unique name.
+    pub name: String,
+    /// At least this many operations.
+    pub min_operations: Option<u32>,
+    /// At least this many objects in the differential.
+    pub min_diff_objects: Option<u64>,
+    /// One of these properties changes, directly or by effect.
+    pub property_keys: Vec<String>,
+    /// The changeset touches one of these addressing domains.
+    pub domains: Vec<Uuid>,
+    /// The author is one of these people.
+    pub authors: Vec<Uuid>,
+    /// Disabled policies hold nothing.
+    pub enabled: bool,
 }
 
 /// Use of a property, as needed to check an evolution of its declaration (REQ-003-6).
@@ -166,6 +220,30 @@ pub trait Store: Send + Sync {
         &self,
         journal: &Journal<'_>,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// A changeset journaled as pending, whatever its state since.
+    fn pending(
+        &self,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<PendingChangeset>, StoreError>> + Send;
+
+    /// Ends a pending changeset without applying it (`rejected`, `withdrawn`), with the
+    /// motive of a rejection and its event; `false` if it is no longer pending.
+    fn close_pending(
+        &self,
+        id: Uuid,
+        state: &'static str,
+        by: Uuid,
+        rejection: Option<&str>,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Expires the changesets pending past their deadline, with their events.
+    fn expire_pending(&self) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Proposals pending, oldest first.
+    fn pending_proposals(
+        &self,
+    ) -> impl Future<Output = Result<Vec<PendingChangeset>, StoreError>> + Send;
 }
 
 /// One write transaction. Every write runs under a savepoint, so that a refused write
@@ -697,6 +775,30 @@ pub trait WriteTx {
         &mut self,
         limit: i64,
     ) -> impl Future<Output = Result<Vec<DiffItem>, StoreError>> + Send;
+
+    /// Locks a journaled changeset until the end of the transaction and gives its state
+    /// (validations of the same changeset are serialised); `None` if unknown.
+    fn lock_changeset(
+        &mut self,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<String>, StoreError>> + Send;
+
+    /// Enabled approval policies.
+    fn approval_policies(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<ApprovalPolicy>, StoreError>> + Send;
+
+    /// Identifier of the approval policy named `name`, if any.
+    fn policy_named(
+        &mut self,
+        name: &str,
+    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
+    /// Creates or replaces an approval policy.
+    fn set_policy(
+        &mut self,
+        policy: &ApprovalPolicy,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
 
     /// Journals the applied changeset in this transaction.
     fn journal_applied(

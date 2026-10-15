@@ -11,6 +11,7 @@ pub mod maintenance;
 mod obligations;
 mod origins;
 pub mod outbox;
+mod pending;
 mod properties;
 pub mod registry;
 pub mod temporal;

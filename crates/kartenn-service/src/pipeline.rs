@@ -10,13 +10,15 @@ use kartenn_core::properties::Declaration;
 use kartenn_core::registry::special_registry;
 use kartenn_core::rules::{self, Severity, Violation};
 use kartenn_core::values::Raw;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
 use crate::port::{
-    Change, DiffCount, DiffItem, Journal, Replay, Store, StoreError, WriteError, WriteTx,
+    ApprovalPolicy, Change, DiffCount, DiffItem, Journal, Pending, Replay, Store, StoreError,
+    WriteError, WriteTx,
 };
 
 /// Default maximum number of operations of a changeset (004/C3).
@@ -64,6 +66,10 @@ pub enum RequestError {
         /// Kind expected.
         expected: ObjectKind,
     },
+    /// The validation, rejection or withdrawal of a pending changeset is refused; the
+    /// changeset keeps its state (REQ-004-21, 23, 24, 42).
+    #[error("{}: {}", .0.rule.id, .0.message)]
+    Review(Violation),
     /// The idempotency key was already used with a different content (REQ-004-10).
     #[error("the idempotency key was already used for a different changeset")]
     IdempotencyConflict,
@@ -98,6 +104,25 @@ pub enum Outcome {
         changeset: Uuid,
         /// Its state.
         state: String,
+    },
+    /// Held for a decision, as a proposal or by an approval policy (REQ-004-20, 41);
+    /// nothing written but the journal.
+    Pending {
+        /// Changeset identifier.
+        changeset: Uuid,
+        /// Proposal or approval.
+        kind: PendingKind,
+        /// The policy that holds it.
+        policy: Option<Uuid>,
+        /// Differential that applying it would produce.
+        diff: Vec<DiffCount>,
+    },
+    /// A pending changeset validated but refused on the current state (REQ-004-22).
+    FailedRevalidation {
+        /// Changeset identifier.
+        changeset: Uuid,
+        /// All violations found.
+        violations: Vec<Violation>,
     },
     /// Simulation: what would happen, nothing written (REQ-004-9).
     Simulated {
@@ -148,6 +173,8 @@ pub(crate) enum Planned {
         object: Address,
         public: bool,
     },
+    /// An approval policy; its identifier is the existing one of the same name, if any.
+    Policy(ApprovalPolicy),
     /// An entity or a site.
     Anchor {
         kind: ObjectKind,
@@ -205,6 +232,7 @@ impl Planned {
             | Self::UpdateDeclaration { id, .. }
             | Self::EnumValue { id, .. } => *id,
             Self::Assign { object, .. } | Self::Unassign { object, .. } => *object,
+            Self::Policy(policy) => policy.id,
             Self::Prefix { object, .. } => object.id,
             Self::Range { object, .. } => object.id,
             Self::Address { object, .. } => object.id,
@@ -271,7 +299,9 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 .chain(parent)
                 .map(|r| (*r, ObjectKind::Site))
                 .collect(),
-            Operation::CreateDomain { .. } | Operation::DeclareProperty { .. } => vec![],
+            Operation::CreateDomain { .. }
+            | Operation::DeclareProperty { .. }
+            | Operation::SetApprovalPolicy { .. } => vec![],
         };
         for (r, expected) in uses {
             if let Ref::Local(local) = r {
@@ -442,7 +472,8 @@ fn plan_prefix(
     Ok((Some(Planned::Prefix { object, public }), violations))
 }
 
-/// Plans the creation or the move of an entity or a site.
+/// Plans the creation or the move of an entity or a site, an approval policy, or the
+/// modification of an addressing object.
 fn plan_anchor(
     op: &Operation,
     id: Uuid,
@@ -479,8 +510,56 @@ fn plan_anchor(
             change: Change::Parent(parent.map(&resolve)),
             expected: *expected,
         },
+        Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
+        Operation::UpdatePrefix { id: target, .. }
+        | Operation::UpdateAddress { id: target, .. }
+        | Operation::UpdateRange { id: target, .. } => return plan_update(op, resolve(*target)),
         _ => return Ok(None),
     }))
+}
+
+/// Plans an approval policy: a name and at least one trigger (REQ-004-40).
+fn plan_policy(op: &Operation, id: Uuid) -> Result<Planned, Violation> {
+    let Operation::SetApprovalPolicy {
+        name,
+        min_operations,
+        min_diff_objects,
+        property_keys,
+        domains,
+        authors,
+        enabled,
+    } = op
+    else {
+        return Err(Violation::new(
+            &rules::POLICY_INVALID,
+            "not a policy".to_owned(),
+        ));
+    };
+    let policy = ApprovalPolicy {
+        id,
+        name: name.trim().to_owned(),
+        min_operations: *min_operations,
+        min_diff_objects: *min_diff_objects,
+        property_keys: property_keys.clone(),
+        domains: domains.clone(),
+        authors: authors.clone(),
+        enabled: *enabled,
+    };
+    let triggers = policy.min_operations.is_some()
+        || policy.min_diff_objects.is_some()
+        || !policy.property_keys.is_empty()
+        || !policy.domains.is_empty()
+        || !policy.authors.is_empty();
+    if policy.name.is_empty() || !triggers {
+        return Err(Violation::new(
+            &rules::POLICY_INVALID,
+            format!(
+                "the policy '{}' needs a name and at least one trigger",
+                policy.name
+            ),
+        ));
+    }
+    Ok(Planned::Policy(policy))
 }
 
 /// Parses every operation and runs the local rules (no database).
@@ -546,7 +625,11 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
             Operation::CreateEntity { .. }
             | Operation::CreateSite { .. }
             | Operation::MoveEntity { .. }
-            | Operation::MoveSite { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
+            | Operation::MoveSite { .. }
+            | Operation::SetApprovalPolicy { .. }
+            | Operation::UpdatePrefix { .. }
+            | Operation::UpdateAddress { .. }
+            | Operation::UpdateRange { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
                 Ok(p) => planned.extend(p),
                 Err(v) => violations.push(v),
             },
@@ -560,14 +643,6 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     id: resolve(*target, &ids),
                     expected: *expected,
                 });
-            }
-            Operation::UpdatePrefix { id: target, .. }
-            | Operation::UpdateAddress { id: target, .. }
-            | Operation::UpdateRange { id: target, .. } => {
-                match plan_update(op, resolve(*target, &ids)) {
-                    Ok(p) => planned.extend(p),
-                    Err(v) => violations.push(v),
-                }
             }
             Operation::DeclareProperty { .. }
             | Operation::UpdateProperty { .. }
@@ -673,7 +748,8 @@ async fn lock_targets<T: WriteTx>(
             }
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
-            | Planned::EnumValue { .. } => {}
+            | Planned::EnumValue { .. }
+            | Planned::Policy(_) => {}
             // An assignment is written under the lock of its object's domain.
             Planned::Assign { object, kind, .. } | Planned::Unassign { object, kind, .. } => {
                 if let Some(d) = tx.domain_of(*kind, *object).await? {
@@ -711,6 +787,16 @@ async fn conflict<T: WriteTx>(
         )
         .with_subjects([id]),
     ))
+}
+
+/// Writes a policy under the identifier of the existing one of the same name, if any.
+async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result<(), WriteError> {
+    let id = tx.policy_named(&policy.name).await?.unwrap_or(policy.id);
+    tx.set_policy(&ApprovalPolicy {
+        id,
+        ..policy.clone()
+    })
+    .await
 }
 
 /// Writes a modification, noting the former extent of a resized prefix.
@@ -774,6 +860,7 @@ async fn apply<T: WriteTx>(
             Planned::Address { object, public } => {
                 tx.insert_address(object, *public, period, changeset).await
             }
+            Planned::Policy(policy) => write_policy(tx, policy).await,
             Planned::Anchor {
                 kind,
                 id,
@@ -884,19 +971,66 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     req: &ChangesetRequest,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
+    run(
+        store,
+        authorizer,
+        sources,
+        req,
+        max_operations,
+        Mode::Submission,
+    )
+    .await
+}
+
+/// How a changeset runs through the pipeline.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Mode {
+    /// A submission: the author's rights, with proposals and approval policies.
+    Submission,
+    /// The validation of the pending changeset `id` by `validator` (REQ-004-21, 22, 42).
+    Validation {
+        id: Uuid,
+        validator: Uuid,
+        kind: PendingKind,
+    },
+}
+
+/// The pipeline of a changeset (004/design, § Pipeline d'un changeset).
+#[allow(clippy::too_many_lines)] // one linear pipeline, stage by stage
+pub(crate) async fn run<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    sources: &Sources,
+    req: &ChangesetRequest,
+    max_operations: usize,
+    mode: Mode,
+) -> Result<Outcome, RequestError> {
     let period = check_request(req, max_operations)?;
-    let changeset = Uuid::now_v7();
+    let changeset = match mode {
+        Mode::Submission => Uuid::now_v7(),
+        Mode::Validation { id, .. } => id,
+    };
     let mut tx = store.begin().await?;
-    if req.idempotency_key.is_some() && !req.simulate {
-        match tx.replay(req).await? {
-            Replay::Fresh => {}
-            Replay::Same { changeset, state } => {
-                tx.rollback().await?;
-                return Ok(Outcome::Replayed { changeset, state });
+    match mode {
+        Mode::Submission if req.idempotency_key.is_some() && !req.simulate => {
+            match tx.replay(req).await? {
+                Replay::Fresh => {}
+                Replay::Same { changeset, state } => {
+                    tx.rollback().await?;
+                    return Ok(Outcome::Replayed { changeset, state });
+                }
+                Replay::Conflict => {
+                    tx.rollback().await?;
+                    return Err(RequestError::IdempotencyConflict);
+                }
             }
-            Replay::Conflict => {
+        }
+        Mode::Submission => {}
+        // Validations of one changeset are serialised; only a pending one is decided.
+        Mode::Validation { id, .. } => {
+            if tx.lock_changeset(id).await?.as_deref() != Some("pending") {
                 tx.rollback().await?;
-                return Err(RequestError::IdempotencyConflict);
+                return Err(RequestError::Review(not_pending(id)));
             }
         }
     }
@@ -904,10 +1038,15 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     crate::expected::check_declared_sources(&planned, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
-        return refuse(store, req, changeset, violations).await;
+        return refuse(store, req, changeset, violations, mode).await;
     }
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
+    // The policies in force at submission, before the changeset changes them.
+    let policies = match mode {
+        Mode::Submission => tx.approval_policies().await?,
+        Mode::Validation { .. } => Vec::new(),
+    };
     let former = match apply(&mut tx, &planned, period, changeset, &mut violations).await {
         Ok(former) => former,
         Err(e) => {
@@ -924,24 +1063,54 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     }
     if has_errors(&violations) {
         tx.rollback().await?;
-        return refuse(store, req, changeset, violations).await;
+        return refuse(store, req, changeset, violations, mode).await;
     }
+    // Rights: the author's when submitting (a lack covered by `…propose` makes a
+    // proposal); a proposal's validator's when validating it; the author's again for an
+    // approval, whose validator needs the approval permission below.
+    let (subject, may_propose) = match mode {
+        Mode::Submission => (req.author, true),
+        Mode::Validation {
+            validator,
+            kind: PendingKind::Proposal,
+            ..
+        } => (validator, false),
+        Mode::Validation {
+            kind: PendingKind::Approval,
+            ..
+        } => (req.author, false),
+    };
     let props = properties(
         &mut tx,
         authorizer,
         sources,
-        req.author,
+        subject,
+        may_propose,
         &planned,
         period,
         changeset,
         &mut violations,
     )
     .await;
-    let (diff, checked) = match props {
+    let Checked {
+        diff,
+        expected: checked,
+        missing,
+    } = match props {
         Ok(Some(found)) => found,
         Ok(None) => {
             tx.rollback().await?;
-            return refuse(store, req, changeset, violations).await;
+            // A validator without the rights leaves the proposal pending.
+            if let Mode::Validation {
+                validator,
+                kind: PendingKind::Proposal,
+                ..
+            } = mode
+                && let Some(denied) = only_rights(&violations)
+            {
+                return Err(RequestError::Review(forbidden(validator, denied)));
+            }
+            return refuse(store, req, changeset, violations, mode).await;
         }
         Err(e) => {
             tx.rollback().await?;
@@ -958,11 +1127,69 @@ pub async fn submit_with<S: Store, A: Authorizer>(
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
+    match mode {
+        Mode::Submission => {
+            let kind = if missing.is_empty() {
+                crate::review::holding_policy(&mut tx, &policies, req, &planned, &diff, &domains)
+                    .await?
+                    .map(|policy| (PendingKind::Approval, Some(policy)))
+            } else {
+                Some((PendingKind::Proposal, None))
+            };
+            if let Some((kind, policy)) = kind {
+                let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
+                perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
+                tx.rollback().await?;
+                let pending = Pending {
+                    policy,
+                    perimeter: perimeter.into_iter().collect(),
+                    required: missing,
+                };
+                return hold(
+                    store,
+                    req,
+                    changeset,
+                    kind,
+                    &pending,
+                    &violations,
+                    &domains,
+                    diff,
+                )
+                .await;
+            }
+        }
+        Mode::Validation {
+            validator,
+            kind: PendingKind::Approval,
+            ..
+        } => {
+            let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
+            perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
+            let perimeter: Vec<Uuid> = perimeter.into_iter().collect();
+            let denied = authorizer
+                .authorize_many(validator, APPROVE_PERMISSION, &perimeter)
+                .await?;
+            if !denied.is_empty() {
+                tx.rollback().await?;
+                return Err(RequestError::Review(forbidden(validator, denied)));
+            }
+        }
+        Mode::Validation { .. } => {}
+    }
     let reevaluated = reevaluated(&planned, &checked);
+    let (kind, validator) = match mode {
+        Mode::Submission => ("direct", None),
+        Mode::Validation {
+            validator, kind, ..
+        } => (kind.as_str(), Some(validator)),
+    };
     let journal = Journal {
         id: changeset,
         request: req,
         state: "applied",
+        kind,
+        validator,
+        pending: None,
         violations: &violations,
         domains: &domains,
         objects: &objects,
@@ -978,8 +1205,106 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     })
 }
 
+/// Permission to approve a changeset held by a policy, over its whole perimeter
+/// (REQ-004-21).
+pub const APPROVE_PERMISSION: &str = "changeset.approve";
+
+/// The kind of a pending changeset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PendingKind {
+    /// Held by an approval policy (REQ-004-20).
+    Approval,
+    /// Proposed by an author who may only propose (REQ-004-41).
+    Proposal,
+}
+
+impl PendingKind {
+    /// Stored form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Approval => "approval",
+            Self::Proposal => "proposal",
+        }
+    }
+}
+
+fn not_pending(id: Uuid) -> Violation {
+    Violation::new(
+        &rules::CHANGESET_NOT_PENDING,
+        format!("changeset {id} is not pending"),
+    )
+    .with_subjects([id])
+}
+
+fn forbidden(validator: Uuid, denied: Vec<Uuid>) -> Violation {
+    Violation::new(
+        &rules::APPROVAL_FORBIDDEN,
+        format!(
+            "{validator} lacks the right to validate on {} object(s)",
+            denied.len()
+        ),
+    )
+    .with_subjects(denied)
+}
+
+/// The objects refused when every error is a lack of right; `None` otherwise.
+fn only_rights(violations: &[Violation]) -> Option<Vec<Uuid>> {
+    let errors: Vec<&Violation> = violations
+        .iter()
+        .filter(|v| v.rule.severity == Severity::Error)
+        .collect();
+    errors
+        .iter()
+        .all(|v| v.rule.id == rules::PROP_FORBIDDEN_EFFECT.id)
+        .then(|| errors.iter().flat_map(|v| v.subjects.clone()).collect())
+}
+
+/// Journals a pending changeset after the rollback of its writes, with its event.
+#[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
+async fn hold<S: Store>(
+    store: &S,
+    req: &ChangesetRequest,
+    changeset: Uuid,
+    kind: PendingKind,
+    pending: &Pending,
+    violations: &[Violation],
+    domains: &[Uuid],
+    diff: Vec<DiffCount>,
+) -> Result<Outcome, RequestError> {
+    let journal = Journal {
+        id: changeset,
+        request: req,
+        state: "pending",
+        kind: kind.as_str(),
+        validator: None,
+        pending: Some(pending),
+        violations,
+        domains,
+        objects: &[],
+        reevaluated: &[],
+        diff: &diff,
+    };
+    store.journal_refused(&journal).await?;
+    Ok(Outcome::Pending {
+        changeset,
+        kind,
+        policy: pending.policy,
+        diff,
+    })
+}
+
 /// Entries of the differential detail returned by a simulation (003/design).
 const SIMULATION_SAMPLE: i64 = 100;
+
+/// What the properties stage found: the differential, the objects whose expected values
+/// were checked, and the write permissions lacking but proposable.
+struct Checked {
+    diff: Vec<DiffCount>,
+    expected: Vec<Uuid>,
+    missing: crate::rights::Missing,
+}
 
 /// Properties after the writes (spec 003): origins, obligations, differential, then the
 /// rights on the assignments and on their effects (REQ-003-17, 18). `None` when a rule
@@ -989,12 +1314,13 @@ async fn properties<T: WriteTx, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     sources: &Sources,
-    author: Uuid,
+    subject: Uuid,
+    may_propose: bool,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
     violations: &mut Vec<Violation>,
-) -> Result<Option<(Vec<DiffCount>, Vec<Uuid>)>, StoreError> {
+) -> Result<Option<Checked>, StoreError> {
     // REQ-003-22: default values first, so that they are resolved, obliged and diffed like
     // any assignment.
     let defaults = match crate::expected::defaults(tx, sources, planned, period, changeset).await {
@@ -1026,12 +1352,26 @@ async fn properties<T: WriteTx, A: Authorizer>(
     let touched = crate::resolution::touched(&all, refreshed);
     let diff = crate::resolution::diff(tx, &all, &maintained, period).await?;
     // Default values are not the author's choice: only their effects need rights.
-    crate::rights::check(tx, authorizer, author, planned, &diff, period, violations).await?;
+    let missing = crate::rights::check(
+        tx,
+        authorizer,
+        subject,
+        planned,
+        &diff,
+        period,
+        may_propose,
+        violations,
+    )
+    .await?;
     if has_errors(violations) {
         return Ok(None);
     }
     let checked = crate::expected::check(tx, sources, &touched, period, violations).await?;
-    Ok(Some((diff, checked)))
+    Ok(Some(Checked {
+        diff,
+        expected: checked,
+        missing,
+    }))
 }
 
 /// Rules evaluated anew by the changeset, per object (REQ-002-35, 36): the core rules on
@@ -1057,11 +1397,14 @@ fn reevaluated(planned: &[Planned], checked: &[Uuid]) -> Vec<(Uuid, &'static str
     out
 }
 
+/// Journals a changeset refused at submission, or a pending one refused on the current
+/// state when validated (REQ-004-22).
 async fn refuse<S: Store>(
     store: &S,
     req: &ChangesetRequest,
     changeset: Uuid,
     violations: Vec<Violation>,
+    mode: Mode,
 ) -> Result<Outcome, RequestError> {
     if req.simulate {
         return Ok(Outcome::Simulated {
@@ -1073,7 +1416,19 @@ async fn refuse<S: Store>(
     let journal = Journal {
         id: changeset,
         request: req,
-        state: "refused",
+        state: match mode {
+            Mode::Submission => "refused",
+            Mode::Validation { .. } => "failed_revalidation",
+        },
+        kind: match mode {
+            Mode::Submission => "direct",
+            Mode::Validation { kind, .. } => kind.as_str(),
+        },
+        validator: match mode {
+            Mode::Submission => None,
+            Mode::Validation { validator, .. } => Some(validator),
+        },
+        pending: None,
         violations: &violations,
         domains: &[],
         objects: &[],
@@ -1081,9 +1436,15 @@ async fn refuse<S: Store>(
         diff: &[],
     };
     store.journal_refused(&journal).await?;
-    Ok(Outcome::Refused {
-        changeset,
-        violations,
+    Ok(match mode {
+        Mode::Submission => Outcome::Refused {
+            changeset,
+            violations,
+        },
+        Mode::Validation { .. } => Outcome::FailedRevalidation {
+            changeset,
+            violations,
+        },
     })
 }
 

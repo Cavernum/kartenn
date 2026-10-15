@@ -200,6 +200,16 @@ rules! {
         "Une opération ne vise un objet que sur une période où il existe.";
     CHANGESET_CONFLICT = "changeset.operation.conflict", Error, ["REQ-004-11"], "004/design",
         "Une opération qui précise la version attendue d'un objet échoue si la version courante diffère.";
+    CHANGESET_NOT_PENDING = "changeset.state.not_pending", Error, ["REQ-004-19", "REQ-004-24"], "004/design",
+        "Seul un changeset en attente peut être validé, rejeté ou retiré.";
+    CHANGESET_NOT_AUTHOR = "changeset.state.not_author", Error, ["REQ-004-23"], "004/design",
+        "Seul l'auteur retire son changeset en attente.";
+    APPROVAL_SELF = "changeset.approval.self", Error, ["REQ-004-21", "REQ-004-42"], "004/C1",
+        "L'auteur ne valide ni ne rejette son propre changeset.";
+    APPROVAL_FORBIDDEN = "changeset.approval.forbidden", Error, ["REQ-004-21", "REQ-004-42"], "004/C1, C7",
+        "Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition.";
+    POLICY_INVALID = "changeset.policy.invalid", Error, ["REQ-004-40"], "004/C6",
+        "Une politique d'approbation a un nom et au moins un déclencheur.";
 }
 
 /// Every rule, all groups, in catalogue order.
