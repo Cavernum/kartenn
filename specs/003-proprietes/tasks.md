@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-15
 ---
 
@@ -87,5 +87,6 @@ voir [`../README.md`](../README.md).
   objets, changement d'origine sur 10⁴ et plus de 10⁵ objets (P10) — REQ-003-26 —
   verify : seuils bloquants (`kartenn-bench props`, script `bench-properties`) — seuil
   du cas ≤ 10⁴ porté à 2,5 s (P14) ; branchement CI avec 002-27
-- [ ] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
-  rapport spec-keeper sans écart
+- [x] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
+  rapport spec-keeper sans écart (aucun écart bloquant ; les écarts mineurs relevés, dont
+  un test manquant de REQ-003-5, sont corrigés) — catalogue des permissions avec la 005

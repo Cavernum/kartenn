@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Architecture
@@ -120,6 +120,7 @@ crates/
   kartenn-rest/        adaptateur REST (axum), OpenAPI (utoipa)
   kartenn-auth/        Basic, OIDC, RBAC
   kartenn-server/      binaire : composition, configuration, observabilité
+  kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26)
   kartenn-<module>/    un module métier (vlan, machines, policy…)
   kartenn-workspace-hack/
 web/

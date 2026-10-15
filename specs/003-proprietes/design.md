@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-15
 ---
 
@@ -68,8 +68,9 @@ connus du noyau, en attendant le registre des types des modules.
 | `property_enum_value` | `id`, `property_id`, `key` (`[a-z0-9-]`), période de validité |
 
 La permission d'écriture d'une propriété est dérivée de sa clé : `prop.<key>.write`
-(REQ-003-17) ; elle est enregistrée au catalogue de permissions du RBAC (005) à la
-déclaration.
+(REQ-003-17) ; elle sera enregistrée au catalogue de permissions du RBAC à la
+déclaration ; ce catalogue arrive avec la 005 (d'ici là, seuls les noms sont dérivés,
+`kartenn-core`, `PropertyKey`).
 
 **Compatibilité** (REQ-003-6). Un vérificateur compare l'ancienne et la nouvelle
 déclaration ; pour chaque changement non trivialement compatible, il cherche des
@@ -113,8 +114,7 @@ index GIN sur `v_uuids` et B-tree sur `v_uuid`.
 |---|---|
 | `property_assignment` | `object_id`, `object_type`, `property_id`, `kind` (`value`, `cleared`), colonnes de valeur, `provenance` (`input`, ou `source:<id>@<version>`), période de validité, changeset |
 
-Contrainte : une seule affectation par (objet, propriété) et par période (exclusion GiST
-sur `object_id` et `property_id` en `uuid` via btree_gist, et `valid_period`).
+Contrainte : une seule affectation par (objet, propriété) et par période.
 
 Une affectation n'a pas d'identifiant propre : elle est désignée par (objet, propriété),
 qui sert de clé de version (clé primaire `WITHOUT OVERLAPS` et index d'historique) ;
@@ -219,7 +219,7 @@ flowchart TD
 
 Après résolution, pour chaque propriété obligatoire dont la portée contient un objet
 touché ou créé : toute valeur résolue absente (ou effacée) produit une erreur
-`prop.required` listant les objets. Les valeurs par défaut (REQ-003-22) sont appliquées
+`prop.assignment.required` listant les objets. Les valeurs par défaut (REQ-003-22) sont appliquées
 **avant** ce contrôle.
 
 - **Objets touchés** : ceux que le changeset crée, ceux dont l'origine a été recalculée
@@ -239,7 +239,7 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   permission. L'appel au RBAC (005) est **groupé** : `authorize_many(subject,
   permission, objets)` renvoie les objets refusés. Le RBAC résout les périmètres par
   `core.owner` et l'arbre d'adressage, eux-mêmes matérialisés.
-- Sans droit d'écriture, refus `prop.forbidden_effect`, sauf si l'auteur détient
+- Sans droit d'écriture, refus `prop.assignment.forbidden_effect`, sauf si l'auteur détient
   `prop.<key>.propose` : le changeset devient une proposition en attente
   (004/REQ-004-41).
 - **Mise en œuvre (003-11)** : contrôle après le différentiel, dans la transaction ;
@@ -291,7 +291,7 @@ résolues (lecture seule). Modes configurés dans la déclaration :
 |---|---|
 | `suggest` | Endpoint de suggestion (REQ-003-23), rien d'écrit |
 | `default` | À la création d'un objet sans affectation, affectation de la valeur attendue avec la provenance `source:<id>@<version>` (REQ-003-22), avant les obligations |
-| `check` | Après résolution, sur les objets touchés : écart entre valeur résolue et attendue → anomalie `prop.expected_mismatch` (REQ-003-24) |
+| `check` | Après résolution, sur les objets touchés : écart entre valeur résolue et attendue → anomalie `prop.resolution.expected_mismatch` (REQ-003-24) |
 
 Quand la version d'une source change, un **job** de worker réévalue les écarts sur tous
 les porteurs, par lots. La v0.1 ne fournit **aucune** source ; le moteur de règles arrive
@@ -333,7 +333,7 @@ affectations.
 |---|---|
 | égalité, intervalle (int, date, text) | B-tree `(property_id, v_int)`, `(property_id, v_date)`, `(property_id, v_text)` |
 | appartenance (enum, ref, ensembles) | B-tree `(property_id, v_uuid)` ; GIN sur `v_uuids`, `v_texts` |
-| présence / absence | `property_origin` avec origine nulle (héritable) ; anti-jointure (non héritable) |
+| présence / absence | anti-jointure sur `property_origin` (héritable, pas de ligne sans origine, P13) ou sur les affectations (non héritable) |
 
 Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédicats SQL).
 
@@ -359,17 +359,17 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
 
 | Cas | Comportement | REQ |
 |---|---|---|
-| Affectation sur un type d'objet non porteur | `prop.not_carrier` | 4 |
-| Valeur invalide pour le type | `prop.invalid_value`, contrainte citée | 8 |
-| Valeur de liste fermée close à la date | `prop.invalid_value` | 5, 8 |
-| `custom.x` créée par un module, ou `policy.y` par un administrateur | `prop.namespace_forbidden` | 2 |
+| Affectation sur un type d'objet non porteur | `prop.assignment.not_carrier` | 4 |
+| Valeur invalide pour le type | `prop.assignment.invalid_value`, contrainte citée | 8 |
+| Valeur de liste fermée close à la date | `prop.assignment.invalid_value` | 5, 8 |
+| `custom.x` créée par un module, ou `policy.y` par un administrateur | `prop.declaration.namespace` | 2 |
 | Insertion d'un conteneur sans affectation entre un parent `{prod}` et un enfant `{dev}` | Aucun changement de valeur résolue : pas de contrôle de droit | 18 |
-| Clôture d'un préfixe qui porte `{dev}` sous un parent `{prod}` | Différentiel `{dev}` → `{prod}` sur ses descendants ; `prop.forbidden_effect` sans droit | 18, 19 |
+| Clôture d'un préfixe qui porte `{dev}` sous un parent `{prod}` | Différentiel `{dev}` → `{prod}` sur ses descendants ; `prop.assignment.forbidden_effect` sans droit | 18, 19 |
 | Changeset qui crée un réseau, ses adresses et affecte une propriété au réseau | Objets nouveaux : pas de contrôle d'effet ; droit direct exigé pour l'affectation | 17, 18 |
 | Changeset qui change la valeur portée par 10⁶ objets | Aucune réécriture ; différentiel : décompte immédiat, détail paginé ; budget < 10 s | 19, 26 |
 | Changeset qui change l'origine de plus de 10⁵ objets (clôture très haute) | Décompte d'abord (simulation) ; application atomique ; budget < 60 s (P10) | 19, 26 |
-| Effacement explicite sur une portée obligatoire | `prop.required` | 13, 16 |
-| Référence vers un objet qui sera clos dans le même changeset | Évalué sur l'état final : refus `prop.dangling_reference` | 10 |
+| Effacement explicite sur une portée obligatoire | `prop.assignment.required` | 13, 16 |
+| Référence vers un objet qui sera clos dans le même changeset | Évalué sur l'état final : refus `prop.assignment.dangling_reference` | 10 |
 | Cycle d'entités ou de sites | Refusé par le noyau (`core.anchor.cycle`) avant la résolution | 11 |
 
 ## Alternatives considérées
@@ -450,4 +450,4 @@ mise en place de celle-ci, comme le banc de la 002 (002-27).
 
 ## ADR
 
-- [`docs/adr/0016-resolution-materialisee-proprietes.md`](../../docs/adr/0016-resolution-materialisee-proprietes.md) (proposé)
+- [`docs/adr/0016-resolution-materialisee-proprietes.md`](../../docs/adr/0016-resolution-materialisee-proprietes.md) (accepté)

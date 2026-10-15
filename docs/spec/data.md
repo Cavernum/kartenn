@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Données
@@ -50,8 +50,18 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - **Valeurs de listes fermées** : bitemporelles ; elles se closent, sans effacement.
 - **Affectation** : (objet, propriété) → valeur, ou « aucune valeur » ; provenance
   (saisie ou source de valeurs attendues et version).
-- **Valeur résolue** : calculée ; matérialisée et maintenue de façon incrémentale pour
-  tenir les budgets (D30, REQ-003-26).
+- **Valeur résolue** : affectation propre, sinon celle de l'ancêtre le plus proche dans
+  l'arbre suivi. Pour les propriétés héritables, kartenn matérialise l'**objet
+  d'origine** (`property_origin`, bitemporelle), jamais la valeur, et le maintient dans
+  la transaction de chaque changeset ; pas de ligne sans origine (ADR 0016, 003/P9,
+  P13). La valeur se lit par jointure sur l'affectation de l'origine.
+- **Tables** (migrations 0011 à 0017) : `property_declaration`, `property_enum_value`,
+  `property_obligation`, `property_assignment` (colonnes typées, une affectation par
+  objet et propriété sur une période), `property_origin` ; historique de temps système
+  pour chacune (ADR 0017, proposé, accepté avec la 004) ; `changeset_diff` pour le
+  détail du différentiel ; `expected_source_state` pour la réévaluation des écarts.
+- **Déclarations de module** : synchronisées depuis le code par un changeset de l'auteur
+  système (003/P12).
 
 ## Temps (D8, D10, ADR 0005)
 
@@ -92,4 +102,5 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 
 - Une suite de migrations par module, ordonnée selon le DAG des dépendances.
 - Exécutées par un job dédié, jamais au démarrage des instances (D9).
-- Les propriétés déclarées par un module évoluent par migration de ce module (003/P8).
+- Les propriétés déclarées par un module évoluent avec le code du module, synchronisées
+  par le job de migration (003/P12).

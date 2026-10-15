@@ -4,7 +4,7 @@
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
 | [002-noyau-adressage](002-noyau-adressage/) | approuvées | approuvée | [tasks](002-noyau-adressage/tasks.md) (approuvées) |
-| [003-proprietes](003-proprietes/) | approuvées | approuvée | [tasks](003-proprietes/tasks.md) (approuvées) |
+| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (17/17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | approuvées | approuvée | [tasks](004-changesets-bitemporel/tasks.md) (approuvées) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
@@ -33,9 +33,9 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-15
 
-Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 16/17 (banc des
-propriétés tenu, seuil ≤ 10⁴ porté à 2,5 s, P14) · 004 : 13/24 (004-11 partiel) ; 189
-tests, `devenv test` vert.
+Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 17/17, implémentée
+(banc tenu, seuil ≤ 10⁴ porté à 2,5 s, P14 ; ADR 0016 acceptée) · 004 : 13/24 (004-11
+partiel) ; 190 tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 

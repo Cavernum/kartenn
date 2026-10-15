@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-15
 ---
 
@@ -14,7 +14,7 @@ strictement, éventuellement héritée le long d'un arbre, résolue à une date 
 une explication, protégée par sa propre permission. C'est le mécanisme dont dépend le
 module Politique de flux (v0.2) ; il est construit et mesuré dès la v0.1 (D31).
 
-Décisions : [`decisions.md`](decisions.md) (P1–P8) ; D19, D21–D27, D30, D34
+Décisions : [`decisions.md`](decisions.md) (P1–P14) ; D19, D21–D27, D30, D34
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; A10
 ([`../002-noyau-adressage/decisions.md`](../002-noyau-adressage/decisions.md)).
 
