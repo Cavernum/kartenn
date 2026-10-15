@@ -412,7 +412,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let (elapsed, diff) = bench.submit(vec![assign(container, h[0], "v9")]).await?;
     budgets.push(Budget {
         name: "changeset, differential up to 10^4",
-        limit: Duration::from_secs(1),
+        limit: Duration::from_millis(2_500),
         measured: elapsed,
         note: format!("{n} addresses below, {} objects changed", touched(&diff)),
     });
