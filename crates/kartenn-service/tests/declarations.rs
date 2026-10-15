@@ -3,11 +3,12 @@
 
 use std::collections::BTreeSet;
 
+use kartenn_core::objects::Nature;
 use kartenn_core::properties::{Declarant, Declaration, InheritTree, PropertyKey, TypeSpec};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::declarations::{ModuleDeclarations, SYSTEM_AUTHOR, sync_modules};
-use kartenn_service::operations::{DeclarationInput, TypeInput};
+use kartenn_service::operations::{DeclarationInput, PeriodSpec, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
@@ -36,10 +37,15 @@ impl Fixture {
     }
 
     async fn submit(&self, operations: Vec<Operation>) -> Outcome {
+        self.submit_at(operations, None).await
+    }
+
+    /// Submits from `start` (microseconds since the epoch) on, or from now.
+    async fn submit_at(&self, operations: Vec<Operation>, start: Option<i64>) -> Outcome {
         let request = ChangesetRequest {
             author: self.author,
             motive: "test".into(),
-            period: None,
+            period: start.map(|start| PeriodSpec { start, end: None }),
             operations,
             simulate: false,
             idempotency_key: None,
@@ -393,4 +399,62 @@ async fn module_declarations_follow_the_code(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(current, 0);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    f.applied(vec![
+        declare(1, input("custom.environment", TypeInput::Enum)),
+        add_value(Ref::Local(1), "prod"),
+        Operation::CreateDomain {
+            local: Some(2),
+            slug: "lab".into(),
+        },
+        Operation::CreatePrefix {
+            local: None,
+            domain: Ref::Local(2),
+            prefix: "10.0.0.0/8".into(),
+            nature: Nature::Container,
+            point_to_point: false,
+            anycast: false,
+        },
+    ])
+    .await;
+    let env = f.property("custom.environment").await;
+    let prefix: Uuid = sqlx::query_scalar("SELECT id FROM prefix")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let now =
+        i64::try_from(sqlx::types::time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
+            .unwrap();
+    let day = 86_400_000_000_i64;
+    // REQ-003-5: `preprod` opens on day 10.
+    let outcome = f
+        .submit_at(
+            vec![add_value(Ref::Id(env), "preprod")],
+            Some(now + 10 * day),
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let assign = || {
+        vec![Operation::AssignProperty {
+            object: Ref::Id(prefix),
+            kind: ObjectKind::Prefix,
+            property: Ref::Id(env),
+            values: vec![RawInput::Text("preprod".into())],
+        }]
+    };
+    match f.submit_at(assign(), Some(now + day)).await {
+        Outcome::Refused { violations, .. } => assert!(
+            violations
+                .iter()
+                .any(|v| v.rule.id == "prop.assignment.invalid_value"),
+            "{violations:?}"
+        ),
+        other => panic!("a value before its opening must be refused, got {other:?}"),
+    }
+    let outcome = f.submit_at(assign(), Some(now + 10 * day)).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
