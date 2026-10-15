@@ -9,6 +9,7 @@ mod cascade;
 pub mod declarations;
 pub mod expected;
 mod global;
+pub mod import;
 pub mod operations;
 pub mod pipeline;
 pub mod port;

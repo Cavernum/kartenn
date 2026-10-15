@@ -6,6 +6,7 @@ mod diff;
 mod expected;
 pub mod explain;
 pub mod filter;
+mod imports;
 pub mod keys;
 pub mod maintenance;
 mod obligations;

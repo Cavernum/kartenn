@@ -7,8 +7,8 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
-    ApprovalPolicy, Change, DiffCount, DiffItem, Journal, ObjectView, PendingChangeset,
-    PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
+    ApprovalPolicy, Change, DiffCount, DiffItem, ImportRecord, Journal, ObjectView,
+    PendingChangeset, PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
 };
 
 use crate::properties::{
@@ -50,6 +50,7 @@ fn constraint_rule(name: &str) -> Option<&'static Rule> {
         }
         "property_key_unique" => &rules::PROP_DUPLICATE_KEY,
         "property_enum_key_unique" => &rules::PROP_ENUM_VALUE_INVALID,
+        "external_id_pkey" => &rules::EXTERNAL_ID_DUPLICATE,
         _ => return None,
     })
 }
@@ -266,6 +267,41 @@ impl Store for PgStore {
 
     async fn undo_facts(&self, changeset: Uuid) -> Result<Option<UndoFacts>, StoreError> {
         crate::undo::facts(&self.pool, changeset).await
+    }
+
+    async fn create_import(&self, record: &ImportRecord) -> Result<(), StoreError> {
+        crate::imports::create(&self.pool, record).await
+    }
+
+    async fn import(&self, id: Uuid) -> Result<Option<ImportRecord>, StoreError> {
+        crate::imports::find(&self.pool, id).await
+    }
+
+    async fn set_batch(
+        &self,
+        import: Uuid,
+        index: i32,
+        state: &str,
+        changeset: Option<Uuid>,
+    ) -> Result<(), StoreError> {
+        crate::imports::set_batch(&self.pool, import, index, state, changeset).await
+    }
+
+    async fn set_import(
+        &self,
+        import: Uuid,
+        state: &str,
+        report: &serde_json::Value,
+    ) -> Result<(), StoreError> {
+        crate::imports::set_import(&self.pool, import, state, report).await
+    }
+
+    async fn external_object(
+        &self,
+        source: &str,
+        external_id: &str,
+    ) -> Result<Option<Uuid>, StoreError> {
+        crate::imports::external(&self.pool, source, external_id).await
     }
 }
 
@@ -890,6 +926,30 @@ impl WriteTx for PgTx {
         rows.into_iter()
             .map(|(o, k, p)| Ok((o, object_kind(&k)?, p)))
             .collect()
+    }
+
+    async fn bind_external(
+        &mut self,
+        object: Uuid,
+        kind: ObjectKind,
+        source: &str,
+        external_id: &str,
+    ) -> Result<(), WriteError> {
+        self.guarded(
+            sqlx::AssertSqlSafe(
+                "INSERT INTO external_id (source, external_id, object_id, object_type) VALUES ($1, $2, $3, $4)"
+                    .to_owned(),
+            ),
+            vec![
+                Bind::Text(source.to_owned()),
+                Bind::Text(external_id.to_owned()),
+                Bind::Uuid(object),
+                Bind::Text(kind.name().to_owned()),
+            ],
+            object,
+        )
+        .await
+        .map(|_| ())
     }
 
     async fn insert_anchor(

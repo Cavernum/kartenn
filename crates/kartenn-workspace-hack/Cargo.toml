@@ -25,6 +25,7 @@ once_cell = { version = "1" }
 rand = { version = "0.10" }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+serde_json = { version = "1", features = ["raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
@@ -43,6 +44,7 @@ once_cell = { version = "1" }
 rand = { version = "0.10" }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+serde_json = { version = "1", features = ["raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }

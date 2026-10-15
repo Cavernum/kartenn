@@ -184,6 +184,13 @@ pub(crate) enum Planned {
         property: Option<Uuid>,
         before: Uuid,
     },
+    /// An identifier of an object in a source.
+    BindExternal {
+        object: Uuid,
+        kind: ObjectKind,
+        source: String,
+        external_id: String,
+    },
     /// An approval policy; its identifier is the existing one of the same name, if any.
     Policy(ApprovalPolicy),
     /// An entity or a site.
@@ -244,7 +251,9 @@ impl Planned {
             | Self::Declare { id, .. }
             | Self::UpdateDeclaration { id, .. }
             | Self::EnumValue { id, .. } => *id,
-            Self::Assign { object, .. } | Self::Unassign { object, .. } => *object,
+            Self::Assign { object, .. }
+            | Self::Unassign { object, .. }
+            | Self::BindExternal { object, .. } => *object,
             Self::Policy(policy) => policy.id,
             Self::Prefix { object, .. } => object.id,
             Self::Range { object, .. } => object.id,
@@ -254,13 +263,14 @@ impl Planned {
 }
 
 /// Objects an operation designates, with the kind each must have (REQ-004-4).
-fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
+pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
     match op {
         Operation::CreatePrefix { domain, .. }
         | Operation::CreateRange { domain, .. }
         | Operation::CreateAddress { domain, .. } => {
             vec![(*domain, ObjectKind::Domain)]
         }
+        Operation::BindExternal { object, kind, .. } => vec![(*object, *kind)],
         Operation::Close { kind, id, .. } | Operation::Restore { kind, id, .. } => {
             vec![(*id, *kind)]
         }
@@ -547,6 +557,17 @@ fn plan_anchor(
             expected: *expected,
         },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
+        Operation::BindExternal {
+            object,
+            kind,
+            source,
+            external_id,
+        } => Planned::BindExternal {
+            object: resolve(*object),
+            kind: *kind,
+            source: source.clone(),
+            external_id: external_id.clone(),
+        },
         Operation::Restore {
             kind,
             id: target,
@@ -656,6 +677,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
             | Operation::MoveSite { .. }
             | Operation::SetApprovalPolicy { .. }
             | Operation::Restore { .. }
+            | Operation::BindExternal { .. }
             | Operation::UpdatePrefix { .. }
             | Operation::UpdateAddress { .. }
             | Operation::UpdateRange { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
@@ -795,6 +817,7 @@ async fn lock_targets<T: WriteTx>(
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
+            | Planned::BindExternal { .. }
             | Planned::Policy(_) => {}
             // An assignment is written under the lock of its object's domain.
             Planned::Assign { object, kind, .. } | Planned::Unassign { object, kind, .. } => {
@@ -843,6 +866,35 @@ async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result
         ..policy.clone()
     })
     .await
+}
+
+/// Writes or removes an assignment typed by the user (`input` provenance).
+async fn assignment<T: WriteTx>(
+    tx: &mut T,
+    p: &Planned,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    match p {
+        Planned::Assign {
+            object,
+            kind,
+            property,
+            values,
+        } => {
+            let values = values.as_deref();
+            crate::resolution::assign(
+                tx, *object, *kind, *property, values, "input", period, changeset,
+            )
+            .await
+        }
+        Planned::Unassign {
+            object,
+            kind,
+            property,
+        } => crate::resolution::unassign(tx, *object, *kind, *property, period, changeset).await,
+        _ => Ok(()),
+    }
 }
 
 /// A write's refusal becomes a violation; an infrastructure failure stops everything.
@@ -945,6 +997,12 @@ async fn apply<T: WriteTx>(
                 tx.insert_address(object, *public, period, changeset).await
             }
             Planned::Policy(policy) => write_policy(tx, policy).await,
+            Planned::BindExternal {
+                object,
+                kind,
+                source,
+                external_id,
+            } => tx.bind_external(*object, *kind, source, external_id).await,
             Planned::Restore {
                 kind,
                 id,
@@ -995,30 +1053,8 @@ async fn apply<T: WriteTx>(
                 crate::declarations::add_enum_value(tx, *id, *property, key, period, changeset)
                     .await
             }
-            Planned::Assign {
-                object,
-                kind,
-                property,
-                values,
-            } => {
-                crate::resolution::assign(
-                    tx,
-                    *object,
-                    *kind,
-                    *property,
-                    values.as_deref(),
-                    "input",
-                    period,
-                    changeset,
-                )
-                .await
-            }
-            Planned::Unassign {
-                object,
-                kind,
-                property,
-            } => {
-                crate::resolution::unassign(tx, *object, *kind, *property, period, changeset).await
+            Planned::Assign { .. } | Planned::Unassign { .. } => {
+                assignment(tx, p, period, changeset).await
             }
         };
         record(written, violations)?;

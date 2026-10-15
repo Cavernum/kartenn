@@ -13,7 +13,7 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use uuid::Uuid;
 
-use crate::operations::{ChangesetRequest, ObjectKind};
+use crate::operations::{ChangesetRequest, ObjectKind, Operation};
 
 /// Infrastructure failure: the changeset is neither applied nor refused by a rule.
 #[derive(Debug, thiserror::Error)]
@@ -110,6 +110,47 @@ pub struct PendingChangeset {
     pub state: String,
     /// What it waits for.
     pub pending: Pending,
+}
+
+/// One element of an import (REQ-004-28): an operation, with the identifier in the source
+/// of the object it creates.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ImportItem {
+    /// Identifier in the source; required for an operation that creates an object.
+    #[serde(default)]
+    pub external_id: Option<String>,
+    /// The operation; its local references hold for the whole import.
+    pub operation: Operation,
+}
+
+/// A batch of an import, applied as one changeset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportBatch {
+    /// Position.
+    pub index: i32,
+    /// Elements, in order.
+    pub items: Vec<ImportItem>,
+    /// `queued`, `applied` or `failed`.
+    pub state: String,
+    /// The changeset that applied it.
+    pub changeset: Option<Uuid>,
+}
+
+/// An import and its batches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportRecord {
+    /// Identifier.
+    pub id: Uuid,
+    /// Its author.
+    pub author: Uuid,
+    /// The source (connector).
+    pub source: String,
+    /// `queued`, `running`, `paused`, `done` or `cancelled`.
+    pub state: String,
+    /// Report: the failure that paused it, if any.
+    pub report: serde_json::Value,
+    /// Its batches, in order.
+    pub batches: Vec<ImportBatch>,
 }
 
 /// What the store knows of an applied changeset to undo it (REQ-004-34, 35).
@@ -271,6 +312,42 @@ pub trait Store: Send + Sync {
         &self,
     ) -> impl Future<Output = Result<Vec<PendingChangeset>, StoreError>> + Send;
 
+    /// Records a new import and its batches, all queued.
+    fn create_import(
+        &self,
+        record: &ImportRecord,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// An import with its batches.
+    fn import(
+        &self,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<ImportRecord>, StoreError>> + Send;
+
+    /// Records the outcome of a batch.
+    fn set_batch(
+        &self,
+        import: Uuid,
+        index: i32,
+        state: &str,
+        changeset: Option<Uuid>,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Records the state and report of an import.
+    fn set_import(
+        &self,
+        import: Uuid,
+        state: &str,
+        report: &serde_json::Value,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The object known to `source` as `external_id` (REQ-002-41).
+    fn external_object(
+        &self,
+        source: &str,
+        external_id: &str,
+    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
     /// What an applied changeset wrote, to undo it; `None` if it is not applied.
     fn undo_facts(
         &self,
@@ -380,6 +457,15 @@ pub trait WriteTx {
         target: Uuid,
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<(Uuid, ObjectKind, Uuid)>, StoreError>> + Send;
+
+    /// Records the identifier of an object in a source (REQ-002-41).
+    fn bind_external(
+        &mut self,
+        object: Uuid,
+        kind: ObjectKind,
+        source: &str,
+        external_id: &str,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
 
     /// Writes a new entity or site.
     fn insert_anchor(

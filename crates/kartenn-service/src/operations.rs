@@ -288,6 +288,18 @@ pub enum Operation {
         /// The changeset whose effect is undone.
         before: Uuid,
     },
+    /// Records that an object is known to a source under an identifier (REQ-002-41):
+    /// unique per source.
+    BindExternal {
+        /// Object.
+        object: Ref,
+        /// Kind of the object.
+        kind: ObjectKind,
+        /// Source (a connector).
+        source: String,
+        /// Identifier in the source.
+        external_id: String,
+    },
     /// Creates an entity (REQ-002-8).
     CreateEntity {
         /// Local name for later operations.
@@ -495,6 +507,7 @@ impl Operation {
             | Self::MoveSite { .. }
             | Self::SetApprovalPolicy { .. }
             | Self::Restore { .. }
+            | Self::BindExternal { .. }
             | Self::UpdateProperty { .. }
             | Self::AssignProperty { .. }
             | Self::ClearProperty { .. }
