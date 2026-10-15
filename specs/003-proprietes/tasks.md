@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: approved
 updated: 2026-10-15
 ---
 
@@ -91,7 +91,7 @@ voir [`../README.md`](../README.md).
   rapport spec-keeper sans écart (aucun écart bloquant ; les écarts mineurs relevés, dont
   un test manquant de REQ-003-5, sont corrigés) — catalogue des permissions avec la 005
 
-## P7 — Arbres d'entités et de sites (proposée le 2026-10-15, à valider)
+## P7 — Arbres d'entités et de sites (P15)
 
 - [ ] 18. Origines le long des arbres `entity` et `site` (parents versionnés, cibles :
   descendants d'un objet déplacé, segmentation sur les versions des parents) ; portée

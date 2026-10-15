@@ -172,3 +172,13 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
 - Rejeté : garder 1 s (refontes au gain estimé à 0,5 s, sans garantie) ; 1 s pour le
   calcul seul (le temps qui compte pour l'utilisateur est celui du changeset entier).
 - Décidé par : recommandation acceptée (2026-10-15)
+
+## P15 — Héritage le long des arbres d'entités et de sites (tâche 18)
+- Décision : la tâche 18 est retenue ; jusqu'à elle, une déclaration héritable sur l'arbre
+  des entités ou des sites est refusée (`prop.declaration.invalid`), comme la portée
+  « entité » des obligations.
+- Pourquoi : REQ-003-11 et 16 l'exigent ; la 002-22 a fourni entités et sites, pas la
+  maintenance des origines le long de leurs arbres, qui demande sa propre segmentation
+  (parents versionnés).
+- Rejeté : retirer ces arbres de REQ-003-11 (le RBAC et les modules en auront besoin).
+- Décidé par : délégué (2026-10-15)
