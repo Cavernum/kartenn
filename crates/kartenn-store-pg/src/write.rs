@@ -8,7 +8,7 @@ use kartenn_core::properties::{Declaration, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, Journal, ObjectView, PendingChangeset,
-    PropertyFacts, Replay, Store, StoreError, WriteError, WriteTx,
+    PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
 };
 
 use crate::properties::{
@@ -262,6 +262,10 @@ impl Store for PgStore {
 
     async fn pending_proposals(&self) -> Result<Vec<PendingChangeset>, StoreError> {
         crate::pending::proposals(&self.pool).await
+    }
+
+    async fn undo_facts(&self, changeset: Uuid) -> Result<Option<UndoFacts>, StoreError> {
+        crate::undo::facts(&self.pool, changeset).await
     }
 }
 
@@ -767,6 +771,59 @@ impl WriteTx for PgTx {
         } else {
             Ok(())
         }
+    }
+
+    async fn restore(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        property: Option<Uuid>,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let at: Option<OffsetDateTime> = sqlx::query_scalar(
+            "SELECT applied_at FROM changeset WHERE id = $1 AND state = 'applied'",
+        )
+        .bind(before)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?
+        .flatten();
+        let Some(at) = at else {
+            return Err(WriteError::Rule(
+                Violation::new(
+                    &rules::CHANGESET_NO_VERSION,
+                    format!("changeset {before} is not applied: nothing to restore"),
+                )
+                .with_subjects([before]),
+            ));
+        };
+        let (target, key) = match property {
+            None => (table(kind), serde_json::json!({ "id": id })),
+            Some(p) => (
+                "property_assignment",
+                serde_json::json!({ "object_id": id, "property_id": p }),
+            ),
+        };
+        self.guarded(
+            sqlx::AssertSqlSafe(
+                "SELECT kartenn_restore($1::regclass, $2::jsonb, $3, coalesce($4::timestamptz, now()), $5, $6)"
+                    .to_owned(),
+            ),
+            vec![
+                Bind::Text(target.to_owned()),
+                Bind::Text(key.to_string()),
+                Bind::Time(Some(at)),
+                Bind::Time(a),
+                Bind::Time(b),
+                Bind::Uuid(changeset),
+            ],
+            id,
+        )
+        .await
+        .map(|_| ())
     }
 
     async fn dependents(

@@ -16,6 +16,7 @@ mod properties;
 pub mod registry;
 pub mod temporal;
 pub mod tree;
+mod undo;
 pub mod write;
 
 /// Schema migrations of the core, applied by the dedicated migration job (D9).

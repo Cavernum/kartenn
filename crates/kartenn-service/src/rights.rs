@@ -37,12 +37,21 @@ pub(crate) async fn check<T: WriteTx, A: Authorizer>(
     let mut missing = Missing::new();
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
-        if let Planned::Assign {
-            object, property, ..
-        }
-        | Planned::Unassign {
-            object, property, ..
-        } = p
+        let assigned = match p {
+            Planned::Assign {
+                object, property, ..
+            }
+            | Planned::Unassign {
+                object, property, ..
+            } => Some((object, property)),
+            Planned::Restore {
+                id,
+                property: Some(property),
+                ..
+            } => Some((id, property)),
+            _ => None,
+        };
+        if let Some((object, property)) = assigned
             && let Some(declaration) = tx.declaration(*property, period).await?
         {
             objects

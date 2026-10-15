@@ -112,6 +112,32 @@ pub struct PendingChangeset {
     pub pending: Pending,
 }
 
+/// What the store knows of an applied changeset to undo it (REQ-004-34, 35).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UndoFacts {
+    /// Earliest start of its periods, in microseconds since the epoch.
+    pub start: i64,
+    /// Objects and assignments it wrote.
+    pub touched: Vec<Touched>,
+    /// What it wrote that is not undone: declarations, closed-list values (kind, id).
+    pub unsupported: Vec<(String, Uuid)>,
+}
+
+/// An object, or an assignment of it, written by a changeset to undo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Touched {
+    /// Kind of the object.
+    pub kind: ObjectKind,
+    /// Object.
+    pub id: Uuid,
+    /// The property, for an assignment.
+    pub property: Option<Uuid>,
+    /// No version was asserted before the changeset: it created it.
+    pub created: bool,
+    /// A later changeset that wrote it over the period: a conflict.
+    pub later: Option<Uuid>,
+}
+
 /// An approval policy (REQ-004-20, 40): it holds a changeset when every trigger it
 /// defines matches.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -244,6 +270,12 @@ pub trait Store: Send + Sync {
     fn pending_proposals(
         &self,
     ) -> impl Future<Output = Result<Vec<PendingChangeset>, StoreError>> + Send;
+
+    /// What an applied changeset wrote, to undo it; `None` if it is not applied.
+    fn undo_facts(
+        &self,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<Option<UndoFacts>, StoreError>> + Send;
 }
 
 /// One write transaction. Every write runs under a savepoint, so that a refused write
@@ -315,6 +347,18 @@ pub trait WriteTx {
         kind: ObjectKind,
         id: Uuid,
         change: &Change,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Gives an object, or its assignment of `property`, back the versions asserted just
+    /// before changeset `before`, over `period` (REQ-004-34).
+    fn restore(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        property: Option<Uuid>,
+        before: Uuid,
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;

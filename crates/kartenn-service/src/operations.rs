@@ -274,6 +274,20 @@ pub enum Operation {
         #[serde(default = "enabled")]
         enabled: bool,
     },
+    /// Over the period of the changeset, gives an object (or one of its assignments) back
+    /// the versions asserted just before changeset `before` (REQ-004-34): the operation of
+    /// an inverse changeset.
+    Restore {
+        /// Kind of the object.
+        kind: ObjectKind,
+        /// Object.
+        id: Ref,
+        /// The property, to restore an assignment of the object rather than the object.
+        #[serde(default)]
+        property: Option<Uuid>,
+        /// The changeset whose effect is undone.
+        before: Uuid,
+    },
     /// Creates an entity (REQ-002-8).
     CreateEntity {
         /// Local name for later operations.
@@ -480,6 +494,7 @@ impl Operation {
             | Self::MoveEntity { .. }
             | Self::MoveSite { .. }
             | Self::SetApprovalPolicy { .. }
+            | Self::Restore { .. }
             | Self::UpdateProperty { .. }
             | Self::AssignProperty { .. }
             | Self::ClearProperty { .. }

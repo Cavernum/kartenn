@@ -69,7 +69,12 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     }
     let mut property_keys: BTreeSet<String> = diff.iter().map(|d| d.property.clone()).collect();
     for p in planned {
-        if let Planned::Assign { property, .. } | Planned::Unassign { property, .. } = p
+        if let Planned::Assign { property, .. }
+        | Planned::Unassign { property, .. }
+        | Planned::Restore {
+            property: Some(property),
+            ..
+        } = p
             && let Some(declaration) = tx.declaration(*property, None).await?
         {
             property_keys.insert(declaration.key.to_string());

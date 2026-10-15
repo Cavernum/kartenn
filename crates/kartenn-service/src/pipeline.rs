@@ -177,6 +177,13 @@ pub(crate) enum Planned {
         object: Address,
         public: bool,
     },
+    /// An object or one of its assignments restored as before a changeset (REQ-004-34).
+    Restore {
+        kind: ObjectKind,
+        id: Uuid,
+        property: Option<Uuid>,
+        before: Uuid,
+    },
     /// An approval policy; its identifier is the existing one of the same name, if any.
     Policy(ApprovalPolicy),
     /// An entity or a site.
@@ -231,6 +238,7 @@ impl Planned {
         match self {
             Self::Domain { id, .. }
             | Self::Anchor { id, .. }
+            | Self::Restore { id, .. }
             | Self::Modify { id, .. }
             | Self::Close { id, .. }
             | Self::Declare { id, .. }
@@ -253,7 +261,9 @@ fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
         | Operation::CreateAddress { domain, .. } => {
             vec![(*domain, ObjectKind::Domain)]
         }
-        Operation::Close { kind, id, .. } => vec![(*id, *kind)],
+        Operation::Close { kind, id, .. } | Operation::Restore { kind, id, .. } => {
+            vec![(*id, *kind)]
+        }
         Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
         Operation::UpdateAddress { id, .. } => vec![(*id, ObjectKind::Address)],
         Operation::UpdateRange { id, .. } => vec![(*id, ObjectKind::Range)],
@@ -454,12 +464,26 @@ fn plan_update(op: &Operation, id: Uuid) -> Result<Option<Planned>, Violation> {
     }))
 }
 
-/// Parses and checks a new prefix locally, and classifies it in the public space.
+/// Parses and checks a new prefix or address locally, and classifies it in the public
+/// space.
 fn plan_prefix(
     op: &Operation,
     id: Uuid,
     domain: Uuid,
 ) -> Result<(Option<Planned>, Vec<Violation>), Violation> {
+    if let Operation::CreateAddress { address, usage, .. } = op {
+        let value = Addr::parse_any(&ALL, address).map_err(|e| addr_violation(&e))?;
+        let object = Address {
+            id,
+            domain,
+            value,
+            usage: *usage,
+        };
+        let violations = objects::check_address(&object);
+        let host = Prefix::host(value);
+        let public = special_registry(value.family()).is_none_or(|r| r.is_public(host));
+        return Ok((Some(Planned::Address { object, public }), violations));
+    }
     let Operation::CreatePrefix {
         prefix,
         nature,
@@ -523,6 +547,17 @@ fn plan_anchor(
             expected: *expected,
         },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
+        Operation::Restore {
+            kind,
+            id: target,
+            property,
+            before,
+        } => Planned::Restore {
+            kind: *kind,
+            id: resolve(*target),
+            property: *property,
+            before: *before,
+        },
         Operation::UpdatePrefix { id: target, .. }
         | Operation::UpdateAddress { id: target, .. }
         | Operation::UpdateRange { id: target, .. } => return plan_update(op, resolve(*target)),
@@ -594,7 +629,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 Ok(slug) => planned.push(Planned::Domain { id, slug }),
                 Err(v) => violations.push(v),
             },
-            Operation::CreatePrefix { domain, .. } => {
+            Operation::CreatePrefix { domain, .. } | Operation::CreateAddress { domain, .. } => {
                 match plan_prefix(op, id, resolve(*domain, &ids)) {
                     Ok((p, found)) => {
                         planned.extend(p);
@@ -615,31 +650,12 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 planned.extend(range);
                 violations.extend(found);
             }
-            Operation::CreateAddress {
-                domain,
-                address,
-                usage,
-                ..
-            } => match Addr::parse_any(&ALL, address) {
-                Ok(value) => {
-                    let object = Address {
-                        id,
-                        domain: resolve(*domain, &ids),
-                        value,
-                        usage: *usage,
-                    };
-                    violations.extend(objects::check_address(&object));
-                    let host = Prefix::host(value);
-                    let public = special_registry(value.family()).is_none_or(|r| r.is_public(host));
-                    planned.push(Planned::Address { object, public });
-                }
-                Err(e) => violations.push(addr_violation(&e)),
-            },
             Operation::CreateEntity { .. }
             | Operation::CreateSite { .. }
             | Operation::MoveEntity { .. }
             | Operation::MoveSite { .. }
             | Operation::SetApprovalPolicy { .. }
+            | Operation::Restore { .. }
             | Operation::UpdatePrefix { .. }
             | Operation::UpdateAddress { .. }
             | Operation::UpdateRange { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
@@ -739,8 +755,21 @@ async fn lock_targets<T: WriteTx>(
             | Planned::Close {
                 kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
                 ..
+            }
+            | Planned::Restore {
+                kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
+                property: None,
+                ..
             } => {
                 domains.insert(tree_lock(*kind));
+            }
+            Planned::Restore {
+                kind, id, property, ..
+            } => {
+                if let Some(d) = tx.domain_of(*kind, *id).await? {
+                    domains.insert(d);
+                }
+                public |= property.is_none();
             }
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
@@ -816,6 +845,44 @@ async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result
     .await
 }
 
+/// A write's refusal becomes a violation; an infrastructure failure stops everything.
+fn record(
+    written: Result<(), WriteError>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    match written {
+        Ok(()) => {}
+        Err(WriteError::Rule(v)) => violations.push(v),
+        Err(WriteError::NoVersion(id)) => violations.push(
+            Violation::new(
+                &rules::CHANGESET_NO_VERSION,
+                format!("{id} does not exist at the targeted time"),
+            )
+            .with_subjects([id]),
+        ),
+        Err(WriteError::Store(e)) => return Err(e),
+    }
+    Ok(())
+}
+
+/// Restores an object or an assignment as before a changeset, noting the former extent
+/// of a prefix.
+async fn restore<T: WriteTx>(
+    tx: &mut T,
+    (kind, id, property, before): (ObjectKind, Uuid, Option<Uuid>, Uuid),
+    period: Option<Period>,
+    changeset: Uuid,
+    former: &mut Vec<(Uuid, Prefix)>,
+) -> Result<(), WriteError> {
+    if kind == ObjectKind::Prefix && property.is_none() {
+        for (old, _) in tx.prefix_versions(id, period).await? {
+            former.push((old.domain, old.value));
+        }
+    }
+    tx.restore(kind, id, property, before, period, changeset)
+        .await
+}
+
 /// Writes a modification, noting the former extent of a resized prefix.
 async fn modify<T: WriteTx>(
     tx: &mut T,
@@ -878,6 +945,15 @@ async fn apply<T: WriteTx>(
                 tx.insert_address(object, *public, period, changeset).await
             }
             Planned::Policy(policy) => write_policy(tx, policy).await,
+            Planned::Restore {
+                kind,
+                id,
+                property,
+                before,
+            } => {
+                let key = (*kind, *id, *property, *before);
+                restore(tx, key, period, changeset, &mut former).await
+            }
             Planned::Anchor {
                 kind,
                 id,
@@ -945,18 +1021,7 @@ async fn apply<T: WriteTx>(
                 crate::resolution::unassign(tx, *object, *kind, *property, period, changeset).await
             }
         };
-        match written {
-            Ok(()) => {}
-            Err(WriteError::Rule(v)) => violations.push(v),
-            Err(WriteError::NoVersion(id)) => violations.push(
-                Violation::new(
-                    &rules::CHANGESET_NO_VERSION,
-                    format!("{id} does not exist at the targeted time"),
-                )
-                .with_subjects([id]),
-            ),
-            Err(WriteError::Store(e)) => return Err(e),
-        }
+        record(written, violations)?;
     }
     Ok(former)
 }
@@ -1412,7 +1477,11 @@ fn reevaluated(planned: &[Planned], checked: &[Uuid]) -> Vec<(Uuid, &'static str
     let mut out: Vec<(Uuid, &'static str)> = planned
         .iter()
         .filter_map(|p| match p {
-            Planned::Domain { id, .. } | Planned::Modify { id, .. } => Some((*id, "core.")),
+            Planned::Domain { id, .. }
+            | Planned::Modify { id, .. }
+            | Planned::Restore {
+                id, property: None, ..
+            } => Some((*id, "core.")),
             Planned::Prefix { object, .. } => Some((object.id, "core.")),
             Planned::Range { object, .. } => Some((object.id, "core.")),
             Planned::Address { object, .. } => Some((object.id, "core.")),

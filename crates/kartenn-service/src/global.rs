@@ -62,6 +62,12 @@ pub(crate) async fn validate<T: WriteTx>(
             Planned::Anchor { kind, id, .. } => {
                 check_anchor(tx, *kind, *id, period, violations).await?;
             }
+            Planned::Restore {
+                kind,
+                id,
+                property: None,
+                ..
+            } => check_restored(tx, *kind, *id, former, period, violations).await?,
             Planned::Close {
                 kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
                 id,
@@ -74,31 +80,13 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::EnumValue { .. }
             | Planned::Assign { .. }
             | Planned::Unassign { .. }
+            // An assignment restored is checked with the properties.
+            | Planned::Restore { .. }
             | Planned::Policy(_) => {}
         }
     }
     check_sites(tx, planned, periods, violations).await?;
-    // REQ-003-10: a closed object leaves no reference assignment without its target, on
-    // the final state (a reference removed in the same changeset no longer counts).
-    for p in planned {
-        if let Planned::Close { kind, id, .. } = p
-            && kind.is_addressing()
-        {
-            let referring = tx.dangling_references(*id).await?;
-            if !referring.is_empty() {
-                violations.push(
-                    Violation::new(
-                        &rules::PROP_DANGLING_REFERENCE,
-                        format!(
-                            "{id} is still referenced by {} object(s) after its closure",
-                            referring.len()
-                        ),
-                    )
-                    .with_subjects(std::iter::once(*id).chain(referring)),
-                );
-            }
-        }
-    }
+    check_references(tx, planned, violations).await?;
     for address in addresses_to_recheck {
         if !tx.address_covered(address).await? {
             violations.push(
@@ -337,35 +325,15 @@ async fn check_modified<T: WriteTx>(
 ) -> Result<(), StoreError> {
     match change {
         Change::Prefix { value, nature, .. } => {
-            let versions = tx.prefix_versions(id, period).await?;
-            let mut extents: BTreeSet<(Uuid, Prefix)> = BTreeSet::new();
-            for (object, public) in &versions {
-                violations.extend(objects::check_prefix(object));
-                check_prefix(tx, object, *public, period, violations).await?;
-                if nature.is_some() {
-                    check_nature(tx, object, period, violations).await?;
-                }
-                extents.insert((object.domain, object.value));
-            }
-            if value.is_some() {
-                extents.extend(former.iter().copied());
-                check_content(tx, &extents, period, violations).await?;
-            }
+            let checks = PrefixChecks {
+                nature: nature.is_some(),
+                content: value.is_some(),
+            };
+            check_prefix_versions(tx, id, checks, former, period, violations).await?;
         }
-        Change::Address(_) => {
-            for (object, public) in tx.address_versions(id, period).await? {
-                violations.extend(objects::check_address(&object));
-                check_address(tx, &object, public, period, violations).await?;
-            }
-        }
+        Change::Address(_) => check_address_versions(tx, id, period, violations).await?,
         Change::Parent(_) => check_anchor(tx, kind, id, period, violations).await?,
-        Change::Range(_) => {
-            debug_assert_eq!(kind, ObjectKind::Range);
-            for object in tx.range_versions(id, period).await? {
-                violations.extend(objects::check_range(&object));
-                check_range(tx, &object, period, violations).await?;
-            }
-        }
+        Change::Range(_) => check_range_versions(tx, id, period, violations).await?,
     }
     Ok(())
 }
@@ -469,6 +437,35 @@ async fn check_anchor<T: WriteTx>(
     Ok(())
 }
 
+/// REQ-003-10: a closed object leaves no reference assignment without its target, on the
+/// final state (a reference removed in the same changeset no longer counts).
+async fn check_references<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    for p in planned {
+        if let Planned::Close { kind, id, .. } = p
+            && kind.is_addressing()
+        {
+            let referring = tx.dangling_references(*id).await?;
+            if !referring.is_empty() {
+                violations.push(
+                    Violation::new(
+                        &rules::PROP_DANGLING_REFERENCE,
+                        format!(
+                            "{id} is still referenced by {} object(s) after its closure",
+                            referring.len()
+                        ),
+                    )
+                    .with_subjects(std::iter::once(*id).chain(referring)),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// REQ-002-20: no site on a container, whichever of the two comes first.
 async fn check_sites<T: WriteTx>(
     tx: &mut T,
@@ -537,4 +534,89 @@ async fn check_anchor_closure<T: WriteTx>(
         );
     }
     Ok(())
+}
+
+/// What a prefix modification needs checked besides the rules of a creation.
+#[derive(Debug, Clone, Copy)]
+struct PrefixChecks {
+    /// Its content fits its nature (REQ-002-17).
+    nature: bool,
+    /// The addresses and ranges of its former and new extents (REQ-002-18).
+    content: bool,
+}
+
+async fn check_prefix_versions<T: WriteTx>(
+    tx: &mut T,
+    id: Uuid,
+    checks: PrefixChecks,
+    former: &[(Uuid, Prefix)],
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let versions = tx.prefix_versions(id, period).await?;
+    let mut extents: BTreeSet<(Uuid, Prefix)> = BTreeSet::new();
+    for (object, public) in &versions {
+        violations.extend(objects::check_prefix(object));
+        check_prefix(tx, object, *public, period, violations).await?;
+        if checks.nature {
+            check_nature(tx, object, period, violations).await?;
+        }
+        extents.insert((object.domain, object.value));
+    }
+    if checks.content {
+        extents.extend(former.iter().copied());
+        check_content(tx, &extents, period, violations).await?;
+    }
+    Ok(())
+}
+
+async fn check_address_versions<T: WriteTx>(
+    tx: &mut T,
+    id: Uuid,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    for (object, public) in tx.address_versions(id, period).await? {
+        violations.extend(objects::check_address(&object));
+        check_address(tx, &object, public, period, violations).await?;
+    }
+    Ok(())
+}
+
+async fn check_range_versions<T: WriteTx>(
+    tx: &mut T,
+    id: Uuid,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    for object in tx.range_versions(id, period).await? {
+        violations.extend(objects::check_range(&object));
+        check_range(tx, &object, period, violations).await?;
+    }
+    Ok(())
+}
+
+/// An object restored as before a changeset (004-20): checked as a modification of
+/// everything it carries.
+async fn check_restored<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    former: &[(Uuid, Prefix)],
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let all = PrefixChecks {
+        nature: true,
+        content: true,
+    };
+    match kind {
+        ObjectKind::Prefix => check_prefix_versions(tx, id, all, former, period, violations).await,
+        ObjectKind::Address => check_address_versions(tx, id, period, violations).await,
+        ObjectKind::Range => check_range_versions(tx, id, period, violations).await,
+        ObjectKind::Entity | ObjectKind::Site => {
+            check_anchor(tx, kind, id, period, violations).await
+        }
+        ObjectKind::Domain | ObjectKind::Property | ObjectKind::EnumValue => Ok(()),
+    }
 }

@@ -269,6 +269,18 @@ pub(crate) async fn maintain<T: WriteTx>(
                     targets.entry(property).or_default().insert(object);
                 }
             }
+            Planned::Restore {
+                kind, id, property, ..
+            } => {
+                restored(
+                    tx,
+                    (*kind, *id, *property),
+                    &heritable,
+                    &mut targets,
+                    period,
+                )
+                .await?;
+            }
             // A resized prefix moves the tree: the objects now below it, and those that
             // inherited from it and may have left (004-8).
             Planned::Modify {
@@ -319,6 +331,38 @@ pub(crate) async fn maintain<T: WriteTx>(
     Ok(out)
 }
 
+/// Targets of an object or assignment restored as before a changeset: an object may
+/// change place in the tree and carry other values; an assignment may give or take a
+/// value to its subtree.
+async fn restored<T: WriteTx>(
+    tx: &mut T,
+    (kind, id, property): (ObjectKind, Uuid, Option<Uuid>),
+    heritable: &HashMap<Uuid, Vec<String>>,
+    targets: &mut HashMap<Uuid, BTreeSet<Uuid>>,
+    period: Option<Period>,
+) -> Result<(), StoreError> {
+    match property {
+        None if kind.is_addressing() => {
+            let mut objects = vec![id];
+            if kind == ObjectKind::Prefix {
+                objects.extend(tx.subtree(id, period).await?);
+            }
+            for p in heritable.keys() {
+                targets.entry(*p).or_default().extend(&objects);
+            }
+            for (property, object) in tx.inheritors(id, period).await? {
+                targets.entry(property).or_default().insert(object);
+            }
+        }
+        Some(property) if heritable.contains_key(&property) => {
+            let below = tx.subtree(id, period).await?;
+            targets.entry(property).or_default().extend(below);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 /// Records the differential of resolved values (REQ-003-19): the heritable properties on
 /// the objects whose origin was recomputed and on the heirs of the revalued origins, the
 /// others on the objects assigned directly. New objects are left out (only existing
@@ -341,6 +385,15 @@ pub(crate) async fn diff<T: WriteTx>(
             && !maintained.affected.contains_key(property)
         {
             direct.entry(*property).or_default().insert(*object);
+        }
+        if let Planned::Restore {
+            id,
+            property: Some(property),
+            ..
+        } = p
+            && !maintained.affected.contains_key(property)
+        {
+            direct.entry(*property).or_default().insert(*id);
         }
     }
     for (property, objects) in &maintained.recomputed {
@@ -383,6 +436,9 @@ pub(crate) fn touched(planned: &[Planned], refreshed: &BTreeMap<Uuid, Vec<Uuid>>
     for p in planned {
         if let Planned::Assign { object, .. } | Planned::Unassign { object, .. } = p {
             touched.insert(*object);
+        }
+        if let Planned::Restore { id, .. } = p {
+            touched.insert(*id);
         }
     }
     touched.into_iter().collect()

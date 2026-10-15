@@ -15,6 +15,7 @@ pub mod port;
 mod resolution;
 pub mod review;
 mod rights;
+pub mod undo;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 pub use pipeline::{Outcome, RequestError, submit, submit_with};
