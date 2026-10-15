@@ -65,8 +65,9 @@ voir [`../README.md`](../README.md).
 - [x] 14. Propositions : bascule si `…propose`, droits requis stockés, validation par un
   mainteneur, file filtrée, notifications de l'auteur — REQ-004-41 à 43 — verify : tests
   (exemple de la VM) (`review.rs`, droits de propriété ; droits d'objet avec la 005)
-- [ ] 15. Cascade explicite via `dependents()` du contrat de module — REQ-004-25, 26 —
-  verify : tests (réseau avec 3 plages et 40 adresses)
+- [x] 15. Cascade explicite via `dependents()` du contrat de module — REQ-004-25, 26 —
+  verify : tests (réseau avec 3 plages et 40 adresses) (`kartenn-service/tests/cascade.rs`)
+  — dépendants du noyau ; modules (008, 009) et droits sur les objets (005) ensuite
 
 ## P5 — Exploitation
 

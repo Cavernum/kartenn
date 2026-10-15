@@ -157,6 +157,17 @@ changeset la clôture de ces dépendants, récursivement, avant validation ; tou
 par les mêmes contrôles de droits. Sans cascade, la validation 002/003 produit l'erreur
 qui liste les dépendants.
 
+**Mise en œuvre (004-15)** : `Close` porte `cascade` (faux par défaut). Avant les verrous,
+le pipeline remplace chaque clôture en cascade par la clôture de ses dépendants,
+récursivement, suivie de la sienne ; les dépendants du noyau sont, pour un réseau, ses
+plages et adresses ; pour un domaine, tous ses préfixes, plages et adresses ; pour une
+entité ou un site, ses enfants ; pour tout objet, les affectations de référence qui le
+visent, retirées (`UnassignProperty`). Les objets déjà clos par le changeset ne sont
+pas repris. Le résultat (appliqué ou simulé) liste les clôtures ajoutées. Le contrat de
+module (`dependents()`) prolongera la liste avec les modules (008, 009). Les droits sur
+les objets fermés en cascade viendront avec la 005 ; ceux des effets sur les propriétés
+s'appliquent déjà.
+
 ### Approbation et propositions (REQ-004-19 à 24, 39 à 43)
 
 **Politiques** (C6) : table `approval_policy` (`id`, `name`, déclencheurs :
