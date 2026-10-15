@@ -156,7 +156,16 @@ async fn trees_refuse_cycles_and_missing_parents(pool: PgPool) {
     .await;
     let group = f.id("entity", "slug", "group").await;
     let team = f.id("entity", "slug", "team").await;
-    // REQ-002-8: attaching an entity to one of its descendants.
+    // REQ-002-8: attaching an entity to itself, or to one of its descendants.
+    assert_eq!(
+        f.refused(vec![Operation::MoveEntity {
+            id: Ref::Id(team),
+            parent: Some(Ref::Id(team)),
+            expected: None,
+        }])
+        .await,
+        vec!["core.anchor.cycle"]
+    );
     assert_eq!(
         f.refused(vec![Operation::MoveEntity {
             id: Ref::Id(group),

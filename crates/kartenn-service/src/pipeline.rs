@@ -546,16 +546,28 @@ fn plan_anchor(
             id: target,
             parent,
             expected,
-        } => Planned::Modify {
-            kind: if matches!(op, Operation::MoveEntity { .. }) {
+        } => {
+            let kind = if matches!(op, Operation::MoveEntity { .. }) {
                 ObjectKind::Entity
             } else {
                 ObjectKind::Site
-            },
-            id: resolve(*target),
-            change: Change::Parent(parent.map(&resolve)),
-            expected: *expected,
-        },
+            };
+            let (id, parent) = (resolve(*target), parent.map(&resolve));
+            // The shortest cycle, refused before any write.
+            if parent == Some(id) {
+                return Err(Violation::new(
+                    &rules::ANCHOR_CYCLE,
+                    format!("{} {id} cannot be its own parent", kind.name()),
+                )
+                .with_subjects([id]));
+            }
+            Planned::Modify {
+                kind,
+                id,
+                change: Change::Parent(parent),
+                expected: *expected,
+            }
+        }
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
         Operation::BindExternal {
             object,
