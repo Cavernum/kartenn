@@ -148,6 +148,13 @@ pub(crate) enum Planned {
         object: Address,
         public: bool,
     },
+    /// An entity or a site.
+    Anchor {
+        kind: ObjectKind,
+        id: Uuid,
+        slug: Slug,
+        parent: Option<Uuid>,
+    },
     Close {
         kind: ObjectKind,
         id: Uuid,
@@ -191,6 +198,7 @@ impl Planned {
     pub(crate) const fn object(&self) -> Uuid {
         match self {
             Self::Domain { id, .. }
+            | Self::Anchor { id, .. }
             | Self::Modify { id, .. }
             | Self::Close { id, .. }
             | Self::Declare { id, .. }
@@ -249,6 +257,20 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 property,
             } => vec![(*object, *kind), (*property, ObjectKind::Property)],
             Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
+            Operation::CreateEntity { parent, .. } => {
+                parent.iter().map(|p| (*p, ObjectKind::Entity)).collect()
+            }
+            Operation::CreateSite { parent, .. } => {
+                parent.iter().map(|p| (*p, ObjectKind::Site)).collect()
+            }
+            Operation::MoveEntity { id, parent, .. } => std::iter::once(id)
+                .chain(parent)
+                .map(|r| (*r, ObjectKind::Entity))
+                .collect(),
+            Operation::MoveSite { id, parent, .. } => std::iter::once(id)
+                .chain(parent)
+                .map(|r| (*r, ObjectKind::Site))
+                .collect(),
             Operation::CreateDomain { .. } | Operation::DeclareProperty { .. } => vec![],
         };
         for (r, expected) in uses {
@@ -278,6 +300,8 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 Operation::CreateRange { .. } => ObjectKind::Range,
                 Operation::DeclareProperty { .. } => ObjectKind::Property,
                 Operation::AddEnumValue { .. } => ObjectKind::EnumValue,
+                Operation::CreateEntity { .. } => ObjectKind::Entity,
+                Operation::CreateSite { .. } => ObjectKind::Site,
                 _ => ObjectKind::Address,
             };
             if defined.insert(local, kind).is_some() {
@@ -330,6 +354,23 @@ fn plan_range(
 /// Plans a modification of an addressing object (004-8); a new prefix value is parsed and
 /// classified like a creation.
 fn plan_update(op: &Operation, id: Uuid) -> Result<Option<Planned>, Violation> {
+    // REQ-002-12: an object never changes domain.
+    if let Operation::UpdatePrefix {
+        domain: Some(_), ..
+    }
+    | Operation::UpdateAddress {
+        domain: Some(_), ..
+    }
+    | Operation::UpdateRange {
+        domain: Some(_), ..
+    } = op
+    {
+        return Err(Violation::new(
+            &rules::DOMAIN_IMMUTABLE,
+            format!("{id} cannot change domain: close it and create it in the other domain"),
+        )
+        .with_subjects([id]));
+    }
     let (kind, change, expected) = match op {
         Operation::UpdatePrefix {
             prefix,
@@ -401,6 +442,47 @@ fn plan_prefix(
     Ok((Some(Planned::Prefix { object, public }), violations))
 }
 
+/// Plans the creation or the move of an entity or a site.
+fn plan_anchor(
+    op: &Operation,
+    id: Uuid,
+    resolve: impl Fn(Ref) -> Uuid,
+) -> Result<Option<Planned>, Violation> {
+    Ok(Some(match op {
+        Operation::CreateEntity { slug, parent, .. }
+        | Operation::CreateSite { slug, parent, .. } => Planned::Anchor {
+            kind: if matches!(op, Operation::CreateEntity { .. }) {
+                ObjectKind::Entity
+            } else {
+                ObjectKind::Site
+            },
+            id,
+            slug: Slug::parse(slug)?,
+            parent: parent.map(&resolve),
+        },
+        Operation::MoveEntity {
+            id: target,
+            parent,
+            expected,
+        }
+        | Operation::MoveSite {
+            id: target,
+            parent,
+            expected,
+        } => Planned::Modify {
+            kind: if matches!(op, Operation::MoveEntity { .. }) {
+                ObjectKind::Entity
+            } else {
+                ObjectKind::Site
+            },
+            id: resolve(*target),
+            change: Change::Parent(parent.map(&resolve)),
+            expected: *expected,
+        },
+        _ => return Ok(None),
+    }))
+}
+
 /// Parses every operation and runs the local rules (no database).
 fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
@@ -461,6 +543,13 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 }
                 Err(e) => violations.push(addr_violation(&e)),
             },
+            Operation::CreateEntity { .. }
+            | Operation::CreateSite { .. }
+            | Operation::MoveEntity { .. }
+            | Operation::MoveSite { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
+                Ok(p) => planned.extend(p),
+                Err(v) => violations.push(v),
+            },
             Operation::Close {
                 kind,
                 id: target,
@@ -504,6 +593,12 @@ fn has_errors(violations: &[Violation]) -> bool {
         .any(|v| v.rule.severity == Severity::Error)
 }
 
+/// Lock key of the tree of entities or of sites, taken like a domain's (ADR 0015).
+fn tree_lock(kind: ObjectKind) -> Uuid {
+    let tree = if kind == ObjectKind::Entity { 1 } else { 2 };
+    Uuid::from_u64_pair(u64::MAX - tree, 0)
+}
+
 /// Domains to lock and whether public space is written (ADR 0015).
 async fn lock_targets<T: WriteTx>(
     tx: &mut T,
@@ -542,6 +637,18 @@ async fn lock_targets<T: WriteTx>(
                 if let Some(d) = tx.domain_of(*kind, *id).await? {
                     domains.insert(d);
                 }
+            }
+            // The trees of entities and of sites are serialised as a whole (cycles).
+            Planned::Anchor { kind, .. }
+            | Planned::Modify {
+                kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
+                ..
+            }
+            | Planned::Close {
+                kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
+                ..
+            } => {
+                domains.insert(tree_lock(*kind));
             }
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
@@ -621,6 +728,24 @@ async fn modify<T: WriteTx>(
     tx.modify(kind, id, change, period, changeset).await
 }
 
+/// Ends an object with what ends with it: a property's closed-list values (its
+/// components), an addressing object's assignments (003/design).
+async fn close<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    tx.close(kind, id, period, changeset).await?;
+    if kind == ObjectKind::Property {
+        tx.close_enum_values_of(id, period, changeset).await?;
+    } else if kind.is_addressing() {
+        tx.unassign(id, None, period, changeset).await?;
+    }
+    Ok(())
+}
+
 /// Applies the planned writes; returns the former domain and value of each prefix whose
 /// value it changes, whose content must be checked again (REQ-002-18).
 async fn apply<T: WriteTx>(
@@ -646,6 +771,15 @@ async fn apply<T: WriteTx>(
             Planned::Address { object, public } => {
                 tx.insert_address(object, *public, period, changeset).await
             }
+            Planned::Anchor {
+                kind,
+                id,
+                slug,
+                parent,
+            } => {
+                tx.insert_anchor(*kind, *id, slug.as_str(), *parent, period, changeset)
+                    .await
+            }
             Planned::Modify {
                 kind,
                 id,
@@ -663,19 +797,7 @@ async fn apply<T: WriteTx>(
                     violations.push(v);
                     continue;
                 }
-                match tx.close(*kind, *id, period, changeset).await {
-                    // A property's closed-list values are its components (003/design).
-                    Ok(()) if *kind == ObjectKind::Property => tx
-                        .close_enum_values_of(*id, period, changeset)
-                        .await
-                        .map_err(WriteError::from),
-                    // Assignments end with their object (003/design).
-                    Ok(()) if kind.is_addressing() => tx
-                        .unassign(*id, None, period, changeset)
-                        .await
-                        .map_err(WriteError::from),
-                    other => other,
-                }
+                close(tx, *kind, *id, period, changeset).await
             }
             Planned::Declare { id, declaration } => {
                 crate::declarations::declare(tx, *id, declaration, period, changeset).await

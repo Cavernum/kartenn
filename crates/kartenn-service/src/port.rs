@@ -38,6 +38,8 @@ pub enum Change {
     Address(AddressUsage),
     /// The usage of a range.
     Range(RangeUsage),
+    /// The parent of an entity or a site; none for a root.
+    Parent(Option<Uuid>),
 }
 
 /// Failure of one write.
@@ -238,6 +240,53 @@ pub trait WriteTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Writes a new entity or site.
+    fn insert_anchor(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        slug: &str,
+        parent: Option<Uuid>,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// Parents named by the versions of an entity or site over part of `period` that do
+    /// not exist over the whole of those versions.
+    fn missing_parents(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Whether an entity or site is among its own ancestors, following the parents of
+    /// every version over part of `period`.
+    fn in_cycle(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Entities or sites whose parent is `id` at some instant from the start of `period`
+    /// on.
+    fn children(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Prefixes among `prefixes` that are containers while carrying an assignment of the
+    /// property `key`, at some instant over `period`.
+    fn containers_carrying(
+        &mut self,
+        key: &str,
+        prefixes: &[Uuid],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
     /// Versions of a prefix over part of `period`, with their public class.
     fn prefix_versions(

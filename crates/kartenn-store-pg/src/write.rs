@@ -251,6 +251,8 @@ fn table(kind: ObjectKind) -> &'static str {
         ObjectKind::Address => "address",
         ObjectKind::Property => "property_declaration",
         ObjectKind::EnumValue => "property_enum_value",
+        ObjectKind::Entity => "entity",
+        ObjectKind::Site => "site",
     }
 }
 
@@ -469,7 +471,10 @@ impl WriteTx for PgTx {
             ObjectKind::Prefix => "SELECT domain_id FROM prefix WHERE id = $1 LIMIT 1",
             ObjectKind::Range => "SELECT domain_id FROM ip_range WHERE id = $1 LIMIT 1",
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
-            ObjectKind::Property | ObjectKind::EnumValue => return Ok(None),
+            ObjectKind::Property
+            | ObjectKind::EnumValue
+            | ObjectKind::Entity
+            | ObjectKind::Site => return Ok(None),
         };
         sqlx::query_scalar(sql)
             .bind(id)
@@ -640,6 +645,12 @@ impl WriteTx for PgTx {
             Change::Range(usage) => {
                 patch.insert("usage".into(), usage.as_str().into());
             }
+            Change::Parent(parent) => {
+                patch.insert(
+                    "parent_id".into(),
+                    parent.map_or(serde_json::Value::Null, |p| p.to_string().into()),
+                );
+            }
         }
         // `kartenn_portion` returns the number of versions over the portion.
         let touched = self
@@ -664,6 +675,130 @@ impl WriteTx for PgTx {
         } else {
             Ok(())
         }
+    }
+
+    async fn insert_anchor(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        slug: &str,
+        parent: Option<Uuid>,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "INSERT INTO {} (id, slug, parent_id, valid_period, changeset_id) VALUES ($1, $2, $3, {}, $6)",
+            table(kind),
+            period_sql(4, 5)
+        );
+        let binds = vec![
+            Bind::Uuid(id),
+            Bind::Text(slug.to_owned()),
+            Bind::OptUuid(parent),
+            Bind::Time(a),
+            Bind::Time(b),
+            Bind::Uuid(changeset),
+        ];
+        self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
+            .await
+            .map(|_| ())
+    }
+
+    async fn missing_parents(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let t = table(kind);
+        let sql = format!(
+            "SELECT DISTINCT c.parent_id FROM {t} c
+             WHERE c.id = $1 AND c.parent_id IS NOT NULL AND c.valid_period && {w}
+               AND NOT coalesce((SELECT range_agg(p.valid_period) FROM {t} p WHERE p.id = c.parent_id)
+                                @> (c.valid_period * {w}), false)",
+            w = period_sql(2, 3)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn in_cycle(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<bool, StoreError> {
+        let (a, b) = bounds(period)?;
+        let t = table(kind);
+        // Every parent link over the period, whatever its instant: conservative.
+        let sql = format!(
+            "WITH RECURSIVE up(id) AS (
+                 SELECT parent_id FROM {t} WHERE id = $1 AND parent_id IS NOT NULL AND valid_period && {w}
+                 UNION
+                 SELECT x.parent_id FROM {t} x JOIN up ON x.id = up.id
+                 WHERE x.parent_id IS NOT NULL AND x.valid_period && {w})
+             SELECT EXISTS (SELECT 1 FROM up WHERE id = $1)",
+            w = period_sql(2, 3)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .bind(b)
+            .fetch_one(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn children(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, _) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT id FROM {} WHERE parent_id = $1
+               AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL) ORDER BY id",
+            table(kind)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn containers_carrying(
+        &mut self,
+        key: &str,
+        prefixes: &[Uuid],
+        period: Option<Period>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        let (a, b) = bounds(period)?;
+        let sql = format!(
+            "SELECT DISTINCT p.id FROM prefix p
+             JOIN property_assignment a ON a.object_id = p.id AND a.valid_period && p.valid_period
+             JOIN property_declaration d ON d.id = a.property_id AND d.key = $1
+             WHERE p.id = ANY($2) AND p.nature = 'container'
+               AND (p.valid_period * a.valid_period) && {} ORDER BY p.id",
+            period_sql(3, 4)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(key)
+            .bind(prefixes)
+            .bind(a)
+            .bind(b)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
     }
 
     async fn prefix_versions(

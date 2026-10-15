@@ -10,7 +10,7 @@ use kartenn_core::properties::{
     PropertyKey, PropertyUsage, REF_TARGETS, TypeSpec, check_evolution,
 };
 use kartenn_core::rules::{self, Violation};
-use kartenn_core::values::{Scalar, Value, ValueContext, ValueType};
+use kartenn_core::values::{Cardinality, Scalar, Value, ValueContext, ValueType};
 use uuid::{Uuid, uuid};
 
 use crate::authz::Authorizer;
@@ -84,15 +84,22 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
             return Err(invalid(format!("{key}: {tree} is not a known tree")));
         }
     }
+    // Origins are maintained along the addressing tree only, for now (003, task 18).
+    if let Some(tree @ (InheritTree::Entity | InheritTree::Site)) = &inherit {
+        return Err(invalid(format!(
+            "{key}: inheritance along the {} tree is not maintained yet",
+            tree.as_str()
+        )));
+    }
     let mut obligations = BTreeSet::new();
     for o in &input.obligations {
         obligations.insert(match o {
             ObligationInput::Domain { id } => ObligationScope::Domain(*id),
             ObligationInput::ObjectType { kind } => ObligationScope::ObjectType(kind.clone()),
-            // No object has an owner before the anchors (002-22).
+            // The objects of an entity follow the entity tree (003, task 18).
             ObligationInput::Entity { .. } => {
                 return Err(invalid(format!(
-                    "{key}: an obligation scoped by entity needs the owners of objects (002-22)"
+                    "{key}: an obligation scoped by entity is not available yet"
                 )));
             }
         });
@@ -480,4 +487,50 @@ pub async fn sync_modules<S: Store, A: Authorizer>(
         outcomes.push(submit(store, authorizer, &request, max_operations).await?);
     }
     Ok(outcomes)
+}
+
+/// Declarations of the core (002/design, ADR 0014), synchronised like a module's (P12):
+/// `core.owner`, the owning entity, carried by domains and prefixes, inherited along the
+/// addressing tree and required on every domain (REQ-002-11, 38); `core.site`, the site of
+/// a network, not inherited (REQ-002-20).
+///
+/// # Panics
+///
+/// Never: the keys are valid literals.
+#[must_use]
+pub fn core_declarations() -> ModuleDeclarations {
+    let core = || Declarant::Module("core".into());
+    let key = |k| PropertyKey::parse(k).expect("core keys are valid literals");
+    ModuleDeclarations {
+        module: "core".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        properties: vec![
+            (
+                Declaration {
+                    key: key("core.owner"),
+                    declarant: core(),
+                    spec: TypeSpec::Ref { target: "entity" },
+                    cardinality: Cardinality::Single,
+                    carriers: ["domain", "prefix"].map(String::from).into(),
+                    inherit: Some(InheritTree::Addressing),
+                    obligations: [ObligationScope::ObjectType("domain".into())].into(),
+                    expected: None,
+                },
+                Vec::new(),
+            ),
+            (
+                Declaration {
+                    key: key("core.site"),
+                    declarant: core(),
+                    spec: TypeSpec::Ref { target: "site" },
+                    cardinality: Cardinality::Single,
+                    carriers: ["prefix".to_owned()].into(),
+                    inherit: None,
+                    obligations: BTreeSet::new(),
+                    expected: None,
+                },
+                Vec::new(),
+            ),
+        ],
+    }
 }

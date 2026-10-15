@@ -458,3 +458,17 @@ async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
     let outcome = f.submit_at(assign(), Some(now + 10 * day)).await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn entity_and_site_trees_are_not_inherited_yet(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    for tree in ["entity", "site"] {
+        let mut declaration = input("custom.cost_centre", text(20));
+        declaration.inherit = Some(tree.into());
+        assert_eq!(
+            f.refused(vec![declare(1, declaration)]).await,
+            vec!["prop.declaration.invalid"],
+            "{tree}"
+        );
+    }
+}

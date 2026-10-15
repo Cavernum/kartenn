@@ -59,6 +59,14 @@ pub(crate) async fn validate<T: WriteTx>(
             } => {
                 crate::declarations::check_closure(tx, *kind, *id, period, violations).await?;
             }
+            Planned::Anchor { kind, id, .. } => {
+                check_anchor(tx, *kind, *id, period, violations).await?;
+            }
+            Planned::Close {
+                kind: kind @ (ObjectKind::Entity | ObjectKind::Site),
+                id,
+                ..
+            } => check_anchor_closure(tx, *kind, *id, period, violations).await?,
             Planned::Domain { .. }
             | Planned::Close { .. }
             | Planned::Declare { .. }
@@ -68,6 +76,7 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Unassign { .. } => {}
         }
     }
+    check_sites(tx, planned, period, violations).await?;
     // REQ-003-10: a closed object leaves no reference assignment without its target, on
     // the final state (a reference removed in the same changeset no longer counts).
     for p in planned {
@@ -348,6 +357,7 @@ async fn check_modified<T: WriteTx>(
                 check_address(tx, &object, public, period, violations).await?;
             }
         }
+        Change::Parent(_) => check_anchor(tx, kind, id, period, violations).await?,
         Change::Range(_) => {
             debug_assert_eq!(kind, ObjectKind::Range);
             for object in tx.range_versions(id, period).await? {
@@ -421,6 +431,108 @@ async fn check_content<T: WriteTx>(
                 check_range(tx, &range, period, violations).await?;
             }
         }
+    }
+    Ok(())
+}
+
+/// An entity or site whose parent was set: the parent exists whenever the child does, and
+/// the tree has no cycle (REQ-002-8, 9).
+async fn check_anchor<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    for parent in tx.missing_parents(kind, id, period).await? {
+        violations.push(
+            Violation::new(
+                &rules::CHANGESET_NO_VERSION,
+                format!(
+                    "the parent {parent} of {} {id} does not exist over its whole period",
+                    kind.name()
+                ),
+            )
+            .with_subjects([id, parent]),
+        );
+    }
+    if tx.in_cycle(kind, id, period).await? {
+        violations.push(
+            Violation::new(
+                &rules::ANCHOR_CYCLE,
+                format!("{} {id} would be among its own ancestors", kind.name()),
+            )
+            .with_subjects([id]),
+        );
+    }
+    Ok(())
+}
+
+/// REQ-002-20: no site on a container, whichever of the two comes first.
+async fn check_sites<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let prefixes: Vec<Uuid> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Assign {
+                object,
+                kind: ObjectKind::Prefix,
+                ..
+            } => Some(*object),
+            Planned::Modify {
+                kind: ObjectKind::Prefix,
+                id,
+                change: Change::Prefix {
+                    nature: Some(_), ..
+                },
+                ..
+            } => Some(*id),
+            _ => None,
+        })
+        .collect();
+    if !prefixes.is_empty() {
+        for prefix in tx
+            .containers_carrying("core.site", &prefixes, period)
+            .await?
+        {
+            violations.push(
+                Violation::new(
+                    &rules::PREFIX_SITE_ON_CONTAINER,
+                    format!("the container {prefix} cannot be attached to a site"),
+                )
+                .with_subjects([prefix]),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// REQ-002-10: an entity or a site leaves no child nor reference without it.
+async fn check_anchor_closure<T: WriteTx>(
+    tx: &mut T,
+    kind: ObjectKind,
+    id: Uuid,
+    period: Option<Period>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let mut users = tx.children(kind, id, period).await?;
+    users.extend(tx.dangling_references(id).await?);
+    if !users.is_empty() {
+        violations.push(
+            Violation::new(
+                &rules::ANCHOR_IN_USE,
+                format!(
+                    "the {} {id} is still used by {} object(s) after its closure",
+                    kind.name(),
+                    users.len()
+                ),
+            )
+            .with_subjects(std::iter::once(id).chain(users)),
+        );
     }
     Ok(())
 }

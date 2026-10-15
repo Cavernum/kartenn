@@ -33,6 +33,10 @@ pub enum ObjectKind {
     Property,
     /// Value of a closed list.
     EnumValue,
+    /// Entity (organisation), in a tree (REQ-002-8).
+    Entity,
+    /// Site, in a tree (REQ-002-9).
+    Site,
 }
 
 /// Type of a declared property and its parameters, as received (003/design).
@@ -114,6 +118,8 @@ impl ObjectKind {
             Self::Address => "address",
             Self::Property => "property",
             Self::EnumValue => "enum_value",
+            Self::Entity => "entity",
+            Self::Site => "site",
         }
     }
 
@@ -237,7 +243,49 @@ pub enum Operation {
         /// Usage.
         usage: AddressUsage,
     },
-    /// Ends an object (REQ-004-15); nothing before the end is erased.
+    /// Creates an entity (REQ-002-8).
+    CreateEntity {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Technical identifier.
+        slug: String,
+        /// Parent entity; none for a root.
+        #[serde(default)]
+        parent: Option<Ref>,
+    },
+    /// Creates a site (REQ-002-9).
+    CreateSite {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Technical identifier.
+        slug: String,
+        /// Parent site; none for a root.
+        #[serde(default)]
+        parent: Option<Ref>,
+    },
+    /// Attaches an entity to another parent, or makes it a root, over the period of the
+    /// changeset (REQ-002-8).
+    MoveEntity {
+        /// Entity.
+        id: Ref,
+        /// New parent; none for a root.
+        #[serde(default)]
+        parent: Option<Ref>,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
+    /// Attaches a site to another parent, or makes it a root (REQ-002-9).
+    MoveSite {
+        /// Site.
+        id: Ref,
+        /// New parent; none for a root.
+        #[serde(default)]
+        parent: Option<Ref>,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
     /// Declares a property (REQ-003-1 to 3).
     DeclareProperty {
         /// Local name for later operations.
@@ -311,6 +359,9 @@ pub enum Operation {
     UpdatePrefix {
         /// Prefix.
         id: Ref,
+        /// The domain never changes (REQ-002-12): given, it is refused.
+        #[serde(default)]
+        domain: Option<Ref>,
         /// New value, `address/length` (resizing; same identifier).
         #[serde(default)]
         prefix: Option<String>,
@@ -331,6 +382,9 @@ pub enum Operation {
     UpdateAddress {
         /// Address.
         id: Ref,
+        /// The domain never changes (REQ-002-12): given, it is refused.
+        #[serde(default)]
+        domain: Option<Ref>,
         /// New usage.
         usage: AddressUsage,
         /// As for [`Operation::Close`].
@@ -341,6 +395,9 @@ pub enum Operation {
     UpdateRange {
         /// Range.
         id: Ref,
+        /// The domain never changes (REQ-002-12): given, it is refused.
+        #[serde(default)]
+        domain: Option<Ref>,
         /// New usage.
         usage: RangeUsage,
         /// As for [`Operation::Close`].
@@ -358,12 +415,16 @@ impl Operation {
             | Self::CreatePrefix { local, .. }
             | Self::CreateRange { local, .. }
             | Self::CreateAddress { local, .. }
+            | Self::CreateEntity { local, .. }
+            | Self::CreateSite { local, .. }
             | Self::DeclareProperty { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
             Self::Close { .. }
             | Self::UpdatePrefix { .. }
             | Self::UpdateAddress { .. }
             | Self::UpdateRange { .. }
+            | Self::MoveEntity { .. }
+            | Self::MoveSite { .. }
             | Self::UpdateProperty { .. }
             | Self::AssignProperty { .. }
             | Self::ClearProperty { .. }

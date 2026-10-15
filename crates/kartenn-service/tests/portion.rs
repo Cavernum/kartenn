@@ -144,6 +144,7 @@ fn day(t: OffsetDateTime) -> i64 {
 fn update_address(id: Uuid, usage: AddressUsage) -> Operation {
     Operation::UpdateAddress {
         id: Ref::Id(id),
+        domain: None,
         usage,
         expected: None,
     }
@@ -152,6 +153,7 @@ fn update_address(id: Uuid, usage: AddressUsage) -> Operation {
 fn update_prefix(id: Uuid, prefix: Option<&str>, nature: Option<Nature>) -> Operation {
     Operation::UpdatePrefix {
         id: Ref::Id(id),
+        domain: None,
         prefix: prefix.map(Into::into),
         nature,
         point_to_point: None,
@@ -241,6 +243,7 @@ async fn a_modification_is_checked_like_a_creation(pool: PgPool) {
     // The local rules apply to the final version: a /24 cannot be point to point.
     let p2p = Operation::UpdatePrefix {
         id: Ref::Id(net),
+        domain: None,
         prefix: None,
         nature: None,
         point_to_point: Some(true),
@@ -346,6 +349,7 @@ async fn a_stale_modification_is_a_conflict(pool: PgPool) {
     let a = f.id("address", "host(address)", "10.1.2.10").await;
     let seen = Operation::UpdateAddress {
         id: Ref::Id(a),
+        domain: None,
         usage: AddressUsage::Vip,
         expected: Some(first),
     };
