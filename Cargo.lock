@@ -700,7 +700,11 @@ dependencies = [
 name = "kartenn-server"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
+ "kartenn-store-pg",
  "kartenn-workspace-hack",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

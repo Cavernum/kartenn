@@ -79,7 +79,7 @@ pub fn select_at(
              UNION ALL \
              SELECT {cols} FROM {table}_history \
              WHERE valid_period @> $1::timestamptz AND sys_start <= $2::timestamptz \
-             AND sys_end > $2::timestamptz{extra}"
+             AND sys_end > $2::timestamptz AND tstzrange(sys_start, sys_end) @> $2::timestamptz{extra}"
         ),
     };
     Ok(AssertSqlSafe(sql))
@@ -101,7 +101,8 @@ pub fn snapshot(table: &str, columns: &[&str]) -> Result<String, TemporalError> 
           UNION ALL \
           SELECT {cols} FROM {table}_history \
           WHERE $2::timestamptz IS NOT NULL AND valid_period @> $1::timestamptz \
-            AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz)"
+            AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz \
+            AND tstzrange(sys_start, sys_end) @> $2::timestamptz)"
     ))
 }
 
