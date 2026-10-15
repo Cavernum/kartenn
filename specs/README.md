@@ -33,9 +33,9 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-15
 
-Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 17/17, implémentée
-(banc tenu, seuil ≤ 10⁴ porté à 2,5 s, P14 ; ADR 0016 acceptée) · 004 : 13/24 (004-11
-partiel) ; 190 tests, `devenv test` vert.
+Avancement : 002 : 25/28 tâches (modifications de préfixes) · 003 : 17/17, implémentée
+(banc tenu, seuil ≤ 10⁴ porté à 2,5 s, P14 ; ADR 0016 acceptée) · 004 : 14/24 (004-11
+partiel ; découpage en base fait) ; 197 tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 

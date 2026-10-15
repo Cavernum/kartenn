@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 004 — Changesets et bitemporel : conception
@@ -83,6 +83,27 @@ La clôture à une date d (REQ-004-15) est une modification de la période :
 supprimées de la table courante (donc historisées).
 
 Les morceaux adjacents de même état sont fusionnés (pas de fragmentation inutile).
+
+**Mise en œuvre (004-8)** : une fonction SQL générique `kartenn_portion(table, id, début,
+fin, modification, changeset)` supprime chaque version courante qui recoupe la portion
+(le déclencheur l'historise) et réinsère jusqu'à trois morceaux : avant et après dans
+l'ancien état, la portion avec la modification (un objet JSON des colonnes changées,
+appliqué par `jsonb_populate_record`). Supprimer avant de réinsérer respecte les
+exclusions de la table. Une version inchangée par la modification n'est pas touchée ;
+les versions voisines de même état sont ensuite fusionnées. Une version écrite puis
+remplacée dans la même transaction n'entre pas dans l'historique : elle n'a jamais été
+visible (amendement de l'ADR 0017).
+
+Opérations de modification, sur la période du changeset : `UpdatePrefix` (valeur, donc
+redimensionnement ; nature ; point à point ; anycast ; avec la classe publique et la
+version du registre recalculées depuis la valeur), `UpdateAddress` (usage),
+`UpdateRange` (usage). La validation relit chaque version finale de l'objet sur la
+période et lui applique les règles locales et globales d'une création (REQ-004-8) ; en
+plus, pour un préfixe, le changement de nature vérifie `core.prefix.not_empty_for_nature`
+(REQ-002-17) et le redimensionnement revalide les adresses et plages de l'ancienne et de
+la nouvelle portée (REQ-002-18). Un redimensionnement déplace l'arbre : la maintenance
+des origines recalcule la nouvelle portée et les héritiers du préfixe (003). La
+concurrence optimiste (`expected`) s'applique comme pour la clôture.
 
 ### Pipeline d'un changeset (REQ-004-1 à 12, 19 à 27, 39 à 43)
 

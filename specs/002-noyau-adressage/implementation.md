@@ -27,7 +27,10 @@ Table `ip_range`, règles REQ-002-21 à 24 et 28, clé naturelle des plages : l'
 (type `inetrange` sans `subtype_diff`, `CHECK` de famille) est validé le 2026-10-14 ; les
 tâches 15, 17, 20 et 24 sont faites (migration 0008).
 
-## I3 — Opérations pas encore exposées par le pipeline
+## I3 — Opérations pas encore exposées par le pipeline — **fait (004-8)**
+
+Le 2026-10-15 : modifications de préfixe (valeur, nature, point à point, anycast), d'usage
+d'adresse et de plage, sur une portion de temps ; REQ-002-17 et 18 branchées.
 
 Le pipeline (004-7) sait créer domaines, préfixes et adresses et clore un objet. Les
 opérations de modification (changement de nature, redimensionnement, changement d'usage)

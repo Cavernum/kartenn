@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 002 — Noyau d'adressage : tâches
@@ -82,11 +82,10 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   autres domaines, à une date — REQ-002-14, 42 — après 004-7 — verify : tests
   d'intégration sur le jeu réduit
   — faits de validation livrés ; la navigation générale (parent, enfants) vient en 002-23
-- [ ] 19. Règles globales des préfixes : doublon, réseau feuille, changement de nature,
+- [x] 19. Règles globales des préfixes : doublon, réseau feuille, changement de nature,
   redimensionnement — REQ-002-15 à 18 — verify : un test par règle et par cas de la
-  table des erreurs
-  — **partiel** : doublon et réseau feuille faits ; nature et redimensionnement attendent les
-  opérations de modification (implementation.md, I3)
+  table des erreurs — nature et redimensionnement avec les opérations de modification
+  (004-8, `kartenn-service/tests/portion.rs`)
 - [x] 20. Règles globales des plages et adresses : dans un réseau, chevauchement, usage
   de plage, unicité — REQ-002-21, 22, 25, 26, 28 — verify : idem
   (`kartenn-service/tests/ranges.rs`)

@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 004 — Changesets et bitemporel : tâches
@@ -43,9 +43,11 @@ voir [`../README.md`](../README.md).
   transaction avec références internes, validation (point d'accroche 002/003),
   atomicité, journalisation séparée des refus — REQ-004-1 à 7, 12 — verify : tests
   d'intégration, dont concurrence
-- [ ] 8. Découpage en base (`UPDATE` + `INSERT` des morceaux), clôture, validation sur
+- [x] 8. Découpage en base (`UPDATE` + `INSERT` des morceaux), clôture, validation sur
   toute la période visée (versions futures) — REQ-004-8, 14, 15 — verify : comparaison
-  au modèle en mémoire de la tâche 3
+  au modèle en mémoire de la tâche 3 (`kartenn-service/tests/portion.rs`) — fonction
+  `kartenn_portion` (suppression et réinsertion), opérations `UpdatePrefix`,
+  `UpdateAddress`, `UpdateRange`
 - [x] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
 - [x] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
   parallèles
