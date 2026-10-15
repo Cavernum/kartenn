@@ -87,8 +87,11 @@ voir [`../README.md`](../README.md).
   REQ-004-38 — verify : seuils bloquants
 - [ ] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
   — verify : rapport spec-keeper sans écart
-- [ ] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
+- [x] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
   l'avance par un job (la partition par défaut ne reçoit plus rien), index GiST
   `tstzrange(sys_start, sys_end)` sur chaque historique — REQ-004-17, 38 — avant 23 —
-  verify : tests (partitions du mois suivant présentes, lecture `as_of` qui utilise
-  l'index) ; mesure au banc 23 (ajoutée le 2026-10-15)
+  verify : tests (partitions des mois à venir présentes, index présent sur chaque
+  historique) ; usage de l'index mesuré au banc 23 (ajoutée le 2026-10-15) — `kartenn_history_maintenance`
+  (migration 0019), appelée par `kartenn-server migrate` (`maintenance::deploy`, qui
+  synchronise aussi les déclarations du noyau) ; à relancer au moins chaque mois
+  (`maintenance::history_partitions`) jusqu'au planificateur de jobs

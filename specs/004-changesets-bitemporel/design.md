@@ -63,8 +63,11 @@ par construction du déclencheur.
 La table courante reste petite (une ligne par segment applicatif affirmé) ; l'historique
 est **partitionné par plage de `sys_end`** (mensuel) pour borner les parcours et faciliter
 l'exploitation. Budget visé : `as_of` passé ≤ 2× la lecture courante (REQ-004-38), à
-mesurer. Création des partitions et de l'index GiST : tâche 25 (seule la partition par
-défaut existe tant qu'elle n'est pas faite).
+mesurer. Les partitions sont créées à l'avance (mois courant et deux suivants) par
+`kartenn_history_maintenance`, au déploiement puis périodiquement ; un mois dont la
+partition par défaut contient déjà des lignes y reste. L'index GiST de la période système
+sert le prédicat `tstzrange(sys_start, sys_end) @> as_of`, que les lectures datées
+ajoutent à `sys_end > as_of` (qui, lui, écarte les partitions) (tâche 25).
 
 **Historique d'un objet** (REQ-004-18) : union des versions courantes et historiques de
 l'`id`, triées par `valid_period` puis `sys_start`, avec `changeset_id`.
