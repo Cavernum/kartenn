@@ -524,3 +524,76 @@ async fn the_database_splits_like_the_model(pool: PgPool) {
         }
     }
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_operation_may_have_its_own_period(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    f.applied(
+        vec![
+            f.prefix("10.1.2.0/24", Nature::Network),
+            f.address("10.1.2.10"),
+            f.address("10.1.2.11"),
+        ],
+        0,
+        None,
+    )
+    .await;
+    let a = f.id("address", "host(address)", "10.1.2.10").await;
+    let b = f.id("address", "host(address)", "10.1.2.11").await;
+    // REQ-004-2: the changeset from day 10; one operation on [day 30, day 60) only.
+    let changeset = f
+        .applied(
+            vec![
+                Operation::Within {
+                    period: PeriodSpec {
+                        start: T0 + 30 * DAY,
+                        end: Some(T0 + 60 * DAY),
+                    },
+                    operation: Box::new(update_address(a, AddressUsage::Reserved)),
+                },
+                update_address(b, AddressUsage::Vip),
+            ],
+            10,
+            None,
+        )
+        .await;
+    assert_eq!(
+        f.usages(a).await,
+        vec![
+            ("host".into(), 0, Some(30)),
+            ("reserved".into(), 30, Some(60)),
+            ("host".into(), 60, None),
+        ]
+    );
+    assert_eq!(
+        f.usages(b).await,
+        vec![("host".into(), 0, Some(10)), ("vip".into(), 10, None)]
+    );
+    // REQ-004-27: an operation in the past makes the changeset retroactive.
+    let retroactive: bool = sqlx::query_scalar("SELECT retroactive FROM changeset WHERE id = $1")
+        .bind(changeset)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!retroactive, "2030 is in the future");
+    let now = i64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap();
+    let past = f
+        .applied(
+            vec![Operation::Within {
+                period: PeriodSpec {
+                    start: now - DAY,
+                    end: None,
+                },
+                operation: Box::new(f.prefix("10.9.0.0/16", Nature::Container)),
+            }],
+            10,
+            None,
+        )
+        .await;
+    let retroactive: bool = sqlx::query_scalar("SELECT retroactive FROM changeset WHERE id = $1")
+        .bind(past)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(retroactive);
+}

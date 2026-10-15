@@ -195,6 +195,13 @@ pub struct PeriodSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
+    /// An operation on its own period instead of the changeset's (REQ-004-2).
+    Within {
+        /// Period of the operation.
+        period: PeriodSpec,
+        /// The operation.
+        operation: Box<Operation>,
+    },
     /// Creates an addressing domain.
     CreateDomain {
         /// Local name for later operations.
@@ -435,10 +442,29 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// The operation itself, without the period that wraps it.
+    #[must_use]
+    pub fn inner(&self) -> &Self {
+        match self {
+            Self::Within { operation, .. } => operation.inner(),
+            other => other,
+        }
+    }
+
+    /// The period of the operation, when it has its own (REQ-004-2); the innermost wins.
+    #[must_use]
+    pub fn own_period(&self) -> Option<PeriodSpec> {
+        match self {
+            Self::Within { period, operation } => operation.own_period().or(Some(*period)),
+            _ => None,
+        }
+    }
+
     /// Local name this operation defines, if any.
     #[must_use]
-    pub const fn defines(&self) -> Option<u32> {
+    pub fn defines(&self) -> Option<u32> {
         match self {
+            Self::Within { operation, .. } => operation.defines(),
             Self::CreateDomain { local, .. }
             | Self::CreatePrefix { local, .. }
             | Self::CreateRange { local, .. }

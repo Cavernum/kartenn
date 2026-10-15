@@ -13,17 +13,21 @@ use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
 use crate::port::{StoreError, WriteTx};
 
-/// The planned operations with every cascade expanded, and the closures it added.
+/// Operations with their periods (REQ-004-2), and the closures a cascade added.
+type Expanded = (Vec<Planned>, Vec<Option<Period>>, Vec<(ObjectKind, Uuid)>);
+
+/// The planned operations with every cascade expanded, each added operation on the period
+/// of the closure that brings it, and the closures added.
 pub(crate) async fn expand<T: WriteTx>(
     tx: &mut T,
     planned: Vec<Planned>,
-    period: Option<Period>,
-) -> Result<(Vec<Planned>, Vec<(ObjectKind, Uuid)>), StoreError> {
+    periods: Vec<Option<Period>>,
+) -> Result<Expanded, StoreError> {
     if !planned
         .iter()
         .any(|p| matches!(p, Planned::Close { cascade: true, .. }))
     {
-        return Ok((planned, Vec::new()));
+        return Ok((planned, periods, Vec::new()));
     }
     // Objects the changeset closes already, then those the cascade adds.
     let mut closed: BTreeSet<Uuid> = planned
@@ -34,8 +38,9 @@ pub(crate) async fn expand<T: WriteTx>(
         })
         .collect();
     let mut out = Vec::with_capacity(planned.len());
+    let mut out_periods = Vec::with_capacity(planned.len());
     let mut added = Vec::new();
-    for p in planned {
+    for (p, period) in planned.into_iter().zip(periods) {
         if let Planned::Close {
             kind,
             id,
@@ -54,6 +59,7 @@ pub(crate) async fn expand<T: WriteTx>(
                             kind: object_kind,
                             property,
                         });
+                        out_periods.push(period);
                     }
                 }
                 if i != *id {
@@ -63,13 +69,15 @@ pub(crate) async fn expand<T: WriteTx>(
                         expected: None,
                         cascade: false,
                     });
+                    out_periods.push(period);
                     added.push((k, i));
                 }
             }
         }
         out.push(p);
+        out_periods.push(period);
     }
-    Ok((out, added))
+    Ok((out, out_periods, added))
 }
 
 /// The dependents of `(kind, id)`, deepest first, skipping those already closed.

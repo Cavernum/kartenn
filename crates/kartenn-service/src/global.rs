@@ -18,13 +18,13 @@ use crate::port::{Change, StoreError, WriteTx};
 pub(crate) async fn validate<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
+    periods: &[Option<Period>],
     former: &[(Uuid, Prefix)],
-    period: Option<Period>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
     let mut addresses_to_recheck: BTreeSet<Uuid> = BTreeSet::new();
     let mut ranges_to_recheck: BTreeSet<Uuid> = BTreeSet::new();
-    for p in planned {
+    for (p, &period) in planned.iter().zip(periods) {
         match p {
             Planned::Prefix { object, public } => {
                 check_prefix(tx, object, *public, period, violations).await?;
@@ -77,7 +77,7 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Policy(_) => {}
         }
     }
-    check_sites(tx, planned, period, violations).await?;
+    check_sites(tx, planned, periods, violations).await?;
     // REQ-003-10: a closed object leaves no reference assignment without its target, on
     // the final state (a reference removed in the same changeset no longer counts).
     for p in planned {
@@ -473,17 +473,18 @@ async fn check_anchor<T: WriteTx>(
 async fn check_sites<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
-    period: Option<Period>,
+    periods: &[Option<Period>],
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
-    let prefixes: Vec<Uuid> = planned
+    let prefixes: Vec<(Uuid, Option<Period>)> = planned
         .iter()
-        .filter_map(|p| match p {
+        .zip(periods)
+        .filter_map(|(p, &period)| match p {
             Planned::Assign {
                 object,
                 kind: ObjectKind::Prefix,
                 ..
-            } => Some(*object),
+            } => Some((*object, period)),
             Planned::Modify {
                 kind: ObjectKind::Prefix,
                 id,
@@ -491,13 +492,13 @@ async fn check_sites<T: WriteTx>(
                     nature: Some(_), ..
                 },
                 ..
-            } => Some(*id),
+            } => Some((*id, period)),
             _ => None,
         })
         .collect();
-    if !prefixes.is_empty() {
+    for (prefix, period) in prefixes {
         for prefix in tx
-            .containers_carrying("core.site", &prefixes, period)
+            .containers_carrying("core.site", &[prefix], period)
             .await?
         {
             violations.push(

@@ -357,7 +357,7 @@ async fn write_journal(
                                 violations, anomalies, diff_summary, validator_id, expires_at, policy_id,
                                 required_rights, request)
          VALUES ($1, $2, $3, $4, $10, tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
-                 coalesce($5::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
+                 coalesce($16::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
                  $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
@@ -390,6 +390,7 @@ async fn write_journal(
             .map_err(store_err)?,
     )
     .bind(crate::pending::PENDING_DAYS)
+    .bind(earliest(journal.request)?)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
@@ -423,6 +424,20 @@ async fn write_journal(
         .map_err(store_err)?;
     }
     record_operations(tx, journal).await
+}
+
+/// The earliest start among the changeset's period and its operations' own (REQ-004-2,
+/// 27): before now, the changeset is retroactive.
+fn earliest(request: &ChangesetRequest) -> Result<Option<OffsetDateTime>, StoreError> {
+    request
+        .period
+        .iter()
+        .copied()
+        .chain(request.operations.iter().filter_map(Operation::own_period))
+        .map(|p| p.start)
+        .min()
+        .map(|start| instant(kartenn_core::period::Instant(start)))
+        .transpose()
 }
 
 /// The idempotency key of a submission, for 24 h (REQ-004-10).

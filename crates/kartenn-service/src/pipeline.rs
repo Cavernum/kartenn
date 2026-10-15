@@ -245,6 +245,56 @@ impl Planned {
     }
 }
 
+/// Objects an operation designates, with the kind each must have (REQ-004-4).
+fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
+    match op {
+        Operation::CreatePrefix { domain, .. }
+        | Operation::CreateRange { domain, .. }
+        | Operation::CreateAddress { domain, .. } => {
+            vec![(*domain, ObjectKind::Domain)]
+        }
+        Operation::Close { kind, id, .. } => vec![(*id, *kind)],
+        Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
+        Operation::UpdateAddress { id, .. } => vec![(*id, ObjectKind::Address)],
+        Operation::UpdateRange { id, .. } => vec![(*id, ObjectKind::Range)],
+        Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
+        Operation::AssignProperty {
+            object,
+            kind,
+            property,
+            ..
+        }
+        | Operation::ClearProperty {
+            object,
+            kind,
+            property,
+        }
+        | Operation::UnassignProperty {
+            object,
+            kind,
+            property,
+        } => vec![(*object, *kind), (*property, ObjectKind::Property)],
+        Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
+        Operation::CreateEntity { parent, .. } => {
+            parent.iter().map(|p| (*p, ObjectKind::Entity)).collect()
+        }
+        Operation::CreateSite { parent, .. } => {
+            parent.iter().map(|p| (*p, ObjectKind::Site)).collect()
+        }
+        Operation::MoveEntity { id, parent, .. } => std::iter::once(id)
+            .chain(parent)
+            .map(|r| (*r, ObjectKind::Entity))
+            .collect(),
+        Operation::MoveSite { id, parent, .. } => std::iter::once(id)
+            .chain(parent)
+            .map(|r| (*r, ObjectKind::Site))
+            .collect(),
+        Operation::CreateDomain { .. }
+        | Operation::DeclareProperty { .. }
+        | Operation::SetApprovalPolicy { .. }
+        | Operation::Within { .. } => vec![],
+    }
+}
 /// Checks the shape of the request (REQ-004-1 to 5): size, motive, period, references.
 fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, RequestError> {
     if req.operations.is_empty() {
@@ -262,52 +312,9 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
     let period = to_period(req.period)?;
     let mut defined: HashMap<u32, ObjectKind> = HashMap::new();
     for (i, op) in req.operations.iter().enumerate() {
-        let uses: Vec<(Ref, ObjectKind)> = match op {
-            Operation::CreatePrefix { domain, .. }
-            | Operation::CreateRange { domain, .. }
-            | Operation::CreateAddress { domain, .. } => {
-                vec![(*domain, ObjectKind::Domain)]
-            }
-            Operation::Close { kind, id, .. } => vec![(*id, *kind)],
-            Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
-            Operation::UpdateAddress { id, .. } => vec![(*id, ObjectKind::Address)],
-            Operation::UpdateRange { id, .. } => vec![(*id, ObjectKind::Range)],
-            Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
-            Operation::AssignProperty {
-                object,
-                kind,
-                property,
-                ..
-            }
-            | Operation::ClearProperty {
-                object,
-                kind,
-                property,
-            }
-            | Operation::UnassignProperty {
-                object,
-                kind,
-                property,
-            } => vec![(*object, *kind), (*property, ObjectKind::Property)],
-            Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
-            Operation::CreateEntity { parent, .. } => {
-                parent.iter().map(|p| (*p, ObjectKind::Entity)).collect()
-            }
-            Operation::CreateSite { parent, .. } => {
-                parent.iter().map(|p| (*p, ObjectKind::Site)).collect()
-            }
-            Operation::MoveEntity { id, parent, .. } => std::iter::once(id)
-                .chain(parent)
-                .map(|r| (*r, ObjectKind::Entity))
-                .collect(),
-            Operation::MoveSite { id, parent, .. } => std::iter::once(id)
-                .chain(parent)
-                .map(|r| (*r, ObjectKind::Site))
-                .collect(),
-            Operation::CreateDomain { .. }
-            | Operation::DeclareProperty { .. }
-            | Operation::SetApprovalPolicy { .. } => vec![],
-        };
+        to_period(op.own_period())?;
+        let op = op.inner();
+        let uses = references(op);
         for (r, expected) in uses {
             if let Ref::Local(local) = r {
                 match defined.get(&local) {
@@ -581,6 +588,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
         if let Some(local) = op.defines() {
             ids.insert(local, id);
         }
+        let op = op.inner();
         match op {
             Operation::CreateDomain { slug, .. } => match Slug::parse(slug) {
                 Ok(slug) => planned.push(Planned::Domain { id, slug }),
@@ -659,6 +667,8 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     Err(v) => violations.push(v),
                 }
             }
+            // Unwrapped above.
+            Operation::Within { .. } => {}
             Operation::AssignProperty { .. }
             | Operation::ClearProperty { .. }
             | Operation::UnassignProperty { .. } => {
@@ -847,12 +857,12 @@ async fn close<T: WriteTx>(
 async fn apply<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
-    period: Option<Period>,
+    periods: &[Option<Period>],
     changeset: Uuid,
     violations: &mut Vec<Violation>,
 ) -> Result<Vec<(Uuid, Prefix)>, StoreError> {
     let mut former = Vec::new();
-    for p in planned {
+    for (p, &period) in planned.iter().zip(periods) {
         let written = match p {
             Planned::Domain { id, slug } => {
                 tx.insert_domain(*id, slug.as_str(), period, changeset)
@@ -1050,7 +1060,15 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         return refuse(store, req, changeset, violations, mode).await;
     }
     // REQ-004-26: closures in cascade, expanded before the locks.
-    let (planned, cascaded) = crate::cascade::expand(&mut tx, planned, period).await?;
+    // REQ-004-2: each operation on its own period, or the changeset's; the property stage
+    // covers them all.
+    let periods: Vec<Option<Period>> = req
+        .operations
+        .iter()
+        .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
+        .collect::<Result<_, _>>()?;
+    let window = window(period, &periods);
+    let (planned, periods, cascaded) = crate::cascade::expand(&mut tx, planned, periods).await?;
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     // The policies in force at submission, before the changeset changes them.
@@ -1058,7 +1076,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         Mode::Submission => tx.approval_policies().await?,
         Mode::Validation { .. } => Vec::new(),
     };
-    let former = match apply(&mut tx, &planned, period, changeset, &mut violations).await {
+    let former = match apply(&mut tx, &planned, &periods, changeset, &mut violations).await {
         Ok(former) => former,
         Err(e) => {
             tx.rollback().await?;
@@ -1067,7 +1085,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
     };
     if !has_errors(&violations)
         && let Err(e) =
-            crate::global::validate(&mut tx, &planned, &former, period, &mut violations).await
+            crate::global::validate(&mut tx, &planned, &periods, &former, &mut violations).await
     {
         tx.rollback().await?;
         return Err(e.into());
@@ -1098,7 +1116,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         subject,
         may_propose,
         &planned,
-        period,
+        window,
         changeset,
         &mut violations,
     )
@@ -1460,6 +1478,31 @@ async fn refuse<S: Store>(
             violations,
         },
     })
+}
+
+/// The period the property stage covers: from the earliest start of the operations (the
+/// changeset's period when none has its own, REQ-004-2), unbounded.
+fn window(period: Option<Period>, periods: &[Option<Period>]) -> Option<Period> {
+    if periods.iter().all(|p| *p == period) {
+        return period;
+    }
+    // An operation without a start runs from the transaction time: a minute earlier is a
+    // safe superset whatever the clocks.
+    let now = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_micros(),
+    )
+    .unwrap_or(i64::MAX)
+        - 60_000_000;
+    let start = periods
+        .iter()
+        .map(|p| p.map_or(now, |p| p.start().0))
+        .chain(std::iter::once(period.map_or(now, |p| p.start().0)))
+        .min()
+        .unwrap_or(now);
+    Period::new(Instant(start), None).ok()
 }
 
 #[cfg(test)]
