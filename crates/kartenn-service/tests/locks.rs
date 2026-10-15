@@ -56,6 +56,7 @@ async fn closing_a_domain_waits_for_its_lock(pool: PgPool) {
         kind: ObjectKind::Domain,
         id: Ref::Id(domain),
         expected: None,
+        cascade: false,
     }]);
     let pending = tokio::spawn({
         let store = store.clone();

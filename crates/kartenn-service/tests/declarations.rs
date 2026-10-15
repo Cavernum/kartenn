@@ -253,6 +253,7 @@ async fn declarations_evolve_only_compatibly(pool: PgPool) {
             kind: ObjectKind::Property,
             id: Ref::Id(cost),
             expected: None,
+            cascade: false,
         }])
         .await,
         vec!["prop.declaration.incompatible"]
@@ -291,6 +292,7 @@ async fn closing_values_and_properties(pool: PgPool) {
         kind,
         id: Ref::Id(id),
         expected: None,
+        cascade: false,
     };
     // REQ-003-6: an assigned value cannot be closed; an unassigned one can.
     assert_eq!(

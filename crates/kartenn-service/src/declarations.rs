@@ -448,6 +448,7 @@ fn sync_operations(
                 kind: ObjectKind::Property,
                 id: Ref::Id(*id),
                 expected: None,
+                cascade: false,
             });
         }
     }

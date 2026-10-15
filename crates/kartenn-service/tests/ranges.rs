@@ -249,6 +249,7 @@ async fn closing_a_network_needs_its_ranges_closed(pool: PgPool) {
         kind,
         id: Ref::Id(id),
         expected: None,
+        cascade: false,
     };
     assert_eq!(
         f.refused(vec![close(ObjectKind::Prefix, net)]).await,

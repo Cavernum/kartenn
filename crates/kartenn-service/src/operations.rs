@@ -377,6 +377,10 @@ pub enum Operation {
         /// a different current version is a conflict.
         #[serde(default)]
         expected: Option<Uuid>,
+        /// Also close what depends on the object (REQ-004-26): without it, a closure that
+        /// would leave dependents invalid is refused (REQ-004-25).
+        #[serde(default)]
+        cascade: bool,
     },
     /// Modifies a prefix over the period of the changeset (REQ-002-17, 18; REQ-004-14):
     /// the fields given change, the others keep their value in each version.

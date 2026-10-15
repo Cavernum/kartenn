@@ -207,6 +207,7 @@ async fn a_portion_splits_and_merges_back(pool: PgPool) {
             kind: ObjectKind::Address,
             id: Ref::Id(a),
             expected: None,
+            cascade: false,
         }],
         200,
         None,
@@ -493,6 +494,7 @@ async fn the_database_splits_like_the_model(pool: PgPool) {
                     kind: ObjectKind::Address,
                     id: Ref::Id(a),
                     expected: None,
+                    cascade: false,
                 };
                 (close, ok)
             } else {

@@ -249,6 +249,7 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
             kind: ObjectKind::Prefix,
             id: Ref::Id(dev),
             expected: None,
+            cascade: false,
         }]
     };
     let below = sorted(vec![

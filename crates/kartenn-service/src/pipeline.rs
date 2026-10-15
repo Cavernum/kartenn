@@ -90,6 +90,8 @@ pub enum Outcome {
         warnings: Vec<Violation>,
         /// Differential of resolved values, counted; the detail is stored (REQ-003-19).
         diff: Vec<DiffCount>,
+        /// Closures added by a cascade (REQ-004-26).
+        cascaded: Vec<(ObjectKind, Uuid)>,
     },
     /// Refused by at least one error rule; nothing was written but the journal.
     Refused {
@@ -132,6 +134,8 @@ pub enum Outcome {
         diff: Vec<DiffCount>,
         /// Its first entries.
         sample: Vec<DiffItem>,
+        /// Closures a cascade would add (REQ-004-26).
+        cascaded: Vec<(ObjectKind, Uuid)>,
     },
 }
 
@@ -186,6 +190,7 @@ pub(crate) enum Planned {
         kind: ObjectKind,
         id: Uuid,
         expected: Option<Uuid>,
+        cascade: bool,
     },
     Modify {
         kind: ObjectKind,
@@ -637,11 +642,13 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 kind,
                 id: target,
                 expected,
+                cascade,
             } => {
                 planned.push(Planned::Close {
                     kind: *kind,
                     id: resolve(*target, &ids),
                     expected: *expected,
+                    cascade: *cascade,
                 });
             }
             Operation::DeclareProperty { .. }
@@ -882,7 +889,9 @@ async fn apply<T: WriteTx>(
                 }
                 modify(tx, *kind, *id, change, period, changeset, &mut former).await
             }
-            Planned::Close { kind, id, expected } => {
+            Planned::Close {
+                kind, id, expected, ..
+            } => {
                 if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
                     violations.push(v);
                     continue;
@@ -1040,6 +1049,8 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode).await;
     }
+    // REQ-004-26: closures in cascade, expanded before the locks.
+    let (planned, cascaded) = crate::cascade::expand(&mut tx, planned, period).await?;
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     // The policies in force at submission, before the changeset changes them.
@@ -1124,6 +1135,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
             violations,
             diff,
             sample: sample?,
+            cascaded,
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
@@ -1202,6 +1214,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         changeset,
         warnings: violations,
         diff,
+        cascaded,
     })
 }
 
@@ -1411,6 +1424,7 @@ async fn refuse<S: Store>(
             violations,
             diff: Vec::new(),
             sample: Vec::new(),
+            cascaded: Vec::new(),
         });
     }
     let journal = Journal {

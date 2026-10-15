@@ -221,6 +221,7 @@ async fn a_container_above_4096_addresses_changes_them_all(pool: PgPool) {
         violations,
         diff,
         sample,
+        ..
     } = f.submit(insert(), 2, true).await
     else {
         panic!("expected a simulation")

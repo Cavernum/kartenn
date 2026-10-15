@@ -5,6 +5,7 @@
 //! (`kartenn-store-pg`). This module owns the orchestration; the adapter owns SQL.
 
 pub mod authz;
+mod cascade;
 pub mod declarations;
 pub mod expected;
 mod global;

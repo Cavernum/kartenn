@@ -754,6 +754,72 @@ impl WriteTx for PgTx {
         }
     }
 
+    async fn dependents(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<(ObjectKind, Uuid)>, StoreError> {
+        let (a, _) = bounds(period)?;
+        let w = "tstzrange(coalesce($2::timestamptz, now()), NULL)";
+        let sql = match kind {
+            ObjectKind::Prefix => format!(
+                "WITH p AS (SELECT DISTINCT domain_id, prefix FROM prefix
+                            WHERE id = $1 AND nature = 'network' AND valid_period && {w})
+                 SELECT DISTINCT 'range', r.id FROM ip_range r, p
+                 WHERE r.domain_id = p.domain_id AND lower(r.range) <<= p.prefix AND r.valid_period && {w}
+                 UNION
+                 SELECT DISTINCT 'address', x.id FROM address x, p
+                 WHERE x.domain_id = p.domain_id AND x.address <<= p.prefix AND x.valid_period && {w}"
+            ),
+            ObjectKind::Domain => format!(
+                "SELECT DISTINCT 'prefix', id FROM prefix WHERE domain_id = $1 AND valid_period && {w}
+                 UNION SELECT DISTINCT 'range', id FROM ip_range WHERE domain_id = $1 AND valid_period && {w}
+                 UNION SELECT DISTINCT 'address', id FROM address WHERE domain_id = $1 AND valid_period && {w}"
+            ),
+            ObjectKind::Entity | ObjectKind::Site => format!(
+                "SELECT DISTINCT '{}', id FROM {} WHERE parent_id = $1 AND valid_period && {w}",
+                kind.name(),
+                table(kind)
+            ),
+            ObjectKind::Range
+            | ObjectKind::Address
+            | ObjectKind::Property
+            | ObjectKind::EnumValue => return Ok(Vec::new()),
+        };
+        let rows: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .bind(a)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(k, id)| Ok((object_kind(&k)?, id)))
+            .collect()
+    }
+
+    async fn referencing(
+        &mut self,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> Result<Vec<(Uuid, ObjectKind, Uuid)>, StoreError> {
+        let (a, _) = bounds(period)?;
+        let rows: Vec<(Uuid, String, Uuid)> = sqlx::query_as(
+            "SELECT DISTINCT a.object_id, a.object_type, a.property_id FROM property_assignment a
+             JOIN property_declaration d ON d.id = a.property_id AND d.value_type = 'ref'
+             WHERE a.kind = 'value' AND (a.v_uuid = $1 OR $1 = ANY(a.v_uuids))
+               AND a.valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
+        )
+        .bind(target)
+        .bind(a)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        rows.into_iter()
+            .map(|(o, k, p)| Ok((o, object_kind(&k)?, p)))
+            .collect()
+    }
+
     async fn insert_anchor(
         &mut self,
         kind: ObjectKind,
@@ -2046,4 +2112,17 @@ pub async fn operations_of(pool: &PgPool, changeset: Uuid) -> Result<Vec<Operati
         .into_iter()
         .map(|p| serde_json::from_value(p).map_err(store_err))
         .collect()
+}
+
+/// The kind of an object from its stored name.
+fn object_kind(name: &str) -> Result<ObjectKind, StoreError> {
+    Ok(match name {
+        "domain" => ObjectKind::Domain,
+        "prefix" => ObjectKind::Prefix,
+        "range" => ObjectKind::Range,
+        "address" => ObjectKind::Address,
+        "entity" => ObjectKind::Entity,
+        "site" => ObjectKind::Site,
+        other => return Err(store_err(format!("unknown object kind {other}"))),
+    })
 }

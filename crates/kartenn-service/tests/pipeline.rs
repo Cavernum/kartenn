@@ -279,6 +279,7 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(p),
             expected: None,
+            cascade: false,
         }],
     );
     let outcome = submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
@@ -304,6 +305,7 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(Uuid::now_v7()),
             expected: None,
+            cascade: false,
         }],
     );
     let outcome = submit(&store, &Unrestricted, &missing, MAX_OPERATIONS)
@@ -467,6 +469,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(net),
             expected: None,
+            cascade: false,
         }],
     );
     let closing = submit(&store, &Unrestricted, &close, MAX_OPERATIONS)
@@ -561,6 +564,7 @@ async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(p),
             expected: Some(Uuid::now_v7()),
+            cascade: false,
         }],
     );
     let Outcome::Refused { violations, .. } = submit(&store, &Unrestricted, &stale, MAX_OPERATIONS)
@@ -576,6 +580,7 @@ async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(p),
             expected: Some(changeset),
+            cascade: false,
         }],
     );
     assert!(matches!(

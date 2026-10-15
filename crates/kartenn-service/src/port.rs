@@ -319,6 +319,24 @@ pub trait WriteTx {
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
 
+    /// Objects that depend on `id` from the start of `period` on, and close with it in
+    /// a cascade (REQ-004-26): a network's ranges and addresses, a domain's prefixes,
+    /// ranges and addresses, an entity's or a site's children.
+    fn dependents(
+        &mut self,
+        kind: ObjectKind,
+        id: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(ObjectKind, Uuid)>, StoreError>> + Send;
+
+    /// Reference assignments to `target` from the start of `period` on: object, its kind
+    /// and the property.
+    fn referencing(
+        &mut self,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, ObjectKind, Uuid)>, StoreError>> + Send;
+
     /// Writes a new entity or site.
     fn insert_anchor(
         &mut self,

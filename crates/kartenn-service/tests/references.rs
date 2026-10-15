@@ -124,6 +124,7 @@ impl Fixture {
             kind: ObjectKind::Address,
             id: Ref::Id(self.addr),
             expected: None,
+            cascade: false,
         }
     }
 

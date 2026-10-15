@@ -131,6 +131,7 @@ fn close(kind: ObjectKind, id: Uuid) -> Operation {
         kind,
         id: Ref::Id(id),
         expected: None,
+        cascade: false,
     }
 }
 

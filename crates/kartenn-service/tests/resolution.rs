@@ -258,6 +258,7 @@ async fn values_are_inherited_replaced_cleared_and_dated(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(mid),
             expected: None,
+            cascade: false,
         }],
         6,
         None,
@@ -538,6 +539,7 @@ async fn random_step(f: &Fixture, rng: &mut Rng) -> (Vec<Operation>, i64, Option
                 kind: k,
                 id: Ref::Id(o),
                 expected: None,
+                cascade: false,
             }
         }
     };

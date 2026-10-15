@@ -93,6 +93,7 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
             kind: ObjectKind::Domain,
             id: Ref::Id(d),
             expected: None,
+            cascade: false,
         }],
     );
     let Outcome::Applied { changeset: c4, .. } =

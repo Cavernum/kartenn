@@ -114,6 +114,7 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
             kind: ObjectKind::Prefix,
             id: Ref::Id(doc.object_id),
             expected: None,
+            cascade: false,
         }],
     );
     assert!(matches!(
