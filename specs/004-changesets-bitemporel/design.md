@@ -186,6 +186,38 @@ détient ces droits (prédicat RBAC, 005). Volume attendu faible ; pagination st
 
 **Expiration** : job de worker périodique.
 
+**Mise en œuvre (004-11 à 14)**, choix délégués le 2026-10-15 :
+- **Mise en attente** : après le différentiel et les droits, dans la transaction, un
+  changeset dont un droit manque mais dont chaque manque est couvert par `…propose`
+  devient une **proposition** ; sinon, si une politique active le vise, il devient une
+  **demande d'approbation**. Dans les deux cas : `ROLLBACK`, puis journal `pending`
+  (nature, politique, droits requis, périmètre, expiration à 30 jours) et événement
+  `org.kartenn.changeset.pending` dans une transaction séparée. L'auteur système (P12)
+  n'est jamais mis en attente.
+- **Périmètre** d'un changeset : objets de ses opérations et objets de son différentiel,
+  enregistré avec lui.
+- **Validation** (`validate_pending`) : rejoue les opérations journalisées (références
+  locales résolues à nouveau) dans une nouvelle transaction, sans politique. Proposition :
+  le valideur doit détenir les droits d'écriture (objets et effets), sans repli sur
+  `…propose`. Approbation : les droits de l'auteur sont revérifiés (plus strict que la
+  conception, qui ne vérifiait que le valideur) et le valideur doit détenir
+  `changeset.approve` sur tout le périmètre recalculé. Valideur = auteur → refus
+  `changeset.approval.self`. Revalidation en échec → `failed_revalidation` avec les violations
+  (REQ-004-22) ; succès → `applied`, valideur enregistré, même identifiant.
+- **Rejet** (motif obligatoire) par qui pourrait valider ; **retrait** par l'auteur seul
+  (`changeset.state.not_author`) ; **expiration** par un job (`expire_pending`). Chacun émet un
+  événement (`rejected`, `withdrawn`, `expired`, `failed_revalidation`, `applied`) qui
+  nomme l'auteur : ce sont les notifications de REQ-004-43. Un changeset qui n'est plus
+  `pending` ne peut plus changer d'état (REQ-004-24).
+- **File des propositions** : propositions en attente dont le lecteur détient tous les
+  droits requis (filtre par l'`Authorizer` ; prédicat SQL avec la 005).
+- **Politiques** : opération `SetApprovalPolicy` (création ou remplacement par nom,
+  désactivation). Une politique vise un changeset quand **tous** ses déclencheurs définis
+  correspondent (au moins un) : nombre d'opérations, nombre d'objets du différentiel,
+  propriétés changées (directement ou par effet), domaines du périmètre, auteurs
+  (personnes). Périmètres par entité, site ou sous-arbre et auteurs par rôle ou groupe :
+  avec la 005.
+
 ### Imports (REQ-004-28 à 30)
 
 - `import` (`id`, auteur, source, état, progression, rapport) et `import_batch` (`index`,
@@ -262,8 +294,8 @@ Le changeset généré n'est pas soumis automatiquement.
 | Changeset planifié qui heurte une version future d'un autre objet | Refus de la règle concernée, avec la date du conflit | 8 |
 | Deux soumissions avec la même clé d'idempotence en parallèle | La seconde attend la première (verrou sur la clé) puis renvoie son résultat | 10 |
 | Validation d'un changeset en attente devenu invalide | État `échoué à la revalidation`, violations jointes | 22 |
-| Auteur qui valide sa propre proposition | Refus `approval.self` | 21, 42 |
-| Retrait par un autre que l'auteur | Refus `changeset.not_author` | 23 |
+| Auteur qui valide sa propre proposition | Refus `changeset.approval.self` | 21, 42 |
+| Retrait par un autre que l'auteur | Refus `changeset.state.not_author` | 23 |
 | Import interrompu pendant un lot | Le lot est atomique : rejoué entièrement à la reprise | 29 |
 | Annulation d'un changeset dont tous les objets ont été remodifiés | Changeset inverse vide avec la liste des conflits | 35 |
 | Relais d'outbox arrêté | Les événements s'accumulent ; reprise au dernier `seq` livré | 37 |

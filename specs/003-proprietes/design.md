@@ -254,9 +254,8 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   différentiel (existants seulement), une requête `authorize_many` par propriété ; le
   refus liste les objets. `submit` reçoit l'`Authorizer` ; d'ici la 005, `Grants`
   (droits explicites, pour les tests) et `Unrestricted` (tâches système, tests hors
-  droits) en sont les implémentations. **Écart provisoire** : la bascule en proposition
-  arrive avec la machine d'états (004-12, 004-14) ; d'ici là, un auteur qui ne détient
-  que `…propose` est refusé, avec un message qui le signale.
+  droits) en sont les implémentations. Un auteur dont chaque manque est couvert par `…propose`
+  soumet une proposition (004-14) ; un seul manque non couvert refuse le changeset.
 
 ### Différentiel (REQ-003-19, 20)
 

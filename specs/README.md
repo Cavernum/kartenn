@@ -34,8 +34,8 @@ configurable ; l'implémentation réelle viendra avec la 005.
 ## Point d'étape — 2026-10-15
 
 Avancement : 002 : 26/28 tâches (ancres et modifications de préfixes) · 003 : 17/18
-(arbres d'entités et de sites à faire, P15) · 004 : 14/25 (004-11
-partiel ; découpage en base fait) ; 203 tests, `devenv test` vert.
+(arbres d'entités et de sites à faire, P15) · 004 : 18/25 (approbations
+et propositions faites) ; 209 tests, `devenv test` vert.
 
 ### Décisions de la v0.1 (tranchées le 2026-10-14)
 

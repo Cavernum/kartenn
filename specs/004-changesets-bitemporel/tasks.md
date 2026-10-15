@@ -51,19 +51,20 @@ voir [`../README.md`](../README.md).
 - [x] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
 - [x] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
   parallèles
-- [ ] 11. Interface `Authorizer` (`authorize`, `authorize_many`, permission d'approbation,
+- [x] 11. Interface `Authorizer` (`authorize`, `authorize_many`, permission d'approbation,
   `…propose`) et implémentation de test configurable — prépare REQ-004-21, 41, 42 —
-  verify : tests unitaires
-  — **partiel** : `authorize_many`, `Grants`, `Unrestricted` faits (003-11) ; `authorize`
-  et permission d'approbation avec 004-13
-- [ ] 12. Machine d'états, retrait, rejet, expiration (job) — REQ-004-19, 23, 24 —
-  verify : tests de chaque transition
-- [ ] 13. Politiques d'approbation (volume, propriété, périmètre, auteur), aucune par
+  verify : tests unitaires — `authorize_many` suffit (un seul objet est un cas
+  particulier) ; permission d'approbation `changeset.approve` (`APPROVE_PERMISSION`)
+- [x] 12. Machine d'états, retrait, rejet, expiration (job) — REQ-004-19, 23, 24 —
+  verify : tests de chaque transition (`kartenn-service/tests/review.rs`) — expiration :
+  `review::expire_pending`, à planifier par le job (006)
+- [x] 13. Politiques d'approbation (volume, propriété, périmètre, auteur), aucune par
   défaut, validation par un approbateur non auteur avec revalidation — REQ-004-20 à 22,
-  39, 40 — verify : tests
-- [ ] 14. Propositions : bascule si `…propose`, droits requis stockés, validation par un
+  39, 40 — verify : tests (`review.rs`) — opération `SetApprovalPolicy` ; périmètres par
+  entité, site ou sous-arbre et auteurs par rôle ou groupe avec la 005
+- [x] 14. Propositions : bascule si `…propose`, droits requis stockés, validation par un
   mainteneur, file filtrée, notifications de l'auteur — REQ-004-41 à 43 — verify : tests
-  (exemple de la VM)
+  (exemple de la VM) (`review.rs`, droits de propriété ; droits d'objet avec la 005)
 - [ ] 15. Cascade explicite via `dependents()` du contrat de module — REQ-004-25, 26 —
   verify : tests (réseau avec 3 plages et 40 adresses)
 
