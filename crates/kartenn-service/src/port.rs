@@ -341,12 +341,13 @@ pub trait Store: Send + Sync {
         report: &serde_json::Value,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
-    /// The object known to `source` as `external_id` (REQ-002-41).
-    fn external_object(
+    /// The objects known to `source` by some of `external_ids` (REQ-002-41), by
+    /// identifier.
+    fn external_objects(
         &self,
         source: &str,
-        external_id: &str,
-    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+        external_ids: &[String],
+    ) -> impl Future<Output = Result<HashMap<String, Uuid>, StoreError>> + Send;
 
     /// What an applied changeset wrote, to undo it; `None` if it is not applied.
     fn undo_facts(

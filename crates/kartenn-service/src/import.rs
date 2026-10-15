@@ -225,6 +225,35 @@ fn resolve_known(op: &Operation, known: &BTreeMap<u32, Uuid>) -> Result<Operatio
     serde_json::from_value(value).map_err(|e| StoreError(e.to_string()))
 }
 
+/// The objects already known to the source among the locals `items` define or use.
+async fn known<S: Store>(
+    store: &S,
+    source: &str,
+    externals: &BTreeMap<u32, String>,
+    items: &[ImportItem],
+) -> Result<BTreeMap<u32, Uuid>, StoreError> {
+    let mut locals: BTreeMap<String, u32> = BTreeMap::new();
+    for item in items {
+        let used = references(item.operation.inner())
+            .into_iter()
+            .filter_map(|(r, _)| match r {
+                Ref::Local(local) => Some(local),
+                Ref::Id(_) => None,
+            });
+        for local in item.operation.defines().into_iter().chain(used) {
+            if let Some(external) = externals.get(&local) {
+                locals.insert(external.clone(), local);
+            }
+        }
+    }
+    let ids: Vec<String> = locals.keys().cloned().collect();
+    let found = store.external_objects(source, &ids).await?;
+    Ok(found
+        .into_iter()
+        .filter_map(|(external, id)| Some((*locals.get(&external)?, id)))
+        .collect())
+}
+
 /// Applies the batches of an import not applied yet, in order, each as a changeset of its
 /// author (REQ-004-28, 29): a creation already known to the source is left out (replay
 /// without duplicates), references to objects of other batches become their
@@ -253,12 +282,7 @@ pub async fn run_import<S: Store, A: Authorizer>(
         .set_import(import, "running", &serde_json::json!({}))
         .await?;
     for batch in record.batches.iter().filter(|b| b.state != "applied") {
-        let mut known: BTreeMap<u32, Uuid> = BTreeMap::new();
-        for (local, external) in &externals {
-            if let Some(id) = store.external_object(&record.source, external).await? {
-                known.insert(*local, id);
-            }
-        }
+        let known = known(store, &record.source, &externals, &batch.items).await?;
         let mut operations = Vec::new();
         for item in &batch.items {
             if let Some(local) = item.operation.defines() {

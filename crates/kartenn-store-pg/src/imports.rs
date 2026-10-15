@@ -1,5 +1,7 @@
 //! Imports in batches (spec 004, REQ-004-28 to 30; tasks 004-18, 19).
 
+use std::collections::HashMap;
+
 use kartenn_service::port::{ImportBatch, ImportItem, ImportRecord, StoreError};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -115,16 +117,20 @@ pub(crate) async fn set_import(
     Ok(())
 }
 
-/// The object known to a source under an identifier.
-pub(crate) async fn external(
+/// The objects known to `source` by some of `external_ids`, by identifier.
+pub(crate) async fn externals(
     pool: &PgPool,
     source: &str,
-    external_id: &str,
-) -> Result<Option<Uuid>, StoreError> {
-    sqlx::query_scalar("SELECT object_id FROM external_id WHERE source = $1 AND external_id = $2")
-        .bind(source)
-        .bind(external_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(store_err)
+    external_ids: &[String],
+) -> Result<HashMap<String, Uuid>, StoreError> {
+    let rows: Vec<(String, Uuid)> = sqlx::query_as(
+        "SELECT external_id, object_id FROM external_id
+         WHERE source = $1 AND external_id = ANY($2)",
+    )
+    .bind(source)
+    .bind(external_ids)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)?;
+    Ok(rows.into_iter().collect())
 }

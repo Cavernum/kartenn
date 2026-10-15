@@ -296,12 +296,12 @@ impl Store for PgStore {
         crate::imports::set_import(&self.pool, import, state, report).await
     }
 
-    async fn external_object(
+    async fn external_objects(
         &self,
         source: &str,
-        external_id: &str,
-    ) -> Result<Option<Uuid>, StoreError> {
-        crate::imports::external(&self.pool, source, external_id).await
+        external_ids: &[String],
+    ) -> Result<HashMap<String, Uuid>, StoreError> {
+        crate::imports::externals(&self.pool, source, external_ids).await
     }
 }
 
