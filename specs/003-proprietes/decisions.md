@@ -101,7 +101,7 @@ leur déclarant, héritables ou non.
   **refusé** en listant les objets concernés. Une valeur de liste fermée se **clôt**, ne
   s'efface pas. Supprimer une propriété revient à la clore avec toutes ses affectations,
   dans un même changeset. Les propriétés déclarées par un module évoluent par migration
-  de ce module.
+  de ce module (dépassé : synchronisation depuis le code, P12).
 - Rejeté : modification libre (données invalides en base, contraire à D1), déclarations
   immuables (lourd pour ajouter une valeur).
 - Décidé par : recommandation acceptée

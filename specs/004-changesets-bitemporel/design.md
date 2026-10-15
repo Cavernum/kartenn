@@ -29,7 +29,7 @@ permissions (005).
 ### Stockage temporel (REQ-004-13 à 18) — ADR 0017
 
 Pour chaque type d'objet versionné (objets du noyau, affectations et déclarations de
-propriétés, valeurs résolues, objets des modules) :
+propriétés, origines résolues (003/P9), objets des modules) :
 
 | Table | Contenu | Contraintes |
 |---|---|---|
@@ -63,20 +63,21 @@ par construction du déclencheur.
 La table courante reste petite (une ligne par segment applicatif affirmé) ; l'historique
 est **partitionné par plage de `sys_end`** (mensuel) pour borner les parcours et faciliter
 l'exploitation. Budget visé : `as_of` passé ≤ 2× la lecture courante (REQ-004-38), à
-mesurer.
+mesurer. Création des partitions et de l'index GiST : tâche 25 (seule la partition par
+défaut existe tant qu'elle n'est pas faite).
 
 **Historique d'un objet** (REQ-004-18) : union des versions courantes et historiques de
 l'`id`, triées par `valid_period` puis `sys_start`, avec `changeset_id`.
 
 ### Découpage des périodes (REQ-004-14, 15)
 
-PostgreSQL 18 n'a pas `FOR PORTION OF` : la couche service l'émule. Pour une opération
-de modification sur la période P d'un objet :
+PostgreSQL 18 n'a pas `FOR PORTION OF` : kartenn l'émule (fonction en base, appelée par
+la couche service). Pour une opération de modification sur la période P d'un objet, qui
+doit exister sur toute P :
 
-1. lire les versions courantes de l'objet qui recoupent P ;
-2. pour chacune, calculer `version.valid_period − P` (0, 1 ou 2 morceaux) en Rust ;
-3. `UPDATE` de la version (le déclencheur l'historise) pour la ramener à la portion
-   intérieure avec le nouvel état ; `INSERT` des morceaux extérieurs avec l'ancien état.
+1. chaque version courante qui recoupe P et que la modification change est remplacée ;
+2. ses morceaux hors de P (`version.valid_period − P` : 0, 1 ou 2) gardent l'ancien état ;
+3. sa portion dans P prend le nouvel état.
 
 La clôture à une date d (REQ-004-15) est une modification de la période :
 `valid_period` devient `[début, d)` ; les versions entièrement postérieures à d sont
@@ -130,7 +131,9 @@ flowchart TD
   journalisation du changeset dans une **transaction séparée**.
 - **Verrous** (REQ-004-12, ADR 0015) : `pg_advisory_xact_lock` par domaine touché (clé
   dérivée de l'UUID), dans l'ordre des UUID ; verrou « espace public » si un objet public
-  est écrit. Les changesets en attente ne tiennent aucun verrou.
+  est écrit. Les arbres d'entités et de sites ont chacun un verrou de même
+  nature ; une modification de préfixe ou d'adresse prend le verrou « espace public »
+  (ADR 0015). Les changesets en attente ne tiennent aucun verrou.
 - **Références internes** (REQ-004-4) : une opération peut désigner un objet par une
   référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application.
 - **Concurrence optimiste** (REQ-004-11) : une opération peut porter
@@ -247,10 +250,11 @@ Le changeset généré n'est pas soumis automatiquement.
 
 | Cas | Comportement | REQ |
 |---|---|---|
-| Changeset vide | Refus `changeset.empty` | 1 |
-| Motif vide | Refus `changeset.motive_required` | 1 |
-| Période vide ou inversée | Refus `time.invalid_period` | 13 |
-| Opération qui modifie un objet sur une période où il n'existe pas | Refus `changeset.no_version` | 14 |
+| Changeset vide | Requête refusée (erreur de requête `Empty`, hors catalogue des règles) | 1 |
+| Motif vide | Requête refusée (`MotiveRequired`) | 1 |
+| Période vide ou inversée | Requête refusée (`InvalidPeriod`) | 13 |
+| Opération qui modifie un objet sur une période où il n'existe pas | Refus `changeset.operation.no_version` | 14 |
+| Version attendue différente de la version courante | Refus `changeset.operation.conflict`, qui cite la version courante | 11 |
 | Modification dont la période déborde la période d'existence de l'objet | Refus (pas de création implicite) ; créer explicitement | 14 |
 | Changeset planifié qui heurte une version future d'un autre objet | Refus de la règle concernée, avec la date du conflit | 8 |
 | Deux soumissions avec la même clé d'idempotence en parallèle | La seconde attend la première (verrou sur la clé) puis renvoie son résultat | 10 |

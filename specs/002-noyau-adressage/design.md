@@ -89,6 +89,7 @@ passe la batterie de tests de contrat (REQ-002-1).
 | Préfixe | valeur (famille, bits, longueur) | REQ-002-5, 14, 15 |
 | Préfixe | nature (conteneur, réseau) | REQ-002-13, 16 |
 | Préfixe | point à point | REQ-002-19, 23, 29 |
+| Réseau | anycast | REQ-002-46, 49 |
 | Plage | domaine, début, fin | REQ-002-21, 22 |
 | Plage | usage | REQ-002-24, 28 |
 | Adresse | domaine, valeur | REQ-002-25, 26 |
@@ -124,7 +125,11 @@ Le noyau déclare deux propriétés (spec 003) :
   `MoveSite` (nouveau parent, ou racine, sur la période du changeset, par le découpage
   de la 004), clôture par `Close`. Sur l'état final, toute version sur la période :
   parent existant sur toute la période de l'enfant (sinon
-  `changeset.operation.no_version`), pas de cycle (`core.anchor.cycle`). Clôture d'une
+  `changeset.operation.no_version`), pas de cycle (`core.anchor.cycle`). **Limite** : la
+  recherche de cycle suit tous les liens parent qui recoupent la période, quelle que soit
+  leur date ; elle peut refuser un déplacement qui ne forme de cycle à aucun instant (des
+  liens A → B et B → A à des dates disjointes). Prudente, jamais laxiste ; à affiner si
+  le cas se présente. Les deux arbres sont sérialisés par un verrou chacun (ADR 0015). Clôture d'une
   entité ou d'un site : refusée tant que des enfants ou des affectations s'y réfèrent
   après la date (`core.anchor.in_use`, objets listés).
 - `core.owner` et `core.site` sont les déclarations du module `core`, synchronisées
@@ -189,8 +194,9 @@ décroissante de pas 1. Ce n'est qu'un avertissement : les faux négatifs sont a
 La validation est appelée par le pipeline d'écriture (architecture, § Pipeline) :
 
 1. **Règles locales**, sur chaque objet seul : syntaxe, alignement, bornes, slug.
-2. **Règles globales**, dans la transaction, à la période visée, via un port de lecture
-   `AddressingView` (parent déduit, enfants, chevauchements, publics d'autres domaines).
+2. **Règles globales**, dans la transaction, à la période visée, par les lectures du port
+   d'écriture (`WriteTx` : réseaux englobants, préfixes contenus, couverture,
+   chevauchements, publics d'autres domaines ; implementation.md, I4).
    Elles voient l'état **après** application de toutes les opérations du changeset, ce
    qui permet de créer en une fois un conteneur, un réseau et ses adresses.
 3. **Résolution des propriétés et différentiel** (003), dont `core.owner` et `core.site`.

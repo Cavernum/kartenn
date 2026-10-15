@@ -5,8 +5,11 @@ updated: 2026-10-15
 
 # kartenn — spécification système
 
-> État : **cible de la v0.1**. Il n'existe pas encore de code ; ce document décrit le
-> système tel qu'il est conçu. Il sera resynchronisé (mode *sync*) à chaque livraison.
+> État : **cible de la v0.1**, en cours d'implémentation. Les specs 002 à 004 sont en
+> grande partie livrées (noyau d'adressage, propriétés, changesets ; voir
+> [`../../specs/README.md`](../../specs/README.md)) ; les autres parties décrivent le
+> système tel qu'il est conçu. Le document est resynchronisé (mode *sync*) à chaque
+> livraison.
 
 ## Contexte
 
@@ -123,4 +126,3 @@ Non-objectifs :
   multi-émetteurs, langue, versionnement d'API).
 - Implémentation du temps système : table courante + historique (ADR 0017, proposé,
   à accepter avec la spec 004).
-- Entité propriétaire : propriété du noyau ou cas particulier (conception 002/003).

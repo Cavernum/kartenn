@@ -269,11 +269,13 @@ simulation donnant d'abord le décompte (P10).
 
 ## Questions ouvertes
 
-- [ ] L'entité propriétaire héritée (REQ-002-38) devient-elle une propriété de référence
-  héritable du noyau, ou reste-t-elle un cas particulier ? (conception 002/003, Claude)
+- [x] L'entité propriétaire héritée (REQ-002-38) devient-elle une propriété de référence
+  héritable du noyau, ou reste-t-elle un cas particulier ? Propriété du noyau `core.owner`
+  (ADR 0014, implémentée en 002-22). (conception 002/003, Claude)
 - [x] Budgets du différentiel (REQ-003-26) : confirmés par le prototype 003, sauf les
   changements d'origine de plus de 10⁵ objets, assouplis à < 60 s (P10). (Claude)
 - [x] Budget du changeset touchant jusqu'à 10⁴ objets (REQ-003-26) : 2,07 s mesurés au banc
   003-16 pour 1 s visé ; seuil porté à 2,5 s pour le changeset entier (P14). (utilisateur)
-- [ ] Note de référence à rédiger avant la conception : noms de domaine (RFC 1123 §2.1,
-  RFC 1035, RFC 5890–5891 IDNA), RFC 3339 et normalisation Unicode (UAX #15). (Claude)
+- [x] Note de référence à rédiger avant la conception : noms de domaine (RFC 1123 §2.1,
+  RFC 1035, RFC 5890–5891 IDNA), RFC 3339 et normalisation Unicode (UAX #15) :
+  [`noms-dates-texte.md`](../../docs/reference/noms-dates-texte.md). (Claude)

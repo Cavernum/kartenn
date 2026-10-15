@@ -33,7 +33,9 @@ modifier ni supprimer l'historique.
 - Le temps système vient toujours de la base, même avec N instances (ADR 0012).
 - Les lectures `as_of` passées font une union courante + historique.
 - Chaque migration de module crée la paire de tables et attache le déclencheur.
-- Le découpage des périodes (« FOR PORTION OF ») reste à la charge de la couche service.
+- Le découpage des périodes (« FOR PORTION OF ») n'est pas fourni par PostgreSQL : la
+  fonction générique `kartenn_portion` l'émule en base, appelée par la couche service
+  (004-8).
 
 ## Amendement (2026-10-14) — copie par nom de colonne
 

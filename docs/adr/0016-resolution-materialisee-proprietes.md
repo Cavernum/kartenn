@@ -54,8 +54,9 @@ mise en œuvre).
 ## Consequences
 
 - Un changement de valeur ne coûte qu'un décompte (0,65 s pour 7,6×10⁵ objets mesurés).
-- Le travail est proportionnel au nombre d'objets dont l'origine change, et non à la
-  taille de la portée structurelle.
+- Les écritures sont proportionnelles au nombre d'objets dont l'origine change ; le
+  calcul porte sur un sur-ensemble (toute la portée de l'objet dont la présence
+  d'affectation change ; voir « Mise en œuvre »).
 - La lecture d'une valeur coûte une jointure indexée (≈ 22 µs par objet en résolution
   expliquée).
 - La justesse repose sur l'algorithme incrémental : un résolveur naïf sert d'oracle dans

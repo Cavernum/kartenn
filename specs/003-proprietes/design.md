@@ -29,9 +29,8 @@ des droits à chaque changeset (REQ-003-18, 19). La décision centrale :
 
 **Modules.** Un module expose ses déclarations dans le code (descripteurs statiques :
 clé, type et paramètres, cardinalité, porteurs, héritage et arbre, obligations,
-source de valeurs attendues ; jamais d'approbation, 004/C6). Une migration du module les
-enregistre en base ;
-leur évolution passe par une migration de module (P8).
+source de valeurs attendues ; jamais d'approbation, 004/C6). La synchronisation
+ci-dessous les enregistre et les fait évoluer, sous le contrôle de compatibilité de P8.
 
 **Synchronisation des modules** (P12). Le code du module reste la seule source. Après les
 migrations SQL, le job de migration appelle `sync_modules` : pour chaque module, il
@@ -142,7 +141,7 @@ Une adresse ou une plage a pour premier ancêtre son réseau, jamais une plage (
 
 | Table | Contenu |
 |---|---|
-| `property_origin` | `object_id`, `property_id`, `origin_object_id` (objet qui porte l'affectation retenue, ou null si aucune), période de validité, période système |
+| `property_origin` | `object_id`, `property_id`, `origin_object_id` (objet qui porte l'affectation retenue, jamais nul : P13), période de validité, période système |
 
 - Une ligne par (objet porteur ou héritier, propriété **héritable**) et par segment de
   temps applicatif où l'origine est constante. Les propriétés non héritables ne sont
@@ -161,8 +160,11 @@ Une adresse ou une plage a pour premier ancêtre son réseau, jamais une plage (
   valeur remplacée viennent des affectations.
 
 **Maintenance incrémentale** dans la transaction du changeset, après les écritures du
-noyau. Le travail est proportionnel au nombre d'objets dont l'**origine** change, pas à
-la taille de la portée structurelle ([prototype 003](../../docs/spikes/003-resolution.md)) :
+noyau. Le tableau donne les origines qui changent selon le changement
+([prototype 003](../../docs/spikes/003-resolution.md)) ; les **écritures** sont
+proportionnelles à ces changements, mais le **calcul** porte sur un sur-ensemble de
+cibles (toute la portée de l'objet dont la présence d'affectation change ; voir la
+mise en œuvre ci-dessous) :
 
 | Changement | Effet sur `property_origin` | Différentiel |
 |---|---|---|
@@ -174,27 +176,28 @@ la taille de la portée structurelle ([prototype 003](../../docs/spikes/003-reso
 ```mermaid
 flowchart TD
   A[Opérations du changeset appliquées en mémoire de transaction] --> B[Classement des changements selon le tableau ci-dessus]
-  B --> C[Cibles : objets dont l'origine change, par propriété héritable]
+  B --> C[Cibles : sur-ensemble des objets dont l'origine peut changer, par propriété héritable ; héritiers d'une origine revalorisée à part]
   C --> D[Segmentation temporelle : bornes des versions des cibles et de leurs ancêtres dans la période visée]
   D --> E[Calcul ensembliste SQL : nouvelle origine par cible et segment]
-  E --> F[Différentiel : anciennes et nouvelles valeurs, par jointure sur les affectations]
+  E --> H[Écriture des segments modifiés dans property_origin]
+  H --> F[Différentiel : état avant lu dans l'historique, état après courant]
   F --> G[Contrôles : obligations, droit sur l'effet, valeurs attendues]
-  G --> H[Écriture des segments modifiés dans property_origin]
 ```
 
 - **Arrêt de propagation** : un descendant qui porte sa propre affectation borne la
   propagation (REQ-003-12) : son origine est lui-même, jamais un ancêtre, donc il n'est
   jamais ciblé par la règle 2.
-- **Calcul ensembliste** : une requête par propriété héritable, `LATERAL` sur les ancêtres
-  (`prefix >>= objet` dans le domaine, trié par longueur décroissante) joints aux
-  affectations courantes ; pas de boucle objet par objet.
+- **Calcul ensembliste** : une requête par propriété héritable, pas de boucle objet par
+  objet ; les candidats (l'objet, les préfixes de son domaine qui le contiennent, son
+  domaine) sont trouvés en remontant de chaque cible ou en descendant des porteurs (voir
+  la mise en œuvre).
 - **Segmentation temporelle** : la période visée par le changeset est découpée aux bornes
   des versions des objets concernés (préfixes ancêtres et affectations) ; chaque segment
   est résolu, puis les segments adjacents de même valeur sont fusionnés.
 - **Mise en œuvre (003-8)** : le service classe les écritures du changeset et donne
   les cibles par propriété (objets nouveaux ; sous-arbre d'un objet dont l'affectation
-  est écrite ou retirée ; objet clos et objets dont il est l'origine ; tous les porteurs
-  quand la déclaration change) ; l'adaptateur recalcule leurs segments à partir du
+  est écrite ou retirée ; objet clos et objets dont il est l'origine ; tous les objets
+  de l'arbre quand la déclaration change) ; l'adaptateur recalcule leurs segments à partir du
   début de la période du changeset jusqu'à l'infini (requête ensembliste
   `refresh_origins`), fusionne les segments contigus de même origine et n'écrit que les
   lignes qui diffèrent. **Ciblage (003-16)** : une affectation qui ne change que la

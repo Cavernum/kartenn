@@ -11,12 +11,11 @@ updated: 2026-10-15
 erDiagram
   ENTITE ||--o{ ENTITE : parent
   SITE ||--o{ SITE : parent
-  ENTITE ||--o{ DOMAINE : possede
   DOMAINE ||--o{ PREFIXE : contient
   DOMAINE ||--o{ PLAGE : contient
   DOMAINE ||--o{ ADRESSE : contient
-  ENTITE |o--o{ PREFIXE : "proprietaire (optionnel)"
-  SITE |o--o{ PREFIXE : "rattachement (reseau seulement)"
+  ENTITE ||--o{ AFFECTATION : "core.owner (domaine, prefixe)"
+  SITE ||--o{ AFFECTATION : "core.site (reseau)"
   DECLARATION_PROPRIETE ||--o{ AFFECTATION : type
   AFFECTATION }o--|| OBJET : "porte sur"
   CHANGESET ||--o{ VERSION_OBJET : produit
@@ -29,12 +28,17 @@ Attributs du noyau (002/REQ-002-48, A10) :
 |---|---|
 | Entité | UUID, slug, parent |
 | Site | UUID, slug, parent |
-| Domaine | UUID, slug, entité propriétaire |
-| Préfixe | UUID, domaine, valeur CIDR, nature (conteneur, réseau), point à point, entité propriétaire (optionnelle), site (réseau seulement) |
+| Domaine | UUID, slug |
+| Préfixe | UUID, domaine, valeur CIDR, nature (conteneur, réseau), point à point, anycast (réseau seulement) |
 | Plage | UUID, domaine, début, fin, usage (DHCP, réservée, statique) |
 | Adresse | UUID, domaine, valeur, usage (hôte, passerelle, VIP, anycast, réservée) |
 
 Plus, pour chaque objet : période de validité applicative et période système.
+
+L'entité propriétaire et le site ne sont pas des attributs : ce sont les propriétés du
+noyau `core.owner` (référence vers une entité, portée par les domaines et les préfixes,
+héritée le long de l'arbre d'adressage, obligatoire sur les domaines) et `core.site`
+(référence vers un site, portée par les réseaux) (ADR 0014, 002-22).
 
 Les relations parent-enfant de l'adressage ne sont **pas stockées** : elles sont
 déduites de l'inclusion CIDR dans le domaine, à la date considérée (D34). Une
@@ -69,13 +73,16 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   vides interdites.
 - **Temps applicatif** (`valid_period`) : fourni par l'utilisateur ; planification
   et correction du passé.
-- **Temps système** (`system_period`) : fixé à l'horodatage de la transaction ; les
-  versions historiques sont immuables et forment une chaîne contiguë par objet.
+- **Temps système** (`[sys_start, sys_end)`) : fixé à l'horodatage de la transaction ; les
+  versions historiques sont immuables et forment une chaîne contiguë par objet ; une
+  version écrite puis remplacée dans la même transaction n'y entre pas (ADR 0017).
 - Les contraintes ne portent que sur les versions **courantes** côté système.
 - PostgreSQL 18 ne fournit ni tables versionnées système ni `FOR PORTION OF` : kartenn
   les implémente (voir
   [`../reference/temporel-sql2011-postgresql.md`](../reference/temporel-sql2011-postgresql.md)).
-- Choix d'implémentation (table courante + historique, ou table unique) : spec 004.
+- Implémentation : table courante et table d'historique par type d'objet, déclencheur
+  générique (ADR 0017) ; découpage « FOR PORTION OF » par la fonction `kartenn_portion`
+  (004-8).
 
 ## Changesets, audit, outbox (D11)
 
@@ -93,7 +100,8 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   sur les versions courantes. **Pas** de `UNIQUE … WITHOUT OVERLAPS` sur une colonne
   `inet`/`cidr` en PostgreSQL 18 : la classe par défaut de btree_gist y est défectueuse
   (voir [`../reference/postgresql-18-reseau.md`](../reference/postgresql-18-reseau.md)).
-- Plages : type intervalle sur `inet` et exclusion de chevauchement (à prototyper).
+- Plages : type intervalle `inetrange` sans `subtype_diff`, `CHECK` de famille, exclusion
+  de chevauchement par domaine (002/A12, prototype 001).
 - Index d'inclusion : GiST ou SP-GiST `inet_ops`, nommé explicitement.
 - Identifiants : UUID v7 (`uuidv7()`, PostgreSQL 18).
 - Registres IANA à usage spécial : données versionnées embarquées (REQ-002-34).

@@ -19,6 +19,10 @@ Un changeset prend, dans sa transaction et dans un ordre déterministe, un verro
 consultatif (`pg_advisory_xact_lock`) par domaine d'adressage touché, plus un verrou
 « espace public » s'il écrit un objet public. Les contraintes d'exclusion restent le
 dernier rempart. Les lectures ne prennent aucun verrou.
+Les arbres d'entités et de sites, qui ne relèvent d'aucun domaine, ont chacun un verrou
+de même nature, pris par toute création, déplacement ou clôture d'une entité ou d'un
+site (absence de cycle). Une modification de préfixe ou d'adresse prend le verrou
+« espace public » quelle que soit sa valeur, car elle peut y entrer ou en sortir.
 
 ## Alternatives
 

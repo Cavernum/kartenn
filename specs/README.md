@@ -4,7 +4,7 @@
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
 | [002-noyau-adressage](002-noyau-adressage/) | approuvées | approuvée | [tasks](002-noyau-adressage/tasks.md) (approuvées) |
-| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (17/17) |
+| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (17/17 ; 18 proposée, à valider) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | approuvées | approuvée | [tasks](004-changesets-bitemporel/tasks.md) (approuvées) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
@@ -34,10 +34,10 @@ configurable ; l'implémentation réelle viendra avec la 005.
 ## Point d'étape — 2026-10-15
 
 Avancement : 002 : 26/28 tâches (ancres et modifications de préfixes) · 003 : 17/17 + 18
-proposée (arbres d'entités et de sites) · 004 : 14/24 (004-11
+proposée (arbres d'entités et de sites) · 004 : 14/25 (004-11
 partiel ; découpage en base fait) ; 203 tests, `devenv test` vert.
 
-### Décisions attendues (bloquent la suite)
+### Décisions de la v0.1 (tranchées le 2026-10-14)
 
 Toutes tranchées le 2026-10-14, selon la recommandation : 002/A12 (1), 003/P9 (2),
 003/P10 (3), 002/A13 (4). Exigences, conceptions et ADR 0016 amendés en conséquence.

@@ -43,11 +43,11 @@ voir [`../README.md`](../README.md).
   transaction avec références internes, validation (point d'accroche 002/003),
   atomicité, journalisation séparée des refus — REQ-004-1 à 7, 12 — verify : tests
   d'intégration, dont concurrence
-- [x] 8. Découpage en base (`UPDATE` + `INSERT` des morceaux), clôture, validation sur
-  toute la période visée (versions futures) — REQ-004-8, 14, 15 — verify : comparaison
-  au modèle en mémoire de la tâche 3 (`kartenn-service/tests/portion.rs`) — fonction
-  `kartenn_portion` (suppression et réinsertion), opérations `UpdatePrefix`,
-  `UpdateAddress`, `UpdateRange`
+- [x] 8. Découpage en base (remplacement de la version par ses morceaux), clôture,
+  validation sur toute la période visée (versions futures) — REQ-004-8, 14, 15 —
+  verify : comparaison au modèle en mémoire de la tâche 3
+  (`kartenn-service/tests/portion.rs`) — fonction `kartenn_portion` (suppression et
+  réinsertion), opérations `UpdatePrefix`, `UpdateAddress`, `UpdateRange`
 - [x] 9. Simulation (ROLLBACK) — REQ-004-9 — verify : empreinte de base inchangée
 - [x] 10. Idempotence et concurrence optimiste — REQ-004-10, 11 — verify : tests
   parallèles
@@ -87,3 +87,8 @@ voir [`../README.md`](../README.md).
   REQ-004-38 — verify : seuils bloquants
 - [ ] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
   — verify : rapport spec-keeper sans écart
+- [ ] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
+  l'avance par un job (la partition par défaut ne reçoit plus rien), index GiST
+  `tstzrange(sys_start, sys_end)` sur chaque historique — REQ-004-17, 38 — avant 23 —
+  verify : tests (partitions du mois suivant présentes, lecture `as_of` qui utilise
+  l'index) ; mesure au banc 23 (ajoutée le 2026-10-15)

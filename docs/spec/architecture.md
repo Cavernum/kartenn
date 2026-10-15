@@ -41,9 +41,9 @@ flowchart LR
 
 | Composant | Responsabilité | Données possédées |
 |---|---|---|
-| Domaine — noyau | Familles d'adresses ; entités, sites, domaines, préfixes, plages, adresses ; règles de validité ; résolution des propriétés | Aucune persistance directe (types et règles purs) |
+| Domaine — noyau | Familles d'adresses ; entités, sites, domaines, préfixes, plages, adresses ; règles de validité ; types de valeurs et arbres d'héritage (résolveur de référence) | Aucune persistance directe (types et règles purs) |
 | Domaine — modules | Objets, propriétés, règles, permissions d'un domaine fonctionnel (VLAN, machines, Politique…) | Leurs tables, via leurs migrations |
-| Couche service | Cas d'usage ; pipeline d'écriture ; transactions ; différentiel ; audit ; outbox | Changesets, journal d'audit, outbox |
+| Couche service | Cas d'usage ; pipeline d'écriture ; transactions ; maintenance des origines et différentiel des propriétés (calcul ensembliste délégué à l'adaptateur) ; audit ; outbox | Changesets, journal d'audit, outbox |
 | Ports de stockage | Interfaces définies par le domaine et la couche service (lecture datée, écriture de versions, verrous) | — |
 | Adaptateur PostgreSQL | Implémente les ports ; contraintes en base (dernier rempart) ; requêtes temporelles | Schéma PostgreSQL |
 | Adaptateur REST | Ressources, sérialisation, erreurs RFC 9457, pagination, OpenAPI | — |
@@ -69,18 +69,19 @@ sequenceDiagram
   R->>A: identité, permissions sur les objets visés
   A-->>R: refus 401/403 ou poursuite
   R->>S: soumettre
+  S->>D: règles locales (sans base)
   S->>P: BEGIN ; verrous sur les portées touchées
-  S->>D: valider (règles locales + invariants globaux à la date)
-  S->>D: résoudre le différentiel des propriétés (003)
+  S->>P: écrire les versions dans la transaction (temps système = horodatage de transaction)
+  S->>D: invariants globaux sur l'état final, à toute la période visée
+  S->>P: maintenir les origines des propriétés ; différentiel (003)
   S->>A: permission sur l'effet (003/REQ-003-18), approbation requise ?
   alt refus
-    S->>P: ROLLBACK
+    S->>P: ROLLBACK ; journaliser le refus (transaction séparée)
     S-->>C: erreur RFC 9457 (règles, objets)
   else approbation requise
-    S->>P: enregistrer le changeset en attente ; COMMIT
+    S->>P: ROLLBACK ; enregistrer le changeset en attente (transaction séparée)
     S-->>C: 202, changeset en attente
   else appliqué
-    S->>P: écrire les versions (temps système = horodatage de transaction)
     S->>P: journal d'audit + outbox ; COMMIT
     S-->>C: 200/201, anomalies, différentiel
   end
