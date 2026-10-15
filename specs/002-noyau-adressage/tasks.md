@@ -92,10 +92,11 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 - [x] 21. Espace public et anycast entre domaines, verrou « espace public » —
   REQ-002-32, 46, 49 — verify : tests, dont concurrence
   (`kartenn-service/tests/anycast.rs` ; migrations 0009 et 0010)
-- [ ] 22. Ancres : cycles d'entités et de sites, clôture d'une ancre utilisée, domaine
+- [x] 22. Ancres : cycles d'entités et de sites, clôture d'une ancre utilisée, domaine
   immuable ; `core.owner` et `core.site` déclarés comme propriétés du noyau (avec 003) —
   REQ-002-8 à 12, 20, 38 — après 003-8 — verify : tests, dont refus d'une manœuvre de
-  structure qui change le propriétaire sans droit
+  structure qui change le propriétaire sans droit (`kartenn-service/tests/anchors.rs`) —
+  héritage le long des arbres d'entités et de sites : tâche 003-18 (proposée)
 
 ## P5 — Lectures et anomalies
 

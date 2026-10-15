@@ -52,20 +52,20 @@ voir [`../README.md`](../README.md).
   ensembliste, écriture des segments modifiés —
   REQ-003-11, 12, 13, 15 — verify : **tests de propriétés contre l'oracle** sur des suites
   aléatoires de changesets, y compris dans le temps (`kartenn-service/tests/resolution.rs`)
-  — arbre d'adressage ; entités et sites avec 002-22 ; ciblage fin d'une affectation au
+  — arbre d'adressage ; entités et sites avec la tâche 18 ; ciblage fin d'une affectation au
   banc 003-16
 - [x] 9. Différentiel (décompte, détail paginé) et simulation — REQ-003-19, 20 — verify :
   tests d'intégration (insertion d'un conteneur au-dessus de 4 096 adresses)
   (`kartenn-service/tests/diff.rs`)
 - [x] 10. Obligations portées et effacement explicite — REQ-003-13, 16 — verify : tests
-  (`kartenn-service/tests/obligations.rs`) — portée « entité » avec 002-22
+  (`kartenn-service/tests/obligations.rs`) — portée « entité » avec la tâche 18
 - [x] 11. Droits : permission directe et droit sur l'effet via `Authorizer::authorize_many`
   (implémentation de test), bascule en proposition si `…propose` (004) — REQ-003-17, 18 —
   verify : chaque ligne de la table des cas limites (`kartenn-service/tests/rights.rs`)
   — bascule en proposition avec 004-14
 - [x] 12. Références : intégrité à la clôture d'une cible — REQ-003-10 — verify : tests
-  (`kartenn-service/tests/references.rs`) — cibles du noyau d'adressage ; entités et
-  sites avec 002-22
+  (`kartenn-service/tests/references.rs`) — cibles d'adressage, entités et sites
+  (`anchors.rs`, 002-22)
 - [x] 13. Contrat `ExpectedValueSource`, modes `suggest`, `default`, `check` (source de
   test), anomalie d'écart — REQ-003-21 à 24 — verify : tests d'intégration
   (`kartenn-service/tests/expected.rs`) — job de réévaluation au changement de version
@@ -90,3 +90,11 @@ voir [`../README.md`](../README.md).
 - [x] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
   rapport spec-keeper sans écart (aucun écart bloquant ; les écarts mineurs relevés, dont
   un test manquant de REQ-003-5, sont corrigés) — catalogue des permissions avec la 005
+
+## P7 — Arbres d'entités et de sites (proposée le 2026-10-15, à valider)
+
+- [ ] 18. Origines le long des arbres `entity` et `site` (parents versionnés, cibles :
+  descendants d'un objet déplacé, segmentation sur les versions des parents) ; portée
+  « entité » des obligations (objets dont le propriétaire résolu est l'entité ou une
+  descendante) — REQ-003-11, 16 — verify : oracle de la tâche 5 sur des suites
+  aléatoires de déplacements

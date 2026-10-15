@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # 002 — Noyau d'adressage : conception
@@ -118,6 +118,26 @@ Le noyau déclare deux propriétés (spec 003) :
   s'appuie sur la résolution matérialisée de la 003.
 - **Effet sur la spec système** : `data.md` décrit ces deux ancres comme attributs du
   préfixe ; à corriger lors de la synchronisation (mode *sync*).
+
+**Mise en œuvre (002-22)** :
+- Opérations `CreateEntity` et `CreateSite` (slug, parent facultatif), `MoveEntity` et
+  `MoveSite` (nouveau parent, ou racine, sur la période du changeset, par le découpage
+  de la 004), clôture par `Close`. Sur l'état final, toute version sur la période :
+  parent existant sur toute la période de l'enfant (sinon
+  `changeset.operation.no_version`), pas de cycle (`core.anchor.cycle`). Clôture d'une
+  entité ou d'un site : refusée tant que des enfants ou des affectations s'y réfèrent
+  après la date (`core.anchor.in_use`, objets listés).
+- `core.owner` et `core.site` sont les déclarations du module `core`, synchronisées
+  depuis le code comme celles d'un module (003/P12) : sans synchronisation, aucune
+  obligation de propriétaire ne s'applique (bases de test).
+- `core.prefix.site_on_container` : vérifiée sur chaque version finale d'un préfixe qui
+  reçoit `core.site` ou change de nature.
+- REQ-002-12 : les opérations de modification d'un préfixe, d'une plage ou d'une adresse
+  acceptent un champ `domain` pour le refuser explicitement (`core.domain.immutable`) ;
+  le déplacement se fait par clôture puis création.
+- L'héritage le long des arbres d'entités et de sites (003) n'est pas encore maintenu :
+  une déclaration héritable sur ces arbres est refusée (`prop.declaration.invalid`)
+  jusqu'à sa tâche (003, tâches).
 
 ### Catalogue des règles (REQ-002-35 à 37)
 

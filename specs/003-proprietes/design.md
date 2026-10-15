@@ -210,8 +210,11 @@ flowchart TD
   explicite) et `unassign_property` sur la période du changeset ; la portion visée des
   affectations existantes est retirée (fonction `kartenn_unassign`, migration 0014).
   Clore un objet clôt ses affectations (ce sont ses attributs).
-- **Arbres `entity` et `site`** : leur maintenance viendra avec les ancres (002-22) ;
-  aucune opération ne crée encore d'entité ni de site.
+- **Arbres `entity` et `site`** : entités et sites existent avec leurs opérations (002-22),
+  mais l'héritage le long de ces arbres n'est pas encore maintenu : une déclaration
+  héritable sur l'un d'eux est refusée (`prop.declaration.invalid`) jusqu'à la tâche 18.
+- **Héritiers** : l'origine est calculée pour tout objet de l'arbre d'adressage, porteur
+  ou non (`core.owner` est porté par les domaines et préfixes, résolu sur les adresses).
 - **Objets nouveaux** : résolus de la même façon, mais exclus du contrôle de droit sur
   l'effet (REQ-003-18).
 
@@ -229,8 +232,9 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   de portées) ; une déclaration nouvelle ou une évolution qui ajoute une portée est
   refusée si des objets de cette portée n'ont pas de valeur, en les listant
   (`prop.assignment.required`).
-- **Portée « entité »** : refusée jusqu'aux ancres (002-22), faute de propriétaire des
-  objets ; seules les portées « domaine » et « type d'objet » sont acceptées.
+- **Portée « entité »** : refusée jusqu'à la tâche 18 (objets dont le propriétaire résolu
+  est l'entité ou l'une de ses descendantes) ; seules les portées « domaine » et « type
+  d'objet » sont acceptées.
 
 ### Droits (REQ-003-17, 18)
 
