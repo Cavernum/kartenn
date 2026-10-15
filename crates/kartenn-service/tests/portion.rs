@@ -353,12 +353,20 @@ async fn a_stale_modification_is_a_conflict(pool: PgPool) {
         usage: AddressUsage::Vip,
         expected: Some(first),
     };
-    f.applied(vec![seen.clone()], 0, None).await;
-    // REQ-004-11: written since `first`.
-    assert_eq!(
-        f.refused(vec![seen], 0, None).await,
-        vec!["changeset.operation.conflict"]
-    );
+    let second = f.applied(vec![seen.clone()], 0, None).await;
+    // REQ-004-11: written since `first`; the conflict names the current version.
+    match f.submit(vec![seen], 0, None).await {
+        Outcome::Refused { violations, .. } => {
+            assert_eq!(violations.len(), 1, "{violations:?}");
+            assert_eq!(violations[0].rule.id, "changeset.operation.conflict");
+            assert!(
+                violations[0].message.contains(&second.to_string()),
+                "{}",
+                violations[0].message
+            );
+        }
+        other => panic!("expected a conflict, got {other:?}"),
+    }
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]

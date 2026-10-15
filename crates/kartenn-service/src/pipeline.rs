@@ -698,13 +698,16 @@ async fn conflict<T: WriteTx>(
     let Some(expected) = expected else {
         return Ok(None);
     };
-    if tx.current_changeset(kind, id, period).await? == Some(expected) {
+    let current = tx.current_changeset(kind, id, period).await?;
+    if current == Some(expected) {
         return Ok(None);
     }
+    // REQ-004-11: the conflict names the current version.
+    let current = current.map_or_else(|| "none".to_owned(), |c| c.to_string());
     Ok(Some(
         Violation::new(
             &rules::CHANGESET_CONFLICT,
-            format!("{id} was modified since changeset {expected}"),
+            format!("{id} was modified since changeset {expected}: current version {current}"),
         )
         .with_subjects([id]),
     ))
