@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Invariants
@@ -49,7 +49,7 @@ concurrence).
 | INV-32 | Sous-arbre et occupation < 200 ms | Banc CI |
 | INV-33 | Lecture « à la date X » ≤ ×2 la lecture courante | Banc CI |
 | INV-34 | Changeset unitaire validé et appliqué < 200 ms | Banc CI |
-| INV-35 | Différentiel : < 1 s jusqu'à 10⁴ objets touchés, < 10 s jusqu'à 10⁶ | Banc CI |
+| INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc CI |
 | INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Banc de charge |
 
 ## Exploitation (D9)

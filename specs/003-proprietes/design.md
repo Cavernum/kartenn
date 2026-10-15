@@ -427,25 +427,22 @@ par le service et l'adaptateur réels :
 
 | Mesure | Seuil | Mesuré (2026-10-15, graine 42) |
 |---|---|---|
-| Première valeur sur toutes les racines (1,19·10⁶ changements d'origine, P10) | < 60 s | 40,9 s |
-| Explication d'une propriété pour une adresse, p95 sur 200 tirages | < 50 ms | 42 ms |
-| Page filtrée de 100, égalité sur héritable, p95 sur 100 tirages | < 150 ms | 19 ms |
-| Page filtrée de 100, intervalle sur non héritable, p95 sur 100 tirages | < 150 ms | 67 ms |
-| Changeset dont le différentiel touche ≤ 10⁴ objets (affectation d'un conteneur de 7 409 adresses ; 8 315 objets changent) | < 1 s | **2,07 s** |
-| Changement de valeur de toutes les racines (≈ 10⁶ objets, sans changement d'origine) | < 10 s | 8,4 s |
-| Retrait des racines de 3 domaines (> 10⁵ changements d'origine, P10) | < 60 s | 13,6 s |
+| Première valeur sur toutes les racines (1,19·10⁶ changements d'origine, P10) | < 60 s | 41,8 s |
+| Explication d'une propriété pour une adresse, p95 sur 200 tirages | < 50 ms | 32 ms |
+| Page filtrée de 100, égalité sur héritable, p95 sur 100 tirages | < 150 ms | 16 ms |
+| Page filtrée de 100, intervalle sur non héritable, p95 sur 100 tirages | < 150 ms | 72 ms |
+| Changeset dont le différentiel touche ≤ 10⁴ objets (affectation d'un conteneur de 7 409 adresses ; 8 315 objets changent) | < 2,5 s (P14) | 1,82 s (2,07 s au passage précédent) |
+| Changement de valeur de toutes les racines (≈ 10⁶ objets, sans changement d'origine) | < 10 s | 9,1 s |
+| Retrait des racines de 3 domaines (> 10⁵ changements d'origine, P10) | < 60 s | 13,8 s |
 
 Les mesures portent sur le changeset entier (pipeline, historique, journal, validation).
 Pour le cas ≤ 10⁴, le temps se répartit entre l'écriture des origines avec leur historique
 (≈ 0,55 s), le calcul des segments (≈ 0,45 s : un sondage d'index d'environ 30 µs par
 cible), le différentiel (≈ 0,4 s), la relecture des origines et le journal (≈ 0,2 s).
-Le prototype (1 s visé, 0,63 s mesuré) ne comptait ni l'historique ni le journal.
-
-> Question ouverte (exigences, budget du cas ≤ 10⁴) : garder 1 s impose de
-> nouvelles optimisations (différentiel tiré des origines déjà calculées en mémoire,
-> troncature par mise à jour plutôt que suppression et insertion), gain estimé à 0,5 s,
-> incertain ; ou porter le seuil à 2,5 s pour le changeset entier, historique et journal
-> compris. Bloque la clôture de 003-16.
+Le prototype (1 s visé, 0,63 s mesuré) ne comptait ni l'historique ni le journal ; le
+seuil est porté à 2,5 s pour le changeset entier (P14). Pistes notées si le besoin s'en
+fait sentir : différentiel tiré des origines déjà calculées en mémoire, troncature par
+mise à jour plutôt que suppression et insertion (gain estimé ≈ 0,5 s).
 
 Le programme sort en erreur si un seuil est dépassé. Il s'exécute par le script devenv
 `bench-properties` (base `kartenn_bench` recréée) ; son branchement dans la CI attend la

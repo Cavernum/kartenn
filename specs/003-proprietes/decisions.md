@@ -160,3 +160,15 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
 - Rejeté : une ligne nulle par objet porteur (filtre « absent » par index simple, au prix
   de ces écritures massives).
 - Décidé par : recommandation acceptée (2026-10-14)
+
+## P14 — Budget du changeset touchant jusqu'à 10⁴ objets
+- Décision : un changeset dont le différentiel touche jusqu'à 10⁴ objets tient en
+  **< 2,5 s**, mesuré sur le changeset entier (pipeline, écriture des origines et de leur
+  historique, différentiel, journal, validation) ; le budget de 1 s est abandonné.
+- Pourquoi : le banc 003-16 mesure 2,07 s pour 8 315 objets qui changent d'origine, sans
+  goulot unique (écriture avec historique ≈ 0,55 s, segments ≈ 0,45 s, différentiel
+  ≈ 0,4 s, relecture et journal ≈ 0,2 s) ; le prototype (0,63 s) ne comptait ni
+  l'historique ni le journal.
+- Rejeté : garder 1 s (refontes au gain estimé à 0,5 s, sans garantie) ; 1 s pour le
+  calcul seul (le temps qui compte pour l'utilisateur est celui du changeset entier).
+- Décidé par : recommandation acceptée (2026-10-15)

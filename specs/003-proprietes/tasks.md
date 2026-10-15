@@ -83,9 +83,9 @@ voir [`../README.md`](../README.md).
 
 ## P6 — Budgets et synchronisation
 
-- [ ] 16. Banc CI : résolution expliquée, page filtrée, différentiel de valeur sur 10⁶
+- [x] 16. Banc CI : résolution expliquée, page filtrée, différentiel de valeur sur 10⁶
   objets, changement d'origine sur 10⁴ et plus de 10⁵ objets (P10) — REQ-003-26 —
-  verify : seuils bloquants — banc et script `bench-properties` en place, 6 seuils sur 7
-  tenus ; seuil du cas ≤ 10⁴ en attente (question ouverte des exigences)
+  verify : seuils bloquants (`kartenn-bench props`, script `bench-properties`) — seuil
+  du cas ≤ 10⁴ porté à 2,5 s (P14) ; branchement CI avec 002-27
 - [ ] 17. Synchroniser `docs/spec/`, ADR 0016 → accepté, statut `implemented` — verify :
   rapport spec-keeper sans écart

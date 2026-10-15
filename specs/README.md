@@ -31,10 +31,11 @@ Le RBAC (005) n'est pas encore spécifié : en P4, les contrôles de droits pass
 interface (`Authorizer`, avec `authorize_many`) et une implémentation de test
 configurable ; l'implémentation réelle viendra avec la 005.
 
-## Point d'étape — 2026-10-14
+## Point d'étape — 2026-10-15
 
-Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 15/17 (P4 et P5
-terminées) · 004 : 13/24 (004-11 partiel) ; 188 tests, `devenv test` vert.
+Avancement : 002 : 24/28 tâches (plages et réseaux anycast faits) · 003 : 16/17 (banc des
+propriétés tenu, seuil ≤ 10⁴ porté à 2,5 s, P14) · 004 : 13/24 (004-11 partiel) ; 189
+tests, `devenv test` vert.
 
 ### Décisions attendues (bloquent la suite)
 

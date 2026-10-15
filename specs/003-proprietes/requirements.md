@@ -252,8 +252,8 @@ date, présence ou absence), à une date donnée.
 #### REQ-003-26 — Budgets
 kartenn doit respecter, sur le jeu de 10⁶ objets de REQ-002-45 avec 10 propriétés dont 3
 héritables : résolution expliquée d'une propriété pour un objet < 50 ms ; page filtrée
-par valeur résolue < 150 ms ; différentiel d'un changeset touchant jusqu'à 10⁴ objets
-< 1 s ; jusqu'à 10⁶ objets < 10 s, décompte d'abord, détail paginé (p95 serveur). Par
+par valeur résolue < 150 ms ; changeset touchant jusqu'à 10⁴ objets < 2,5 s, historique
+et journal compris (P14) ; différentiel jusqu'à 10⁶ objets < 10 s, décompte d'abord, détail paginé (p95 serveur). Par
 exception, quand plus de 10⁵ objets changent d'**objet d'origine** (clôture ou effacement
 très haut dans l'arbre), le différentiel et l'application doivent tenir en < 60 s, la
 simulation donnant d'abord le décompte (P10).
@@ -273,9 +273,7 @@ simulation donnant d'abord le décompte (P10).
   héritable du noyau, ou reste-t-elle un cas particulier ? (conception 002/003, Claude)
 - [x] Budgets du différentiel (REQ-003-26) : confirmés par le prototype 003, sauf les
   changements d'origine de plus de 10⁵ objets, assouplis à < 60 s (P10). (Claude)
-- [ ] Budget du changeset touchant jusqu'à 10⁴ objets (REQ-003-26) : le banc 003-16 mesure
-  2,07 s pour 8 315 objets, changeset entier (historique et journal compris), pour 1 s
-  visé. Garder 1 s (nouvelles optimisations, gain incertain) ou porter le seuil à 2,5 s ?
-  Voir design, § Stratégie de test. Bloque la clôture de 003-16. (utilisateur)
+- [x] Budget du changeset touchant jusqu'à 10⁴ objets (REQ-003-26) : 2,07 s mesurés au banc
+  003-16 pour 1 s visé ; seuil porté à 2,5 s pour le changeset entier (P14). (utilisateur)
 - [ ] Note de référence à rédiger avant la conception : noms de domaine (RFC 1123 §2.1,
   RFC 1035, RFC 5890–5891 IDNA), RFC 3339 et normalisation Unicode (UAX #15). (Claude)
