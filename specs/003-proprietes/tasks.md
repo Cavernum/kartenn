@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-15
 ---
 
@@ -93,8 +93,8 @@ voir [`../README.md`](../README.md).
 
 ## P7 — Arbres d'entités et de sites (P15)
 
-- [ ] 18. Origines le long des arbres `entity` et `site` (parents versionnés, cibles :
+- [x] 18. Origines le long des arbres `entity` et `site` (parents versionnés, cibles :
   descendants d'un objet déplacé, segmentation sur les versions des parents) ; portée
   « entité » des obligations (objets dont le propriétaire résolu est l'entité ou une
   descendante) — REQ-003-11, 16 — verify : oracle de la tâche 5 sur des suites
-  aléatoires de déplacements
+  aléatoires de déplacements (`kartenn-service/tests/anchor_trees.rs`, entités et sites)

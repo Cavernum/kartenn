@@ -4,7 +4,7 @@
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
 | [002-noyau-adressage](002-noyau-adressage/) | approuvées | approuvée | [tasks](002-noyau-adressage/tasks.md) (approuvées) |
-| [003-proprietes](003-proprietes/) | approuvées | approuvée | [tasks](003-proprietes/tasks.md) (17/18) |
+| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (18/18) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | approuvées | approuvée | [tasks](004-changesets-bitemporel/tasks.md) (approuvées) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
@@ -33,9 +33,9 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-15
 
-Avancement : 002 : 26/28 tâches (ancres et modifications de préfixes) · 003 : 17/18
-(arbres d'entités et de sites à faire, P15) · 004 : 22/25 (approbations,
-propositions, cascade, annulation, imports faits) ; 216 tests, `devenv test` vert.
+Avancement : 002 : 26/28 tâches (ancres et modifications de préfixes) · 003 : 18/18
+(arbres d'entités et de sites faits, P15, P16) · 004 : 22/25 (approbations,
+propositions, cascade, annulation, imports faits) ; 222 tests, `devenv test` vert.
 
 ### Décisions de la v0.1 (tranchées le 2026-10-14)
 

@@ -182,3 +182,27 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
   (parents versionnés).
 - Rejeté : retirer ces arbres de REQ-003-11 (le RBAC et les modules en auront besoin).
 - Décidé par : délégué (2026-10-15)
+
+## P16 — Objets d'un arbre, porteurs et portée « entité » (tâche 18)
+- Décision :
+  - les héritiers d'un arbre sont ses seuls objets : domaines, préfixes, plages et
+    adresses pour l'adressage, entités pour l'arbre des entités, sites pour celui des
+    sites ; une déclaration héritable dont un porteur n'appartient pas à son arbre est
+    refusée (`prop.declaration.invalid`) ;
+  - la portée « entité » d'une obligation couvre, sur le temps où c'est vrai, les objets
+    porteurs dont le `core.owner` résolu est l'entité ou une descendante, et les entités
+    porteuses de ce sous-arbre ; un changeset qui déplace une entité vérifie ces portées
+    en entier ;
+  - une portée « domaine » ou « entité » ajoutée doit nommer un objet de ce type qui
+    existe sur toute la période (`prop.declaration.invalid`) ;
+  - un objet ne peut être son propre parent : refusé dès la planification
+    (`core.anchor.cycle`).
+- Pourquoi : REQ-003-11 interdit de passer d'un arbre à l'autre ; un porteur hors de
+  l'arbre n'aurait aucune origine, donc aucune valeur résolue. Les entités d'un groupe
+  portent elles-mêmes des propriétés (centre de coût) que la portée doit couvrir.
+- Rejeté :
+  - résoudre un porteur hors arbre par sa seule affectation : deux lectures selon le
+    type, pour un cas sans usage ;
+  - limiter la portée « entité » aux objets touchés lors d'un déplacement : les objets
+    possédés par le sous-arbre déplacé ne sont pas touchés au sens de la résolution.
+- Décidé par : délégué (2026-10-15)

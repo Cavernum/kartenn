@@ -55,7 +55,9 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - **Affectation** : (objet, propriété) → valeur, ou « aucune valeur » ; provenance
   (saisie ou source de valeurs attendues et version).
 - **Valeur résolue** : affectation propre, sinon celle de l'ancêtre le plus proche dans
-  l'arbre suivi. Pour les propriétés héritables, kartenn matérialise l'**objet
+  l'arbre suivi : adressage (domaine, préfixes, plages, adresses), entités ou sites, par
+  leurs parents datés ; les porteurs d'une propriété héritable sont des objets de son
+  arbre (003/P16). Pour les propriétés héritables, kartenn matérialise l'**objet
   d'origine** (`property_origin`, bitemporelle), jamais la valeur, et le maintient dans
   la transaction de chaque changeset ; pas de ligne sans origine (ADR 0016, 003/P9,
   P13). La valeur se lit par jointure sur l'affectation de l'origine.
@@ -63,7 +65,11 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   `property_obligation`, `property_assignment` (colonnes typées, une affectation par
   objet et propriété sur une période), `property_origin` ; historique de temps système
   pour chacune (ADR 0017, proposé, accepté avec la 004) ; `changeset_diff` pour le
-  détail du différentiel ; `expected_source_state` pour la réévaluation des écarts.
+  détail du différentiel ; `expected_source_state` pour la réévaluation des écarts ; la
+  vue `carrier_object` (migration 0022) réunit tous les objets porteurs.
+- **Obligations** : portée domaine, type d'objet ou entité ; la portée d'une entité
+  couvre les objets dont le `core.owner` résolu est l'entité ou une descendante, et les
+  entités de ce sous-arbre (003/P16).
 - **Déclarations de module** : synchronisées depuis le code par un changeset de l'auteur
   système (003/P12).
 

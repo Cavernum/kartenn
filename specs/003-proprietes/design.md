@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-15
 ---
 
@@ -119,7 +119,8 @@ Une affectation n'a pas d'identifiant propre : elle est désignée par (objet, p
 qui sert de clé de version (clé primaire `WITHOUT OVERLAPS` et index d'historique) ;
 de même pour `property_origin`. Les déclarations, obligations et valeurs de liste fermée
 ont un `id`. Une valeur porte exactement une colonne de valeur, une affectation
-`cleared` aucune (contrainte `CHECK`). Migration 0011.
+`cleared` aucune (contrainte `CHECK`). Migration 0011 ; la vue `carrier_object` (migration
+0022) réunit les objets d'adressage, les entités et les sites.
 
 ### Arbres d'héritage (REQ-003-11)
 
@@ -213,10 +214,14 @@ flowchart TD
   explicite) et `unassign_property` sur la période du changeset ; la portion visée des
   affectations existantes est retirée (fonction `kartenn_unassign`, migration 0014).
   Clore un objet clôt ses affectations (ce sont ses attributs).
-- **Arbres `entity` et `site`** : entités et sites existent avec leurs opérations (002-22),
-  mais l'héritage le long de ces arbres n'est pas encore maintenu : une déclaration
-  héritable sur l'un d'eux est refusée (`prop.declaration.invalid`) jusqu'à la tâche 18.
-- **Héritiers** : l'origine est calculée pour tout objet de l'arbre d'adressage, porteur
+- **Arbres `entity` et `site`** (P15, P16) : les candidats d'une entité ou d'un site
+  sont lui-même puis ses parents successifs, chacun sur le temps où le lien tient
+  (requête récursive sur `parent_id`, priorité décroissante avec la profondeur).
+  Déplacer un objet recalcule son sous-arbre et ceux qui héritaient de lui ; le créer, le
+  clore ou le restaurer suit les règles de l'adressage. Un porteur d'une propriété
+  héritable appartient à l'arbre de celle-ci (P16). Test : oracle `ParentTree` sur des
+  suites aléatoires de déplacements datés (`kartenn-service/tests/anchor_trees.rs`).
+- **Héritiers** : l'origine est calculée pour tout objet de l'arbre, porteur
   ou non (`core.owner` est porté par les domaines et préfixes, résolu sur les adresses).
 - **Objets nouveaux** : résolus de la même façon, mais exclus du contrôle de droit sur
   l'effet (REQ-003-18).
@@ -235,9 +240,10 @@ touché ou créé : toute valeur résolue absente (ou effacée) produit une erre
   de portées) ; une déclaration nouvelle ou une évolution qui ajoute une portée est
   refusée si des objets de cette portée n'ont pas de valeur, en les listant
   (`prop.assignment.required`).
-- **Portée « entité »** : refusée jusqu'à la tâche 18 (objets dont le propriétaire résolu
-  est l'entité ou l'une de ses descendantes) ; seules les portées « domaine » et « type
-  d'objet » sont acceptées.
+- **Portée « entité »** (P16) : les porteurs dont le `core.owner` résolu est l'entité ou
+  une descendante, et les entités porteuses de ce sous-arbre, sur le temps où c'est
+  vrai ; un changeset qui déplace une entité vérifie ces portées en entier. Une portée
+  « domaine » ou « entité » nomme un objet existant sur toute la période.
 
 ### Droits (REQ-003-17, 18)
 
@@ -342,6 +348,8 @@ affectations.
 | présence / absence | anti-jointure sur `property_origin` (héritable, pas de ligne sans origine, P13) ou sur les affectations (non héritable) |
 
 Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédicats SQL).
+Le filtrage s'applique aux pages d'objets d'un domaine (arbre d'adressage) ; les entités
+et les sites, peu nombreux, se listent sans index dédié (tâche 18).
 
 **Mise en œuvre (003-15)** :
 
