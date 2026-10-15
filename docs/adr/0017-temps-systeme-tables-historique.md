@@ -51,3 +51,11 @@ Une table dont les versions ne sont pas identifiées par `id` (affectations et o
 propriétés, désignées par objet et propriété) se versionne avec
 `kartenn_make_versioned(table, ARRAY[colonnes de clé])` ; l'index d'historique suit la
 clé. La forme à un argument équivaut à la clé `id` (migration 0011).
+
+## Amendement (2026-10-15) — versions internes à une transaction
+
+Une version écrite puis supprimée ou modifiée dans la même transaction (`sys_start =
+now()`) n'est pas copiée dans l'historique : elle n'a jamais été visible hors de la
+transaction, et sa copie aurait une période système vide. Le découpage et la fusion des
+périodes (004-8) réécrivent ainsi librement une version dans un changeset ; la chaîne
+historique reste contiguë.

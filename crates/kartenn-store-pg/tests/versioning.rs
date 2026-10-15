@@ -20,13 +20,28 @@ async fn demo_table(pool: &PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
+/// Runs each statement in its own transaction: a version written and replaced within one
+/// transaction never reaches the history (ADR 0017, amendment of 2026-10-15).
+async fn each(pool: &PgPool, statements: &[&str]) -> sqlx::Result<()> {
+    for s in statements {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(*s)).execute(pool).await?;
+    }
+    Ok(())
+}
+
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn one_transaction_one_system_time(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
+    each(
+        &pool,
+        &["INSERT INTO demo (id, label, valid_period, changeset_id)
+           VALUES (gen_random_uuid(), 'x1', tstzrange(now(), NULL), gen_random_uuid())"],
+    )
+    .await?;
     let mut tx = pool.begin().await?;
     sqlx::raw_sql(
         "INSERT INTO demo (id, label, valid_period, changeset_id)
-         SELECT gen_random_uuid(), 'x' || g, tstzrange(now(), NULL), gen_random_uuid() FROM generate_series(1, 3) g;
+         SELECT gen_random_uuid(), 'x' || g, tstzrange(now(), NULL), gen_random_uuid() FROM generate_series(2, 3) g;
          UPDATE demo SET label = label || '!' WHERE label = 'x1';",
     )
     .execute(&mut *tx)
@@ -56,13 +71,15 @@ async fn one_transaction_one_system_time(pool: PgPool) -> sqlx::Result<()> {
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn manual_sql_cannot_bypass_history(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
-    sqlx::raw_sql(
-        "INSERT INTO demo (id, label, valid_period, changeset_id, sys_start)
-         VALUES (gen_random_uuid(), 'a', tstzrange('2026-01-01', NULL), gen_random_uuid(), '1999-01-01');
-         UPDATE demo SET label = 'b';
-         DELETE FROM demo;",
+    each(
+        &pool,
+        &[
+            "INSERT INTO demo (id, label, valid_period, changeset_id, sys_start)
+             VALUES (gen_random_uuid(), 'a', tstzrange('2026-01-01', NULL), gen_random_uuid(), '1999-01-01')",
+            "UPDATE demo SET label = 'b'",
+            "DELETE FROM demo",
+        ],
     )
-    .execute(&pool)
     .await?;
     let history: i64 = sqlx::query_scalar("SELECT count(*) FROM demo_history")
         .fetch_one(&pool)
@@ -89,12 +106,12 @@ async fn application_role_cannot_write_history(pool: PgPool) -> sqlx::Result<()>
     sqlx::raw_sql("SET ROLE kartenn_app")
         .execute(&mut *conn)
         .await?;
-    sqlx::raw_sql(
-        "INSERT INTO demo (id, label, valid_period, changeset_id) VALUES (gen_random_uuid(), 'a', tstzrange(now(), NULL), gen_random_uuid());
-         UPDATE demo SET label = 'b';",
-    )
-    .execute(&mut *conn)
-    .await?;
+    for statement in [
+        "INSERT INTO demo (id, label, valid_period, changeset_id) VALUES (gen_random_uuid(), 'a', tstzrange(now(), NULL), gen_random_uuid())",
+        "UPDATE demo SET label = 'b'",
+    ] {
+        sqlx::raw_sql(statement).execute(&mut *conn).await?;
+    }
     let historised: i64 = sqlx::query_scalar("SELECT count(*) FROM demo_history")
         .fetch_one(&mut *conn)
         .await?;
@@ -138,19 +155,41 @@ async fn tables_without_versioning_columns_are_refused(pool: PgPool) -> sqlx::Re
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn an_added_column_is_historised_by_name(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
-    sqlx::raw_sql(
-        "INSERT INTO demo (id, label, valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'old', tstzrange(now(), NULL), gen_random_uuid());
-         CALL kartenn_add_versioned_column('demo', 'flag boolean NOT NULL DEFAULT false');
-         UPDATE demo SET flag = true, label = 'new';
-         DELETE FROM demo;",
+    each(
+        &pool,
+        &[
+            "INSERT INTO demo (id, label, valid_period, changeset_id)
+             VALUES (gen_random_uuid(), 'old', tstzrange(now(), NULL), gen_random_uuid())",
+            "CALL kartenn_add_versioned_column('demo', 'flag boolean NOT NULL DEFAULT false')",
+            "UPDATE demo SET flag = true, label = 'new'",
+            "DELETE FROM demo",
+        ],
     )
-    .execute(&pool)
     .await?;
     let rows: Vec<(String, bool)> =
         sqlx::query_as("SELECT label, flag FROM demo_history ORDER BY label")
             .fetch_all(&pool)
             .await?;
     assert_eq!(rows, vec![("new".into(), true), ("old".into(), false)]);
+    Ok(())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_version_replaced_in_its_own_transaction_is_not_history(
+    pool: PgPool,
+) -> sqlx::Result<()> {
+    demo_table(&pool).await?;
+    sqlx::raw_sql(
+        "INSERT INTO demo (id, label, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'a', tstzrange(now(), NULL), gen_random_uuid());
+         UPDATE demo SET label = 'b';
+         DELETE FROM demo;",
+    )
+    .execute(&pool)
+    .await?;
+    let history: i64 = sqlx::query_scalar("SELECT count(*) FROM demo_history")
+        .fetch_one(&pool)
+        .await?;
+    assert_eq!(history, 0, "never visible outside its transaction");
     Ok(())
 }
