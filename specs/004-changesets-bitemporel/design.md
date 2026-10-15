@@ -260,6 +260,22 @@ Pour un changeset C appliqué au temps système t :
    avec l'explication ; l'utilisateur décide.
 Le changeset généré n'est pas soumis automatiquement.
 
+**Mise en œuvre (004-20)**, choix délégués le 2026-10-15 :
+- `undo::inverse(changeset, auteur)` rend une requête **non soumise** et la liste des
+  conflits. Objets touchés : versions (courantes ou historiques) écrites par C des
+  domaines, préfixes, plages, adresses, entités, sites et affectations ; période : depuis
+  le plus ancien début de C (sa période et celles de ses opérations), sans fin.
+- Objet créé par C (aucune version affirmée avant t) : `Close` (ou `UnassignProperty`
+  pour une affectation), avec les contrôles d'une clôture. Sinon, opération nouvelle
+  `Restore { kind, id, property, before: C }` : sur la période du changeset, les versions
+  courantes de l'objet sont remplacées par celles qui étaient affirmées juste avant C
+  (fonction en base `kartenn_restore`), puis validées comme une modification (règles
+  locales et globales, origines, différentiel, droits).
+- Conflit : une version de l'objet écrite après t par un autre changeset et qui recoupe
+  la période ; l'objet est exclu de la requête et le conflit nomme ce changeset.
+- Déclarations, valeurs de listes fermées et politiques ne sont pas annulées : listées à
+  part (« non annulable »).
+
 ### Audit et identités (REQ-004-31 à 33)
 
 | Table | Contenu |

@@ -79,7 +79,9 @@ voir [`../README.md`](../README.md).
   REQ-004-28, 30 — verify : import de 10⁵ opérations avec un lot fautif
 - [ ] 19. Rejeu d'import par identifiant externe — REQ-004-29 — verify : double import
   sans doublon
-- [ ] 20. Changeset inverse et conflits — REQ-004-34, 35 — verify : tests
+- [x] 20. Changeset inverse et conflits — REQ-004-34, 35 — verify : tests
+  (`kartenn-service/tests/undo.rs`) — `undo::inverse`, opération `Restore`, fonction
+  `kartenn_restore` (migration 0021) ; déclarations non annulées, listées
 - [x] 21. Outbox CloudEvents écrite dans la transaction — REQ-004-36 — verify : tests
 - [x] 22. Relais d'outbox sans trou (filtre `xid` < xmin), ordre par domaine, accusé —
   REQ-004-37 — verify : tests avec transactions concurrentes longues
