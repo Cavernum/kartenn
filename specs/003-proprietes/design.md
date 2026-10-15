@@ -344,8 +344,9 @@ Les filtres se combinent avec les filtres du noyau et le filtrage RBAC (prédica
   appartenance (une valeur parmi plusieurs ; pour un ensemble, au moins un élément en
   commun), intervalle (entier, date, texte), présence, absence. Les valeurs se donnent
   comme une saisie (clé de liste fermée, texte, entier, date, identifiant) et sont
-  traduites selon le type de la propriété. Absence = porteurs du domaine sans origine
-  portant une valeur (P13) ; l'effacement compte comme absence.
+  traduites selon le type de la propriété. Absence = porteurs du domaine et, pour une
+  propriété héritable, préfixes, plages et adresses (héritiers même non porteurs), sans
+  origine portant une valeur (P13) ; l'effacement compte comme absence.
 - Date d'application seule ; la lecture à une date système passée viendra avec l'API
   (006), sur le même principe que l'explication.
 - **Réévaluation des écarts** : chaque source a un état (`expected_source_state` :

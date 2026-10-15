@@ -197,6 +197,10 @@ pub(crate) async fn unassign<T: WriteTx>(
         .await?)
 }
 
+/// Kinds that inherit along the addressing tree (a range or an address inherits from its
+/// network, never from a range).
+pub(crate) const HEIRS: [&str; 4] = ["domain", "prefix", "range", "address"];
+
 /// What the maintenance of the origins did, per heritable property.
 #[derive(Debug, Default)]
 pub(crate) struct Maintained {
@@ -294,14 +298,17 @@ pub(crate) async fn maintain<T: WriteTx>(
             _ => {}
         }
     }
+    // Every object of the tree inherits, whatever the carriers (003/design: a row per
+    // carrier or heir).
+    let heirs: Vec<String> = HEIRS.map(String::from).to_vec();
     for property in everything {
-        let all = tx.objects_of_kinds(&heritable[&property], period).await?;
+        let all = tx.objects_of_kinds(&heirs, period).await?;
         targets.entry(property).or_default().extend(all);
     }
     let mut out = Maintained::default();
     for (property, objects) in targets {
         let objects: Vec<Uuid> = objects.into_iter().collect();
-        tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
+        tx.refresh_origins(property, &heirs, &objects, period, changeset)
             .await?;
         affected.entry(property).or_default().extend(&objects);
         out.recomputed.insert(property, objects);
