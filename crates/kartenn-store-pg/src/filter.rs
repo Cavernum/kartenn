@@ -61,7 +61,7 @@ fn predicate(
     // Closed-list keys become the identifiers of the values valid at `$3`.
     let values = if value_type == "enum" {
         "(SELECT array_agg(e.id) FROM property_enum_value e
-          WHERE e.property_id = $1 AND e.key = ANY($7) AND e.valid_period @> $3)"
+          WHERE e.property_id = $1 AND e.key = ANY($7) AND e.valid_period @> $3)::uuid[]"
             .to_owned()
     } else {
         format!("($7::text[])::{cast}[]")
@@ -199,7 +199,17 @@ async fn prepare(
         Condition::Between(low, high) => (Vec::new(), low.clone(), high.clone()),
         Condition::Present | Condition::Absent => (Vec::new(), None, None),
     };
-    Ok((sql, values, low, high, carriers))
+    // A heritable value may be absent from the carriers and from the content of the tree,
+    // which inherits without carrying (a domain only inherits from itself).
+    let mut kinds = carriers;
+    if heritable {
+        for heir in ["prefix", "range", "address"] {
+            if !kinds.iter().any(|k| k == heir) {
+                kinds.push(heir.to_owned());
+            }
+        }
+    }
+    Ok((sql, values, low, high, kinds))
 }
 
 /// The plan PostgreSQL chooses for a filter, as text (to check that the origins are
