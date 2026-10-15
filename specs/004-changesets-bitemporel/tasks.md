@@ -42,7 +42,8 @@ voir [`../README.md`](../README.md).
 - [x] 7. Pipeline de base : décodage, taille max, verrous de domaine, application en
   transaction avec références internes, validation (point d'accroche 002/003),
   atomicité, journalisation séparée des refus — REQ-004-1 à 7, 12 — verify : tests
-  d'intégration, dont concurrence
+  d'intégration, dont concurrence — REQ-004-2 (période par opération) complétée le
+  2026-10-15 (`Within`, `portion.rs`)
 - [x] 8. Découpage en base (remplacement de la version par ses morceaux), clôture,
   validation sur toute la période visée (versions futures) — REQ-004-8, 14, 15 —
   verify : comparaison au modèle en mémoire de la tâche 3

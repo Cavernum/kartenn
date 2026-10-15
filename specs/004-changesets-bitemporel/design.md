@@ -137,6 +137,12 @@ flowchart TD
   est écrit. Les arbres d'entités et de sites ont chacun un verrou de même
   nature ; une modification de préfixe ou d'adresse prend le verrou « espace public »
   (ADR 0015). Les changesets en attente ne tiennent aucun verrou.
+- **Période par opération** (REQ-004-2) : une opération s'enveloppe dans `Within {
+  period, operation }` ; application et validation 002 prennent la période de chaque
+  opération, l'étape des propriétés (origines, différentiel, obligations, droits) couvre
+  depuis le plus ancien début, sans fin ; un changeset dont une opération commence dans
+  le passé est rétroactif. (Écart trouvé et comblé le 2026-10-15 : la tâche 7 était
+  cochée sans cette exigence.)
 - **Références internes** (REQ-004-4) : une opération peut désigner un objet par une
   référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application.
 - **Concurrence optimiste** (REQ-004-11) : une opération peut porter
