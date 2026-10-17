@@ -143,8 +143,13 @@ en fournit le mécanisme et les teste avec des appels directs.
 - [x] 19. Test des dépendances (`cargo metadata`) : `kartenn-core` et `kartenn-service` sans
   crate de sortie — REQ-012-2 — verify : test — `kartenn-telemetry/tests/architecture.rs`, avec un témoin
   positif (le serveur atteint bien les adaptateurs) ; le `workspace-hack` est ignoré
-- [ ] 20. Test de bout en bout des secrets témoins sur toutes les sorties — REQ-012-28 —
-  verify : aucun témoin trouvé
+- [x] 20. Test de bout en bout des secrets témoins sur toutes les sorties — REQ-012-28 —
+  verify : aucun témoin trouvé — trois fuites trouvées et corrigées : le pont
+  `opentelemetry-appender-tracing` et la couche des spans exportaient les champs bruts
+  (les logs OTLP passent désormais par la capture, les spans par un exporteur qui
+  masque), le gestionnaire de panique par défaut écrivait le message tel quel, l'erreur de
+  connexion du binaire contenait le mot de passe de l'URL ; aucun détail du catalogue
+  d'audit ne porte un nom de secret (test)
 - [ ] 21. Banc : `bench-core` avec trois configurations de télémétrie, volume de l'audit
   des lectures mesuré — REQ-012-23 — verify : surcoûts sous 5 % et 10 % ; volume reporté
   dans la conception
