@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-17
 ---
 
@@ -45,6 +45,7 @@ flowchart LR
 | `kartenn-service` | port `AuditJournal` ; `RequestContext` (acteur, source, corrélation) ; émission des événements dans le pipeline et les autres cas d'usage ; adaptateur en mémoire `MemoryJournal` | `tracing` (façade seulement) |
 | `kartenn-store-pg` | adaptateur `PgAuditJournal` ; scellement, relais, purge, vérification ; migration `0023_audit.sql` | — |
 | `kartenn-telemetry` (nouvelle) | couche de capture, sorties (stdout, fichier, journald, syslog), table des sévérités, configuration des filtres et rechargement, exporteurs d'audit (`AuditSink`), mise en place d'OpenTelemetry | `tracing-subscriber`, `tracing-appender`, `tracing-journald`, `tracing-opentelemetry`, `opentelemetry`, `opentelemetry_sdk`, `opentelemetry-otlp`, `opentelemetry-appender-tracing`, `tokio-rustls` |
+| `syslog-sender` (nouvelle, indépendante) | message RFC 5424/3164, validation, cadrage, transports local, UDP, TCP, TLS (L24) | `tokio`, `tokio-rustls`, `rustls-pki-types` |
 | `kartenn-server` | configuration (`figment` : TOML puis variables `KARTENN_*` et `OTEL_*`), composition, sous-commandes `run`, `audit verify` | `figment` |
 
 `kartenn-core` et `kartenn-service` ne voient aucune crate de sortie : vérifié par un test
@@ -204,9 +205,26 @@ trace_id, span_id }` :
 | `journald` | protocole natif, `MESSAGE_ID` = UUID v5 du nom, `PRIORITY` selon la table | socket `AF_UNIX` |
 | `syslog` | RFC 5424 (L19), `MSGID` = nom, SD `meta sequenceId`, MSG = JSON, BOM | socket local, TCP ou TLS (rustls), comptage d'octets, reconnexion avec attente exponentielle |
 
-Le formateur RFC 5424 est écrit dans `kartenn-telemetry` (les crates existantes n'ont ni
-cadrage ni TLS, voir la note de référence) et testé contre un analyseur strict et contre
-le récepteur syslog du collecteur.
+Le formatage et le transport syslog viennent de la bibliothèque `syslog-sender` (L24 :
+aucune crate existante ne pratique le comptage d'octets ni n'accepte l'horodatage de
+l'événement) ; elle est testée contre un analyseur strict (`syslog_rfc5424`) et contre le
+récepteur syslog du collecteur.
+
+**`syslog-sender`** (API publique, sans dépendance vers kartenn) :
+- `Message` : priorité (`Facility`, `Severity`), horodatage fourni par l'appelant
+  (microsecondes, UTC), `hostname`, `app_name`, `procid`, `msgid` (validés : caractères
+  imprimables US-ASCII, longueurs de RFC 5424 §6), `StructuredData` (SD-ID et noms
+  validés, valeurs échappées §6.3.3), corps UTF-8 avec BOM ou octets bruts ;
+- `Format` : `Rfc5424`, `Rfc3164` (socket local seulement) ; longueur maximale avec
+  troncature en fin, sur une frontière UTF-8 ;
+- `Framing` : `OctetCounting` (défaut en TCP et TLS), `LineFeed`, aucun en datagramme ;
+- `Transport` : socket local (datagramme ou flux), UDP, TCP, TLS (rustls, version
+  minimale 1.2, sans 0-RTT) ; `Sender` asynchrone (tokio) qui écrit un lot et ne rend la
+  main qu'une fois écrit, se reconnecte avec attente exponentielle bornée et signale les
+  erreurs à l'appelant (aucune file interne : la mise en file est l'affaire de
+  l'appelant) ;
+- tests : vecteurs de RFC 5424 §6.5, aller-retour par `syslog_rfc5424`, propriétés
+  (`proptest`) sur l'échappement et la troncature, serveur TCP et TLS de test.
 
 **Table des sévérités** : une seule fonction `kartenn_telemetry::severity::map` fournit
 les codes syslog, OTel et journald de REQ-012-4 ; toutes les sorties l'appellent.
@@ -313,7 +331,8 @@ peut écrire en syslog vers `127.0.0.1:5514`.
 - **Couche `fmt` de `tracing-subscriber` par sortie** : formatage sur le thread de la
   requête et autant de captures que de sorties ; la capture unique formate hors du
   chemin chaud.
-- **Crates syslog existantes** : ni cadrage TCP, ni TLS, ni BOM.
+- **Crates syslog existantes** : aucune ne pratique le comptage d'octets ni n'accepte
+  l'horodatage de l'événement (tableau en L24).
 - **`config-rs` pour la configuration** : `figment` gère TOML et variables imbriquées
   avec des erreurs localisées ; choix réversible.
 

@@ -169,9 +169,11 @@ Recherche documentaire du 2026-10-17 ; ce qui n'a pas pu être relu à la source
   les derniers événements sont perdus.
 - **Pertes silencieuses par défaut** : `tracing-appender::non_blocking` est en mode
   « lossy » (128 000 lignes), le processeur par lots d'OTLP abandonne au-delà de 2048.
-- **Crates syslog** : `syslog` 7.0 n'a ni cadrage TCP, ni TLS, ni BOM ; `syslog-tracing`
-  passe par `libc::syslog()` (RFC 3164 local). Un formateur RFC 5424 propre, testé, est
-  plus sûr.
+- **Crates syslog** (sources lues le 2026-10-17) : `fasyslog` a TLS (rustls) mais cadre
+  par fin de ligne et horodate à l'envoi ; `syslog-rs` a TLS (tokio-rustls) sans aucun
+  cadrage, en heure locale à la seconde ; `syslog` 7.0 et `syslog-tls` n'ont pas de
+  cadrage ; `syslog-tracing` passe par `libc::syslog()` (RFC 3164 local). Aucune ne
+  pratique le comptage d'octets de RFC 5425 §4.3 (détail : spec 012, L24).
 - **journald et sévérités** : `tracing-journald` envoie INFO en Notice (5), alors que
   l'annexe OTel place INFO sur Informational (9 ≈ syslog 6) : fixer une table unique.
 - **Récepteur syslog du collecteur OTel** : `enable_octet_counting` vaut `false` par

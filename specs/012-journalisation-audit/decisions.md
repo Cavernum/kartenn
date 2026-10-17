@@ -260,3 +260,32 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 - Décision : la signature Ed25519 des sceaux est facultative ; la chaîne de hachés,
   exportée hors du système, suffit à détecter une altération.
 - Décidé par : utilisateur (2026-10-17)
+
+## L24 — Bibliothèque syslog indépendante
+- Constat (crates.io, sources lues le 2026-10-17) :
+
+  | Crate | TLS | Cadrage TCP | Horodatage | Remarques |
+  |---|---|---|---|---|
+  | `fasyslog` 1.0.1 | rustls, native-tls | fin de ligne (RFC 6587 §3.4.2) | heure d'envoi | synchrone, sans BOM, sans reconnexion |
+  | `syslog-rs` 6.6.1 | tokio-rustls | aucun | heure locale, à la seconde | gouvernance atypique |
+  | `syslog` 7.0.0, `syslog-tls` 7.1.1 | non ; native-tls | aucun | — | — |
+  | `tracing-rfc-5424` 0.2.1 | non | fin de ligne | — | GPL-3.0 |
+  | `syslog_proto` 0.1.0-alpha0 | — | — | — | sans réseau, alpha |
+
+  Aucune ne pratique le comptage d'octets qu'exige RFC 5425 §4.3 en TLS, ni n'accepte
+  l'horodatage de l'événement. (Le rapport de recherche affirmait qu'aucune n'avait de
+  TLS : c'était inexact.)
+- Décision : une bibliothèque séparée, `syslog-sender`, dans `crates/` mais sans
+  dépendance vers kartenn ni vers `tracing`, conçue pour être publiée seule :
+  formatage RFC 5424 (et RFC 3164 pour le socket local), validation des champs,
+  données structurées, BOM, troncature ; cadrage par comptage d'octets ou par fin de
+  ligne ; transports socket local, UDP, TCP, TLS (rustls) en asynchrone tokio, avec
+  reconnexion. `kartenn-telemetry` l'adapte à ses sorties.
+- Licence : AGPL-3.0-only comme kartenn (D37) en attendant ; une licence plus
+  permissive (MIT ou Apache-2.0) faciliterait son adoption hors de kartenn : à trancher
+  par l'utilisateur avant publication.
+- Rejeté : contribuer le cadrage à `fasyslog` (modèle synchrone, horodatage à l'envoi :
+  changements d'API profonds ; reste possible plus tard) ; formateur interne à
+  `kartenn-telemetry` (non réutilisable).
+- Décidé par : utilisateur (« créer une librairie à part ») ; délégué (périmètre, nom,
+  2026-10-17)
