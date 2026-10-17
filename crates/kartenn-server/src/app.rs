@@ -117,6 +117,7 @@ struct Telemetry {
     outputs: Vec<capture::Output>,
     tasks: Vec<JoinHandle<u64>>,
     providers: Option<Providers>,
+    instruments: Option<Instruments>,
     stop: watch::Sender<bool>,
 }
 
@@ -195,9 +196,19 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
         tasks.push(task);
     }
     let trace = otlp.as_ref().map(Providers::trace_layer);
+    let instruments = otlp.as_ref().map(|p| {
+        let counters = outputs.clone();
+        Instruments::new(&p.meter, move || {
+            counters
+                .iter()
+                .map(|o| (o.name().to_owned(), o.dropped()))
+                .collect()
+        })
+    });
     let subscriber = tracing_subscriber::registry()
         .with(CaptureLayer::new(outputs.clone()))
-        .with(trace);
+        .with(trace)
+        .with(instruments.as_ref().map(Instruments::layer));
     if tracing::subscriber::set_global_default(subscriber).is_err() {
         eprintln!("kartenn: a global subscriber is already installed; keeping it");
     }
@@ -205,6 +216,7 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
         outputs,
         tasks,
         providers: otlp,
+        instruments,
         stop,
     })
 }
@@ -301,15 +313,7 @@ pub async fn run(
     };
     let telemetry = telemetry(config, &identity)?;
     kartenn_telemetry::panic::install();
-    let counters = telemetry.outputs.clone();
-    let instruments = telemetry.providers.as_ref().map(|p| {
-        Instruments::new(&p.meter, move || {
-            counters
-                .iter()
-                .map(|o| (o.name().to_owned(), o.dropped()))
-                .collect()
-        })
-    });
+    let instruments = telemetry.instruments.clone();
     let key = match &config.audit.signing_key_file {
         Some(path) => Some(SealKey::from_pkcs8_pem(
             &std::fs::read_to_string(path)

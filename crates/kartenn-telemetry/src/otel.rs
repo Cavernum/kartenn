@@ -347,6 +347,68 @@ impl Instruments {
     }
 }
 
+impl Instruments {
+    /// The layer that records the instruments fed by technical events: the outcome of a
+    /// changeset (`pipeline.changeset.<state>`, with `state` and `duration_ms`) and the
+    /// audit write failures (`audit.write.failed`). The service knows only `tracing`.
+    #[must_use]
+    pub fn layer(&self) -> MetricsLayer {
+        MetricsLayer {
+            changesets: self.changesets.clone(),
+            pipeline_duration: self.pipeline_duration.clone(),
+            audit_failures: self.audit_failures.clone(),
+        }
+    }
+}
+
+/// See [`Instruments::layer`].
+#[derive(Debug, Clone)]
+pub struct MetricsLayer {
+    changesets: opentelemetry::metrics::Counter<u64>,
+    pipeline_duration: opentelemetry::metrics::Histogram<f64>,
+    audit_failures: opentelemetry::metrics::Counter<u64>,
+}
+
+#[derive(Default)]
+struct Outcome {
+    state: Option<String>,
+    duration_ms: Option<f64>,
+}
+
+impl tracing::field::Visit for Outcome {
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "state" {
+            self.state = Some(value.to_owned());
+        }
+    }
+
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        if field.name() == "duration_ms" {
+            self.duration_ms = Some(value);
+        }
+    }
+
+    fn record_debug(&mut self, _: &tracing::field::Field, _: &dyn std::fmt::Debug) {}
+}
+
+impl<S: Subscriber> Layer<S> for MetricsLayer {
+    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+        let name = event.metadata().name();
+        if name == "audit.write.failed" {
+            self.audit_failures.add(1, &[]);
+        } else if name.starts_with("pipeline.changeset.") {
+            let mut outcome = Outcome::default();
+            event.record(&mut outcome);
+            if let Some(state) = outcome.state {
+                self.changesets.add(1, &[KeyValue::new("state", state)]);
+            }
+            if let Some(ms) = outcome.duration_ms {
+                self.pipeline_duration.record(ms / 1000.0, &[]);
+            }
+        }
+    }
+}
+
 /// The OTLP output of the technical logs. The crates of the export are skipped whatever
 /// the filter of the output (telemetry loop).
 #[derive(Debug)]
