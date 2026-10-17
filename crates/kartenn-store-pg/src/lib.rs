@@ -12,6 +12,7 @@ mod diff;
 mod expected;
 pub mod explain;
 pub mod filter;
+pub(crate) mod floor;
 mod imports;
 pub mod keys;
 pub mod maintenance;

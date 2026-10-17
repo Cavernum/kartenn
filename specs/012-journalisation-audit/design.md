@@ -172,6 +172,20 @@ audit.delivery  (sink text, event_seq, criticality, recorded_at, delivered_at) �
   événements validés sans livraison pour cette sortie, par lots de 500, livre, puis
   insère les lignes `audit.delivery`. Reprise sans trou après arrêt (même schéma que
   l'outbox). Métrique : âge du plus ancien événement non livré par sortie.
+- Plancher des passes (précision de la tâche 012-21, migration `0027_pass_floor.sql`) :
+  le scellement, chaque relais d'audit et chaque consommateur de l'outbox lisaient
+  toute l'histoire à chaque passe (anti-jointure sur `audit.sealed`, `audit.delivery` ou
+  `outbox_delivery`), 21 ms pour 27 000 événements au banc, un coût qui croît avec le
+  journal (39 millions d'événements `low` en 90 jours à 5 lectures/s). Chaque passe lit
+  désormais à partir de son plancher, sous lequel tout est traité. Le plancher monte en
+  deux temps : une passe note le plus grand numéro visible et le `pg_snapshot_xmax` de
+  son instantané ; une fois `pg_snapshot_xmin` au-delà, toute transaction qui aurait pu
+  détenir un numéro inférieur est terminée, et le plancher monte jusqu'au premier
+  numéro non traité. Une transaction longue retarde la montée, jamais une livraison
+  (contrairement à la barrière retirée de l'ADR 0018). Un numéro tiré avant que sa
+  transaction ait un identifiant pourrait échapper au plancher : une passe par heure
+  relit depuis zéro et le rattrape (au pire une heure de retard, aucune perte ; d'ici
+  là, `audit verify` le signale non scellé).
 - Une sortie en échec depuis plus d'une minute : événement `sys.output.unavailable`,
   puis `sys.output.available` au retour (REQ-012-26).
 

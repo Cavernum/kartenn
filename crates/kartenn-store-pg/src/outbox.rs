@@ -43,6 +43,13 @@ pub enum RelayError<E> {
     },
 }
 
+/// The events a consumer has not received (from the floor of its relay, migration 0027).
+const UNDELIVERED: crate::floor::Rows = crate::floor::Rows {
+    table: "outbox",
+    seq: "seq",
+    unhandled: "NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = e.seq)",
+};
+
 /// Delivers up to `batch` pending events to `sink`, in order, and records each delivery.
 /// Returns the number of events delivered. A single relay per consumer runs at a time
 /// (transaction-level advisory lock on the consumer name).
@@ -66,13 +73,22 @@ where
         .bind(consumer)
         .execute(&mut *tx)
         .await?;
+    let floor = crate::floor::floor(
+        &mut tx,
+        &format!("outbox/{consumer}"),
+        consumer,
+        &UNDELIVERED,
+    )
+    .await?;
     let rows: Vec<(i64, Uuid, Vec<Uuid>, serde_json::Value)> = sqlx::query_as(
         "SELECT o.seq, o.changeset_id, o.domain_ids, o.payload FROM outbox o
-         WHERE NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = o.seq)
+         WHERE o.seq >= $3
+           AND NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = o.seq)
          ORDER BY o.seq LIMIT $2",
     )
     .bind(consumer)
     .bind(batch)
+    .bind(floor)
     .fetch_all(&mut *tx)
     .await?;
     let mut delivered = 0;

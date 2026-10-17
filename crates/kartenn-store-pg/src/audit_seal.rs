@@ -59,6 +59,13 @@ pub(crate) async fn last_hash(conn: &mut PgConnection) -> Result<[u8; 32], Store
     })
 }
 
+/// The events not sealed yet (from the floor of the sealing, migration 0027).
+const UNSEALED: crate::floor::Rows = crate::floor::Rows {
+    table: "audit.event",
+    seq: "seq",
+    unhandled: "NOT EXISTS (SELECT 1 FROM audit.sealed s WHERE s.event_seq = e.seq)",
+};
+
 /// Seals the committed events that are not sealed yet, at most [`BATCH_MAX`]; records
 /// `audit.seal.created`, which the next batch seals, unless the batch holds only such
 /// events. `None` when there is nothing to seal or another instance is sealing.
@@ -85,16 +92,23 @@ pub async fn seal_once(
     if !locked {
         return Ok(None);
     }
+    let floor = crate::floor::floor(&mut tx, "audit.seal", "seal", &UNSEALED)
+        .await
+        .map_err(store_err)?;
     let rows: Vec<EventRow> = sqlx::query_as(
         "SELECT e.seq, e.criticality, e.recorded_at, to_jsonb(e) FROM audit.event e
-         WHERE NOT EXISTS (SELECT 1 FROM audit.sealed s WHERE s.event_seq = e.seq)
+         WHERE e.seq >= $2
+           AND NOT EXISTS (SELECT 1 FROM audit.sealed s WHERE s.event_seq = e.seq)
          ORDER BY e.seq LIMIT $1",
     )
     .bind(BATCH_MAX)
+    .bind(floor)
     .fetch_all(&mut *tx)
     .await
     .map_err(store_err)?;
     if rows.is_empty() {
+        // Keeps the floor raised by this pass.
+        tx.commit().await.map_err(store_err)?;
         return Ok(None);
     }
     let previous = last_hash(&mut tx).await?;

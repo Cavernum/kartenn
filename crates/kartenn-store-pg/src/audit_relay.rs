@@ -33,6 +33,13 @@ pub enum RelayError {
     },
 }
 
+/// The events an output has not received (from the floor of its relay, migration 0027).
+const RELAYED: crate::floor::Rows = crate::floor::Rows {
+    table: "audit.event",
+    seq: "seq",
+    unhandled: "NOT EXISTS (SELECT 1 FROM audit.delivery d WHERE d.sink = $1 AND d.event_seq = e.seq)",
+};
+
 /// A row to export: sequence, criticality, recording time, row as JSON.
 type Row = (i64, String, OffsetDateTime, serde_json::Value);
 
@@ -64,17 +71,29 @@ pub async fn relay_once<S: AuditSink>(
     if !locked {
         return Ok(0);
     }
+    let floor = crate::floor::floor(
+        &mut tx,
+        &format!("audit.relay/{}", sink.name()),
+        sink.name(),
+        &RELAYED,
+    )
+    .await
+    .map_err(store_err)?;
     let rows: Vec<Row> = sqlx::query_as(
         "SELECT e.seq, e.criticality, e.recorded_at, to_jsonb(e) FROM audit.event e
-         WHERE NOT EXISTS (SELECT 1 FROM audit.delivery d WHERE d.sink = $1 AND d.event_seq = e.seq)
+         WHERE e.seq >= $3
+           AND NOT EXISTS (SELECT 1 FROM audit.delivery d WHERE d.sink = $1 AND d.event_seq = e.seq)
          ORDER BY e.seq LIMIT $2",
     )
     .bind(sink.name())
     .bind(batch)
+    .bind(floor)
     .fetch_all(&mut *tx)
     .await
     .map_err(store_err)?;
     if rows.is_empty() {
+        // Keeps the floor raised by this pass.
+        tx.commit().await.map_err(store_err)?;
         return Ok(0);
     }
     let events: Vec<serde_json::Value> = rows.iter().map(|r| r.3.clone()).collect();
@@ -112,7 +131,8 @@ pub async fn export_lag(pool: &PgPool, sink: &str) -> Result<Option<Duration>, S
     let micros: Option<i64> = sqlx::query_scalar(
         "SELECT (extract(epoch FROM now() - min(e.recorded_at)) * 1000000)::bigint
          FROM audit.event e
-         WHERE NOT EXISTS (SELECT 1 FROM audit.delivery d WHERE d.sink = $1 AND d.event_seq = e.seq)",
+         WHERE e.seq >= coalesce((SELECT floor FROM pass_floor WHERE pass = 'audit.relay/' || $1), 0)
+           AND NOT EXISTS (SELECT 1 FROM audit.delivery d WHERE d.sink = $1 AND d.event_seq = e.seq)",
     )
     .bind(sink)
     .fetch_one(pool)

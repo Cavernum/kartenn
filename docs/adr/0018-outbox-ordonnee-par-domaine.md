@@ -46,6 +46,17 @@ dépassé que par des événements d'autres domaines : deux changesets d'un mêm
 sérialisés par son verrou (ADR 0015) et numérotent donc leurs événements dans l'ordre de
 validation. La colonne `xid` est conservée pour le diagnostic.
 
+**Troisième amendement (spec 012, tâche 21, 2026-10-17)** : le relais relisait toute
+l'outbox à chaque passe (anti-jointure sur `outbox_delivery`), un coût qui croît avec
+l'histoire. Il lit désormais à partir d'un **plancher** par consommateur (table
+`pass_floor`, partagée avec le scellement et les relais d'audit), sous lequel tout est
+livré. Le plancher ne monte qu'une fois terminées toutes les transactions qui auraient
+pu détenir un numéro inférieur (`pg_snapshot_xmin` au-delà du `pg_snapshot_xmax` noté à
+la passe précédente) : une transaction longue retarde sa montée, jamais une livraison.
+Une passe par heure relit depuis zéro, pour le cas d'un numéro tiré avant que sa
+transaction ait un identifiant. Les garanties ci-dessus sont inchangées (tests
+`a_running_transaction_is_never_skipped`, `pass_floor`).
+
 ## Alternatives
 
 - Lecture par numéro seul : risque de trou.
