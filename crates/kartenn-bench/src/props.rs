@@ -25,7 +25,7 @@ use sqlx::types::time::OffsetDateTime;
 use crate::Dataset;
 
 /// Validity of the loaded objects.
-const SINCE: &str = "[\"2026-01-01 00:00:00+00\",)";
+pub(crate) const SINCE: &str = "[\"2026-01-01 00:00:00+00\",)";
 /// Heritable properties, then non-heritable ones.
 const HERITABLE: [&str; 3] = ["custom.h1", "custom.h2", "custom.h3"];
 const PLAIN: [&str; 7] = [
@@ -39,21 +39,21 @@ const PLAIN: [&str; 7] = [
 ];
 
 /// One measured budget.
-struct Budget {
-    name: &'static str,
-    limit: Duration,
-    measured: Duration,
-    note: String,
+pub(crate) struct Budget {
+    pub(crate) name: &'static str,
+    pub(crate) limit: Duration,
+    pub(crate) measured: Duration,
+    pub(crate) note: String,
 }
 
 /// p95 of samples.
-fn p95(mut samples: Vec<Duration>) -> Duration {
+pub(crate) fn p95(mut samples: Vec<Duration>) -> Duration {
     samples.sort();
     let i = (samples.len() * 95).div_ceil(100).saturating_sub(1);
     samples.get(i).copied().unwrap_or_default()
 }
 
-async fn copy(pool: &PgPool, statement: &str, data: String) -> anyhow::Result<()> {
+pub(crate) async fn copy(pool: &PgPool, statement: &str, data: String) -> anyhow::Result<()> {
     let mut copy = pool.copy_in_raw(statement).await?;
     copy.send(data.into_bytes()).await?;
     copy.finish().await?;
@@ -62,7 +62,7 @@ async fn copy(pool: &PgPool, statement: &str, data: String) -> anyhow::Result<()
 
 /// Loads domains, prefixes and addresses as objects valid since 2026 (ranges are not
 /// needed by these budgets).
-async fn load(pool: &PgPool, data: &Dataset) -> anyhow::Result<()> {
+pub(crate) async fn load(pool: &PgPool, data: &Dataset) -> anyhow::Result<()> {
     let changeset = Uuid::now_v7();
     let mut domains = String::new();
     for d in &data.domains {
@@ -234,7 +234,7 @@ fn touched(diff: &[DiffCount]) -> u64 {
 }
 
 /// Shows how far the run is (the reference run takes minutes).
-fn progress(line: &str) {
+pub(crate) fn progress(line: &str) {
     eprintln!("{line}");
 }
 
@@ -462,8 +462,20 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         note: format!("{} objects changed", touched(&diff)),
     });
 
+    let (lines, ok) = verdict(&budgets)?;
+    report.push_str(&lines);
+    Ok((report, ok))
+}
+
+/// One line per budget, and whether all hold.
+///
+/// # Errors
+///
+/// Never in practice (writing to a string).
+pub(crate) fn verdict(budgets: &[Budget]) -> anyhow::Result<(String, bool)> {
+    let mut report = String::new();
     let mut ok = true;
-    for b in &budgets {
+    for b in budgets {
         let pass = b.measured <= b.limit;
         ok &= pass;
         writeln!(

@@ -5,6 +5,9 @@
 //! `kartenn-bench props <database-url> <seed> [small]`: loads the dataset into an empty
 //! database and checks the budgets of the properties (REQ-003-26); exits with an error if
 //! one is exceeded.
+//!
+//! `kartenn-bench core <database-url> <seed> [small]`: the same for the budgets of the
+//! core (REQ-002-45, REQ-004-38).
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -26,20 +29,23 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
-        [command, database, seed, rest @ ..] if command == "props" => {
+        [command, database, seed, rest @ ..] if command == "props" || command == "core" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let data = generate(seed, scale(rest));
             let runtime = tokio::runtime::Runtime::new()?;
-            let (report, ok) =
-                runtime.block_on(kartenn_bench::props::run(database, &data, seed))?;
+            let (report, ok) = if command == "props" {
+                runtime.block_on(kartenn_bench::props::run(database, &data, seed))?
+            } else {
+                runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?
+            };
             print!("{report}");
             if !ok {
-                bail!("a budget of the properties is exceeded");
+                bail!("a budget is exceeded");
             }
             Ok(())
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core <database-url> <seed> [small]"
         ),
     }
 }

@@ -1,0 +1,462 @@
+//! Budgets of the core (spec 002, REQ-002-45; spec 004, REQ-004-38; tasks 002-27,
+//! 004-23) on the reference dataset with three years of history: reading an object now
+//! and as known in the past, a filtered page, a subtree with its occupancy, a unitary
+//! changeset, a sustained rate of unitary changesets and an import of as many addresses
+//! as the dataset holds, through the real service and storage adapter.
+
+use std::fmt::Write as _;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
+
+use anyhow::{Context, bail};
+use kartenn_core::objects::{AddressUsage, Nature};
+use kartenn_core::values::Cardinality;
+use kartenn_service::authz::Unrestricted;
+use kartenn_service::import::{create_import, run_import};
+use kartenn_service::operations::{DeclarationInput, TypeInput};
+use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::port::ImportItem;
+use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
+use kartenn_store_pg::filter::{Condition, filter};
+use kartenn_store_pg::read::object;
+use kartenn_store_pg::tree::{children, next_free_address, occupancy};
+use kartenn_store_pg::write::PgStore;
+use rand::{RngExt, SeedableRng};
+use rand_chacha::ChaCha8Rng;
+use sqlx::PgPool;
+use sqlx::types::Uuid;
+use sqlx::types::time::OffsetDateTime;
+
+use crate::Dataset;
+use crate::props::{Budget, SINCE, copy, load, p95, progress, verdict};
+
+/// Start of the three years of history.
+const HISTORY_FROM: &str = "2023-10-01";
+/// Writers of the sustained rate, and how long they write.
+const WRITERS: usize = 8;
+const SUSTAINED: Duration = Duration::from_secs(20);
+const DAY: Duration = Duration::from_hours(24);
+
+/// Two past versions of every prefix and address, asserted over three years and spread
+/// over the months: the first until a day of the first year, the second until the load.
+async fn history(pool: &PgPool) -> anyhow::Result<()> {
+    for (table, columns) in [
+        (
+            "prefix",
+            "id, domain_id, prefix, nature, point_to_point, anycast, public, registry_version, valid_period, changeset_id",
+        ),
+        (
+            "address",
+            "id, domain_id, address, usage, public, registry_version, valid_period, changeset_id",
+        ),
+    ] {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "CALL kartenn_history_partitions('{table}', '{HISTORY_FROM}', 40)"
+        )))
+        .execute(pool)
+        .await?;
+        let split = format!(
+            "'{HISTORY_FROM}'::timestamptz + (abs(hashtext(id::text)) % 365 + 1) * interval '1 day'"
+        );
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO {table}_history ({columns}, sys_start, sys_end)
+             SELECT {columns}, '{HISTORY_FROM}'::timestamptz - interval '30 days', {split}
+             FROM {table}"
+        )))
+        .execute(pool)
+        .await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO {table}_history ({columns}, sys_start, sys_end)
+             SELECT {columns}, {split}, sys_start FROM {table}"
+        )))
+        .execute(pool)
+        .await?;
+    }
+    sqlx::raw_sql("ANALYZE").execute(pool).await?;
+    Ok(())
+}
+
+/// Whether the plan of `explain` (bound to `at`) reads the system period index of a
+/// history; with `forced`, sequential scans are disabled to tell whether it can.
+async fn uses_index(
+    pool: &PgPool,
+    explain: &str,
+    at: OffsetDateTime,
+    forced: bool,
+) -> anyhow::Result<bool> {
+    let mut tx = pool.begin().await?;
+    if forced {
+        sqlx::raw_sql("SET LOCAL enable_seqscan = off")
+            .execute(&mut *tx)
+            .await?;
+    }
+    let plan: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(explain.to_owned()))
+        .bind(at)
+        .fetch_all(&mut *tx)
+        .await?;
+    tx.rollback().await?;
+    // On a partition, the index inherited from `<history>_system_period` is named after
+    // the expression.
+    Ok(plan
+        .iter()
+        .any(|l| l.contains("system_period") || l.contains("_tstzrange_idx")))
+}
+
+/// A unitary changeset of `author`: its duration, or why it was not applied.
+async fn unitary(store: &PgStore, author: Uuid, operation: Operation) -> anyhow::Result<Duration> {
+    let request = ChangesetRequest {
+        author,
+        motive: "bench".into(),
+        period: None,
+        operations: vec![operation],
+        simulate: false,
+        idempotency_key: None,
+    };
+    let started = Instant::now();
+    let outcome = submit(store, &Unrestricted, &request, MAX_OPERATIONS).await?;
+    let elapsed = started.elapsed();
+    match outcome {
+        Outcome::Applied { .. } => Ok(elapsed),
+        other => bail!("changeset not applied: {other:?}"),
+    }
+}
+
+/// A new address in `network`: its first free address now.
+async fn new_address(pool: &PgPool, network: (Uuid, Uuid)) -> anyhow::Result<Operation> {
+    let free = next_free_address(pool, network.0, OffsetDateTime::now_utc())
+        .await?
+        .context("a network of the dataset is full")?;
+    Ok(Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(network.1),
+        address: free.to_string(),
+        usage: AddressUsage::Host,
+    })
+}
+
+/// `count` addresses in a new domain, with their networks (a `/22` per thousand) under
+/// one container, each known to the source by an identifier.
+fn import_items(count: usize) -> Vec<ImportItem> {
+    let item = |external: String, operation| ImportItem {
+        external_id: Some(external),
+        operation,
+    };
+    let mut items = vec![
+        item(
+            "bulk".into(),
+            Operation::CreateDomain {
+                local: Some(1),
+                slug: "bulk".into(),
+            },
+        ),
+        item(
+            "root".into(),
+            Operation::CreatePrefix {
+                local: Some(2),
+                domain: Ref::Local(1),
+                prefix: "10.0.0.0/8".into(),
+                nature: Nature::Container,
+                point_to_point: false,
+                anycast: false,
+            },
+        ),
+    ];
+    let mut local = 2;
+    for n in 0..count.div_ceil(1_000) {
+        let base = 0x0a00_0000_u32 + (u32::try_from(n).unwrap_or(0) << 10);
+        local += 1;
+        items.push(item(
+            format!("net-{n}"),
+            Operation::CreatePrefix {
+                local: Some(local),
+                domain: Ref::Local(1),
+                prefix: format!("{}/22", std::net::Ipv4Addr::from(base)),
+                nature: Nature::Network,
+                point_to_point: false,
+                anycast: false,
+            },
+        ));
+        for h in 1..=1_000.min(count - n * 1_000) {
+            local += 1;
+            items.push(item(
+                format!("addr-{n}-{h}"),
+                Operation::CreateAddress {
+                    local: Some(local),
+                    domain: Ref::Local(1),
+                    address: std::net::Ipv4Addr::from(base + u32::try_from(h).unwrap_or(0))
+                        .to_string(),
+                    usage: AddressUsage::Host,
+                },
+            ));
+        }
+    }
+    items
+}
+
+/// Loads, writes the history and measures; returns the report and whether every budget
+/// holds.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+    let pool = PgPool::connect(database)
+        .await
+        .with_context(|| format!("connecting to {database}"))?;
+    kartenn_store_pg::MIGRATOR.run(&pool).await?;
+    let started = Instant::now();
+    load(&pool, data).await?;
+    progress(&format!("load: {:?}", started.elapsed()));
+    history(&pool).await?;
+    progress(&format!("history: {:?}", started.elapsed()));
+    let author: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await?;
+    let store = PgStore::new(pool.clone());
+    let mut rng = ChaCha8Rng::seed_from_u64(seed);
+    let mut budgets = Vec::new();
+    let mut report = String::new();
+
+    // A non-heritable integer on 20 % of the addresses, for the filtered pages.
+    unitary(
+        &store,
+        author,
+        Operation::DeclareProperty {
+            local: None,
+            declaration: DeclarationInput {
+                key: "custom.rack".into(),
+                value_type: TypeInput::Int {
+                    min: 0,
+                    max: 1_000_000,
+                },
+                cardinality: Cardinality::Single,
+                carriers: vec!["address".into()],
+                inherit: None,
+                module: None,
+                obligations: Vec::new(),
+                expected: None,
+            },
+        },
+    )
+    .await?;
+    let rack: Uuid =
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'custom.rack'")
+            .fetch_one(&pool)
+            .await?;
+    let mut rows = String::new();
+    for a in &data.addresses {
+        if rng.random_range(0..100) < 20 {
+            writeln!(
+                rows,
+                "{}\taddress\t{rack}\tvalue\t{}\tinput\t{SINCE}\t{}",
+                a.id,
+                rng.random_range(0..1_000_000),
+                Uuid::nil()
+            )?;
+        }
+    }
+    copy(
+        &pool,
+        "COPY property_assignment (object_id, object_type, property_id, kind, v_int, provenance, valid_period, changeset_id) FROM STDIN",
+        rows,
+    )
+    .await?;
+    // Measured in a steady state: no checkpoint of the bulk writes under way.
+    // CHECKPOINT needs the role pg_checkpoint; without it, VACUUM has written most pages.
+    sqlx::raw_sql("VACUUM ANALYZE").execute(&pool).await?;
+    let checkpoint = sqlx::raw_sql("CHECKPOINT").execute(&pool).await.is_ok();
+    writeln!(report, "INFO checkpoint before the measures: {checkpoint}")?;
+    progress(&format!("assignments: {:?}", started.elapsed()));
+
+    // Reading an object, now and as known at a past date (REQ-004-38: at most twice).
+    let now = OffsetDateTime::now_utc();
+    // HISTORY_FROM, 2023-10-01T00:00Z.
+    let from = OffsetDateTime::from_unix_timestamp(1_696_118_400)?;
+    // Independent draws for both reads (the same object read twice would be in cache
+    // the second time), after a warm-up of the connections and statements.
+    let draw = |rng: &mut ChaCha8Rng| {
+        if rng.random_range(0..4) == 0 {
+            data.prefixes[rng.random_range(0..data.prefixes.len())].id
+        } else {
+            data.addresses[rng.random_range(0..data.addresses.len())].id
+        }
+    };
+    for i in 0..20 {
+        let as_of = (i % 2 == 0).then(|| from + DAY * 100);
+        object(&pool, draw(&mut rng), now, as_of).await?;
+    }
+    let mut current = Vec::new();
+    let mut past = Vec::new();
+    for _ in 0..200 {
+        let t = Instant::now();
+        object(&pool, draw(&mut rng), now, None)
+            .await?
+            .context("a loaded object is missing")?;
+        current.push(t.elapsed());
+        let as_of = from + DAY * rng.random_range(0..700);
+        let t = Instant::now();
+        object(&pool, draw(&mut rng), now, Some(as_of))
+            .await?
+            .context("a past version is missing")?;
+        past.push(t.elapsed());
+    }
+    let current = p95(current);
+    let past = p95(past);
+    budgets.push(Budget {
+        name: "read an object, p95",
+        limit: Duration::from_millis(50),
+        measured: current,
+        note: "200 draws, with its properties".into(),
+    });
+    budgets.push(Budget {
+        name: "read an object as known in the past, p95",
+        limit: (current * 2).max(Duration::from_millis(5)),
+        measured: past,
+        note: "limit: twice the current read (floor 5 ms)".into(),
+    });
+
+    // The versions asserted over a day, from the system period index (004-25): usable
+    // (blocking), and chosen by the planner (depends on the volume, reported).
+    let day = from + DAY * 400;
+    let over_a_day = "SELECT count(*) FROM address_history
+                      WHERE tstzrange(sys_start, sys_end) && tstzrange($1, $1 + interval '1 day')";
+    let explain = format!("EXPLAIN {over_a_day}");
+    let chosen = uses_index(&pool, &explain, day, false).await?;
+    let usable = uses_index(&pool, &explain, day, true).await?;
+    let t = Instant::now();
+    let _: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(over_a_day))
+        .bind(day)
+        .fetch_one(&pool)
+        .await?;
+    writeln!(
+        report,
+        "{} system period index of the history: usable {usable}, chosen {chosen} ({:?} for a day)",
+        if usable { "PASS" } else { "FAIL" },
+        t.elapsed()
+    )?;
+
+    // Filtered pages of 100.
+    let mut samples = Vec::new();
+    for _ in 0..100 {
+        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+        let low: i64 = rng.random_range(0..900_000);
+        let condition =
+            Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
+        let t = Instant::now();
+        filter(&pool, rack, domain, &condition, now, None, 100).await?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "filtered page of 100, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: "100 draws".into(),
+    });
+
+    // Subtree (direct content) and occupancy of a prefix.
+    let mut samples = Vec::new();
+    for _ in 0..200 {
+        let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
+        let t = Instant::now();
+        children(&pool, p.id, now).await?;
+        occupancy(&pool, p.id, now)
+            .await?
+            .context("a loaded prefix is missing")?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "subtree and occupancy, p95",
+        limit: Duration::from_millis(200),
+        measured: p95(samples),
+        note: "200 draws, containers and networks".into(),
+    });
+
+    // Unitary changesets: a new address in a random network.
+    let networks: Vec<(Uuid, Uuid)> = data
+        .prefixes
+        .iter()
+        .filter(|p| p.nature == crate::Nature::Network)
+        .map(|p| (p.id, data.domains[p.domain].id))
+        .collect();
+    let mut samples = Vec::new();
+    for _ in 0..100 {
+        let network = networks[rng.random_range(0..networks.len())];
+        let operation = new_address(&pool, network).await?;
+        samples.push(unitary(&store, author, operation).await?);
+    }
+    budgets.push(Budget {
+        name: "unitary changeset, p95",
+        limit: Duration::from_millis(200),
+        measured: p95(samples),
+        note: "100 new addresses, validated and applied".into(),
+    });
+    progress(&format!(
+        "reads and unitary changesets: {:?}",
+        started.elapsed()
+    ));
+
+    // Sustained rate: writers on disjoint networks for a while.
+    let done = Arc::new(AtomicUsize::new(0));
+    let mut writers = Vec::new();
+    let begun = Instant::now();
+    for w in 0..WRITERS {
+        let (pool, store, done) = (pool.clone(), store.clone(), done.clone());
+        let mine: Vec<(Uuid, Uuid)> = networks
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| i % WRITERS == w)
+            .map(|(_, n)| *n)
+            .collect();
+        writers.push(tokio::spawn(async move {
+            let mut i = 0;
+            while begun.elapsed() < SUSTAINED {
+                let operation = new_address(&pool, mine[i % mine.len()]).await?;
+                unitary(&store, author, operation).await?;
+                done.fetch_add(1, Ordering::Relaxed);
+                i += 1;
+            }
+            anyhow::Ok(())
+        }));
+    }
+    for w in writers {
+        w.await??;
+    }
+    let count = done.load(Ordering::Relaxed);
+    let rate = f64::from(u32::try_from(count)?) / begun.elapsed().as_secs_f64();
+    budgets.push(Budget {
+        name: "sustained unitary changesets",
+        // As a time per changeset: 50 per second at least.
+        limit: Duration::from_millis(20),
+        measured: begun.elapsed() / u32::try_from(count.max(1))?,
+        note: format!("{rate:.1} changesets/s, {WRITERS} writers, {count} in {SUSTAINED:?}"),
+    });
+    progress(&format!("sustained rate: {:?}", started.elapsed()));
+
+    // Import of as many addresses as the dataset holds, in batches.
+    let count = data.addresses.len();
+    let items = import_items(count);
+    let t = Instant::now();
+    let import = create_import(&store, author, "bench", items, MAX_OPERATIONS).await?;
+    let status = run_import(&store, &Unrestricted, import, MAX_OPERATIONS)
+        .await?
+        .context("the import vanished")?;
+    let elapsed = t.elapsed();
+    if status.state != "done" {
+        bail!("import not done: {status:?}");
+    }
+    budgets.push(Budget {
+        name: "import",
+        limit: Duration::from_mins(15),
+        measured: elapsed,
+        note: format!("{count} addresses, {} batches", status.applied),
+    });
+    progress(&format!("import: {:?}", started.elapsed()));
+
+    let (lines, ok) = verdict(&budgets)?;
+    report.push_str(&lines);
+    Ok((report, ok && usable))
+}

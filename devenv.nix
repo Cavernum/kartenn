@@ -74,6 +74,17 @@
     '';
   };
 
+  # Budgets of the core (REQ-002-45, REQ-004-38) on the same dataset with three years of
+  # history: `bench-core [seed] [small]`.
+  scripts.bench-core = {
+    description = "Check the budgets of the core on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   git-hooks.hooks = {
     # Generic hygiene, every project.
     check-merge-conflicts.enable = true;

@@ -15,6 +15,7 @@ use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
+pub mod core_budgets;
 pub mod props;
 
 /// Address family of a generated value.
