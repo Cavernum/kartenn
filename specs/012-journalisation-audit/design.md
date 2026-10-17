@@ -249,8 +249,10 @@ borne le message (8 Kio par défaut, troncature en fin, RFC 5424 §6.1).
 
 ### OpenTelemetry (REQ-012-7, 24, 25)
 
-- Fournisseurs de traces, de métriques et de logs du SDK, exporteur OTLP gRPC (`tonic`)
-  ou HTTP/protobuf selon `OTEL_EXPORTER_OTLP_PROTOCOL` ; ressource `service.name =
+- Fournisseurs de traces, de métriques et de logs du SDK, exporteur OTLP gRPC (`tonic`,
+  TLS par rustls et le fournisseur ring, sans aws-lc) ; HTTP/protobuf n'est pas branché
+  (précision de la tâche 012-15 : le client HTTP de rustls tire aws-lc ; à ajouter si un
+  déploiement l'exige) ; ressource `service.name =
   kartenn`, `service.version`, `service.instance.id` (UUID v7 au démarrage).
 - Couches : `tracing-opentelemetry` pour les spans, **sans les événements** (filtre de
   couche qui ne laisse passer que les spans), `opentelemetry-appender-tracing` pour les

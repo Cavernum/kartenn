@@ -123,6 +123,7 @@ impl Record {
         } else {
             meta.name().to_owned()
         };
+        let (trace_id, span_id) = crate::otel::current_ids().unzip();
         Self {
             time: SystemTime::now(),
             severity: severity(*meta.level()),
@@ -130,8 +131,8 @@ impl Record {
             target: meta.target().to_owned(),
             message: visitor.message,
             fields: visitor.fields,
-            trace_id: None,
-            span_id: None,
+            trace_id,
+            span_id,
         }
     }
 }

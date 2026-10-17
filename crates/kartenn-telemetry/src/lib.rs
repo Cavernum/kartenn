@@ -4,5 +4,6 @@
 //! assembles these adapters from its configuration (REQ-012-2).
 
 pub mod capture;
+pub mod otel;
 pub mod outputs;
 pub mod sinks;

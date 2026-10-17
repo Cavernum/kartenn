@@ -14,11 +14,19 @@ workspace = true
 kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
 kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+opentelemetry = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics"] }
+opentelemetry-appender-tracing = "0.33.1"
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["grpc-tonic", "tls-ring", "tls-roots", "trace", "logs", "metrics"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics", "rt-tokio"] }
+opentelemetry-proto = { version = "0.33.1", default-features = false, features = ["gen-tonic", "logs"] }
 serde_json = "1.0.154"
+thiserror = "2.0.21"
+tracing-opentelemetry = { version = "0.34.0", default-features = false, features = ["metrics"] }
 sha2 = "0.10.9"
 syslog-sender = { version = "0.1.0", path = "../syslog-sender" }
 time = { version = "0.3.55", features = ["parsing"] }
 tokio = { version = "1.53.3", features = ["fs", "io-util", "io-std", "sync", "rt", "net"] }
+tonic = { version = "0.14.1", default-features = false, features = ["transport", "tls-ring", "tls-native-roots"] }
 tracing = "0.1.44"
 tracing-core = "0.1.36"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry", "env-filter"] }
@@ -26,5 +34,7 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 [dev-dependencies]
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics", "testing"] }
 syslog_rfc5424 = "0.10.0"
+tonic = { version = "0.14.1", default-features = false, features = ["server", "router", "transport"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net"] }

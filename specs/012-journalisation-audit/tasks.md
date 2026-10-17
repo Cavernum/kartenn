@@ -113,10 +113,13 @@ en fournit le mécanisme et les teste avec des appels directs.
   journald par son protocole natif (forme binaire pour les valeurs à plusieurs lignes),
   `MESSAGE_ID` dérivé du nom par SHA-256 plutôt qu'en UUID v5 (même usage, sans
   dépendance de plus)
-- [ ] 15. OpenTelemetry : traces, métriques, logs sans double export, échantillonneur et
+- [x] 15. OpenTelemetry : traces, métriques, logs sans double export, échantillonneur et
   appelants de confiance, Baggage ignoré, filtres anti-boucle, métriques de REQ-012-25 —
   REQ-012-6, 7, 24, 25 — verify : test d'intégration contre un récepteur OTLP de test
-  (un seul export par événement, `trace_id` commun)
+  (un seul export par événement, `trace_id` commun) — `otel::{Providers, incoming, Instruments}`
+  (`kartenn-telemetry/tests/otel.rs`, exporteurs en mémoire) ; OTLP par gRPC seulement ;
+  `OtlpSink` de l'audit : un `Export` acquitté par lot, un rejet partiel n'est pas une
+  livraison (`tests/audit_otlp.rs`, collecteur gRPC de test)
 - [ ] 16. Configuration (`figment`), validation au démarrage, défaut sûr ; sous-commande
   `kartenn-server run` (télémétrie, relais, scellement), arrêt propre — REQ-012-31, 34 —
   verify : configurations invalides refusées ; `SIGTERM` sous charge
