@@ -232,6 +232,17 @@ pub(crate) fn changeset_events(
                     .detail("enabled", policy.enabled)
                     .map_err(|e| audit_err(&e))?,
             ),
+            Planned::Modify {
+                kind: crate::ObjectKind::Property,
+                id,
+                change: crate::port::Change::Sensitive(sensitive),
+                ..
+            } => events.push(
+                event(&DECLARATION_CHANGED, Outcome::Success)?
+                    .target("property", [*id])
+                    .detail("sensitive", *sensitive)
+                    .map_err(|e| audit_err(&e))?,
+            ),
             Planned::Declare { id, declaration }
             | Planned::UpdateDeclaration { id, declaration } => events.push(
                 event(&DECLARATION_CHANGED, Outcome::Success)?

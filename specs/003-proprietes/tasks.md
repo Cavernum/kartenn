@@ -98,6 +98,6 @@ voir [`../README.md`](../README.md).
   « entité » des obligations (objets dont le propriétaire résolu est l'entité ou une
   descendante) — REQ-003-11, 16 — verify : oracle de la tâche 5 sur des suites
   aléatoires de déplacements (`kartenn-service/tests/anchor_trees.rs`, entités et sites)
-- [ ] 19. Propriétés sensibles : colonne versionnée, opération `SetSensitivity`, clés
+- [x] 19. Propriétés sensibles : colonne versionnée, opération `SetSensitivity`, clés
   sensibles dans la lecture d'un objet — REQ-003-27 — verify : test de bout en bout avec
   la tâche 012-7 (amendement du 2026-10-17, P17)

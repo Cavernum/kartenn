@@ -4,14 +4,14 @@
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
 | [002-noyau-adressage](002-noyau-adressage/) | implémentées | implémentée | [tasks](002-noyau-adressage/tasks.md) (28/28) |
-| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (18/19, amendement P17) |
+| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
-| [012-journalisation-audit](012-journalisation-audit/) | approuvées | approuvée | [tasks](012-journalisation-audit/tasks.md) (6/22) |
+| [012-journalisation-audit](012-journalisation-audit/) | approuvées | approuvée | [tasks](012-journalisation-audit/tasks.md) (7/22) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 

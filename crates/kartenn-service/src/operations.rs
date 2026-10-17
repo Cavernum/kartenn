@@ -367,6 +367,14 @@ pub enum Operation {
         #[serde(default)]
         expected: Option<Uuid>,
     },
+    /// Marks a property sensitive, or removes the mark: reading its values is then audited
+    /// at high criticality (spec 003, REQ-003-27; spec 012, REQ-012-18).
+    SetSensitivity {
+        /// The property.
+        property: Ref,
+        /// Sensitive or not.
+        sensitive: bool,
+    },
     /// Changes the slug of a domain, an entity or a site over the period of the changeset;
     /// its UUID stays (REQ-002-47).
     Rename {
@@ -543,6 +551,7 @@ impl Operation {
             | Self::MoveEntity { .. }
             | Self::MoveSite { .. }
             | Self::Rename { .. }
+            | Self::SetSensitivity { .. }
             | Self::SetApprovalPolicy { .. }
             | Self::Restore { .. }
             | Self::BindExternal { .. }

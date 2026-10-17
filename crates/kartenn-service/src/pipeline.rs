@@ -74,6 +74,9 @@ pub enum RequestError {
     /// The idempotency key was already used with a different content (REQ-004-10).
     #[error("the idempotency key was already used for a different changeset")]
     IdempotencyConflict,
+    /// The actor lacks this permission (refusal audited).
+    #[error("permission {0} is required")]
+    Forbidden(String),
     /// The audit journal could not record the action, which is therefore not done
     /// (REQ-012-11).
     #[error("the audit journal is unavailable: {0}")]
@@ -299,7 +302,9 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             kind,
             property,
         } => vec![(*object, *kind), (*property, ObjectKind::Property)],
-        Operation::AddEnumValue { property, .. } => vec![(*property, ObjectKind::Property)],
+        Operation::AddEnumValue { property, .. } | Operation::SetSensitivity { property, .. } => {
+            vec![(*property, ObjectKind::Property)]
+        }
         Operation::CreateEntity { parent, .. } => {
             parent.iter().map(|p| (*p, ObjectKind::Entity)).collect()
         }
@@ -585,6 +590,15 @@ fn plan_anchor(
             change: Change::Slug(Slug::parse(slug)?),
             expected: *expected,
         },
+        Operation::SetSensitivity {
+            property,
+            sensitive,
+        } => Planned::Modify {
+            kind: ObjectKind::Property,
+            id: resolve(*property),
+            change: Change::Sensitive(*sensitive),
+            expected: None,
+        },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
         Operation::BindExternal {
             object,
@@ -705,6 +719,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
             | Operation::MoveEntity { .. }
             | Operation::MoveSite { .. }
             | Operation::Rename { .. }
+            | Operation::SetSensitivity { .. }
             | Operation::SetApprovalPolicy { .. }
             | Operation::Restore { .. }
             | Operation::BindExternal { .. }
@@ -836,13 +851,6 @@ async fn lock_targets<T: WriteTx>(
             } => {
                 domains.insert(*id);
             }
-            // A modified prefix or address may enter or leave public space.
-            Planned::Modify { kind, id, .. } => {
-                if let Some(d) = tx.domain_of(*kind, *id).await? {
-                    domains.insert(d);
-                }
-                public |= *kind != ObjectKind::Range;
-            }
             // A new domain is invisible to others until commit: nothing to serialise.
             // Declarations are serialised by their constraints (unique key, versions).
             Planned::Domain { .. }
@@ -850,11 +858,22 @@ async fn lock_targets<T: WriteTx>(
                 kind: ObjectKind::Property | ObjectKind::EnumValue,
                 ..
             }
+            | Planned::Modify {
+                kind: ObjectKind::Property,
+                ..
+            }
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
             | Planned::BindExternal { .. }
             | Planned::Policy(_) => {}
+            // A modified prefix or address may enter or leave public space.
+            Planned::Modify { kind, id, .. } => {
+                if let Some(d) = tx.domain_of(*kind, *id).await? {
+                    domains.insert(d);
+                }
+                public |= *kind != ObjectKind::Range;
+            }
             // An assignment is written under the lock of its object's domain.
             Planned::Assign { object, kind, .. } | Planned::Unassign { object, kind, .. } => {
                 if let Some(d) = tx.domain_of(*kind, *object).await? {

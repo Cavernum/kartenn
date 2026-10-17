@@ -59,11 +59,15 @@ en fournit le mécanisme et les teste avec des appels directs.
   système agit comme `system` ; les refus de droits en revue (valider son propre
   changeset, retirer celui d'un autre) sont aussi audités ; l'annulation produit un
   changeset ordinaire, audité à sa soumission
-- [ ] 7. Lectures : `RequestContext` dans les lectures du store et du service,
+- [x] 7. Lectures : `RequestContext` dans les lectures du store et du service,
   `data.objects.read` (`low`) ; attribut `sensitive` des déclarations (amendement 003 :
   migration, opérations, droits) et `data.sensitive.read` (`high`) ; consultation de
   l'audit (`audit.events.read`, permission dédiée) — REQ-012-17, 18 — verify : tests ;
-  amendement de la 003 écrit avant le code
+  amendement de la 003 écrit avant le code — port `Reader` et `reads::{read_object, read_audit}`
+  (`kartenn-service/tests/audit_reads.rs`) ; l'événement est enregistré avant de rendre
+  le résultat ; permission `core.audit.read` ; les autres lectures (pages, arbre,
+  occupation, différentiel) passeront par le même mécanisme quand l'API (006) les
+  servira
 - [ ] 8. Agrégation des échecs d'authentification par minute et par (source, empreinte)
   — REQ-012-19 — verify : 1 000 échecs donnent au plus 11 événements, total exact
 

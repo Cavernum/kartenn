@@ -2,26 +2,17 @@
 //! its properties (spec 002, REQ-002-45; spec 004, REQ-004-16; task 002-27). The read the
 //! budgets of D14 measure, until the API (006) serves it.
 
-use std::collections::BTreeMap;
-
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{AssertSqlSafe, PgPool};
 
+use kartenn_service::StoreError;
+use kartenn_service::port::{AuditQuery, Reader};
+
 use crate::diff::value_json;
 use crate::temporal::{TemporalError, snapshot};
 
-/// An object as it was valid at a date and known at another.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectView {
-    /// `domain`, `prefix`, `range`, `address`, `entity` or `site`.
-    pub kind: String,
-    /// Attributes, by column.
-    pub fields: serde_json::Value,
-    /// Resolved value of each property the object carries or inherits, by key (closed-list
-    /// keys); `None` for an explicit "no value".
-    pub properties: BTreeMap<String, Option<serde_json::Value>>,
-}
+pub use kartenn_service::port::ObjectRead;
 
 fn sql_err(e: &TemporalError) -> sqlx::Error {
     sqlx::Error::Protocol(e.to_string())
@@ -72,7 +63,7 @@ fn objects_sql() -> Result<String, TemporalError> {
 fn properties_sql() -> Result<String, TemporalError> {
     let declarations = snapshot(
         "property_declaration",
-        &["id", "key", "value_type", "inherit_tree"],
+        &["id", "key", "value_type", "inherit_tree", "sensitive"],
     )?;
     let origins = snapshot(
         "property_origin",
@@ -98,12 +89,12 @@ fn properties_sql() -> Result<String, TemporalError> {
     let value = value_json("s.value_type = 'enum'");
     Ok(format!(
         "WITH d AS (SELECT * FROM {declarations} x),
-              s AS (SELECT d.id, d.key, d.value_type, o.origin_object_id AS holder
+              s AS (SELECT d.id, d.key, d.value_type, d.sensitive, o.origin_object_id AS holder
                     FROM d JOIN {origins} o ON o.property_id = d.id AND o.object_id = $3
                     WHERE d.inherit_tree IS NOT NULL
                     UNION ALL
-                    SELECT d.id, d.key, d.value_type, $3 FROM d WHERE d.inherit_tree IS NULL)
-         SELECT s.key, {value} FROM s
+                    SELECT d.id, d.key, d.value_type, d.sensitive, $3 FROM d WHERE d.inherit_tree IS NULL)
+         SELECT s.key, {value}, s.sensitive FROM s
          -- per holder behind a fence, so that the lookup goes down the union to the
          -- indexes (a join hashed the whole table of assignments: 30 ms on the reference
          -- dataset)
@@ -125,7 +116,7 @@ pub async fn object(
     id: Uuid,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
-) -> sqlx::Result<Option<ObjectView>> {
+) -> sqlx::Result<Option<ObjectRead>> {
     let row: Option<(String, serde_json::Value)> =
         sqlx::query_as(AssertSqlSafe(objects_sql().map_err(|e| sql_err(&e))?))
             .bind(valid_at)
@@ -136,16 +127,64 @@ pub async fn object(
     let Some((kind, fields)) = row else {
         return Ok(None);
     };
-    let properties: Vec<(String, Option<serde_json::Value>)> =
+    let properties: Vec<(String, Option<serde_json::Value>, bool)> =
         sqlx::query_as(AssertSqlSafe(properties_sql().map_err(|e| sql_err(&e))?))
             .bind(valid_at)
             .bind(as_of)
             .bind(id)
             .fetch_all(pool)
             .await?;
-    Ok(Some(ObjectView {
+    let sensitive = properties
+        .iter()
+        .filter(|(_, _, sensitive)| *sensitive)
+        .map(|(key, _, _)| key.clone())
+        .collect();
+    Ok(Some(ObjectRead {
         kind,
         fields,
-        properties: properties.into_iter().collect(),
+        properties: properties.into_iter().map(|(k, v, _)| (k, v)).collect(),
+        sensitive,
     }))
+}
+
+fn instant_time(at: kartenn_core::period::Instant) -> Result<OffsetDateTime, StoreError> {
+    OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.0) * 1000)
+        .map_err(|e| StoreError(e.to_string()))
+}
+
+impl Reader for crate::write::PgStore {
+    async fn object(
+        &self,
+        id: Uuid,
+        valid_at: kartenn_core::period::Instant,
+        as_of: Option<kartenn_core::period::Instant>,
+    ) -> Result<Option<ObjectRead>, StoreError> {
+        let as_of = as_of.map(instant_time).transpose()?;
+        object(self.pool(), id, instant_time(valid_at)?, as_of)
+            .await
+            .map_err(|e| StoreError(e.to_string()))
+    }
+
+    async fn audit_events(&self, query: &AuditQuery) -> Result<Vec<serde_json::Value>, StoreError> {
+        let from = query.from.map(instant_time).transpose()?;
+        let to = query.to.map(instant_time).transpose()?;
+        sqlx::query_scalar(
+            "SELECT to_jsonb(e) - 'seq' || jsonb_build_object('seq', e.seq) FROM audit.event e
+             WHERE ($1::timestamptz IS NULL OR e.recorded_at >= $1)
+               AND ($2::timestamptz IS NULL OR e.recorded_at < $2)
+               AND ($3::text IS NULL OR e.name = $3)
+               AND ($4::uuid IS NULL OR e.actor_id = $4)
+               AND ($5::uuid IS NULL OR e.target_ids @> ARRAY[$5])
+             ORDER BY e.seq DESC LIMIT $6",
+        )
+        .bind(from)
+        .bind(to)
+        .bind(query.name.as_deref())
+        .bind(query.actor)
+        .bind(query.object)
+        .bind(i64::from(query.limit))
+        .fetch_all(self.pool())
+        .await
+        .map_err(|e| StoreError(e.to_string()))
+    }
 }

@@ -26,7 +26,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `rbac.binding.changed` | INFO | high | Une liaison sujet × rôle × périmètre a été créée ou retirée. | `role`, `scope` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `account.service.changed` | INFO | high | Un compte de service a été créé, renouvelé ou révoqué. | `change` | REQ-012-8 | Account Change 3001 / Create | `iam` |
 | `policy.approval.changed` | INFO | high | Une politique d'approbation a été créée, modifiée ou désactivée. | `enabled` | REQ-012-8 | Entity Management 3004 / Update | `configuration` |
-| `property.declaration.changed` | INFO | normal | Une déclaration de propriété a été créée ou modifiée. | `key` | REQ-012-8 | Entity Management 3004 / Update | `configuration` |
+| `property.declaration.changed` | INFO | normal | Une déclaration de propriété a été créée ou modifiée. | `key`, `sensitive` | REQ-012-8, REQ-003-27 | Entity Management 3004 / Update | `configuration` |
 | `person.identity.pseudonymised` | INFO | high | Les données d'identité d'une personne ont été pseudonymisées. | — | REQ-012-8 | Account Change 3001 / Other | `iam` |
 | `data.objects.read` | INFO | low | Une requête de lecture a renvoyé ces objets (jamais leurs valeurs). | `criteria` | REQ-012-18 | API Activity 6003 / Read | `database` |
 | `data.sensitive.read` | INFO | high | La valeur d'une propriété sensible a été lue. | `property` | REQ-012-18 | API Activity 6003 / Read | `database` |

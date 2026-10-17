@@ -1,6 +1,6 @@
 //! Storage port of the write pipeline (hexagonal architecture, ADR 0001).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 
 use kartenn_core::inheritance::Assigned;
@@ -44,6 +44,8 @@ pub enum Change {
     Parent(Option<Uuid>),
     /// The slug of a domain, an entity or a site (REQ-002-47).
     Slug(Slug),
+    /// Whether a property is sensitive (REQ-003-27).
+    Sensitive(bool),
 }
 
 /// Failure of one write.
@@ -58,6 +60,55 @@ pub enum WriteError {
     /// Infrastructure failure.
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+/// An object as it was valid at a date and known at another.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectRead {
+    /// `domain`, `prefix`, `range`, `address`, `entity` or `site`.
+    pub kind: String,
+    /// Attributes, by column.
+    pub fields: serde_json::Value,
+    /// Resolved value of each property the object carries or inherits, by key (closed-list
+    /// keys); `None` for an explicit "no value".
+    pub properties: BTreeMap<String, Option<serde_json::Value>>,
+    /// Keys of `properties` declared sensitive (spec 003, REQ-003-27): reading them is
+    /// audited (spec 012, REQ-012-18).
+    pub sensitive: BTreeSet<String>,
+}
+
+/// What a consultation of the audit journal asks for (spec 012, REQ-012-17).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AuditQuery {
+    /// Recorded from this time on.
+    pub from: Option<kartenn_core::period::Instant>,
+    /// Recorded before this time.
+    pub to: Option<kartenn_core::period::Instant>,
+    /// Of this event name.
+    pub name: Option<String>,
+    /// By this actor.
+    pub actor: Option<Uuid>,
+    /// About this object.
+    pub object: Option<Uuid>,
+    /// At most this many events, the most recent first.
+    pub limit: u32,
+}
+
+/// Reads that the service audits (spec 012, REQ-012-17, 18); the API (006) serves them.
+pub trait Reader: Send + Sync {
+    /// The object `id` valid at `valid_at`, as asserted at `as_of` (now when `None`).
+    fn object(
+        &self,
+        id: Uuid,
+        valid_at: kartenn_core::period::Instant,
+        as_of: Option<kartenn_core::period::Instant>,
+    ) -> impl Future<Output = Result<Option<ObjectRead>, StoreError>> + Send;
+
+    /// Audit events matching `query`, as exported (JSON).
+    fn audit_events(
+        &self,
+        query: &AuditQuery,
+    ) -> impl Future<Output = Result<Vec<serde_json::Value>, StoreError>> + Send;
 }
 
 /// What is written to the audit for a changeset (REQ-004-31).

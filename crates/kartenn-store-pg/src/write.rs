@@ -112,6 +112,12 @@ impl PgStore {
         }
     }
 
+    /// The pool.
+    #[must_use]
+    pub const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// The instance named by the audit events (REQ-012-10).
     #[must_use]
     pub fn with_instance(mut self, instance: Instance) -> Self {
@@ -810,6 +816,9 @@ impl WriteTx for PgTx {
             }
             Change::Slug(slug) => {
                 patch.insert("slug".into(), slug.as_str().into());
+            }
+            Change::Sensitive(sensitive) => {
+                patch.insert("sensitive".into(), (*sensitive).into());
             }
         }
         // `kartenn_portion` returns the number of versions over the portion.

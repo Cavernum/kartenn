@@ -107,7 +107,7 @@ events! {
     APPROVAL_POLICY_CHANGED = "policy.approval.changed", Info, High, ["enabled"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "configuration",
         "Une politique d'approbation a été créée, modifiée ou désactivée.";
-    DECLARATION_CHANGED = "property.declaration.changed", Info, Normal, ["key"], ["REQ-012-8"],
+    DECLARATION_CHANGED = "property.declaration.changed", Info, Normal, ["key", "sensitive"], ["REQ-012-8", "REQ-003-27"],
         "Entity Management 3004 / Update", "configuration",
         "Une déclaration de propriété a été créée ou modifiée.";
     PERSON_PSEUDONYMISED = "person.identity.pseudonymised", Info, High, [], ["REQ-012-8"],
