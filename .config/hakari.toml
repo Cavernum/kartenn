@@ -25,3 +25,8 @@ platforms = [
 
 # Write out exact versions rather than a semver range. (Defaults to false.)
 # exact-versions = true
+
+# syslog-sender is meant to be published on its own (spec 012, L24): it stays out of the
+# workspace-hack, and the workspace-hack does not unify its dependencies.
+[traversal-excludes]
+workspace-members = ["syslog-sender"]

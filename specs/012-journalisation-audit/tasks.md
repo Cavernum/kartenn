@@ -11,11 +11,12 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P1 — Bibliothèque syslog (L24)
 
-- [ ] 1. Crate `syslog-sender` : `Facility`, `Severity`, `Message`, validation des champs
+- [x] 1. Crate `syslog-sender` : `Facility`, `Severity`, `Message`, validation des champs
   (RFC 5424 §6), données structurées et échappement (§6.3), BOM, formats RFC 5424 et
   RFC 3164, longueur maximale avec troncature sur une frontière UTF-8 — REQ-012-21, 29 —
   verify : exemples de RFC 5424 §6.5, aller-retour par `syslog_rfc5424`, `proptest` sur
-  l'échappement et la troncature
+  l'échappement et la troncature — un champ réduit à `-` est refusé (il serait lu
+  comme absent : trouvé par les tests de propriétés) ; hors du `workspace-hack` (hakari)
 - [ ] 2. Cadrage (comptage d'octets, fin de ligne, datagramme) et transports tokio :
   socket local, UDP, TCP, TLS rustls (TLS 1.2 minimum, sans 0-RTT), écriture par lot,
   reconnexion avec attente bornée — REQ-012-21 — verify : serveurs TCP et TLS de test

@@ -1436,6 +1436,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "syslog-sender"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "syslog_rfc5424",
+]
+
+[[package]]
+name = "syslog_rfc5424"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0325229868961bd202714fc201a6e8b3cd7cb93ecdd7abd5b6556fae533e60cd"
+dependencies = [
+ "thiserror",
+ "time",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
