@@ -101,7 +101,16 @@ voir [`../README.md`](../README.md).
 - [x] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
   — verify : rapport spec-keeper sans écart — rapport du 2026-10-17 : écarts de code
   corrigés (différentiel dans l'événement, test d'ordre, droit sur les politiques
-  d'approbation), textes resynchronisés ; ce qui reste est différé et listé ci-dessous
+  d'approbation), textes resynchronisés, contre-audit sans écart ; ce qui reste est
+  différé et listé ci-dessous
+- [x] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
+  l'avance par un job (la partition par défaut ne reçoit plus rien), index GiST
+  `tstzrange(sys_start, sys_end)` sur chaque historique — REQ-004-17, 38 — avant 23 —
+  verify : tests (partitions des mois à venir présentes, index présent sur chaque
+  historique) ; usage de l'index mesuré au banc 23 (ajoutée le 2026-10-15) — `kartenn_history_maintenance`
+  (migration 0019), appelée par `kartenn-server migrate` (`maintenance::deploy`, qui
+  synchronise aussi les déclarations du noyau) ; à relancer au moins chaque mois
+  (`maintenance::history_partitions`) jusqu'au planificateur de jobs
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 
@@ -113,11 +122,3 @@ voir [`../README.md`](../README.md).
   imports) : configuration et ordonnanceur (006).
 - Historique d'un objet avec ses changesets (REQ-004-18) : le constructeur de requête
   existe (`temporal::history_of`) ; la lecture par objet est servie par l'API (006).
-- [x] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
-  l'avance par un job (la partition par défaut ne reçoit plus rien), index GiST
-  `tstzrange(sys_start, sys_end)` sur chaque historique — REQ-004-17, 38 — avant 23 —
-  verify : tests (partitions des mois à venir présentes, index présent sur chaque
-  historique) ; usage de l'index mesuré au banc 23 (ajoutée le 2026-10-15) — `kartenn_history_maintenance`
-  (migration 0019), appelée par `kartenn-server migrate` (`maintenance::deploy`, qui
-  synchronise aussi les déclarations du noyau) ; à relancer au moins chaque mois
-  (`maintenance::history_partitions`) jusqu'au planificateur de jobs

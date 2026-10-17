@@ -121,7 +121,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   acceptés, statut `implemented` — verify : rapport spec-keeper sans écart — rapport du
   2026-10-17 : écarts de code corrigés (registres chargés au déploiement, anomalies par
   domaine et entité et plages comprises, opération `Rename`, contrat de famille
-  complété), textes resynchronisés ; ce qui reste est différé et listé ci-dessous
+  complété), textes resynchronisés, contre-audit sans écart ; ce qui reste est différé
+  et listé ci-dessous
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 

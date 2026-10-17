@@ -68,6 +68,11 @@ async fn a_renamed_object_keeps_its_uuid(pool: PgPool) {
                 slug: "group".into(),
                 parent: None,
             },
+            Operation::CreateSite {
+                local: None,
+                slug: "campus".into(),
+                parent: None,
+            },
         ],
     )
     .await;
@@ -83,6 +88,7 @@ async fn a_renamed_object_keeps_its_uuid(pool: PgPool) {
     };
     let prod = id("SELECT id FROM addressing_domain WHERE slug = 'prod'").await;
     let group = id("SELECT id FROM entity").await;
+    let campus = id("SELECT id FROM site").await;
 
     let renamed = run(
         &pool,
@@ -90,6 +96,7 @@ async fn a_renamed_object_keeps_its_uuid(pool: PgPool) {
         vec![
             rename(Named::Domain, prod, "prod-eu"),
             rename(Named::Entity, group, "holding"),
+            rename(Named::Site, campus, "north-campus"),
         ],
     )
     .await;
@@ -101,6 +108,10 @@ async fn a_renamed_object_keeps_its_uuid(pool: PgPool) {
     assert_eq!(
         id("SELECT id FROM entity WHERE slug = 'holding'").await,
         group
+    );
+    assert_eq!(
+        id("SELECT id FROM site WHERE slug = 'north-campus'").await,
+        campus
     );
     // The former slug stays in the history of the same object.
     let former: i64 = sqlx::query_scalar(
