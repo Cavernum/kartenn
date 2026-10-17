@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! Timestamps: RFC 5424 §6.2.3 (RFC 3339 in UTC with `Z`, six fractional digits) and the
 //! legacy `Mmm dd hh:mm:ss` of RFC 3164 §4.1.2. Computed without a calendar library: the
 //! civil date of a day count follows H. Hinnant's `civil_from_days`.

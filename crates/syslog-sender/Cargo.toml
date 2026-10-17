@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Syslog messages (RFC 5424, RFC 3164) with octet-counting framing over local sockets, UDP, TCP and TLS"
 edition.workspace = true
 rust-version.workspace = true
-# AGPL-3.0-only like kartenn until a licence is chosen for its own publication (012/L24).
-license.workspace = true
+# Its own licence, apart from kartenn (012/L24): file-level copyleft, compatible with the
+# GPL family (no "Incompatible With Secondary Licenses" notice).
+license = "MPL-2.0"
 publish.workspace = true
 keywords = ["syslog", "rfc5424", "rfc5425", "logging"]
 categories = ["development-tools::debugging", "network-programming"]

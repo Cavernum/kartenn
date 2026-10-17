@@ -24,3 +24,9 @@ published on its own.
 Tests check the output against the examples of RFC 5424 §6.5 and, by property tests,
 against an independent parser (`syslog_rfc5424`); transports are tested against local
 TCP, TLS, UDP and Unix servers. `examples/send.rs` sends one message to a receiver.
+
+## License
+
+[Mozilla Public License 2.0](LICENSE): changes to the files of this library are shared
+under the same licence; programs that use it keep their own. The library is compatible
+with the GPL family (no "Incompatible With Secondary Licenses" notice).

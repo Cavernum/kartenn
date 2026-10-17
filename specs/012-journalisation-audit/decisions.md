@@ -281,9 +281,13 @@ collecteur et console dans l'environnement de développement. Les autres décisi
   données structurées, BOM, troncature ; cadrage par comptage d'octets ou par fin de
   ligne ; transports socket local, UDP, TCP, TLS (rustls) en asynchrone tokio, avec
   reconnexion. `kartenn-telemetry` l'adapte à ses sorties.
-- Licence : AGPL-3.0-only comme kartenn (D37) en attendant ; une licence plus
-  permissive (MIT ou Apache-2.0) faciliterait son adoption hors de kartenn : à trancher
-  par l'utilisateur avant publication.
+- Licence : **MPL-2.0** (décidé par l'utilisateur, 2026-10-17), sans la mention
+  « Incompatible With Secondary Licenses » : copyleft par fichier, compatible avec la
+  famille GPL, donc avec kartenn (AGPL-3.0, D37, inchangée). Écartées : GPLv3 (contraint
+  tout binaire qui l'utilise, l'édition de liens étant statique en Rust), LGPLv3
+  (exigence de réédition des liens inapplicable sans bibliothèque partagée ni ABI stable,
+  et génériques compilés chez l'appelant), AGPLv3 (encore plus contraignante), MIT ou
+  Apache-2.0 (sans copyleft).
 - Rejeté : contribuer le cadrage à `fasyslog` (modèle synchrone, horodatage à l'envoi :
   changements d'API profonds ; reste possible plus tard) ; formateur interne à
   `kartenn-telemetry` (non réutilisable).
