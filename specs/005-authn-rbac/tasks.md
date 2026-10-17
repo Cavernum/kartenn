@@ -11,9 +11,11 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
 
 ## P1 — Modèle de contrôle d'accès
 
-- [ ] 1. Catalogue des permissions et rôles livrés (`kartenn_core::authz`), publié dans
+- [x] 1. Catalogue des permissions et rôles livrés (`kartenn_core::authz`), publié dans
   `docs/spec/permissions.md` — REQ-005-16, 17 — verify : test de fraîcheur
-  (`KARTENN_BLESS`), noms uniques et bien formés, rôles ⊆ catalogue
+  (`KARTENN_BLESS`), noms uniques et bien formés, rôles ⊆ catalogue — motifs de rôle
+  `prop.*.<action>` (propriétés non sensibles seulement) et `*` ; `core.property.admin`
+  ajoutée (déclarations et sensibilité)
 - [ ] 2. `Subject` (identité, émetteur, groupes) dans le port `Authorizer` ; `Grants`,
   `Unrestricted` et tous les appelants ; `core.changeset.approve` ; instantané
   `changeset.author_groups` — REQ-005-18, 22 — verify : tests existants verts, test de

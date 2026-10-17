@@ -2,6 +2,7 @@
 
 pub mod addr;
 pub mod audit;
+pub mod authz;
 pub mod family;
 pub mod inheritance;
 pub mod objects;
