@@ -111,6 +111,28 @@ in {
           tcp.listen_address = "127.0.0.1:5514";
           protocol = "rfc5424";
           enable_octet_counting = true;
+          # kartenn writes its event in JSON as MSG (after the RFC 5424 BOM): parsed
+          # into the `kartenn` attribute, so that the console indexes each field. Any
+          # other message stays as text.
+          operators = [
+            {
+              type = "regex_parser";
+              "if" = ''attributes.message matches "^\\x{FEFF}?\\{"'';
+              parse_from = "attributes.message";
+              regex = ''^\x{FEFF}?(?P<message_json>\{.*)$'';
+            }
+            {
+              type = "json_parser";
+              "if" = "attributes.message_json != nil";
+              parse_from = "attributes.message_json";
+              parse_to = "attributes.kartenn";
+            }
+            {
+              type = "remove";
+              "if" = "attributes.message_json != nil";
+              field = "attributes.message_json";
+            }
+          ];
         };
       };
       processors.batch = {};
@@ -188,6 +210,13 @@ in {
       command = "devenv";
       args = ["mcp"];
       env.DEVENV_ROOT = config.devenv.root;
+    };
+    # The console's own MCP server (SQL over the logs, stream schemas, traces,
+    # PromQL), available once `devenv up` runs OpenObserve. Development credentials.
+    mcpServers.openobserve = {
+      type = "http";
+      url = "http://127.0.0.1:5080/api/default/mcp";
+      headers.Authorization = "Basic ${openobserve.basic}";
     };
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
