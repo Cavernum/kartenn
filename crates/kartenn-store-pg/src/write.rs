@@ -785,6 +785,9 @@ impl WriteTx for PgTx {
                     parent.map_or(serde_json::Value::Null, |p| p.to_string().into()),
                 );
             }
+            Change::Slug(slug) => {
+                patch.insert("slug".into(), slug.as_str().into());
+            }
         }
         // `kartenn_portion` returns the number of versions over the portion.
         let touched = self

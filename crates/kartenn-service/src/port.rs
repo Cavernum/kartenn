@@ -8,7 +8,9 @@ use kartenn_core::properties::{CurrentAssignment, Declaration, InheritTree, Obli
 use kartenn_core::values::Value;
 
 use kartenn_core::addr::{Addr, Prefix};
-use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage};
+use kartenn_core::objects::{
+    Address, AddressUsage, IpRange, Nature, PrefixObject, RangeUsage, Slug,
+};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use uuid::Uuid;
@@ -40,6 +42,8 @@ pub enum Change {
     Range(RangeUsage),
     /// The parent of an entity or a site; none for a root.
     Parent(Option<Uuid>),
+    /// The slug of a domain, an entity or a site (REQ-002-47).
+    Slug(Slug),
 }
 
 /// Failure of one write.

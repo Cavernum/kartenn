@@ -17,6 +17,30 @@ pub enum Ref {
     Local(u32),
 }
 
+/// Kind of an object known by a slug (REQ-002-47).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Named {
+    /// Addressing domain.
+    Domain,
+    /// Entity.
+    Entity,
+    /// Site.
+    Site,
+}
+
+impl Named {
+    /// The kind of object.
+    #[must_use]
+    pub const fn kind(self) -> ObjectKind {
+        match self {
+            Self::Domain => ObjectKind::Domain,
+            Self::Entity => ObjectKind::Entity,
+            Self::Site => ObjectKind::Site,
+        }
+    }
+}
+
 /// Kind of an object targeted by a generic operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -343,6 +367,19 @@ pub enum Operation {
         #[serde(default)]
         expected: Option<Uuid>,
     },
+    /// Changes the slug of a domain, an entity or a site over the period of the changeset;
+    /// its UUID stays (REQ-002-47).
+    Rename {
+        /// What is renamed.
+        kind: Named,
+        /// The object.
+        id: Ref,
+        /// New slug.
+        slug: String,
+        /// As for [`Operation::Close`].
+        #[serde(default)]
+        expected: Option<Uuid>,
+    },
     /// Declares a property (REQ-003-1 to 3).
     DeclareProperty {
         /// Local name for later operations.
@@ -505,6 +542,7 @@ impl Operation {
             | Self::UpdateRange { .. }
             | Self::MoveEntity { .. }
             | Self::MoveSite { .. }
+            | Self::Rename { .. }
             | Self::SetApprovalPolicy { .. }
             | Self::Restore { .. }
             | Self::BindExternal { .. }

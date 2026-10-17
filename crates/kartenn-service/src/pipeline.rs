@@ -309,6 +309,7 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             .chain(parent)
             .map(|r| (*r, ObjectKind::Site))
             .collect(),
+        Operation::Rename { kind, id, .. } => vec![(*id, kind.kind())],
         Operation::CreateDomain { .. }
         | Operation::DeclareProperty { .. }
         | Operation::SetApprovalPolicy { .. }
@@ -568,6 +569,17 @@ fn plan_anchor(
                 expected: *expected,
             }
         }
+        Operation::Rename {
+            kind,
+            id: target,
+            slug,
+            expected,
+        } => Planned::Modify {
+            kind: kind.kind(),
+            id: resolve(*target),
+            change: Change::Slug(Slug::parse(slug)?),
+            expected: *expected,
+        },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
         Operation::BindExternal {
             object,
@@ -687,6 +699,7 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
             | Operation::CreateSite { .. }
             | Operation::MoveEntity { .. }
             | Operation::MoveSite { .. }
+            | Operation::Rename { .. }
             | Operation::SetApprovalPolicy { .. }
             | Operation::Restore { .. }
             | Operation::BindExternal { .. }
@@ -805,19 +818,25 @@ async fn lock_targets<T: WriteTx>(
                 }
                 public |= property.is_none();
             }
+            // A closed or renamed domain: its own lock only.
+            Planned::Modify {
+                kind: ObjectKind::Domain,
+                id,
+                ..
+            }
+            | Planned::Close {
+                kind: ObjectKind::Domain,
+                id,
+                ..
+            } => {
+                domains.insert(*id);
+            }
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
                 if let Some(d) = tx.domain_of(*kind, *id).await? {
                     domains.insert(d);
                 }
                 public |= *kind != ObjectKind::Range;
-            }
-            Planned::Close {
-                kind: ObjectKind::Domain,
-                id,
-                ..
-            } => {
-                domains.insert(*id);
             }
             // A new domain is invisible to others until commit: nothing to serialise.
             // Declarations are serialised by their constraints (unique key, versions).
