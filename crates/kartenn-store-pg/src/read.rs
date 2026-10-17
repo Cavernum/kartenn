@@ -111,6 +111,11 @@ fn properties_sql() -> Result<String, TemporalError> {
 /// # Errors
 ///
 /// Database errors.
+#[tracing::instrument(name = "SELECT object", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT object",
+))]
 pub async fn object(
     pool: &PgPool,
     id: Uuid,

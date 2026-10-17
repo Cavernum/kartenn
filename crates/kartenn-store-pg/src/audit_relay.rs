@@ -43,6 +43,11 @@ type Row = (i64, String, OffsetDateTime, serde_json::Value);
 /// # Errors
 ///
 /// [`RelayError`]; after a [`RelayError::Sink`], the same events are offered again.
+#[tracing::instrument(name = "SELECT audit.event relay", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT audit.event relay",
+))]
 pub async fn relay_once<S: AuditSink>(
     pool: &PgPool,
     sink: &S,

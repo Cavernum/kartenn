@@ -1151,6 +1151,7 @@ dependencies = [
  "kartenn-telemetry",
  "kartenn-workspace-hack",
  "opentelemetry-proto",
+ "opentelemetry_sdk",
  "serde",
  "serde_json",
  "sqlx",
@@ -1174,6 +1175,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1189,6 +1191,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

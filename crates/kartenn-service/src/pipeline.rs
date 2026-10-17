@@ -1197,9 +1197,163 @@ pub(crate) enum Mode {
     },
 }
 
-/// The pipeline of a changeset (004/design, § Pipeline d'un changeset).
-#[allow(clippy::too_many_lines)] // one linear pipeline, stage by stage
+/// The pipeline of a changeset, in the span `pipeline.changeset`, followed by a technical
+/// event named after its outcome (spec 012, REQ-012-5, 25): `pipeline.changeset.<state>`
+/// with `state`, `operations`, `violations` and `duration_ms`, from which the telemetry
+/// derives `kartenn.changeset.count` and `kartenn.pipeline.duration`. Neither the motive
+/// nor the author is logged (REQ-012-29: the audit carries them).
 pub(crate) async fn run<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    sources: &Sources,
+    req: &ChangesetRequest,
+    max_operations: usize,
+    mode: Mode,
+    context: &RequestContext,
+) -> Result<Outcome, RequestError> {
+    use tracing::Instrument as _;
+    let operations = req.operations.len();
+    let span = tracing::info_span!(
+        "pipeline.changeset",
+        operations,
+        simulate = req.simulate,
+        validation = matches!(mode, Mode::Validation { .. })
+    );
+    let started = std::time::Instant::now();
+    let result = stages(
+        store,
+        authorizer,
+        sources,
+        req,
+        max_operations,
+        mode,
+        context,
+    )
+    .instrument(span.clone())
+    .await;
+    let _entered = span.enter();
+    log_outcome(&result, operations, started.elapsed());
+    result
+}
+
+/// The changeset of an outcome, and how many violations it carries.
+fn outcome_counts(result: &Result<Outcome, RequestError>) -> (Option<Uuid>, usize) {
+    match result {
+        Ok(
+            Outcome::Applied {
+                changeset,
+                warnings: v,
+                ..
+            }
+            | Outcome::Refused {
+                changeset,
+                violations: v,
+            }
+            | Outcome::FailedRevalidation {
+                changeset,
+                violations: v,
+            },
+        ) => (Some(*changeset), v.len()),
+        Ok(Outcome::Replayed { changeset, .. } | Outcome::Pending { changeset, .. }) => {
+            (Some(*changeset), 0)
+        }
+        Ok(Outcome::Simulated { violations, .. }) => (None, violations.len()),
+        Err(_) => (None, 0),
+    }
+}
+
+fn log_outcome(
+    result: &Result<Outcome, RequestError>,
+    operations: usize,
+    elapsed: std::time::Duration,
+) {
+    let duration_ms = elapsed.as_secs_f64() * 1000.0;
+    let (changeset, violations) = outcome_counts(result);
+    let changeset = changeset.map(|c| c.to_string());
+    macro_rules! outcome {
+        ($level:expr, $name:literal, $state:literal) => {
+            tracing::event!(
+                name: $name,
+                $level,
+                state = $state,
+                changeset = changeset.as_deref(),
+                operations,
+                violations,
+                duration_ms,
+                "changeset {}",
+                $state
+            )
+        };
+    }
+    match result {
+        Ok(Outcome::Applied { .. }) => {
+            outcome!(
+                tracing::Level::INFO,
+                "pipeline.changeset.applied",
+                "applied"
+            );
+        }
+        Ok(Outcome::Refused { .. }) => {
+            outcome!(
+                tracing::Level::INFO,
+                "pipeline.changeset.refused",
+                "refused"
+            );
+        }
+        Ok(Outcome::Replayed { .. }) => {
+            outcome!(
+                tracing::Level::INFO,
+                "pipeline.changeset.replayed",
+                "replayed"
+            );
+        }
+        Ok(Outcome::Pending { .. }) => {
+            outcome!(
+                tracing::Level::INFO,
+                "pipeline.changeset.pending",
+                "pending"
+            );
+        }
+        Ok(Outcome::FailedRevalidation { .. }) => {
+            outcome!(tracing::Level::INFO, "pipeline.changeset.stale", "stale");
+        }
+        Ok(Outcome::Simulated { .. }) => {
+            outcome!(
+                tracing::Level::INFO,
+                "pipeline.changeset.simulated",
+                "simulated"
+            );
+        }
+        Err(RequestError::Audit(e)) => tracing::error!(
+            name: "audit.write.failed",
+            state = "failed",
+            operations,
+            duration_ms,
+            error = %e,
+            "the changeset could not be audited, so it was not made"
+        ),
+        Err(RequestError::Store(e)) => tracing::error!(
+            name: "pipeline.changeset.failed",
+            state = "failed",
+            operations,
+            duration_ms,
+            error = %e,
+            "changeset failed"
+        ),
+        Err(e) => tracing::warn!(
+            name: "pipeline.changeset.rejected",
+            state = "rejected",
+            operations,
+            duration_ms,
+            error = %e,
+            "changeset rejected"
+        ),
+    }
+}
+
+/// The stages of a changeset (004/design, § Pipeline d'un changeset).
+#[allow(clippy::too_many_lines)] // one linear pipeline, stage by stage
+async fn stages<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
     sources: &Sources,

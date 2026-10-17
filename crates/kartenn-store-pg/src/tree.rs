@@ -76,6 +76,11 @@ fn addr(text: &str) -> Result<Addr, sqlx::Error> {
 /// # Errors
 ///
 /// Database or decoding errors.
+#[tracing::instrument(name = "SELECT ancestors", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT ancestors",
+))]
 pub async fn ancestors(pool: &PgPool, object: Uuid, at: OffsetDateTime) -> sqlx::Result<Vec<Node>> {
     let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
         "WITH o AS (
@@ -110,6 +115,11 @@ type ChildRow = (String, Uuid, String, Option<String>, Option<String>);
 /// # Errors
 ///
 /// Database or decoding errors.
+#[tracing::instrument(name = "SELECT children", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT children",
+))]
 pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::Result<Vec<Node>> {
     // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
     // 'a' address (a = value).
@@ -247,6 +257,11 @@ fn prefixes_of(children: &[Node]) -> Vec<Prefix> {
 /// # Errors
 ///
 /// Database or decoding errors.
+#[tracing::instrument(name = "SELECT occupancy", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT occupancy",
+))]
 pub async fn occupancy(
     pool: &PgPool,
     prefix: Uuid,
@@ -272,6 +287,11 @@ pub async fn occupancy(
 /// # Errors
 ///
 /// Database or decoding errors.
+#[tracing::instrument(name = "SELECT next_free_address", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT next_free_address",
+))]
 pub async fn next_free_address(
     pool: &PgPool,
     network: Uuid,
@@ -296,6 +316,11 @@ pub async fn next_free_address(
 /// # Errors
 ///
 /// Database or decoding errors.
+#[tracing::instrument(name = "SELECT next_free_prefix", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT next_free_prefix",
+))]
 pub async fn next_free_prefix(
     pool: &PgPool,
     container: Uuid,

@@ -66,6 +66,11 @@ pub(crate) async fn last_hash(conn: &mut PgConnection) -> Result<[u8; 32], Store
 /// # Errors
 ///
 /// Database errors; an event that has no canonical form.
+#[tracing::instrument(name = "INSERT audit.seal", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "INSERT",
+    db.query.summary = "INSERT audit.seal",
+))]
 pub async fn seal_once(
     pool: &PgPool,
     key: Option<&SealKey>,

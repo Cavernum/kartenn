@@ -254,6 +254,11 @@ type Binds = Vec<Bind>;
 impl Store for PgStore {
     type Tx = PgTx;
 
+    #[tracing::instrument(name = "BEGIN", skip_all, fields(
+        db.system.name = "postgresql",
+        db.operation.name = "BEGIN",
+        db.query.summary = "BEGIN",
+    ))]
     async fn begin(&self) -> Result<PgTx, StoreError> {
         Ok(PgTx {
             tx: self.pool.begin().await.map_err(store_err)?,
@@ -2283,10 +2288,20 @@ impl WriteTx for PgTx {
         .map_err(store_err)
     }
 
+    #[tracing::instrument(name = "COMMIT", skip_all, fields(
+        db.system.name = "postgresql",
+        db.operation.name = "COMMIT",
+        db.query.summary = "COMMIT",
+    ))]
     async fn commit(self) -> Result<(), StoreError> {
         self.tx.commit().await.map_err(store_err)
     }
 
+    #[tracing::instrument(name = "ROLLBACK", skip_all, fields(
+        db.system.name = "postgresql",
+        db.operation.name = "ROLLBACK",
+        db.query.summary = "ROLLBACK",
+    ))]
     async fn rollback(self) -> Result<(), StoreError> {
         self.tx.rollback().await.map_err(store_err)
     }

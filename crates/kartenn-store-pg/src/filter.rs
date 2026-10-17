@@ -134,6 +134,11 @@ fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String 
 ///
 /// [`FilterError`] for an unknown property, a condition that does not fit its type, or a
 /// database failure.
+#[tracing::instrument(name = "SELECT property_assignment", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT property_assignment",
+))]
 pub async fn filter(
     pool: &PgPool,
     property: Uuid,
