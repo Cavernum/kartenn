@@ -126,6 +126,8 @@ Non-objectifs :
 | [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | accepted |
 | [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | accepted |
 | [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | accepted |
+| [0020](../adr/0020-session-bff-cookie-sans-etat.md) | Session du navigateur : BFF à cookie chiffré sans état | proposed |
+| [0021](../adr/0021-rbac-predicats-sql-confinement.md) | RBAC évalué en SQL : périmètres hérités et confinement des émetteurs | proposed |
 
 ## Questions ouvertes
 

@@ -6,7 +6,7 @@
 | [002-noyau-adressage](002-noyau-adressage/) | implémentées | implémentée | [tasks](002-noyau-adressage/tasks.md) (28/28) |
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
-| [005-authn-rbac](005-authn-rbac/) | proposées (REQ-005-1 à 29) | — | — |
+| [005-authn-rbac](005-authn-rbac/) | approuvées (REQ-005-1 à 29) | proposée | — |
 | 006-api-rest-conventions | à écrire | — | — |
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
