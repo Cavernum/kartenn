@@ -34,10 +34,12 @@ en fournit le mécanisme et les teste avec des appels directs.
   catalogue, vecteurs de RFC 8785, affichage masqué — 36 événements, noms à trois parties
   (`changeset.state.<état>`) ; la forme canonique n'accepte que des entiers (aucun
   événement ne porte de flottant)
-- [ ] 4. Migration `0023_audit.sql` : schéma `audit`, tables partitionnées par criticité
+- [x] 4. Migration `0023_audit.sql` : schéma `audit`, tables partitionnées par criticité
   puis par mois, droits `INSERT, SELECT` du rôle applicatif, création des partitions par
   la procédure de maintenance, `audit.instance_key` — REQ-012-11, 12, 16 — verify :
-  `UPDATE`/`DELETE` refusés sous `SET ROLE` ; partitions des mois à venir présentes
+  `UPDATE`/`DELETE` refusés sous `SET ROLE` ; partitions des mois à venir présentes —
+  `kartenn-store-pg/tests/audit_schema.rs` ; attribution vérifiée aussi par la base
+  (`event_attributed`) ; clé HMAC de 244 bits aléatoires (deux UUID v4)
 - [ ] 5. Port `AuditJournal`, `RequestContext`, `MemoryJournal` ; `PgAuditJournal` seul et
   `WriteTx::audit` dans la transaction ; erreur `RequestError::Audit` — REQ-012-2, 9, 11
   — verify : tests des deux adaptateurs ; échec fermé (droit `INSERT` retiré : changeset
