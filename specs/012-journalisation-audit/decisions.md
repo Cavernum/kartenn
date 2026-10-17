@@ -132,7 +132,7 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 - Pourquoi : CNIL 2021-122 (6 mois à 1 an), ANSSI R24, R25 ; l'export garantit la
   conservation à plus long terme hors de kartenn si besoin.
 - Point d'attention : précise C4 sans le contredire (C4 vise l'historique des objets).
-- Décidé par : délégué (2026-10-17), confirmé par l'utilisateur (2026-10-17)
+- Décidé par : délégué (2026-10-17), confirmé par l'utilisateur (2026-10-17) ; durée par criticité : L22
 
 ## L12 — Changement de niveau à chaud
 - Décision : le filtre de chaque sortie technique est modifiable à chaud par une
@@ -236,4 +236,27 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 ## L21 — Ordre de réalisation
 - Décision : concevoir et réaliser la 012 (mécanisme) avant la 005, qui émettra les
   événements d'authentification et de droits ; les événements HTTP viendront avec la 006.
+- Décidé par : utilisateur (2026-10-17)
+
+## L22 — Criticité et expiration ; toutes les lectures auditées
+- Décision : chaque événement d'audit porte, en plus de sa **sévérité** (L6), une
+  **criticité** (`low`, `normal`, `high`) fixée par son type dans le catalogue ; la
+  rétention se configure par criticité. Défauts : `low` 90 jours, `normal` 1 an, `high`
+  3 ans. Toutes les lectures de l'API sont auditées (un événement par requête : critères
+  et objets renvoyés, jamais les valeurs), en criticité `low` ; les lectures de
+  propriétés ou d'exports sensibles, la consultation de l'audit, les refus de droits et
+  l'administration sont `high`.
+- Pourquoi : réponse de l'utilisateur (« expiration selon la criticité… criticité avec
+  des périodes d'expiration configurables ») ; la sévérité dit la gravité d'un fait,
+  la criticité dit combien de temps il faut pouvoir le prouver. Un an reste la valeur
+  courante (L11, confirmée) ; 3 ans est le maximum que la CNIL admet dans certains cas.
+- Conséquence : une insertion par requête de lecture ; partitions par criticité et par
+  mois ; un événement `low` qui n'a pas été exporté n'est pas purgé (REQ-012-16).
+- Rejeté : lectures sensibles seulement (proposé, non retenu) ; une rétention unique.
+- Décidé par : utilisateur (principe, 2026-10-17) ; délégué (niveaux et défauts) — à
+  confirmer à la relecture de la conception
+
+## L23 — Signature des sceaux facultative
+- Décision : la signature Ed25519 des sceaux est facultative ; la chaîne de hachés,
+  exportée hors du système, suffit à détecter une altération.
 - Décidé par : utilisateur (2026-10-17)

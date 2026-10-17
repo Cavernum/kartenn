@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-17
 ---
 
@@ -15,7 +15,7 @@ ils sont structurés, ont plusieurs sorties simultanées et ne doivent jamais ra
 service. S'y ajoutent les traces et métriques OpenTelemetry. Les changesets restent la
 piste d'audit détaillée des écritures (D11, spec 004) ; le journal d'audit les référence.
 
-Décisions : [`decisions.md`](decisions.md) (L1–L21) ; D8, D9, D11, D13, D35, D36
+Décisions : [`decisions.md`](decisions.md) (L1–L23) ; D8, D9, D11, D13, D35, D36
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; C4 de la
 [004](../004-changesets-bitemporel/decisions.md). Sources :
 [`docs/reference/journalisation-audit.md`](../../docs/reference/journalisation-audit.md).
@@ -28,6 +28,8 @@ Décisions : [`decisions.md`](decisions.md) (L1–L21) ; D8, D9, D11, D13, D35, 
 - **Sortie** : destination d'un flux (sortie standard, fichier, journald, syslog, OTLP).
 - **Acteur** : personne, compte de service ou `system` à l'origine d'une action.
 - **Sceau** : empreinte d'un lot d'événements d'audit, chaînée au sceau précédent.
+- **Criticité** : `low`, `normal` ou `high`, fixée par le type d'événement ; elle
+  détermine la durée de conservation, indépendamment de la sévérité.
 
 ### Conventions
 
@@ -131,7 +133,7 @@ Vocabulary, L2]
 | Administration | rôles, liaisons et permissions modifiés ; comptes de service créés, renouvelés ou révoqués ; politiques d'approbation ; déclarations de propriétés |
 | Écritures | chaque changement d'état d'un changeset (soumis, appliqué, refusé, en attente, retiré, rejeté, expiré), avec sa référence |
 | Exploitation | démarrage, arrêt, migration, changement de configuration ou de niveau de log, sortie désactivée ou inaccessible, scellement, échec de vérification de la chaîne |
-| Données | consultation et export du journal d'audit ; exports en masse ; pseudonymisation d'une personne |
+| Données | toute requête de lecture (REQ-012-18) ; consultation et export du journal d'audit ; exports en masse ; pseudonymisation d'une personne |
 | Abus | dépassement de limite de débit ; entrée refusée par validation à la frontière (006) |
 
 Acceptation :
@@ -154,7 +156,7 @@ Acceptation :
 kartenn doit inclure dans chaque événement d'audit : identifiant unique, numéro de
 séquence, nom, sévérité, horodatages (REQ-012-3), acteur, source (adresse IP du client
 derrière les mandataires de confiance, agent utilisateur borné), action, cible (type et
-identifiant, jamais le contenu lu), résultat (`success`, `failure`, `denied`) et raison
+identifiant, jamais le contenu lu), criticité, résultat (`success`, `failure`, `denied`) et raison
 codée, motif quand l'action en a un, identifiants de trace et de requête, version et
 instance du serveur, référence du changeset s'il y a lieu. [ASVS 16.2.1, AU-3, CADF]
 
@@ -214,8 +216,9 @@ Acceptation :
   OTLP est remplacé par un envoi acquitté avec reprise).
 
 #### REQ-012-16 — Rétention
-kartenn doit conserver les événements d'audit, dans sa base (schéma `audit`, L20), pendant une durée configurable, un an par
-défaut, puis les purger par mois entiers, à condition que tous soient scellés et
+kartenn doit conserver les événements d'audit, dans sa base (schéma `audit`, L20), pendant
+une durée configurable par criticité (par défaut `low` 90 jours, `normal` 1 an, `high`
+3 ans), puis les purger par mois entiers et par criticité, à condition que tous soient scellés et
 exportés vers chaque sortie d'audit ; les sceaux restent, pour que la chaîne des mois
 conservés reste vérifiable. Les changesets et l'historique des objets ne sont pas
 concernés (C4). [L11, AU-11, ANSSI R24, R25, CNIL 2021-122]
@@ -233,14 +236,18 @@ Acceptation :
 - Sans la permission, la recherche est refusée et le refus est audité ; avec elle,
   l'événement `audit.events.read` est enregistré.
 
-#### REQ-012-18 — Lectures sensibles
-Là où une propriété ou un export est déclaré sensible, kartenn doit enregistrer un
-événement d'audit pour chaque lecture de sa valeur (acteur, objets, propriété), sans la
-valeur. [ASVS 16.3.2 (L3), OWASP `sensitive_read`]
+#### REQ-012-18 — Lectures
+kartenn doit enregistrer un événement d'audit pour chaque requête de lecture de l'API
+(acteur, critères, identifiants des objets renvoyés, jamais les valeurs), en criticité
+`low`. Là où une propriété ou un export est déclaré sensible, la lecture de sa valeur doit
+produire un événement de criticité `high` qui nomme la propriété. [L22, ASVS 16.3.2 (L3),
+OWASP `sensitive_read`]
 
 Acceptation :
-- La lecture d'une propriété sensible produit `data.sensitive.read` avec l'identifiant
-  des objets ; la lecture d'une propriété ordinaire n'en produit pas.
+- Une page de 100 adresses produit un événement `data.objects.read` (`low`) listant
+  leurs identifiants ; la lecture d'une propriété sensible produit en plus
+  `data.sensitive.read` (`high`).
+- Le surcoût de cet événement reste dans le budget de REQ-012-23.
 
 #### REQ-012-19 — Agrégation des échecs répétés
 Quand une même source échoue à s'authentifier de façon répétée, kartenn doit agréger ces
@@ -439,8 +446,8 @@ Acceptation :
 
 - [x] ~~Numéro d'entreprise IANA~~ : non requis (L19) ; facultatif si obtenu plus tard.
 - [x] ~~Rétention par défaut de l'audit~~ : un an, confirmé ; emplacement : L20.
-- [ ] Emplacement de la clé de signature des sceaux (fichier, variable d'environnement,
-  gestionnaire de secrets) : à trancher en conception, avec la 005. (Claude, conception)
+- [ ] Emplacement de la clé de signature facultative des sceaux (L23) : à trancher en
+  conception. (Claude, conception)
 - [ ] Déclarer une propriété « sensible » (REQ-012-18) demande un attribut de
   déclaration : amendement de la 003 à prévoir en conception. (Claude, conception)
 - [x] ~~Ordre de réalisation~~ : la 012 avant la 005 (L21).
