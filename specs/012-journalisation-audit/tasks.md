@@ -27,11 +27,13 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P2 — Modèle et stockage de l'audit
 
-- [ ] 3. `kartenn_core::audit` : `AuditEvent`, `Severity`, `Criticality`, `Actor`,
+- [x] 3. `kartenn_core::audit` : `AuditEvent`, `Severity`, `Criticality`, `Actor`,
   `Outcome` ; catalogue constant (nom, sévérité, criticité, champs, exigences, OCSF, ECS),
   publié dans `docs/spec/evenements-audit.md` par `KARTENN_BLESS` ; JCS (RFC 8785) et
   empreinte d'un lot ; `Secret<T>` — REQ-012-4, 5, 10, 28, 30 — verify : tests du
-  catalogue, vecteurs de RFC 8785, affichage masqué
+  catalogue, vecteurs de RFC 8785, affichage masqué — 36 événements, noms à trois parties
+  (`changeset.state.<état>`) ; la forme canonique n'accepte que des entiers (aucun
+  événement ne porte de flottant)
 - [ ] 4. Migration `0023_audit.sql` : schéma `audit`, tables partitionnées par criticité
   puis par mois, droits `INSERT, SELECT` du rôle applicatif, création des partitions par
   la procédure de maintenance, `audit.instance_key` — REQ-012-11, 12, 16 — verify :

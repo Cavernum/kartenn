@@ -792,6 +792,8 @@ dependencies = [
  "proptest",
  "regex",
  "serde",
+ "serde_json",
+ "sha2 0.10.9",
  "thiserror",
  "unicode-normalization",
  "uuid",
@@ -862,6 +864,7 @@ dependencies = [
  "syn 3.0.9",
  "thiserror",
  "tokio",
+ "typenum",
  "uuid",
 ]
 
