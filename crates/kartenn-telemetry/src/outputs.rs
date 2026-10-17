@@ -144,7 +144,10 @@ impl Writer for File {
             .append(true)
             .open(&self.path)
             .await?;
-        file.write_all(&lines(records, Format::Json)).await
+        file.write_all(&lines(records, Format::Json)).await?;
+        // tokio writes on a blocking thread: without this, the write may still be pending
+        // when the file is dropped, and a reader finds the file short.
+        file.flush().await
     }
 }
 

@@ -79,13 +79,19 @@ async fn an_event_reads_the_same_on_every_output() {
         );
     });
     drop((file, journald, syslog));
-    drive(file_rx, File::new(&file_path)).await;
-    drive(journald_rx, Journald::new(&journal_path).unwrap()).await;
-    drive(
-        syslog_rx,
-        Syslog::new(syslog_target, Facility::Daemon, Some("host-1".into())),
-    )
-    .await;
+    assert_eq!(drive(file_rx, File::new(&file_path)).await, 0);
+    assert_eq!(
+        drive(journald_rx, Journald::new(&journal_path).unwrap()).await,
+        0
+    );
+    assert_eq!(
+        drive(
+            syslog_rx,
+            Syslog::new(syslog_target, Facility::Daemon, Some("host-1".into())),
+        )
+        .await,
+        0
+    );
 
     // File: one JSON line.
     let text_file = std::fs::read_to_string(&file_path).unwrap();
