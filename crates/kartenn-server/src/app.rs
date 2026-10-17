@@ -33,6 +33,10 @@ use crate::config::{Config, Output, Sink, StreamFormat, Transport};
 
 /// Most events per relay pass.
 const RELAY_BATCH: i64 = 500;
+/// Longest drain of one tick, by output for the relays: full batches follow one another
+/// within it, so that the export and the sealing keep up with any rate (one batch per
+/// tick capped them at 500 and 666 events per second).
+const DRAIN_WITHIN: Duration = Duration::from_secs(1);
 /// Longest stop (REQ-012-34).
 const STOP_WITHIN: Duration = Duration::from_secs(10);
 
@@ -253,6 +257,25 @@ fn sinks(config: &Config) -> anyhow::Result<Vec<(AnySink, SinkHealth)>> {
 }
 
 /// One relay pass over every audit output: health events and lag gauges updated.
+/// Seals full batches one after another, within [`DRAIN_WITHIN`].
+async fn seal_all(pool: &PgPool, key: Option<&SealKey>, instance: &Instance) {
+    let started = std::time::Instant::now();
+    loop {
+        match seal_once(pool, key, instance).await {
+            Ok(Some(sealed))
+                if sealed.count
+                    == usize::try_from(kartenn_store_pg::audit_seal::BATCH_MAX)
+                        .unwrap_or(usize::MAX)
+                    && started.elapsed() < DRAIN_WITHIN => {}
+            Ok(_) => break,
+            Err(e) => {
+                tracing::error!(name: "audit.seal.failed", error = %e.0, "sealing failed");
+                break;
+            }
+        }
+    }
+}
+
 async fn relay_all(
     pool: &PgPool,
     journal: &PgAuditJournal,
@@ -260,7 +283,13 @@ async fn relay_all(
     instruments: Option<&Instruments>,
 ) {
     for (sink, health) in sinks.iter_mut() {
-        let result = relay_once(pool, sink, RELAY_BATCH).await;
+        let started = std::time::Instant::now();
+        let mut result = relay_once(pool, sink, RELAY_BATCH).await;
+        while matches!(result, Ok(n) if n == usize::try_from(RELAY_BATCH).unwrap_or(usize::MAX))
+            && started.elapsed() < DRAIN_WITHIN
+        {
+            result = relay_once(pool, sink, RELAY_BATCH).await;
+        }
         if let Err(RelayError::Sink { sink, error }) = &result {
             tracing::warn!(name: "audit.relay.failed", output = %sink, error = %error, "an audit output refused a batch");
         }
@@ -351,11 +380,7 @@ pub async fn run(
     loop {
         tokio::select! {
             () = &mut shutdown => break,
-            _ = seal.tick() => {
-                if let Err(e) = seal_once(&pool, key.as_ref(), &instance).await {
-                    tracing::error!(name: "audit.seal.failed", error = %e.0, "sealing failed");
-                }
-            }
+            _ = seal.tick() => seal_all(&pool, key.as_ref(), &instance).await,
             _ = relay.tick() => relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await,
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
             _ = reread.tick() => {

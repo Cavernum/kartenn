@@ -111,3 +111,56 @@ async fn an_instance_runs_and_stops_cleanly(pool: PgPool) {
     assert_eq!(unsealed, 0, "the stop is sealed");
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_backlog_is_drained_in_one_tick(pool: PgPool) {
+    let dir = std::env::temp_dir().join(format!("kartenn-backlog-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let audit = dir.join("audit.jsonl");
+    let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));
+    let event = RequestContext::system()
+        .event(&OBJECTS_READ, Outcome::Success)
+        .unwrap();
+    for _ in 0..1_200 {
+        journal.record(&event).await.unwrap();
+    }
+    // Ticks far apart: only the first one, at start, can drain the backlog.
+    let config = kartenn_server::config::from_toml(&format!(
+        r#"
+        [telemetry]
+        outputs = [{{ kind = "stdout", filter = "off" }}]
+        [audit]
+        sinks = [{{ kind = "file", name = "archive", path = "{}" }}]
+        seal_interval_ms = 600000
+        relay_interval_ms = 600000
+        "#,
+        audit.display()
+    ))
+    .unwrap();
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let run = tokio::spawn({
+        let pool = pool.clone();
+        async move {
+            kartenn_server::app::run(pool, &config, async {
+                let _ = stopped.await;
+            })
+            .await
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(1_500)).await;
+    let reads = lines(&audit)
+        .iter()
+        .filter(|l| l["name"] == "data.objects.read")
+        .count();
+    let sealed: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit.sealed s JOIN audit.event e ON e.seq = s.event_seq WHERE e.name = 'data.objects.read'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    stop.send(()).unwrap();
+    run.await.unwrap().unwrap();
+    assert_eq!(reads, 1_200, "more than one batch exported in one tick");
+    assert_eq!(sealed, 1_200, "sealed in one tick");
+    std::fs::remove_dir_all(dir).unwrap();
+}
