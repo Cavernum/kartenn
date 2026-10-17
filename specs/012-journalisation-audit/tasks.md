@@ -68,8 +68,10 @@ en fournit le mécanisme et les teste avec des appels directs.
   le résultat ; permission `core.audit.read` ; les autres lectures (pages, arbre,
   occupation, différentiel) passeront par le même mécanisme quand l'API (006) les
   servira
-- [ ] 8. Agrégation des échecs d'authentification par minute et par (source, empreinte)
-  — REQ-012-19 — verify : 1 000 échecs donnent au plus 11 événements, total exact
+- [x] 8. Agrégation des échecs d'authentification par minute et par (source, empreinte)
+  — REQ-012-19 — verify : 1 000 échecs donnent au plus 11 événements, total exact —
+  `aggregate::FailureAggregator`, par instance (le total des instances reste exact) ;
+  `flush` périodique et à l'arrêt (tâche 16) ; branché sur l'authentification par la 005
 
 ## P4 — Intégrité, export, rétention
 
