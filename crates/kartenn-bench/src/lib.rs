@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 pub mod core_budgets;
 pub mod props;
+pub mod telemetry;
 
 /// Address family of a generated value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

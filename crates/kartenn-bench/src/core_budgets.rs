@@ -104,7 +104,11 @@ async fn uses_index(
 }
 
 /// A unitary changeset of `author`: its duration, or why it was not applied.
-async fn unitary(store: &PgStore, author: Uuid, operation: Operation) -> anyhow::Result<Duration> {
+pub(crate) async fn unitary(
+    store: &PgStore,
+    author: Uuid,
+    operation: Operation,
+) -> anyhow::Result<Duration> {
     let request = ChangesetRequest {
         author,
         motive: "bench".into(),
@@ -123,7 +127,7 @@ async fn unitary(store: &PgStore, author: Uuid, operation: Operation) -> anyhow:
 }
 
 /// A new address in `network`: its first free address now.
-async fn new_address(pool: &PgPool, network: (Uuid, Uuid)) -> anyhow::Result<Operation> {
+pub(crate) async fn new_address(pool: &PgPool, network: (Uuid, Uuid)) -> anyhow::Result<Operation> {
     let free = next_free_address(pool, network.0, OffsetDateTime::now_utc())
         .await?
         .context("a network of the dataset is full")?;
@@ -194,14 +198,22 @@ fn import_items(count: usize) -> Vec<ImportItem> {
     items
 }
 
-/// Loads, writes the history and measures; returns the report and whether every budget
-/// holds.
+/// The prepared database: the dataset loaded with three years of history, an author, and
+/// the integer property `custom.rack` on 20 % of the addresses, vacuumed.
+pub(crate) struct Prepared {
+    pub(crate) pool: PgPool,
+    pub(crate) author: Uuid,
+    pub(crate) rack: Uuid,
+    /// Lines for the report.
+    pub(crate) report: String,
+}
+
+/// Loads `data` into the empty database at `database` and prepares it for the measures.
 ///
 /// # Errors
 ///
 /// Database or pipeline failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<Prepared> {
     let pool = PgPool::connect(database)
         .await
         .with_context(|| format!("connecting to {database}"))?;
@@ -218,7 +230,6 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     .await?;
     let store = PgStore::new(pool.clone());
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
-    let mut budgets = Vec::new();
     let mut report = String::new();
 
     // A non-heritable integer on 20 % of the addresses, for the filtered pages.
@@ -271,6 +282,33 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let checkpoint = sqlx::raw_sql("CHECKPOINT").execute(&pool).await.is_ok();
     writeln!(report, "INFO checkpoint before the measures: {checkpoint}")?;
     progress(&format!("assignments: {:?}", started.elapsed()));
+    Ok(Prepared {
+        pool,
+        author,
+        rack,
+        report,
+    })
+}
+
+/// Loads, writes the history and measures; returns the report and whether every budget
+/// holds.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+    let started = Instant::now();
+    let Prepared {
+        pool,
+        author,
+        rack,
+        mut report,
+    } = prepare(database, data, seed).await?;
+    let store = PgStore::new(pool.clone());
+    // Draws distinct from those of the preparation.
+    let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(1));
+    let mut budgets = Vec::new();
 
     // Reading an object, now and as known at a past date (REQ-004-38: at most twice).
     let now = OffsetDateTime::now_utc();

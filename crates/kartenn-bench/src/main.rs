@@ -8,6 +8,10 @@
 //!
 //! `kartenn-bench core <database-url> <seed> [small]`: the same for the budgets of the
 //! core (REQ-002-45, REQ-004-38).
+//!
+//! `kartenn-bench telemetry <database-url> <seed> [small]`: the overhead of the telemetry
+//! on those budgets, in three configurations (REQ-012-23), and the volume of the audit
+//! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -44,8 +48,32 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
+        [command, database, seed, rest @ ..] if command == "telemetry" => {
+            let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
+            let small = rest.first().map(String::as_str) == Some("small");
+            let data = generate(seed, scale(rest));
+            let runtime = tokio::runtime::Runtime::new()?;
+            let (report, ok) =
+                runtime.block_on(kartenn_bench::telemetry::run(database, &data, seed, small))?;
+            print!("{report}");
+            if !ok {
+                bail!("an overhead is exceeded");
+            }
+            Ok(())
+        }
+        [command, database, seed, config, result, rest @ ..] if command == "telemetry-run" => {
+            let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
+            let data = generate(seed, scale(rest));
+            tokio::runtime::Runtime::new()?.block_on(kartenn_bench::telemetry::measure(
+                database,
+                &data,
+                seed,
+                config.as_ref(),
+                result.as_ref(),
+            ))
+        }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|telemetry <database-url> <seed> [small]"
         ),
     }
 }

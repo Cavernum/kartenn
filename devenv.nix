@@ -94,6 +94,17 @@ in {
     '';
   };
 
+  # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
+  # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
+  scripts.bench-telemetry = {
+    description = "Measure the cost of the telemetry on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- telemetry "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   # Observability (D35): the applications send OTLP to the collector
   # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP with
   # octet counting (127.0.0.1:5514). Everything goes to OpenObserve (logs, traces,
