@@ -44,8 +44,9 @@ pub enum DeployError {
     },
 }
 
-/// The migration job (D9): migrations, history partitions ahead of time, then the
-/// declarations of the core synchronised from the code (003/P12, ADR 0014). Run once per
+/// The migration job (D9): migrations, history partitions ahead of time, the IANA
+/// special-purpose registries embedded in the code, then the declarations of the core
+/// synchronised from the code (003/P12, ADR 0014). Run once per
 /// deployment, before the instances, with the owner of the schema.
 ///
 /// # Errors
@@ -54,6 +55,12 @@ pub enum DeployError {
 pub async fn deploy(pool: &PgPool) -> Result<(), DeployError> {
     crate::MIGRATOR.run(pool).await?;
     history_partitions(pool, MONTHS_AHEAD).await?;
+    // The registries embedded in the code, under their version (REQ-002-34; idempotent).
+    for family in kartenn_core::family::ALL {
+        if let Some(registry) = kartenn_core::registry::special_registry(family) {
+            crate::registry::load(pool, registry).await?;
+        }
+    }
     let modules = [kartenn_service::declarations::core_declarations()];
     let store = crate::write::PgStore::new(pool.clone());
     let outcomes = kartenn_service::declarations::sync_modules(

@@ -44,7 +44,7 @@ pub async fn load(pool: &PgPool, registry: &SpecialRegistry) -> sqlx::Result<u64
 /// An object whose stored public flag differs from the classification by `version`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicDrift {
-    /// `prefix` or `address`.
+    /// `prefix`, `ip_range` or `address`.
     pub table: &'static str,
     /// Object.
     pub id: Uuid,
@@ -52,7 +52,8 @@ pub struct PublicDrift {
     pub public: bool,
 }
 
-/// Current prefixes and addresses whose `public` flag would change under `version`: the
+/// Current prefixes, ranges and addresses whose `public` flag would change under `version`
+/// (a range is public when its first or last address is, as the pipeline classifies it): the
 /// report produced after a registry update (the flags themselves are rewritten by a
 /// system changeset of the write pipeline).
 ///
@@ -64,6 +65,10 @@ pub async fn public_drift(pool: &PgPool, version: &str) -> sqlx::Result<Vec<Publ
         "SELECT 'prefix', id, kartenn_is_public(prefix, $1) FROM prefix
           WHERE public IS DISTINCT FROM kartenn_is_public(prefix, $1)
          UNION ALL
+         SELECT 'ip_range', id, r.p FROM ip_range,
+             LATERAL (SELECT kartenn_is_public(lower(range), $1) OR kartenn_is_public(upper(range), $1) AS p) r
+          WHERE public IS DISTINCT FROM r.p
+         UNION ALL
          SELECT 'address', id, kartenn_is_public(address, $1) FROM address
           WHERE public IS DISTINCT FROM kartenn_is_public(address, $1)",
     )
@@ -73,10 +78,10 @@ pub async fn public_drift(pool: &PgPool, version: &str) -> sqlx::Result<Vec<Publ
     Ok(rows
         .into_iter()
         .map(|(table, id, public)| PublicDrift {
-            table: if table == "prefix" {
-                "prefix"
-            } else {
-                "address"
+            table: match table.as_str() {
+                "prefix" => "prefix",
+                "ip_range" => "ip_range",
+                _ => "address",
             },
             id,
             public,

@@ -72,11 +72,47 @@ async fn drift_reports_objects_whose_flag_is_stale(pool: PgPool) -> sqlx::Result
     .bind(stale)
     .execute(&pool)
     .await?;
-    let drift = public_drift(&pool, kartenn_core::registry::UPDATED).await?;
-    assert_eq!(drift.len(), 1);
+    let range = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version, valid_period, changeset_id)
+         VALUES ($1, gen_random_uuid(), '[8.8.8.1,8.8.8.9]', 'static', false, 'old', tstzrange(now(), NULL), gen_random_uuid())",
+    )
+    .bind(range)
+    .execute(&pool)
+    .await?;
+    let mut drift = public_drift(&pool, kartenn_core::registry::UPDATED).await?;
+    drift.sort_by_key(|d| d.table);
     assert_eq!(
-        (drift[0].table, drift[0].id, drift[0].public),
-        ("address", stale, true)
+        drift
+            .iter()
+            .map(|d| (d.table, d.id, d.public))
+            .collect::<Vec<_>>(),
+        vec![("address", stale, true), ("ip_range", range, true)]
+    );
+    Ok(())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_migration_job_loads_the_embedded_registries(pool: PgPool) -> sqlx::Result<()> {
+    let count = |pool: PgPool| async move {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM special_registry WHERE registry_version = $1",
+        )
+        .bind(kartenn_core::registry::UPDATED)
+        .fetch_one(&pool)
+        .await
+    };
+    kartenn_store_pg::maintenance::deploy(&pool).await.unwrap();
+    let expected: usize = [IPV4, IPV6]
+        .iter()
+        .map(|f| special_registry(*f).unwrap().entries().len())
+        .sum();
+    assert_eq!(count(pool.clone()).await?, i64::try_from(expected).unwrap());
+    kartenn_store_pg::maintenance::deploy(&pool).await.unwrap();
+    assert_eq!(
+        count(pool.clone()).await?,
+        i64::try_from(expected).unwrap(),
+        "a second deployment loads nothing more"
     );
     Ok(())
 }
