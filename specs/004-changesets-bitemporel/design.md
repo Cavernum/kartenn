@@ -217,7 +217,7 @@ détient ces droits (prédicat RBAC, 005). Volume attendu faible ; pagination st
   le valideur doit détenir les droits d'écriture (objets et effets), sans repli sur
   `…propose`. Approbation : les droits de l'auteur sont revérifiés (plus strict que la
   conception, qui ne vérifiait que le valideur) et le valideur doit détenir
-  `changeset.approve` sur tout le périmètre recalculé. Valideur = auteur → refus
+  `core.changeset.approve` (renommée par la 005) sur tout le périmètre recalculé. Valideur = auteur → refus
   `changeset.approval.self`. Revalidation en échec → `failed_revalidation` avec les violations
   (REQ-004-22) ; succès → `applied`, valideur enregistré, même identifiant.
 - **Rejet** (motif obligatoire) par qui pourrait valider ; **retrait** par l'auteur seul

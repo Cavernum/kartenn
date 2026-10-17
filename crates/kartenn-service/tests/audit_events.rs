@@ -235,7 +235,7 @@ async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
         pending("three").await,
     );
     withdraw(&store, one, author).await.unwrap();
-    reject(&store, &Unrestricted, two, validator, "not now")
+    reject(&store, &Unrestricted, two, &validator.into(), "not now")
         .await
         .unwrap();
     // Validating one's own changeset is a refusal of right, audited.
@@ -244,7 +244,7 @@ async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
         &Unrestricted,
         &Sources::none(),
         three,
-        author,
+        &author.into(),
         MAX_OPERATIONS,
     )
     .await;

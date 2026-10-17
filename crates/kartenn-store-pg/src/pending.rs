@@ -40,6 +40,7 @@ fn decode(
                 policy: None,
                 perimeter: Vec::new(),
                 required: Vec::new(),
+                author: None,
             }),
     })
 }

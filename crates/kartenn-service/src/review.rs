@@ -8,7 +8,7 @@ use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
 use crate::audit::{Outcome as AuditOutcome, RequestContext, denial};
-use crate::authz::Authorizer;
+use crate::authz::{Authorizer, Subject};
 use crate::declarations::SYSTEM_AUTHOR;
 use crate::expected::Sources;
 use crate::operations::ChangesetRequest;
@@ -141,7 +141,7 @@ fn kind(found: &PendingChangeset) -> PendingKind {
 async fn may_decide<A: Authorizer>(
     authorizer: &A,
     found: &PendingChangeset,
-    validator: Uuid,
+    validator: &Subject,
 ) -> Result<Vec<Uuid>, StoreError> {
     match kind(found) {
         PendingKind::Approval => {
@@ -177,12 +177,13 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
     authorizer: &A,
     sources: &Sources,
     id: Uuid,
-    validator: Uuid,
+    validator: &Subject,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
     let found = pending(store, id).await?;
-    let context = RequestContext::person(validator);
-    if found.request.author == validator {
+    let context = RequestContext::of(validator);
+    let validator_id = validator.id;
+    if found.request.author == validator_id {
         let error = refused(
             &rules::APPROVAL_SELF,
             format!("{validator} is the author of changeset {id}"),
@@ -192,9 +193,16 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
     }
     let mode = Mode::Validation {
         id,
-        validator,
+        validator: validator_id,
         kind: kind(&found),
     };
+    // An approval checks the author's rights again, with the groups it had when
+    // submitting (REQ-005-22).
+    let author = found
+        .pending
+        .author
+        .clone()
+        .unwrap_or_else(|| Subject::from(found.request.author));
     run(
         store,
         authorizer,
@@ -203,6 +211,7 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
         max_operations,
         mode,
         &context,
+        &author,
     )
     .await
 }
@@ -217,12 +226,12 @@ pub async fn reject<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
     id: Uuid,
-    validator: Uuid,
+    validator: &Subject,
     motive: &str,
 ) -> Result<(), RequestError> {
     let found = pending(store, id).await?;
-    let context = RequestContext::person(validator);
-    if found.request.author == validator {
+    let context = RequestContext::of(validator);
+    if found.request.author == validator.id {
         let error = refused(
             &rules::APPROVAL_SELF,
             format!("{validator} is the author of changeset {id}"),
@@ -251,7 +260,7 @@ pub async fn reject<S: Store, A: Authorizer>(
         Some(motive),
     )?;
     if store
-        .close_pending(id, "rejected", validator, Some(motive), &event)
+        .close_pending(id, "rejected", validator.id, Some(motive), &event)
         .await?
     {
         Ok(())
@@ -337,11 +346,11 @@ pub async fn expire_pending<S: Store>(store: &S) -> Result<Vec<Uuid>, StoreError
 pub async fn proposals_for<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
-    maintainer: Uuid,
+    maintainer: &Subject,
 ) -> Result<Vec<PendingChangeset>, StoreError> {
     let mut out = Vec::new();
     for found in store.pending_proposals().await? {
-        if found.request.author != maintainer
+        if found.request.author != maintainer.id
             && may_decide(authorizer, &found, maintainer).await?.is_empty()
         {
             out.push(found);

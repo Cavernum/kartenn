@@ -152,6 +152,10 @@ pub struct Pending {
     pub perimeter: Vec<Uuid>,
     /// Write permissions the author lacks, with the objects concerned, for a proposal.
     pub required: Vec<(String, Vec<Uuid>)>,
+    /// The author's issuer and groups when submitting (005, REQ-005-22): an approval
+    /// checks the author's rights again with them, the groups living in the token.
+    #[serde(default)]
+    pub author: Option<crate::authz::Subject>,
 }
 
 /// A changeset journaled as pending, or decided since.

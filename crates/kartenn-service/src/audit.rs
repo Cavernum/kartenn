@@ -34,9 +34,31 @@ pub struct RequestContext {
     pub source: Source,
     /// Trace and request identifiers.
     pub correlation: Correlation,
+    /// Groups of the actor at its issuer, read from its token (005/K4); empty otherwise.
+    pub groups: Vec<String>,
 }
 
 impl RequestContext {
+    /// The subject whose rights the request uses (005): the actor, its issuer and groups;
+    /// `None` for kartenn itself.
+    #[must_use]
+    pub fn subject(&self) -> Option<crate::authz::Subject> {
+        self.actor.id.map(|id| crate::authz::Subject {
+            id,
+            issuer: self.actor.issuer.clone(),
+            groups: self.groups.clone(),
+        })
+    }
+
+    /// The context of a subject: a person with its issuer and groups.
+    #[must_use]
+    pub fn of(subject: &crate::authz::Subject) -> Self {
+        let mut context = Self::person(subject.id);
+        context.actor.issuer.clone_from(&subject.issuer);
+        context.groups.clone_from(&subject.groups);
+        context
+    }
+
     /// kartenn itself, for jobs and migrations.
     #[must_use]
     pub fn system() -> Self {
@@ -44,6 +66,7 @@ impl RequestContext {
             actor: Actor::system(),
             source: Source::default(),
             correlation: Correlation::default(),
+            groups: Vec::new(),
         }
     }
 
@@ -54,6 +77,7 @@ impl RequestContext {
             actor: Actor::person(id),
             source: Source::default(),
             correlation: Correlation::default(),
+            groups: Vec::new(),
         }
     }
 

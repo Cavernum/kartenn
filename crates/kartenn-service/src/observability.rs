@@ -74,9 +74,9 @@ pub async fn set_log_filter<O: Overrides, A: Authorizer, J: AuditJournal>(
 ) -> Result<Override, RequestError> {
     let audit_err =
         |e: kartenn_core::audit::AuditError| RequestError::Audit(StoreError(e.to_string()));
-    if let Some(actor) = context.actor.id {
+    if let Some(actor) = context.subject() {
         let denied = authorizer
-            .authorize_many(actor, OBSERVABILITY_ADMIN, &[OBSERVABILITY])
+            .authorize_many(&actor, OBSERVABILITY_ADMIN, &[OBSERVABILITY])
             .await?;
         if !denied.is_empty() {
             let event = context

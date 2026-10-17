@@ -12,7 +12,7 @@ use kartenn_core::properties::PropertyKey;
 use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
-use crate::authz::{Authorizer, POLICY_ADMIN};
+use crate::authz::{Authorizer, POLICY_ADMIN, Subject};
 use crate::pipeline::Planned;
 use crate::port::{DiffCount, StoreError, WriteTx};
 
@@ -27,7 +27,7 @@ pub(crate) type Missing = Vec<(String, Vec<Uuid>)>;
 pub(crate) async fn check<T: WriteTx, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
-    subject: Uuid,
+    subject: &Subject,
     planned: &[Planned],
     diff: &[DiffCount],
     period: Option<Period>,

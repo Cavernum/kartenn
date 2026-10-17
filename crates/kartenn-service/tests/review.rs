@@ -3,14 +3,15 @@
 
 use kartenn_core::objects::Nature;
 use kartenn_core::values::Cardinality;
-use kartenn_service::authz::{Authorizer, Grants, Unrestricted};
+use kartenn_service::audit::RequestContext;
+use kartenn_service::authz::{Authorizer, Grants, Subject, Unrestricted};
 use kartenn_service::declarations::{ModuleDeclarations, SYSTEM_AUTHOR, sync_modules};
 use kartenn_service::expected::Sources;
 use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::{APPROVE_PERMISSION, MAX_OPERATIONS, PendingKind};
 use kartenn_service::review::{expire_pending, proposals_for, reject, validate_pending, withdraw};
 use kartenn_service::{
-    ChangesetRequest, ObjectKind, Operation, Outcome, Ref, RequestError, submit,
+    ChangesetRequest, ObjectKind, Operation, Outcome, Ref, RequestError, submit, submit_in,
 };
 use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
@@ -182,7 +183,7 @@ impl Fixture {
             authorizer,
             &Sources::none(),
             id,
-            validator,
+            &validator.into(),
             MAX_OPERATIONS,
         )
         .await
@@ -349,12 +350,18 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
     };
     let (rejected, _) = f.pending(&Unrestricted, vec![address("10.1.15.1")]).await;
     assert!(matches!(
-        reject(&f.store, &approver, rejected, f.approver, " ").await,
+        reject(&f.store, &approver, rejected, &f.approver.into(), " ").await,
         Err(RequestError::MotiveRequired)
     ));
-    reject(&f.store, &approver, rejected, f.approver, "not this week")
-        .await
-        .unwrap();
+    reject(
+        &f.store,
+        &approver,
+        rejected,
+        &f.approver.into(),
+        "not this week",
+    )
+    .await
+    .unwrap();
     let rejection: Option<String> =
         sqlx::query_scalar("SELECT rejection FROM changeset WHERE id = $1")
             .bind(rejected)
@@ -446,7 +453,8 @@ async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
         .await;
     assert_eq!(kind, PendingKind::Proposal);
     // REQ-004-43: in the queue of who can validate it only.
-    let queue = |who| proposals_for(&f.store, &rights, who);
+    let (store, rights_ref) = (&f.store, &rights);
+    let queue = |who: Uuid| async move { proposals_for(store, rights_ref, &who.into()).await };
     assert_eq!(
         queue(maintainer)
             .await
@@ -500,5 +508,63 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_approval_checks_the_author_with_the_groups_it_had(pool: PgPool) {
+    // REQ-005-22: the author's groups live in its token; the pending changeset keeps them
+    // so that the approval checks the author's rights again with them.
+    let f = Fixture::new(&pool).await;
+    let admin = Grants::new().everywhere(f.author, kartenn_service::authz::POLICY_ADMIN);
+    assert!(matches!(
+        f.submit_as(&admin, vec![policy("large", 500)]).await,
+        Outcome::Applied { .. }
+    ));
+    let rights = Grants::new()
+        .group(
+            "https://idp.example.invalid",
+            "netops",
+            "prop.custom.environment.write",
+        )
+        .everywhere(f.approver, APPROVE_PERMISSION);
+    let author = Subject {
+        id: f.author,
+        issuer: Some("https://idp.example.invalid".into()),
+        groups: vec!["netops".into()],
+    };
+    let outcome = submit_in(
+        &f.store,
+        &rights,
+        &Sources::none(),
+        &RequestContext::of(&author),
+        &request(
+            f.author,
+            vec![f.assign(f.network, ObjectKind::Prefix, "prod")],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Pending {
+        changeset: big,
+        kind: PendingKind::Approval,
+        ..
+    } = outcome
+    else {
+        panic!("{outcome:?}");
+    };
+    let kept: Option<String> = sqlx::query_scalar(
+        "SELECT required_rights -> 'author' -> 'groups' ->> 0 FROM changeset WHERE id = $1",
+    )
+    .bind(big)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kept.as_deref(), Some("netops"), "the groups are kept");
+    // The approver holds no group: the author's rights come from the snapshot.
+    match f.validate(&rights, big, f.approver).await.unwrap() {
+        Outcome::Applied { changeset, .. } => assert_eq!(changeset, big),
+        other => panic!("{other:?}"),
     }
 }

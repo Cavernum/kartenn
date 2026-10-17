@@ -16,10 +16,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   (`KARTENN_BLESS`), noms uniques et bien formés, rôles ⊆ catalogue — motifs de rôle
   `prop.*.<action>` (propriétés non sensibles seulement) et `*` ; `core.property.admin`
   ajoutée (déclarations et sensibilité)
-- [ ] 2. `Subject` (identité, émetteur, groupes) dans le port `Authorizer` ; `Grants`,
-  `Unrestricted` et tous les appelants ; `core.changeset.approve` ; instantané
-  `changeset.author_groups` — REQ-005-18, 22 — verify : tests existants verts, test de
-  revalidation avec les groupes de l'auteur
+- [x] 2. `Subject` (identité, émetteur, groupes) dans le port `Authorizer` ; `Grants`,
+  `Unrestricted` et tous les appelants ; `core.changeset.approve` ; instantané des
+  groupes de l'auteur — REQ-005-18, 22 — verify : tests existants verts, test de
+  revalidation avec les groupes de l'auteur — l'instantané est le champ `author` du
+  `Pending` (JSON, sans migration) ; `RequestContext` porte les groupes ;
+  `validate_pending`, `reject`, `proposals_for` reçoivent un `Subject` ; `Grants`
+  accorde aussi par groupe (`review.rs::an_approval_checks_the_author_with_the_groups_it_had`)
 - [ ] 3. Migration `0028_rbac.sql` : identités (`kind`, `disabled_at`, `revoked_after`),
   `role`, `role_permission`, `binding`, `issuer_attachment` versionnées, `service_secret`,
   `breakglass_account` ; fonctions `kartenn_owner`, `kartenn_site` — REQ-005-3, 11, 14,

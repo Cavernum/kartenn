@@ -133,11 +133,11 @@ pub async fn read_audit<R: Reader, A: Authorizer, J: AuditJournal>(
     context: &RequestContext,
     query: &AuditQuery,
 ) -> Result<Vec<serde_json::Value>, RequestError> {
-    let allowed = match context.actor.id {
+    let allowed = match context.subject() {
         // kartenn itself (an export job) reads its own journal.
         None => true,
         Some(actor) => authorizer
-            .authorize_many(actor, AUDIT_READ_PERMISSION, &[AUDIT_JOURNAL])
+            .authorize_many(&actor, AUDIT_READ_PERMISSION, &[AUDIT_JOURNAL])
             .await?
             .is_empty(),
     };

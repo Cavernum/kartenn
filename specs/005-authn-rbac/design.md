@@ -56,7 +56,7 @@ la validation est écrite sur `jsonwebtoken` seul.
 - `Subject` (entrée de l'autorisation) : `id`, `issuer`, `groups`. Le port devient
   `authorize_many(&Subject, permission, objects)` ; `Grants` et `Unrestricted` suivent.
   Un changeset en attente garde un instantané des groupes de son auteur
-  (`changeset.author_groups`) : la revalidation de ses droits à l'approbation (004) se
+  (champ `author` du `Pending` enregistré avec lui, JSON : pas de migration) : la revalidation de ses droits à l'approbation (004) se
   fait avec eux, les groupes vivant dans le jeton.
 
 ### Modèle de données — migration `0028_rbac.sql`
@@ -79,7 +79,6 @@ la validation est écrite sur `jsonwebtoken` seul.
   - `breakglass_account (account_id, password_hash, totp_secret, totp_key_id,
     last_totp_step, failures, valid_until)` : écrite par le propriétaire du schéma ; le
     rôle applicatif ne peut que lire et mettre à jour `last_totp_step` et `failures`.
-- `changeset.author_groups text[]`.
 
 ### Catalogue des permissions et rôles livrés (REQ-005-16, 17)
 

@@ -1172,6 +1172,12 @@ pub async fn submit_in<S: Store, A: Authorizer>(
     req: &ChangesetRequest,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
+    // The rights are the actor's when it is the author (with its issuer and groups),
+    // the author's identity alone otherwise (system work on behalf of an author).
+    let author = context
+        .subject()
+        .filter(|s| s.id == req.author)
+        .unwrap_or_else(|| crate::authz::Subject::from(req.author));
     run(
         store,
         authorizer,
@@ -1180,6 +1186,7 @@ pub async fn submit_in<S: Store, A: Authorizer>(
         max_operations,
         Mode::Submission,
         context,
+        &author,
     )
     .await
 }
@@ -1202,6 +1209,7 @@ pub(crate) enum Mode {
 /// with `state`, `operations`, `violations` and `duration_ms`, from which the telemetry
 /// derives `kartenn.changeset.count` and `kartenn.pipeline.duration`. Neither the motive
 /// nor the author is logged (REQ-012-29: the audit carries them).
+#[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn run<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
@@ -1210,6 +1218,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
     max_operations: usize,
     mode: Mode,
     context: &RequestContext,
+    author: &crate::authz::Subject,
 ) -> Result<Outcome, RequestError> {
     use tracing::Instrument as _;
     let operations = req.operations.len();
@@ -1228,6 +1237,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         max_operations,
         mode,
         context,
+        author,
     )
     .instrument(span.clone())
     .await;
@@ -1352,7 +1362,7 @@ fn log_outcome(
 }
 
 /// The stages of a changeset (004/design, § Pipeline d'un changeset).
-#[allow(clippy::too_many_lines)] // one linear pipeline, stage by stage
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)] // one linear pipeline
 async fn stages<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
@@ -1361,6 +1371,7 @@ async fn stages<S: Store, A: Authorizer>(
     max_operations: usize,
     mode: Mode,
     context: &RequestContext,
+    author: &crate::authz::Subject,
 ) -> Result<Outcome, RequestError> {
     let period = check_request(req, max_operations)?;
     let changeset = match mode {
@@ -1435,17 +1446,19 @@ async fn stages<S: Store, A: Authorizer>(
     // Rights: the author's when submitting (a lack covered by `…propose` makes a
     // proposal); a proposal's validator's when validating it; the author's again for an
     // approval, whose validator needs the approval permission below.
+    let validator = context
+        .subject()
+        .unwrap_or_else(|| crate::authz::Subject::from(req.author));
     let (subject, may_propose) = match mode {
-        Mode::Submission => (req.author, true),
+        Mode::Submission => (author, true),
         Mode::Validation {
-            validator,
             kind: PendingKind::Proposal,
             ..
-        } => (validator, false),
+        } => (&validator, false),
         Mode::Validation {
             kind: PendingKind::Approval,
             ..
-        } => (req.author, false),
+        } => (author, false),
     };
     let props = properties(
         &mut tx,
@@ -1512,6 +1525,7 @@ async fn stages<S: Store, A: Authorizer>(
                     policy,
                     perimeter: perimeter.into_iter().collect(),
                     required: missing,
+                    author: Some(author.clone()),
                 };
                 return hold(
                     store,
@@ -1536,7 +1550,11 @@ async fn stages<S: Store, A: Authorizer>(
             perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
             let perimeter: Vec<Uuid> = perimeter.into_iter().collect();
             let denied = authorizer
-                .authorize_many(validator, APPROVE_PERMISSION, &perimeter)
+                .authorize_many(
+                    &context.subject().unwrap_or_else(|| validator.into()),
+                    APPROVE_PERMISSION,
+                    &perimeter,
+                )
                 .await?;
             if !denied.is_empty() {
                 tx.rollback().await?;
@@ -1584,7 +1602,7 @@ async fn stages<S: Store, A: Authorizer>(
 
 /// Permission to approve a changeset held by a policy, over its whole perimeter
 /// (REQ-004-21).
-pub const APPROVE_PERMISSION: &str = "changeset.approve";
+pub const APPROVE_PERMISSION: &str = "core.changeset.approve";
 
 /// The kind of a pending changeset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1698,7 +1716,7 @@ async fn properties<T: WriteTx, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     sources: &Sources,
-    subject: Uuid,
+    subject: &crate::authz::Subject,
     may_propose: bool,
     planned: &[Planned],
     period: Option<Period>,
