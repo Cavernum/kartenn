@@ -390,8 +390,14 @@ async fn stop(telemetry: Telemetry, finish: impl Future<Output = ()>) -> Report 
             lost += n;
         }
     }
-    if let Some(providers) = &telemetry.providers {
-        let _ = providers.shutdown();
+    if let Some(providers) = telemetry.providers {
+        // The shutdown blocks until the last export; the exporters run on this runtime,
+        // which must stay free meanwhile.
+        let _ = tokio::time::timeout(
+            STOP_WITHIN,
+            tokio::task::spawn_blocking(move || providers.shutdown()),
+        )
+        .await;
     }
     Report {
         lost_technical: lost,
