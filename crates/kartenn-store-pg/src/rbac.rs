@@ -5,9 +5,12 @@
 
 use kartenn_service::StoreError;
 use kartenn_service::authz::{Authorizer, Subject};
-use sqlx::PgPool;
+use std::future::Future;
+
+use kartenn_service::WriteTx;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
+use sqlx::{PgConnection, PgPool};
 
 fn store_err(e: impl std::fmt::Display) -> StoreError {
     StoreError(e.to_string())
@@ -150,7 +153,7 @@ pub struct PgAuthorizer {
 /// Whether the property of a property permission is sensitive (003/P17): the patterns
 /// `prop.*.<action>` spare it.
 async fn sensitive(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     permission: &str,
     at: OffsetDateTime,
 ) -> Result<bool, StoreError> {
@@ -166,7 +169,7 @@ async fn sensitive(
     )
     .bind(key)
     .bind(at)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(store_err)?;
     Ok(found.unwrap_or(false))
@@ -174,7 +177,7 @@ async fn sensitive(
 
 /// `ids` with their descendants in `table` (`entity` or `site`) at `at`.
 async fn descendants(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     table: &str,
     ids: &[Uuid],
     at: OffsetDateTime,
@@ -192,9 +195,156 @@ async fn descendants(
     )))
     .bind(ids)
     .bind(at)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await
     .map_err(store_err)
+}
+
+/// Where `subject` holds `permission` at `at`, as `conn` sees the data.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn visibility_on(
+    conn: &mut PgConnection,
+    subject: &Subject,
+    permission: &str,
+    at: OffsetDateTime,
+) -> Result<Visibility, StoreError> {
+    let action = permission.rsplit('.').next().unwrap_or_default();
+    let pattern_applies =
+        permission.starts_with("prop.") && !sensitive(conn, permission, at).await?;
+    let rows: Vec<(String, Option<Uuid>)> = sqlx::query_as(
+        "SELECT DISTINCT b.scope_kind, b.scope_id
+         FROM binding b
+         JOIN role r ON r.id = b.role_id AND r.valid_period @> $2
+         JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> $2
+         WHERE b.valid_period @> $2
+           AND (rp.permission IN ('*', $1)
+                OR ($6 AND rp.permission = 'prop.*.' || $7))
+           AND ((b.subject_kind = 'identity' AND b.subject_id = $3)
+                OR (b.subject_kind = 'group' AND b.issuer = $4 AND b.group_name = ANY($5))
+                OR (b.subject_kind = 'issuer' AND b.issuer = $4))",
+    )
+    .bind(permission)
+    .bind(at)
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .bind(pattern_applies)
+    .bind(action)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    // A global-only permission acts on the global scope alone (K7, K11).
+    let global_only = kartenn_core::authz::permission(permission).is_some_and(|p| p.global_only);
+    let mut v = Visibility::none();
+    let (mut entities, mut sites, mut prefix_ids) = (Vec::new(), Vec::new(), Vec::new());
+    for (kind, id) in rows {
+        match (kind.as_str(), id) {
+            ("global", _) => v.global = true,
+            (_, _) if global_only => {}
+            ("entity", Some(id)) => entities.push(id),
+            ("site", Some(id)) => sites.push(id),
+            ("domain", Some(id)) => v.domains.push(id),
+            ("prefix", Some(id)) => prefix_ids.push(id),
+            _ => {}
+        }
+    }
+    v.entities = descendants(conn, "entity", &entities, at).await?;
+    v.sites = descendants(conn, "site", &sites, at).await?;
+    if !prefix_ids.is_empty() {
+        v.prefixes = sqlx::query_as(
+            "SELECT domain_id, prefix::text FROM prefix WHERE id = ANY($1) AND valid_period @> $2",
+        )
+        .bind(&prefix_ids)
+        .bind(at)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(store_err)?;
+    }
+    v.confinement = confinement(conn, subject, at).await?;
+    Ok(v)
+}
+
+/// The bound of the issuer of `subject` (K4, K13): `None` without issuer or with a global
+/// attachment; the attached entities with their descendants otherwise (empty without
+/// attachment: no right).
+async fn confinement(
+    conn: &mut PgConnection,
+    subject: &Subject,
+    at: OffsetDateTime,
+) -> Result<Option<Vec<Uuid>>, StoreError> {
+    let Some(issuer) = &subject.issuer else {
+        return Ok(None);
+    };
+    let attached: Vec<Option<Uuid>> = sqlx::query_scalar(
+        "SELECT entity_id FROM issuer_attachment WHERE issuer = $1 AND valid_period @> $2",
+    )
+    .bind(issuer)
+    .bind(at)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    if attached.iter().any(Option::is_none) {
+        return Ok(None);
+    }
+    let entities: Vec<Uuid> = attached.into_iter().flatten().collect();
+    Ok(Some(descendants(conn, "entity", &entities, at).await?))
+}
+
+/// The objects among `objects` outside `visibility` at `at`, as `conn` sees them.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn outside_on(
+    conn: &mut PgConnection,
+    visibility: &Visibility,
+    objects: &[Uuid],
+    at: OffsetDateTime,
+) -> Result<Vec<Uuid>, StoreError> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    if visibility.is_empty() {
+        return Ok(objects.to_vec());
+    }
+    let a = visibility.arguments();
+    sqlx::query_scalar(
+        "SELECT o.id FROM unnest($1::uuid[]) AS o(id)
+         LEFT JOIN carrier_object c ON c.id = o.id AND c.valid_period @> $2
+         WHERE NOT coalesce(kartenn_visible(o.id, c.domain_id, c.value, $2, $3, $4, $5,
+                                            $6, $7, $8::text[]::cidr[], $9), false)",
+    )
+    .bind(objects)
+    .bind(at)
+    .bind(a.global)
+    .bind(&a.entities)
+    .bind(&a.sites)
+    .bind(&a.domains)
+    .bind(&a.prefix_domains)
+    .bind(&a.prefixes)
+    .bind(a.confinement.as_deref())
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)
+}
+
+/// [`Authorizer::authorize_many`] on `conn`, now.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn outside_now(
+    conn: &mut PgConnection,
+    subject: &Subject,
+    permission: &str,
+    objects: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    let now = OffsetDateTime::now_utc();
+    let visibility = visibility_on(conn, subject, permission, now).await?;
+    outside_on(conn, &visibility, objects, now).await
 }
 
 impl PgAuthorizer {
@@ -215,89 +365,8 @@ impl PgAuthorizer {
         permission: &str,
         at: OffsetDateTime,
     ) -> Result<Visibility, StoreError> {
-        let action = permission.rsplit('.').next().unwrap_or_default();
-        let pattern_applies =
-            permission.starts_with("prop.") && !sensitive(&self.pool, permission, at).await?;
-        let rows: Vec<(String, Option<Uuid>)> = sqlx::query_as(
-            "SELECT DISTINCT b.scope_kind, b.scope_id
-             FROM binding b
-             JOIN role r ON r.id = b.role_id AND r.valid_period @> $2
-             JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> $2
-             WHERE b.valid_period @> $2
-               AND (rp.permission IN ('*', $1)
-                    OR ($6 AND rp.permission = 'prop.*.' || $7))
-               AND ((b.subject_kind = 'identity' AND b.subject_id = $3)
-                    OR (b.subject_kind = 'group' AND b.issuer = $4 AND b.group_name = ANY($5))
-                    OR (b.subject_kind = 'issuer' AND b.issuer = $4))",
-        )
-        .bind(permission)
-        .bind(at)
-        .bind(subject.id)
-        .bind(subject.issuer.as_deref())
-        .bind(&subject.groups)
-        .bind(pattern_applies)
-        .bind(action)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(store_err)?;
-        // A global-only permission acts on the global scope alone (K7, K11).
-        let global_only =
-            kartenn_core::authz::permission(permission).is_some_and(|p| p.global_only);
-        let mut v = Visibility::none();
-        let (mut entities, mut sites, mut prefix_ids) = (Vec::new(), Vec::new(), Vec::new());
-        for (kind, id) in rows {
-            match (kind.as_str(), id) {
-                ("global", _) => v.global = true,
-                (_, _) if global_only => {}
-                ("entity", Some(id)) => entities.push(id),
-                ("site", Some(id)) => sites.push(id),
-                ("domain", Some(id)) => v.domains.push(id),
-                ("prefix", Some(id)) => prefix_ids.push(id),
-                _ => {}
-            }
-        }
-        v.entities = descendants(&self.pool, "entity", &entities, at).await?;
-        v.sites = descendants(&self.pool, "site", &sites, at).await?;
-        if !prefix_ids.is_empty() {
-            v.prefixes = sqlx::query_as(
-                "SELECT domain_id, prefix::text FROM prefix WHERE id = ANY($1) AND valid_period @> $2",
-            )
-            .bind(&prefix_ids)
-            .bind(at)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(store_err)?;
-        }
-        v.confinement = self.confinement(subject, at).await?;
-        Ok(v)
-    }
-
-    /// The bound of the issuer of `subject` (K4, K13): `None` without issuer or with a
-    /// global attachment; the attached entities with their descendants otherwise (empty
-    /// without attachment: no right).
-    async fn confinement(
-        &self,
-        subject: &Subject,
-        at: OffsetDateTime,
-    ) -> Result<Option<Vec<Uuid>>, StoreError> {
-        let Some(issuer) = &subject.issuer else {
-            return Ok(None);
-        };
-        let attached: Vec<Option<Uuid>> = sqlx::query_scalar(
-            "SELECT entity_id FROM issuer_attachment WHERE issuer = $1 AND valid_period @> $2",
-        )
-        .bind(issuer)
-        .bind(at)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(store_err)?;
-        if attached.iter().any(Option::is_none) {
-            return Ok(None);
-        }
-        let entities: Vec<Uuid> = attached.into_iter().flatten().collect();
-        Ok(Some(
-            descendants(&self.pool, "entity", &entities, at).await?,
-        ))
+        let mut conn = self.pool.acquire().await.map_err(store_err)?;
+        visibility_on(&mut conn, subject, permission, at).await
     }
 
     /// What `subject` may read at `at`, kind by kind.
@@ -310,9 +379,13 @@ impl PgAuthorizer {
         subject: &Subject,
         at: OffsetDateTime,
     ) -> Result<ReadScope, StoreError> {
+        let mut conn = self.pool.acquire().await.map_err(store_err)?;
         let mut kinds = std::collections::BTreeMap::new();
         for (kind, permission) in READ_PERMISSIONS {
-            kinds.insert(kind, self.visibility(subject, permission, at).await?);
+            kinds.insert(
+                kind,
+                visibility_on(&mut conn, subject, permission, at).await?,
+            );
         }
         Ok(ReadScope(Some(kinds)))
     }
@@ -328,31 +401,8 @@ impl PgAuthorizer {
         objects: &[Uuid],
         at: OffsetDateTime,
     ) -> Result<Vec<Uuid>, StoreError> {
-        if objects.is_empty() {
-            return Ok(Vec::new());
-        }
-        if visibility.is_empty() {
-            return Ok(objects.to_vec());
-        }
-        let a = visibility.arguments();
-        sqlx::query_scalar(
-            "SELECT o.id FROM unnest($1::uuid[]) AS o(id)
-             LEFT JOIN carrier_object c ON c.id = o.id AND c.valid_period @> $2
-             WHERE NOT coalesce(kartenn_visible(o.id, c.domain_id, c.value, $2, $3, $4, $5,
-                                                $6, $7, $8::text[]::cidr[], $9), false)",
-        )
-        .bind(objects)
-        .bind(at)
-        .bind(a.global)
-        .bind(&a.entities)
-        .bind(&a.sites)
-        .bind(&a.domains)
-        .bind(&a.prefix_domains)
-        .bind(&a.prefixes)
-        .bind(a.confinement.as_deref())
-        .fetch_all(&self.pool)
-        .await
-        .map_err(store_err)
+        let mut conn = self.pool.acquire().await.map_err(store_err)?;
+        outside_on(&mut conn, visibility, objects, at).await
     }
 }
 
@@ -363,8 +413,17 @@ impl Authorizer for PgAuthorizer {
         permission: &str,
         objects: &[Uuid],
     ) -> Result<Vec<Uuid>, StoreError> {
-        let now = OffsetDateTime::now_utc();
-        let visibility = self.visibility(subject, permission, now).await?;
-        self.outside(&visibility, objects, now).await
+        let mut conn = self.pool.acquire().await.map_err(store_err)?;
+        outside_now(&mut conn, subject, permission, objects).await
+    }
+
+    fn authorize_in<T: WriteTx + Send>(
+        &self,
+        tx: &mut T,
+        subject: &Subject,
+        permission: &str,
+        objects: &[Uuid],
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send {
+        tx.rbac_outside(subject, permission, objects)
     }
 }

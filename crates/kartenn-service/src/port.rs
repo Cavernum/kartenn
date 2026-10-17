@@ -432,6 +432,16 @@ pub trait Store: Send + Sync {
 /// One write transaction. Every write runs under a savepoint, so that a refused write
 /// leaves the transaction usable and every violation can be reported (REQ-004-7).
 pub trait WriteTx {
+    /// The objects among `objects` on which `subject` lacks `permission`, as the RBAC sees
+    /// them in this transaction, the objects it created or changed included (spec 005,
+    /// REQ-005-22).
+    fn rbac_outside(
+        &mut self,
+        subject: &crate::authz::Subject,
+        permission: &str,
+        objects: &[Uuid],
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
     /// Takes the advisory locks of the domains, in order, and of public space if needed
     /// (ADR 0015).
     fn lock(

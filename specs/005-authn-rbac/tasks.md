@@ -43,8 +43,14 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   `children_in` ; `read_object` reçoit l'autorisateur, répond absent sans droit (refus
   audité) et liste les valeurs masquées (`ObjectRead::masked`) ; vérification exhaustive
   sur les six périmètres du petit arbre plutôt qu'aléatoire (`rbac.rs`)
-- [ ] 6. Droits d'écriture par type d'objet dans le pipeline (objet ou parent),
-  propositions — REQ-005-22 — verify : éditeur d'une entité, proposition (004)
+- [x] 6. Droits d'écriture par type d'objet dans le pipeline (objet ou parent),
+  propositions — REQ-005-22 — verify : éditeur d'une entité, proposition (004) — la
+  décision se prend **dans la transaction du changeset** (`Authorizer::authorize_in`,
+  `WriteTx::rbac_outside`) : par le pool, un objet créé par le changeset n'existait pas et
+  aurait été refusé ; objets existants contrôlés avant les écritures (clos, ils ne sont
+  plus valides), objets créés après (avec leur propriétaire hérité) ; règle
+  `core.object.forbidden` ; les droits de propriété (003) passent aussi par la
+  transaction (`rbac.rs`, tests 003 ajustés : `rights.rs`, `anchors.rs`)
 - [ ] 7. Opérations d'administration (rôles, liaisons, rattachements, comptes de service,
   état des identités) et règle anti-escalade ; synchronisation des rôles livrés —
   REQ-005-3, 17, 25, 26 — verify : délégation bornée (test de propriété), lecture datée

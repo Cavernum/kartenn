@@ -212,6 +212,8 @@ rules! {
         "Une politique d'approbation a un nom et au moins un déclencheur.";
     POLICY_FORBIDDEN = "changeset.policy.forbidden", Error, ["REQ-004-39", "REQ-004-40"], "004/C6",
         "Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques.";
+    OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
+        "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
 }
 
 /// Every rule, all groups, in catalogue order.

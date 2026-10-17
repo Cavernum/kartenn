@@ -57,6 +57,20 @@ pub trait Authorizer: Send + Sync {
         permission: &str,
         objects: &[Uuid],
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// [`Self::authorize_many`] as seen from inside the transaction `tx` of a changeset,
+    /// whose own writes count (005, REQ-005-22); by default the transaction is not
+    /// consulted.
+    fn authorize_in<T: crate::port::WriteTx + Send>(
+        &self,
+        tx: &mut T,
+        subject: &Subject,
+        permission: &str,
+        objects: &[Uuid],
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send {
+        let _ = tx;
+        self.authorize_many(subject, permission, objects)
+    }
 }
 
 /// Grants every permission on every object.

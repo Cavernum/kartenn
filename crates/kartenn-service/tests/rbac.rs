@@ -7,10 +7,12 @@ use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
+use kartenn_service::expected::Sources;
 use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::pipeline::PendingKind;
 use kartenn_service::reads::{ReadAudit, read_object};
-use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
+use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{Condition, filter, filter_in};
 use kartenn_store_pg::rbac::{PgAuthorizer, ReadScope};
@@ -666,4 +668,127 @@ async fn a_read_needs_its_right_and_masks_sensitive_values(pool: PgPool) {
     assert!(seen.properties.contains_key("core.site"));
     assert!(seen.masked.is_empty());
     assert_eq!(events("data.sensitive.read").await, 1);
+}
+
+impl Tree {
+    /// A person with an identity in the database (changesets reference their author).
+    async fn identity(&self) -> Subject {
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap();
+        Subject::from(id)
+    }
+
+    /// Submits `operations` as `who`, under the RBAC.
+    async fn submit_as(&self, who: &Subject, operations: Vec<Operation>) -> Outcome {
+        let request = ChangesetRequest {
+            author: who.id,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+        };
+        submit_in(
+            &self.store,
+            &PgAuthorizer::new(self.pool.clone()),
+            &Sources::none(),
+            &RequestContext::of(who),
+            &request,
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
+    }
+}
+
+fn new_address(domain: Uuid, value: &str) -> Operation {
+    Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(domain),
+        address: value.into(),
+        usage: AddressUsage::Host,
+    }
+}
+
+fn rules_of(outcome: &Outcome) -> Vec<&'static str> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let editor = t
+        .role(
+            "editor",
+            &["core.address.write", "core.prefix.write", "prop.*.write"],
+        )
+        .await;
+    let lab = t.ids["lab"];
+    // An editor of `branch` creates in its network, not in the group's.
+    let who = t.identity().await;
+    t.bind(Binding::Identity(who.id), editor, "branch", None)
+        .await;
+    let outcome = t.submit_as(&who, vec![new_address(lab, "10.5.0.9")]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let outcome = t.submit_as(&who, vec![new_address(lab, "10.6.0.9")]).await;
+    assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
+    // Nor close an object out of its scope.
+    let outcome = t
+        .submit_as(
+            &who,
+            vec![Operation::Close {
+                kind: ObjectKind::Address,
+                id: Ref::Id(t.ids["10.6.0.7"]),
+                expected: None,
+                cascade: false,
+            }],
+        )
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
+    // A network and its address created together: seen from the transaction, the new
+    // address belongs to the group, which the editor of `group` may write.
+    let group_editor = t.identity().await;
+    t.bind(Binding::Identity(group_editor.id), editor, "group", None)
+        .await;
+    let outcome = t
+        .submit_as(
+            &group_editor,
+            vec![
+                Operation::CreatePrefix {
+                    local: None,
+                    domain: Ref::Id(lab),
+                    prefix: "10.7.0.0/24".into(),
+                    nature: Nature::Network,
+                    point_to_point: false,
+                    anycast: false,
+                },
+                new_address(lab, "10.7.0.1"),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_right_to_propose_makes_a_proposal(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let proposer = t.role("proposer", &["core.address.propose"]).await;
+    let who = t.identity().await;
+    t.bind(Binding::Identity(who.id), proposer, "branch", None)
+        .await;
+    let lab = t.ids["lab"];
+    match t.submit_as(&who, vec![new_address(lab, "10.5.0.9")]).await {
+        Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Proposal),
+        other => panic!("expected a proposal, got {other:?}"),
+    }
+    // Out of its scope, not even a proposal.
+    let outcome = t.submit_as(&who, vec![new_address(lab, "10.6.0.9")]).await;
+    assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
 }

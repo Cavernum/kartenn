@@ -58,3 +58,4 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.approval.forbidden` | erreur | Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition. | REQ-004-21, REQ-004-42 | 004/C1, C7 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `changeset.policy.forbidden` | erreur | Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques. | REQ-004-39, REQ-004-40 | 004/C6 |
+| `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |

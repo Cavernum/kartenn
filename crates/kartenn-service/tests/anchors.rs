@@ -399,10 +399,19 @@ async fn the_owner_is_resolved_and_guarded(pool: PgPool) {
         .await;
     assert_eq!(origin(far).await.origin, Some(taken));
     // ADR 0014: closing it gives them back to the domain's owner; without the right on
-    // them, the manoeuvre is refused.
+    // them, the manoeuvre is refused, even with the right to close the prefix (005).
     assert!(
+        f.refused_as(
+            &Grants::new().everywhere(f.author, "core.prefix.write"),
+            vec![close(ObjectKind::Prefix, taken)]
+        )
+        .await
+        .contains(&"prop.assignment.forbidden_effect")
+    );
+    // Without the right to close it, refused before any effect is computed.
+    assert_eq!(
         f.refused_as(&Grants::new(), vec![close(ObjectKind::Prefix, taken)])
-            .await
-            .contains(&"prop.assignment.forbidden_effect")
+            .await,
+        vec!["core.object.forbidden"]
     );
 }

@@ -127,8 +127,19 @@ impl Fixture {
     }
 
     /// Refused by the rights: the objects refused.
+    /// `grants` plus the right to write the objects themselves (005): these tests are about
+    /// the rights on the properties and their effects.
+    fn with_objects(&self, grants: &Grants) -> Grants {
+        ["prefix", "range", "address"]
+            .iter()
+            .fold(grants.clone(), |g, kind| {
+                g.everywhere(self.contractor, &format!("core.{kind}.write"))
+            })
+    }
+
     async fn forbidden(&self, grants: &Grants, operations: Vec<Operation>) -> Vec<Uuid> {
-        match self.submit(grants, self.contractor, operations).await {
+        let grants = self.with_objects(grants);
+        match self.submit(&grants, self.contractor, operations).await {
             Outcome::Refused { violations, .. } => {
                 assert_eq!(violations.len(), 1, "{violations:?}");
                 assert_eq!(violations[0].rule.id, "prop.assignment.forbidden_effect");
@@ -141,7 +152,9 @@ impl Fixture {
     }
 
     async fn applied(&self, grants: &Grants, operations: Vec<Operation>) {
-        let outcome = self.submit(grants, self.contractor, operations).await;
+        let outcome = self
+            .submit(&self.with_objects(grants), self.contractor, operations)
+            .await;
         assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     }
 
@@ -261,7 +274,10 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
     assert_eq!(f.forbidden(&none, close()).await, below);
     // With the right to propose only, a proposal (REQ-004-41).
     let propose = Grants::new().everywhere(f.contractor, PROPOSE);
-    match f.submit(&propose, f.contractor, close()).await {
+    match f
+        .submit(&f.with_objects(&propose), f.contractor, close())
+        .await
+    {
         Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Proposal),
         other => panic!("expected a proposal, got {other:?}"),
     }

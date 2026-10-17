@@ -571,6 +571,15 @@ async fn record_operations(
 }
 
 impl WriteTx for PgTx {
+    async fn rbac_outside(
+        &mut self,
+        subject: &kartenn_service::authz::Subject,
+        permission: &str,
+        objects: &[Uuid],
+    ) -> Result<Vec<Uuid>, StoreError> {
+        crate::rbac::outside_now(&mut self.tx, subject, permission, objects).await
+    }
+
     async fn lock(&mut self, domains: &[Uuid], public_space: bool) -> Result<(), StoreError> {
         let mut keys: Vec<i64> = domains
             .iter()

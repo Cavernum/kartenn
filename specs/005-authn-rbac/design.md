@@ -119,11 +119,15 @@ la validation est écrite sur `jsonwebtoken` seul.
    `unnest(objets)` et renvoie les refusés ; les lectures de listes (filtre, arbre,
    occupation, prochain libre, propositions) le reçoivent en paramètre
    (`&Visibility`).
-5. **Écritures** (REQ-005-22) : chaque opération planifiée donne (permission, objet de
-   contrôle) : l'objet lui-même pour une modification ou une clôture ; pour une création,
-   son parent dans l'arbre (préfixe ou domaine contenant, entité ou site parent ; création
-   d'une racine : périmètre global). Contrôle groupé par permission ; une permission
-   `write` manquante couverte par `propose` fait une proposition (004).
+5. **Écritures** (REQ-005-22) : chaque objet écrit demande `core.<sorte>.write`
+   (déclarations : `core.property.admin`), décidé **dans la transaction du changeset**
+   (`Authorizer::authorize_in` → `WriteTx::rbac_outside`), qui voit ses propres
+   écritures : un objet créé est contrôlé après les écritures, avec son propriétaire
+   hérité (un domaine et son propriétaire créés ensemble, un réseau et ses adresses) ; un
+   objet clos, modifié ou restauré est contrôlé avant (clos, il n'est plus valide
+   maintenant). Contrôle groupé par permission ; une permission `write` manquante
+   couverte par `propose` fait une proposition (004) ; sinon `core.object.forbidden`.
+   Les droits de propriété (003) et d'approbation passent aussi par la transaction.
 6. **Lecture d'un objet** (REQ-005-19) : sans `core.<sorte>.read`, l'objet est répondu
    absent (son existence n'est pas révélée) et `authz.access.denied` est audité. Les
    listes reçoivent un `ReadScope` (une visibilité par sorte, en JSON) et le prédicat

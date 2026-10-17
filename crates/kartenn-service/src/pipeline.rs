@@ -1425,6 +1425,38 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => tx.approval_policies().await?,
         Mode::Validation { .. } => Vec::new(),
     };
+    let validator = context
+        .subject()
+        .unwrap_or_else(|| crate::authz::Subject::from(req.author));
+    let (subject, may_propose) = match mode {
+        Mode::Submission => (author, true),
+        Mode::Validation {
+            kind: PendingKind::Proposal,
+            ..
+        } => (&validator, false),
+        Mode::Validation {
+            kind: PendingKind::Approval,
+            ..
+        } => (author, false),
+    };
+    // REQ-005-22: the objects the changeset closes or changes, before its writes.
+    let missing_before = match crate::rights::check_objects(
+        &mut tx,
+        authorizer,
+        subject,
+        &planned,
+        crate::rights::Phase::Before,
+        may_propose,
+        &mut violations,
+    )
+    .await
+    {
+        Ok(missing) => missing,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
+    };
     let former = match apply(&mut tx, &planned, &periods, changeset, &mut violations).await {
         Ok(former) => former,
         Err(e) => {
@@ -1446,20 +1478,6 @@ async fn stages<S: Store, A: Authorizer>(
     // Rights: the author's when submitting (a lack covered by `…propose` makes a
     // proposal); a proposal's validator's when validating it; the author's again for an
     // approval, whose validator needs the approval permission below.
-    let validator = context
-        .subject()
-        .unwrap_or_else(|| crate::authz::Subject::from(req.author));
-    let (subject, may_propose) = match mode {
-        Mode::Submission => (author, true),
-        Mode::Validation {
-            kind: PendingKind::Proposal,
-            ..
-        } => (&validator, false),
-        Mode::Validation {
-            kind: PendingKind::Approval,
-            ..
-        } => (author, false),
-    };
     let props = properties(
         &mut tx,
         authorizer,
@@ -1475,7 +1493,7 @@ async fn stages<S: Store, A: Authorizer>(
     let Checked {
         diff,
         expected: checked,
-        missing,
+        mut missing,
     } = match props {
         Ok(Some(found)) => found,
         Ok(None) => {
@@ -1497,6 +1515,7 @@ async fn stages<S: Store, A: Authorizer>(
             return Err(e.into());
         }
     };
+    missing.extend(missing_before);
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
         tx.rollback().await?;
@@ -1550,7 +1569,8 @@ async fn stages<S: Store, A: Authorizer>(
             perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
             let perimeter: Vec<Uuid> = perimeter.into_iter().collect();
             let denied = authorizer
-                .authorize_many(
+                .authorize_in(
+                    &mut tx,
                     &context.subject().unwrap_or_else(|| validator.into()),
                     APPROVE_PERMISSION,
                     &perimeter,
@@ -1652,7 +1672,9 @@ fn only_rights(violations: &[Violation]) -> Option<Vec<Uuid>> {
         .collect();
     errors
         .iter()
-        .all(|v| v.rule.id == rules::PROP_FORBIDDEN_EFFECT.id)
+        .all(|v| {
+            v.rule.id == rules::PROP_FORBIDDEN_EFFECT.id || v.rule.id == rules::OBJECT_FORBIDDEN.id
+        })
         .then(|| errors.iter().flat_map(|v| v.subjects.clone()).collect())
 }
 
@@ -1712,7 +1734,7 @@ struct Checked {
 /// rights on the assignments and on their effects (REQ-003-17, 18). `None` when a rule
 /// refuses the changeset; the violations say why.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
-async fn properties<T: WriteTx, A: Authorizer>(
+async fn properties<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     sources: &Sources,
