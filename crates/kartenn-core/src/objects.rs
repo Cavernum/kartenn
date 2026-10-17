@@ -12,7 +12,7 @@ use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::addr::{Addr, Prefix};
-use crate::family::{IPV4, IPV6, intrinsically_unassignable};
+use crate::family::{IPV6, intrinsically_unassignable};
 use crate::registry::special_registry;
 use crate::rules::{self, Violation};
 
@@ -376,15 +376,9 @@ pub fn check_address(a: &Address) -> Vec<Violation> {
 /// IPv6 network other than a point-to-point /127 or a /128 (REQ-002-23, 29).
 #[must_use]
 pub fn reserved_in_network(addr: Addr, network: &PrefixObject) -> bool {
-    let net = network.value;
-    let len = net.prefix_len();
-    if addr.family() == IPV4 {
-        len <= 30 && (addr == net.network() || addr == net.last())
-    } else if addr.family() == IPV6 {
-        addr == net.network() && !(len == 128 || (len == 127 && network.point_to_point))
-    } else {
-        false
-    }
+    addr.family()
+        .implementation()
+        .reserved_in_network(addr, network.value, network.point_to_point)
 }
 
 /// Rules of an address against its network: positional reservations (REQ-002-29) and

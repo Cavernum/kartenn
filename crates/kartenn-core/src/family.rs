@@ -7,8 +7,10 @@
 
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::sync::LazyLock;
 
-use crate::addr::{AddrError, AddressFamily, Family};
+use crate::addr::{Addr, AddrError, AddressFamily, Family, Prefix};
+use crate::registry::SpecialRegistry;
 
 /// IPv4 (RFC 791): strict dotted decimal only (RFC 6943 §3.1.1).
 #[derive(Debug)]
@@ -47,6 +49,26 @@ impl AddressFamily for Ipv4 {
         let bits = u32::try_from(bits).map_err(|_| fmt::Error)?;
         write!(f, "{}", Ipv4Addr::from_bits(bits))
     }
+
+    /// Network and broadcast addresses of a network of length ≤ 30 (/31 and /32 have
+    /// neither, RFC 3021).
+    fn reserved_in_network(&self, addr: Addr, network: Prefix, _point_to_point: bool) -> bool {
+        network.prefix_len() <= 30 && (addr == network.network() || addr == network.last())
+    }
+
+    fn unassignable(&self) -> &'static [Prefix] {
+        static V4: LazyLock<Vec<Prefix>> = LazyLock::new(|| {
+            ["0.0.0.0/8", "127.0.0.0/8", "224.0.0.0/4", "240.0.0.0/4"]
+                .iter()
+                .map(|p| Prefix::parse(IPV4, p).expect("literal IPv4 prefix"))
+                .collect()
+        });
+        &V4
+    }
+
+    fn special_registry(&self) -> Option<&'static SpecialRegistry> {
+        Some(crate::registry::ipv4())
+    }
 }
 
 impl AddressFamily for Ipv6 {
@@ -70,6 +92,27 @@ impl AddressFamily for Ipv6 {
 
     fn write_canonical(&self, bits: u128, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Ipv6Addr::from_bits(bits))
+    }
+
+    /// The zero interface identifier (subnet-router anycast, RFC 4291 §2.6.1), except on a
+    /// point-to-point /127 (RFC 6164) or a /128.
+    fn reserved_in_network(&self, addr: Addr, network: Prefix, point_to_point: bool) -> bool {
+        let len = network.prefix_len();
+        addr == network.network() && !(len == 128 || (len == 127 && point_to_point))
+    }
+
+    fn unassignable(&self) -> &'static [Prefix] {
+        static V6: LazyLock<Vec<Prefix>> = LazyLock::new(|| {
+            ["::/128", "::1/128", "ff00::/8"]
+                .iter()
+                .map(|p| Prefix::parse(IPV6, p).expect("literal IPv6 prefix"))
+                .collect()
+        });
+        &V6
+    }
+
+    fn special_registry(&self) -> Option<&'static SpecialRegistry> {
+        Some(crate::registry::ipv6())
     }
 }
 
@@ -141,27 +184,8 @@ pub mod test64 {
 /// multicast. Network, broadcast and zero-IID addresses depend on the network and are
 /// checked separately.
 #[must_use]
-pub fn intrinsically_unassignable(family: Family) -> &'static [crate::addr::Prefix] {
-    use std::sync::LazyLock;
-    static V4: LazyLock<Vec<crate::addr::Prefix>> = LazyLock::new(|| {
-        ["0.0.0.0/8", "127.0.0.0/8", "224.0.0.0/4", "240.0.0.0/4"]
-            .iter()
-            .map(|p| crate::addr::Prefix::parse(IPV4, p).expect("literal IPv4 prefix"))
-            .collect()
-    });
-    static V6: LazyLock<Vec<crate::addr::Prefix>> = LazyLock::new(|| {
-        ["::/128", "::1/128", "ff00::/8"]
-            .iter()
-            .map(|p| crate::addr::Prefix::parse(IPV6, p).expect("literal IPv6 prefix"))
-            .collect()
-    });
-    if family == IPV4 {
-        &V4
-    } else if family == IPV6 {
-        &V6
-    } else {
-        &[]
-    }
+pub fn intrinsically_unassignable(family: Family) -> &'static [Prefix] {
+    family.implementation().unassignable()
 }
 
 #[cfg(test)]

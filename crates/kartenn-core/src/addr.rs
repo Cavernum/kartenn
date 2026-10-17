@@ -33,6 +33,24 @@ pub trait AddressFamily: fmt::Debug + Sync + 'static {
     ///
     /// Returns any error of the formatter.
     fn write_canonical(&self, bits: u128, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    /// Whether `addr` cannot be assigned in `network` because of its position (network,
+    /// broadcast, zero interface identifier…; REQ-002-23, 29). None by default.
+    fn reserved_in_network(&self, addr: Addr, network: Prefix, point_to_point: bool) -> bool {
+        let _ = (addr, network, point_to_point);
+        false
+    }
+
+    /// Blocks whose addresses are never assigned to a host, whatever the network
+    /// (REQ-002-29). None by default.
+    fn unassignable(&self) -> &'static [Prefix] {
+        &[]
+    }
+
+    /// The IANA special-purpose registry of the family (REQ-002-33), if it has one.
+    fn special_registry(&self) -> Option<&'static crate::registry::SpecialRegistry> {
+        None
+    }
 }
 
 /// Handle on a compiled address family. Two handles are equal when their identifiers are.

@@ -250,16 +250,20 @@ static IPV6_REGISTRY: LazyLock<SpecialRegistry> = LazyLock::new(|| {
     .expect("the embedded IPv6 registry is valid (checked by the tests)")
 });
 
+/// The embedded IPv4 registry.
+pub(crate) fn ipv4() -> &'static SpecialRegistry {
+    &IPV4_REGISTRY
+}
+
+/// The embedded IPv6 registry.
+pub(crate) fn ipv6() -> &'static SpecialRegistry {
+    &IPV6_REGISTRY
+}
+
 /// The embedded special-purpose registry of `family`, if the family has one.
 #[must_use]
 pub fn special_registry(family: Family) -> Option<&'static SpecialRegistry> {
-    if family == IPV4 {
-        Some(&IPV4_REGISTRY)
-    } else if family == IPV6 {
-        Some(&IPV6_REGISTRY)
-    } else {
-        None
-    }
+    family.implementation().special_registry()
 }
 
 #[cfg(test)]
