@@ -23,10 +23,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   `Pending` (JSON, sans migration) ; `RequestContext` porte les groupes ;
   `validate_pending`, `reject`, `proposals_for` reçoivent un `Subject` ; `Grants`
   accorde aussi par groupe (`review.rs::an_approval_checks_the_author_with_the_groups_it_had`)
-- [ ] 3. Migration `0028_rbac.sql` : identités (`kind`, `disabled_at`, `revoked_after`),
+- [x] 3. Migration `0028_rbac.sql` : identités (`kind`, `disabled_at`, `revoked_after`),
   `role`, `role_permission`, `binding`, `issuer_attachment` versionnées, `service_secret`,
   `breakglass_account` ; fonctions `kartenn_owner`, `kartenn_site` — REQ-005-3, 11, 14,
-  18, 20 — verify : tests de schéma (contraintes, droits du rôle applicatif)
+  18, 20 — verify : tests de schéma (contraintes, droits du rôle applicatif) —
+  `kartenn-store-pg/tests/rbac_schema.rs`, `kartenn-service/tests/rbac.rs`
+  (propriétaire et site de chaque sorte d'objet) ; identité `system` pour l'auteur
+  système
 - [ ] 4. `PgAuthorizer` : visibilité d'un sujet (liaisons d'identité, de groupe,
   d'émetteur ; descendants ; confinement) et `authorize_many` par le prédicat — REQ-005-18
   à 20, 23 — verify : tests sur un petit arbre (chaque périmètre, confinement, émetteur
