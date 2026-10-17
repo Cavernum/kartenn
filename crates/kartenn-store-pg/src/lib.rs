@@ -2,6 +2,7 @@
 
 pub mod anomalies;
 pub mod audit;
+pub mod audit_journal;
 mod diff;
 mod expected;
 pub mod explain;

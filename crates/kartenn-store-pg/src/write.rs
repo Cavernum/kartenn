@@ -6,6 +6,7 @@ use kartenn_core::objects::{Address, AddressUsage, IpRange, Nature, PrefixObject
 use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, InheritTree, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
+use kartenn_service::audit::Instance;
 use kartenn_service::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, ImportRecord, Journal, ObjectView,
     PendingChangeset, PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
@@ -96,16 +97,26 @@ fn request_hash(request: &ChangesetRequest) -> Result<Vec<u8>, StoreError> {
 pub struct PgStore {
     pool: PgPool,
     down_from: usize,
+    instance: Instance,
 }
 
 impl PgStore {
-    /// A store on a pool.
+    /// A store on a pool; its audit events name this crate's version and a fresh
+    /// instance identifier until [`PgStore::with_instance`] sets the server's.
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
+    pub fn new(pool: PgPool) -> Self {
         Self {
             pool,
             down_from: crate::origins::DOWN_FROM,
+            instance: Instance::new(env!("CARGO_PKG_VERSION")),
         }
+    }
+
+    /// The instance named by the audit events (REQ-012-10).
+    #[must_use]
+    pub fn with_instance(mut self, instance: Instance) -> Self {
+        self.instance = instance;
+        self
     }
 
     /// The number of targets from which origins are recomputed going down from the
@@ -123,6 +134,7 @@ impl PgStore {
 pub struct PgTx {
     pub(crate) tx: Transaction<'static, Postgres>,
     pub(crate) down_from: usize,
+    pub(crate) instance: Instance,
 }
 
 impl PgTx {
@@ -234,6 +246,7 @@ impl Store for PgStore {
         Ok(PgTx {
             tx: self.pool.begin().await.map_err(store_err)?,
             down_from: self.down_from,
+            instance: self.instance.clone(),
         })
     }
 
@@ -2226,6 +2239,10 @@ impl WriteTx for PgTx {
 
     async fn set_policy(&mut self, policy: &ApprovalPolicy) -> Result<(), WriteError> {
         crate::pending::set_policy(&mut self.tx, policy).await
+    }
+
+    async fn audit(&mut self, event: &kartenn_core::audit::AuditEvent) -> Result<(), StoreError> {
+        crate::audit_journal::insert(&mut *self.tx, event, &self.instance).await
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {

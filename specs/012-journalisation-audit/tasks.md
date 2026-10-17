@@ -40,10 +40,13 @@ en fournit le mécanisme et les teste avec des appels directs.
   `UPDATE`/`DELETE` refusés sous `SET ROLE` ; partitions des mois à venir présentes —
   `kartenn-store-pg/tests/audit_schema.rs` ; attribution vérifiée aussi par la base
   (`event_attributed`) ; clé HMAC de 244 bits aléatoires (deux UUID v4)
-- [ ] 5. Port `AuditJournal`, `RequestContext`, `MemoryJournal` ; `PgAuditJournal` seul et
+- [x] 5. Port `AuditJournal`, `RequestContext`, `MemoryJournal` ; `PgAuditJournal` seul et
   `WriteTx::audit` dans la transaction ; erreur `RequestError::Audit` — REQ-012-2, 9, 11
   — verify : tests des deux adaptateurs ; échec fermé (droit `INSERT` retiré : changeset
-  non appliqué)
+  non appliqué) — `kartenn-service/tests/audit_journal.rs` : l'échec est simulé par un
+  déclencheur qui refuse l'insertion (les tests tournent avec le rôle propriétaire) ; une
+  écriture et son événement dans la même transaction disparaissent ensemble ; le
+  changeset non appliqué se vérifie avec ses événements (tâche 6)
 
 ## P3 — Événements émis
 

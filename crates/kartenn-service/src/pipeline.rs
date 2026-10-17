@@ -73,6 +73,10 @@ pub enum RequestError {
     /// The idempotency key was already used with a different content (REQ-004-10).
     #[error("the idempotency key was already used for a different changeset")]
     IdempotencyConflict,
+    /// The audit journal could not record the action, which is therefore not done
+    /// (REQ-012-11).
+    #[error("the audit journal is unavailable: {0}")]
+    Audit(StoreError),
     /// Infrastructure failure.
     #[error(transparent)]
     Store(#[from] StoreError),

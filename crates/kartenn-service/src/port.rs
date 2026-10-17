@@ -952,6 +952,13 @@ pub trait WriteTx {
         policy: &ApprovalPolicy,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
 
+    /// Records an audit event with the action of this transaction: if it cannot be
+    /// written, the transaction fails (REQ-012-11).
+    fn audit(
+        &mut self,
+        event: &kartenn_core::audit::AuditEvent,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// Journals the applied changeset in this transaction.
     fn journal_applied(
         &mut self,
