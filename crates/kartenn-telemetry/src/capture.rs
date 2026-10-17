@@ -77,6 +77,41 @@ fn bounded(value: String) -> String {
     format!("{}…[+{} octets]", &value[..end], value.len() - end)
 }
 
+/// `text` with the password of every URL replaced by `***`
+/// (`postgres://user:secret@host` → `postgres://user:***@host`): a connection string
+/// logged under any name keeps its secret (REQ-012-28).
+#[must_use]
+pub fn redact_credentials(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("://") {
+        let (head, tail) = rest.split_at(start + 3);
+        out.push_str(head);
+        // The authority ends at the first '/', '?', '#' or whitespace.
+        let end = tail
+            .find(|c: char| matches!(c, '/' | '?' | '#') || c.is_whitespace())
+            .unwrap_or(tail.len());
+        let authority = &tail[..end];
+        match authority.rfind('@') {
+            Some(at) => {
+                let userinfo = &authority[..at];
+                match userinfo.find(':') {
+                    Some(colon) => {
+                        out.push_str(&userinfo[..=colon]);
+                        out.push_str("***");
+                    }
+                    None => out.push_str(userinfo),
+                }
+                out.push_str(&authority[at..]);
+            }
+            None => out.push_str(authority),
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn masked(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     MASKED.iter().any(|m| name.contains(m))
@@ -89,24 +124,25 @@ struct Visitor {
 }
 
 impl Visitor {
-    fn put(&mut self, field: &Field, value: String) {
+    fn put(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
-            self.message = bounded(value);
+            self.message = bounded(redact_credentials(value));
         } else if masked(field.name()) {
             self.fields.insert(field.name().to_owned(), "***".into());
         } else {
-            self.fields.insert(field.name().to_owned(), bounded(value));
+            self.fields
+                .insert(field.name().to_owned(), bounded(redact_credentials(value)));
         }
     }
 }
 
 impl Visit for Visitor {
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.put(field, value.to_owned());
+        self.put(field, value);
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        self.put(field, format!("{value:?}"));
+        self.put(field, &format!("{value:?}"));
     }
 }
 
@@ -391,6 +427,26 @@ mod tests {
         assert_eq!(d[1].name, module_path!(), "no name: the target");
         assert_eq!(d[1].fields["password"], "***", "REQ-012-28");
         assert!(d[1].fields["long"].len() < 2100 && d[1].fields["long"].ends_with("octets]"));
+    }
+
+    #[test]
+    fn credentials_in_urls_are_masked() {
+        let cases = [
+            (
+                "postgres://kartenn:s3cr3t@db:5432/k",
+                "postgres://kartenn:***@db:5432/k",
+            ),
+            (
+                "see https://u:p@h/x and ftp://a:b@c",
+                "see https://u:***@h/x and ftp://a:***@c",
+            ),
+            ("https://user@host/path", "https://user@host/path"),
+            ("no url here", "no url here"),
+            ("http://h:8080/a@b", "http://h:8080/a@b"),
+        ];
+        for (text, expected) in cases {
+            assert_eq!(redact_credentials(text), expected, "{text}");
+        }
     }
 
     #[test]

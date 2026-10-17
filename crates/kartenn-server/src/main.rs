@@ -47,9 +47,12 @@ async fn main() -> anyhow::Result<ExitCode> {
     let connect = |database: &str| {
         let database = database.to_owned();
         async move {
-            sqlx::PgPool::connect(&database)
-                .await
-                .with_context(|| format!("connecting to {database}"))
+            sqlx::PgPool::connect(&database).await.with_context(|| {
+                format!(
+                    "connecting to {}",
+                    kartenn_telemetry::capture::redact_credentials(&database)
+                )
+            })
         }
     };
     match args.as_slice() {
