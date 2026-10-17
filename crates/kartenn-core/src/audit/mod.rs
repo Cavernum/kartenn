@@ -4,6 +4,7 @@
 
 mod catalogue;
 pub mod jcs;
+pub mod seal;
 
 use std::fmt;
 use std::net::IpAddr;

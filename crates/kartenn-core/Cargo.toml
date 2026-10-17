@@ -11,6 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+ed25519-dalek = { version = "3.0.0", default-features = false, features = ["fast", "zeroize", "pkcs8", "pem"] }
 idna = "1.1.0"
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 regex = "1.13.1"

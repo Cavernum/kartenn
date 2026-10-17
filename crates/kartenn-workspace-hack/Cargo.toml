@@ -32,7 +32,6 @@ smallvec = { version = "1", default-features = false, features = ["const_generic
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
 thiserror = { version = "2" }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 
 [build-dependencies]
@@ -54,7 +53,6 @@ syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-trai
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", default-features = false, features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit-mut"] }
 thiserror = { version = "2" }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
@@ -66,5 +64,6 @@ libc = { version = "0.2" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 libc = { version = "0.2" }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2" }
 
 ### END HAKARI SECTION

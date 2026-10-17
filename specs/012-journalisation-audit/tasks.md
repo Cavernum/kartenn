@@ -75,8 +75,11 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P4 — Intégrité, export, rétention
 
-- [ ] 9. Scellement par lots chaînés, signature Ed25519 facultative, `audit.seal.created`
-  — REQ-012-13 — verify : transaction longue scellée au tour suivant ; signature vérifiée
+- [x] 9. Scellement par lots chaînés, signature Ed25519 facultative, `audit.seal.created`
+  — REQ-012-13 — verify : transaction longue scellée au tour suivant ; signature vérifiée —
+  `audit_seal::seal_once` (`kartenn-service/tests/audit_seal.rs`) ; un lot fait des seuls
+  événements de sceau n'en enregistre pas de nouveau (sans quoi un journal inactif
+  serait scellé indéfiniment) ; clé `SealKey` (Ed25519, PKCS#8) dans `kartenn-core`
 - [ ] 10. Vérification : `kartenn-server audit verify`, vérification planifiable,
   `audit.chain.broken` — REQ-012-14 — verify : modification, ajout et suppression
   détectés, lot désigné
