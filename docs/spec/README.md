@@ -81,16 +81,23 @@ Non-objectifs :
 | Module | Paquet compilé qui ajoute objets, propriétés, règles, permissions, routes et vues. |
 | Plugin UI | Extension du shell Web chargée à l'exécution (Web Component). |
 | Connecteur | Processus externe qui importe ou synchronise des données via l'API. |
+| Événement d'audit | Trace attribuée d'une action (qui, quoi, sur quoi, avec quel résultat), écrite en base dans la transaction de l'action ; fait foi. |
+| Log technique | Enregistrement d'exploitation émis par `tracing` ; ne fait pas foi. |
+| Sévérité | Gravité d'un enregistrement (ERROR, WARN, INFO, DEBUG, TRACE), traduite en syslog et OpenTelemetry. |
+| Criticité | Classe de conservation d'un événement d'audit (`low`, `normal`, `high`), qui fixe sa rétention. |
+| Sceau | Empreinte chaînée d'un lot d'événements d'audit, éventuellement signée ; rend une altération détectable. |
+| Sortie | Destination d'un flux : sortie technique (stdout, fichier, journald, syslog, OTLP) ou sortie d'audit (fichier, syslog, OTLP). |
 
 ## Index
 
 | Document | Contenu |
 |---|---|
 | [architecture.md](architecture.md) | Composants, pipeline d'écriture, modules, déploiement |
-| [interfaces.md](interfaces.md) | API REST, authentification, SDK de plugins, connecteurs, configuration |
+| [interfaces.md](interfaces.md) | API REST, authentification, SDK de plugins, connecteurs, configuration, journalisation et audit |
 | [data.md](data.md) | Modèle de données, bitemporel, propriétés, stockage PostgreSQL |
 | [invariants.md](invariants.md) | Propriétés qui doivent toujours tenir, et comment elles sont garanties |
 | [regles-noyau.md](regles-noyau.md) | Catalogue des règles de validation du noyau (généré depuis le code) |
+| [evenements-audit.md](evenements-audit.md) | Catalogue des événements d'audit (généré depuis le code) |
 | [`../adr/`](../adr/) | Architecture Decision Records |
 | [`../../specs/`](../../specs/) | Specs de fonctionnalités et journaux de décisions |
 | [`../reference/`](../reference/README.md) | Notes de lecture des sources primaires |
@@ -118,7 +125,7 @@ Non-objectifs :
 | [0016](../adr/0016-resolution-materialisee-proprietes.md) | Résolution matérialisée et versionnée des propriétés | accepted |
 | [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | accepted |
 | [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | accepted |
-| [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | proposed |
+| [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | accepted |
 
 ## Questions ouvertes
 

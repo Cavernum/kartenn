@@ -44,6 +44,10 @@ flowchart LR
 | Domaine — noyau | Familles d'adresses ; entités, sites, domaines, préfixes, plages, adresses ; règles de validité ; types de valeurs et arbres d'héritage (résolveur de référence) | Aucune persistance directe (types et règles purs) |
 | Domaine — modules | Objets, propriétés, règles, permissions d'un domaine fonctionnel (VLAN, machines, Politique…) | Leurs tables, via leurs migrations |
 | Couche service | Cas d'usage ; pipeline d'écriture ; transactions ; maintenance des origines et différentiel des propriétés (calcul ensembliste délégué à l'adaptateur) ; audit ; outbox | Changesets, journal d'audit, outbox |
+| Journal d'audit (012) | Événements typés remis au port `AuditJournal`, écrits dans la transaction de l'action (échec fermé) ; scellement par lots chaînés, relais vers les sorties d'audit, purge par criticité, vérification | Schéma `audit` |
+| Télémétrie (`kartenn-telemetry`) | Capture unique des événements `tracing`, files bornées par sortie (stdout, fichier, journald, syslog, OTLP), masquage ; OpenTelemetry (traces, métriques, logs) ; sorties d'audit (`AuditSink`) | — |
+| Binaire (`kartenn-server`) | Composition : configuration, sorties, tâches de scellement et de relais, arrêt propre ; sous-commandes `migrate`, `run`, `audit verify`, `audit purge` | — |
+| `syslog-sender` | Bibliothèque autonome (MPL-2.0) : messages RFC 5424 et RFC 3164, transports local, UDP, TCP, TLS avec comptage d'octets | — |
 | Ports de stockage | Interfaces définies par le domaine et la couche service (lecture datée, écriture de versions, verrous) | — |
 | Adaptateur PostgreSQL | Implémente les ports ; contraintes en base (dernier rempart) ; requêtes temporelles | Schéma PostgreSQL |
 | Adaptateur REST | Ressources, sérialisation, erreurs RFC 9457, pagination, OpenAPI | — |
@@ -148,7 +152,9 @@ flowchart TB
   autorité.
 - Un **job de migration** dédié, exécuté une fois avant le déploiement des instances.
 - Tâches de fond réparties par verrous en base : le relais d'outbox prend un verrou
-  consultatif par consommateur ; l'ordonnanceur des autres tâches (expiration des
+  consultatif par consommateur, le scellement de l'audit et chaque relais d'audit le
+  leur ; chacune lit à partir de son plancher (`pass_floor`) et vide son retard par lots
+  successifs à chaque tour ; l'ordonnanceur des autres tâches (expiration des
   changesets en attente, pseudonymisation, partitions d'historique) est la cible de la
   spec 006, avec `FOR UPDATE SKIP LOCKED`.
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur

@@ -446,8 +446,15 @@ Acceptation :
 
 - [x] ~~Numéro d'entreprise IANA~~ : non requis (L19) ; facultatif si obtenu plus tard.
 - [x] ~~Rétention par défaut de l'audit~~ : un an, confirmé ; emplacement : L20.
-- [ ] Emplacement de la clé de signature facultative des sceaux (L23) : à trancher en
-  conception. (Claude, conception)
-- [ ] Déclarer une propriété « sensible » (REQ-012-18) demande un attribut de
-  déclaration : amendement de la 003 à prévoir en conception. (Claude, conception)
+- [x] ~~Emplacement de la clé de signature facultative des sceaux (L23)~~ : fichier PKCS#8
+  PEM désigné par `audit.signing_key_file` ; clés publiques dans `audit.instance_key`.
+- [x] ~~Déclarer une propriété « sensible »~~ : attribut `sensitive` de la déclaration
+  (amendement de la 003, P17, REQ-003-27).
+- [ ] Volume de l'audit des lectures : mesuré à 8 Kio par page de 100 objets (dont
+  5,8 Kio d'index GIN par objet), soit 3,3 Gio par jour à 5 pages par seconde et
+  environ 300 Gio pour 90 jours de `low`, contre 0,9 Gio par jour estimé. Leviers :
+  borner les identifiants enregistrés par événement, n'enregistrer que les critères,
+  retirer l'index par objet de la criticité `low` (la recherche « qui a lu cet objet »
+  devient un parcours), rétention `low` plus courte. (utilisateur, avant la mise en
+  production)
 - [x] ~~Ordre de réalisation~~ : la 012 avant la 005 (L21).

@@ -114,6 +114,35 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   domaine d'adressage ; chaque consommateur enregistre ses livraisons
   (`outbox_delivery`) (ADR 0018).
 
+## Journal d'audit (spec 012, ADR 0019)
+
+- Schéma `audit` (migrations 0023, 0025), en **ajout seul** pour le rôle applicatif
+  (`SELECT`, `INSERT` ; ni `UPDATE` ni `DELETE`) :
+  - `audit.event` : un événement attribué (acteur, méthode d'authentification, source,
+    cible, résultat, motif, changeset, `trace_id`, instance), partitionné par criticité
+    (`low`, `normal`, `high`) puis par mois de `recorded_at` ; index par `seq`, par
+    acteur, par nom, et GIN sur les identifiants visés (recherche par objet) ;
+  - `audit.seal` : lots chaînés, `hash` = SHA-256 du hash précédent, du nombre et des
+    empreintes des membres (JCS, RFC 8785), signature Ed25519 facultative ;
+  - `audit.sealed` : appartenance d'un événement à un sceau et son empreinte, conservée
+    après la purge de l'événement ;
+  - `audit.delivery` : livraisons par sortie (au moins une fois, sans trou) ;
+  - `audit.purge` : purges consignées (partition, nombre, dernier sceau couvert) ;
+  - `audit.instance_key` : clés publiques des instances qui signent.
+- **Rétention** par criticité (par défaut `low` 90 j, `normal` 365 j, `high` 1095 j) :
+  une partition mensuelle échue n'est supprimée que si tous ses événements sont scellés
+  et livrés à chaque sortie, par le propriétaire du schéma.
+- **Planchers** (`pass_floor`, migration 0027) : le scellement, chaque relais d'audit et
+  chaque consommateur de l'outbox lisent à partir d'un plancher sous lequel tout est
+  traité ; il monte une fois terminées les transactions qui auraient pu détenir un
+  numéro inférieur, et une passe horaire relit depuis zéro.
+- Volume mesuré (banc `bench-telemetry`) : environ 8 Kio par lecture auditée d'une page
+  de 100 objets, dont 5,8 Kio dans l'index GIN par objet.
+- **Propriété sensible** : attribut `sensitive` d'une déclaration (migration 0024) ; sa
+  lecture produit `data.sensitive.read` en criticité `high`.
+- **Filtres changés à chaud** : `observability_override` (migration 0026), une ligne par
+  sortie jusqu'à son expiration.
+
 ## Stockage PostgreSQL (D15, ADR 0004)
 
 - Préfixes en `cidr`, adresses en `inet` ; jamais de texte utilisateur transmis tel quel

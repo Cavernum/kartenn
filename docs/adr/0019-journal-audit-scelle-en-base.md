@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-17
 ---
 
@@ -43,3 +43,16 @@ sans état (D9) : un chaînage strict événement par événement les sérialise
 - L'intégrité est vérifiable par une commande ; un attaquant maître de la base peut
   réécrire les lots non encore exportés : le délai de scellement et d'export (une minute
   environ) borne cette fenêtre.
+
+## Précisions de l'implémentation (2026-10-17)
+
+- Le scellement et chaque relais lisent à partir d'un plancher (`pass_floor`) et vident
+  leur retard par lots successifs à chaque tour : leur coût suit le retard, pas la taille
+  du journal, et l'export suit tout débit (un lot par tour le bornait à 500 événements/s
+  par sortie). Un événement validé tardivement reste couvert (amendement 3 de
+  l'ADR 0018).
+- Volume mesuré : environ 8 Kio par lecture auditée d'une page de 100 objets, dont
+  5,8 Kio dans l'index GIN par objet ; 3,3 Gio par jour à 5 pages par seconde. Le choix
+  d'un levier (borner les identifiants enregistrés, critères seuls, index par objet hors
+  de la criticité `low`, rétention `low` plus courte) est une question ouverte de la
+  spec 012.

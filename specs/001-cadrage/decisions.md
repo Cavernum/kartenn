@@ -228,6 +228,8 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 ## D35 — Déploiement et observabilité
 - Décision : images **OCI** (serveur, job de migration, web statique), manifestes d'exemple (Compose pour le dev, Helm ou Kustomize pour Kubernetes), **module NixOS**. Configuration 12-factor (fichier et variables d'environnement). **OpenTelemetry** (OTLP) pour les traces, métriques et logs JSON ; sondes `/health/live` et `/health/ready` ; métriques métier.
 - Décidé par : recommandation acceptée
+- Précision (spec 012, 2026-10-17) : OpenTelemetry est une sortie parmi d'autres, toutes actives à la fois : stdout (texte ou JSON), fichier, journald, syslog RFC 5424 (local, UDP, TCP, TLS) et OTLP/gRPC, chacune avec son filtre et sa file bornée. Le journal d'audit, distinct des logs techniques, est en base, scellé et exporté (ADR 0019). Configuration : fichier TOML et variables `KARTENN_*`. Console de développement : collecteur OpenTelemetry et OpenObserve dans devenv.
+- Décidé par : délégué (2026-10-17), spec 012 approuvée
 
 ## D36 — RBAC
 - Décision : chaque module déclare un **catalogue de permissions** ; un **rôle** est un ensemble nommé de permissions (rôles livrés : lecteur, éditeur, approbateur, admin ; rôles personnalisés possibles) ; une **liaison** associe un sujet (utilisateur, groupe OIDC, compte de service) à un rôle sur un **périmètre** (entité, site, domaine, sous-arbre de préfixes), hérité vers le bas. Les politiques d'approbation (D11) s'expriment dans le même modèle. Le filtrage des listes par droits est traduit en prédicats SQL pour tenir les budgets de D14.
