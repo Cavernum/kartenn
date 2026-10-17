@@ -9,7 +9,9 @@ use std::time::SystemTime;
 use kartenn_service::audit::{AuditSink, SinkError};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::collector::logs::v1::logs_service_client::LogsServiceClient;
-use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope, KeyValue, any_value};
+use opentelemetry_proto::tonic::common::v1::{
+    AnyValue, ArrayValue, InstrumentationScope, KeyValue, KeyValueList, any_value,
+};
 use opentelemetry_proto::tonic::logs::v1::{LogRecord, ResourceLogs, ScopeLogs};
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use serde_json::Value;
@@ -199,8 +201,39 @@ fn text_value(text: impl Into<String>) -> AnyValue {
     }
 }
 
+/// A JSON value as an OTLP value: objects become maps and arrays lists, so that the
+/// receiver keeps the structure (a backend indexes each field) instead of one string.
+#[must_use]
+pub fn any_value(value: &Value) -> AnyValue {
+    use any_value::Value as V;
+    let inner = match value {
+        Value::Null => None,
+        Value::Bool(b) => Some(V::BoolValue(*b)),
+        Value::Number(n) => Some(n.as_i64().map_or_else(
+            || V::DoubleValue(n.as_f64().unwrap_or(f64::NAN)),
+            V::IntValue,
+        )),
+        Value::String(s) => Some(V::StringValue(s.clone())),
+        Value::Array(items) => Some(V::ArrayValue(ArrayValue {
+            values: items.iter().map(any_value).collect(),
+        })),
+        Value::Object(map) => Some(V::KvlistValue(KeyValueList {
+            values: map
+                .iter()
+                .map(|(k, v)| KeyValue {
+                    key: k.clone(),
+                    value: Some(any_value(v)),
+                    ..KeyValue::default()
+                })
+                .collect(),
+        })),
+    };
+    AnyValue { value: inner }
+}
+
 /// The OTLP log record of an audit event: its time, severity (table of REQ-012-4), name,
-/// the event in JSON as body.
+/// the event as a structured body (the log data model keeps a structured body for
+/// structured logs).
 #[must_use]
 pub fn otlp_record(event: &Value) -> LogRecord {
     let (number, text) = match event["severity"].as_str() {
@@ -221,7 +254,7 @@ pub fn otlp_record(event: &Value) -> LogRecord {
         severity_number: number,
         severity_text: text.to_owned(),
         event_name: event["name"].as_str().unwrap_or_default().to_owned(),
-        body: Some(text_value(event.to_string())),
+        body: Some(any_value(event)),
         attributes: vec![
             attribute(
                 "kartenn.audit.seq",

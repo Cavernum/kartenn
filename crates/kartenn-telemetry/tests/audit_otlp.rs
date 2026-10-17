@@ -14,6 +14,7 @@ use opentelemetry_proto::tonic::collector::logs::v1::logs_service_server::{
 use opentelemetry_proto::tonic::collector::logs::v1::{
     ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse,
 };
+use opentelemetry_proto::tonic::common::v1::any_value;
 use sqlx::PgPool;
 
 #[derive(Clone, Default)]
@@ -76,6 +77,25 @@ async fn audit_events_reach_an_otlp_collector_acknowledged(pool: PgPool) {
         assert_eq!(records[0].event_name, "data.objects.read");
         assert_eq!(records[0].severity_number, 9);
         assert!(records[0].time_unix_nano > 0);
+        // A structured body, so that a backend indexes each field of the event.
+        let Some(any_value::Value::KvlistValue(body)) =
+            records[0].body.as_ref().and_then(|b| b.value.as_ref())
+        else {
+            panic!("a map as body: {:?}", records[0].body);
+        };
+        let field = |key: &str| body.values.iter().find(|kv| kv.key == key);
+        assert!(matches!(
+            field("name").and_then(|kv| kv.value.as_ref()?.value.as_ref()),
+            Some(any_value::Value::StringValue(n)) if n == "data.objects.read"
+        ));
+        assert!(matches!(
+            field("actor_kind").and_then(|kv| kv.value.as_ref()?.value.as_ref()),
+            Some(any_value::Value::StringValue(k)) if k == "system"
+        ));
+        assert!(matches!(
+            field("details").and_then(|kv| kv.value.as_ref()?.value.as_ref()),
+            Some(any_value::Value::KvlistValue(_))
+        ));
     }
 
     // Rejected by the collector: not delivered, offered again.
