@@ -36,6 +36,27 @@ const RELAY_BATCH: i64 = 500;
 /// Longest stop (REQ-012-34).
 const STOP_WITHIN: Duration = Duration::from_secs(10);
 
+/// Between two comparisons of the clocks (REQ-012-32).
+const CLOCK_EVERY: Duration = Duration::from_mins(5);
+
+/// Compares the clock of the instance to PostgreSQL's: metric, and WARN beyond one second.
+async fn check_clock(pool: &PgPool, instruments: Option<&Instruments>) {
+    let Ok(skew) = kartenn_store_pg::clock::clock_skew(pool, std::time::SystemTime::now).await
+    else {
+        return;
+    };
+    if let Some(instruments) = instruments {
+        instruments
+            .gauges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clock_skew = skew;
+    }
+    if skew.abs() > kartenn_store_pg::clock::SKEW_TOLERANCE.as_secs_f64() {
+        tracing::warn!(name: "sys.clock.skew", skew_seconds = skew, "the clock of the instance drifts from PostgreSQL's");
+    }
+}
+
 /// What a run left behind.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Report {
@@ -282,6 +303,7 @@ pub async fn run(
         instance: id.to_string(),
     };
     let telemetry = telemetry(config, &identity)?;
+    kartenn_telemetry::panic::install();
     let counters = telemetry.outputs.clone();
     let instruments = telemetry.providers.as_ref().map(|p| {
         Instruments::new(&p.meter, move || {
@@ -321,6 +343,7 @@ pub async fn run(
     );
     let mut reread =
         tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));
+    let mut clock = tokio::time::interval(CLOCK_EVERY);
     let mut seal = tokio::time::interval(Duration::from_millis(config.audit.seal_interval_ms));
     let mut relay = tokio::time::interval(Duration::from_millis(config.audit.relay_interval_ms));
     tokio::pin!(shutdown);
@@ -333,6 +356,7 @@ pub async fn run(
                 }
             }
             _ = relay.tick() => relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await,
+            _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
             _ = reread.tick() => {
                 if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
                     let pairs: Vec<(String, String)> =
@@ -345,22 +369,31 @@ pub async fn run(
         }
     }
 
-    // Stop (REQ-012-34): within STOP_WITHIN, the stop event sealed and exported.
-    tracing::info!(name: "sys.instance.stopping", "kartenn stopping");
-    let dropped: u64 = telemetry.outputs.iter().map(capture::Output::dropped).sum();
+    let lost_so_far = dropped(&telemetry);
     let finish = async {
         let stopped = RequestContext::system()
             .event(&SYS_STOPPED, Outcome::Success)
-            .and_then(|e| e.detail("lost_technical_events", dropped));
+            .and_then(|e| e.detail("lost_technical_events", lost_so_far));
         if let Ok(event) = stopped {
             let _ = journal.record(&event).await;
         }
         let _ = seal_once(&pool, key.as_ref(), &instance).await;
         relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await;
     };
+    Ok(stop(telemetry, finish).await)
+}
+
+fn dropped(telemetry: &Telemetry) -> u64 {
+    telemetry.outputs.iter().map(capture::Output::dropped).sum()
+}
+
+/// Stop (REQ-012-34): `finish` (the stop event sealed and exported), then the technical
+/// outputs drained and OpenTelemetry flushed, each within [`STOP_WITHIN`].
+async fn stop(telemetry: Telemetry, finish: impl Future<Output = ()>) -> Report {
+    tracing::info!(name: "sys.instance.stopping", "kartenn stopping");
     let _ = tokio::time::timeout(STOP_WITHIN, finish).await;
+    let mut lost = dropped(&telemetry);
     let _ = telemetry.stop.send(true);
-    let mut lost = dropped;
     for task in telemetry.tasks {
         if let Ok(Ok(n)) = tokio::time::timeout(STOP_WITHIN, task).await {
             lost += n;
@@ -369,7 +402,7 @@ pub async fn run(
     if let Some(providers) = &telemetry.providers {
         let _ = providers.shutdown();
     }
-    Ok(Report {
+    Report {
         lost_technical: lost,
-    })
+    }
 }

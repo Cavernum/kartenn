@@ -132,8 +132,11 @@ en fournit le mécanisme et les teste avec des appels directs.
   1 h par défaut, 24 h au plus), `capture::FilterOverrides`, relecture par `run`
   (`kartenn-server/tests/overrides.rs`) ; le filtre des logs OpenTelemetry n'est pas
   rechargeable et garde sa configuration
-- [ ] 18. Écart d'horloge, crochet de panique — REQ-012-32, 33 — verify : horloge simulée
-  décalée ; panique journalisée avec `trace_id`
+- [x] 18. Écart d'horloge, crochet de panique — REQ-012-32, 33 — verify : horloge simulée
+  décalée ; panique journalisée avec `trace_id` — `clock::clock_skew` (au démarrage puis toutes
+  les 5 min dans `run`, métrique `kartenn.clock.skew`, WARN au-delà d'une seconde),
+  `kartenn_telemetry::panic::install` (`tests/clock.rs`, `tests/panic.rs`) ; les erreurs
+  génériques `problem+json` viendront avec l'API (006)
 
 ## P6 — Vérifications d'ensemble et synchronisation
 

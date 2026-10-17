@@ -42,7 +42,13 @@ fn journald_fields(mut bytes: &[u8]) -> HashMap<String, String> {
 
 #[tokio::test]
 async fn an_event_reads_the_same_on_every_output() {
-    let dir = std::env::temp_dir().join(format!("kartenn-outputs-{}", std::process::id()));
+    // Unique per run: a directory left by an earlier run would hold a bound socket.
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("kartenn-outputs-{}-{unique}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file_path = dir.join("logs.jsonl");
     let journal_path = dir.join("journal.sock");

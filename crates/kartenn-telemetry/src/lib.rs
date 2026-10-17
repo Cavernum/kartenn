@@ -6,4 +6,5 @@
 pub mod capture;
 pub mod otel;
 pub mod outputs;
+pub mod panic;
 pub mod sinks;

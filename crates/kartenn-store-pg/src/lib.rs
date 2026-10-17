@@ -7,6 +7,7 @@ pub mod audit_purge;
 pub mod audit_relay;
 pub mod audit_seal;
 pub mod audit_verify;
+pub mod clock;
 mod diff;
 mod expected;
 pub mod explain;

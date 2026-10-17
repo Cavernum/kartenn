@@ -20,6 +20,7 @@ fn lines(path: &std::path::Path) -> Vec<serde_json::Value> {
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn an_instance_runs_and_stops_cleanly(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-run-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let technical = dir.join("technical.jsonl");
     let audit = dir.join("audit.jsonl");
