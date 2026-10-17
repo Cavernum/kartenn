@@ -80,9 +80,12 @@ en fournit le mécanisme et les teste avec des appels directs.
   `audit_seal::seal_once` (`kartenn-service/tests/audit_seal.rs`) ; un lot fait des seuls
   événements de sceau n'en enregistre pas de nouveau (sans quoi un journal inactif
   serait scellé indéfiniment) ; clé `SealKey` (Ed25519, PKCS#8) dans `kartenn-core`
-- [ ] 10. Vérification : `kartenn-server audit verify`, vérification planifiable,
+- [x] 10. Vérification : `kartenn-server audit verify`, vérification planifiable,
   `audit.chain.broken` — REQ-012-14 — verify : modification, ajout et suppression
-  détectés, lot désigné
+  détectés, lot désigné — `audit_verify::{verify, verify_and_record}`
+  (`kartenn-service/tests/audit_verify.rs`) ; empreintes des membres conservées et
+  purges consignées (migration 0025), pour vérifier un lot après la purge d'une partie
+  de ses événements
 - [ ] 11. Port `AuditSink`, relais par sortie avec enregistrement des livraisons ;
   `FileSink`, `SyslogSink` (`syslog-sender`), `OtlpSink` (envoi acquitté) ; événements
   `sys.output.unavailable` / `available` — REQ-012-15, 26 — verify : coupure de 5 min
