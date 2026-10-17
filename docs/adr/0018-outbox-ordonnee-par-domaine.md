@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-14
 ---
 
@@ -14,11 +14,18 @@ transaction : lire l'outbox par numéro croissant peut sauter une transaction le
 
 ## Decision
 
-L'événement est écrit dans une table `outbox` dans la transaction du changeset, avec
-l'identifiant de transaction (`xid8`). Un relais par consommateur ne livre que les lignes
-de transactions terminées (`xid < pg_snapshot_xmin(pg_current_snapshot())`), jamais encore
-livrées à ce consommateur, par numéro croissant, et **enregistre chaque livraison** après
-accusé (table `outbox_delivery`).
+*Décision en vigueur, après les deux amendements ci-dessous.* L'événement est écrit dans
+une table `outbox` dans la transaction du changeset, avec l'identifiant de transaction
+(`xid8`, pour le diagnostic). Un relais par consommateur livre les lignes validées et
+jamais encore livrées à ce consommateur, par numéro croissant, et **enregistre chaque
+livraison** après accusé (table `outbox_delivery`). L'ordre est garanti par domaine
+d'adressage, par les verrous de l'ADR 0015 (test
+`events_of_a_domain_follow_the_order_of_its_changesets`). Format CloudEvents 1.0 :
+`id` = UUID du changeset pour `org.kartenn.changeset.applied`, `<uuid>/<état>` pour les
+événements d'état d'un changeset en attente ; `source` = `urn:kartenn:instance`.
+
+*Décision initiale (2026-10-14), remplacée* : le relais ne livrait que les lignes de
+transactions terminées (`xid < pg_snapshot_xmin(pg_current_snapshot())`).
 
 **Amendement (implémentation, 2026-10-14)** : la première version avançait un curseur
 unique (dernier numéro livré). Elle pouvait sauter un événement : une transaction encore en

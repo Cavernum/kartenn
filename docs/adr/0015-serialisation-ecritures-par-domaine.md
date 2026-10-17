@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-14
 ---
 
@@ -23,6 +23,13 @@ Les arbres d'entités et de sites, qui ne relèvent d'aucun domaine, ont chacun 
 de même nature, pris par toute création, déplacement ou clôture d'une entité ou d'un
 site (absence de cycle). Une modification de préfixe ou d'adresse prend le verrou
 « espace public » quelle que soit sa valeur, car elle peut y entrer ou en sortir.
+
+**Précisions (acceptation, 2026-10-17)** :
+- Une clôture de préfixe, de plage ou d'adresse ne prend que le verrou de son domaine :
+  retirer un objet ne peut pas créer de doublon dans l'espace public.
+- La clé d'un verrou de domaine est faite des 64 bits de poids fort de son UUID v7. Une
+  collision entre deux domaines sérialise inutilement leurs écritures, sans risque
+  d'interblocage, puisque l'ordre de prise est déterministe.
 
 ## Alternatives
 

@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 
 # Invariants
@@ -18,7 +18,7 @@ concurrence).
 | INV-3 | Un réseau ne contient aucun autre préfixe | App (+ Base si faisable) | REQ-002-16 |
 | INV-4 | Toute plage et toute adresse appartiennent à exactement un réseau de leur domaine | App | REQ-002-21, REQ-002-25 |
 | INV-5 | Les plages d'un réseau sont disjointes | App + Base (exclusion sur intervalle d'adresses) | REQ-002-22 |
-| INV-6 | L'espace public est unique tous domaines confondus (hors anycast) | App | REQ-002-32, REQ-002-46 |
+| INV-6 | L'espace public est unique tous domaines confondus (hors anycast) | App (verrou « espace public », ADR 0015) + Base (exclusion `address_public_unique`) | REQ-002-32, REQ-002-46 |
 | INV-7 | Adresses et préfixes sont stockés et comparés par valeur, restitués sous forme canonique | App (familles d'adresses) | Tests de propriétés analyse ↔ canonique |
 | INV-8 | Le noyau ne porte aucun attribut d'interprétation | Revue (table de traçabilité) | REQ-002-48 |
 
@@ -42,15 +42,19 @@ concurrence).
 
 ## Performance (D14) — p95 serveur, 10⁶ objets, 3 ans d'historique
 
+Le banc `bench-core` (002/A14) est bloquant par son code de sortie ; il n'y a pas encore
+d'intégration continue pour l'exécuter à chaque changement. Les 200 utilisateurs
+concurrents d'INV-36 seront mesurés avec l'API (006).
+
 | ID | Budget | Test |
 |---|---|---|
-| INV-30 | Lecture d'un objet < 50 ms | Banc CI |
-| INV-31 | Page filtrée (curseur, 100) < 150 ms, y compris filtre sur valeur résolue | Banc CI |
-| INV-32 | Sous-arbre et occupation < 200 ms | Banc CI |
-| INV-33 | Lecture « à la date X » ≤ ×2 la lecture courante | Banc CI |
-| INV-34 | Changeset unitaire validé et appliqué < 200 ms | Banc CI |
-| INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc CI |
-| INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Banc de charge |
+| INV-30 | Lecture d'un objet < 50 ms | Banc `bench-core` |
+| INV-31 | Page filtrée (curseur, 100) < 150 ms, y compris filtre sur valeur résolue | Banc `bench-core` |
+| INV-32 | Sous-arbre et occupation < 200 ms | Banc `bench-core` |
+| INV-33 | Lecture « à la date X » ≤ ×2 la lecture courante | Banc `bench-core` |
+| INV-34 | Changeset unitaire validé et appliqué < 200 ms | Banc `bench-core` |
+| INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc `bench-core` |
+| INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Banc `bench-core` |
 
 ## Exploitation (D9)
 

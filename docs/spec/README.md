@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 
 # kartenn — spécification système
@@ -113,16 +113,16 @@ Non-objectifs :
 | [0011](../adr/0011-frontend-web-components.md) | Shell Vue 3 et plugins Web Components | accepted |
 | [0012](../adr/0012-instances-sans-etat.md) | Instances sans état, base comme point de cohérence | accepted |
 | [0013](../adr/0013-licence-agpl.md) | Licence AGPL-3.0 | accepted |
-| [0014](../adr/0014-ancres-proprietes-du-noyau.md) | L'entité propriétaire et le site, propriétés du noyau | proposed |
-| [0015](../adr/0015-serialisation-ecritures-par-domaine.md) | Sérialisation des écritures par domaine | proposed |
+| [0014](../adr/0014-ancres-proprietes-du-noyau.md) | L'entité propriétaire et le site, propriétés du noyau | accepted |
+| [0015](../adr/0015-serialisation-ecritures-par-domaine.md) | Sérialisation des écritures par domaine | accepted |
 | [0016](../adr/0016-resolution-materialisee-proprietes.md) | Résolution matérialisée et versionnée des propriétés | accepted |
-| [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | proposed |
-| [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | proposed |
+| [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | accepted |
+| [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | accepted |
 
 ## Questions ouvertes
 
 - Q-ouv-1 à Q-ouv-7 de [`001-cadrage`](../../specs/001-cadrage/decisions.md#questions-ouvertes)
   (licence du SDK, volumétrie réelle, critères d'inférence, stockage IPv8, identités
   multi-émetteurs, langue, versionnement d'API).
-- Implémentation du temps système : table courante + historique (ADR 0017, proposé,
-  à accepter avec la spec 004).
+- ~~Implémentation du temps système~~ : tranchée par l'ADR 0017, accepté avec la
+  spec 004.

@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 
 # Architecture
@@ -110,7 +110,8 @@ types de valeurs ; règles de validation (identifiant, sévérité) ; sources de
 attendues ; permissions ; ressources REST ; contribution au graphe de topologie ;
 plugin UI éventuel.
 
-Organisation proposée du workspace (à confirmer, voir
+Organisation du workspace (les crates `kartenn-rest` et `kartenn-auth` sont la cible des
+specs 005 et 006 ; voir
 [`../practices/rust-build.md`](../practices/rust-build.md)) :
 
 ```
@@ -146,7 +147,10 @@ flowchart TB
 - Instances **sans état** ; sessions portées par des jetons ; aucun cache local faisant
   autorité.
 - Un **job de migration** dédié, exécuté une fois avant le déploiement des instances.
-- Workers répartis par verrous en base (`FOR UPDATE SKIP LOCKED`).
+- Tâches de fond réparties par verrous en base : le relais d'outbox prend un verrou
+  consultatif par consommateur ; l'ordonnanceur des autres tâches (expiration des
+  changesets en attente, pseudonymisation, partitions d'historique) est la cible de la
+  spec 006, avec `FOR UPDATE SKIP LOCKED`.
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur
   le primaire après un changeset).
 - Livrables : images OCI (serveur, migration, web statique), module NixOS ;

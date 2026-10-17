@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 
 # Données
@@ -33,7 +33,10 @@ Attributs du noyau (002/REQ-002-48, A10) :
 | Plage | UUID, domaine, début, fin, usage (DHCP, réservée, statique) |
 | Adresse | UUID, domaine, valeur, usage (hôte, passerelle, VIP, anycast, réservée) |
 
-Plus, pour chaque objet : période de validité applicative et période système.
+Plus, pour chaque objet : période de validité applicative et période système ; pour les
+préfixes, plages et adresses, deux colonnes **dérivées** : `public` (classement dans
+l'espace public, 002/A3 ; une plage est publique si sa première ou sa dernière adresse
+l'est) et `registry_version` (version du registre IANA qui l'a calculé).
 
 L'entité propriétaire et le site ne sont pas des attributs : ce sont les propriétés du
 noyau `core.owner` (référence vers une entité, portée par les domaines et les préfixes,
@@ -64,7 +67,7 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - **Tables** (migrations 0011 à 0017) : `property_declaration`, `property_enum_value`,
   `property_obligation`, `property_assignment` (colonnes typées, une affectation par
   objet et propriété sur une période), `property_origin` ; historique de temps système
-  pour chacune (ADR 0017, proposé, accepté avec la 004) ; `changeset_diff` pour le
+  pour chacune (ADR 0017) ; `changeset_diff` pour le
   détail du différentiel ; `expected_source_state` pour la réévaluation des écarts ; la
   vue `carrier_object` (migration 0022) réunit tous les objets porteurs.
 - **Obligations** : portée domaine, type d'objet ou entité ; la portée d'une entité
@@ -92,10 +95,24 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 
 ## Changesets, audit, outbox (D11)
 
-- Un **changeset** : auteur, motif, opérations, période applicative visée, état
-  (soumis, en attente d'approbation, appliqué, refusé), différentiel, anomalies.
+- Un **changeset** (table `changeset`, migrations 0003, 0020) : auteur, motif,
+  requête d'origine, période applicative visée, rétroactivité, nature (`direct`,
+  `approval`, `proposal`), état (`applied`, `refused`, `pending`, `rejected`,
+  `withdrawn`, `expired`, `failed_revalidation`), violations, avertissements, résumé du
+  différentiel, droits manquants d'une proposition, valideur et motif de rejet. Le
+  détail du différentiel est dans `changeset_diff` (clé de propriété, objet, avant,
+  après), ses opérations dans `changeset_operation`.
 - Chaque version d'objet référence le changeset qui l'a produite (audit complet).
-- L'**outbox** reçoit un événement par changeset appliqué, dans la même transaction.
+- **Anomalies** (`anomaly`, migration 0007) : avertissement ouvert sur un objet, acquitté
+  avec un motif, rouvert quand l'objet change, clos quand la règle ne se déclenche plus ;
+  listées par règle, domaine et entité (REQ-002-36).
+- L'**outbox** reçoit, dans la même transaction, un événement CloudEvents 1.0 par
+  changeset appliqué (`org.kartenn.changeset.applied`, `id` = UUID du changeset ;
+  données : changeset, domaines, objets, auteur, valideur, résumé du différentiel) et un
+  événement par changement d'état d'un changeset en attente
+  (`org.kartenn.changeset.<état>`, `id` = `<uuid>/<état>`). L'ordre est garanti par
+  domaine d'adressage ; chaque consommateur enregistre ses livraisons
+  (`outbox_delivery`) (ADR 0018).
 
 ## Stockage PostgreSQL (D15, ADR 0004)
 
@@ -108,9 +125,13 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   (voir [`../reference/postgresql-18-reseau.md`](../reference/postgresql-18-reseau.md)).
 - Plages : type intervalle `inetrange` sans `subtype_diff`, `CHECK` de famille, exclusion
   de chevauchement par domaine (002/A12, prototype 001).
-- Index d'inclusion : GiST ou SP-GiST `inet_ops`, nommé explicitement.
+- Index d'inclusion : ceux des contraintes d'exclusion
+  `(domain_id, prefix inet_ops, valid_period)` ; pas d'index `inet_ops` autonome, les
+  budgets tenant sans lui (002/A14).
 - Identifiants : UUID v7 (`uuidv7()`, PostgreSQL 18).
-- Registres IANA à usage spécial : données versionnées embarquées (REQ-002-34).
+- Registres IANA à usage spécial : embarqués dans le code, chargés par le job de
+  migration dans `special_registry`, une copie par version (REQ-002-34) ; un rapport
+  liste les objets dont `public` changerait sous une nouvelle version.
 
 ## Migrations
 

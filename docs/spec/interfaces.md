@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-14
+updated: 2026-10-17
 ---
 
 # Interfaces
@@ -45,7 +45,12 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
   domaine, sous-arbre de préfixes), héritée vers le bas.
 - Une écriture exige le droit sur les objets visés **et** sur les effets indirects
   (différentiel des propriétés).
-- Politiques d'approbation dans le même modèle.
+- Politiques d'approbation dans le même modèle ; les créer, les modifier ou les
+  désactiver exige `core.approval_policy.admin` (règle `changeset.policy.forbidden`).
+- En attendant la 005, le service vérifie les permissions `prop.<clé>.write` et
+  `prop.<clé>.propose` et celle des politiques, par le port `Authorizer`
+  (`crates/kartenn-service/src/authz.rs`) ; les permissions par type d'objet
+  (`core.address.write`…) viendront avec le catalogue de la 005.
 
 ## SDK de plugins UI (D17, ADR 0011)
 
@@ -55,6 +60,22 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
   d'objet).
 - Un plugin n'a que les droits de l'utilisateur ; chargement soumis à CSP et SRI.
 - Licence du SDK : question ouverte Q-ouv-1.
+
+## Opérations d'un changeset (interface du service)
+
+Avant l'API (006), le service expose `submit` et le type `Operation`
+(`crates/kartenn-service/src/operations.rs`) : création, modification, clôture et
+restauration des objets du noyau ; déplacement et renommage (`Rename`, l'UUID est
+conservé) des entités, des sites et des domaines ; déclarations, valeurs de listes et
+affectations de propriétés ; liaison d'identifiants externes ; politiques d'approbation ;
+`Within` pour donner sa propre période à une opération.
+
+## Événements sortants (D11, ADR 0018)
+
+CloudEvents 1.0 en JSON, relayés depuis l'outbox au moins une fois, dans l'ordre par
+domaine d'adressage : `org.kartenn.changeset.applied` (changeset, domaines, objets,
+auteur, valideur, résumé du différentiel) et `org.kartenn.changeset.<état>` pour les
+changesets en attente. Le transport (webhook, file de messages) est l'objet de la 006.
 
 ## Connecteurs (D1, D7)
 
