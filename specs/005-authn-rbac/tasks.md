@@ -30,10 +30,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   `kartenn-store-pg/tests/rbac_schema.rs`, `kartenn-service/tests/rbac.rs`
   (propriétaire et site de chaque sorte d'objet) ; identité `system` pour l'auteur
   système
-- [ ] 4. `PgAuthorizer` : visibilité d'un sujet (liaisons d'identité, de groupe,
+- [x] 4. `PgAuthorizer` : visibilité d'un sujet (liaisons d'identité, de groupe,
   d'émetteur ; descendants ; confinement) et `authorize_many` par le prédicat — REQ-005-18
   à 20, 23 — verify : tests sur un petit arbre (chaque périmètre, confinement, émetteur
-  sans rattachement, objet sans propriétaire, liaison échue)
+  sans rattachement, objet sans propriétaire, liaison échue) — `kartenn_store_pg::rbac`,
+  prédicat `kartenn_visible` (migration 0029) ; le test a trouvé un défaut qui laissait
+  passer : pour un objet sans propriétaire (un site), le prédicat valait `NULL`, lu comme
+  « non refusé » ; il ne vaut plus jamais `NULL` (`kartenn-service/tests/rbac.rs`)
 - [ ] 5. Filtrage des listes et masquage des valeurs sensibles — REQ-005-21, 24 —
   verify : test de propriété décision unitaire = filtrage ; lecteur sans
   `prop.<clé>.read`

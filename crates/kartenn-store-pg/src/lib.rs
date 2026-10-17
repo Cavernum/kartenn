@@ -22,6 +22,7 @@ pub mod outbox;
 mod overrides;
 mod pending;
 mod properties;
+pub mod rbac;
 pub mod read;
 pub mod registry;
 pub mod temporal;

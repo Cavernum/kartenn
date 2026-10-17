@@ -4,11 +4,12 @@
 use std::collections::HashMap;
 
 use kartenn_core::objects::{AddressUsage, Nature};
-use kartenn_service::authz::Unrestricted;
+use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
 use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
+use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -230,4 +231,258 @@ async fn every_object_has_its_owner_and_site(pool: PgPool) {
             "site of {object}"
         );
     }
+}
+
+const IDP: &str = "https://idp.example.invalid";
+const VENDOR_IDP: &str = "https://vendor.example.invalid";
+
+impl Tree {
+    /// A role holding `entries`.
+    async fn role(&self, key: &str, entries: &[&str]) -> Uuid {
+        let id = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO role (id, key, label, valid_period, changeset_id)
+             VALUES ($1, $2, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(id)
+        .bind(key)
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        for entry in entries {
+            sqlx::query(
+                "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+                 VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            )
+            .bind(id)
+            .bind(entry)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        }
+        id
+    }
+
+    /// Binds `role` on a scope (`global` or the name of an object of the tree) to an
+    /// identity, a group or a whole issuer, until `until` days from now (unbounded with
+    /// `None`).
+    async fn bind(&self, subject: Binding<'_>, role: Uuid, scope: &str, until: Option<i32>) {
+        let (kind, id, issuer, group) = match subject {
+            Binding::Identity(id) => ("identity", Some(id), None, None),
+            Binding::Group(issuer, group) => ("group", None, Some(issuer), Some(group)),
+            Binding::Issuer(issuer) => ("issuer", None, Some(issuer), None),
+        };
+        let (scope_kind, scope_id) = match scope {
+            "global" => ("global", None),
+            name => {
+                let kind = match name {
+                    "group" | "branch" | "vendor" => "entity",
+                    "campus" | "building" => "site",
+                    "lab" | "other" => "domain",
+                    _ => "prefix",
+                };
+                (kind, Some(self.ids[name]))
+            }
+        };
+        sqlx::query(
+            "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
+                                  scope_kind, scope_id, valid_period, changeset_id)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7,
+                     tstzrange(now() - interval '2 days',
+                               CASE WHEN $8::int IS NULL THEN NULL
+                                    ELSE now() + make_interval(days => $8::int) END),
+                     gen_random_uuid())",
+        )
+        .bind(kind)
+        .bind(id)
+        .bind(issuer)
+        .bind(group)
+        .bind(role)
+        .bind(scope_kind)
+        .bind(scope_id)
+        .bind(until)
+        .execute(&self.pool)
+        .await
+        .unwrap();
+    }
+
+    /// Attaches `issuer` to an entity of the tree, or everywhere with `None`.
+    async fn attach(&self, issuer: &str, entity: Option<&str>) {
+        sqlx::query(
+            "INSERT INTO issuer_attachment (issuer, entity_id, valid_period, changeset_id)
+             VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(issuer)
+        .bind(entity.map(|e| self.ids[e]))
+        .execute(&self.pool)
+        .await
+        .unwrap();
+    }
+
+    /// The names among `objects` on which `subject` holds `permission`.
+    async fn allowed(
+        &self,
+        subject: &Subject,
+        permission: &str,
+        objects: &[&'static str],
+    ) -> Vec<&'static str> {
+        let ids: Vec<Uuid> = objects.iter().map(|o| self.ids[o]).collect();
+        let denied = PgAuthorizer::new(self.pool.clone())
+            .authorize_many(subject, permission, &ids)
+            .await
+            .unwrap();
+        objects
+            .iter()
+            .filter(|o| !denied.contains(&self.ids[*o]))
+            .copied()
+            .collect()
+    }
+}
+
+enum Binding<'a> {
+    Identity(Uuid),
+    Group(&'a str, &'a str),
+    Issuer(&'a str),
+}
+
+const OBJECTS: [&str; 7] = [
+    "10.5.0.7",
+    "10.6.0.7",
+    "172.16.0.9",
+    "10.5.0.0/24",
+    "10.0.0.0/8",
+    "campus",
+    "branch",
+];
+
+fn person(issuer: Option<&str>, groups: &[&str]) -> Subject {
+    Subject {
+        id: Uuid::now_v7(),
+        issuer: issuer.map(str::to_owned),
+        groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn each_scope_reaches_its_subtree(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let reader = t.role("reader", &["core.address.read"]).await;
+    let read = "core.address.read";
+    for (scope, expected) in [
+        (
+            "group",
+            vec![
+                "10.5.0.7",
+                "10.6.0.7",
+                "10.5.0.0/24",
+                "10.0.0.0/8",
+                "branch",
+            ],
+        ),
+        ("branch", vec!["10.5.0.7", "10.5.0.0/24", "branch"]),
+        ("campus", vec!["10.5.0.7", "10.5.0.0/24", "campus"]),
+        ("other", vec!["172.16.0.9"]),
+        ("10.5.0.0/24", vec!["10.5.0.7", "10.5.0.0/24"]),
+        ("global", OBJECTS.to_vec()),
+    ] {
+        let who = person(None, &[]);
+        t.bind(Binding::Identity(who.id), reader, scope, None).await;
+        assert_eq!(
+            t.allowed(&who, read, &OBJECTS).await,
+            expected,
+            "scope {scope}"
+        );
+    }
+    // REQ-005-19: no binding, nothing; a permission the role lacks, nothing.
+    assert!(
+        t.allowed(&person(None, &[]), read, &OBJECTS)
+            .await
+            .is_empty()
+    );
+    let who = person(None, &[]);
+    t.bind(Binding::Identity(who.id), reader, "global", None)
+        .await;
+    assert!(
+        t.allowed(&who, "core.address.write", &OBJECTS)
+            .await
+            .is_empty()
+    );
+    // A binding past its period grants nothing.
+    let late = person(None, &[]);
+    t.bind(Binding::Identity(late.id), reader, "global", Some(-1))
+        .await;
+    assert!(t.allowed(&late, read, &OBJECTS).await.is_empty());
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let reader = t.role("reader", &["core.address.read"]).await;
+    let read = "core.address.read";
+    // A group of the vendor's IdP, bound everywhere, reaches the vendor's objects only.
+    t.bind(Binding::Group(VENDOR_IDP, "ops"), reader, "global", None)
+        .await;
+    let vendor = person(Some(VENDOR_IDP), &["ops"]);
+    assert!(
+        t.allowed(&vendor, read, &OBJECTS).await.is_empty(),
+        "no attachment, no right"
+    );
+    t.attach(VENDOR_IDP, Some("vendor")).await;
+    assert_eq!(t.allowed(&vendor, read, &OBJECTS).await, ["172.16.0.9"]);
+    assert!(
+        t.allowed(&person(Some(VENDOR_IDP), &["sales"]), read, &OBJECTS)
+            .await
+            .is_empty(),
+        "another group"
+    );
+    // The internal IdP, attached globally, reaches everything its bindings give, sites
+    // (without owner) included; a whole-issuer binding serves all its people.
+    t.attach(IDP, None).await;
+    t.bind(Binding::Issuer(IDP), reader, "global", None).await;
+    assert_eq!(
+        t.allowed(&person(Some(IDP), &[]), read, &OBJECTS).await,
+        OBJECTS.to_vec()
+    );
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn patterns_and_global_permissions(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let editor = t.role("editor", &["prop.*.write"]).await;
+    let admin = t.role("admin", &["*"]).await;
+    let who = person(None, &[]);
+    t.bind(Binding::Identity(who.id), editor, "global", None)
+        .await;
+    let objects = ["10.5.0.7"];
+    assert_eq!(
+        t.allowed(&who, "prop.core.site.write", &objects).await,
+        objects
+    );
+    // A sensitive property is spared by the pattern (003/P17).
+    sqlx::query("UPDATE property_declaration SET sensitive = true WHERE key = 'core.site'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(
+        t.allowed(&who, "prop.core.site.write", &objects)
+            .await
+            .is_empty()
+    );
+    // `*` on an entity grants everything there, but a global-only permission nowhere.
+    let delegate = person(None, &[]);
+    t.bind(Binding::Identity(delegate.id), admin, "group", None)
+        .await;
+    assert_eq!(
+        t.allowed(&delegate, "prop.core.site.read", &objects).await,
+        objects
+    );
+    assert!(
+        t.allowed(&delegate, "core.role.admin", &objects)
+            .await
+            .is_empty()
+    );
+    let root = person(None, &[]);
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    assert_eq!(t.allowed(&root, "core.role.admin", &objects).await, objects);
 }
