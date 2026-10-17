@@ -119,7 +119,10 @@ en fournit le mécanisme et les teste avec des appels directs.
   (un seul export par événement, `trace_id` commun) — `otel::{Providers, incoming, Instruments}`
   (`kartenn-telemetry/tests/otel.rs`, exporteurs en mémoire) ; OTLP par gRPC seulement ;
   `OtlpSink` de l'audit : un `Export` acquitté par lot, un rejet partiel n'est pas une
-  livraison (`tests/audit_otlp.rs`, collecteur gRPC de test)
+  livraison (`tests/audit_otlp.rs`, collecteur gRPC de test) — complété pendant la tâche 21 : le
+  service et le store n'émettaient ni span ni événement (spans `db.*` du store, span
+  `pipeline.changeset` et événement de son issue, métriques de changeset dérivées de ces
+  événements ; `kartenn-server/tests/trace.rs`)
 - [x] 16. Configuration (`figment`), validation au démarrage, défaut sûr ; sous-commande
   `kartenn-server run` (télémétrie, relais, scellement), arrêt propre — REQ-012-31, 34 —
   verify : configurations invalides refusées ; `SIGTERM` sous charge — `kartenn_server::{config, app}`
