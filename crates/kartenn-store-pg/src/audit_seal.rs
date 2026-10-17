@@ -93,7 +93,8 @@ pub async fn seal_once(
         return Ok(None);
     }
     let previous = last_hash(&mut tx).await?;
-    let hash = batch_hash(&previous, &hashes(&rows)?);
+    let members = hashes(&rows)?;
+    let hash = batch_hash(&previous, &members);
     let id = Uuid::now_v7();
     let signature = key.map(|k| k.sign(&hash).to_vec());
     let seq: i64 = sqlx::query_scalar(
@@ -112,14 +113,16 @@ pub async fn seal_once(
     let seqs: Vec<i64> = rows.iter().map(|r| r.0).collect();
     let criticalities: Vec<&str> = rows.iter().map(|r| r.1.as_str()).collect();
     let times: Vec<OffsetDateTime> = rows.iter().map(|r| r.2).collect();
+    let member_hashes: Vec<&[u8]> = members.iter().map(<[u8; 32]>::as_slice).collect();
     sqlx::query(
-        "INSERT INTO audit.sealed (seal_seq, event_seq, criticality, recorded_at)
-         SELECT $1, * FROM unnest($2::bigint[], $3::text[], $4::timestamptz[])",
+        "INSERT INTO audit.sealed (seal_seq, event_seq, criticality, recorded_at, event_hash)
+         SELECT $1, * FROM unnest($2::bigint[], $3::text[], $4::timestamptz[], $5::bytea[])",
     )
     .bind(seq)
     .bind(&seqs)
     .bind(&criticalities)
     .bind(&times)
+    .bind(&member_hashes)
     .execute(&mut *tx)
     .await
     .map_err(store_err)?;

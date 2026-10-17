@@ -880,6 +880,7 @@ name = "kartenn-server"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "kartenn-service",
  "kartenn-store-pg",
  "kartenn-workspace-hack",
  "sqlx",

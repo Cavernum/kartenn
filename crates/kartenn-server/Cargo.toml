@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
+kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

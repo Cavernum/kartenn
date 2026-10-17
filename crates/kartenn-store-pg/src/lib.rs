@@ -4,6 +4,7 @@ pub mod anomalies;
 pub mod audit;
 pub mod audit_journal;
 pub mod audit_seal;
+pub mod audit_verify;
 mod diff;
 mod expected;
 pub mod explain;

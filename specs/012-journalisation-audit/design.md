@@ -140,10 +140,17 @@ audit.delivery  (sink text, event_seq, criticality, recorded_at, delivered_at) �
   lot suivant : l'appartenance est enregistrée, il n'y a donc pas de trou (comme
   l'outbox, ADR 0018). Délai maximal : 15 s plus la durée de la transaction (REQ-012-13 :
   60 s).
-- `kartenn-server audit verify [--from <sceau>]` : recalcule chaque lot depuis
-  `audit.sealed` et les événements, vérifie le chaînage et les signatures, désigne le
-  premier lot faux (événement modifié, ajouté ou supprimé). La même vérification tourne
-  chaque nuit (événement `audit.chain.broken`, ERROR, si elle échoue).
+- `kartenn-server audit verify <base> [<clé publique>]` : recalcule chaque lot, vérifie
+  le chaînage et les signatures, désigne le premier lot faux (événement modifié, ajouté
+  ou supprimé) et sort en code 2. La même vérification tourne chaque nuit (événement
+  `audit.chain.broken`, ERROR, si elle échoue).
+- **Précision (tâche 012-10)** : un lot mélange criticités et mois, purgés à des dates
+  différentes. Chaque membre garde l'empreinte de son événement
+  (`audit.sealed.event_hash`) et les appartenances ne sont pas purgées : le lot se
+  recalcule depuis ces empreintes, et chaque événement encore présent est comparé à la
+  sienne. Chaque purge est consignée (`audit.purge`) : un événement absent hors d'un
+  mois purgé est une suppression. Les événements non scellés depuis plus de dix minutes
+  sont signalés.
 - La clé de signature (facultative) se lit dans un fichier désigné par la configuration
   (`audit.signing_key_file`), au format PKCS#8 ; la clé publique et son identifiant sont
   exportés dans `audit.seal.created`.
@@ -168,7 +175,8 @@ audit.delivery  (sink text, event_seq, criticality, recorded_at, delivered_at) �
 - Tâche quotidienne (rôle propriétaire, comme `maintenance::history_partitions`) : pour
   chaque partition mensuelle échue, vérifie que tous ses événements sont scellés et
   livrés à chaque sortie d'audit configurée, puis détache et supprime la partition
-  d'événements, de `sealed` et de `delivery`. Les sceaux restent : la vérification
+  d'événements et de `delivery`, et consigne la purge dans `audit.purge`. Les
+  appartenances (`sealed`, avec les empreintes) et les sceaux restent : la vérification
   repart du premier sceau dont le lot est encore présent, chaque lot étant vérifiable
   seul avec son `prev_hash`.
 
