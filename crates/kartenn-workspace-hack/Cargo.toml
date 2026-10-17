@@ -23,6 +23,8 @@ idna = { version = "1" }
 memchr = { version = "2" }
 once_cell = { version = "1" }
 rand = { version = "0.10" }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
+regex-syntax = { version = "0.8" }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
 serde_json = { version = "1", features = ["raw_value"] }
@@ -33,6 +35,8 @@ sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate"
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-core = { version = "0.1" }
 uuid = { version = "1", features = ["serde", "v7"] }
 
 [build-dependencies]
@@ -55,6 +59,8 @@ syn-f595c2ba2a3f28df = { package = "syn", version = "2", default-features = fals
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-core = { version = "0.1" }
 uuid = { version = "1", features = ["serde", "v7"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]

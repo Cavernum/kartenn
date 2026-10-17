@@ -101,10 +101,12 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P5 — Logs techniques et télémétrie
 
-- [ ] 13. Crate `kartenn-telemetry` : couche de capture, table des sévérités, files
+- [x] 13. Crate `kartenn-telemetry` : couche de capture, table des sévérités, files
   bornées par sortie, compteurs d'abandons, masquage, neutralisation, bornes de taille
   — REQ-012-4, 5, 22, 28, 29 — verify : tests unitaires ; sortie bloquée sans effet sur
-  les autres
+  les autres — `capture::{CaptureLayer, Output, Record, drive}` ; filtre
+  `EnvFilter` propre à chaque sortie, remplaçable à chaud ; la neutralisation des
+  caractères de contrôle se fait au formatage texte (tâche 14)
 - [ ] 14. Sorties `stdout` (texte, JSON), `file`, `journald`, `syslog` — REQ-012-3, 20, 21
   — verify : même événement sur chaque sortie (sévérité, nom, horodatage)
 - [ ] 15. OpenTelemetry : traces, métriques, logs sans double export, échantillonneur et
