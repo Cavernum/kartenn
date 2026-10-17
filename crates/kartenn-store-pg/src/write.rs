@@ -451,7 +451,7 @@ async fn write_journal(
                 'type', 'org.kartenn.changeset.applied', 'time', now(),
                 'datacontenttype', 'application/json',
                 'data', jsonb_strip_nulls(jsonb_build_object('changeset', $1, 'domains', $2, 'objects', $4,
-                                                'author', $5, 'validator', $6))))",
+                                                'author', $5, 'validator', $6, 'diff', $7))))",
         )
         .bind(journal.id)
         .bind(journal.domains)
@@ -459,6 +459,8 @@ async fn write_journal(
         .bind(journal.objects)
         .bind(journal.request.author)
         .bind(journal.validator)
+        // the summarised differential, as recorded on the changeset
+        .bind(serde_json::to_value(journal.diff).map_err(store_err)?)
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;

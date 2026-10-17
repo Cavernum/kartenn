@@ -264,6 +264,15 @@ async fn a_container_above_4096_addresses_changes_them_all(pool: PgPool) {
             .await
             .unwrap();
     assert_eq!(summary[0]["count"], 4097);
+    // REQ-004-36: its event carries the same summarised differential.
+    let event: serde_json::Value = sqlx::query_scalar(
+        "SELECT payload -> 'data' -> 'diff' FROM outbox WHERE changeset_id = $1",
+    )
+    .bind(changeset)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(event, summary);
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
