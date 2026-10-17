@@ -2,7 +2,44 @@
   pkgs,
   config,
   ...
-}: {
+}: let
+  # Development console of the traces (D35): Jaeger v2, a static binary from its
+  # release (not in nixpkgs; no container runtime needed). x86_64-linux only.
+  jaeger = pkgs.stdenvNoCC.mkDerivation rec {
+    pname = "jaeger";
+    version = "2.21.0";
+    src = pkgs.fetchurl {
+      url = "https://github.com/jaegertracing/jaeger/releases/download/v${version}/jaeger-${version}-linux-amd64.tar.gz";
+      sha256 = "0nkszimnhv7vfmv5xv430znp4f5hs7ygmzz1l5j2wficx8c16x7m";
+    };
+    installPhase = "install -Dm755 jaeger $out/bin/jaeger";
+  };
+  yaml = pkgs.formats.yaml {};
+  # Jaeger keeps the traces in memory and receives them from the collector only, on
+  # ports of its own (the collector holds 4317/4318, 8888 and 13133).
+  jaegerConfig = yaml.generate "jaeger.yaml" {
+    service = {
+      extensions = ["jaeger_storage" "jaeger_query"];
+      pipelines.traces = {
+        receivers = ["otlp"];
+        processors = ["batch"];
+        exporters = ["jaeger_storage_exporter"];
+      };
+      telemetry.metrics.level = "none";
+    };
+    extensions = {
+      jaeger_storage.backends.memstore.memory.max_traces = 100000;
+      jaeger_query = {
+        storage.traces = "memstore";
+        http.endpoint = "127.0.0.1:16686";
+        grpc.endpoint = "127.0.0.1:16685";
+      };
+    };
+    receivers.otlp.protocols.grpc.endpoint = "127.0.0.1:14317";
+    processors.batch = {};
+    exporters.jaeger_storage_exporter.trace_storage = "memstore";
+  };
+in {
   # Backend (D16): Rust workspace under crates/.
   languages.rust = {
     enable = true;
@@ -83,6 +120,62 @@
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
+  };
+
+  # Observability (D35): the applications send OTLP to the collector
+  # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP
+  # (127.0.0.1:5514). Traces go to Jaeger (UI http://127.0.0.1:16686); logs and
+  # metrics are printed in the collector's process log and written as OTLP JSON
+  # lines in .devenv/state/otel-{logs,metrics}.jsonl.
+  services.opentelemetry-collector = {
+    enable = true;
+    settings = {
+      receivers = {
+        otlp.protocols = {
+          grpc.endpoint = "127.0.0.1:4317";
+          http.endpoint = "127.0.0.1:4318";
+        };
+        syslog = {
+          tcp.listen_address = "127.0.0.1:5514";
+          protocol = "rfc5424";
+        };
+      };
+      processors.batch = {};
+      exporters = {
+        "otlp_grpc/jaeger" = {
+          endpoint = "127.0.0.1:14317";
+          tls.insecure = true;
+        };
+        debug.verbosity = "basic";
+        "file/logs".path = "${config.devenv.state}/otel-logs.jsonl";
+        "file/metrics".path = "${config.devenv.state}/otel-metrics.jsonl";
+      };
+      service.pipelines = {
+        traces = {
+          receivers = ["otlp"];
+          processors = ["batch"];
+          exporters = ["otlp_grpc/jaeger"];
+        };
+        logs = {
+          receivers = ["otlp" "syslog"];
+          processors = ["batch"];
+          exporters = ["debug" "file/logs"];
+        };
+        metrics = {
+          receivers = ["otlp"];
+          processors = ["batch"];
+          exporters = ["file/metrics"];
+        };
+      };
+    };
+  };
+  processes.jaeger = {
+    exec = "exec ${jaeger}/bin/jaeger --config ${jaegerConfig}";
+    ready.http.get = {
+      host = "127.0.0.1";
+      port = 16686;
+      path = "/";
+    };
   };
 
   git-hooks.hooks = {
