@@ -51,10 +51,17 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   plus valides), objets créés après (avec leur propriétaire hérité) ; règle
   `core.object.forbidden` ; les droits de propriété (003) passent aussi par la
   transaction (`rbac.rs`, tests 003 ajustés : `rights.rs`, `anchors.rs`)
-- [ ] 7. Opérations d'administration (rôles, liaisons, rattachements, comptes de service,
+- [x] 7. Opérations d'administration (rôles, liaisons, rattachements, comptes de service,
   état des identités) et règle anti-escalade ; synchronisation des rôles livrés —
   REQ-005-3, 17, 25, 26 — verify : délégation bornée (test de propriété), lecture datée
-  des droits, rôles livrés non modifiables
+  des droits, rôles livrés non modifiables — `SetRole`, `CloseRole`, `Bind`, `Unbind`,
+  `AttachIssuer`, `DetachIssuer`, `SetIdentityState` (`kartenn_service::rbac`,
+  `Planned::Rbac`, `WriteTx::rbac_write`) ; règles `core.role.invalid`,
+  `core.rbac.forbidden`, `core.binding.escalation`, `core.role.builtin`,
+  `core.role.unknown` ; les entrées-motifs (`*`, `prop.*.write`) se vérifient comme
+  telles ; `sync_roles` au job de migration ; matrice de délégation exhaustive plutôt
+  qu'aléatoire (`rbac.rs`) ; les comptes de service passent à la tâche 10 (avec leurs
+  secrets)
 - [ ] 8. Politiques d'approbation par périmètre et auteurs par rôle ou groupe —
   REQ-005-27 — verify : tests (`review.rs`)
 

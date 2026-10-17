@@ -212,6 +212,16 @@ rules! {
         "Une politique d'approbation a un nom et au moins un déclencheur.";
     POLICY_FORBIDDEN = "changeset.policy.forbidden", Error, ["REQ-004-39", "REQ-004-40"], "004/C6",
         "Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques.";
+    RBAC_INVALID = "core.role.invalid", Error, ["REQ-005-17", "REQ-005-25"], "005/K12",
+        "Un rôle a une clé, un libellé et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides.";
+    RBAC_FORBIDDEN = "core.rbac.forbidden", Error, ["REQ-005-26"], "005/K7, K11",
+        "Administrer les rôles, les émetteurs, les comptes ou les liaisons exige la permission d'administration correspondante.";
+    RBAC_ESCALATION = "core.binding.escalation", Error, ["REQ-005-26"], "005/K7",
+        "On ne lie un rôle sur un périmètre que si l'on détient soi-même chacune de ses entrées sur ce périmètre.";
+    RBAC_BUILTIN = "core.role.builtin", Error, ["REQ-005-17"], "005/K12",
+        "Un rôle livré ne change que par la synchronisation du noyau.";
+    RBAC_UNKNOWN_ROLE = "core.role.unknown", Error, ["REQ-005-25"], "005/K6",
+        "Une liaison désigne un rôle en vigueur.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
 }

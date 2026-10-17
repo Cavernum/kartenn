@@ -23,6 +23,7 @@ mod overrides;
 mod pending;
 mod properties;
 pub mod rbac;
+mod rbac_admin;
 pub mod read;
 pub mod registry;
 pub mod temporal;

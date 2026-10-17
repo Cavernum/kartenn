@@ -204,6 +204,8 @@ pub(crate) enum Planned {
     },
     /// An approval policy; its identifier is the existing one of the same name, if any.
     Policy(ApprovalPolicy),
+    /// An administration operation of the RBAC (005).
+    Rbac(crate::rbac::RbacOp),
     /// An entity or a site.
     Anchor {
         kind: ObjectKind,
@@ -266,6 +268,7 @@ impl Planned {
             | Self::Unassign { object, .. }
             | Self::BindExternal { object, .. } => *object,
             Self::Policy(policy) => policy.id,
+            Self::Rbac(op) => op.object(),
             Self::Prefix { object, .. } => object.id,
             Self::Range { object, .. } => object.id,
             Self::Address { object, .. } => object.id,
@@ -323,9 +326,23 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             .map(|r| (*r, ObjectKind::Site))
             .collect(),
         Operation::Rename { kind, id, .. } => vec![(*id, kind.kind())],
+        Operation::Bind { scope, .. } => match scope {
+            crate::operations::BindingScope::Global => vec![],
+            crate::operations::BindingScope::Entity { id } => vec![(*id, ObjectKind::Entity)],
+            crate::operations::BindingScope::Site { id } => vec![(*id, ObjectKind::Site)],
+            crate::operations::BindingScope::Domain { id } => vec![(*id, ObjectKind::Domain)],
+            crate::operations::BindingScope::Prefix { id } => vec![(*id, ObjectKind::Prefix)],
+        },
+        Operation::AttachIssuer { entity, .. } | Operation::DetachIssuer { entity, .. } => {
+            entity.iter().map(|r| (*r, ObjectKind::Entity)).collect()
+        }
         Operation::CreateDomain { .. }
         | Operation::DeclareProperty { .. }
         | Operation::SetApprovalPolicy { .. }
+        | Operation::SetRole { .. }
+        | Operation::CloseRole { .. }
+        | Operation::Unbind { .. }
+        | Operation::SetIdentityState { .. }
         | Operation::Within { .. } => vec![],
     }
 }
@@ -753,6 +770,19 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                     Err(v) => violations.push(v),
                 }
             }
+            Operation::SetRole { .. }
+            | Operation::CloseRole { .. }
+            | Operation::Bind { .. }
+            | Operation::Unbind { .. }
+            | Operation::AttachIssuer { .. }
+            | Operation::DetachIssuer { .. }
+            | Operation::SetIdentityState { .. } => {
+                match crate::rbac::plan(op, id, |r| resolve(r, &ids)) {
+                    Some(Ok(p)) => planned.push(p),
+                    Some(Err(v)) => violations.push(v),
+                    None => {}
+                }
+            }
             // Unwrapped above.
             Operation::Within { .. } => {}
             Operation::AssignProperty { .. }
@@ -778,6 +808,7 @@ fn tree_lock(kind: ObjectKind) -> Uuid {
 }
 
 /// Domains to lock and whether public space is written (ADR 0015).
+#[allow(clippy::too_many_lines)] // one arm per kind of planned operation
 async fn lock_targets<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
@@ -869,6 +900,7 @@ async fn lock_targets<T: WriteTx>(
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
             | Planned::BindExternal { .. }
+            | Planned::Rbac(_)
             | Planned::Policy(_) => {}
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
@@ -1055,6 +1087,7 @@ async fn apply<T: WriteTx>(
                 tx.insert_address(object, *public, period, changeset).await
             }
             Planned::Policy(policy) => write_policy(tx, policy).await,
+            Planned::Rbac(op) => tx.rbac_write(op, period, changeset).await,
             Planned::BindExternal {
                 object,
                 kind,

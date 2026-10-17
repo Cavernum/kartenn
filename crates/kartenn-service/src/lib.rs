@@ -16,6 +16,7 @@ pub mod observability;
 pub mod operations;
 pub mod pipeline;
 pub mod port;
+pub mod rbac;
 pub mod reads;
 mod resolution;
 pub mod review;

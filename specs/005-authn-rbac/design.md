@@ -151,7 +151,7 @@ de l'état des identités de 5 s par instance (K10).
   `core.account.admin` sur le périmètre global ; une liaison exige `core.rbac.admin` sur
   un périmètre qui contient le sien et toutes les permissions du rôle sur ce périmètre
   (K7) — vérifié par le prédicat sur l'objet du périmètre ; refus :
-  `rbac.binding.escalation`.
+  `core.binding.escalation`.
 - Politiques d'approbation (004) : périmètre (entité, site, sous-arbre) et auteurs par
   rôle ou groupe, évalués avec le même modèle.
 - Le secret d'un compte de service est généré hors du pipeline (`SecretHasher`) :

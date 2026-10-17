@@ -85,7 +85,11 @@ pub async fn deploy(pool: &PgPool) -> Result<(), DeployError> {
         kartenn_service::pipeline::MAX_OPERATIONS,
     )
     .await?;
-    for outcome in outcomes {
+    // The delivered roles (spec 005, K12).
+    let roles =
+        kartenn_service::rbac::sync_roles(&store, kartenn_service::pipeline::MAX_OPERATIONS)
+            .await?;
+    for outcome in outcomes.into_iter().chain(roles) {
         if let kartenn_service::Outcome::Refused { violations, .. } = outcome {
             let reasons = violations
                 .iter()

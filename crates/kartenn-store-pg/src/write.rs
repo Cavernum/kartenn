@@ -580,6 +580,24 @@ impl WriteTx for PgTx {
         crate::rbac::outside_now(&mut self.tx, subject, permission, objects).await
     }
 
+    async fn rbac_write(
+        &mut self,
+        op: &kartenn_service::rbac::RbacOp,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (at, until) = bounds(period)?;
+        crate::rbac_admin::write(&mut self.tx, op, at, until, changeset).await
+    }
+
+    async fn role_entries(&mut self, key: &str) -> Result<Option<Vec<String>>, StoreError> {
+        crate::rbac_admin::role_entries(&mut self.tx, key).await
+    }
+
+    async fn binding_scope(&mut self, binding: Uuid) -> Result<Option<Uuid>, StoreError> {
+        crate::rbac_admin::binding_scope(&mut self.tx, binding).await
+    }
+
     async fn lock(&mut self, domains: &[Uuid], public_space: bool) -> Result<(), StoreError> {
         let mut keys: Vec<i64> = domains
             .iter()

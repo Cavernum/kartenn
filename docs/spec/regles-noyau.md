@@ -58,4 +58,9 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.approval.forbidden` | erreur | Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition. | REQ-004-21, REQ-004-42 | 004/C1, C7 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `changeset.policy.forbidden` | erreur | Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques. | REQ-004-39, REQ-004-40 | 004/C6 |
+| `core.role.invalid` | erreur | Un rôle a une clé, un libellé et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides. | REQ-005-17, REQ-005-25 | 005/K12 |
+| `core.rbac.forbidden` | erreur | Administrer les rôles, les émetteurs, les comptes ou les liaisons exige la permission d'administration correspondante. | REQ-005-26 | 005/K7, K11 |
+| `core.binding.escalation` | erreur | On ne lie un rôle sur un périmètre que si l'on détient soi-même chacune de ses entrées sur ce périmètre. | REQ-005-26 | 005/K7 |
+| `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
+| `core.role.unknown` | erreur | Une liaison désigne un rôle en vigueur. | REQ-005-25 | 005/K6 |
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |

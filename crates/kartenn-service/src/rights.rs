@@ -114,6 +114,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         violations
             .push(Violation::new(&rules::PROP_FORBIDDEN_EFFECT, message).with_subjects(denied));
     }
+    crate::rbac::check(tx, authorizer, subject, planned, violations).await?;
     missing.extend(
         check_objects(
             tx,

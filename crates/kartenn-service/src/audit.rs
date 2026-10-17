@@ -305,6 +305,16 @@ pub(crate) fn changeset_events(
                     .detail("enabled", policy.enabled)
                     .map_err(|e| audit_err(&e))?,
             ),
+            // The administration of the RBAC (005, REQ-005-28): a changed role is audited
+            // on its own, the other operations by the changeset.
+            Planned::Rbac(
+                crate::rbac::RbacOp::SetRole { key, .. } | crate::rbac::RbacOp::CloseRole { key },
+            ) => events.push(
+                event(&kartenn_core::audit::RBAC_ROLE_CHANGED, Outcome::Success)?
+                    .target("role", [crate::rbac::RBAC_OBJECT])
+                    .detail("role", key.as_str())
+                    .map_err(|e| audit_err(&e))?,
+            ),
             Planned::Modify {
                 kind: crate::ObjectKind::Property,
                 id,

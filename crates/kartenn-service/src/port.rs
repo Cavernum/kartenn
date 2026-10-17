@@ -442,6 +442,27 @@ pub trait WriteTx {
         objects: &[Uuid],
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
+    /// Writes an administration operation of the RBAC over `period` (005, REQ-005-25).
+    fn rbac_write(
+        &mut self,
+        op: &crate::rbac::RbacOp,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), WriteError>> + Send;
+
+    /// The entries of the role `key` in force now, if it exists.
+    fn role_entries(
+        &mut self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<Vec<String>>, StoreError>> + Send;
+
+    /// The scope object of a binding in force (its entity, site, domain or prefix, or
+    /// [`crate::rbac::RBAC_OBJECT`] for a global one), if it exists.
+    fn binding_scope(
+        &mut self,
+        binding: Uuid,
+    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
     /// Takes the advisory locks of the domains, in order, and of public space if needed
     /// (ADR 0015).
     fn lock(

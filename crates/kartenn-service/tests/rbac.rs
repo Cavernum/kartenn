@@ -8,9 +8,10 @@ use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::RawInput;
+use kartenn_service::operations::{BindingScope, BindingSubject, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::pipeline::PendingKind;
+use kartenn_service::rbac::sync_roles;
 use kartenn_service::reads::{ReadAudit, read_object};
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
@@ -791,4 +792,217 @@ async fn a_right_to_propose_makes_a_proposal(pool: PgPool) {
     // Out of its scope, not even a proposal.
     let outcome = t.submit_as(&who, vec![new_address(lab, "10.6.0.9")]).await;
     assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
+}
+
+fn bind_op(subject: Uuid, role: &str, scope: BindingScope) -> Operation {
+    Operation::Bind {
+        local: None,
+        subject: BindingSubject::Identity { id: subject },
+        role: role.into(),
+        scope,
+    }
+}
+
+fn set_role(key: &str, entries: &[&str]) -> Operation {
+    Operation::SetRole {
+        key: key.into(),
+        label: key.into(),
+        entries: entries.iter().map(|e| (*e).to_owned()).collect(),
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_delivered_roles_are_synchronised_once(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let first = sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    assert!(matches!(first, Some(Outcome::Applied { .. })), "{first:?}");
+    assert!(
+        sync_roles(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let audited: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit.event WHERE name = 'rbac.role.changed'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(audited, 4, "each delivered role, audited");
+    let keys: Vec<String> = sqlx::query_scalar("SELECT key FROM role WHERE builtin ORDER BY key")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert_eq!(keys, ["administrator", "approver", "editor", "reader"]);
+    // A delivered role changes by the synchronisation only, even for an administrator.
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let outcome = t
+        .submit_as(&root, vec![set_role("reader", &["core.address.read"])])
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.role.builtin"]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_administrator_binds_and_unbinds(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let user = t.identity().await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_role("auditor", &["core.address.read"]),
+                bind_op(
+                    user.id,
+                    "auditor",
+                    BindingScope::Entity {
+                        id: Ref::Id(t.ids["branch"]),
+                    },
+                ),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(
+        t.allowed(&user, "core.address.read", &["10.5.0.7", "10.6.0.7"])
+            .await,
+        ["10.5.0.7"]
+    );
+    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let outcome = t
+        .submit_as(&root, vec![Operation::Unbind { id: binding }])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        t.allowed(&user, "core.address.read", &["10.5.0.7"])
+            .await
+            .is_empty()
+    );
+    // REQ-005-25: who held the role, and until when, stays readable.
+    let ended: bool =
+        sqlx::query_scalar("SELECT NOT upper_inf(valid_period) FROM binding WHERE id = $1")
+            .bind(binding)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(ended, "the binding is ended, not erased");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_delegate_cannot_escalate(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_role("auditor", &["core.address.read"]),
+                set_role("writer", &["core.address.read", "core.address.write"]),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // The delegate administers the group and reads its addresses.
+    let delegate = t.identity().await;
+    let manager = t
+        .role("manager", &["core.rbac.admin", "core.address.read"])
+        .await;
+    t.bind(Binding::Identity(delegate.id), manager, "group", None)
+        .await;
+    let user = t.identity().await;
+    let entity = |name: &str| BindingScope::Entity {
+        id: Ref::Id(t.ids[name]),
+    };
+    // Within its scope, a role whose entries it holds.
+    let outcome = t
+        .submit_as(
+            &delegate,
+            vec![bind_op(user.id, "auditor", entity("branch"))],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    // `None`: applied; a role it holds entirely may be delegated, its own included.
+    for (role, scope, rule) in [
+        ("auditor", entity("vendor"), Some("core.rbac.forbidden")),
+        ("auditor", BindingScope::Global, Some("core.rbac.forbidden")),
+        ("writer", entity("branch"), Some("core.binding.escalation")),
+        (
+            "administrator",
+            entity("branch"),
+            Some("core.binding.escalation"),
+        ),
+        ("manager", entity("branch"), None),
+    ] {
+        let outcome = t
+            .submit_as(&delegate, vec![bind_op(user.id, role, scope)])
+            .await;
+        match rule {
+            Some(rule) => assert_eq!(rules_of(&outcome), [rule], "{role} on {scope:?}"),
+            None => assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}"),
+        }
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn issuers_and_identities_need_global_administration(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let delegate = t.identity().await;
+    let local_admin = t.role("local", &["*"]).await;
+    t.bind(Binding::Identity(delegate.id), local_admin, "group", None)
+        .await;
+    let user = t.identity().await;
+    let operations = || {
+        vec![
+            Operation::AttachIssuer {
+                issuer: VENDOR_IDP.into(),
+                entity: Some(Ref::Id(t.ids["vendor"])),
+            },
+            Operation::SetIdentityState {
+                identity: user.id,
+                disabled: Some(true),
+                revoke_sessions: true,
+            },
+        ]
+    };
+    // `*` on an entity is not the global scope these permissions need.
+    let outcome = t.submit_as(&delegate, operations()).await;
+    assert_eq!(
+        rules_of(&outcome),
+        ["core.rbac.forbidden", "core.rbac.forbidden"]
+    );
+    let outcome = t.submit_as(&root, operations()).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let (disabled, revoked): (bool, bool) = sqlx::query_as(
+        "SELECT disabled_at IS NOT NULL, revoked_after IS NOT NULL FROM person WHERE id = $1",
+    )
+    .bind(user.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(disabled && revoked);
+    let attached: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM issuer_attachment WHERE issuer = $1 AND valid_period @> now()",
+    )
+    .bind(VENDOR_IDP)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(attached, 1);
 }

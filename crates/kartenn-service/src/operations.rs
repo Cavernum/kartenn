@@ -274,6 +274,65 @@ pub enum Operation {
         /// Usage.
         usage: AddressUsage,
     },
+    /// Defines a role, or replaces its label and entries (spec 005, REQ-005-17, 25):
+    /// catalogue permissions, `prop.<key>.<action>`, `prop.*.<action>`, `*`.
+    SetRole {
+        /// Stable key.
+        key: String,
+        /// Label.
+        label: String,
+        /// Entries.
+        entries: Vec<String>,
+    },
+    /// Closes a role and its bindings (005).
+    CloseRole {
+        /// Key.
+        key: String,
+    },
+    /// Binds a role on a scope to a subject, over the operation's period (005,
+    /// REQ-005-18, 25, 26).
+    Bind {
+        /// Local name of the binding.
+        local: Option<u32>,
+        /// Who.
+        subject: BindingSubject,
+        /// Role key.
+        role: String,
+        /// Where.
+        scope: BindingScope,
+    },
+    /// Ends a binding (005).
+    Unbind {
+        /// The binding.
+        id: Uuid,
+    },
+    /// Attaches an OIDC issuer to an entity, or everywhere without entity (005, K11, K13).
+    AttachIssuer {
+        /// Issuer identifier (`iss`).
+        issuer: String,
+        /// Entity; `None`: everywhere.
+        #[serde(default)]
+        entity: Option<Ref>,
+    },
+    /// Detaches an issuer from an entity, or from everywhere (005).
+    DetachIssuer {
+        /// Issuer identifier.
+        issuer: String,
+        /// Entity; `None`: the global attachment.
+        #[serde(default)]
+        entity: Option<Ref>,
+    },
+    /// Disables or enables an identity, revokes its sessions (005, REQ-005-3).
+    SetIdentityState {
+        /// The identity.
+        identity: Uuid,
+        /// `Some(true)` disables, `Some(false)` enables.
+        #[serde(default)]
+        disabled: Option<bool>,
+        /// Revokes the sessions opened until now.
+        #[serde(default)]
+        revoke_sessions: bool,
+    },
     /// Creates or replaces, by name, an approval policy (REQ-004-20, 40): it holds the
     /// changesets that match every trigger it defines.
     SetApprovalPolicy {
@@ -543,8 +602,15 @@ impl Operation {
             | Self::CreateEntity { local, .. }
             | Self::CreateSite { local, .. }
             | Self::DeclareProperty { local, .. }
+            | Self::Bind { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
-            Self::Close { .. }
+            Self::SetRole { .. }
+            | Self::CloseRole { .. }
+            | Self::Unbind { .. }
+            | Self::AttachIssuer { .. }
+            | Self::DetachIssuer { .. }
+            | Self::SetIdentityState { .. }
+            | Self::Close { .. }
             | Self::UpdatePrefix { .. }
             | Self::UpdateAddress { .. }
             | Self::UpdateRange { .. }
@@ -561,6 +627,57 @@ impl Operation {
             | Self::UnassignProperty { .. } => None,
         }
     }
+}
+
+/// Who a binding serves (005, K4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BindingSubject {
+    /// One identity (person, service or break-glass account).
+    Identity {
+        /// Its identifier.
+        id: Uuid,
+    },
+    /// The members of a group of an issuer.
+    Group {
+        /// Issuer.
+        issuer: String,
+        /// Group.
+        group: String,
+    },
+    /// Every identity of an issuer (K5).
+    Issuer {
+        /// Issuer.
+        issuer: String,
+    },
+}
+
+/// Where a binding acts (005, K14): its scope and what lies below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BindingScope {
+    /// Everywhere.
+    Global,
+    /// An entity and its descendants.
+    Entity {
+        /// The entity.
+        id: Ref,
+    },
+    /// A site and its descendants.
+    Site {
+        /// The site.
+        id: Ref,
+    },
+    /// An addressing domain.
+    Domain {
+        /// The domain.
+        id: Ref,
+    },
+    /// A prefix and what it holds.
+    Prefix {
+        /// The prefix.
+        id: Ref,
+    },
 }
 
 /// A changeset submitted by an authenticated person (REQ-004-1).

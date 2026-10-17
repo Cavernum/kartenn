@@ -83,6 +83,7 @@ pub(crate) async fn validate<T: WriteTx>(
             // An assignment restored is checked with the properties.
             | Planned::Restore { .. }
             | Planned::BindExternal { .. }
+            | Planned::Rbac(_)
             | Planned::Policy(_) => {}
         }
     }
