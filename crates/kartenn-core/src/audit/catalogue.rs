@@ -91,9 +91,9 @@ events! {
     CHANGESET_EXPIRED = "changeset.state.expired", Info, Normal, [], ["REQ-012-8"],
         "API Activity 6003 / Update", "configuration",
         "Un changeset en attente a expiré.";
-    CHANGESET_REVALIDATION_FAILED = "changeset.state.revalidation_failed", Warn, Normal, ["rules"], ["REQ-012-8"],
+    CHANGESET_REVALIDATION_FAILED = "changeset.state.stale", Warn, Normal, ["rules"], ["REQ-012-8"],
         "API Activity 6003 / Update", "configuration",
-        "Un changeset validé n'a pas passé sa revalidation.";
+        "Un changeset en attente n'a pas passé sa revalidation au moment d'être validé.";
     // Administration.
     RBAC_ROLE_CHANGED = "rbac.role.changed", Info, High, ["role"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "iam",
@@ -222,6 +222,8 @@ mod tests {
         assert_eq!(names.len(), EVENTS.len(), "duplicate event name");
         for name in names {
             assert_eq!(name.split('.').count(), 3, "{name}");
+            // The MSGID of RFC 5424 §6.2.7 holds at most 32 octets.
+            assert!(name.len() <= 32, "{name}");
             assert!(
                 name.bytes()
                     .all(|b| b.is_ascii_lowercase() || b == b'.' || b == b'_'),

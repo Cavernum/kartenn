@@ -99,6 +99,55 @@ pub trait AuditJournal: Send + Sync {
     fn record(&self, event: &AuditEvent) -> impl Future<Output = Result<(), StoreError>> + Send;
 }
 
+/// Why an output of the audit did not take a batch.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
+pub struct SinkError(pub String);
+
+/// An output of the audit journal (REQ-012-15): it receives the stored rows, as JSON, in
+/// sequence order, and returns once they are written; an error leaves them for the next
+/// attempt (at least once).
+pub trait AuditSink: Send + Sync {
+    /// Stable name, the key of its deliveries.
+    fn name(&self) -> &str;
+
+    /// Writes `events`.
+    fn deliver(
+        &self,
+        events: &[serde_json::Value],
+    ) -> impl Future<Output = Result<(), SinkError>> + Send;
+}
+
+/// Availability of an output (REQ-012-26): which event to record after a delivery.
+#[derive(Debug, Clone, Default)]
+pub struct SinkHealth {
+    failing_since: Option<Instant>,
+    reported: bool,
+}
+
+/// How long an output fails before it is reported unavailable.
+pub const UNAVAILABLE_AFTER_MICROS: i64 = 60_000_000;
+
+impl SinkHealth {
+    /// The outcome of a delivery at `at`: `sys.output.unavailable` once an output has
+    /// failed for a minute, `sys.output.available` when it comes back after that.
+    pub fn observe(&mut self, ok: bool, at: Instant) -> Option<&'static EventKind> {
+        if ok {
+            self.failing_since = None;
+            if std::mem::take(&mut self.reported) {
+                return Some(&kartenn_core::audit::SYS_OUTPUT_AVAILABLE);
+            }
+            return None;
+        }
+        let since = *self.failing_since.get_or_insert(at);
+        if !self.reported && at.0 - since.0 >= UNAVAILABLE_AFTER_MICROS {
+            self.reported = true;
+            return Some(&kartenn_core::audit::SYS_OUTPUT_UNAVAILABLE);
+        }
+        None
+    }
+}
+
 /// Journal in memory, for tests.
 #[derive(Debug, Clone, Default)]
 pub struct MemoryJournal {
@@ -270,6 +319,27 @@ mod tests {
     use kartenn_core::audit::{AUTHZ_DENIED, SYS_STARTED};
 
     use super::*;
+
+    #[test]
+    fn an_output_is_reported_unavailable_after_a_minute_then_available() {
+        let mut health = SinkHealth::default();
+        let s = |secs: i64| Instant(secs * 1_000_000);
+        assert_eq!(health.observe(false, s(0)), None);
+        assert_eq!(health.observe(false, s(59)), None);
+        assert_eq!(
+            health.observe(false, s(60)).map(|k| k.name),
+            Some("sys.output.unavailable")
+        );
+        assert_eq!(health.observe(false, s(120)), None, "reported once");
+        assert_eq!(
+            health.observe(true, s(130)).map(|k| k.name),
+            Some("sys.output.available")
+        );
+        assert_eq!(health.observe(true, s(131)), None);
+        // A short failure is not reported.
+        assert_eq!(health.observe(false, s(200)), None);
+        assert_eq!(health.observe(true, s(210)), None);
+    }
 
     #[tokio::test]
     async fn events_take_the_context_and_land_in_the_journal() {

@@ -31,6 +31,7 @@ sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 smallvec = { version = "1", default-features = false, features = ["const_generics", "serde"] }
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
 thiserror = { version = "2" }
+time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 
@@ -52,6 +53,7 @@ sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate"
 syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "fold", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", default-features = false, features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit-mut"] }
 thiserror = { version = "2" }
+time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 

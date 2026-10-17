@@ -162,6 +162,11 @@ audit.delivery  (sink text, event_seq, criticality, recorded_at, delivered_at) �
   TCP est faite, faute d'accusé applicatif en syslog : limite documentée), `OtlpSink`
   (requête OTLP logs **attendue**, sans le processeur par lots qui abandonne), `FileSink`
   (JSON par ligne, `fsync` par lot).
+- **Forme exportée** (précision, tâche 012-11) : la ligne stockée de `audit.event` en
+  JSON, celle que les sceaux prennent en empreinte, et non une forme remaniée : un
+  récepteur peut ainsi vérifier un événement contre son sceau. L'adaptateur OTLP
+  (`OtlpSink`) utilise l'exporteur de logs du SDK OpenTelemetry, appelé directement et
+  attendu : il vient avec la tâche 15.
 - Relais par sortie (une instance à la fois par sortie) : lit par `seq` croissant les
   événements validés sans livraison pour cette sortie, par lots de 500, livre, puis
   insère les lignes `audit.delivery`. Reprise sans trou après arrêt (même schéma que

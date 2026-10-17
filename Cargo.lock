@@ -917,6 +917,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-telemetry"
+version = "0.0.0"
+dependencies = [
+ "kartenn-core",
+ "kartenn-service",
+ "kartenn-store-pg",
+ "kartenn-workspace-hack",
+ "serde_json",
+ "sqlx",
+ "syslog-sender",
+ "syslog_rfc5424",
+ "time",
+ "tokio",
+]
+
+[[package]]
 name = "kartenn-workspace-hack"
 version = "0.1.0"
 dependencies = [
@@ -940,6 +956,7 @@ dependencies = [
  "syn 2.0.119",
  "syn 3.0.9",
  "thiserror",
+ "time",
  "tokio",
  "uuid",
 ]

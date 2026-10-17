@@ -86,10 +86,14 @@ en fournit le mécanisme et les teste avec des appels directs.
   (`kartenn-service/tests/audit_verify.rs`) ; empreintes des membres conservées et
   purges consignées (migration 0025), pour vérifier un lot après la purge d'une partie
   de ses événements
-- [ ] 11. Port `AuditSink`, relais par sortie avec enregistrement des livraisons ;
+- [x] 11. Port `AuditSink`, relais par sortie avec enregistrement des livraisons ;
   `FileSink`, `SyslogSink` (`syslog-sender`), `OtlpSink` (envoi acquitté) ; événements
   `sys.output.unavailable` / `available` — REQ-012-15, 26 — verify : coupure de 5 min
-  puis reprise sans trou ; métrique de retard
+  puis reprise sans trou ; métrique de retard — `audit_relay::{relay_once, export_lag}`,
+  `kartenn_telemetry::sinks::{FileSink, SyslogSink}`, `SinkHealth`
+  (`kartenn-telemetry/tests/audit_export.rs`) ; `OtlpSink` reporté à la tâche 15 ;
+  l'événement `changeset.state.revalidation_failed` devient `changeset.state.stale`, le
+  MSGID de syslog étant limité à 32 octets (vérifié sur tout le catalogue)
 - [ ] 12. Purge par criticité, conditionnée au scellement et à l'export — REQ-012-16 —
   verify : partition non exportée conservée ; vérification de la chaîne après purge
 
