@@ -127,26 +127,30 @@ impl Providers {
         }
     }
 
-    /// OTLP over gRPC to `OTEL_EXPORTER_OTLP_ENDPOINT` (by default
+    /// OTLP over gRPC to `endpoint`, or else to `OTEL_EXPORTER_OTLP_ENDPOINT` (by default
     /// `http://localhost:4317`), with the batching processors. Needs a tokio runtime.
     ///
     /// # Errors
     ///
     /// An exporter cannot be built.
-    pub fn otlp(identity: &Identity, sampling_ratio: f64) -> Result<Self, OtelError> {
+    pub fn otlp(
+        identity: &Identity,
+        sampling_ratio: f64,
+        endpoint: Option<&str>,
+    ) -> Result<Self, OtelError> {
+        use opentelemetry_otlp::WithExportConfig as _;
         let err = |e: opentelemetry_otlp::ExporterBuildError| OtelError(e.to_string());
-        let spans = opentelemetry_otlp::SpanExporter::builder()
-            .with_tonic()
-            .build()
-            .map_err(err)?;
-        let logs = opentelemetry_otlp::LogExporter::builder()
-            .with_tonic()
-            .build()
-            .map_err(err)?;
-        let metrics = opentelemetry_otlp::MetricExporter::builder()
-            .with_tonic()
-            .build()
-            .map_err(err)?;
+        let mut spans = opentelemetry_otlp::SpanExporter::builder().with_tonic();
+        let mut logs = opentelemetry_otlp::LogExporter::builder().with_tonic();
+        let mut metrics = opentelemetry_otlp::MetricExporter::builder().with_tonic();
+        if let Some(endpoint) = endpoint {
+            spans = spans.with_endpoint(endpoint);
+            logs = logs.with_endpoint(endpoint);
+            metrics = metrics.with_endpoint(endpoint);
+        }
+        let spans = spans.build().map_err(err)?;
+        let logs = logs.build().map_err(err)?;
+        let metrics = metrics.build().map_err(err)?;
         Ok(Self::with_exporters(
             identity,
             sampling_ratio,

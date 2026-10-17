@@ -173,8 +173,10 @@ pub enum Output {
         #[serde(default = "info")]
         filter: String,
     },
-    /// OpenTelemetry (traces, metrics, logs) to `OTEL_EXPORTER_OTLP_ENDPOINT`.
+    /// OpenTelemetry (traces, metrics, logs) in OTLP over gRPC.
     Otlp {
+        /// `http://host:4317` or `https://…`; `OTEL_EXPORTER_OTLP_ENDPOINT` by default.
+        endpoint: Option<String>,
         /// Filter of the logs.
         #[serde(default = "info")]
         filter: String,
@@ -194,7 +196,7 @@ impl Output {
             | Self::File { filter, .. }
             | Self::Journald { filter, .. }
             | Self::Syslog { filter, .. }
-            | Self::Otlp { filter } => filter,
+            | Self::Otlp { filter, .. } => filter,
         }
     }
 

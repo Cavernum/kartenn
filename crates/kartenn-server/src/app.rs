@@ -137,8 +137,14 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
         .iter()
         .zip(config.telemetry.names())
     {
-        if matches!(output, Output::Otlp { .. }) && otlp.is_none() {
-            otlp = Some(Providers::otlp(identity, config.telemetry.sampling_ratio)?);
+        if let Output::Otlp { endpoint, .. } = output
+            && otlp.is_none()
+        {
+            otlp = Some(Providers::otlp(
+                identity,
+                config.telemetry.sampling_ratio,
+                endpoint.as_deref(),
+            )?);
         }
         let (handle, receiver) =
             capture::Output::new(name, output.filter(), config.telemetry.queue)?;
