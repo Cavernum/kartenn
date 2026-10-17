@@ -11,7 +11,7 @@
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
-| [012-journalisation-audit](012-journalisation-audit/) | approuvées | approuvée | [tasks](012-journalisation-audit/tasks.md) (19/22) |
+| [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
@@ -40,6 +40,28 @@ acceptés ; 227 tests (nextest, toutes fonctionnalités), `devenv test` vert. Ce
 différé à la synchronisation est listé à la fin des tâches de la 002 et de la 004
 (permissions par type d'objet → 005 ; configuration, ordonnanceur des jobs et lectures
 servies par l'API → 006).
+
+## Point d'étape — 2026-10-17 (soir) : spec 012
+
+Journalisation et audit implémentés (22/22) : journal d'audit en base, scellé et exporté
+(ADR 0019 acceptée) ; logs techniques sur plusieurs sorties à la fois (stdout, fichier,
+journald, syslog, OTLP) ; OpenTelemetry (traces avec spans de base de données, métriques,
+logs) ; bibliothèque `syslog-sender` (MPL-2.0) ; console de développement (collecteur
+OpenTelemetry, OpenObserve et son serveur MCP) ; 315 tests. Deux questions ouvertes de la
+012 restent avant la mise en production : le volume de l'audit des lectures (à
+l'utilisateur) et le surcoût de bout en bout du changeset unitaire séquentiel.
+
+Défauts trouvés par les tests et le banc de la 012, corrigés :
+- fuite de secrets : champs bruts exportés en OTLP (logs et spans), rapport de panique
+  par défaut, mot de passe de l'URL dans l'erreur de connexion ;
+- relais d'audit, scellement et relais d'outbox relisant toute l'histoire à chaque passe
+  (planchers, migration 0027, amendement 3 de l'ADR 0018) ; débit borné à un lot par
+  tour ;
+- service et store sans aucune instrumentation, métriques de changeset jamais
+  alimentées ;
+- sortie fichier rendue avant l'écriture effective ; arrêt d'OpenTelemetry bloquant le
+  runtime ; corps des événements d'audit en OTLP non structuré, JSON des messages syslog
+  non analysé par le collecteur de développement.
 
 ### Décisions de la v0.1 (tranchées le 2026-10-14)
 

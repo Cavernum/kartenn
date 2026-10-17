@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-17
 ---
 
@@ -162,6 +162,10 @@ en fournit le mécanisme et les teste avec des appels directs.
   Le banc a révélé : relais et scellement relisant toute l'histoire (planchers, 0027),
   débit borné à un lot par tour (vidage), service et store sans instrumentation (tâche
   15 complétée), volume des lectures auditées 3,7 fois l'estimation (question ouverte)
-- [ ] 22. Synchroniser `docs/spec/` (configuration, événements, schéma `audit`,
+- [x] 22. Synchroniser `docs/spec/` (configuration, événements, schéma `audit`,
   invariants), ADR 0019 → accepté, D35 précisé, statut `implemented` — verify : rapport
-  spec-keeper sans écart
+  spec-keeper sans écart — le rapport (2026-10-17) a relevé trois exigences
+  incomplètes, corrigées : `sys.output.disabled` jamais émis et WARN des sorties non
+  bornés (REQ-012-26), schéma JSON publié absent (REQ-012-10,
+  `evenements-audit.schema.json`), test de fuzzing du cadrage absent (REQ-012-29,
+  `tests/framing.rs`) ; et des écarts de documentation, corrigés

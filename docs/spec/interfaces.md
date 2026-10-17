@@ -109,7 +109,9 @@ n'atteint `kartenn-core` ni `kartenn-service` (REQ-012-2, test d'architecture).
 
 **Événements d'audit** : catalogue généré
 [`evenements-audit.md`](evenements-audit.md) (nom en trois parties, sévérité,
-criticité, champs, correspondances OCSF et ECS). Chaque événement est attribué
+criticité, champs, correspondances OCSF et ECS) et son schéma JSON
+[`evenements-audit.schema.json`](evenements-audit.schema.json) (forme exportée, une
+branche par événement ; REQ-012-10). Chaque événement est attribué
 (personne, compte de service, `system`, ou empreinte HMAC de l'identifiant revendiqué).
 
 **Sorties de l'audit** (`[audit] sinks`, plusieurs à la fois, chacune reçoit chaque

@@ -97,7 +97,7 @@ Non-objectifs :
 | [data.md](data.md) | Modèle de données, bitemporel, propriétés, stockage PostgreSQL |
 | [invariants.md](invariants.md) | Propriétés qui doivent toujours tenir, et comment elles sont garanties |
 | [regles-noyau.md](regles-noyau.md) | Catalogue des règles de validation du noyau (généré depuis le code) |
-| [evenements-audit.md](evenements-audit.md) | Catalogue des événements d'audit (généré depuis le code) |
+| [evenements-audit.md](evenements-audit.md) | Catalogue des événements d'audit (généré depuis le code) ; [schéma JSON](evenements-audit.schema.json) de leur forme exportée |
 | [`../adr/`](../adr/) | Architecture Decision Records |
 | [`../../specs/`](../../specs/) | Specs de fonctionnalités et journaux de décisions |
 | [`../reference/`](../reference/README.md) | Notes de lecture des sources primaires |
