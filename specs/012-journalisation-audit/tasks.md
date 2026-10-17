@@ -140,8 +140,9 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P6 — Vérifications d'ensemble et synchronisation
 
-- [ ] 19. Test des dépendances (`cargo metadata`) : `kartenn-core` et `kartenn-service` sans
-  crate de sortie — REQ-012-2 — verify : test
+- [x] 19. Test des dépendances (`cargo metadata`) : `kartenn-core` et `kartenn-service` sans
+  crate de sortie — REQ-012-2 — verify : test — `kartenn-telemetry/tests/architecture.rs`, avec un témoin
+  positif (le serveur atteint bien les adaptateurs) ; le `workspace-hack` est ignoré
 - [ ] 20. Test de bout en bout des secrets témoins sur toutes les sorties — REQ-012-28 —
   verify : aucun témoin trouvé
 - [ ] 21. Banc : `bench-core` avec trois configurations de télémétrie, volume de l'audit
