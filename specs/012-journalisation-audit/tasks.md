@@ -94,8 +94,10 @@ en fournit le mécanisme et les teste avec des appels directs.
   (`kartenn-telemetry/tests/audit_export.rs`) ; `OtlpSink` reporté à la tâche 15 ;
   l'événement `changeset.state.revalidation_failed` devient `changeset.state.stale`, le
   MSGID de syslog étant limité à 32 octets (vérifié sur tout le catalogue)
-- [ ] 12. Purge par criticité, conditionnée au scellement et à l'export — REQ-012-16 —
-  verify : partition non exportée conservée ; vérification de la chaîne après purge
+- [x] 12. Purge par criticité, conditionnée au scellement et à l'export — REQ-012-16 —
+  verify : partition non exportée conservée ; vérification de la chaîne après purge —
+  `audit_purge::purge` (`kartenn-telemetry/tests/audit_retention.rs`), avec le rôle
+  propriétaire ; planification avec l'ordonnanceur (tâche 16)
 
 ## P5 — Logs techniques et télémétrie
 
