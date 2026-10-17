@@ -206,3 +206,18 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
   - limiter la portée « entité » aux objets touchés lors d'un déplacement : les objets
     possédés par le sous-arbre déplacé ne sont pas touchés au sens de la résolution.
 - Décidé par : délégué (2026-10-15)
+
+## P17 — Propriétés sensibles (amendement pour la spec 012, 2026-10-17)
+- Décision : une déclaration porte un indicateur **sensible**, faux par défaut, versionné
+  avec elle. Il se change par une opération dédiée (`SetSensitivity`), dans un changeset
+  audité (`property.declaration.changed`), et non par un champ des déclarations de
+  module : c'est un choix de l'administration du déploiement. La lecture de la valeur
+  d'une propriété sensible est auditée en criticité haute (012/REQ-012-18) ; ses droits
+  de lecture viendront avec la 005.
+- Pourquoi : la spec 012 (L22) audite toutes les lectures, et celles de valeurs
+  sensibles (environnement de sécurité, contact…) plus longtemps ; seul l'administrateur
+  sait ce qui l'est dans son contexte.
+- Rejeté : un champ dans `DeclarationInput` (une évolution de module pourrait le
+  retirer sans que l'administration le voie) ; une liste de clés dans la configuration
+  (non versionnée, non auditée).
+- Décidé par : délégué (2026-10-17), dans le cadre de la 012 approuvée

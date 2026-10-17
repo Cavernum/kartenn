@@ -329,6 +329,16 @@ en v0.2 (spec 010).
   écart produit l'avertissement `prop.resolution.expected_mismatch`, donc une anomalie
   ouverte sur l'objet, qui cite la propriété, les deux valeurs et l'explication.
 
+### Sensibilité (REQ-003-27, P17)
+
+- Colonne versionnée `property_declaration.sensitive boolean NOT NULL DEFAULT false`
+  (ajoutée par `kartenn_add_versioned_column`, migration 0024).
+- Opération `SetSensitivity { property, sensitive }`, planifiée en modification de la
+  déclaration (`Change::Sensitive`), sans effet sur la résolution ; événement
+  `property.declaration.changed`.
+- La lecture d'un objet indique les clés sensibles parmi ses propriétés ; le service
+  en déduit l'événement `data.sensitive.read` (spec 012).
+
 ### Filtrage (REQ-003-25)
 
 Propriété héritable : la requête part des **affectations** qui portent la valeur

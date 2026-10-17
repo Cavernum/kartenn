@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 
 # 003 — Propriétés : exigences
@@ -257,6 +257,17 @@ et journal compris (P14) ; différentiel jusqu'à 10⁶ objets < 10 s, décompte
 exception, quand plus de 10⁵ objets changent d'**objet d'origine** (clôture ou effacement
 très haut dans l'arbre), le différentiel et l'application doivent tenir en < 60 s, la
 simulation donnant d'abord le décompte (P10).
+
+### I. Sensibilité (amendement du 2026-10-17, P17, spec 012)
+
+#### REQ-003-27 — Propriété sensible
+kartenn doit permettre de marquer une propriété comme sensible, et de retirer la marque,
+par un changeset audité ; la marque est versionnée avec la déclaration. La lecture de la
+valeur d'une propriété sensible doit être auditée (012/REQ-012-18).
+
+Acceptation :
+- `custom.contact` marquée sensible : la lecture d'un objet qui la porte produit
+  `data.sensitive.read` ; la marque retirée, plus rien ; les deux changesets sont audités.
 
 ## Non-objectifs
 

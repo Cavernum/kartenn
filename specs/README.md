@@ -4,7 +4,7 @@
 |---|---|---|---|
 | [001-cadrage](001-cadrage/decisions.md) | — (journal D1–D37) | — | — |
 | [002-noyau-adressage](002-noyau-adressage/) | implémentées | implémentée | [tasks](002-noyau-adressage/tasks.md) (28/28) |
-| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (18/18) |
+| [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (18/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | 005-authn-rbac | à écrire | — | — |
 | 006-api-rest-conventions | à écrire | — | — |
