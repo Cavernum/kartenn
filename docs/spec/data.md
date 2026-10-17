@@ -137,7 +137,8 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   traité ; il monte une fois terminées les transactions qui auraient pu détenir un
   numéro inférieur, et une passe horaire relit depuis zéro.
 - Volume mesuré (banc `bench-telemetry`) : environ 8 Kio par lecture auditée d'une page
-  de 100 objets, dont 5,8 Kio dans l'index GIN par objet.
+  de 100 objets, dont 5,8 Kio dans l'index GIN par objet ; réglable par
+  `audit.read_ids_max` et `audit.retention_days.low` (L25).
 - **Propriété sensible** : attribut `sensitive` d'une déclaration (migration 0024) ; sa
   lecture produit `data.sensitive.read` en criticité `high`.
 - **Filtres changés à chaud** : `observability_override` (migration 0026), une ligne par

@@ -22,6 +22,50 @@ pub const AUDIT_READ_PERMISSION: &str = "core.audit.read";
 /// The object that stands for the audit journal in authorisations.
 pub const AUDIT_JOURNAL: Uuid = Uuid::nil();
 
+/// Identifiers a read event records by default: a page of results.
+pub const DEFAULT_READ_IDS_MAX: usize = 100;
+
+/// How much a read event records (spec 012, REQ-012-18; 012/L25), the main lever on the
+/// volume of the audit: at most `ids_max` identifiers of the objects returned, the others
+/// counted in `targets_omitted`; `0` records the criteria alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadAudit {
+    /// Most identifiers recorded per read event.
+    pub ids_max: usize,
+}
+
+impl Default for ReadAudit {
+    fn default() -> Self {
+        Self {
+            ids_max: DEFAULT_READ_IDS_MAX,
+        }
+    }
+}
+
+/// The `data.objects.read` event of a read by `context` that returned `ids` (of
+/// `target_kind`) for `criteria`, within the bound of `audit`.
+///
+/// # Errors
+///
+/// The catalogue refuses a detail (an error of the code, not of the request).
+pub fn objects_read(
+    context: &RequestContext,
+    target_kind: &str,
+    ids: &[Uuid],
+    criteria: serde_json::Value,
+    audit: ReadAudit,
+) -> Result<AuditEvent, kartenn_core::audit::AuditError> {
+    let kept = ids.len().min(audit.ids_max);
+    let mut event = context
+        .event(&OBJECTS_READ, Outcome::Success)?
+        .target(target_kind, ids[..kept].iter().copied())
+        .detail("criteria", criteria)?;
+    if kept < ids.len() {
+        event = event.detail("targets_omitted", ids.len() - kept)?;
+    }
+    Ok(event)
+}
+
 fn audit_err(e: impl std::fmt::Display) -> RequestError {
     RequestError::Audit(StoreError(e.to_string()))
 }
@@ -37,7 +81,7 @@ async fn record_all<J: AuditJournal>(
 }
 
 /// The object `id` valid at `valid_at`, as asserted at `as_of`, read by `context`:
-/// `data.objects.read`, plus `data.sensitive.read` for each sensitive property in it.
+/// `data.objects.read` (within `audit`), plus `data.sensitive.read` for each sensitive property in it.
 ///
 /// # Errors
 ///
@@ -50,6 +94,7 @@ pub async fn read_object<R: Reader, J: AuditJournal>(
     id: Uuid,
     valid_at: Instant,
     as_of: Option<Instant>,
+    audit: ReadAudit,
 ) -> Result<Option<ObjectRead>, RequestError> {
     let read = reader.object(id, valid_at, as_of).await?;
     let criteria = json!({
@@ -58,14 +103,8 @@ pub async fn read_object<R: Reader, J: AuditJournal>(
         "as_of": as_of.map(rfc3339),
     });
     let found: Vec<Uuid> = read.iter().map(|_| id).collect();
-    let mut events = vec![
-        context
-            .event(&OBJECTS_READ, Outcome::Success)
-            .map_err(audit_err)?
-            .target("object", found.iter().copied())
-            .detail("criteria", criteria)
-            .map_err(audit_err)?,
-    ];
+    let mut events =
+        vec![objects_read(context, "object", &found, criteria, audit).map_err(audit_err)?];
     for key in read.iter().flat_map(|r| &r.sensitive) {
         events.push(
             context
@@ -134,4 +173,44 @@ pub async fn read_audit<R: Reader, A: Authorizer, J: AuditJournal>(
         .map_err(audit_err)?;
     record_all(journal, &[read]).await?;
     Ok(events)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_read_event_records_at_most_its_bound() {
+        let ids: Vec<Uuid> = (0..250).map(|_| Uuid::now_v7()).collect();
+        let context = RequestContext::system();
+        let event =
+            objects_read(&context, "address", &ids, json!({}), ReadAudit::default()).unwrap();
+        assert_eq!(event.target.as_ref().unwrap().ids, ids[..100]);
+        assert_eq!(event.details["targets_omitted"], 150);
+        let event = objects_read(
+            &context,
+            "address",
+            &ids[..3],
+            json!({}),
+            ReadAudit::default(),
+        )
+        .unwrap();
+        assert_eq!(event.target.as_ref().unwrap().ids.len(), 3);
+        assert!(
+            !event.details.contains_key("targets_omitted"),
+            "nothing left out"
+        );
+        // The criteria alone.
+        let event = objects_read(
+            &context,
+            "address",
+            &ids,
+            json!({ "page": 1 }),
+            ReadAudit { ids_max: 0 },
+        )
+        .unwrap();
+        assert!(event.target.as_ref().unwrap().ids.is_empty());
+        assert_eq!(event.details["targets_omitted"], 250);
+        assert_eq!(event.details["criteria"]["page"], 1);
+    }
 }

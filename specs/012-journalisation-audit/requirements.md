@@ -239,13 +239,15 @@ Acceptation :
 #### REQ-012-18 — Lectures
 kartenn doit enregistrer un événement d'audit pour chaque requête de lecture de l'API
 (acteur, critères, identifiants des objets renvoyés, jamais les valeurs), en criticité
-`low`. Là où une propriété ou un export est déclaré sensible, la lecture de sa valeur doit
-produire un événement de criticité `high` qui nomme la propriété. [L22, ASVS 16.3.2 (L3),
+`low` ; le nombre d'identifiants enregistrés par événement doit être réglable, ceux qui
+dépassent comptés (L25). Là où une propriété ou un export est déclaré sensible, la lecture de sa valeur doit
+produire un événement de criticité `high` qui nomme la propriété. [L22, L25, ASVS 16.3.2 (L3),
 OWASP `sensitive_read`]
 
 Acceptation :
 - Une page de 100 adresses produit un événement `data.objects.read` (`low`) listant
-  leurs identifiants ; la lecture d'une propriété sensible produit en plus
+  leurs identifiants ; avec `audit.read_ids_max = 0`, les critères seuls et
+  `targets_omitted = 100` ; la lecture d'une propriété sensible produit en plus
   `data.sensitive.read` (`high`).
 - Le surcoût de cet événement reste dans le budget de REQ-012-23.
 
@@ -450,13 +452,8 @@ Acceptation :
   PEM désigné par `audit.signing_key_file` ; clés publiques dans `audit.instance_key`.
 - [x] ~~Déclarer une propriété « sensible »~~ : attribut `sensitive` de la déclaration
   (amendement de la 003, P17, REQ-003-27).
-- [ ] Volume de l'audit des lectures : mesuré à 8 Kio par page de 100 objets (dont
-  5,8 Kio d'index GIN par objet), soit 3,3 Gio par jour à 5 pages par seconde et
-  environ 300 Gio pour 90 jours de `low`, contre 0,9 Gio par jour estimé. Leviers :
-  borner les identifiants enregistrés par événement, n'enregistrer que les critères,
-  retirer l'index par objet de la criticité `low` (la recherche « qui a lu cet objet »
-  devient un parcours), rétention `low` plus courte. (utilisateur, avant la mise en
-  production)
+- [x] ~~Volume de l'audit des lectures~~ (3,3 Gio par jour mesurés à 5 pages par
+  seconde) : accepté, réglable (L25).
 - [ ] Changeset unitaire séquentiel plus lent de 41 à 57 % en moyenne avec des sorties
   (2,5 → 3,5 ms), alors que le surcoût modélisé du chemin de la requête est de 1,4 % :
   cause à établir sur un poste calme (piste : validations des tâches de fond sur le

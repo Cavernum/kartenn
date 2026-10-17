@@ -439,7 +439,8 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "criteria": {}
+            "criteria": {},
+            "targets_omitted": {}
           },
           "type": "object"
         },

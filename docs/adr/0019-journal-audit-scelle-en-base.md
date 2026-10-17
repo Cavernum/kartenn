@@ -52,7 +52,6 @@ sans état (D9) : un chaînage strict événement par événement les sérialise
   par sortie). Un événement validé tardivement reste couvert (amendement 3 de
   l'ADR 0018).
 - Volume mesuré : environ 8 Kio par lecture auditée d'une page de 100 objets, dont
-  5,8 Kio dans l'index GIN par objet ; 3,3 Gio par jour à 5 pages par seconde. Le choix
-  d'un levier (borner les identifiants enregistrés, critères seuls, index par objet hors
-  de la criticité `low`, rétention `low` plus courte) est une question ouverte de la
-  spec 012.
+  5,8 Kio dans l'index GIN par objet ; 3,3 Gio par jour à 5 pages par seconde. Volume
+  accepté, réglable : identifiants enregistrés par lecture (`audit.read_ids_max`) et
+  rétention `low` (012/L25).

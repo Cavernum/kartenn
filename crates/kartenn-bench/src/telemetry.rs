@@ -23,7 +23,7 @@ use anyhow::{Context, bail};
 use kartenn_core::audit::{OBJECTS_READ, Outcome as AuditOutcome};
 use kartenn_core::period::Instant as At;
 use kartenn_service::audit::{AuditJournal, Instance, RequestContext};
-use kartenn_service::reads::read_object;
+use kartenn_service::reads::{ReadAudit, read_object};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{Condition, filter};
 use kartenn_store_pg::tree::{children, occupancy};
@@ -427,9 +427,27 @@ fn counts(database: &str, data: &Dataset) -> anyhow::Result<Vec<(String, usize, 
             ));
         };
         take("");
-        read_object(&store, &journal, &context, object, at, None).await?;
+        read_object(
+            &store,
+            &journal,
+            &context,
+            object,
+            at,
+            None,
+            ReadAudit::default(),
+        )
+        .await?;
         take("read an object (audited)");
-        read_object(&store, &journal, &context, object, at, Some(past)).await?;
+        read_object(
+            &store,
+            &journal,
+            &context,
+            object,
+            at,
+            Some(past),
+            ReadAudit::default(),
+        )
+        .await?;
         take("read an object as known (audited)");
         let condition = Condition::Between(Some("0".into()), Some("100000".into()));
         filter(&pool, rack, data.domains[0].id, &condition, now, None, 100).await?;
@@ -646,19 +664,44 @@ async fn workload(
         }
     };
     for _ in 0..20 {
-        read_object(&store, &journal, &context, draw(&mut rng), at, None).await?;
+        read_object(
+            &store,
+            &journal,
+            &context,
+            draw(&mut rng),
+            at,
+            None,
+            ReadAudit::default(),
+        )
+        .await?;
     }
     let (mut current, mut known) = (Vec::new(), Vec::new());
     for _ in 0..1_000 {
         let t = Instant::now();
-        read_object(&store, &journal, &context, draw(&mut rng), at, None)
-            .await?
-            .context("a loaded object is missing")?;
+        read_object(
+            &store,
+            &journal,
+            &context,
+            draw(&mut rng),
+            at,
+            None,
+            ReadAudit::default(),
+        )
+        .await?
+        .context("a loaded object is missing")?;
         current.push(t.elapsed());
         let t = Instant::now();
-        read_object(&store, &journal, &context, draw(&mut rng), at, Some(past))
-            .await?
-            .context("a past version is missing")?;
+        read_object(
+            &store,
+            &journal,
+            &context,
+            draw(&mut rng),
+            at,
+            Some(past),
+            ReadAudit::default(),
+        )
+        .await?
+        .context("a past version is missing")?;
         known.push(t.elapsed());
     }
     measured(&mut results, "read an object (audited)", current);

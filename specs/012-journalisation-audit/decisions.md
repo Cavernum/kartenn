@@ -293,3 +293,18 @@ collecteur et console dans l'environnement de développement. Les autres décisi
   `kartenn-telemetry` (non réutilisable).
 - Décidé par : utilisateur (« créer une librairie à part ») ; délégué (périmètre, nom,
   2026-10-17)
+
+## L25 — Volume de l'audit des lectures
+- Constat (banc `bench-telemetry`, 2026-10-17) : 8 Kio par lecture d'une page de 100
+  objets, dont 5,8 Kio d'index GIN par objet, soit 3,3 Gio par jour à 5 pages par
+  seconde (0,9 estimé).
+- Décision : volume accepté, à condition d'être réglable. Deux réglages :
+  `audit.read_ids_max` (identifiants enregistrés par événement de lecture, 100 par
+  défaut, les autres comptés dans `targets_omitted` ; 0 = critères seuls) et
+  `audit.retention_days.low` (déjà présent ; une rétention nulle est refusée).
+- Pourquoi : le volume dépend du déploiement (nombre de lectures, durée de conservation
+  exigée) ; l'exploitant arbitre entre traçabilité objet par objet et place.
+- Rejeté : index par objet retiré de la criticité `low` (la recherche « qui a lu cet
+  objet » deviendrait un parcours, et ce n'est pas un réglage à chaud) ; borne fixe.
+- Décidé par : utilisateur (« la volumétrie est OK pour moi si elle est configurable »,
+  2026-10-17) ; délégué (réglages, défauts)

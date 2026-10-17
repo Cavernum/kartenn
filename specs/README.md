@@ -48,8 +48,8 @@ Journalisation et audit implémentés (22/22) : journal d'audit en base, scellé
 journald, syslog, OTLP) ; OpenTelemetry (traces avec spans de base de données, métriques,
 logs) ; bibliothèque `syslog-sender` (MPL-2.0) ; console de développement (collecteur
 OpenTelemetry, OpenObserve et son serveur MCP) ; 315 tests. Deux questions ouvertes de la
-012 restent avant la mise en production : le volume de l'audit des lectures (à
-l'utilisateur) et le surcoût de bout en bout du changeset unitaire séquentiel.
+012 : le volume de l'audit des lectures est accepté, réglable (L25) ; reste, avant la
+mise en production, le surcoût de bout en bout du changeset unitaire séquentiel.
 
 Défauts trouvés par les tests et le banc de la 012, corrigés :
 - fuite de secrets : champs bruts exportés en OTLP (logs et spans), rapport de panique

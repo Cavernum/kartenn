@@ -114,7 +114,7 @@ events! {
         "Account Change 3001 / Other", "iam",
         "Les données d'identité d'une personne ont été pseudonymisées.";
     // Data.
-    OBJECTS_READ = "data.objects.read", Info, Low, ["criteria"], ["REQ-012-18"],
+    OBJECTS_READ = "data.objects.read", Info, Low, ["criteria", "targets_omitted"], ["REQ-012-18"],
         "API Activity 6003 / Read", "database",
         "Une requête de lecture a renvoyé ces objets (jamais leurs valeurs).";
     SENSITIVE_READ = "data.sensitive.read", Info, High, ["property"], ["REQ-012-18"],

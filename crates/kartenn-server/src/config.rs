@@ -231,6 +231,24 @@ pub struct Audit {
     /// Retention by criticality, in days.
     #[serde(default)]
     pub retention_days: RetentionDays,
+    /// Most identifiers a read event records, the others counted; `0` records the
+    /// criteria alone (012/L25: the lever on the volume of the audit of reads).
+    #[serde(default = "read_ids_max")]
+    pub read_ids_max: usize,
+}
+
+const fn read_ids_max() -> usize {
+    kartenn_service::reads::DEFAULT_READ_IDS_MAX
+}
+
+impl Audit {
+    /// What a read event records, for the reads of the service.
+    #[must_use]
+    pub const fn read_audit(&self) -> kartenn_service::reads::ReadAudit {
+        kartenn_service::reads::ReadAudit {
+            ids_max: self.read_ids_max,
+        }
+    }
 }
 
 impl Default for Audit {
@@ -241,6 +259,7 @@ impl Default for Audit {
             seal_interval_ms: seal_ms(),
             relay_interval_ms: relay_ms(),
             retention_days: RetentionDays::default(),
+            read_ids_max: read_ids_max(),
         }
     }
 }
@@ -404,6 +423,11 @@ fn check(config: &Config) -> Result<(), ConfigError> {
     if config.audit.seal_interval_ms == 0 || config.audit.relay_interval_ms == 0 {
         return invalid("audit intervals must be positive".into());
     }
+    let days = &config.audit.retention_days;
+    if days.low == 0 || days.normal == 0 || days.high == 0 {
+        // A retention of zero days would purge every sealed and exported event.
+        return invalid("audit.retention_days: at least one day for each criticality".into());
+    }
     Ok(())
 }
 
@@ -469,11 +493,25 @@ mod tests {
                 "two audit outputs",
             ),
             ("telemetry.sampling_ratio = 2.0", "sampling_ratio"),
+            (
+                "audit.retention_days = { low = 0, normal = 365, high = 1095 }",
+                "retention_days",
+            ),
             ("unknown = 1", "unknown"),
         ];
         for (text, reason) in cases {
             let error = from_toml(text).unwrap_err().to_string();
             assert!(error.contains(reason), "{text}: {error}");
         }
+    }
+
+    #[test]
+    fn the_identifiers_of_a_read_event_are_bounded_by_configuration() {
+        assert_eq!(from_toml("").unwrap().audit.read_audit().ids_max, 100);
+        let config = from_toml("audit.read_ids_max = 0").unwrap();
+        assert_eq!(config.audit.read_audit().ids_max, 0, "criteria alone");
+        let config =
+            from_toml("audit.retention_days = { low = 30, normal = 365, high = 1095 }").unwrap();
+        assert_eq!(config.audit.retention_days.low, 30);
     }
 }

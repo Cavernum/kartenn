@@ -10,7 +10,7 @@ use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::AuditQuery;
-use kartenn_service::reads::{AUDIT_READ_PERMISSION, read_audit, read_object};
+use kartenn_service::reads::{AUDIT_READ_PERMISSION, ReadAudit, read_audit, read_object};
 use kartenn_service::{
     ChangesetRequest, ObjectKind, Operation, Outcome, Ref, RequestError, StoreError, submit,
 };
@@ -143,10 +143,18 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
 
     let journal = MemoryJournal::new();
     let reader = RequestContext::person(f.author);
-    let read = read_object(&f.store, &journal, &reader, prefix, now(), None)
-        .await
-        .unwrap()
-        .unwrap();
+    let read = read_object(
+        &f.store,
+        &journal,
+        &reader,
+        prefix,
+        now(),
+        None,
+        ReadAudit::default(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     assert_eq!(
         read.properties["custom.contact"],
         Some(serde_json::json!("noc@example.net"))
@@ -175,14 +183,31 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     // Unmarked: only the ordinary read.
     f.applied(vec![mark(false)]).await;
     let journal = MemoryJournal::new();
-    read_object(&f.store, &journal, &reader, prefix, now(), None)
-        .await
-        .unwrap();
+    read_object(
+        &f.store,
+        &journal,
+        &reader,
+        prefix,
+        now(),
+        None,
+        ReadAudit::default(),
+    )
+    .await
+    .unwrap();
     assert_eq!(journal.events().len(), 1);
 
     // REQ-012-11: a read that cannot be audited returns nothing.
     assert!(matches!(
-        read_object(&f.store, &Broken, &reader, prefix, now(), None).await,
+        read_object(
+            &f.store,
+            &Broken,
+            &reader,
+            prefix,
+            now(),
+            None,
+            ReadAudit::default()
+        )
+        .await,
         Err(RequestError::Audit(_))
     ));
 }

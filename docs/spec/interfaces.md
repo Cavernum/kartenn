@@ -123,6 +123,12 @@ branche par événement ; REQ-012-10). Chaque événement est attribué
 | `syslog` | RFC 5424, JSON dans MSG | TCP ou TLS, comptage d'octets (RFC 6587 §3.4.1, RFC 5425) |
 | `otlp` | log OTLP, l'événement en corps structuré | OTLP/gRPC, un `Export` acquitté par lot |
 
+**Réglages de l'audit** (`[audit]`) : `seal_interval_ms` (15 000), `relay_interval_ms`
+(1 000), `signing_key_file` (facultatif), `retention_days = { low = 90, normal = 365,
+high = 1095 }` (au moins un jour chacune), `read_ids_max` (100 : identifiants enregistrés
+par événement de lecture, les autres comptés dans `targets_omitted` ; 0 = critères
+seuls ; L25).
+
 **Sorties techniques** (`[telemetry] outputs`, plusieurs à la fois, chacune avec son
 filtre `EnvFilter` et sa file bornée de `queue` enregistrements ; une file pleine compte
 et abandonne, sans ralentir la requête) :
