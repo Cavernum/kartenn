@@ -373,7 +373,10 @@ Le changeset généré n'est pas soumis automatiquement.
 - **Volume de l'historique** : ~10⁶ objets × versions × 3 ans, plus la table matérialisée
   de la 003 ; partitionnement mensuel de l'historique, à dimensionner par le banc.
 - **Déclencheurs et imports massifs** : coût d'historisation sur les mises à jour en
-  masse ; mesuré par le banc d'import (< 15 min pour 10⁶ objets).
+  masse ; mesuré par le banc d'import (< 15 min pour 10⁶ objets) : 593 s pour 996 717
+  adresses en 200 lots (002/A14), après le passage à une recherche groupée des
+  identifiants externes de chaque lot (une requête par identifiant de tout l'import
+  auparavant).
 - **Découpage des périodes** : bugs subtils (bornes, fusion) ; tests de propriétés
   comparant à un modèle de référence en mémoire.
 - **Dépendance 005** : contrôle des droits, permission d'approbation, prédicat de file des

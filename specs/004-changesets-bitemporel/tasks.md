@@ -90,8 +90,9 @@ voir [`../README.md`](../README.md).
 
 ## P6 — Budgets et synchronisation
 
-- [ ] 23. Banc CI : changeset unitaire, `as_of` passé, import de 10⁶, 50 changesets/s —
-  REQ-004-38 — verify : seuils bloquants
+- [x] 23. Banc CI : changeset unitaire, `as_of` passé, import de 10⁶, 50 changesets/s —
+  REQ-004-38 — verify : seuils bloquants — même banc que 002-27 (002/A14), avec trois ans
+  d'historique simulés et l'usage de l'index de période système vérifié
 - [ ] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
   — verify : rapport spec-keeper sans écart
 - [x] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à

@@ -175,3 +175,31 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
   que si celui-ci a le même réseau, de même valeur, marqué anycast. Le critère qui
   refusait un conteneur public de B contenant N rendait A13 inutilisable sous un bloc
   public.
+
+## A14 — Banc du noyau (tâche 27)
+- Décision :
+  - les budgets de REQ-002-45 et REQ-004-38 sont mesurés par un même banc,
+    `kartenn-bench core` (script devenv `bench-core`), sur le jeu de référence chargé dans
+    une base recréée, avec trois ans d'historique simulés (deux versions passées de chaque
+    préfixe et de chaque adresse, réparties sur les mois) ;
+  - la « lecture d'un objet » est celle de `kartenn_store_pg::read::object` : attributs
+    et valeurs résolues de toutes ses propriétés, à une date, connus maintenant ou à un
+    instant passé ; l'API (006) la servira ;
+  - les mesures se font en régime établi (`VACUUM ANALYZE` après les chargements en
+    masse, puis `CHECKPOINT` si le rôle a `pg_checkpoint`, ce que le rapport indique ;
+    tirages indépendants, échauffement non compté) ;
+  - l'index de période système de l'historique est vérifié **utilisable** (bloquant) et
+    rapporté **choisi** ou non par le planificateur (dépend du volume) ;
+  - pas encore de forge ni de CI : le banc est bloquant par son code de sortie, lancé à la
+    main ou par la future CI.
+- Pourquoi : un seul chargement de 10⁶ objets pour tous les budgets du noyau. Le premier
+  passage (51,8 ms au p95 pour la lecture courante, 39,7 ms pour la lecture passée du même
+  objet, en cache) mêlait deux biais du banc et un défaut réel : la jointure des
+  affectations hachait toute la table (≈ 30 ms), corrigée par une recherche par porteur.
+- Résultats (2026-10-17, jeu de référence, graine 42) : lecture 0,76 ms ; lecture passée
+  1,48 ms (×1,95) ; page filtrée 102 ms ; sous-arbre et occupation 3,1 ms ; changeset
+  unitaire 2,9 ms (p95) ; 281 changesets unitaires/s soutenus (8 écrivains) ; import de
+  996 717 adresses en 593 s (200 lots) ; index de période système choisi.
+- Rejeté : `cargo bench` (criterion) : les budgets sont des p95 de bout en bout sur une
+  base chargée, pas des micro-mesures ; un banc par spec (trois chargements).
+- Décidé par : délégué (2026-10-17)

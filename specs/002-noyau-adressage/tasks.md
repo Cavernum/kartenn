@@ -110,8 +110,9 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
 
 ## P6 — Budgets et synchronisation
 
-- [ ] 27. Banc CI : lecture d'un objet, page filtrée, sous-arbre et occupation, changeset
+- [x] 27. Banc CI : lecture d'un objet, page filtrée, sous-arbre et occupation, changeset
   unitaire sur le jeu de la tâche 5 ; seuils D14 bloquants — REQ-002-45 — verify :
-  `cargo bench -p kartenn-bench` sous les seuils
+  `kartenn-bench core` (script `bench-core`) sous les seuils, au lieu de `cargo bench`
+  (A14) ; pas encore de CI, le banc est bloquant par son code de sortie
 - [ ] 28. Synchroniser `docs/spec/` (`data.md` : ancres en propriétés), ADR 0014 et 0015 →
   acceptés, statut `implemented` — verify : rapport spec-keeper sans écart

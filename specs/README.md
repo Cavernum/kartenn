@@ -33,9 +33,9 @@ configurable ; l'implémentation réelle viendra avec la 005.
 
 ## Point d'étape — 2026-10-15
 
-Avancement : 002 : 26/28 tâches (ancres et modifications de préfixes) · 003 : 18/18
-(arbres d'entités et de sites faits, P15, P16) · 004 : 22/25 (approbations,
-propositions, cascade, annulation, imports faits) ; 222 tests, `devenv test` vert.
+Avancement : 002 : 27/28 tâches · 003 : 18/18 (arbres d'entités et de sites faits, P15,
+P16) · 004 : 23/25 ; budgets du noyau tenus au banc `bench-core` (002/A14) ; reste la
+synchronisation de `docs/spec/` (002-28, 004-24) ; 223 tests, `devenv test` vert.
 
 ### Décisions de la v0.1 (tranchées le 2026-10-14)
 

@@ -328,6 +328,11 @@ découpage courant/historique relèvent de la 004.
   IPv6, 20 domaines dont 5 réutilisent `10.0.0.0/8`, une part d'espace public.
 - La mesure combinée avec la résolution matérialisée de la 003 conditionne le
   passage en `approved` de la conception de la 003.
+- Banc `kartenn-bench core` (script `bench-core`, A14) : budgets de REQ-002-45 et de
+  REQ-004-38 sur ce jeu avec trois ans d'historique, bloquants par le code de sortie. La
+  lecture d'un objet mesurée est `kartenn_store_pg::read::object` (attributs et valeurs
+  résolues). Résultats et marges dans A14 ; la page filtrée (102 ms pour 150) est la
+  plus proche de son seuil.
 
 ## Erreurs et cas limites
 
