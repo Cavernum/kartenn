@@ -183,10 +183,10 @@ impl Fixture {
         .unwrap()
     }
 
-    /// Every object of the tree, whatever its period.
+    /// Every object of the tree, whatever its period, by slug (so that a seed replays).
     async fn objects(&self) -> Vec<Uuid> {
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            "SELECT DISTINCT id FROM {} ORDER BY id",
+            "SELECT id FROM {} GROUP BY id ORDER BY min(slug)",
             self.tree
         )))
         .fetch_all(&self.pool)

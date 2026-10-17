@@ -373,13 +373,16 @@ const NETWORKS: [&str; 3] = ["10.0.0.0/24", "10.0.1.0/24", "10.1.0.0/24"];
 const ADDRESSES: [&str; 4] = ["10.0.0.1", "10.0.0.2", "10.0.1.1", "10.1.0.1"];
 const RANGES: [(&str, &str); 2] = [("10.0.0.10", "10.0.0.19"), ("10.0.1.5", "10.0.1.9")];
 
-/// Objects of the domain with their kind, whatever their period.
+/// Objects of the domain with their kind, whatever their period, in an order that does not
+/// depend on the identifiers or the plan (so that a seed replays).
 async fn objects(pool: &PgPool) -> Vec<(Uuid, ObjectKind)> {
-    let rows: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT DISTINCT id, kind FROM addressing_object WHERE kind <> 'domain'")
-            .fetch_all(pool)
-            .await
-            .unwrap();
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, kind FROM addressing_object WHERE kind <> 'domain'
+         GROUP BY id, kind ORDER BY kind, min(value), min(lower(valid_period))",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap();
     rows.into_iter()
         .map(|(id, kind)| {
             let kind = match kind.as_str() {
