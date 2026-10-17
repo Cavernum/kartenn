@@ -24,17 +24,20 @@ either = { version = "1", features = ["serde", "use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-sink = { version = "0.3" }
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "io", "sink"] }
+getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
+hashbrown = { version = "0.17" }
 idna = { version = "1" }
 memchr = { version = "2" }
+num-traits = { version = "0.2", features = ["i128"] }
 once_cell = { version = "1" }
 opentelemetry = { version = "0.33", default-features = false, features = ["logs", "metrics", "testing"] }
 opentelemetry_sdk = { version = "0.33", default-features = false, features = ["rt-tokio", "testing"] }
 rand = { version = "0.10" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa", "perf", "std", "unicode"] }
 regex-syntax = { version = "0.8" }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["raw_value"] }
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
@@ -60,13 +63,15 @@ either = { version = "1", features = ["serde", "use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-sink = { version = "0.3" }
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "io", "sink"] }
+hashbrown = { version = "0.17" }
 idna = { version = "1" }
 memchr = { version = "2" }
+num-traits = { version = "0.2", features = ["i128"] }
 once_cell = { version = "1" }
 rand = { version = "0.10" }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["raw_value"] }
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
@@ -84,12 +89,12 @@ uuid = { version = "1", features = ["serde", "v7"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
-getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"] }
+getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 libc = { version = "0.2" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
-getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"] }
+getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 libc = { version = "0.2" }
 
 ### END HAKARI SECTION

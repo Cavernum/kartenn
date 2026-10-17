@@ -1,0 +1,931 @@
+{
+  "$id": "urn:kartenn:audit-event",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "actor_kind": {
+            "enum": [
+              "person",
+              "service_account"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "actor_kind": {
+            "const": "unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "claimed": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "method": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.login.succeeded"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "method": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.login.failed"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {},
+            "window_seconds": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.login.failures_aggregated"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.account.locked"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.token.reused"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "low"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "cause": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.session.closed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "permission": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authz.access.denied"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.pending"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "operations": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.applied"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "rules": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.refused"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.withdrawn"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.rejected"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.expired"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "rules": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "changeset.state.stale"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "role": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "rbac.role.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "role": {},
+            "scope": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "rbac.binding.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "change": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "account.service.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "policy.approval.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "key": {},
+            "sensitive": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "property.declaration.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": {
+          "const": "person.identity.pseudonymised"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "low"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "criteria": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "data.objects.read"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "property": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "data.sensitive.read"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {},
+            "criteria": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "data.objects.exported"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {},
+            "criteria": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "audit.events.read"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "version": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.instance.started"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "lost_technical_events": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.instance.stopped"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "version": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.schema.migrated"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "setting": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.config.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "expires_at": {},
+            "filter": {},
+            "output": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.log_filter.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "output": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.output.unavailable"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "output": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.output.available"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "output": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "sys.output.disabled"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {},
+            "hash": {},
+            "key_id": {},
+            "seal": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "audit.seal.created"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "seal": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "audit.chain.broken"
+        },
+        "severity": {
+          "const": "ERROR"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "limit": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "abuse.rate.exceeded"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "reason": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "abuse.input.rejected"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    }
+  ],
+  "properties": {
+    "actor_id": {
+      "format": "uuid",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "actor_kind": {
+      "enum": [
+        "person",
+        "service_account",
+        "system",
+        "unknown"
+      ]
+    },
+    "auth_method": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "changeset_id": {
+      "format": "uuid",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "claimed": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "criticality": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ]
+    },
+    "details": {
+      "type": "object"
+    },
+    "id": {
+      "format": "uuid",
+      "type": "string"
+    },
+    "instance_id": {
+      "format": "uuid",
+      "type": "string"
+    },
+    "issuer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "motive": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "success",
+        "failure",
+        "denied"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recorded_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "seq": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "service_version": {
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "TRACE",
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR"
+      ]
+    },
+    "source_ip": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "span_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "target_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_agent": {
+      "maxLength": 256,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "seq",
+    "id",
+    "name",
+    "severity",
+    "criticality",
+    "occurred_at",
+    "recorded_at",
+    "actor_kind",
+    "outcome",
+    "service_version",
+    "instance_id",
+    "details"
+  ],
+  "title": "Événement d'audit de kartenn, sous sa forme exportée",
+  "type": "object"
+}

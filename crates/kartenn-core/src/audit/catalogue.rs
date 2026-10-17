@@ -210,6 +210,95 @@ pub fn catalogue_markdown() -> String {
     out
 }
 
+/// The JSON Schema (draft 2020-12) of an exported audit event: the stored row of
+/// `audit.event` as JSON, which the outputs receive and the seals cover (REQ-012-10). One
+/// branch per event of the catalogue fixes its name, severity and criticality and the keys
+/// of its `details`; attribution follows REQ-012-9.
+#[must_use]
+pub fn event_schema() -> serde_json::Value {
+    use serde_json::json;
+    let text = || json!({ "type": "string" });
+    let maybe = |format: Option<&str>| match format {
+        Some(f) => json!({ "type": ["string", "null"], "format": f }),
+        None => json!({ "type": ["string", "null"] }),
+    };
+    let branches: Vec<serde_json::Value> = EVENTS
+        .iter()
+        .map(|e| {
+            let details: serde_json::Map<String, serde_json::Value> = e
+                .details
+                .iter()
+                .map(|d| ((*d).to_owned(), json!({})))
+                .collect();
+            json!({
+                "properties": {
+                    "name": { "const": e.name },
+                    "severity": { "const": e.severity.as_str() },
+                    "criticality": { "const": e.criticality.as_str() },
+                    "details": {
+                        "type": "object",
+                        "properties": details,
+                        "additionalProperties": false
+                    }
+                }
+            })
+        })
+        .collect();
+    json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:kartenn:audit-event",
+        "title": "Événement d'audit de kartenn, sous sa forme exportée",
+        "type": "object",
+        "required": [
+            "seq", "id", "name", "severity", "criticality", "occurred_at", "recorded_at",
+            "actor_kind", "outcome", "service_version", "instance_id", "details"
+        ],
+        "additionalProperties": false,
+        "properties": {
+            "seq": { "type": "integer", "minimum": 1 },
+            "id": { "type": "string", "format": "uuid" },
+            "name": text(),
+            "severity": { "enum": ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"] },
+            "criticality": { "enum": ["low", "normal", "high"] },
+            "occurred_at": { "type": "string", "format": "date-time" },
+            "recorded_at": { "type": "string", "format": "date-time" },
+            "actor_kind": { "enum": ["person", "service_account", "system", "unknown"] },
+            "actor_id": maybe(Some("uuid")),
+            "auth_method": maybe(None),
+            "issuer": maybe(None),
+            "claimed": maybe(None),
+            "source_ip": maybe(None),
+            "user_agent": { "type": ["string", "null"], "maxLength": 256 },
+            "target_kind": maybe(None),
+            "target_ids": {
+                "type": ["array", "null"],
+                "items": { "type": "string", "format": "uuid" }
+            },
+            "outcome": { "enum": ["success", "failure", "denied"] },
+            "reason": maybe(None),
+            "motive": maybe(None),
+            "changeset_id": maybe(Some("uuid")),
+            "trace_id": maybe(None),
+            "span_id": maybe(None),
+            "request_id": maybe(None),
+            "service_version": text(),
+            "instance_id": { "type": "string", "format": "uuid" },
+            "details": { "type": "object" }
+        },
+        "allOf": [
+            {
+                "if": { "properties": { "actor_kind": { "enum": ["person", "service_account"] } } },
+                "then": { "properties": { "actor_id": { "type": "string" } } }
+            },
+            {
+                "if": { "properties": { "actor_kind": { "const": "unknown" } } },
+                "then": { "properties": { "claimed": { "type": "string" } } }
+            }
+        ],
+        "oneOf": branches
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -247,6 +336,23 @@ mod tests {
             assert_eq!(e.criticality, Criticality::High, "{}", e.name);
         }
         assert_eq!(OBJECTS_READ.criticality, Criticality::Low);
+    }
+
+    #[test]
+    fn the_published_schema_matches_the_code() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/spec/evenements-audit.schema.json"
+        );
+        let generated = serde_json::to_string_pretty(&event_schema()).expect("a JSON value") + "\n";
+        if std::env::var_os("KARTENN_BLESS").is_some() {
+            std::fs::write(path, &generated).expect("write the schema");
+        }
+        let published = std::fs::read_to_string(path).unwrap_or_default();
+        assert_eq!(
+            published, generated,
+            "docs/spec/evenements-audit.schema.json is stale: run `KARTENN_BLESS=1 cargo test -p kartenn-core audit`"
+        );
     }
 
     #[test]
