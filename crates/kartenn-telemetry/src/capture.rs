@@ -264,6 +264,34 @@ pub async fn drive<W: Writer>(mut receiver: mpsc::Receiver<Arc<Record>>, mut wri
     lost
 }
 
+/// [`drive`] until `stop` completes: the queue is then closed, what it holds is written,
+/// and the task ends (REQ-012-34). Returns the records lost by write errors.
+pub async fn drive_until<W: Writer>(
+    mut receiver: mpsc::Receiver<Arc<Record>>,
+    mut writer: W,
+    stop: impl std::future::Future<Output = ()>,
+) -> u64 {
+    let mut lost = 0;
+    let mut batch = Vec::with_capacity(BATCH);
+    tokio::pin!(stop);
+    loop {
+        tokio::select! {
+            n = receiver.recv_many(&mut batch, BATCH) => {
+                if n == 0 {
+                    return lost;
+                }
+                if writer.write(&batch).await.is_err() {
+                    lost += batch.len() as u64;
+                }
+                batch.clear();
+            }
+            () = &mut stop => break,
+        }
+    }
+    receiver.close();
+    lost + drive(receiver, writer).await
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;

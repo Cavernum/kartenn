@@ -291,3 +291,32 @@ impl AuditSink for OtlpSink {
         }
     }
 }
+
+/// Any output of the audit, for a configured list ([`AuditSink`] is not object safe).
+#[derive(Debug)]
+pub enum AnySink {
+    /// [`FileSink`].
+    File(FileSink),
+    /// [`SyslogSink`].
+    Syslog(SyslogSink),
+    /// [`OtlpSink`].
+    Otlp(OtlpSink),
+}
+
+impl AuditSink for AnySink {
+    fn name(&self) -> &str {
+        match self {
+            Self::File(s) => s.name(),
+            Self::Syslog(s) => s.name(),
+            Self::Otlp(s) => s.name(),
+        }
+    }
+
+    async fn deliver(&self, events: &[Value]) -> Result<(), SinkError> {
+        match self {
+            Self::File(s) => s.deliver(events).await,
+            Self::Syslog(s) => s.deliver(events).await,
+            Self::Otlp(s) => s.deliver(events).await,
+        }
+    }
+}

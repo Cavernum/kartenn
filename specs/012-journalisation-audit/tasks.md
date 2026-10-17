@@ -120,9 +120,12 @@ en fournit le mécanisme et les teste avec des appels directs.
   (`kartenn-telemetry/tests/otel.rs`, exporteurs en mémoire) ; OTLP par gRPC seulement ;
   `OtlpSink` de l'audit : un `Export` acquitté par lot, un rejet partiel n'est pas une
   livraison (`tests/audit_otlp.rs`, collecteur gRPC de test)
-- [ ] 16. Configuration (`figment`), validation au démarrage, défaut sûr ; sous-commande
+- [x] 16. Configuration (`figment`), validation au démarrage, défaut sûr ; sous-commande
   `kartenn-server run` (télémétrie, relais, scellement), arrêt propre — REQ-012-31, 34 —
-  verify : configurations invalides refusées ; `SIGTERM` sous charge
+  verify : configurations invalides refusées ; `SIGTERM` sous charge — `kartenn_server::{config, app}`
+  (`kartenn-server/tests/run.rs`, binaire essayé avec un vrai SIGTERM) ; la purge et la
+  vérification nocturne sont les sous-commandes `audit purge` et `audit verify`, pour un
+  minuteur (systemd, cron) : la purge exige le rôle propriétaire, que l'instance n'a pas
 - [ ] 17. Filtres à chaud : table `observability_override`, relecture, retour à
   l'échéance, opération d'administration auditée — REQ-012-27 — verify : test sur deux
   instances
