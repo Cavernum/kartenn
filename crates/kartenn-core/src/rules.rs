@@ -210,6 +210,8 @@ rules! {
         "Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition.";
     POLICY_INVALID = "changeset.policy.invalid", Error, ["REQ-004-40"], "004/C6",
         "Une politique d'approbation a un nom et au moins un déclencheur.";
+    POLICY_FORBIDDEN = "changeset.policy.forbidden", Error, ["REQ-004-39", "REQ-004-40"], "004/C6",
+        "Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques.";
 }
 
 /// Every rule, all groups, in catalogue order.

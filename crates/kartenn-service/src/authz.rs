@@ -12,6 +12,10 @@ use uuid::Uuid;
 
 use crate::port::StoreError;
 
+/// Permission to create, modify or disable an approval policy (REQ-004-39, 40), on the
+/// policy; until the catalogue of permissions of spec 005.
+pub const POLICY_ADMIN: &str = "core.approval_policy.admin";
+
 /// Decides whether a subject holds a permission on objects (D36).
 pub trait Authorizer: Send + Sync {
     /// The objects among `objects` on which `subject` lacks `permission`; grouped, so that

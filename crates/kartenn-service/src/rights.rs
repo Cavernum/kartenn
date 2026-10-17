@@ -12,7 +12,7 @@ use kartenn_core::properties::PropertyKey;
 use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
-use crate::authz::Authorizer;
+use crate::authz::{Authorizer, POLICY_ADMIN};
 use crate::pipeline::Planned;
 use crate::port::{DiffCount, StoreError, WriteTx};
 
@@ -35,6 +35,28 @@ pub(crate) async fn check<T: WriteTx, A: Authorizer>(
     violations: &mut Vec<Violation>,
 ) -> Result<Missing, StoreError> {
     let mut missing = Missing::new();
+    // An approval policy decides what needs approval: never proposable.
+    let policies: Vec<Uuid> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Policy(policy) => Some(policy.id),
+            _ => None,
+        })
+        .collect();
+    if !policies.is_empty() {
+        let denied = authorizer
+            .authorize_many(subject, POLICY_ADMIN, &policies)
+            .await?;
+        if !denied.is_empty() {
+            violations.push(
+                Violation::new(
+                    &rules::POLICY_FORBIDDEN,
+                    format!("approval policies need {POLICY_ADMIN}"),
+                )
+                .with_subjects(denied),
+            );
+        }
+    }
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         let assigned = match p {

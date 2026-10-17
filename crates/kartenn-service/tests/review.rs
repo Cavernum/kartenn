@@ -235,7 +235,21 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
         }
         other => panic!("{other:?}"),
     }
-    f.applied(vec![policy("large", 500)]).await;
+    // Only an administrator of the policies sets one.
+    match f
+        .submit_as(&Grants::new(), vec![policy("large", 500)])
+        .await
+    {
+        Outcome::Refused { violations, .. } => {
+            assert_eq!(violations[0].rule.id, "changeset.policy.forbidden");
+        }
+        other => panic!("{other:?}"),
+    }
+    let admin = Grants::new().everywhere(f.author, kartenn_service::authz::POLICY_ADMIN);
+    assert!(matches!(
+        f.submit_as(&admin, vec![policy("large", 500)]).await,
+        Outcome::Applied { .. }
+    ));
     // REQ-004-20: 601 objects change → pending; nothing written.
     let (big, kind) = f
         .pending(
