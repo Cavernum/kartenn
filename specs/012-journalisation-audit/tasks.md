@@ -153,9 +153,15 @@ en fournit le mécanisme et les teste avec des appels directs.
   masque), le gestionnaire de panique par défaut écrivait le message tel quel, l'erreur de
   connexion du binaire contenait le mot de passe de l'URL ; aucun détail du catalogue
   d'audit ne porte un nom de secret (test)
-- [ ] 21. Banc : `bench-core` avec trois configurations de télémétrie, volume de l'audit
+- [x] 21. Banc : `bench-telemetry` avec trois configurations de télémétrie, volume de l'audit
   des lectures mesuré — REQ-012-23 — verify : surcoûts sous 5 % et 10 % ; volume reporté
-  dans la conception
+  dans la conception — le bruit du poste (15 à 45 % entre deux mesures identiques)
+  interdit de trancher 5 % de bout en bout : le verdict porte sur le surcoût modélisé
+  (coût mesuré par événement et par span × leur nombre par opération), 1,4 % au plus ;
+  le changeset unitaire séquentiel reste plus lent de bout en bout (question ouverte).
+  Le banc a révélé : relais et scellement relisant toute l'histoire (planchers, 0027),
+  débit borné à un lot par tour (vidage), service et store sans instrumentation (tâche
+  15 complétée), volume des lectures auditées 3,7 fois l'estimation (question ouverte)
 - [ ] 22. Synchroniser `docs/spec/` (configuration, événements, schéma `audit`,
   invariants), ADR 0019 → accepté, D35 précisé, statut `implemented` — verify : rapport
   spec-keeper sans écart

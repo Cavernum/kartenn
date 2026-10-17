@@ -186,8 +186,17 @@ audit.delivery  (sink text, event_seq, criticality, recorded_at, delivered_at) �
   transaction ait un identifiant pourrait échapper au plancher : une passe par heure
   relit depuis zéro et le rattrape (au pire une heure de retard, aucune perte ; d'ici
   là, `audit verify` le signale non scellé).
+- Débit : chaque tour (relais, scellement) enchaîne les lots pleins pendant au plus
+  une seconde (`DRAIN_WITHIN`) ; un seul lot par tour bornait l'export à 500 événements
+  par seconde et par sortie, et le scellement à 666 (précision de la tâche 012-21).
 - Une sortie en échec depuis plus d'une minute : événement `sys.output.unavailable`,
   puis `sys.output.available` au retour (REQ-012-26).
+- Désactivation (précision de la synchronisation) : une sortie d'audit qui a déjà reçu
+  des événements (plancher `audit.relay/<nom>` présent) et ne figure plus dans la
+  configuration produit `sys.output.disabled` au démarrage ; un filtre `off` posé à chaud
+  sur une sortie technique produit `sys.output.disabled` avec `sys.log_filter.changed`,
+  dans la même transaction. Un WARN au plus par minute et par sortie : `sys.output.dropped`
+  (abandons d'une sortie technique, nombre depuis le dernier), `audit.relay.failed`.
 
 ### Rétention (REQ-012-16, L22)
 
@@ -377,6 +386,17 @@ peut écrire en syslog vers `127.0.0.1:5514`.
 
 ## Risques
 
+- **Coût de la télémétrie, mesuré** (banc `bench-telemetry`, jeu de référence, 3 tours
+  entrelacés, 2026-10-17) : sur le chemin d'une requête, 1,7 µs par événement et 1,0 à
+  1,5 µs par span avec les sorties de référence (18 ns et 64 ns sans sortie), soit un
+  surcoût modélisé de 1,4 % au plus (unitaire et soutenu), 0,4 % au plus sur les
+  lectures : sous 5 % et 10 %. De bout en bout, la page filtrée (68 ms, bruit 3 %)
+  bouge de +0,7 % et −0,2 % ; lectures et sous-arbre restent dans le bruit du poste
+  (15 à 45 %). Le changeset unitaire **séquentiel** prend +41 % (référence) et +57 %
+  (sortie bloquée) en moyenne, de 2,5 à 3,5 ms (p95 5,5 ms, budget 200 ms), bruit 31 % :
+  non expliqué par le chemin de la requête ; piste : validations concurrentes des tâches
+  de fond (livraisons du relais, scellement) sur le WAL. Question ouverte, à mesurer sur
+  un poste calme.
 - **Volume des lectures auditées** : à 5 requêtes de lecture par seconde en moyenne et
   2 Kio par événement (100 identifiants), 0,9 Gio par jour, soit environ 80 Gio pour
   90 jours de `low`. À mesurer au banc ; leviers : borne du nombre d'identifiants
@@ -402,9 +422,9 @@ peut écrire en syslog vers `127.0.0.1:5514`.
 - Bout en bout (`kartenn-server`, collecteur de devenv) : cinq sorties actives, même
   événement partout ; secrets témoins introuvables ; un seul export par événement en
   OTLP ; contexte de trace propagé.
-- Banc : `bench-core` avec trois configurations de télémétrie (aucune, référence, sortie
+- Banc : `bench-telemetry` (`kartenn-bench telemetry`) avec trois configurations de télémétrie (aucune, référence, sortie
   bloquée) — REQ-012-23.
 
 ## ADR
 
-- [`docs/adr/0019-journal-audit-scelle-en-base.md`](../../docs/adr/0019-journal-audit-scelle-en-base.md) (proposé)
+- [`docs/adr/0019-journal-audit-scelle-en-base.md`](../../docs/adr/0019-journal-audit-scelle-en-base.md) (accepté)

@@ -457,4 +457,8 @@ Acceptation :
   retirer l'index par objet de la criticité `low` (la recherche « qui a lu cet objet »
   devient un parcours), rétention `low` plus courte. (utilisateur, avant la mise en
   production)
+- [ ] Changeset unitaire séquentiel plus lent de 41 à 57 % en moyenne avec des sorties
+  (2,5 → 3,5 ms), alors que le surcoût modélisé du chemin de la requête est de 1,4 % :
+  cause à établir sur un poste calme (piste : validations des tâches de fond sur le
+  WAL). Le budget INV-34 (200 ms) reste tenu. (Claude, avant la mise en production)
 - [x] ~~Ordre de réalisation~~ : la 012 avant la 005 (L21).

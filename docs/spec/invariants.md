@@ -64,9 +64,9 @@ concurrents d'INV-36 seront mesurés avec l'API (006).
 | INV-51 | Le journal d'audit est en ajout seul pour le rôle applicatif | Base (droits) | `kartenn-store-pg/tests/audit_schema.rs` |
 | INV-52 | Toute altération, suppression ou insertion dans un lot scellé est détectée par `audit verify` | Chaîne SHA-256, signature facultative | `kartenn-service/tests/audit_verify.rs` |
 | INV-53 | Un événement n'est purgé qu'une fois scellé et livré à chaque sortie | Purge conditionnelle | `kartenn-telemetry/tests/audit_retention.rs` |
-| INV-54 | Chaque sortie d'audit reçoit chaque événement au moins une fois, sans trou, même après une transaction longue | Livraisons enregistrées, planchers | `audit_export.rs`, `pass_floor.rs` |
-| INV-55 | Aucun secret (mot de passe, jeton, en-tête `Authorization`, chaîne de connexion) n'atteint une sortie, OTLP et rapport de panique compris | Masquage à la capture et à l'export des spans | `kartenn-server/tests/secrets.rs`, `panic.rs` |
-| INV-56 | Une sortie technique lente ou bloquée ne ralentit pas une requête : file bornée, abandons comptés | App | tests de la capture ; banc `bench-telemetry` |
+| INV-54 | Chaque sortie d'audit reçoit chaque événement au moins une fois, sans trou, même après une transaction longue | Livraisons enregistrées, planchers | `kartenn-telemetry/tests/audit_export.rs`, `kartenn-service/tests/pass_floor.rs` |
+| INV-55 | Aucun secret (mot de passe, jeton, en-tête `Authorization`, chaîne de connexion) n'atteint une sortie, OTLP et rapport de panique compris | Masquage à la capture et à l'export des spans | `kartenn-server/tests/secrets.rs`, `kartenn-telemetry/tests/panic.rs` |
+| INV-56 | Une sortie technique lente ou bloquée ne ralentit pas une requête : file bornée, abandons comptés | App | tests unitaires de `kartenn-telemetry/src/capture.rs` ; banc `bench-telemetry` |
 | INV-57 | Surcoût des sorties de référence sur le p95 de chaque budget < 5 % ; avec une sortie bloquée < 10 % | Coût mesuré par événement et par span | Banc `bench-telemetry` (surcoût modélisé) |
 
 ## Exploitation (D9)
