@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-15
+status: implemented
+updated: 2026-10-17
 ---
 
 # 002 — Noyau d'adressage : tâches
@@ -72,7 +72,10 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   contraintes, y compris concurrence
 - [x] 16. Table des registres à usage spécial chargée par migration ; recalcul de
   `public` à la mise à jour avec rapport — REQ-002-34 — verify : test de migration
-  — rapport fait ; la réécriture des drapeaux passera par un changeset système (P4, 004-7)
+  — rapport fait (plages comprises) ; le job de migration ne chargeait pas les registres,
+  corrigé à la synchronisation (`special_registry.rs`,
+  `the_migration_job_loads_the_embedded_registries`) ; la réécriture des drapeaux par un
+  changeset système reste à faire, avec l'ordonnanceur (006)
 - [x] 17. Identifiants externes et résolution de clé naturelle à une date — REQ-002-40,
   41 — verify : tests d'unicité et de résolution
 
@@ -114,5 +117,16 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   unitaire sur le jeu de la tâche 5 ; seuils D14 bloquants — REQ-002-45 — verify :
   `kartenn-bench core` (script `bench-core`) sous les seuils, au lieu de `cargo bench`
   (A14) ; pas encore de CI, le banc est bloquant par son code de sortie
-- [ ] 28. Synchroniser `docs/spec/` (`data.md` : ancres en propriétés), ADR 0014 et 0015 →
-  acceptés, statut `implemented` — verify : rapport spec-keeper sans écart
+- [x] 28. Synchroniser `docs/spec/` (`data.md` : ancres en propriétés), ADR 0014 et 0015 →
+  acceptés, statut `implemented` — verify : rapport spec-keeper sans écart — rapport du
+  2026-10-17 : écarts de code corrigés (registres chargés au déploiement, anomalies par
+  domaine et entité et plages comprises, opération `Rename`, contrat de famille
+  complété), textes resynchronisés ; ce qui reste est différé et listé ci-dessous
+
+## Différé à d'autres specs (constaté à la synchronisation)
+
+- Restitution de la classification IANA de chaque objet (REQ-002-33) : calculée par
+  `SpecialRegistry::classify`, servie par l'API (006).
+- Réécriture de l'indicateur `public` après une mise à jour des registres, par un
+  changeset système planifié (006).
+- Permissions par type d'objet sur les écritures du noyau (005).

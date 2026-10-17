@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-14
+status: implemented
+updated: 2026-10-17
 ---
 
 # 004 — Changesets et bitemporel : exigences
@@ -319,8 +319,9 @@ données.
 
 #### REQ-004-37 — Livraison au moins une fois, dans l'ordre
 kartenn doit livrer chaque événement au moins une fois aux consommateurs, dans l'ordre
-d'application des changesets ; l'identifiant du changeset permet aux consommateurs de
-dédoublonner.
+d'application des changesets d'un même domaine d'adressage ; l'identifiant du changeset
+permet aux consommateurs de dédoublonner. (Précisé le 2026-10-17 : l'ordre global n'est
+pas garanti, ADR 0018.)
 
 ### K. Performance (D14)
 
@@ -348,7 +349,8 @@ seconde soutenus.
 
 ## Questions ouvertes
 
-- [ ] Durée de rétention des clés d'idempotence (24 h proposées). (Claude, conception)
-- [ ] Ordre des événements : global, ou par domaine d'adressage (suffisant pour la plupart
-  des consommateurs et moins contraignant) ? (conception)
-- [ ] Délai de pseudonymisation après départ : 1 an proposé par défaut, configurable. (utilisateur)
+- [x] Durée de rétention des clés d'idempotence : 24 h (conception).
+- [x] Ordre des événements : par domaine d'adressage (ADR 0018, REQ-004-37).
+- [ ] Délai de pseudonymisation après départ : 1 an proposé par défaut. La fonction
+  prend le délai en paramètre ; sa valeur par défaut et la planification du job
+  viennent avec la configuration (006). (utilisateur)

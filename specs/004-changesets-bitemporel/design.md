@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-15
+status: implemented
+updated: 2026-10-17
 ---
 
 # 004 — Changesets et bitemporel : conception
@@ -12,14 +12,13 @@ La 004 fournit le mécanisme d'écriture et de temps dont dépendent la 002 et l
 1. **Stockage temporel : table courante + table d'historique** par type d'objet. La table
    courante contient toutes les versions applicatives actuellement affirmées ; la table
    d'historique reçoit, par **déclencheur**, chaque version dont l'affirmation se termine.
-   Le temps système est posé par la base (`now()`), jamais par une instance. (ADR 0017,
-   proposé.)
+   Le temps système est posé par la base (`now()`), jamais par une instance. (ADR 0017.)
 2. **Pipeline de changeset** dans `kartenn-service` : décodage, verrous de domaine (ADR
    0015), application en mémoire de transaction avec découpage des périodes (« FOR
    PORTION OF » émulé), validation 002, résolution et différentiel 003, droits,
    politiques d'approbation et propositions, écriture, audit, outbox.
 3. **Outbox ordonnée par domaine**, au format CloudEvents 1.0, relayée par un worker qui
-   ne lit que les transactions terminées (ADR 0018, proposé).
+   enregistre ses livraisons (ADR 0018).
 
 Ce que la 004 ne fait pas : le format HTTP (006), le modèle RBAC et l'évaluation des
 permissions (005).
@@ -146,7 +145,7 @@ flowchart TD
 - **Références internes** (REQ-004-4) : une opération peut désigner un objet par une
   référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application.
 - **Concurrence optimiste** (REQ-004-11) : une opération peut porter
-  `expected_changeset_id` (dernier changeset ayant modifié l'objet, exposé comme ETag par
+  `expected` (dernier changeset ayant modifié l'objet, exposé comme ETag par
   la 006) ; différence → conflit.
 - **Idempotence** (REQ-004-10) : table `idempotency_key (identity_id, key, request_hash,
   changeset_id, expires_at)`, 24 h ; même clé + autre hash → refus.
@@ -300,13 +299,13 @@ Le changeset généré n'est pas soumis automatiquement.
 
 | Table | Contenu |
 |---|---|
-| `changeset` | `id`, `author_id`, `validator_id`, `motive`, `state`, `kind`, `default_period`, `retroactive`, `submitted_at`, `applied_at`, `expires_at`, `policy_id`, `violations`, `anomalies`, `diff_summary` |
+| `changeset` | `id`, `author_id`, `validator_id`, `motive`, `state`, `kind`, `default_period`, `retroactive`, `submitted_at`, `applied_at`, `expires_at`, `policy_id`, `violations`, `anomalies`, `diff_summary`, `request` (requête d'un changeset en attente, pour sa revalidation), `rejection`, `required_rights` (droits manquants d'une proposition) |
 | `changeset_operation` | `changeset_id`, `ordinal`, `payload` (JSON validé à la soumission) |
-| `changeset_diff` | `changeset_id`, `property_id`, `object_id`, `before`, `after` (détail paginé, 003) |
+| `changeset_diff` | `changeset_id`, `seq`, `property_key`, `object_id`, `before`, `after` (détail paginé, 003) |
 | `person` | `id` (interne, stable), `display_name`, `email`, `issuer`, `subject`, `departed_at`, `pseudonymized_at` |
 
 - L'audit ne référence que `person.id`. La **pseudonymisation** remplace les champs
-  d'identité par `personne #<id>` et vide `email`, `issuer`, `subject` ; job déclenché à
+  d'identité par `personne #<8 premiers caractères de l'id>` et vide `email`, `issuer`, `subject` ; job déclenché à
   `departed_at + délai` (1 an proposé, configurable).
 - Index de recherche : `(author_id)`, `(state)`, `(submitted_at)`, `(retroactive)` ; par
   objet via `changeset_diff` et les `changeset_id` des tables versionnées.
@@ -317,13 +316,17 @@ Le changeset généré n'est pas soumis automatiquement.
   `changeset_id`, `domain_ids uuid[]`, `payload jsonb`), insertion dans la transaction du
   changeset.
 - Format **CloudEvents 1.0** : `specversion = "1.0"`, `id` = UUID du changeset (unique
-  pour la source), `source` = URI de l'instance kartenn, `type` =
-  `org.kartenn.changeset.applied` (préfixe à confirmer), `time` = temps système (RFC 3339),
-  `data` = objets touchés et différentiel résumé. Les consommateurs dédoublonnent par
+  pour la source), `source` = `urn:kartenn:instance` (une URI propre à chaque déploiement
+  viendra avec sa configuration, 006), `type` = `org.kartenn.changeset.applied`, `time` =
+  temps système (RFC 3339), `data` = changeset, domaines, objets touchés, auteur,
+  valideur et différentiel résumé. Un changeset en attente émet aussi un événement à
+  chaque changement d'état (`org.kartenn.changeset.<état>`, `id` = `<uuid>/<état>`,
+  sans domaine). Les consommateurs dédoublonnent par
   `source` + `id`.
-- **Relais** (un à la fois par consommateur, verrou consultatif) : ne lit que les lignes
-  dont `xid < pg_snapshot_xmin(pg_current_snapshot())`, c'est-à-dire de transactions
-  terminées, non encore livrées à ce consommateur, par `seq` croissant, et **enregistre
+- **Relais** (un à la fois par consommateur, verrou consultatif) : lit les lignes validées,
+  non encore livrées à ce consommateur, par `seq` croissant (la barrière
+  `xid < pg_snapshot_xmin(…)` de la première version est retirée, second amendement de
+  l'ADR 0018), et **enregistre
   chaque livraison** (`outbox_delivery`). Un curseur unique « dernier `seq` livré » est
   proscrit : il peut sauter l'événement d'une transaction encore en cours (amendement
   de l'ADR 0018).
@@ -351,7 +354,7 @@ Le changeset généré n'est pas soumis automatiquement.
 | Retrait par un autre que l'auteur | Refus `changeset.state.not_author` | 23 |
 | Import interrompu pendant un lot | Le lot est atomique : rejoué entièrement à la reprise | 29 |
 | Annulation d'un changeset dont tous les objets ont été remodifiés | Changeset inverse vide avec la liste des conflits | 35 |
-| Relais d'outbox arrêté | Les événements s'accumulent ; reprise au dernier `seq` livré | 37 |
+| Relais d'outbox arrêté | Les événements s'accumulent ; reprise au premier événement non livré | 37 |
 
 ## Alternatives considérées
 
@@ -406,5 +409,5 @@ Le changeset généré n'est pas soumis automatiquement.
 
 ## ADR
 
-- [`docs/adr/0017-temps-systeme-tables-historique.md`](../../docs/adr/0017-temps-systeme-tables-historique.md) (proposé)
-- [`docs/adr/0018-outbox-ordonnee-par-domaine.md`](../../docs/adr/0018-outbox-ordonnee-par-domaine.md) (proposé)
+- [`docs/adr/0017-temps-systeme-tables-historique.md`](../../docs/adr/0017-temps-systeme-tables-historique.md)
+- [`docs/adr/0018-outbox-ordonnee-par-domaine.md`](../../docs/adr/0018-outbox-ordonnee-par-domaine.md)

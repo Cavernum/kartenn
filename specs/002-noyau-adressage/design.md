@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-15
+status: implemented
+updated: 2026-10-17
 ---
 
 # 002 — Noyau d'adressage : conception
@@ -24,7 +24,7 @@ Trois choix structurent cette conception :
    réseau sont des propriétés déclarées par le noyau (`core.owner`, `core.site`), et
    non des colonnes. Elles bénéficient ainsi de la résolution expliquée, du différentiel
    et du droit sur l'effet de la spec 003. Cela tranche la question ouverte de
-   REQ-002-38 (ADR 0014, proposé).
+   REQ-002-38 (ADR 0014).
 
 La 002 dépend de la 004 pour les mécanismes temporels (périodes, versions, temps
 système) et de la 003 pour la résolution des propriétés : les tâches les ordonnent.
@@ -48,6 +48,14 @@ travaillent sur les bits, alignés à gauche sur la largeur de la famille.
 | Adresses non attribuables d'un réseau | réseau et diffusion si longueur ≤ 30 | IID nul si non point à point |
 | Longueurs point à point | 31, 32 | 127, 128 |
 | Registre à usage spécial | IANA IPv4 | IANA IPv6 |
+
+Les adresses non attribuables (méthode `reserved_in_network`), les blocs jamais
+attribuables (`unassignable`) et le registre (`special_registry`) sont des méthodes du
+trait, sans effet par défaut : une famille ajoutée n'en hérite aucun comportement
+d'IPv4 ou d'IPv6. Les règles propres à une famille nommée par une RFC (adresse IPv4
+mappée dans IPv6, ULA, `core.addr.*` d'IPv6) la désignent par son identifiant ; aucune ne
+suppose une largeur. Les `CHECK` SQL de longueur d'hôte supposent 32 et 128 bits : le
+stockage d'une autre famille est la question Q-ouv-4.
 
 Le contrat est limité à des largeurs ≤ 128 bits ; une famille de 64 bits (type
 draft-thain-ipv8) entre dans ce cadre. Une famille plus large exigerait d'élargir la
@@ -140,9 +148,11 @@ Le noyau déclare deux propriétés (spec 003) :
 - REQ-002-12 : les opérations de modification d'un préfixe, d'une plage ou d'une adresse
   acceptent un champ `domain` pour le refuser explicitement (`core.domain.immutable`) ;
   le déplacement se fait par clôture puis création.
-- L'héritage le long des arbres d'entités et de sites (003) n'est pas encore maintenu :
-  une déclaration héritable sur ces arbres est refusée (`prop.declaration.invalid`)
-  jusqu'à sa tâche (003, tâches).
+- L'héritage le long des arbres d'entités et de sites est maintenu depuis la tâche
+  003-18 (003/P16).
+- **Renommage** (REQ-002-47) : l'opération `Rename` change le slug d'un domaine, d'une
+  entité ou d'un site sur la période du changeset, l'UUID restant ; le slug est unique
+  par type sur toute période (contrainte d'exclusion, `core.slug.duplicate`).
 
 ### Catalogue des règles (REQ-002-35 à 37)
 
@@ -155,7 +165,7 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.addr.zone` | erreur | REQ-002-4 | RFC 4007 §6 |
 | `core.addr.ipv4_mapped` | erreur | REQ-002-31 | 002/A4 |
 | `core.prefix.syntax` | erreur | REQ-002-5 | RFC 4632 §3.1 |
-| `core.prefix.unaligned` | erreur | REQ-002-5 | — (convention, cidr PostgreSQL) |
+| `core.prefix.unaligned` | erreur | REQ-002-5 | 002/design (convention, cidr PostgreSQL) |
 | `core.prefix.duplicate` | erreur | REQ-002-15 | D34 |
 | `core.prefix.network_not_leaf` | erreur | REQ-002-16, 17 | 002/A2 |
 | `core.prefix.not_empty_for_nature` | erreur | REQ-002-17 | 002/A2 |
@@ -163,7 +173,7 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.prefix.site_on_container` | erreur | REQ-002-20 | 002/A7 |
 | `core.prefix.anycast_network` | erreur | REQ-002-49 | 002/A13 |
 | `core.anycast.address_usage` | erreur | REQ-002-49 | 002/A13 |
-| `core.range.bounds` | erreur | REQ-002-21 | — |
+| `core.range.bounds` | erreur | REQ-002-21 | 002/design |
 | `core.range.outside_network` | erreur | REQ-002-21 | 002/A2 |
 | `core.range.overlap` | erreur | REQ-002-22 | D34 |
 | `core.range.reserved_bounds` | erreur | REQ-002-23 | RFC 1122 §3.2.1.3, RFC 4291 §2.6.1 |
@@ -173,7 +183,7 @@ sert. Le catalogue est généré depuis le code et publié (documentation et API
 | `core.address.not_assignable` | erreur | REQ-002-29 | RFC 1122, RFC 4291, registres IANA |
 | `core.public.overlap` | erreur | REQ-002-32, 46 | 002/A3, A11, A13 |
 | `core.domain.immutable` | erreur | REQ-002-12 | 002/A1 |
-| `core.anchor.cycle` | erreur | REQ-002-8, 9 | — |
+| `core.anchor.cycle` | erreur | REQ-002-8, 9 | 002/design |
 | `core.anchor.in_use` | erreur | REQ-002-10 | D33 |
 | `core.slug.syntax` | erreur | REQ-002-47 | 002/A9 |
 | `core.slug.duplicate` | erreur | REQ-002-47 | 002/A9 |
@@ -253,12 +263,12 @@ découpage courant/historique relèvent de la 004.
 | `entity` | `id uuid`, `slug`, `parent_id` | slug unique par période |
 | `site` | `id`, `slug`, `parent_id` | idem |
 | `addressing_domain` | `id`, `slug` | idem |
-| `prefix` | `id`, `domain_id`, `prefix cidr`, `nature`, `point_to_point`, `public`, `registry_version` | `EXCLUDE USING GIST (domain_id WITH =, prefix inet_ops WITH =, valid_period WITH &&)` ; `CHECK (NOT point_to_point OR nature = 'network')` ; index GiST `(prefix inet_ops)` |
+| `prefix` | `id`, `domain_id`, `prefix cidr`, `nature`, `point_to_point`, `public`, `registry_version` | `EXCLUDE USING GIST (domain_id WITH =, prefix inet_ops WITH =, valid_period WITH &&)` ; `CHECK (NOT point_to_point OR nature = 'network')` |
 | `ip_range` | `id`, `domain_id`, `range inetrange`, `usage`, `public`, `registry_version` | `EXCLUDE USING GIST (domain_id WITH =, range WITH &&, valid_period WITH &&)` |
 | `address` | `id`, `domain_id`, `address inet`, `usage`, `public`, `registry_version` | `EXCLUDE USING GIST (domain_id WITH =, address inet_ops WITH =, valid_period WITH &&)` ; exclusion partielle publique non anycast : `EXCLUDE USING GIST (address inet_ops WITH =, valid_period WITH &&) WHERE (public AND usage <> 'anycast')` |
 | `external_id` | `source`, `external_id`, `object_id`, `object_type` | unique `(source, external_id)` |
-| `anomaly` | `id`, `rule_id`, `object_id`, `details`, `acknowledged_by`, `acknowledged_at`, `motive`, `object_version` | — |
-| `special_registry` | `family`, `block`, drapeaux, `registry_version`, `iana_updated` | données de référence, chargées par migration |
+| `anomaly` | `id`, `rule_id`, `object_id`, `message`, `opened_at`, `opened_by` (changeset), `closed_at`, `acknowledged_by`, `acknowledged_at`, `motive`, `acked_changeset` (dernier changeset de l'objet à l'acquittement) | une anomalie ouverte par (règle, objet) |
+| `special_registry` | `registry_version`, `block`, `name`, `rfc`, `terminated`, `globally_reachable` | données de référence, chargées par le job de migration ; seul le drapeau Globally Reachable sert en SQL (`kartenn_is_public`), les autres restent dans le registre du code |
 
 - `inetrange` : type intervalle sur `inet` **sans** `subtype_diff`, avec
   `CHECK (family(lower(range)) = family(upper(range)))` — amendement issu du
@@ -280,14 +290,20 @@ découpage courant/historique relèvent de la 004.
 - Source : fichiers CSV publiés par l'IANA, versionnés dans le dépôt
   (`crates/kartenn-core/data/iana/`), avec leur date « Last Updated ».
 - Compilés dans le binaire (structure de recherche par préfixe le plus long) et chargés
-  dans `special_registry` par migration, pour les requêtes SQL.
-- Mettre à jour = remplacer les fichiers et publier une version ; une migration recalcule
-  l'indicateur `public` et signale les objets dont il change.
+  dans `special_registry` par le job de migration (`maintenance::deploy`), pour les
+  requêtes SQL.
+- Mettre à jour = remplacer les fichiers et publier une version ; `registry::public_drift`
+  liste les préfixes, plages et adresses dont l'indicateur `public` change. La
+  réécriture de l'indicateur par un changeset système n'est pas faite : elle viendra
+  avec l'ordonnanceur des jobs (006).
 
 ### Anomalies (REQ-002-35, 36)
 
-- Une anomalie est (règle, objet, détails, version d'objet). Elle est créée ou mise à
-  jour à chaque changeset qui touche l'objet, et close quand la règle ne se déclenche plus.
+- Une anomalie est (règle, objet, message, changeset d'ouverture). Elle est créée ou
+  mise à jour à chaque changeset qui réévalue la règle sur l'objet, et close quand elle
+  ne se déclenche plus. Acquittée, elle reste masquée jusqu'au changeset suivant de
+  l'objet. Liste filtrable par règle, domaine (l'objet ou ce que contient le domaine) et
+  entité (l'entité, ses descendantes et les objets dont le `core.owner` résolu en est une).
 - Seul un changeset qui **réévalue** une règle sur un objet peut clore son anomalie : les
   règles du noyau sur les objets qu'il crée (et modifie, 004-8), toutes les règles sur
   ceux qu'il clôt, l'écart de valeur attendue sur les objets contrôlés (003). Affecter une
@@ -320,8 +336,10 @@ découpage courant/historique relèvent de la 004.
 
 ### Performance (REQ-002-45)
 
-- Index : GiST `inet_ops` sur `prefix`, `address` ; GiST sur `ip_range` ; B-tree sur
-  `domain_id`, `slug`, UUID.
+- Index : ceux des contraintes d'exclusion GiST (`domain_id`, valeur `inet_ops`,
+  `valid_period`) sur `prefix`, `address`, `ip_range`, et `slug` sur les ancres ; clés
+  primaires `(id, valid_period)`. Aucun index autonome supplémentaire : les budgets
+  tiennent sans (A14).
 - Toutes les requêtes ci-dessus sont des recherches indexées ou des parcours bornés par
   un préfixe ; aucun parcours complet de table.
 - Jeu synthétique (crate de bench) : 10⁵ réseaux, 10⁶ adresses, profondeur ≥ 6, IPv4 et
@@ -397,5 +415,5 @@ découpage courant/historique relèvent de la 004.
 
 ## ADR
 
-- [`docs/adr/0014-ancres-proprietes-du-noyau.md`](../../docs/adr/0014-ancres-proprietes-du-noyau.md) (proposé)
-- [`docs/adr/0015-serialisation-ecritures-par-domaine.md`](../../docs/adr/0015-serialisation-ecritures-par-domaine.md) (proposé)
+- [`docs/adr/0014-ancres-proprietes-du-noyau.md`](../../docs/adr/0014-ancres-proprietes-du-noyau.md)
+- [`docs/adr/0015-serialisation-ecritures-par-domaine.md`](../../docs/adr/0015-serialisation-ecritures-par-domaine.md)

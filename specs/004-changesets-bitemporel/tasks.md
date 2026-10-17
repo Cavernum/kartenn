@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-15
+status: implemented
+updated: 2026-10-17
 ---
 
 # 004 — Changesets et bitemporel : tâches
@@ -68,13 +68,15 @@ voir [`../README.md`](../README.md).
   (exemple de la VM) (`review.rs`, droits de propriété ; droits d'objet avec la 005)
 - [x] 15. Cascade explicite via `dependents()` du contrat de module — REQ-004-25, 26 —
   verify : tests (réseau avec 3 plages et 40 adresses) (`kartenn-service/tests/cascade.rs`)
-  — dépendants du noyau ; modules (008, 009) et droits sur les objets (005) ensuite
+  — dépendants du noyau, par la méthode de port `WriteTx::dependents` (le contrat de
+  module viendra avec les modules 008, 009) ; droits sur les objets (005) ensuite
 
 ## P5 — Exploitation
 
 - [x] 16. Marquage rétroactif et recherche d'audit — REQ-004-27, 31, 32 — verify : tests
 - [x] 17. Personnes et pseudonymisation (job, délai configurable, 1 an par défaut) —
-  REQ-004-33 — verify : historique intact après pseudonymisation
+  REQ-004-33 — verify : historique intact après pseudonymisation — `audit::pseudonymise`
+  prend le délai ; valeur par défaut et planification du job avec la configuration (006)
 - [x] 18. Imports : tri par dépendance, lots, worker, pause sur erreur, reprise —
   REQ-004-28, 30 — verify : import de 10⁵ opérations avec un lot fautif
   (`kartenn-service/tests/import.rs`, 203 éléments en lots de 60 ; 10⁵ au banc 23) —
@@ -85,16 +87,32 @@ voir [`../README.md`](../README.md).
   (`kartenn-service/tests/undo.rs`) — `undo::inverse`, opération `Restore`, fonction
   `kartenn_restore` (migration 0021) ; déclarations non annulées, listées
 - [x] 21. Outbox CloudEvents écrite dans la transaction — REQ-004-36 — verify : tests
-- [x] 22. Relais d'outbox sans trou (filtre `xid` < xmin), ordre par domaine, accusé —
-  REQ-004-37 — verify : tests avec transactions concurrentes longues
+  (le différentiel résumé, oublié, ajouté à la synchronisation : `tests/diff.rs`)
+- [x] 22. Relais d'outbox sans trou, ordre par domaine, accusé — REQ-004-37 — verify :
+  tests avec transactions concurrentes longues (`tests/outbox.rs`) — filtre `xid` < xmin
+  retiré (second amendement de l'ADR 0018) ; test d'ordre dans un domaine ajouté à la
+  synchronisation
 
 ## P6 — Budgets et synchronisation
 
 - [x] 23. Banc CI : changeset unitaire, `as_of` passé, import de 10⁶, 50 changesets/s —
   REQ-004-38 — verify : seuils bloquants — même banc que 002-27 (002/A14), avec trois ans
   d'historique simulés et l'usage de l'index de période système vérifié
-- [ ] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
-  — verify : rapport spec-keeper sans écart
+- [x] 24. Synchroniser `docs/spec/`, ADR 0017 et 0018 → acceptés, statut `implemented`
+  — verify : rapport spec-keeper sans écart — rapport du 2026-10-17 : écarts de code
+  corrigés (différentiel dans l'événement, test d'ordre, droit sur les politiques
+  d'approbation), textes resynchronisés ; ce qui reste est différé et listé ci-dessous
+
+## Différé à d'autres specs (constaté à la synchronisation)
+
+- Permissions par type d'objet (`core.address.write`, `core.address.propose`) : les
+  exemples de REQ-004-26 et REQ-004-41 en dépendent ; seuls les droits de propriété et
+  celui des politiques sont vérifiés (005).
+- Valeurs par défaut configurables (30 jours d'attente, 24 h d'idempotence, 1 an de
+  pseudonymisation) et planification des jobs (expiration, pseudonymisation, partitions,
+  imports) : configuration et ordonnanceur (006).
+- Historique d'un objet avec ses changesets (REQ-004-18) : le constructeur de requête
+  existe (`temporal::history_of`) ; la lecture par objet est servie par l'API (006).
 - [x] 25. Entretien de l'historique : partitions mensuelles par `sys_end` créées à
   l'avance par un job (la partition par défaut ne reçoit plus rien), index GiST
   `tstzrange(sys_start, sys_end)` sur chaque historique — REQ-004-17, 38 — avant 23 —

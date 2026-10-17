@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-13
+status: implemented
+updated: 2026-10-17
 ---
 
 # 002 — Noyau d'adressage : exigences
@@ -392,9 +392,11 @@ description, commentaire, coordonnées…) doit être une propriété (spec 003)
 Acceptation :
 - Revue de conception : chaque attribut du noyau est justifié par l'exigence qui
   l'utilise (table de traçabilité dans `design.md`).
-- Les objets du noyau sont : entité (slug, parent), site (slug, parent), domaine (slug,
-  entité), préfixe (domaine, valeur, nature, point à point, entité, site), plage (domaine,
-  bornes, usage), adresse (domaine, valeur, usage), plus UUID et période de validité.
+- Les objets du noyau sont : entité (slug, parent), site (slug, parent), domaine (slug),
+  préfixe (domaine, valeur, nature, point à point, anycast), plage (domaine, bornes,
+  usage), adresse (domaine, valeur, usage), plus UUID et période de validité ; l'entité
+  et le site sont les propriétés `core.owner` et `core.site` (ADR 0014, mis à jour le
+  2026-10-17).
 
 ### L. Lecture et performance
 
@@ -441,13 +443,11 @@ Acceptation :
 
 ## Questions ouvertes
 
-- [ ] Le propriétaire hérité (REQ-002-38) réutilise-t-il le mécanisme de la spec 003 ?
-  (conception 002/003, Claude)
-- [ ] Critère précis de « Global ID ULA manifestement non aléatoire » (REQ-002-35) :
-  zéros, motifs répétés, séquence ? (conception, Claude)
-- [ ] Dépendance : la spec 003 doit offrir des propriétés **typées** (liste fermée, texte,
-  FQDN…), validées par le module qui les déclare, héritables ou non (A10). À vérifier
-  quand la 003 sera rédigée. (Claude)
+- [x] Le propriétaire hérité (REQ-002-38) réutilise le mécanisme de la spec 003 : tranché
+  par l'ADR 0014.
+- [x] Critère du « Global ID ULA manifestement non aléatoire » (REQ-002-35) : tranché en
+  conception (catalogue des règles).
+- [x] Propriétés **typées** de la spec 003 : livrées (003 implémentée).
 - [x] ~~Exception anycast~~ : tranchée par A11 (usage « anycast » sur l'adresse).
 - [x] ~~Attributs des sites~~ : tranché par A10 (slug et parent seulement).
 - [x] ~~Note de référence sur les noms DNS~~ : sans objet pour la 002 (REQ-002-30
