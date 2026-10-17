@@ -149,6 +149,7 @@ pub async fn object(
         fields,
         properties: properties.into_iter().map(|(k, v, _)| (k, v)).collect(),
         sensitive,
+        masked: std::collections::BTreeSet::new(),
     }))
 }
 

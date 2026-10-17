@@ -124,9 +124,15 @@ la validation est écrite sur `jsonwebtoken` seul.
    son parent dans l'arbre (préfixe ou domaine contenant, entité ou site parent ; création
    d'une racine : périmètre global). Contrôle groupé par permission ; une permission
    `write` manquante couverte par `propose` fait une proposition (004).
-6. **Valeurs sensibles** (REQ-005-21) : `read_object` reçoit la `Visibility` de
-   `prop.<clé>.read` pour chaque propriété sensible ; la valeur est remplacée par un
-   marqueur `masked`, et seul un lecteur autorisé produit `data.sensitive.read`.
+6. **Lecture d'un objet** (REQ-005-19) : sans `core.<sorte>.read`, l'objet est répondu
+   absent (son existence n'est pas révélée) et `authz.access.denied` est audité. Les
+   listes reçoivent un `ReadScope` (une visibilité par sorte, en JSON) et le prédicat
+   `kartenn_readable` (migration 0030) : `filter_in`, `children_in` ; l'occupation et le
+   prochain libre restent des statistiques du préfixe, sous `core.prefix.read`.
+7. **Valeurs sensibles** (REQ-005-21) : `read_object` reçoit la `Visibility` de
+   `prop.<clé>.read` pour chaque propriété sensible ; sans ce droit, la valeur est retirée
+   et sa clé listée dans `masked`, et seul un lecteur autorisé produit
+   `data.sensitive.read`.
 
 Pas de cache des liaisons en v0.1 (une requête par décision, cible < 1 ms au p95) ; cache
 de l'état des identités de 5 s par instance (K10).

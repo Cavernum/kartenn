@@ -86,6 +86,61 @@ pub struct VisibilityArguments {
     pub confinement: Option<Vec<Uuid>>,
 }
 
+impl Visibility {
+    /// As a JSON object, for `kartenn_readable` (migration 0030).
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        let (prefix_domains, prefixes): (Vec<Uuid>, Vec<String>) =
+            self.prefixes.iter().cloned().unzip();
+        serde_json::json!({
+            "global": self.global,
+            "entities": self.entities,
+            "sites": self.sites,
+            "domains": self.domains,
+            "prefix_domains": prefix_domains,
+            "prefixes": prefixes,
+            "confinement": self.confinement,
+        })
+    }
+}
+
+/// The kinds of objects of the core, with their read permission.
+pub const READ_PERMISSIONS: [(&str, &str); 6] = [
+    ("entity", "core.entity.read"),
+    ("site", "core.site.read"),
+    ("domain", "core.domain.read"),
+    ("prefix", "core.prefix.read"),
+    ("range", "core.range.read"),
+    ("address", "core.address.read"),
+];
+
+/// What a subject may read, kind by kind (REQ-005-24): the visibility of the read
+/// permission of each kind; `None` reads everything (kartenn itself).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadScope(Option<std::collections::BTreeMap<&'static str, Visibility>>);
+
+impl ReadScope {
+    /// Everything: for kartenn's own work.
+    #[must_use]
+    pub const fn all() -> Self {
+        Self(None)
+    }
+
+    /// The scope as the JSON argument of `kartenn_readable`; `None` for everything.
+    #[must_use]
+    pub fn to_json(&self) -> Option<serde_json::Value> {
+        self.0.as_ref().map(|kinds| {
+            serde_json::Value::Object(
+                kinds
+                    .iter()
+                    .filter(|(_, v)| !v.is_empty())
+                    .map(|(k, v)| ((*k).to_owned(), v.to_json()))
+                    .collect(),
+            )
+        })
+    }
+}
+
 /// The authorizer of the RBAC of spec 005.
 #[derive(Debug, Clone)]
 pub struct PgAuthorizer {
@@ -243,6 +298,23 @@ impl PgAuthorizer {
         Ok(Some(
             descendants(&self.pool, "entity", &entities, at).await?,
         ))
+    }
+
+    /// What `subject` may read at `at`, kind by kind.
+    ///
+    /// # Errors
+    ///
+    /// Database errors.
+    pub async fn read_scope(
+        &self,
+        subject: &Subject,
+        at: OffsetDateTime,
+    ) -> Result<ReadScope, StoreError> {
+        let mut kinds = std::collections::BTreeMap::new();
+        for (kind, permission) in READ_PERMISSIONS {
+            kinds.insert(kind, self.visibility(subject, permission, at).await?);
+        }
+        Ok(ReadScope(Some(kinds)))
     }
 
     /// The objects among `objects` outside `visibility` at `at`.

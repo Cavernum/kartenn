@@ -37,9 +37,12 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   prédicat `kartenn_visible` (migration 0029) ; le test a trouvé un défaut qui laissait
   passer : pour un objet sans propriétaire (un site), le prédicat valait `NULL`, lu comme
   « non refusé » ; il ne vaut plus jamais `NULL` (`kartenn-service/tests/rbac.rs`)
-- [ ] 5. Filtrage des listes et masquage des valeurs sensibles — REQ-005-21, 24 —
+- [x] 5. Filtrage des listes et masquage des valeurs sensibles — REQ-005-21, 24 —
   verify : test de propriété décision unitaire = filtrage ; lecteur sans
-  `prop.<clé>.read`
+  `prop.<clé>.read` — `ReadScope` et `kartenn_readable` (migration 0030), `filter_in`,
+  `children_in` ; `read_object` reçoit l'autorisateur, répond absent sans droit (refus
+  audité) et liste les valeurs masquées (`ObjectRead::masked`) ; vérification exhaustive
+  sur les six périmètres du petit arbre plutôt qu'aléatoire (`rbac.rs`)
 - [ ] 6. Droits d'écriture par type d'objet dans le pipeline (objet ou parent),
   propositions — REQ-005-22 — verify : éditeur d'une entité, proposition (004)
 - [ ] 7. Opérations d'administration (rôles, liaisons, rattachements, comptes de service,

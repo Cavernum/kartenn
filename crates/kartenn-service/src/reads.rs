@@ -80,15 +80,21 @@ async fn record_all<J: AuditJournal>(
     Ok(())
 }
 
-/// The object `id` valid at `valid_at`, as asserted at `as_of`, read by `context`:
-/// `data.objects.read` (within `audit`), plus `data.sensitive.read` for each sensitive property in it.
+/// The object `id` valid at `valid_at`, as asserted at `as_of`, read by `context`, under
+/// the rights of its subject (005): `core.<kind>.read` on the object, or the object is
+/// answered as absent and `authz.access.denied` recorded (its existence is not
+/// disclosed, REQ-005-19); the value of a sensitive property needs `prop.<key>.read`, or it
+/// is masked (REQ-005-21). Recorded: `data.objects.read` (within `audit`), plus
+/// `data.sensitive.read` for each sensitive value read.
 ///
 /// # Errors
 ///
 /// [`RequestError::Audit`] when the read cannot be audited (nothing is returned);
 /// [`RequestError::Store`] on infrastructure failure.
-pub async fn read_object<R: Reader, J: AuditJournal>(
+#[allow(clippy::too_many_arguments)] // a read, its reader, its rights and its audit
+pub async fn read_object<R: Reader, A: Authorizer, J: AuditJournal>(
     reader: &R,
+    authorizer: &A,
     journal: &J,
     context: &RequestContext,
     id: Uuid,
@@ -96,7 +102,36 @@ pub async fn read_object<R: Reader, J: AuditJournal>(
     as_of: Option<Instant>,
     audit: ReadAudit,
 ) -> Result<Option<ObjectRead>, RequestError> {
-    let read = reader.object(id, valid_at, as_of).await?;
+    let mut read = reader.object(id, valid_at, as_of).await?;
+    if let (Some(found), Some(subject)) = (read.as_mut(), context.subject()) {
+        let permission = format!("core.{}.read", found.kind);
+        if !authorizer
+            .authorize_many(&subject, &permission, &[id])
+            .await?
+            .is_empty()
+        {
+            let denied = context
+                .event(&AUTHZ_DENIED, Outcome::Denied)
+                .map_err(audit_err)?
+                .target("object", [id])
+                .reason(&permission)
+                .detail("permission", permission.as_str())
+                .map_err(audit_err)?;
+            journal.record(&denied).await.map_err(RequestError::Audit)?;
+            return Ok(None);
+        }
+        for key in found.sensitive.clone() {
+            if !authorizer
+                .authorize_many(&subject, &format!("prop.{key}.read"), &[id])
+                .await?
+                .is_empty()
+            {
+                found.properties.remove(&key);
+                found.sensitive.remove(&key);
+                found.masked.insert(key);
+            }
+        }
+    }
     let criteria = json!({
         "object": id,
         "valid_at": rfc3339(valid_at),

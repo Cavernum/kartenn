@@ -6,6 +6,7 @@
 //! `(property_id, origin_object_id)`: starting from the objects instead was ten times
 //! slower in spike 003. A non-heritable property is filtered on its assignments.
 
+use crate::rbac::ReadScope;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{AssertSqlSafe, PgPool};
@@ -84,7 +85,8 @@ fn predicate(
 }
 
 /// The SQL of a filter: `$1` property, `$2` domain, `$3` date, `$4` cursor, `$5` page
-/// size, `$6` carrier kinds, `$7` values, `$8`, `$9` bounds.
+/// size, `$6` carrier kinds, `$7` values, `$8`, `$9` bounds, `$10` read scope (005,
+/// REQ-005-24; null: everything).
 fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String {
     // Assignments carrying a value that matches, at the date.
     let matching = format!(
@@ -122,7 +124,11 @@ fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String 
     };
     format!(
         "SELECT DISTINCT id FROM ({wanted}) w
-         WHERE $4::uuid IS NULL OR id > $4
+         WHERE ($4::uuid IS NULL OR id > $4)
+           AND ($10::jsonb IS NULL OR EXISTS (
+                SELECT 1 FROM addressing_object v
+                WHERE v.id = w.id AND v.valid_period @> $3
+                  AND kartenn_readable(v.id, v.kind, v.domain_id, v.value, $3, $10)))
          ORDER BY id LIMIT $5"
     )
 }
@@ -148,6 +154,36 @@ pub async fn filter(
     after: Option<Uuid>,
     limit: i64,
 ) -> Result<Vec<Uuid>, FilterError> {
+    filter_in(
+        pool,
+        property,
+        domain,
+        condition,
+        at,
+        after,
+        limit,
+        &ReadScope::all(),
+    )
+    .await
+}
+
+/// [`filter`] within what `scope` lets read (REQ-005-24): an object out of the scope is
+/// never in a page, and pages stay full.
+///
+/// # Errors
+///
+/// As [`filter`].
+#[allow(clippy::too_many_arguments)] // a filter, its page and its reader
+pub async fn filter_in(
+    pool: &PgPool,
+    property: Uuid,
+    domain: Uuid,
+    condition: &Condition,
+    at: OffsetDateTime,
+    after: Option<Uuid>,
+    limit: i64,
+    scope: &ReadScope,
+) -> Result<Vec<Uuid>, FilterError> {
     let (sql, values, low, high, carriers) = prepare(pool, property, condition, at).await?;
     // Planned with the values each time: a generic plan cannot tell an open bound from a
     // closed one and leaves the value indexes aside (bench 003-16).
@@ -162,6 +198,7 @@ pub async fn filter(
         .bind(values)
         .bind(low)
         .bind(high)
+        .bind(scope.to_json())
         .fetch_all(pool)
         .await?)
 }
@@ -247,6 +284,7 @@ pub async fn filter_plan(
         .bind(values)
         .bind(low)
         .bind(high)
+        .bind(None::<serde_json::Value>)
         .fetch_all(&mut *tx)
         .await?;
     tx.rollback().await?;

@@ -75,6 +75,9 @@ pub struct ObjectRead {
     /// Keys of `properties` declared sensitive (spec 003, REQ-003-27): reading them is
     /// audited (spec 012, REQ-012-18).
     pub sensitive: BTreeSet<String>,
+    /// Keys of sensitive properties whose value the reader may not see (005,
+    /// REQ-005-21): absent from `properties`.
+    pub masked: BTreeSet<String>,
 }
 
 /// What a consultation of the audit journal asks for (spec 012, REQ-012-17).

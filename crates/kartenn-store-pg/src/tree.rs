@@ -5,6 +5,7 @@
 //! at the date considered (D34); nothing is stored. Occupancy and next free values reuse
 //! the pure functions of `kartenn_core::occupancy` on the direct content read here.
 
+use crate::rbac::ReadScope;
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{IpRange, Nature, PrefixObject, RangeUsage};
@@ -43,6 +44,16 @@ pub enum Node {
         /// Value.
         value: Addr,
     },
+}
+
+impl Node {
+    /// Its identifier.
+    #[must_use]
+    pub const fn id(&self) -> Uuid {
+        match self {
+            Self::Prefix { id, .. } | Self::Range { id, .. } | Self::Address { id, .. } => *id,
+        }
+    }
 }
 
 fn decode_err(e: impl std::fmt::Display) -> sqlx::Error {
@@ -115,12 +126,26 @@ type ChildRow = (String, Uuid, String, Option<String>, Option<String>);
 /// # Errors
 ///
 /// Database or decoding errors.
+pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::Result<Vec<Node>> {
+    children_in(pool, prefix, at, &ReadScope::all()).await
+}
+
+/// [`children`] within what `scope` lets read (REQ-005-24).
+///
+/// # Errors
+///
+/// As [`children`].
 #[tracing::instrument(name = "SELECT children", skip_all, fields(
     db.system.name = "postgresql",
     db.operation.name = "SELECT",
     db.query.summary = "SELECT children",
 ))]
-pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::Result<Vec<Node>> {
+pub async fn children_in(
+    pool: &PgPool,
+    prefix: Uuid,
+    at: OffsetDateTime,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<Node>> {
     // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
     // 'a' address (a = value).
     let rows: Vec<ChildRow> = sqlx::query_as(
@@ -129,20 +154,24 @@ pub async fn children(pool: &PgPool, prefix: Uuid, at: OffsetDateTime) -> sqlx::
          WHERE q.domain_id = p.domain_id AND q.prefix << p.prefix AND q.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND q.prefix << r.prefix)
+           AND ($3::jsonb IS NULL OR kartenn_readable(q.id, 'prefix', q.domain_id, q.prefix, $2, $3))
          UNION ALL
          SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage FROM ip_range g, p
          WHERE g.domain_id = p.domain_id AND lower(g.range) <<= p.prefix AND upper(g.range) <<= p.prefix
            AND g.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND lower(g.range) <<= r.prefix)
+           AND ($3::jsonb IS NULL OR kartenn_readable(g.id, 'range', g.domain_id, lower(g.range), $2, $3))
          UNION ALL
          SELECT 'a', a.id, host(a.address), NULL, NULL FROM address a, p
          WHERE a.domain_id = p.domain_id AND a.address <<= p.prefix AND a.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
-                           AND r.prefix << p.prefix AND a.address <<= r.prefix)",
+                           AND r.prefix << p.prefix AND a.address <<= r.prefix)
+           AND ($3::jsonb IS NULL OR kartenn_readable(a.id, 'address', a.domain_id, a.address, $2, $3))",
     )
     .bind(prefix)
     .bind(at)
+    .bind(scope.to_json())
     .fetch_all(pool)
     .await?;
     let mut nodes: Vec<Node> = rows

@@ -145,6 +145,7 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     let reader = RequestContext::person(f.author);
     let read = read_object(
         &f.store,
+        &Unrestricted,
         &journal,
         &reader,
         prefix,
@@ -185,6 +186,7 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     let journal = MemoryJournal::new();
     read_object(
         &f.store,
+        &Unrestricted,
         &journal,
         &reader,
         prefix,
@@ -200,6 +202,7 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     assert!(matches!(
         read_object(
             &f.store,
+            &Unrestricted,
             &Broken,
             &reader,
             prefix,

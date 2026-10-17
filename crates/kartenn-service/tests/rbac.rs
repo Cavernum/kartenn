@@ -4,15 +4,21 @@
 use std::collections::HashMap;
 
 use kartenn_core::objects::{AddressUsage, Nature};
+use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
 use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::reads::{ReadAudit, read_object};
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
-use kartenn_store_pg::rbac::PgAuthorizer;
+use kartenn_store_pg::audit_journal::PgAuditJournal;
+use kartenn_store_pg::filter::{Condition, filter, filter_in};
+use kartenn_store_pg::rbac::{PgAuthorizer, ReadScope};
+use kartenn_store_pg::tree::{Node, children_in};
 use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
+use sqlx::types::time::OffsetDateTime;
 
 /// Entities `group` > `branch`, `vendor`; sites `campus` > `building`; domain `lab` owned
 /// by `group`, with the container `10.0.0.0/8`, the networks `10.5.0.0/24` (owned by
@@ -485,4 +491,179 @@ async fn patterns_and_global_permissions(pool: PgPool) {
     t.bind(Binding::Identity(root.id), admin, "global", None)
         .await;
     assert_eq!(t.allowed(&root, "core.role.admin", &objects).await, objects);
+}
+
+/// The children of `prefix`, as names, kept if `keep`.
+async fn children_named(t: &Tree, prefix: &str, scope: &ReadScope) -> Vec<Uuid> {
+    let mut ids: Vec<Uuid> = children_in(&t.pool, t.ids[prefix], now(), scope)
+        .await
+        .unwrap()
+        .iter()
+        .map(Node::id)
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn now() -> OffsetDateTime {
+    OffsetDateTime::now_utc()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn lists_hold_what_the_decision_allows(pool: PgPool) {
+    // REQ-005-24: for every scope, a list keeps exactly the objects the unitary decision
+    // allows, kind by kind.
+    let t = Tree::new(&pool).await;
+    let reader = t
+        .role("reader", &["core.address.read", "core.prefix.read"])
+        .await;
+    let addresses_only = t.role("addresses", &["core.address.read"]).await;
+    let authorizer = PgAuthorizer::new(pool.clone());
+    let all = children_named(&t, "10.0.0.0/8", &ReadScope::all()).await;
+    assert!(all.len() >= 2, "the container holds its networks");
+    let lab_network = children_named(&t, "10.5.0.0/24", &ReadScope::all()).await;
+    for (role, scope) in [
+        (reader, "global"),
+        (reader, "branch"),
+        (reader, "campus"),
+        (reader, "10.5.0.0/24"),
+        (reader, "other"),
+        (addresses_only, "group"),
+    ] {
+        let who = person(None, &[]);
+        t.bind(Binding::Identity(who.id), role, scope, None).await;
+        let read_scope = authorizer.read_scope(&who, now()).await.unwrap();
+        for (prefix, expected_from) in [("10.0.0.0/8", &all), ("10.5.0.0/24", &lab_network)] {
+            let listed = children_named(&t, prefix, &read_scope).await;
+            let mut allowed = Vec::new();
+            for id in expected_from {
+                let kind: String =
+                    sqlx::query_scalar("SELECT kind FROM carrier_object WHERE id = $1 LIMIT 1")
+                        .bind(id)
+                        .fetch_one(&pool)
+                        .await
+                        .unwrap();
+                let denied = authorizer
+                    .authorize_many(&who, &format!("core.{kind}.read"), &[*id])
+                    .await
+                    .unwrap();
+                if denied.is_empty() {
+                    allowed.push(*id);
+                }
+            }
+            assert_eq!(listed, allowed, "children of {prefix}, scope {scope}");
+            if scope == "other" {
+                assert!(listed.is_empty(), "another domain: nothing of `lab`");
+            }
+            if scope == "global" {
+                assert_eq!(&listed, expected_from, "everything");
+            }
+        }
+        // The property filter: the objects of `lab` that inherit an owner.
+        let owner = t.find("property_declaration", "key", "core.owner").await;
+        let mut filtered = filter_in(
+            &pool,
+            owner,
+            t.ids["lab"],
+            &Condition::Present,
+            now(),
+            None,
+            100,
+            &read_scope,
+        )
+        .await
+        .unwrap();
+        filtered.sort();
+        let unfiltered = filter(
+            &pool,
+            owner,
+            t.ids["lab"],
+            &Condition::Present,
+            now(),
+            None,
+            100,
+        )
+        .await
+        .unwrap();
+        let mut allowed = Vec::new();
+        for id in unfiltered {
+            let kind: String =
+                sqlx::query_scalar("SELECT kind FROM carrier_object WHERE id = $1 LIMIT 1")
+                    .bind(id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            if authorizer
+                .authorize_many(&who, &format!("core.{kind}.read"), &[id])
+                .await
+                .unwrap()
+                .is_empty()
+            {
+                allowed.push(id);
+            }
+        }
+        allowed.sort();
+        assert_eq!(filtered, allowed, "filter, scope {scope}");
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_read_needs_its_right_and_masks_sensitive_values(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let authorizer = PgAuthorizer::new(pool.clone());
+    let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));
+    let reader = t.role("reader", &["core.prefix.read"]).await;
+    let site_reader = t.role("site", &["prop.core.site.read"]).await;
+    sqlx::query("UPDATE property_declaration SET sensitive = true WHERE key = 'core.site'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let network = t.ids["10.5.0.0/24"];
+    let at =
+        kartenn_core::period::Instant(i64::try_from(now().unix_timestamp_nanos() / 1_000).unwrap());
+    let read = |who: Subject| {
+        let (authorizer, journal, store) = (&authorizer, &journal, &t.store);
+        async move {
+            read_object(
+                store,
+                authorizer,
+                journal,
+                &RequestContext::of(&who),
+                network,
+                at,
+                None,
+                ReadAudit::default(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let events = |name: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM audit.event WHERE name = $1")
+                .bind(name)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    // No right: answered as absent, the refusal audited.
+    assert_eq!(read(person(None, &[])).await, None);
+    assert_eq!(events("authz.access.denied").await, 1);
+    // Reader: the network, its site masked, no sensitive read recorded.
+    let who = person(None, &[]);
+    t.bind(Binding::Identity(who.id), reader, "global", None)
+        .await;
+    let seen = read(who.clone()).await.unwrap();
+    assert!(!seen.properties.contains_key("core.site"));
+    assert!(seen.masked.contains("core.site"));
+    assert_eq!(events("data.sensitive.read").await, 0);
+    // With the right on the value: shown, and its read recorded.
+    t.bind(Binding::Identity(who.id), site_reader, "global", None)
+        .await;
+    let seen = read(who).await.unwrap();
+    assert!(seen.properties.contains_key("core.site"));
+    assert!(seen.masked.is_empty());
+    assert_eq!(events("data.sensitive.read").await, 1);
 }

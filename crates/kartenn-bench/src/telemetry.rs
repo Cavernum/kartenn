@@ -23,6 +23,7 @@ use anyhow::{Context, bail};
 use kartenn_core::audit::{OBJECTS_READ, Outcome as AuditOutcome};
 use kartenn_core::period::Instant as At;
 use kartenn_service::audit::{AuditJournal, Instance, RequestContext};
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::reads::{ReadAudit, read_object};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{Condition, filter};
@@ -429,6 +430,7 @@ fn counts(database: &str, data: &Dataset) -> anyhow::Result<Vec<(String, usize, 
         take("");
         read_object(
             &store,
+            &Unrestricted,
             &journal,
             &context,
             object,
@@ -440,6 +442,7 @@ fn counts(database: &str, data: &Dataset) -> anyhow::Result<Vec<(String, usize, 
         take("read an object (audited)");
         read_object(
             &store,
+            &Unrestricted,
             &journal,
             &context,
             object,
@@ -666,6 +669,7 @@ async fn workload(
     for _ in 0..20 {
         read_object(
             &store,
+            &Unrestricted,
             &journal,
             &context,
             draw(&mut rng),
@@ -680,6 +684,7 @@ async fn workload(
         let t = Instant::now();
         read_object(
             &store,
+            &Unrestricted,
             &journal,
             &context,
             draw(&mut rng),
@@ -693,6 +698,7 @@ async fn workload(
         let t = Instant::now();
         read_object(
             &store,
+            &Unrestricted,
             &journal,
             &context,
             draw(&mut rng),
