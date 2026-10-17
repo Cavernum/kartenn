@@ -29,3 +29,4 @@ Chaque note contient :
 | [temporel-sql2011-postgresql.md](temporel-sql2011-postgresql.md) | Modèle temporel SQL:2011 et support réel de PostgreSQL 18 | 002, 004 |
 | [noms-dates-texte.md](noms-dates-texte.md) | Noms d'hôte, IDNA2008 / UTS #46, dates RFC 3339, texte Unicode | 003 |
 | [journalisation-audit.md](journalisation-audit.md) | Syslog, journald, OpenTelemetry, Trace Context, référentiels d'audit (OWASP, ASVS, NIST, ANSSI) | 012 |
+| [authentification-autorisation.md](authentification-autorisation.md) | OAuth 2.0 (RFC 9700), BFF (RFC 10017), OIDC, jetons JWT (RFC 8725, 9068), TOTP, Argon2, NIST SP 800-63B | 005 |
