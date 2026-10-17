@@ -3,41 +3,13 @@
   config,
   ...
 }: let
-  # Development console of the traces (D35): Jaeger v2, a static binary from its
-  # release (not in nixpkgs; no container runtime needed). x86_64-linux only.
-  jaeger = pkgs.stdenvNoCC.mkDerivation rec {
-    pname = "jaeger";
-    version = "2.21.0";
-    src = pkgs.fetchurl {
-      url = "https://github.com/jaegertracing/jaeger/releases/download/v${version}/jaeger-${version}-linux-amd64.tar.gz";
-      sha256 = "0nkszimnhv7vfmv5xv430znp4f5hs7ygmzz1l5j2wficx8c16x7m";
-    };
-    installPhase = "install -Dm755 jaeger $out/bin/jaeger";
-  };
-  yaml = pkgs.formats.yaml {};
-  # Jaeger keeps the traces in memory and receives them from the collector only, on
-  # ports of its own (the collector holds 4317/4318, 8888 and 13133).
-  jaegerConfig = yaml.generate "jaeger.yaml" {
-    service = {
-      extensions = ["jaeger_storage" "jaeger_query"];
-      pipelines.traces = {
-        receivers = ["otlp"];
-        processors = ["batch"];
-        exporters = ["jaeger_storage_exporter"];
-      };
-      telemetry.metrics.level = "none";
-    };
-    extensions = {
-      jaeger_storage.backends.memstore.memory.max_traces = 100000;
-      jaeger_query = {
-        storage.traces = "memstore";
-        http.endpoint = "127.0.0.1:16686";
-        grpc.endpoint = "127.0.0.1:16685";
-      };
-    };
-    receivers.otlp.protocols.grpc.endpoint = "127.0.0.1:14317";
-    processors.batch = {};
-    exporters.jaeger_storage_exporter.trace_storage = "memstore";
+  # Development console (D35, spec 012/L17): OpenObserve shows logs, traces and metrics
+  # in one UI (http://127.0.0.1:5080). Development-only credentials, bound to loopback;
+  # the header is the Basic encoding of the same pair.
+  openobserve = {
+    email = "dev@kartenn.invalid";
+    password = "Dev-only-1!";
+    basic = "ZGV2QGthcnRlbm4uaW52YWxpZDpEZXYtb25seS0xIQ==";
   };
 in {
   # Backend (D16): Rust workspace under crates/.
@@ -123,10 +95,10 @@ in {
   };
 
   # Observability (D35): the applications send OTLP to the collector
-  # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP
-  # (127.0.0.1:5514). Traces go to Jaeger (UI http://127.0.0.1:16686); logs and
-  # metrics are printed in the collector's process log and written as OTLP JSON
-  # lines in .devenv/state/otel-{logs,metrics}.jsonl.
+  # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP with
+  # octet counting (127.0.0.1:5514). Everything goes to OpenObserve (logs, traces,
+  # metrics; UI http://127.0.0.1:5080); logs are also printed in the collector's
+  # process log.
   services.opentelemetry-collector = {
     enable = true;
     settings = {
@@ -138,43 +110,48 @@ in {
         syslog = {
           tcp.listen_address = "127.0.0.1:5514";
           protocol = "rfc5424";
+          enable_octet_counting = true;
         };
       };
       processors.batch = {};
       exporters = {
-        "otlp_grpc/jaeger" = {
-          endpoint = "127.0.0.1:14317";
-          tls.insecure = true;
+        "otlp_http/openobserve" = {
+          endpoint = "http://127.0.0.1:5080/api/default";
+          headers.Authorization = "Basic ${openobserve.basic}";
         };
         debug.verbosity = "basic";
-        "file/logs".path = "${config.devenv.state}/otel-logs.jsonl";
-        "file/metrics".path = "${config.devenv.state}/otel-metrics.jsonl";
       };
       service.pipelines = {
         traces = {
           receivers = ["otlp"];
           processors = ["batch"];
-          exporters = ["otlp_grpc/jaeger"];
+          exporters = ["otlp_http/openobserve"];
         };
         logs = {
           receivers = ["otlp" "syslog"];
           processors = ["batch"];
-          exporters = ["debug" "file/logs"];
+          exporters = ["debug" "otlp_http/openobserve"];
         };
         metrics = {
           receivers = ["otlp"];
           processors = ["batch"];
-          exporters = ["file/metrics"];
+          exporters = ["otlp_http/openobserve"];
         };
       };
     };
   };
-  processes.jaeger = {
-    exec = "exec ${jaeger}/bin/jaeger --config ${jaegerConfig}";
+  # ZO_TELEMETRY=false: no usage reports sent by the console.
+  processes.openobserve = {
+    exec = ''
+      exec env ZO_DATA_DIR=${config.devenv.state}/openobserve \
+        ZO_HTTP_ADDR=127.0.0.1 ZO_GRPC_ADDR=127.0.0.1 ZO_TELEMETRY=false \
+        ZO_ROOT_USER_EMAIL='${openobserve.email}' ZO_ROOT_USER_PASSWORD='${openobserve.password}' \
+        ${pkgs.openobserve}/bin/openobserve
+    '';
     ready.http.get = {
       host = "127.0.0.1";
-      port = 16686;
-      path = "/";
+      port = 5080;
+      path = "/healthz";
     };
   };
 
