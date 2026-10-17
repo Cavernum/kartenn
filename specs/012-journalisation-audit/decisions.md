@@ -132,7 +132,7 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 - Pourquoi : CNIL 2021-122 (6 mois à 1 an), ANSSI R24, R25 ; l'export garantit la
   conservation à plus long terme hors de kartenn si besoin.
 - Point d'attention : précise C4 sans le contredire (C4 vise l'historique des objets).
-- Décidé par : délégué (2026-10-17), à confirmer par l'utilisateur
+- Décidé par : délégué (2026-10-17), confirmé par l'utilisateur (2026-10-17)
 
 ## L12 — Changement de niveau à chaud
 - Décision : le filtre de chaque sortie technique est modifiable à chaud par une
@@ -181,20 +181,59 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 
 ## L17 — Environnement de développement
 - Décision : `devenv up` lance un collecteur OpenTelemetry (service natif de devenv, build
-  contrib) et **Jaeger v2** comme console : OTLP sur 4317/4318 et syslog RFC 5424 sur
-  5514 vers le collecteur ; traces vers Jaeger (interface sur 16686) ; logs et métriques
-  dans le journal du collecteur et en fichiers JSON.
-- Pourquoi : ni Jaeger ni le tableau de bord Aspire ne sont dans nixpkgs et l'hôte n'a pas
-  de moteur de conteneurs ; Jaeger existe en binaire statique, Aspire seulement en
-  conteneur ou sous .NET. Jaeger n'affiche que les traces : les logs passent par le
-  collecteur.
-- Rejeté : tableau de bord Aspire (logs, traces et métriques réunis, mais conteneur
-  requis) ; à réévaluer si un moteur de conteneurs est ajouté.
-- Décidé par : utilisateur (Jaeger ou Aspire au choix) ; délégué (Jaeger, 2026-10-17) —
-  fait (commit 659913f)
+  contrib) et **OpenObserve** comme console : OTLP sur 4317/4318 et syslog RFC 5424 (TCP,
+  comptage d'octets) sur 5514 vers le collecteur, qui transmet logs, traces et métriques
+  à OpenObserve (interface sur 5080).
+- Pourquoi : une seule interface pour les trois signaux, dans nixpkgs, sous AGPL-3.0
+  comme kartenn, en un binaire, sans moteur de conteneurs. Jaeger v2, même récent, reste
+  limité aux traces dans son interface (il reçoit l'OTLP, mais n'affiche pas de logs).
+- Rejeté : Jaeger (traces seulement ; d'abord retenu, commit 659913f, remplacé le
+  2026-10-17 à la demande de l'utilisateur) ; tableau de bord Aspire (conteneur ou .NET) ;
+  SigNoz (ClickHouse en plus, absent de nixpkgs) ; pile Grafana LGTM (cinq composants).
+- Décidé par : utilisateur (une console qui affiche tout) ; délégué (OpenObserve,
+  2026-10-17) — fait (commit 170387a)
 
 ## L18 — Rapport avec D35
 - D35 prévoyait « logs JSON via OpenTelemetry ». La 012 le conserve et l'étend (sorties
   multiples, syslog, journald). Ce n'est pas une contradiction, mais une précision à
   reporter dans D35 si la spec est approuvée.
 - Décidé par : délégué (2026-10-17)
+
+## L19 — Syslog sans numéro d'entreprise IANA
+- Constat : les projets libres qui émettent du RFC 5424 sur le réseau ne déclarent en
+  général pas de données structurées privées. Keycloak, par exemple, émet du RFC 5424 en
+  TCP, UDP ou TLS, avec comptage d'octets en TCP, et met l'événement en JSON (ou ECS)
+  dans MSG, sans SD-ID privé. D'autres serveurs se contentent du `syslog(3)` local
+  (RFC 3164), dont certains coffres-forts de secrets pour leur audit. Ceux qui ont des
+  SD-ID privés utilisent le numéro d'entreprise de leur éditeur.
+- Décision : comme Keycloak : RFC 5424, champs d'en-tête renseignés (`APP-NAME`,
+  `PROCID`, `MSGID` = nom de l'événement), données structurées limitées aux SD-ID
+  enregistrés à l'IANA par la RFC 5424 §7 (`meta` avec `sequenceId`, `timeQuality`,
+  `origin`), qui ne demandent aucun numéro, et l'événement complet en JSON dans MSG. Un
+  SD-ID privé `kartenn@<PEN>` pourra s'ajouter si un numéro est obtenu, sans rien changer
+  d'autre.
+- Pourquoi : conforme à la RFC 5424 sans démarche préalable ; les collecteurs (rsyslog,
+  le récepteur syslog d'OpenTelemetry) analysent le JSON de MSG ; vérifié dans
+  l'environnement de développement (en-tête et `meta` extraits par le collecteur).
+- Rejeté : SD-ID privé avec le numéro réservé à la documentation (RFC 5612) en
+  production ; attendre un numéro IANA.
+- Décidé par : délégué (2026-10-17), à la question de l'utilisateur
+
+## L20 — Emplacement du journal d'audit
+- Décision : dans la base PostgreSQL de kartenn, schéma dédié `audit` : `audit_event`
+  (partitions mensuelles), `audit_seal` (sceaux), `audit_delivery` (livraisons par
+  sortie). Le rôle applicatif n'y a que `INSERT` et `SELECT` ; la purge et la création
+  des partitions passent par le rôle propriétaire (job de maintenance, comme les
+  partitions d'historique de la 004). Les sauvegardes de la base l'incluent. Hors de
+  kartenn, les copies exportées (collecteur, syslog, SIEM) relèvent de la rétention de
+  l'exploitant, qui peut être plus longue.
+- Pourquoi : même transaction que l'action (L3) ; un seul système à sauvegarder ; droits
+  séparés par schéma. Une base distincte rendrait l'écriture atomique impossible sans
+  transaction distribuée.
+- Option : un tablespace dédié pour isoler le volume (à mesurer en conception).
+- Décidé par : délégué (2026-10-17), rétention d'un an confirmée par l'utilisateur
+
+## L21 — Ordre de réalisation
+- Décision : concevoir et réaliser la 012 (mécanisme) avant la 005, qui émettra les
+  événements d'authentification et de droits ; les événements HTTP viendront avec la 006.
+- Décidé par : utilisateur (2026-10-17)

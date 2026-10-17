@@ -128,6 +128,21 @@ Recherche documentaire du 2026-10-17 ; ce qui n'a pas pu être relu à la source
 - **CNIL 2021-122** (citée par l'ANSSI) : conservation recommandée de 6 mois à 1 an,
   jusqu'à 3 ans dans certains cas.
 
+### Pratique d'autres projets libres (syslog)
+
+- **Keycloak** ([documentation de la journalisation](https://www.keycloak.org/server/logging),
+  consultée le 2026-10-17) : RFC 5424 par défaut (RFC 3164 en option), TCP, UDP ou TLS
+  (`ssl-tcp`), comptage d'octets par défaut en TCP, longueur maximale 2048 octets,
+  événement en JSON (ou ECS) dans MSG, aucune donnée structurée privée ; plusieurs
+  sorties simultanées (console, fichier, syslog), chacune avec son niveau.
+- **Coffre-fort de secrets à audit syslog**
+  ([exemple](https://developer.hashicorp.com/vault/docs/audit/syslog)) : envoi au seul
+  agent syslog local ; la documentation conseille d'activer aussi une sortie fichier pour
+  qu'un échec syslog ne bloque pas le service, ce qui confirme que l'audit y est en échec
+  fermé.
+- **syslog-ng** : ses champs structurés propres utilisent le numéro d'entreprise IANA de
+  son éditeur (`…@18372.4`).
+
 ### Formats d'événements de sécurité
 
 - **OCSF 1.9** : classes « Authentication », « API Activity », « Account Change »… ; la
@@ -164,6 +179,8 @@ Recherche documentaire du 2026-10-17 ; ce qui n'a pas pu être relu à la source
 
 ## Implications pour kartenn (propositions, tranchées dans la spec 012)
 
+- Syslog sans numéro d'entreprise : en-tête RFC 5424 renseigné, SD-ID enregistrés
+  seulement (`meta`, `timeQuality`), événement en JSON dans MSG (pratique de Keycloak).
 - Séparer les **logs techniques** (pertes possibles, comptées) du **journal d'audit**
   (sans perte silencieuse, écrit en base dans la transaction de l'action ou avant la
   réponse) ; les changesets restent la piste d'audit des écritures (D8, D11).

@@ -15,7 +15,7 @@ ils sont structurés, ont plusieurs sorties simultanées et ne doivent jamais ra
 service. S'y ajoutent les traces et métriques OpenTelemetry. Les changesets restent la
 piste d'audit détaillée des écritures (D11, spec 004) ; le journal d'audit les référence.
 
-Décisions : [`decisions.md`](decisions.md) (L1–L18) ; D8, D9, D11, D13, D35, D36
+Décisions : [`decisions.md`](decisions.md) (L1–L21) ; D8, D9, D11, D13, D35, D36
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; C4 de la
 [004](../004-changesets-bitemporel/decisions.md). Sources :
 [`docs/reference/journalisation-audit.md`](../../docs/reference/journalisation-audit.md).
@@ -162,7 +162,8 @@ Acceptation :
 - Chaque événement du catalogue (REQ-012-30) valide un schéma JSON publié.
 
 #### REQ-012-11 — Durabilité, échec fermé
-kartenn doit enregistrer un événement d'audit dans la base dans la transaction de
+kartenn doit enregistrer un événement d'audit dans sa base PostgreSQL (schéma `audit`,
+L20) dans la transaction de
 l'action qu'il décrit quand elle écrit, sinon avant de répondre. Si l'enregistrement
 échoue, alors kartenn doit faire échouer l'action (réponse 503, aucun effet) et produire
 un log technique ERROR. [L3, AU-5(4), OWASP A09]
@@ -213,7 +214,7 @@ Acceptation :
   OTLP est remplacé par un envoi acquitté avec reprise).
 
 #### REQ-012-16 — Rétention
-kartenn doit conserver les événements d'audit pendant une durée configurable, un an par
+kartenn doit conserver les événements d'audit, dans sa base (schéma `audit`, L20), pendant une durée configurable, un an par
 défaut, puis les purger par mois entiers, à condition que tous soient scellés et
 exportés vers chaque sortie d'audit ; les sceaux restent, pour que la chaîne des mois
 conservés reste vérifiable. Les changesets et l'historique des objets ne sont pas
@@ -267,10 +268,12 @@ Acceptation :
 
 #### REQ-012-21 — Conformité syslog
 kartenn doit émettre en syslog des messages RFC 5424 : version 1, `APP-NAME` `kartenn`,
-`PROCID` égal au PID, `MSGID` égal au nom de l'événement, données structurées sous un
-SD-ID privé `kartenn@<PEN>` (valeurs échappées, RFC 5424 §6.3.3), SD `meta` avec
-`sequenceId`, MSG en UTF-8 précédé du BOM ; en TLS, TLS 1.2 au moins, 1.3 préféré, sans
-0-RTT. [RFC 5424 §6, §6.3, §7.3.1 ; RFC 9662]
+`PROCID` égal au PID, `MSGID` égal au nom de l'événement, données structurées limitées
+aux SD-ID enregistrés (`meta` avec `sequenceId`, `timeQuality`), événement complet en
+JSON dans MSG, en UTF-8 précédé du BOM ; en TLS, TLS 1.2 au moins, 1.3 préféré, sans
+0-RTT. Là où un numéro d'entreprise IANA est configuré, kartenn peut ajouter un SD-ID
+privé `kartenn@<PEN>` (valeurs échappées, RFC 5424 §6.3.3). [L19 ; RFC 5424 §6, §6.3,
+§7 ; RFC 9662]
 
 Acceptation :
 - Les messages émis sont acceptés par un analyseur RFC 5424 strict et par le récepteur
@@ -415,12 +418,12 @@ Acceptation :
 #### REQ-012-35 — Environnement de développement
 Là où l'environnement de développement est utilisé, kartenn doit pouvoir exporter vers
 le collecteur local (OTLP sur 127.0.0.1:4317/4318, syslog RFC 5424 sur 127.0.0.1:5514),
-dont la console affiche les traces. [L17]
+dont la console affiche logs, traces et métriques. [L17]
 
 Acceptation :
-- `devenv up`, puis une requête : la trace est visible dans Jaeger, les logs dans le
-  journal du collecteur. Fait pour l'outillage (collecteur, Jaeger), à compléter par
-  l'application.
+- `devenv up`, puis une requête : la trace, les logs et les métriques sont visibles dans
+  OpenObserve. Fait pour l'outillage (collecteur, OpenObserve, syslog vérifié), à
+  compléter par l'application.
 
 ## Non-objectifs
 
@@ -434,16 +437,10 @@ Acceptation :
 
 ## Questions ouvertes
 
-- [ ] **Numéro d'entreprise privé IANA (PEN)** pour le SD-ID syslog `kartenn@<PEN>`
-  (RFC 5424 §6.3.2). Il est gratuit et s'obtient auprès de l'IANA, mais seule la personne
-  qui porte le projet peut le demander. D'ici là : le PEN 32473, réservé à la
-  documentation par la RFC 5612, en développement seulement. (utilisateur)
-- [ ] Rétention par défaut de l'audit : un an (L11) convient-il ? (utilisateur)
+- [x] ~~Numéro d'entreprise IANA~~ : non requis (L19) ; facultatif si obtenu plus tard.
+- [x] ~~Rétention par défaut de l'audit~~ : un an, confirmé ; emplacement : L20.
 - [ ] Emplacement de la clé de signature des sceaux (fichier, variable d'environnement,
   gestionnaire de secrets) : à trancher en conception, avec la 005. (Claude, conception)
 - [ ] Déclarer une propriété « sensible » (REQ-012-18) demande un attribut de
   déclaration : amendement de la 003 à prévoir en conception. (Claude, conception)
-- [ ] Ordre de réalisation : la 012 fournit le mécanisme dont la 005 (événements
-  d'authentification et de droits) et la 006 (requêtes HTTP) ont besoin ; proposition :
-  concevoir la 012 avant la 005, et ne livrer les événements HTTP qu'avec la 006.
-  (utilisateur)
+- [x] ~~Ordre de réalisation~~ : la 012 avant la 005 (L21).
