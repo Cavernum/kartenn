@@ -118,6 +118,7 @@ Non-objectifs :
 | [0016](../adr/0016-resolution-materialisee-proprietes.md) | Résolution matérialisée et versionnée des propriétés | accepted |
 | [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | accepted |
 | [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | accepted |
+| [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | proposed |
 
 ## Questions ouvertes
 
