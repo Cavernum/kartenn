@@ -107,8 +107,12 @@ en fournit le mécanisme et les teste avec des appels directs.
   les autres — `capture::{CaptureLayer, Output, Record, drive}` ; filtre
   `EnvFilter` propre à chaque sortie, remplaçable à chaud ; la neutralisation des
   caractères de contrôle se fait au formatage texte (tâche 14)
-- [ ] 14. Sorties `stdout` (texte, JSON), `file`, `journald`, `syslog` — REQ-012-3, 20, 21
-  — verify : même événement sur chaque sortie (sévérité, nom, horodatage)
+- [x] 14. Sorties `stdout` (texte, JSON), `file`, `journald`, `syslog` — REQ-012-3, 20, 21
+  — verify : même événement sur chaque sortie (sévérité, nom, horodatage) —
+  `outputs::{Stdout, File, Journald, Syslog}` (`kartenn-telemetry/tests/outputs.rs`) ;
+  journald par son protocole natif (forme binaire pour les valeurs à plusieurs lignes),
+  `MESSAGE_ID` dérivé du nom par SHA-256 plutôt qu'en UUID v5 (même usage, sans
+  dépendance de plus)
 - [ ] 15. OpenTelemetry : traces, métriques, logs sans double export, échantillonneur et
   appelants de confiance, Baggage ignoré, filtres anti-boucle, métriques de REQ-012-25 —
   REQ-012-6, 7, 24, 25 — verify : test d'intégration contre un récepteur OTLP de test
