@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
+use crate::audit::{Outcome as AuditOutcome, RequestContext, denial};
 use crate::authz::Authorizer;
 use crate::declarations::SYSTEM_AUTHOR;
 use crate::expected::Sources;
@@ -94,6 +95,27 @@ fn refused(rule: &'static rules::Rule, message: String, id: Uuid) -> RequestErro
     RequestError::Review(Violation::new(rule, message).with_subjects([id]))
 }
 
+/// A refused review, with its `authz.access.denied` event when it is a refusal of rights
+/// (REQ-012-8): the event is recorded before the refusal is returned.
+pub(crate) async fn audited<S: Store>(
+    store: &S,
+    context: &RequestContext,
+    error: RequestError,
+    changeset: Uuid,
+) -> RequestError {
+    let RequestError::Review(violation) = &error else {
+        return error;
+    };
+    match denial(context, violation, Some(changeset)) {
+        Ok(None) => error,
+        Ok(Some(event)) => match store.audit(&event).await {
+            Ok(()) => error,
+            Err(e) => RequestError::Audit(e),
+        },
+        Err(e) => e,
+    }
+}
+
 /// A pending changeset, or why it cannot be decided.
 async fn pending<S: Store>(store: &S, id: Uuid) -> Result<PendingChangeset, RequestError> {
     match store.pending(id).await? {
@@ -159,12 +181,14 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
     let found = pending(store, id).await?;
+    let context = RequestContext::person(validator);
     if found.request.author == validator {
-        return Err(refused(
+        let error = refused(
             &rules::APPROVAL_SELF,
             format!("{validator} is the author of changeset {id}"),
             id,
-        ));
+        );
+        return Err(audited(store, &context, error, id).await);
     }
     let mode = Mode::Validation {
         id,
@@ -178,6 +202,7 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
         &found.request,
         max_operations,
         mode,
+        &context,
     )
     .await
 }
@@ -196,28 +221,37 @@ pub async fn reject<S: Store, A: Authorizer>(
     motive: &str,
 ) -> Result<(), RequestError> {
     let found = pending(store, id).await?;
+    let context = RequestContext::person(validator);
     if found.request.author == validator {
-        return Err(refused(
+        let error = refused(
             &rules::APPROVAL_SELF,
             format!("{validator} is the author of changeset {id}"),
             id,
-        ));
+        );
+        return Err(audited(store, &context, error, id).await);
     }
     if motive.trim().is_empty() {
         return Err(RequestError::MotiveRequired);
     }
     let denied = may_decide(authorizer, &found, validator).await?;
     if !denied.is_empty() {
-        return Err(RequestError::Review(
+        let error = RequestError::Review(
             Violation::new(
                 &rules::APPROVAL_FORBIDDEN,
                 format!("{validator} could not validate changeset {id}"),
             )
             .with_subjects(denied),
-        ));
+        );
+        return Err(audited(store, &context, error, id).await);
     }
+    let event = decision(
+        &context,
+        &kartenn_core::audit::CHANGESET_REJECTED,
+        id,
+        Some(motive),
+    )?;
     if store
-        .close_pending(id, "rejected", validator, Some(motive))
+        .close_pending(id, "rejected", validator, Some(motive), &event)
         .await?
     {
         Ok(())
@@ -238,14 +272,25 @@ pub async fn reject<S: Store, A: Authorizer>(
 /// author.
 pub async fn withdraw<S: Store>(store: &S, id: Uuid, author: Uuid) -> Result<(), RequestError> {
     let found = pending(store, id).await?;
+    let context = RequestContext::person(author);
     if found.request.author != author {
-        return Err(refused(
+        let error = refused(
             &rules::CHANGESET_NOT_AUTHOR,
             format!("only the author of changeset {id} withdraws it"),
             id,
-        ));
+        );
+        return Err(audited(store, &context, error, id).await);
     }
-    if store.close_pending(id, "withdrawn", author, None).await? {
+    let event = decision(
+        &context,
+        &kartenn_core::audit::CHANGESET_WITHDRAWN,
+        id,
+        None,
+    )?;
+    if store
+        .close_pending(id, "withdrawn", author, None, &event)
+        .await?
+    {
         Ok(())
     } else {
         Err(refused(
@@ -254,6 +299,24 @@ pub async fn withdraw<S: Store>(store: &S, id: Uuid, author: Uuid) -> Result<(),
             id,
         ))
     }
+}
+
+/// The event of a decision on a pending changeset.
+fn decision(
+    context: &RequestContext,
+    kind: &'static kartenn_core::audit::EventKind,
+    id: Uuid,
+    motive: Option<&str>,
+) -> Result<kartenn_core::audit::AuditEvent, RequestError> {
+    let mut event = context
+        .event(kind, AuditOutcome::Success)
+        .map_err(|e| RequestError::Audit(StoreError(e.to_string())))?
+        .target("changeset", [id])
+        .changeset(id);
+    if let Some(motive) = motive {
+        event = event.motive(motive);
+    }
+    Ok(event)
 }
 
 /// The job that expires the changesets pending past their deadline (REQ-004-23).

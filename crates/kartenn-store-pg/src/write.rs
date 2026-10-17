@@ -250,9 +250,13 @@ impl Store for PgStore {
         })
     }
 
+    async fn audit(&self, event: &kartenn_core::audit::AuditEvent) -> Result<(), StoreError> {
+        crate::audit_journal::insert(&self.pool, event, &self.instance).await
+    }
+
     async fn journal_refused(&self, journal: &Journal<'_>) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await.map_err(store_err)?;
-        write_journal(&mut tx, journal).await?;
+        write_journal(&mut tx, journal, &self.instance).await?;
         tx.commit().await.map_err(store_err)
     }
 
@@ -266,12 +270,13 @@ impl Store for PgStore {
         state: &'static str,
         by: Uuid,
         rejection: Option<&str>,
+        audit: &kartenn_core::audit::AuditEvent,
     ) -> Result<bool, StoreError> {
-        crate::pending::close(&self.pool, id, state, by, rejection).await
+        crate::pending::close(&self.pool, id, state, by, rejection, audit, &self.instance).await
     }
 
     async fn expire_pending(&self) -> Result<Vec<Uuid>, StoreError> {
-        crate::pending::expire(&self.pool).await
+        crate::pending::expire(&self.pool, &self.instance).await
     }
 
     async fn pending_proposals(&self) -> Result<Vec<PendingChangeset>, StoreError> {
@@ -390,7 +395,12 @@ fn violations_json(violations: &[Violation]) -> serde_json::Value {
 async fn write_journal(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
+    instance: &Instance,
 ) -> Result<(), StoreError> {
+    // REQ-012-11: the events of the changeset share its transaction.
+    for event in journal.audit {
+        crate::audit_journal::insert(&mut **tx, event, instance).await?;
+    }
     let (start, end) = match journal.request.period {
         None => (None, None),
         Some(p) => (
@@ -2246,7 +2256,7 @@ impl WriteTx for PgTx {
     }
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
-        write_journal(&mut self.tx, journal).await?;
+        write_journal(&mut self.tx, journal, &self.instance).await?;
         self.store_diff(journal.id).await?;
         crate::anomalies::record(
             &mut self.tx,

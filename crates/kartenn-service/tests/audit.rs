@@ -188,8 +188,13 @@ async fn pseudonymisation_keeps_the_history(pool: PgPool) {
         .execute(&pool)
         .await
         .unwrap();
-    assert_eq!(pseudonymise(&pool, 365).await.unwrap(), 1);
-    assert_eq!(pseudonymise(&pool, 365).await.unwrap(), 0, "only once");
+    let instance = kartenn_service::audit::Instance::new("test");
+    assert_eq!(pseudonymise(&pool, 365, &instance).await.unwrap(), 1);
+    assert_eq!(
+        pseudonymise(&pool, 365, &instance).await.unwrap(),
+        0,
+        "only once"
+    );
     let entry = search(&pool, &AuditFilter::default(), 10)
         .await
         .unwrap()

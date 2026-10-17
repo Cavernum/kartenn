@@ -55,6 +55,21 @@ pub enum DeployError {
 pub async fn deploy(pool: &PgPool) -> Result<(), DeployError> {
     crate::MIGRATOR.run(pool).await?;
     history_partitions(pool, MONTHS_AHEAD).await?;
+    // REQ-012-8: the migration job is audited, by the system.
+    let event = kartenn_service::audit::RequestContext::system()
+        .event(
+            &kartenn_core::audit::SYS_MIGRATED,
+            kartenn_service::audit::Outcome::Success,
+        )
+        .and_then(|e| e.detail("version", env!("CARGO_PKG_VERSION")))
+        .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.to_string())))?;
+    crate::audit_journal::insert(
+        pool,
+        &event,
+        &kartenn_service::audit::Instance::new(env!("CARGO_PKG_VERSION")),
+    )
+    .await
+    .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.0)))?;
     // The registries embedded in the code, under their version (REQ-002-34; idempotent).
     for family in kartenn_core::family::ALL {
         if let Some(registry) = kartenn_core::registry::special_registry(family) {

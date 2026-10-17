@@ -13,6 +13,7 @@ use kartenn_core::values::Raw;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::audit::RequestContext;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
@@ -1126,6 +1127,29 @@ pub async fn submit_with<S: Store, A: Authorizer>(
     req: &ChangesetRequest,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
+    // The system author (module synchronisation, 003/P12) acts as kartenn itself.
+    let context = if req.author == crate::declarations::SYSTEM_AUTHOR {
+        RequestContext::system()
+    } else {
+        RequestContext::person(req.author)
+    };
+    submit_in(store, authorizer, sources, &context, req, max_operations).await
+}
+
+/// [`submit_with`] in the context of a request, whose actor, source and correlation the
+/// audit events take (spec 012, REQ-012-6, 9).
+///
+/// # Errors
+///
+/// As [`submit`].
+pub async fn submit_in<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    sources: &Sources,
+    context: &RequestContext,
+    req: &ChangesetRequest,
+    max_operations: usize,
+) -> Result<Outcome, RequestError> {
     run(
         store,
         authorizer,
@@ -1133,6 +1157,7 @@ pub async fn submit_with<S: Store, A: Authorizer>(
         req,
         max_operations,
         Mode::Submission,
+        context,
     )
     .await
 }
@@ -1159,6 +1184,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
     req: &ChangesetRequest,
     max_operations: usize,
     mode: Mode,
+    context: &RequestContext,
 ) -> Result<Outcome, RequestError> {
     let period = check_request(req, max_operations)?;
     let changeset = match mode {
@@ -1193,7 +1219,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
     crate::expected::check_declared_sources(&planned, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
-        return refuse(store, req, changeset, violations, mode).await;
+        return refuse(store, req, changeset, violations, mode, context).await;
     }
     // REQ-004-26: closures in cascade, expanded before the locks.
     // REQ-004-2: each operation on its own period, or the changeset's; the property stage
@@ -1228,7 +1254,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
     }
     if has_errors(&violations) {
         tx.rollback().await?;
-        return refuse(store, req, changeset, violations, mode).await;
+        return refuse(store, req, changeset, violations, mode, context).await;
     }
     // Rights: the author's when submitting (a lack covered by `…propose` makes a
     // proposal); a proposal's validator's when validating it; the author's again for an
@@ -1275,7 +1301,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
             {
                 return Err(RequestError::Review(forbidden(validator, denied)));
             }
-            return refuse(store, req, changeset, violations, mode).await;
+            return refuse(store, req, changeset, violations, mode, context).await;
         }
         Err(e) => {
             tx.rollback().await?;
@@ -1313,6 +1339,7 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
                 };
                 return hold(
                     store,
+                    context,
                     req,
                     changeset,
                     kind,
@@ -1337,7 +1364,8 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
                 .await?;
             if !denied.is_empty() {
                 tx.rollback().await?;
-                return Err(RequestError::Review(forbidden(validator, denied)));
+                let error = RequestError::Review(forbidden(validator, denied));
+                return Err(crate::review::audited(store, context, error, changeset).await);
             }
         }
         Mode::Validation { .. } => {}
@@ -1361,6 +1389,12 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         objects: &objects,
         reevaluated: &reevaluated,
         diff: &diff,
+        audit: &[],
+    };
+    let events = crate::audit::changeset_events(context, &journal, &planned)?;
+    let journal = Journal {
+        audit: &events,
+        ..journal
     };
     tx.journal_applied(&journal).await?;
     tx.commit().await?;
@@ -1432,6 +1466,7 @@ fn only_rights(violations: &[Violation]) -> Option<Vec<Uuid>> {
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 async fn hold<S: Store>(
     store: &S,
+    context: &RequestContext,
     req: &ChangesetRequest,
     changeset: Uuid,
     kind: PendingKind,
@@ -1452,6 +1487,12 @@ async fn hold<S: Store>(
         objects: &[],
         reevaluated: &[],
         diff: &diff,
+        audit: &[],
+    };
+    let events = crate::audit::changeset_events(context, &journal, &[])?;
+    let journal = Journal {
+        audit: &events,
+        ..journal
     };
     store.journal_refused(&journal).await?;
     Ok(Outcome::Pending {
@@ -1576,6 +1617,7 @@ async fn refuse<S: Store>(
     changeset: Uuid,
     violations: Vec<Violation>,
     mode: Mode,
+    context: &RequestContext,
 ) -> Result<Outcome, RequestError> {
     if req.simulate {
         return Ok(Outcome::Simulated {
@@ -1606,6 +1648,12 @@ async fn refuse<S: Store>(
         objects: &[],
         reevaluated: &[],
         diff: &[],
+        audit: &[],
+    };
+    let events = crate::audit::changeset_events(context, &journal, &[])?;
+    let journal = Journal {
+        audit: &events,
+        ..journal
     };
     store.journal_refused(&journal).await?;
     Ok(match mode {

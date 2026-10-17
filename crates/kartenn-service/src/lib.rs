@@ -20,5 +20,5 @@ mod rights;
 pub mod undo;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
-pub use pipeline::{Outcome, RequestError, submit, submit_with};
+pub use pipeline::{Outcome, RequestError, submit, submit_in, submit_with};
 pub use port::{Replay, Store, StoreError, WriteError, WriteTx};

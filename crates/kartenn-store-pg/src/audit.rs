@@ -1,5 +1,7 @@
 //! Audit search and pseudonymisation (REQ-004-27, 31 to 33).
 
+use kartenn_core::audit::PERSON_PSEUDONYMISED;
+use kartenn_service::audit::{Instance, Outcome, RequestContext};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgPool, QueryBuilder};
@@ -92,24 +94,41 @@ pub async fn search(
 }
 
 /// Pseudonymises the people who left at least `delay_days` days ago (REQ-004-33): their identity
-/// fields are replaced, their internal identifier and the history stay untouched.
-/// Returns the number of people pseudonymised.
+/// fields are replaced, their internal identifier and the history stay untouched; each one
+/// is audited, by the system, in the same transaction (REQ-012-8). Returns the number of
+/// people pseudonymised.
 ///
 /// # Errors
 ///
 /// Database errors.
-pub async fn pseudonymise(pool: &PgPool, delay_days: i32) -> sqlx::Result<u64> {
-    let done = sqlx::query(
+pub async fn pseudonymise(
+    pool: &PgPool,
+    delay_days: i32,
+    instance: &Instance,
+) -> sqlx::Result<u64> {
+    let mut tx = pool.begin().await?;
+    let people: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE person
          SET display_name = 'personne #' || left(id::text, 8), email = NULL, issuer = NULL, subject = NULL,
              pseudonymized_at = now()
          WHERE departed_at IS NOT NULL AND departed_at + make_interval(days => $1) <= now()
-           AND pseudonymized_at IS NULL",
+           AND pseudonymized_at IS NULL
+         RETURNING id",
     )
     .bind(delay_days)
-    .execute(pool)
+    .fetch_all(&mut *tx)
     .await?;
-    Ok(done.rows_affected())
+    for person in &people {
+        let event = RequestContext::system()
+            .event(&PERSON_PSEUDONYMISED, Outcome::Success)
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .target("person", [*person]);
+        crate::audit_journal::insert(&mut *tx, &event, instance)
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.0))?;
+    }
+    tx.commit().await?;
+    Ok(people.len() as u64)
 }
 
 /// Row of `changeset_diff`: order, property key, object, value before, value after.

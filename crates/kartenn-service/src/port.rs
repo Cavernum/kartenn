@@ -88,6 +88,8 @@ pub struct Journal<'a> {
     /// Differential of resolved values (REQ-003-19); its detail is the one recorded in
     /// the transaction by [`WriteTx::record_diff`].
     pub diff: &'a [DiffCount],
+    /// Audit events written with the journal, in its transaction (REQ-012-8, 11).
+    pub audit: &'a [kartenn_core::audit::AuditEvent],
 }
 
 /// What a pending changeset waits for (004/design, § Approbation et propositions).
@@ -286,6 +288,13 @@ pub trait Store: Send + Sync {
     /// Opens a transaction.
     fn begin(&self) -> impl Future<Output = Result<Self::Tx, StoreError>> + Send;
 
+    /// Records an audit event in a transaction of its own (REQ-012-11), for a refusal
+    /// that writes nothing else.
+    fn audit(
+        &self,
+        event: &kartenn_core::audit::AuditEvent,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// Journals a changeset that was not applied, in a transaction of its own.
     fn journal_refused(
         &self,
@@ -306,9 +315,11 @@ pub trait Store: Send + Sync {
         state: &'static str,
         by: Uuid,
         rejection: Option<&str>,
+        audit: &kartenn_core::audit::AuditEvent,
     ) -> impl Future<Output = Result<bool, StoreError>> + Send;
 
-    /// Expires the changesets pending past their deadline, with their events.
+    /// Expires the changesets pending past their deadline, with their events (outbox and
+    /// audit, the latter attributed to the system).
     fn expire_pending(&self) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
     /// Proposals pending, oldest first.

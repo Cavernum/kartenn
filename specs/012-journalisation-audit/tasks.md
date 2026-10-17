@@ -50,10 +50,15 @@ en fournit le mécanisme et les teste avec des appels directs.
 
 ## P3 — Événements émis
 
-- [ ] 6. Écritures et administration : `changeset.<état>` dans la transaction du journal,
+- [x] 6. Écritures et administration : `changeset.<état>` dans la transaction du journal,
   `authz.denied`, politiques d'approbation, déclarations, imports, annulation,
   pseudonymisation, migration — REQ-012-8, 9 — verify : un test par ligne du tableau
-  concernée (`MemoryJournal` et PostgreSQL)
+  concernée (`MemoryJournal` et PostgreSQL) — `kartenn-service/tests/audit_events.rs` ; les événements
+  passent par `Journal::audit`, `Store::audit` (refus sans autre écriture) et
+  `close_pending` ; `submit_in` reçoit le contexte, `submit` en déduit un ; l'auteur
+  système agit comme `system` ; les refus de droits en revue (valider son propre
+  changeset, retirer celui d'un autre) sont aussi audités ; l'annulation produit un
+  changeset ordinaire, audité à sa soumission
 - [ ] 7. Lectures : `RequestContext` dans les lectures du store et du service,
   `data.objects.read` (`low`) ; attribut `sensitive` des déclarations (amendement 003 :
   migration, opérations, droits) et `data.sensitive.read` (`high`) ; consultation de

@@ -1,7 +1,9 @@
 //! Pending changesets and approval policies in PostgreSQL (spec 004, REQ-004-19 to 24,
 //! 39 to 43; tasks 004-11 to 14).
 
+use kartenn_core::audit::{AuditEvent, CHANGESET_EXPIRED};
 use kartenn_service::ChangesetRequest;
+use kartenn_service::audit::{Instance, Outcome, RequestContext};
 use kartenn_service::port::{ApprovalPolicy, Pending, PendingChangeset, StoreError, WriteError};
 use sqlx::types::Uuid;
 use sqlx::{PgConnection, PgPool};
@@ -104,6 +106,8 @@ pub(crate) async fn close(
     state: &str,
     by: Uuid,
     rejection: Option<&str>,
+    audit: &AuditEvent,
+    instance: &Instance,
 ) -> Result<bool, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
     let author: Option<Uuid> = sqlx::query_scalar(
@@ -122,12 +126,13 @@ pub(crate) async fn close(
         return Ok(false);
     };
     event(&mut tx, id, state, author, Some(by), rejection).await?;
+    crate::audit_journal::insert(&mut *tx, audit, instance).await?;
     tx.commit().await.map_err(store_err)?;
     Ok(true)
 }
 
 /// Expires the changesets pending past their deadline, with their events.
-pub(crate) async fn expire(pool: &PgPool) -> Result<Vec<Uuid>, StoreError> {
+pub(crate) async fn expire(pool: &PgPool, instance: &Instance) -> Result<Vec<Uuid>, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
     let expired: Vec<(Uuid, Uuid)> = sqlx::query_as(
         "UPDATE changeset SET state = 'expired'
@@ -138,6 +143,12 @@ pub(crate) async fn expire(pool: &PgPool) -> Result<Vec<Uuid>, StoreError> {
     .map_err(store_err)?;
     for (id, author) in &expired {
         event(&mut tx, *id, "expired", *author, None, None).await?;
+        let audit = RequestContext::system()
+            .event(&CHANGESET_EXPIRED, Outcome::Success)
+            .map_err(store_err)?
+            .target("changeset", [*id])
+            .changeset(*id);
+        crate::audit_journal::insert(&mut *tx, &audit, instance).await?;
     }
     tx.commit().await.map_err(store_err)?;
     Ok(expired.into_iter().map(|(id, _)| id).collect())
