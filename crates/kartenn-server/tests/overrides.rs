@@ -135,4 +135,34 @@ async fn an_override_reaches_every_instance_and_expires(pool: PgPool) {
             ),
         ]
     );
+
+    // A filter that lets nothing through disables the output: audited as such.
+    set_log_filter(
+        &store,
+        &grants,
+        &journal,
+        &RequestContext::person(admin),
+        "stdout",
+        "off",
+        None,
+        valid,
+    )
+    .await
+    .unwrap();
+    let last: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT name, details ->> 'output' FROM audit.event ORDER BY seq DESC LIMIT 2",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        last,
+        [
+            ("sys.output.disabled".to_owned(), Some("stdout".to_owned())),
+            (
+                "sys.log_filter.changed".to_owned(),
+                Some("stdout".to_owned())
+            ),
+        ]
+    );
 }

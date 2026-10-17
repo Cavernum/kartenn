@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use anyhow::{Context as _, anyhow};
 use kartenn_core::audit::seal::SealKey;
-use kartenn_core::audit::{Outcome, SYS_STARTED, SYS_STOPPED};
+use kartenn_core::audit::{Outcome, SYS_OUTPUT_DISABLED, SYS_STARTED, SYS_STOPPED};
 use kartenn_service::audit::{AuditJournal, Instance, RequestContext, SinkHealth, now};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::audit_relay::{RelayError, export_lag, relay_once};
@@ -39,6 +39,27 @@ const RELAY_BATCH: i64 = 500;
 const DRAIN_WITHIN: Duration = Duration::from_secs(1);
 /// Longest stop (REQ-012-34).
 const STOP_WITHIN: Duration = Duration::from_secs(10);
+
+/// At most one WARN per output in this period, when it drops records or refuses a batch
+/// (REQ-012-26).
+const WARN_EVERY: Duration = Duration::from_mins(1);
+
+/// Allows one WARN per key and [`WARN_EVERY`].
+#[derive(Default)]
+struct Throttle(std::collections::HashMap<String, std::time::Instant>);
+
+impl Throttle {
+    fn allow(&mut self, key: &str) -> bool {
+        let now = std::time::Instant::now();
+        match self.0.get(key) {
+            Some(last) if now.duration_since(*last) < WARN_EVERY => false,
+            _ => {
+                self.0.insert(key.to_owned(), now);
+                true
+            }
+        }
+    }
+}
 
 /// Between two comparisons of the clocks (REQ-012-32).
 const CLOCK_EVERY: Duration = Duration::from_mins(5);
@@ -257,6 +278,52 @@ fn sinks(config: &Config) -> anyhow::Result<Vec<(AnySink, SinkHealth)>> {
 }
 
 /// One relay pass over every audit output: health events and lag gauges updated.
+/// Records `sys.output.disabled` for each audit output that received events before and is
+/// no longer configured (REQ-012-26): removing an export is an audited change.
+async fn disabled_sinks(
+    pool: &PgPool,
+    journal: &PgAuditJournal,
+    config: &Config,
+) -> anyhow::Result<()> {
+    let known: Vec<String> = sqlx::query_scalar(
+        "SELECT substr(pass, length('audit.relay/') + 1) FROM pass_floor
+         WHERE pass LIKE 'audit.relay/%' ORDER BY pass",
+    )
+    .fetch_all(pool)
+    .await?;
+    for name in known
+        .iter()
+        .filter(|n| !config.audit.sinks.iter().any(|s| s.name() == n.as_str()))
+    {
+        let event = RequestContext::system()
+            .event(&SYS_OUTPUT_DISABLED, Outcome::Success)?
+            .detail("output", name.as_str())?;
+        journal
+            .record(&event)
+            .await
+            .map_err(|e| anyhow!("recording a disabled output: {}", e.0))?;
+        tracing::warn!(name: "sys.output.disabled", output = %name, "an audit output is no longer configured");
+    }
+    Ok(())
+}
+
+/// A WARN for each technical output that dropped records since the last call (at most one
+/// per [`WARN_EVERY`], REQ-012-26).
+fn warn_drops(outputs: &[capture::Output], seen: &mut std::collections::HashMap<String, u64>) {
+    for output in outputs {
+        let now = output.dropped();
+        let before = seen.insert(output.name().to_owned(), now).unwrap_or(0);
+        if now > before {
+            tracing::warn!(
+                name: "sys.output.dropped",
+                output = output.name(),
+                dropped = now - before,
+                "a technical output dropped records: its queue was full"
+            );
+        }
+    }
+}
+
 /// Seals full batches one after another, within [`DRAIN_WITHIN`].
 async fn seal_all(pool: &PgPool, key: Option<&SealKey>, instance: &Instance) {
     let started = std::time::Instant::now();
@@ -281,6 +348,7 @@ async fn relay_all(
     journal: &PgAuditJournal,
     sinks: &mut [(AnySink, SinkHealth)],
     instruments: Option<&Instruments>,
+    throttle: &mut Throttle,
 ) {
     for (sink, health) in sinks.iter_mut() {
         let started = std::time::Instant::now();
@@ -290,7 +358,9 @@ async fn relay_all(
         {
             result = relay_once(pool, sink, RELAY_BATCH).await;
         }
-        if let Err(RelayError::Sink { sink, error }) = &result {
+        if let Err(RelayError::Sink { sink, error }) = &result
+            && throttle.allow(sink)
+        {
             tracing::warn!(name: "audit.relay.failed", output = %sink, error = %error, "an audit output refused a batch");
         }
         let ok = !matches!(result, Err(RelayError::Sink { .. }));
@@ -360,6 +430,7 @@ pub async fn run(
         .await
         .map_err(|e| anyhow!("recording the start: {}", e.0))?;
     tracing::info!(name: "sys.instance.started", version = instance.version, instance = %id, "kartenn started");
+    disabled_sinks(&pool, &journal, config).await?;
 
     let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
     let mut filters = capture::FilterOverrides::new(
@@ -376,12 +447,18 @@ pub async fn run(
     let mut clock = tokio::time::interval(CLOCK_EVERY);
     let mut seal = tokio::time::interval(Duration::from_millis(config.audit.seal_interval_ms));
     let mut relay = tokio::time::interval(Duration::from_millis(config.audit.relay_interval_ms));
+    let mut drops = tokio::time::interval(WARN_EVERY);
+    let mut dropped_seen = std::collections::HashMap::new();
+    let mut throttle = Throttle::default();
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
             () = &mut shutdown => break,
             _ = seal.tick() => seal_all(&pool, key.as_ref(), &instance).await,
-            _ = relay.tick() => relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await,
+            _ = relay.tick() => {
+                relay_all(&pool, &journal, &mut sinks, instruments.as_ref(), &mut throttle).await;
+            }
+            _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
             _ = reread.tick() => {
                 if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
@@ -404,7 +481,14 @@ pub async fn run(
             let _ = journal.record(&event).await;
         }
         let _ = seal_once(&pool, key.as_ref(), &instance).await;
-        relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await;
+        relay_all(
+            &pool,
+            &journal,
+            &mut sinks,
+            instruments.as_ref(),
+            &mut throttle,
+        )
+        .await;
     };
     Ok(stop(telemetry, finish).await)
 }

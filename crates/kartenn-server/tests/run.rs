@@ -113,6 +113,40 @@ async fn an_instance_runs_and_stops_cleanly(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_audit_output_removed_from_the_configuration_is_audited(pool: PgPool) {
+    // `siem` received events before; the new configuration no longer has it.
+    sqlx::query(
+        "INSERT INTO pass_floor (pass) VALUES ('audit.relay/siem'), ('audit.relay/archive')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let dir = std::env::temp_dir().join(format!("kartenn-disabled-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let config = kartenn_server::config::from_toml(&format!(
+        r#"
+        [telemetry]
+        outputs = [{{ kind = "stdout", filter = "off" }}]
+        [audit]
+        sinks = [{{ kind = "file", name = "archive", path = "{}" }}]
+        "#,
+        dir.join("audit.jsonl").display()
+    ))
+    .unwrap();
+    kartenn_server::app::run(pool.clone(), &config, async {})
+        .await
+        .unwrap();
+    let disabled: Vec<Option<String>> = sqlx::query_scalar(
+        "SELECT details ->> 'output' FROM audit.event WHERE name = 'sys.output.disabled'",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(disabled, [Some("siem".to_owned())]);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn a_backlog_is_drained_in_one_tick(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-backlog-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

@@ -5,7 +5,7 @@
 use std::future::Future;
 use std::time::Duration;
 
-use kartenn_core::audit::{AuditEvent, SYS_LOG_FILTER_CHANGED, rfc3339};
+use kartenn_core::audit::{AuditEvent, SYS_LOG_FILTER_CHANGED, SYS_OUTPUT_DISABLED, rfc3339};
 use kartenn_core::period::Instant;
 use uuid::Uuid;
 
@@ -39,12 +39,12 @@ pub struct Override {
 
 /// Where the overrides live.
 pub trait Overrides: Send + Sync {
-    /// Writes the override of `over.output`, with its audit event, in one transaction.
+    /// Writes the override of `over.output`, with its audit events, in one transaction.
     fn set_override(
         &self,
         over: &Override,
         by: Option<Uuid>,
-        event: &AuditEvent,
+        events: &[AuditEvent],
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// The overrides not expired yet.
@@ -53,7 +53,8 @@ pub trait Overrides: Send + Sync {
 
 /// Sets the filter of `output` to `filter` for `ttl` (1 hour by default, 24 at most), for
 /// an actor holding [`OBSERVABILITY_ADMIN`]; `valid` checks the filter syntax (the
-/// service knows no filter syntax). A refusal is audited.
+/// service knows no filter syntax). A refusal is audited; the filter `off` is also
+/// audited as `sys.output.disabled`.
 ///
 /// # Errors
 ///
@@ -110,8 +111,20 @@ pub async fn set_log_filter<O: Overrides, A: Authorizer, J: AuditJournal>(
     ] {
         event = event.detail(key, value).map_err(audit_err)?;
     }
+    let mut events = vec![event];
+    // A filter that lets nothing through disables the output (REQ-012-26).
+    if filter.trim() == "off" {
+        events.push(
+            context
+                .event(&SYS_OUTPUT_DISABLED, Outcome::Success)
+                .map_err(audit_err)?
+                .target("observability", [OBSERVABILITY])
+                .detail("output", output.to_owned())
+                .map_err(audit_err)?,
+        );
+    }
     store
-        .set_override(&over, context.actor.id, &event)
+        .set_override(&over, context.actor.id, &events)
         .await
         .map_err(RequestError::Audit)?;
     Ok(over)

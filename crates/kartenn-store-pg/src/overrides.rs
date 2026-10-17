@@ -22,10 +22,12 @@ impl Overrides for PgStore {
         &self,
         over: &Override,
         by: Option<Uuid>,
-        event: &AuditEvent,
+        events: &[AuditEvent],
     ) -> Result<(), StoreError> {
         let mut tx = self.pool().begin().await.map_err(store_err)?;
-        crate::audit_journal::insert(&mut *tx, event, self.instance()).await?;
+        for event in events {
+            crate::audit_journal::insert(&mut *tx, event, self.instance()).await?;
+        }
         sqlx::query(
             "INSERT INTO observability_override (output, filter, expires_at, set_by)
              VALUES ($1, $2, $3, $4)
