@@ -95,6 +95,8 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Conséquences : validation des JWT par émetteur (JWKS en cache, contrôle `iss`/`aud`, RFC 8725) ; un même humain peut-il venir de deux émetteurs ? À traiter comme deux identités. Les instances sans état (D9) valident les jetons localement.
 - Rejeté : un seul IdP fédéré (dépendance forte à l'IdP central), comptes locaux pour les externes (cycle de vie, pas de MFA).
 - Décidé par : recommandation acceptée
+- Amendement (spec 005, K8, 2026-10-17) : les secrets des comptes de service sont générés par kartenn (256 bits) et stockés en HMAC-SHA-256 avec une clé serveur ; Argon2id reste pour les mots de passe humains de secours.
+- Décidé par (amendement) : utilisateur, sur recommandation
 
 ## D14 — Budgets de performance (p95 serveur, 10⁶ objets et 3 ans d'historique)
 - Lecture d'un objet < 50 ms ; page de liste filtrée (curseur, 100) < 150 ms ; sous-arbre de préfixes et occupation < 200 ms ; « à la date X » ≤ ×2 la lecture courante ; changeset unitaire < 200 ms ; import de 10⁶ objets < 15 min ; 200 utilisateurs concurrents et 50 écritures/s soutenues ; vue graphique fluide à 10⁴ nœuds, agrégation au-delà.
