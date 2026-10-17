@@ -237,6 +237,57 @@ where
     }
 }
 
+/// Applies the overrides read from the database to the outputs of this instance, and
+/// returns each output to its configured filter once its override is gone (REQ-012-27).
+/// The filter of the OpenTelemetry logs is not reloadable: it keeps its configuration.
+#[derive(Debug, Clone, Default)]
+pub struct FilterOverrides {
+    configured: std::collections::HashMap<String, String>,
+    applied: std::collections::HashMap<String, String>,
+}
+
+impl FilterOverrides {
+    /// The configured filter of each output, by name.
+    #[must_use]
+    pub fn new(configured: impl IntoIterator<Item = (String, String)>) -> Self {
+        Self {
+            configured: configured.into_iter().collect(),
+            applied: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Applies `overrides` (output, filter) to `outputs`; the names of the outputs whose
+    /// filter changed. An override whose filter does not parse is skipped.
+    pub fn apply(&mut self, outputs: &[Output], overrides: &[(String, String)]) -> Vec<String> {
+        let mut changed = Vec::new();
+        for output in outputs {
+            let wanted = overrides
+                .iter()
+                .find(|(name, _)| name == output.name())
+                .map(|(_, f)| f.clone());
+            let current = self.applied.get(output.name()).cloned();
+            match (wanted, current) {
+                (Some(filter), current) if current.as_ref() != Some(&filter) => {
+                    if output.set_filter(&filter).is_ok() {
+                        self.applied.insert(output.name().to_owned(), filter);
+                        changed.push(output.name().to_owned());
+                    }
+                }
+                (None, Some(_)) => {
+                    if let Some(configured) = self.configured.get(output.name())
+                        && output.set_filter(configured).is_ok()
+                    {
+                        self.applied.remove(output.name());
+                        changed.push(output.name().to_owned());
+                    }
+                }
+                _ => {}
+            }
+        }
+        changed
+    }
+}
+
 /// Where an output writes: a batch of records at a time.
 pub trait Writer: Send {
     /// Formats and writes `records`.

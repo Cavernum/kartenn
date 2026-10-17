@@ -74,6 +74,9 @@ pub enum RequestError {
     /// The idempotency key was already used with a different content (REQ-004-10).
     #[error("the idempotency key was already used for a different changeset")]
     IdempotencyConflict,
+    /// A filter that does not parse, or a duration out of bounds (REQ-012-27).
+    #[error("invalid filter or duration")]
+    InvalidOverride,
     /// The actor lacks this permission (refusal audited).
     #[error("permission {0} is required")]
     Forbidden(String),

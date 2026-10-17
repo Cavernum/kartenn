@@ -12,6 +12,7 @@ pub mod declarations;
 pub mod expected;
 mod global;
 pub mod import;
+pub mod observability;
 pub mod operations;
 pub mod pipeline;
 pub mod port;

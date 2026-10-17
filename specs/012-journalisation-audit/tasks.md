@@ -126,9 +126,12 @@ en fournit le mécanisme et les teste avec des appels directs.
   (`kartenn-server/tests/run.rs`, binaire essayé avec un vrai SIGTERM) ; la purge et la
   vérification nocturne sont les sous-commandes `audit purge` et `audit verify`, pour un
   minuteur (systemd, cron) : la purge exige le rôle propriétaire, que l'instance n'a pas
-- [ ] 17. Filtres à chaud : table `observability_override`, relecture, retour à
+- [x] 17. Filtres à chaud : table `observability_override`, relecture, retour à
   l'échéance, opération d'administration auditée — REQ-012-27 — verify : test sur deux
-  instances
+  instances — `observability::set_log_filter` (permission `core.observability.admin`,
+  1 h par défaut, 24 h au plus), `capture::FilterOverrides`, relecture par `run`
+  (`kartenn-server/tests/overrides.rs`) ; le filtre des logs OpenTelemetry n'est pas
+  rechargeable et garde sa configuration
 - [ ] 18. Écart d'horloge, crochet de panique — REQ-012-32, 33 — verify : horloge simulée
   décalée ; panique journalisée avec `trace_id`
 

@@ -46,6 +46,9 @@ pub struct Telemetry {
     /// Queue of each output, in records.
     #[serde(default = "queue")]
     pub queue: usize,
+    /// Between two readings of the filters changed at run time (REQ-012-27).
+    #[serde(default = "override_poll_ms")]
+    pub override_poll_ms: u64,
 }
 
 impl Default for Telemetry {
@@ -54,7 +57,33 @@ impl Default for Telemetry {
             outputs: default_outputs(),
             sampling_ratio: one(),
             queue: queue(),
+            override_poll_ms: override_poll_ms(),
         }
+    }
+}
+
+const fn override_poll_ms() -> u64 {
+    10_000
+}
+
+impl Telemetry {
+    /// The name of each output, in order: its kind, numbered from the second of a kind
+    /// (`file`, `file-2`); the key of its counters and of its overrides.
+    #[must_use]
+    pub fn names(&self) -> Vec<String> {
+        let mut seen = std::collections::HashMap::new();
+        self.outputs
+            .iter()
+            .map(|o| {
+                let n = seen.entry(o.kind()).or_insert(0);
+                *n += 1;
+                if *n == 1 {
+                    o.kind().to_owned()
+                } else {
+                    format!("{}-{n}", o.kind())
+                }
+            })
+            .collect()
     }
 }
 

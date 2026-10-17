@@ -110,7 +110,12 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
     let mut outputs = Vec::new();
     let mut tasks = Vec::new();
     let mut otlp = None;
-    for output in &config.telemetry.outputs {
+    for (output, name) in config
+        .telemetry
+        .outputs
+        .iter()
+        .zip(config.telemetry.names())
+    {
         if let Output::Otlp { filter } = output {
             otlp = Some((
                 Providers::otlp(identity, config.telemetry.sampling_ratio)?,
@@ -119,7 +124,7 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
             continue;
         }
         let (handle, receiver) =
-            capture::Output::new(output.kind(), output.filter(), config.telemetry.queue)?;
+            capture::Output::new(name, output.filter(), config.telemetry.queue)?;
         let until = stopped(stop_rx.clone());
         let task = match output {
             Output::Stdout { format, .. } => {
@@ -304,6 +309,18 @@ pub async fn run(
         .map_err(|e| anyhow!("recording the start: {}", e.0))?;
     tracing::info!(name: "sys.instance.started", version = instance.version, instance = %id, "kartenn started");
 
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
+    let mut filters = capture::FilterOverrides::new(
+        config.telemetry.names().into_iter().zip(
+            config
+                .telemetry
+                .outputs
+                .iter()
+                .map(|o| o.filter().to_owned()),
+        ),
+    );
+    let mut reread =
+        tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));
     let mut seal = tokio::time::interval(Duration::from_millis(config.audit.seal_interval_ms));
     let mut relay = tokio::time::interval(Duration::from_millis(config.audit.relay_interval_ms));
     tokio::pin!(shutdown);
@@ -316,6 +333,15 @@ pub async fn run(
                 }
             }
             _ = relay.tick() => relay_all(&pool, &journal, &mut sinks, instruments.as_ref()).await,
+            _ = reread.tick() => {
+                if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
+                    let pairs: Vec<(String, String)> =
+                        list.into_iter().map(|o| (o.output, o.filter)).collect();
+                    for output in filters.apply(&telemetry.outputs, &pairs) {
+                        tracing::info!(name: "sys.log_filter.applied", output = %output, "filter of an output changed");
+                    }
+                }
+            }
         }
     }
 

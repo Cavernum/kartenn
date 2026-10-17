@@ -118,6 +118,12 @@ impl PgStore {
         &self.pool
     }
 
+    /// The instance that records the audit events.
+    #[must_use]
+    pub const fn instance(&self) -> &Instance {
+        &self.instance
+    }
+
     /// The instance named by the audit events (REQ-012-10).
     #[must_use]
     pub fn with_instance(mut self, instance: Instance) -> Self {
