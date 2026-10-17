@@ -11,6 +11,7 @@
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
+| [012-journalisation-audit](012-journalisation-audit/) | brouillon, à valider | — | — |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
