@@ -321,8 +321,9 @@ aucun fichier n'est fourni, pour qu'elle soit la même sur toutes les instances.
 - Écart d'horloge : `SELECT clock_timestamp()` comparé à l'horloge locale au démarrage
   et toutes les 5 min (demi-durée d'aller-retour retranchée) ; WARN et métrique au-delà
   de 1 s.
-- Panique : `std::panic::set_hook` écrit un ERROR (message, emplacement, `trace_id`)
-  avant le gestionnaire par défaut ; les erreurs de requête deviennent des
+- Panique : `std::panic::set_hook` écrit un ERROR (message, emplacement, `trace_id`),
+  puis le rapport habituel sur la sortie d'erreur, à la place du gestionnaire par défaut
+  qui l'écrirait sans masquage (précision de la tâche 012-20) ; les erreurs de requête deviennent des
   `problem+json` génériques avec `request_id` (006).
 - Arrêt : à `SIGTERM`, arrêt des relais après leur lot en cours, vidage des files des
   sorties et `shutdown()` des fournisseurs OTel, dans 10 s au total ; un dernier log
