@@ -169,3 +169,94 @@ async fn a_refused_event_is_delivered_again(pool: PgPool) {
     assert!(matches!(failed, Err(RelayError::Sink { .. })));
     assert_eq!(drain(&pool, "flaky").await.len(), 1, "at least once");
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn events_of_a_domain_follow_the_order_of_its_changesets(pool: PgPool) {
+    // REQ-004-37, ADR 0018 amended: within a domain, the lock of ADR 0015 orders the
+    // events; a changeset waiting for a running one of its domain comes after it.
+    let author = person(&pool).await;
+    let store = PgStore::new(pool.clone());
+    let Outcome::Applied { .. } = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            author,
+            vec![Operation::CreateDomain {
+                local: None,
+                slug: "prod".into(),
+            }],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap() else {
+        panic!()
+    };
+    let domain: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    drain(&pool, "c").await;
+    let earlier: Uuid = sqlx::query_scalar(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES (gen_random_uuid(), $1, 'm', 'applied', 'direct', tstzrange(now(), NULL)) RETURNING id",
+    )
+    .bind(author)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // A changeset of the domain, still running: it holds the domain lock (key: the high 64
+    // bits of the domain's UUID) and has written its event.
+    let mut running = pool.begin().await.unwrap();
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(('x' || left(replace($1::text, '-', ''), 16))::bit(64)::bigint)",
+    )
+    .bind(domain)
+    .execute(&mut *running)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO outbox (changeset_id, domain_ids, payload) VALUES ($1, $2, '{}')")
+        .bind(earlier)
+        .bind(vec![domain])
+        .execute(&mut *running)
+        .await
+        .unwrap();
+    let later = tokio::spawn({
+        let store = store.clone();
+        async move {
+            submit(
+                &store,
+                &Unrestricted,
+                &request(
+                    author,
+                    vec![Operation::CreatePrefix {
+                        local: None,
+                        domain: Ref::Id(domain),
+                        prefix: "10.0.0.0/8".into(),
+                        nature: Nature::Container,
+                        point_to_point: false,
+                        anycast: false,
+                    }],
+                ),
+                MAX_OPERATIONS,
+            )
+            .await
+            .unwrap()
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(!later.is_finished(), "waits for the running changeset");
+    assert!(drain(&pool, "c").await.is_empty(), "nothing committed yet");
+    running.commit().await.unwrap();
+    let Outcome::Applied { changeset, .. } = later.await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(
+        drain(&pool, "c")
+            .await
+            .iter()
+            .map(|e| e.changeset)
+            .collect::<Vec<_>>(),
+        vec![earlier, changeset]
+    );
+}
