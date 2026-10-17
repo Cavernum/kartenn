@@ -17,10 +17,13 @@ en fournit le mécanisme et les teste avec des appels directs.
   verify : exemples de RFC 5424 §6.5, aller-retour par `syslog_rfc5424`, `proptest` sur
   l'échappement et la troncature — un champ réduit à `-` est refusé (il serait lu
   comme absent : trouvé par les tests de propriétés) ; hors du `workspace-hack` (hakari)
-- [ ] 2. Cadrage (comptage d'octets, fin de ligne, datagramme) et transports tokio :
+- [x] 2. Cadrage (comptage d'octets, fin de ligne, datagramme) et transports tokio :
   socket local, UDP, TCP, TLS rustls (TLS 1.2 minimum, sans 0-RTT), écriture par lot,
   reconnexion avec attente bornée — REQ-012-21 — verify : serveurs TCP et TLS de test
-  (certificat généré), coupure et reconnexion ; essai contre le collecteur de devenv
+  (certificat généré), coupure et reconnexion ; essai contre le collecteur de devenv —
+  `Sender::close` envoie le `close_notify` TLS (sans lui, le récepteur voit une fin
+  tronquée : trouvé par le test TLS) ; un message de deux lignes reçu comme un seul
+  enregistrement par le collecteur
 
 ## P2 — Modèle et stockage de l'audit
 

@@ -31,8 +31,15 @@ mod message;
 mod priority;
 mod structured;
 mod time;
+#[cfg(feature = "tokio")]
+mod transport;
 
 pub use error::Error;
 pub use message::{Body, Message};
 pub use priority::{Facility, Severity};
 pub use structured::SdElement;
+/// The rustls types a [`Target::Tls`] needs (`ClientConfig`, `ServerName`…).
+#[cfg(feature = "tls")]
+pub use tokio_rustls::rustls;
+#[cfg(feature = "tokio")]
+pub use transport::{Backoff, Framing, Sender, Target};

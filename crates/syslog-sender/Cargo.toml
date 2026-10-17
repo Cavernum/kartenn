@@ -13,8 +13,19 @@ categories = ["development-tools::debugging", "network-programming"]
 [lints]
 workspace = true
 
+[features]
+default = ["tokio", "tls"]
+# Asynchronous transports (local sockets, UDP, TCP); formatting alone needs nothing.
+tokio = ["dep:tokio"]
+# TLS (RFC 5425) with rustls and the ring provider.
+tls = ["tokio", "dep:tokio-rustls"]
+
 [dependencies]
+tokio = { version = "1.53.3", features = ["net", "io-util", "time"], optional = true }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"], optional = true }
 
 [dev-dependencies]
 proptest = "1.12.0"
+rcgen = "0.14.5"
 syslog_rfc5424 = "0.10.0"
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
