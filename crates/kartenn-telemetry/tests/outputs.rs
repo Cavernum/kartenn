@@ -135,8 +135,8 @@ fn text_neutralises_control_characters() {
     let record = kartenn_telemetry::capture::Record {
         time: std::time::UNIX_EPOCH,
         severity: kartenn_core::audit::Severity::Info,
-        name: "x.y.z".into(),
-        target: "t".into(),
+        name: "x.y.z",
+        target: "t",
         message: "forged\n1970-01-01T00:00:00.000000Z ERROR fake: line".into(),
         fields: std::collections::BTreeMap::new(),
         trace_id: None,

@@ -1,25 +1,30 @@
-//! OpenTelemetry (spec 012, REQ-012-6, 7, 24, 25; 012/L9): providers of traces, logs and
-//! metrics, exported in OTLP over gRPC; the `tracing` layers that feed them without
-//! exporting an event twice; the incoming trace context, followed only for trusted
-//! callers; the instruments of REQ-012-25.
+//! OpenTelemetry (spec 012, REQ-012-6, 7, 24, 25, 28; 012/L9): providers of traces, logs
+//! and metrics, exported in OTLP over gRPC; the layer of spans and the output of logs,
+//! which export an event once and mask secrets as the other outputs do; the incoming
+//! trace context, followed only for trusted callers; the instruments of REQ-012-25.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider as _};
 use opentelemetry::propagation::TextMapPropagator;
-use opentelemetry::trace::{SpanContext, TraceContextExt, TracerProvider as _};
-use opentelemetry::{Context, KeyValue};
-use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use opentelemetry::trace::{
+    SpanContext, SpanId, Status, TraceContextExt, TraceId, TracerProvider as _,
+};
+use opentelemetry::{Context, KeyValue, Value};
 use opentelemetry_sdk::Resource;
-use opentelemetry_sdk::logs::{LogExporter, SdkLoggerProvider};
+use opentelemetry_sdk::error::OTelSdkResult;
+use opentelemetry_sdk::logs::{LogExporter, SdkLogger, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::metrics::exporter::PushMetricExporter;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider, SpanExporter};
+use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider, SpanData, SpanExporter};
 use tracing::Subscriber;
 use tracing_subscriber::Layer;
-use tracing_subscriber::filter::{EnvFilter, filter_fn};
+use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::registry::LookupSpan;
+
+use crate::capture::{Record, Writer, mask, redact_credentials};
 
 /// Crates whose events and spans never reach the OpenTelemetry exporters: they carry the
 /// export itself, and would feed it back (telemetry loop).
@@ -94,6 +99,7 @@ impl Providers {
     ) -> Self {
         let resource = resource(identity);
         let sampler = Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(sampling_ratio)));
+        let spans = MaskingSpans(spans);
         let tracer = SdkTracerProvider::builder()
             .with_resource(resource.clone())
             .with_sampler(sampler);
@@ -162,24 +168,13 @@ impl Providers {
             .with_filter(filter_fn(|meta| meta.is_span() && !quiet(meta.target())))
     }
 
-    /// The layer of logs, through `filter` (`EnvFilter` syntax), the crates of the export
-    /// itself excluded.
-    ///
-    /// # Errors
-    ///
-    /// The filter does not parse.
-    pub fn log_layer<S>(
-        &self,
-        filter: &str,
-    ) -> Result<impl Layer<S> + use<S>, tracing_subscriber::filter::ParseError>
-    where
-        S: Subscriber + for<'a> LookupSpan<'a>,
-    {
-        let filter = QUIET
-            .iter()
-            .fold(filter.to_owned(), |acc, q| acc + "," + q + "=off");
-        let filter = EnvFilter::try_new(filter)?;
-        Ok(OpenTelemetryTracingBridge::new(&self.logger).with_filter(filter))
+    /// The output of technical logs: records of the capture, already filtered and masked,
+    /// handed to the logs provider (fed by [`crate::capture::drive`]).
+    #[must_use]
+    pub fn log_writer(&self) -> OtlpLogs {
+        OtlpLogs {
+            logger: self.logger.logger("kartenn"),
+        }
     }
 
     /// Flushes and stops the three providers (REQ-012-34).
@@ -345,5 +340,107 @@ impl Instruments {
                 .build(),
             gauges,
         }
+    }
+}
+
+/// The OTLP output of the technical logs. The crates of the export are skipped whatever
+/// the filter of the output (telemetry loop).
+#[derive(Debug)]
+pub struct OtlpLogs {
+    logger: SdkLogger,
+}
+
+impl OtlpLogs {
+    fn emit(&self, record: &Record) {
+        use opentelemetry::logs::Severity as S;
+        let mut log = self.logger.create_log_record();
+        log.set_event_name(record.name);
+        log.set_target(record.target);
+        log.set_timestamp(record.time);
+        log.set_observed_timestamp(std::time::SystemTime::now());
+        let severity = match record.severity {
+            kartenn_core::audit::Severity::Error => S::Error,
+            kartenn_core::audit::Severity::Warn => S::Warn,
+            kartenn_core::audit::Severity::Info => S::Info,
+            kartenn_core::audit::Severity::Debug => S::Debug,
+            kartenn_core::audit::Severity::Trace => S::Trace,
+        };
+        log.set_severity_number(severity);
+        log.set_severity_text(record.severity.as_str());
+        log.set_body(AnyValue::from(record.message.clone()));
+        log.add_attributes(record.fields.iter().map(|(k, v)| (k.clone(), v.clone())));
+        if let (Some(trace), Some(span)) = (&record.trace_id, &record.span_id)
+            && let (Ok(trace), Ok(span)) = (TraceId::from_hex(trace), SpanId::from_hex(span))
+        {
+            log.set_trace_context(trace, span, None);
+        }
+        self.logger.emit(log);
+    }
+}
+
+impl Writer for OtlpLogs {
+    // `emit` hands the record to the processor of the provider, which never blocks.
+    fn write(
+        &mut self,
+        records: &[Arc<Record>],
+    ) -> impl std::future::Future<Output = std::io::Result<()>> + Send {
+        for record in records.iter().filter(|r| !quiet(r.target)) {
+            self.emit(record);
+        }
+        std::future::ready(Ok(()))
+    }
+}
+
+/// The span exporter, with the attributes and status of each span masked as the capture
+/// masks fields (REQ-012-28): `tracing-opentelemetry` reads the raw fields of a span.
+#[derive(Debug)]
+struct MaskingSpans<E>(E);
+
+fn masked_value(key: &str, value: Value) -> Value {
+    match value {
+        Value::String(s) => Value::String(mask(key, s.as_str()).into()),
+        other => {
+            let text = other.to_string();
+            let masked = mask(key, &text);
+            if masked == text {
+                other
+            } else {
+                Value::String(masked.into())
+            }
+        }
+    }
+}
+
+fn mask_attributes(attributes: &mut [KeyValue]) {
+    for kv in attributes {
+        let value = std::mem::replace(&mut kv.value, Value::Bool(false));
+        kv.value = masked_value(kv.key.as_str(), value);
+    }
+}
+
+impl<E: SpanExporter> SpanExporter for MaskingSpans<E> {
+    async fn export(&self, mut batch: Vec<SpanData>) -> OTelSdkResult {
+        for span in &mut batch {
+            mask_attributes(&mut span.attributes);
+            for event in &mut span.events.events {
+                mask_attributes(&mut event.attributes);
+            }
+            if let Status::Error { description } = &mut span.status {
+                *description = redact_credentials(description).into();
+            }
+        }
+        self.0.export(batch).await
+    }
+
+    fn shutdown_with_timeout(&self, timeout: std::time::Duration) -> OTelSdkResult {
+        self.0.shutdown_with_timeout(timeout)
+    }
+
+    fn force_flush(&self) -> OTelSdkResult {
+        self.0.force_flush()
+    }
+
+    fn set_resource(&mut self, resource: &Resource) {
+        self.0.set_resource(resource);
     }
 }

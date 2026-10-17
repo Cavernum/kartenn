@@ -42,9 +42,9 @@ pub struct Record {
     /// Severity (REQ-012-4).
     pub severity: Severity,
     /// Stable name: the `name:` of the event, its target otherwise (REQ-012-5).
-    pub name: String,
+    pub name: &'static str,
     /// Module that emitted it.
-    pub target: String,
+    pub target: &'static str,
     /// Message.
     pub message: String,
     /// Other fields, masked and bounded.
@@ -117,6 +117,18 @@ fn masked(name: &str) -> bool {
     MASKED.iter().any(|m| name.contains(m))
 }
 
+/// The value of field `name` as an output may write it (REQ-012-28, 29): `***` for a
+/// secret by its name, otherwise the credentials of its URLs masked and the value
+/// bounded. Applied by the capture, and to the attributes of the exported spans.
+#[must_use]
+pub fn mask(name: &str, value: &str) -> String {
+    if masked(name) {
+        "***".into()
+    } else {
+        bounded(redact_credentials(value))
+    }
+}
+
 #[derive(Default)]
 struct Visitor {
     message: String,
@@ -127,11 +139,9 @@ impl Visitor {
     fn put(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
             self.message = bounded(redact_credentials(value));
-        } else if masked(field.name()) {
-            self.fields.insert(field.name().to_owned(), "***".into());
         } else {
             self.fields
-                .insert(field.name().to_owned(), bounded(redact_credentials(value)));
+                .insert(field.name().to_owned(), mask(field.name(), value));
         }
     }
 }
@@ -155,16 +165,16 @@ impl Record {
         event.record(&mut visitor);
         // An event without `name:` is called "event <file>:<line>" by tracing.
         let name = if meta.name().starts_with("event ") {
-            meta.target().to_owned()
+            meta.target()
         } else {
-            meta.name().to_owned()
+            meta.name()
         };
         let (trace_id, span_id) = crate::otel::current_ids().unzip();
         Self {
             time: SystemTime::now(),
             severity: severity(*meta.level()),
             name,
-            target: meta.target().to_owned(),
+            target: meta.target(),
             message: visitor.message,
             fields: visitor.fields,
             trace_id,
@@ -275,7 +285,6 @@ where
 
 /// Applies the overrides read from the database to the outputs of this instance, and
 /// returns each output to its configured filter once its override is gone (REQ-012-27).
-/// The filter of the OpenTelemetry logs is not reloadable: it keeps its configuration.
 #[derive(Debug, Clone, Default)]
 pub struct FilterOverrides {
     configured: std::collections::HashMap<String, String>,

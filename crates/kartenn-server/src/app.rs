@@ -137,12 +137,8 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
         .iter()
         .zip(config.telemetry.names())
     {
-        if let Output::Otlp { filter } = output {
-            otlp = Some((
-                Providers::otlp(identity, config.telemetry.sampling_ratio)?,
-                filter.clone(),
-            ));
-            continue;
+        if matches!(output, Output::Otlp { .. }) && otlp.is_none() {
+            otlp = Some(Providers::otlp(identity, config.telemetry.sampling_ratio)?);
         }
         let (handle, receiver) =
             capture::Output::new(name, output.filter(), config.telemetry.queue)?;
@@ -184,30 +180,25 @@ fn telemetry(config: &Config, identity: &Identity) -> anyhow::Result<Telemetry> 
                 let writer = outputs::Syslog::new(target, Facility::Daemon, host_name());
                 tokio::spawn(drive_until(receiver, writer, until))
             }
-            Output::Otlp { .. } => unreachable!("handled above"),
+            Output::Otlp { .. } => {
+                let writer = otlp.as_ref().expect("created above").log_writer();
+                tokio::spawn(drive_until(receiver, writer, until))
+            }
         };
         outputs.push(handle);
         tasks.push(task);
     }
-    let (trace, logs, providers) = match otlp {
-        Some((providers, filter)) => (
-            Some(providers.trace_layer()),
-            Some(providers.log_layer(&filter)?),
-            Some(providers),
-        ),
-        None => (None, None, None),
-    };
+    let trace = otlp.as_ref().map(Providers::trace_layer);
     let subscriber = tracing_subscriber::registry()
         .with(CaptureLayer::new(outputs.clone()))
-        .with(trace)
-        .with(logs);
+        .with(trace);
     if tracing::subscriber::set_global_default(subscriber).is_err() {
         eprintln!("kartenn: a global subscriber is already installed; keeping it");
     }
     Ok(Telemetry {
         outputs,
         tasks,
-        providers,
+        providers: otlp,
         stop,
     })
 }

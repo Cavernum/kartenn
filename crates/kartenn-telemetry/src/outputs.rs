@@ -201,9 +201,9 @@ impl Journald {
         field("MESSAGE", &record.message);
         field("PRIORITY", &record.severity.journald().to_string());
         field("SYSLOG_IDENTIFIER", "kartenn");
-        field("MESSAGE_ID", &message_id(&record.name));
-        field("KARTENN_EVENT_NAME", &record.name);
-        field("KARTENN_TARGET", &record.target);
+        field("MESSAGE_ID", &message_id(record.name));
+        field("KARTENN_EVENT_NAME", record.name);
+        field("KARTENN_TARGET", record.target);
         if let Some(trace) = &record.trace_id {
             field("TRACE_ID", trace);
         }

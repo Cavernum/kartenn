@@ -2,7 +2,7 @@
 //! contexts followed only for trusted callers, instruments with their units (spec 012,
 //! REQ-012-6, 7, 24, 25; task 012-15).
 
-use kartenn_telemetry::capture::{CaptureLayer, Output};
+use kartenn_telemetry::capture::{CaptureLayer, Output, drive};
 use kartenn_telemetry::otel::{Identity, Instruments, Providers, incoming};
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry_sdk::logs::InMemoryLogExporter;
@@ -31,17 +31,27 @@ async fn an_event_is_exported_once_with_the_trace_of_its_span() {
         metrics,
     );
     let (output, mut technical) = Output::new("stdout", "info", 16).unwrap();
+    let (otlp, otlp_rx) = Output::new("otlp", "info", 16).unwrap();
     let subscriber = tracing_subscriber::registry()
         .with(providers.trace_layer())
-        .with(providers.log_layer("info").unwrap())
-        .with(CaptureLayer::new(vec![output]));
+        .with(CaptureLayer::new(vec![output, otlp]));
     tracing::subscriber::with_default(subscriber, || {
-        let span = tracing::info_span!("submit");
+        let span = tracing::info_span!(
+            "submit",
+            token = "canary-span-token",
+            db = "postgres://kartenn:canary-span-password@db/kartenn"
+        );
         let _entered = span.enter();
-        tracing::event!(name: "pipeline.changeset.applied", tracing::Level::INFO, "applied");
+        tracing::event!(
+            name: "pipeline.changeset.applied",
+            tracing::Level::INFO,
+            authorization = "Basic Y2FuYXJ5LWxvZw==",
+            "applied"
+        );
         // The export crates are kept out of the export (telemetry loop).
         tracing::info!(target: "hyper::client", "connection");
     });
+    assert_eq!(drive(otlp_rx, providers.log_writer()).await, 0);
     providers.tracer.force_flush().unwrap();
     providers.logger.force_flush().unwrap();
 
@@ -59,6 +69,21 @@ async fn an_event_is_exported_once_with_the_trace_of_its_span() {
     let record = &emitted[0].record;
     assert_eq!(record.event_name(), Some("pipeline.changeset.applied"));
     assert_eq!(record.trace_context().unwrap().trace_id, resource_service);
+    assert_eq!(
+        record.severity_number(),
+        Some(opentelemetry::logs::Severity::Info)
+    );
+
+    // Secrets masked in the exported log and span (REQ-012-28).
+    let exported = format!("{:?}{:?}", record, finished[0].attributes);
+    for canary in [
+        "Y2FuYXJ5LWxvZw",
+        "canary-span-token",
+        "canary-span-password",
+    ] {
+        assert!(!exported.contains(canary), "{canary} leaked: {exported}");
+    }
+    assert!(exported.contains("postgres://kartenn:***@db/kartenn"));
 
     // The technical record carries the same trace.
     let captured = technical.try_recv().unwrap();

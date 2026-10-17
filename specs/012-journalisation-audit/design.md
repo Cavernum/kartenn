@@ -32,8 +32,9 @@ flowchart LR
 2. **Logs techniques** : le code n'utilise que `tracing`. Une couche de capture convertit
    chaque événement une seule fois en enregistrement, puis le distribue à des files
    bornées, une par sortie. Les sorties formatent et écrivent dans leur propre tâche.
-3. **OpenTelemetry** : spans et métriques par le SDK ; logs techniques par le pont
-   `opentelemetry-appender-tracing`, avec un filtre qui empêche le double export.
+3. **OpenTelemetry** : spans et métriques par le SDK ; logs techniques par la couche de
+   capture, comme les autres sorties (une sortie `otlp` qui remet les enregistrements
+   déjà masqués au fournisseur de logs du SDK).
 
 ## Changements
 
@@ -44,7 +45,7 @@ flowchart LR
 | `kartenn-core` | `audit` : type `AuditEvent`, `Severity`, `Criticality`, `Actor`, `Outcome` ; catalogue des événements (comme `rules.rs`) ; empreinte canonique d'un événement et d'un lot ; `Secret<T>` | `sha2` |
 | `kartenn-service` | port `AuditJournal` ; `RequestContext` (acteur, source, corrélation) ; émission des événements dans le pipeline et les autres cas d'usage ; adaptateur en mémoire `MemoryJournal` | `tracing` (façade seulement) |
 | `kartenn-store-pg` | adaptateur `PgAuditJournal` ; scellement, relais, purge, vérification ; migration `0023_audit.sql` | — |
-| `kartenn-telemetry` (nouvelle) | couche de capture, sorties (stdout, fichier, journald, syslog), table des sévérités, configuration des filtres et rechargement, exporteurs d'audit (`AuditSink`), mise en place d'OpenTelemetry | `tracing-subscriber`, `tracing-appender`, `tracing-journald`, `tracing-opentelemetry`, `opentelemetry`, `opentelemetry_sdk`, `opentelemetry-otlp`, `opentelemetry-appender-tracing`, `tokio-rustls` |
+| `kartenn-telemetry` (nouvelle) | couche de capture, sorties (stdout, fichier, journald, syslog), table des sévérités, configuration des filtres et rechargement, exporteurs d'audit (`AuditSink`), mise en place d'OpenTelemetry | `tracing-subscriber`, `tracing-appender`, `tracing-journald`, `tracing-opentelemetry`, `opentelemetry`, `opentelemetry_sdk`, `opentelemetry-otlp`, `tokio-rustls` |
 | `syslog-sender` (nouvelle, indépendante) | message RFC 5424/3164, validation, cadrage, transports local, UDP, TCP, TLS (L24) | `tokio`, `tokio-rustls`, `rustls-pki-types` |
 | `kartenn-server` | configuration (`figment` : TOML puis variables `KARTENN_*` et `OTEL_*`), composition, sous-commandes `run`, `audit verify` | `figment` |
 
@@ -255,10 +256,18 @@ borne le message (8 Kio par défaut, troncature en fin, RFC 5424 §6.1).
   déploiement l'exige) ; ressource `service.name =
   kartenn`, `service.version`, `service.instance.id` (UUID v7 au démarrage).
 - Couches : `tracing-opentelemetry` pour les spans, **sans les événements** (filtre de
-  couche qui ne laisse passer que les spans), `opentelemetry-appender-tracing` pour les
-  logs ; un test vérifie qu'un événement n'arrive qu'une fois au collecteur.
-- Filtres de la couche OTLP : `hyper`, `h2`, `tonic`, `reqwest`, `tower` à `off` (boucle
-  de télémétrie).
+  couche qui ne laisse passer que les spans) ; les logs passent par la couche de capture
+  et une sortie `otlp` ; un test vérifie qu'un événement n'arrive qu'une fois au
+  collecteur.
+- Précision de la tâche 012-20 (secrets témoins) : le pont
+  `opentelemetry-appender-tracing` lisait les champs bruts de `tracing`, sans le masquage
+  de la capture, et un processeur de logs du SDK ne peut pas retirer un attribut. Les logs
+  OTLP passent donc par la capture (masquage, file bornée, filtre changeable à chaud) ;
+  l'exporteur de spans est enveloppé d'un exporteur qui masque les attributs des spans
+  (mêmes noms, mêmes URL que la capture) avant l'envoi.
+- Boucle de télémétrie : `hyper`, `h2`, `tonic`, `reqwest`, `tower` et `opentelemetry*`
+  ne sont jamais exportés en OTLP (écartés par la sortie `otlp` et par la couche des
+  spans), quel que soit le filtre.
 - Échantillonneur : `ParentBased(TraceIdRatio(r))`, `r` configurable (1,0 par défaut) ;
   le parent n'est suivi que si l'appelant est dans `telemetry.trusted_callers`
   (adresses ou comptes de service), sinon nouvelle racine liée (`link`) au contexte reçu
