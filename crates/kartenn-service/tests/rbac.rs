@@ -1006,3 +1006,65 @@ async fn issuers_and_identities_need_global_administration(pool: PgPool) {
     .unwrap();
     assert_eq!(attached, 1);
 }
+
+fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -> Operation {
+    Operation::SetApprovalPolicy {
+        name: name.into(),
+        min_operations: None,
+        min_diff_objects: None,
+        property_keys: Vec::new(),
+        domains: Vec::new(),
+        authors: Vec::new(),
+        scopes,
+        author_roles,
+        author_groups: Vec::new(),
+        enabled: true,
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let branch = BindingScope::Entity {
+        id: Ref::Id(t.ids["branch"]),
+    };
+    let outcome = t
+        .submit_as(&root, vec![policy_op("branch", vec![branch], Vec::new())])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let lab = t.ids["lab"];
+    // In the branch: held for approval; in the group's other network: applied.
+    match t.submit_as(&root, vec![new_address(lab, "10.5.0.9")]).await {
+        Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
+        other => panic!("expected an approval, got {other:?}"),
+    }
+    let outcome = t.submit_as(&root, vec![new_address(lab, "10.6.0.9")]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // By role: the contractors' changesets wait, whoever they touch.
+    let contractor = t.role("contractor", &["core.address.write"]).await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![policy_op(
+                "contractors",
+                Vec::new(),
+                vec!["contractor".into()],
+            )],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let worker = t.identity().await;
+    t.bind(Binding::Identity(worker.id), contractor, "group", None)
+        .await;
+    match t
+        .submit_as(&worker, vec![new_address(lab, "10.6.0.10")])
+        .await
+    {
+        Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
+        other => panic!("expected an approval, got {other:?}"),
+    }
+}

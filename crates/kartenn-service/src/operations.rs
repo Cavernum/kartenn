@@ -353,6 +353,16 @@ pub enum Operation {
         /// The author is one of these people.
         #[serde(default)]
         authors: Vec<Uuid>,
+        /// The changeset touches one of these scopes (entity, site or prefix, with their
+        /// subtrees) (005, REQ-005-27).
+        #[serde(default)]
+        scopes: Vec<BindingScope>,
+        /// The author holds one of these roles (005).
+        #[serde(default)]
+        author_roles: Vec<String>,
+        /// The author belongs to one of these groups, as (issuer, group) (005).
+        #[serde(default)]
+        author_groups: Vec<(String, String)>,
         /// A disabled policy holds nothing.
         #[serde(default = "enabled")]
         enabled: bool,

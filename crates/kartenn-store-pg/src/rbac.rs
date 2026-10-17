@@ -176,7 +176,7 @@ async fn sensitive(
 }
 
 /// `ids` with their descendants in `table` (`entity` or `site`) at `at`.
-async fn descendants(
+pub(crate) async fn descendants(
     conn: &mut PgConnection,
     table: &str,
     ids: &[Uuid],
@@ -426,4 +426,62 @@ impl Authorizer for PgAuthorizer {
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send {
         tx.rbac_outside(subject, permission, objects)
     }
+}
+
+/// Whether one of `objects` lies in the scope `kind` `scope` or below it, now, as `conn`
+/// sees them (approval policies by scope, REQ-005-27).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn scope_touched_on(
+    conn: &mut PgConnection,
+    kind: &str,
+    scope: Uuid,
+    objects: &[Uuid],
+) -> Result<bool, StoreError> {
+    let now = OffsetDateTime::now_utc();
+    let mut v = Visibility::none();
+    match kind {
+        "entity" => v.entities = descendants(conn, "entity", &[scope], now).await?,
+        "site" => v.sites = descendants(conn, "site", &[scope], now).await?,
+        "prefix" => {
+            v.prefixes = sqlx::query_as(
+                "SELECT domain_id, prefix::text FROM prefix WHERE id = $1 AND valid_period @> $2",
+            )
+            .bind(scope)
+            .bind(now)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(store_err)?;
+        }
+        _ => return Ok(false),
+    }
+    Ok(outside_on(conn, &v, objects, now).await?.len() < objects.len())
+}
+
+/// The keys of the roles `subject` holds now, on any scope.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn roles_of_on(
+    conn: &mut PgConnection,
+    subject: &Subject,
+) -> Result<Vec<String>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT r.key FROM binding b
+         JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+         WHERE b.valid_period @> now()
+           AND ((b.subject_kind = 'identity' AND b.subject_id = $1)
+                OR (b.subject_kind = 'group' AND b.issuer = $2 AND b.group_name = ANY($3))
+                OR (b.subject_kind = 'issuer' AND b.issuer = $2))
+         ORDER BY r.key",
+    )
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)
 }

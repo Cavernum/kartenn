@@ -198,6 +198,16 @@ fn anchors(list: &serde_json::Value, key: &str) -> Vec<Uuid> {
         .collect()
 }
 
+/// The texts under `key` in a JSON array of objects.
+fn texts(array: &serde_json::Value, key: &str) -> Vec<String> {
+    array
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|a| Some(a.get(key)?.as_str()?.to_owned()))
+        .collect()
+}
+
 /// Enabled approval policies, by name.
 pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPolicy>, StoreError> {
     let rows: Vec<PolicyRow> = sqlx::query_as(
@@ -229,6 +239,27 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                     property_keys,
                     domains: anchors(&perimeters, "domain"),
                     authors: anchors(&authors, "person"),
+                    scopes: ["entity", "site", "prefix"]
+                        .iter()
+                        .flat_map(|kind| {
+                            anchors(&perimeters, kind)
+                                .into_iter()
+                                .map(move |id| ((*kind).to_owned(), id))
+                        })
+                        .collect(),
+                    author_roles: texts(&authors, "role"),
+                    author_groups: authors
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|a| {
+                            let g = a.get("group")?;
+                            Some((
+                                g.get(0)?.as_str()?.to_owned(),
+                                g.get(1)?.as_str()?.to_owned(),
+                            ))
+                        })
+                        .collect(),
                     enabled,
                 }
             },
@@ -257,11 +288,29 @@ pub(crate) async fn set_policy(
         .domains
         .iter()
         .map(|d| serde_json::json!({ "domain": d }))
+        .chain(
+            policy
+                .scopes
+                .iter()
+                .map(|(kind, id)| serde_json::json!({ kind.as_str(): id })),
+        )
         .collect();
     let authors: Vec<serde_json::Value> = policy
         .authors
         .iter()
         .map(|p| serde_json::json!({ "person": p }))
+        .chain(
+            policy
+                .author_roles
+                .iter()
+                .map(|r| serde_json::json!({ "role": r })),
+        )
+        .chain(
+            policy
+                .author_groups
+                .iter()
+                .map(|(i, g)| serde_json::json!({ "group": [i, g] })),
+        )
         .collect();
     sqlx::query(
         "INSERT INTO approval_policy

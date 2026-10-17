@@ -590,6 +590,22 @@ impl WriteTx for PgTx {
         crate::rbac_admin::write(&mut self.tx, op, at, until, changeset).await
     }
 
+    async fn scope_touched(
+        &mut self,
+        kind: &str,
+        scope: Uuid,
+        objects: &[Uuid],
+    ) -> Result<bool, StoreError> {
+        crate::rbac::scope_touched_on(&mut self.tx, kind, scope, objects).await
+    }
+
+    async fn roles_of(
+        &mut self,
+        subject: &kartenn_service::authz::Subject,
+    ) -> Result<Vec<String>, StoreError> {
+        crate::rbac::roles_of_on(&mut self.tx, subject).await
+    }
+
     async fn role_entries(&mut self, key: &str) -> Result<Option<Vec<String>>, StoreError> {
         crate::rbac_admin::role_entries(&mut self.tx, key).await
     }

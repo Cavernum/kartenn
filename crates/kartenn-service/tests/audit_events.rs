@@ -129,6 +129,9 @@ async fn refusals_of_rights_and_administration_are_audited(pool: PgPool) {
         property_keys: Vec::new(),
         domains: Vec::new(),
         authors: Vec::new(),
+        scopes: Vec::new(),
+        author_roles: Vec::new(),
+        author_groups: Vec::new(),
         enabled: true,
     };
     // Without the right: refused, and the refusal of right is audited.
@@ -200,6 +203,9 @@ async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
         property_keys: Vec::new(),
         domains: Vec::new(),
         authors: Vec::new(),
+        scopes: Vec::new(),
+        author_roles: Vec::new(),
+        author_groups: Vec::new(),
         enabled: true,
     };
     let admin = person(&pool, "admin").await;

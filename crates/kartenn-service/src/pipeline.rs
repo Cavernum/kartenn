@@ -619,7 +619,7 @@ fn plan_anchor(
             change: Change::Sensitive(*sensitive),
             expected: None,
         },
-        Operation::SetApprovalPolicy { .. } => plan_policy(op, id)?,
+        Operation::SetApprovalPolicy { .. } => plan_policy(op, id, &resolve)?,
         Operation::BindExternal {
             object,
             kind,
@@ -650,7 +650,11 @@ fn plan_anchor(
 }
 
 /// Plans an approval policy: a name and at least one trigger (REQ-004-40).
-fn plan_policy(op: &Operation, id: Uuid) -> Result<Planned, Violation> {
+fn plan_policy(
+    op: &Operation,
+    id: Uuid,
+    resolve: &impl Fn(Ref) -> Uuid,
+) -> Result<Planned, Violation> {
     let Operation::SetApprovalPolicy {
         name,
         min_operations,
@@ -658,6 +662,9 @@ fn plan_policy(op: &Operation, id: Uuid) -> Result<Planned, Violation> {
         property_keys,
         domains,
         authors,
+        scopes,
+        author_roles,
+        author_groups,
         enabled,
     } = op
     else {
@@ -674,13 +681,43 @@ fn plan_policy(op: &Operation, id: Uuid) -> Result<Planned, Violation> {
         property_keys: property_keys.clone(),
         domains: domains.clone(),
         authors: authors.clone(),
+        scopes: Vec::new(),
+        author_roles: author_roles.clone(),
+        author_groups: author_groups.clone(),
         enabled: *enabled,
     };
+    let mut policy = policy;
+    for scope in scopes {
+        match scope {
+            crate::operations::BindingScope::Entity { id } => {
+                policy.scopes.push(("entity".into(), resolve(*id)));
+            }
+            crate::operations::BindingScope::Site { id } => {
+                policy.scopes.push(("site".into(), resolve(*id)));
+            }
+            crate::operations::BindingScope::Prefix { id } => {
+                policy.scopes.push(("prefix".into(), resolve(*id)));
+            }
+            crate::operations::BindingScope::Domain { id } => policy.domains.push(resolve(*id)),
+            crate::operations::BindingScope::Global => {
+                return Err(Violation::new(
+                    &rules::POLICY_INVALID,
+                    format!(
+                        "the policy '{}': every changeset is in the global scope",
+                        policy.name
+                    ),
+                ));
+            }
+        }
+    }
     let triggers = policy.min_operations.is_some()
         || policy.min_diff_objects.is_some()
         || !policy.property_keys.is_empty()
         || !policy.domains.is_empty()
-        || !policy.authors.is_empty();
+        || !policy.scopes.is_empty()
+        || !policy.authors.is_empty()
+        || !policy.author_roles.is_empty()
+        || !policy.author_groups.is_empty();
     if policy.name.is_empty() || !triggers {
         return Err(Violation::new(
             &rules::POLICY_INVALID,
@@ -1563,9 +1600,11 @@ async fn stages<S: Store, A: Authorizer>(
     match mode {
         Mode::Submission => {
             let kind = if missing.is_empty() {
-                crate::review::holding_policy(&mut tx, &policies, req, &planned, &diff, &domains)
-                    .await?
-                    .map(|policy| (PendingKind::Approval, Some(policy)))
+                crate::review::holding_policy(
+                    &mut tx, &policies, req, author, &planned, &diff, &domains,
+                )
+                .await?
+                .map(|policy| (PendingKind::Approval, Some(policy)))
             } else {
                 Some((PendingKind::Proposal, None))
             };

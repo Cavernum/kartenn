@@ -28,6 +28,13 @@ pub struct Exposure {
     pub domains: BTreeSet<Uuid>,
     /// The author.
     pub author: Uuid,
+    /// The scope identifiers of the policies (entities, sites, prefixes) the changeset
+    /// touches (005).
+    pub scopes_touched: BTreeSet<Uuid>,
+    /// The roles the author holds (005).
+    pub author_roles: BTreeSet<String>,
+    /// The author's groups, as (issuer, group) (005).
+    pub author_groups: BTreeSet<(String, String)>,
 }
 
 /// Whether `policy` holds a changeset: every trigger it defines matches, and it defines
@@ -45,9 +52,29 @@ pub fn holds(policy: &ApprovalPolicy, exposure: &Exposure) -> bool {
                 .iter()
                 .any(|k| exposure.property_keys.contains(k))
         }),
-        (!policy.domains.is_empty())
-            .then(|| policy.domains.iter().any(|d| exposure.domains.contains(d))),
-        (!policy.authors.is_empty()).then(|| policy.authors.contains(&exposure.author)),
+        // The perimeter: a domain or a scope touched.
+        (!policy.domains.is_empty() || !policy.scopes.is_empty()).then(|| {
+            policy.domains.iter().any(|d| exposure.domains.contains(d))
+                || policy
+                    .scopes
+                    .iter()
+                    .any(|(_, s)| exposure.scopes_touched.contains(s))
+        }),
+        // The author: by person, role or group.
+        (!policy.authors.is_empty()
+            || !policy.author_roles.is_empty()
+            || !policy.author_groups.is_empty())
+        .then(|| {
+            policy.authors.contains(&exposure.author)
+                || policy
+                    .author_roles
+                    .iter()
+                    .any(|r| exposure.author_roles.contains(r))
+                || policy
+                    .author_groups
+                    .iter()
+                    .any(|g| exposure.author_groups.contains(g))
+        }),
     ];
     policy.enabled && triggers.iter().any(Option::is_some) && triggers.iter().flatten().all(|t| *t)
 }
@@ -58,6 +85,7 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     tx: &mut T,
     policies: &[ApprovalPolicy],
     req: &ChangesetRequest,
+    author: &Subject,
     planned: &[Planned],
     diff: &[DiffCount],
     domains: &[Uuid],
@@ -81,12 +109,38 @@ pub(crate) async fn holding_policy<T: WriteTx>(
             property_keys.insert(declaration.key.to_string());
         }
     }
+    // The scopes and roles of the policies, resolved once (005, REQ-005-27).
+    let mut scopes_touched = BTreeSet::new();
+    let scopes: BTreeSet<&(String, Uuid)> = policies.iter().flat_map(|p| &p.scopes).collect();
+    if !scopes.is_empty() {
+        let mut objects: BTreeSet<Uuid> = planned.iter().map(Planned::object).collect();
+        objects.extend(crate::rights::diff_objects(tx, diff).await?);
+        let objects: Vec<Uuid> = objects.into_iter().collect();
+        for (kind, scope) in scopes {
+            if tx.scope_touched(kind, *scope, &objects).await? {
+                scopes_touched.insert(*scope);
+            }
+        }
+    }
+    let author_roles = if policies.iter().any(|p| !p.author_roles.is_empty()) {
+        tx.roles_of(author).await?.into_iter().collect()
+    } else {
+        BTreeSet::new()
+    };
+    let author_groups = author
+        .issuer
+        .iter()
+        .flat_map(|i| author.groups.iter().map(move |g| (i.clone(), g.clone())))
+        .collect();
     let exposure = Exposure {
         operations: req.operations.len(),
         diff_objects: diff.iter().map(|d| d.count).sum(),
         property_keys,
         domains: domains.iter().copied().collect(),
         author: req.author,
+        scopes_touched,
+        author_roles,
+        author_groups,
     };
     Ok(policies.iter().find(|p| holds(p, &exposure)).map(|p| p.id))
 }
@@ -372,6 +426,9 @@ mod tests {
             property_keys: Vec::new(),
             domains: Vec::new(),
             authors: Vec::new(),
+            scopes: Vec::new(),
+            author_roles: Vec::new(),
+            author_groups: Vec::new(),
             enabled: true,
         }
     }
@@ -384,6 +441,9 @@ mod tests {
             property_keys: ["policy.environment".to_owned()].into(),
             domains: [Uuid::from_u128(7)].into(),
             author: Uuid::from_u128(9),
+            scopes_touched: [Uuid::from_u128(5)].into(),
+            author_roles: ["auditor".to_owned()].into(),
+            author_groups: [("idp".to_owned(), "netops".to_owned())].into(),
         };
         // No trigger: holds nothing.
         assert!(!holds(&policy(), &exposure));
@@ -415,6 +475,36 @@ mod tests {
             &ApprovalPolicy {
                 enabled: false,
                 ..keys
+            },
+            &exposure
+        ));
+        // 005: a scope touched; an author by role or by group.
+        let scoped = ApprovalPolicy {
+            scopes: vec![("entity".into(), Uuid::from_u128(5))],
+            ..policy()
+        };
+        assert!(holds(&scoped, &exposure));
+        let elsewhere = ApprovalPolicy {
+            scopes: vec![("entity".into(), Uuid::from_u128(6))],
+            ..policy()
+        };
+        assert!(!holds(&elsewhere, &exposure));
+        for authors in [
+            ApprovalPolicy {
+                author_roles: vec!["auditor".into()],
+                ..policy()
+            },
+            ApprovalPolicy {
+                author_groups: vec![("idp".into(), "netops".into())],
+                ..policy()
+            },
+        ] {
+            assert!(holds(&authors, &exposure));
+        }
+        assert!(!holds(
+            &ApprovalPolicy {
+                author_roles: vec!["administrator".into()],
+                ..policy()
             },
             &exposure
         ));

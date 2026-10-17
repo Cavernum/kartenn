@@ -62,8 +62,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   telles ; `sync_roles` au job de migration ; matrice de délégation exhaustive plutôt
   qu'aléatoire (`rbac.rs`) ; les comptes de service passent à la tâche 10 (avec leurs
   secrets)
-- [ ] 8. Politiques d'approbation par périmètre et auteurs par rôle ou groupe —
-  REQ-005-27 — verify : tests (`review.rs`)
+- [x] 8. Politiques d'approbation par périmètre et auteurs par rôle ou groupe —
+  REQ-005-27 — verify : tests (`review.rs`) — `SetApprovalPolicy` reçoit `scopes`
+  (entité, site, sous-arbre ; un domaine rejoint `domains`), `author_roles`,
+  `author_groups` ; un seul déclencheur de périmètre (domaines ou portées) et un seul
+  d'auteur (personne, rôle ou groupe) ; stockés dans les listes JSON existantes, sans
+  migration ; évalués dans la transaction (`WriteTx::scope_touched`, `roles_of`)
+  (`review.rs` unitaire, `rbac.rs::policies_hold_by_scope_and_by_role`)
 
 ## P2 — Authentification
 

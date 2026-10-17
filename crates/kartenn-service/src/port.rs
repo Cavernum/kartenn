@@ -261,6 +261,13 @@ pub struct ApprovalPolicy {
     pub domains: Vec<Uuid>,
     /// The author is one of these people.
     pub authors: Vec<Uuid>,
+    /// The changeset touches an object of one of these scopes (005, REQ-005-27): `entity`,
+    /// `site` or `prefix`, with its subtree; with `domains`, one perimeter trigger.
+    pub scopes: Vec<(String, Uuid)>,
+    /// The author holds one of these roles (005); with `authors`, one author trigger.
+    pub author_roles: Vec<String>,
+    /// The author belongs to one of these groups (issuer, group) (005).
+    pub author_groups: Vec<(String, String)>,
     /// Disabled policies hold nothing.
     pub enabled: bool,
 }
@@ -462,6 +469,21 @@ pub trait WriteTx {
         &mut self,
         binding: Uuid,
     ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
+    /// Whether one of `objects` lies in the scope `kind` (`entity`, `site`, `prefix`) `scope`
+    /// or below it, as this transaction sees them (005, REQ-005-27).
+    fn scope_touched(
+        &mut self,
+        kind: &str,
+        scope: Uuid,
+        objects: &[Uuid],
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The keys of the roles `subject` holds now, on any scope (005, REQ-005-27).
+    fn roles_of(
+        &mut self,
+        subject: &crate::authz::Subject,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
 
     /// Takes the advisory locks of the domains, in order, and of public space if needed
     /// (ADR 0015).
