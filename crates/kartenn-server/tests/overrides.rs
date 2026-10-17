@@ -46,7 +46,8 @@ impl Node {
             .into_iter()
             .map(|o| (o.output, o.filter))
             .collect();
-        self.filters.apply(&[self.output.clone()], &pairs)
+        self.filters
+            .apply(std::slice::from_ref(&self.output), &pairs)
     }
 
     /// Whether an INFO event reaches the output.
