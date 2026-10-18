@@ -1005,6 +1005,39 @@ async fn issuers_and_identities_need_global_administration(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(attached, 1);
+    // A break-glass account, kartenn itself: beyond the reach of a changeset (REQ-005-14).
+    let rescue: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, kind) VALUES (gen_random_uuid(), 'rescue', 'breakglass')
+         RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let system: Uuid = sqlx::query_scalar("SELECT id FROM person WHERE kind = 'system'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    for identity in [rescue, system] {
+        let outcome = t
+            .submit_as(
+                &root,
+                vec![Operation::SetIdentityState {
+                    identity,
+                    disabled: Some(true),
+                    revoke_sessions: false,
+                }],
+            )
+            .await;
+        assert!(!matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    }
+    let untouched: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM person WHERE id = ANY($1) AND disabled_at IS NULL",
+    )
+    .bind(vec![rescue, system])
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(untouched, 2);
 }
 
 fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -> Operation {

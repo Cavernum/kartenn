@@ -242,7 +242,7 @@ async fn identity_state(
                                 WHEN $2 THEN coalesce(disabled_at, now())
                                 ELSE NULL END,
              revoked_after = CASE WHEN $3 THEN now() ELSE revoked_after END
-         WHERE id = $1",
+         WHERE id = $1 AND kind IN ('person', 'service_account')",
     )
     .bind(identity)
     .bind(disabled)
@@ -251,6 +251,8 @@ async fn identity_state(
     .await
     .map_err(write_err)?
     .rows_affected();
+    // A break-glass account lives and dies by the owner of the schema only (REQ-005-14),
+    // and kartenn itself is not an identity to disable: neither is found here.
     if updated == 0 {
         return Err(WriteError::NoVersion(identity));
     }
