@@ -156,9 +156,22 @@ routeur complet, sauf mention « vrai TCP ».
   `list::prefixes` réécrit dessus) et migration 0035 (index de clé) ; câblage dans
   `app::Api::start` (anneau de `[auth]`, sinon tiré au départ) ; `tests/objects.rs`.
   Dettes : historique non paginé ; `prop.<clé>` → 400 jusqu'à 006-13
-- [ ] 12b. Arbre : enfants, ancêtres, occupation, prochain libre (`kind=prefix&length=…`,
+- [x] 12b. Arbre : enfants, ancêtres, occupation, prochain libre (`kind=prefix&length=…`,
   `kind=address`), liens de navigation des préfixes — REQ-006-4, 23 — verify : enfants
   invisibles absents ; préfixe invisible → 404
+  — `tree.rs` (rest) : `/v1/prefixes/{id}/children|ancestors|occupancy|next-free`, garde
+  `objects::gate` (extraite de l'historique : 404 + `authz.access.denied`), enfants et
+  ancêtres filtrés par la portée de lecture, nœuds `{kind, id, href, …}`, lectures
+  auditées (`data.objects.read`) ; occupation en chaînes décimales (compte IPv6 > 2⁵³) ;
+  prochain libre `null` si rien ne reste, longueur hors du conteneur → 400, mauvaise
+  nature → 409 ; `links.children/ancestors/occupancy` des préfixes. Store : `tree.rs`
+  bitemporel (`*_as_of`, relations `snapshot` avec `as_of`, tables courantes sans),
+  `prefix_as_of` ; anciennes signatures conservées (bench-core : sous-arbre et
+  occupation p95 12 ms). `tests/objects.rs` (`the_tree_shows_only_what_the_caller_may_read`).
+  Écarts : occupation et prochain libre comptent le contenu invisible (mesure du
+  préfixe ; ne pas proposer un pris). Dettes : enfants non paginés (comme
+  l'historique) ; arbre à un `as_of` passé en parcours complet de `prefix` (l'`UNION ALL`
+  avec l'historique partitionné n'est pas aplati, l'index par domaine est perdu)
 - [ ] 12c. Anomalies : liste filtrée par la visibilité de l'objet, acquittement
   (`core.anomaly.acknowledge` sur l'objet, `motive` obligatoire, événement d'audit, sans
   `If-Match`) — REQ-006-4, 23 — verify : anomalie d'un objet invisible absente et 404 à

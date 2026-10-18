@@ -16,6 +16,7 @@ pub mod problem;
 pub mod quota;
 pub mod request_id;
 pub mod transport;
+pub mod tree;
 
 use std::any::Any;
 use std::sync::Arc;
@@ -35,7 +36,7 @@ use crate::transport::Settings;
 
 /// The routes under `/v1`.
 pub fn v1(api: objects::Api) -> Router {
-    objects::routes(api)
+    objects::routes(api.clone()).merge(tree::routes(api))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

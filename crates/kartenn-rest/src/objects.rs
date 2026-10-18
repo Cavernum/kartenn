@@ -162,14 +162,27 @@ pub struct Links {
     pub history: String,
     /// The resolved values of its properties.
     pub properties: String,
+    /// A prefix: its direct children.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<String>,
+    /// A prefix: its ancestors, nearest first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ancestors: Option<String>,
+    /// A prefix: its occupancy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub occupancy: Option<String>,
 }
 
 impl Links {
     fn of(kind: Kind, id: Uuid) -> Self {
         let this = href(kind, id);
+        let tree = |route: &str| (kind == Kind::Prefix).then(|| format!("{this}/{route}"));
         Self {
             history: format!("{this}/history"),
             properties: format!("{this}/properties"),
+            children: tree("children"),
+            ancestors: tree("ancestors"),
+            occupancy: tree("occupancy"),
             this,
         }
     }
@@ -397,19 +410,19 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
 
 // ---------------------------------------------------------------- handlers
 
-fn store(error: &sqlx::Error) -> Problem {
+pub(crate) fn store(error: &sqlx::Error) -> Problem {
     Problem::from(StoreError(error.to_string()))
 }
 
-fn bad(detail: impl Into<String>) -> Problem {
+pub(crate) fn bad(detail: impl Into<String>) -> Problem {
     Problem::new(ProblemKind::BadRequest).detail(detail)
 }
 
-fn instant(at: OffsetDateTime) -> Instant {
+pub(crate) fn instant(at: OffsetDateTime) -> Instant {
     Instant(i64::try_from(at.unix_timestamp_nanos() / 1_000).unwrap_or(i64::MAX))
 }
 
-fn audited(e: impl std::fmt::Display) -> Problem {
+pub(crate) fn audited(e: impl std::fmt::Display) -> Problem {
     Problem::from(RequestError::Audit(StoreError(e.to_string())))
 }
 
@@ -608,17 +621,14 @@ fn version_of(kind: Kind, version: &Version) -> Result<Value, Problem> {
     }))
 }
 
-/// `GET /v1/<collection>/{id}/history`: every version of an object the caller may read
-/// now, on both axes (REQ-004-18); 404 otherwise.
-async fn history(
+/// 404, with `authz.access.denied` recorded, unless the subject of `context` may read the
+/// object `id` of `kind` now: a sub-resource answers as its object (REQ-006-23).
+pub(crate) async fn gate(
+    api: &Api,
+    context: &RequestContext,
     kind: Kind,
-    State(api): State<Api>,
-    Extension(context): Extension<RequestContext>,
-    Path(id): Path<Uuid>,
-    headers: HeaderMap,
-) -> Result<Response, Problem> {
-    let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-    let moment = Dates::default().at(now, api.bound)?;
+    id: Uuid,
+) -> Result<(), Problem> {
     if let Some(subject) = context.subject() {
         let permission = format!("core.{}.read", kind.as_str());
         let denied = PgAuthorizer::new(api.pool.clone())
@@ -639,6 +649,21 @@ async fn history(
             return Err(Problem::new(ProblemKind::NotFound));
         }
     }
+    Ok(())
+}
+
+/// `GET /v1/<collection>/{id}/history`: every version of an object the caller may read
+/// now, on both axes (REQ-004-18); 404 otherwise.
+async fn history(
+    kind: Kind,
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
+    let moment = Dates::default().at(now, api.bound)?;
+    gate(&api, &context, kind, id).await?;
     let versions = list::history(&api.pool, kind, id)
         .await
         .map_err(|e| store(&e))?;

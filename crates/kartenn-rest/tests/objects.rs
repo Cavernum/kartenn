@@ -1,6 +1,7 @@
 //! The objects of the core through the router (spec 006, REQ-006-1, 2, 4, 23; task
 //! 006-12a): the natural key as a filter, a summary per linked object, the URL kept by a
-//! rename, the history, and the same 404 for an invisible object as for an absent one.
+//! rename, the history, and the same 404 for an invisible object as for an absent one;
+//! the tree under a prefix (task 006-12b): what the caller may not read is absent.
 
 mod common;
 
@@ -21,7 +22,7 @@ use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -143,13 +144,17 @@ async fn domain(pool: &PgPool, slug: &str) -> Uuid {
 }
 
 async fn prefix(pool: &PgPool, domain: Uuid, value: &str) -> Uuid {
+    prefix_of(pool, domain, value, "network").await
+}
+
+async fn prefix_of(pool: &PgPool, domain: Uuid, value: &str, nature: &str) -> Uuid {
     let sql = format!(
         "INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), $1::uuid, $2::cidr, 'network', false, 'test', {SINCE})
+         VALUES (gen_random_uuid(), $1::uuid, $2::cidr, $3, false, 'test', {SINCE})
          RETURNING id"
     );
-    insert(pool, &sql, &[&domain.to_string(), value]).await
+    insert(pool, &sql, &[&domain.to_string(), value, nature]).await
 }
 
 async fn node(pool: &PgPool, table: &str, slug: &str, parent: Option<Uuid>) -> Uuid {
@@ -334,4 +339,132 @@ async fn an_invisible_object_answers_as_an_absent_one(pool: PgPool) {
         .map(|i| i["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids, [seen.to_string()]);
+}
+
+/// The identifiers of the items of a list.
+fn ids_of(body: &Value) -> Vec<String> {
+    body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_tree_shows_only_what_the_caller_may_read(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let top = prefix_of(&pool, lab, "10.0.0.0/8", "container").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let other = prefix(&pool, lab, "10.1.3.0/24").await;
+    let range = format!(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version,
+                               valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1::uuid, inetrange('10.1.2.100', '10.1.2.199', '[]'),
+                 'dhcp', false, 'test', {SINCE}) RETURNING id"
+    );
+    let range = insert(&pool, &range, &[&lab.to_string()]).await;
+    let address = format!(
+        "INSERT INTO address (id, domain_id, address, usage, public, registry_version,
+                              valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1::uuid, '10.1.2.1', 'gateway', false, 'test', {SINCE})
+         RETURNING id"
+    );
+    insert(&pool, &address, &[&lab.to_string()]).await;
+    // Prefixes and ranges under the /16, no address.
+    let app = app(
+        &pool,
+        person(
+            &pool,
+            &["core.prefix.read", "core.range.read"],
+            ("prefix", Some(block)),
+        )
+        .await,
+    );
+
+    let body = ok(&app, &format!("/v1/prefixes/{block}")).await;
+    assert_eq!(
+        body["links"]["children"],
+        format!("/v1/prefixes/{block}/children")
+    );
+    assert_eq!(
+        ids_of(&ok(&app, &format!("/v1/prefixes/{block}/children")).await),
+        [net.to_string(), other.to_string()]
+    );
+    let body = ok(&app, &format!("/v1/prefixes/{net}/children")).await;
+    assert_eq!(
+        ids_of(&body),
+        [range.to_string()],
+        "invisible address listed"
+    );
+    assert_eq!(body["items"][0]["kind"], "range");
+    assert_eq!(body["items"][0]["href"], format!("/v1/ranges/{range}"));
+    // The invisible /8 is not an ancestor the caller sees.
+    assert_eq!(
+        ids_of(&ok(&app, &format!("/v1/prefixes/{net}/ancestors")).await),
+        [block.to_string()]
+    );
+
+    // Occupancy and next free values count the whole content, the address included.
+    let body = ok(&app, &format!("/v1/prefixes/{net}/occupancy")).await;
+    assert_eq!(
+        (&body["used"], &body["total"]),
+        (&json!("101"), &json!("254"))
+    );
+    let body = ok(&app, &format!("/v1/prefixes/{block}/occupancy")).await;
+    assert_eq!(
+        (&body["used"], &body["total"]),
+        (&json!("512"), &json!("65536"))
+    );
+    let body = ok(&app, &format!("/v1/prefixes/{net}/next-free?kind=address")).await;
+    assert_eq!(body["value"], "10.1.2.2");
+    let uri = format!("/v1/prefixes/{block}/next-free?kind=prefix&length=24");
+    assert_eq!(ok(&app, &uri).await["value"], "10.1.0.0/24");
+    for (uri, status) in [
+        (
+            format!("/v1/prefixes/{net}/next-free?kind=prefix&length=26"),
+            StatusCode::CONFLICT,
+        ),
+        (
+            format!("/v1/prefixes/{block}/next-free?kind=address"),
+            StatusCode::CONFLICT,
+        ),
+        (
+            format!("/v1/prefixes/{block}/next-free?kind=prefix&length=16"),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            format!("/v1/prefixes/{block}/next-free?kind=prefix"),
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        assert_eq!(get(&app, &uri).await.status(), status, "{uri}");
+    }
+
+    // An invisible prefix answers as an absent one on every route of the tree, and so
+    // does a prefix before its validity or before kartenn asserted it.
+    for route in [
+        "children",
+        "ancestors",
+        "occupancy",
+        "next-free?kind=prefix&length=24",
+    ] {
+        let absent = not_found(&app, &format!("/v1/prefixes/{}/{route}", Uuid::now_v7())).await;
+        assert_eq!(
+            not_found(&app, &format!("/v1/prefixes/{top}/{route}")).await,
+            absent,
+            "{route}"
+        );
+    }
+    not_found(
+        &app,
+        &format!("/v1/prefixes/{block}/children?valid_at=2019-01-01T00:00:00Z"),
+    )
+    .await;
+    not_found(
+        &app,
+        &format!("/v1/prefixes/{block}/children?as_of=2020-01-01T00:00:00Z"),
+    )
+    .await;
 }
