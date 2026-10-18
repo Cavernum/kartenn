@@ -153,6 +153,59 @@ pub async fn object(
     }))
 }
 
+/// The tables of the six kinds of object a read by UUID looks in.
+const OBJECT_TABLES: [&str; 6] = [
+    "addressing_domain",
+    "prefix",
+    "ip_range",
+    "address",
+    "entity",
+    "site",
+];
+
+/// The version of the object `id` valid at `valid_at`, as asserted at `as_of` (now when
+/// `None`): the changeset that wrote it, the strong `ETag` of its representation
+/// (REQ-006-6) and the version a write expects (REQ-004-11). `None` if it does not exist
+/// then.
+///
+/// # Errors
+///
+/// Database errors.
+#[tracing::instrument(name = "SELECT version", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT version",
+))]
+pub async fn version(
+    pool: &PgPool,
+    id: Uuid,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<Option<Uuid>> {
+    let mut parts = Vec::with_capacity(OBJECT_TABLES.len());
+    for table in OBJECT_TABLES {
+        let relation = snapshot(table, &["id", "changeset_id"]).map_err(|e| sql_err(&e))?;
+        parts.push(format!(
+            "SELECT x.changeset_id FROM {relation} x WHERE x.id = $3"
+        ));
+    }
+    sqlx::query_scalar(AssertSqlSafe(parts.join(" UNION ALL ")))
+        .bind(valid_at)
+        .bind(as_of)
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+}
+
+/// The time of the database (`now()`), against which the dates of a read are checked.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn now(pool: &PgPool) -> sqlx::Result<OffsetDateTime> {
+    sqlx::query_scalar("SELECT now()").fetch_one(pool).await
+}
+
 fn instant_time(at: kartenn_core::period::Instant) -> Result<OffsetDateTime, StoreError> {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.0) * 1000)
         .map_err(|e| StoreError(e.to_string()))

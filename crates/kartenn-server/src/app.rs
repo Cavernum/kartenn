@@ -23,6 +23,7 @@ use kartenn_telemetry::otel::{Identity, Instruments, Providers};
 use kartenn_telemetry::outputs::{self, Format};
 use kartenn_telemetry::sinks::{AnySink, FileSink, OtlpSink, SyslogSink};
 use sqlx::PgPool;
+use sqlx::postgres::PgConnectOptions;
 use sqlx::types::Uuid;
 use syslog_sender::rustls::pki_types::pem::PemObject;
 use syslog_sender::rustls::pki_types::{CertificateDer, ServerName};
@@ -417,6 +418,15 @@ fn seal_key(config: &Config) -> anyhow::Result<Option<SealKey>> {
     )?))
 }
 
+/// The connection options of the pool of an instance: every transaction ends within
+/// `bound` (`transaction_timeout`), so no write can appear at a system time older than
+/// `bound`, the frozen past of the reads (spec 006, « Lectures datées et cache »). The
+/// one-off commands (`migrate`, `audit purge`) are not bounded.
+#[must_use]
+pub fn bounded(options: PgConnectOptions, bound: Duration) -> PgConnectOptions {
+    options.options([("transaction_timeout", format!("{}ms", bound.as_millis()))])
+}
+
 /// Runs an instance until `shutdown`: technical outputs, audit sealing and relays; at
 /// the end, a last sealing and relay, `sys.instance.stopped`, and the outputs drained.
 ///
@@ -666,6 +676,7 @@ impl Api {
                     n => n,
                 },
                 public_origin: http.public_origin.clone(),
+                write_transaction_timeout: Duration::from_secs(http.write_transaction_timeout_s),
             },
             quotas.clone(),
             authenticator,

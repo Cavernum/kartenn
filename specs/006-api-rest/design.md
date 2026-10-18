@@ -126,13 +126,16 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   de la base, renvoyé dans la réponse (`as_of` effectif) pour que le client puisse figer
   ses lectures suivantes.
 - **Passé figé (question ouverte H4, tranchée)** : PostgreSQL 18 borne la durée d'une
-  transaction (`transaction_timeout`). Le pool d'écriture la fixe à `T` (configuration
-  `[http] write_transaction_timeout`, 60 s par défaut ; la plus longue écriture mesurée,
-  un changeset de 10⁴ objets, prend 2,5 s, INV-35). Une transaction commencée à `s` est
-  close avant `s + T` ; si `as_of ≤ now() − T − 1 s` (marge d'horloge), aucune écriture
-  ne peut plus apparaître à `as_of`. La comparaison se fait avec `now()` de la base, lu
-  dans la requête de lecture. Alors : `Cache-Control: private, max-age=31536000,
-  immutable`.
+  transaction (`transaction_timeout`). Le pool de l'instance (`run`), unique et partagé
+  par l'API, le service et les tâches de fond, la fixe à `T` pour tout écrivain
+  (configuration `[http] write_transaction_timeout_s`, 60 s par défaut ; la plus longue
+  écriture mesurée, un changeset de 10⁴ objets, prend 2,5 s, INV-35) ; lectures et
+  tâches de fond sont donc bornées aussi. Les commandes ponctuelles (`migrate`,
+  `audit purge`) ont leur propre connexion, non bornée. Une transaction commencée à `s`
+  est close avant `s + T` ; si `as_of ≤ now() − T − 1 s` (marge d'horloge), aucune
+  écriture ne peut plus apparaître à `as_of`. La comparaison se fait avec `now()` de la
+  base, lu avant les données (qui sont alors au moins aussi récentes). Alors :
+  `Cache-Control: private, max-age=31536000, immutable`.
 - Sinon : `private, no-cache`, ETag ; objet : ETag fort = identifiant du dernier
   changeset qui l'a modifié (le même que `expected`, REQ-004-11) ; liste : ETag faible =
   empreinte du contenu de la page. `If-None-Match` → 304 sans corps.

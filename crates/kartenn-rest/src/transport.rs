@@ -123,11 +123,14 @@ pub struct Settings {
     /// The origin through which the browser reaches kartenn, for the CSRF check of an
     /// `Origin` header (REQ-006-28).
     pub public_origin: Option<String>,
+    /// Longest write transaction (`transaction_timeout` of the pool): an `as_of` older
+    /// than it is a frozen past (REQ-006-6).
+    pub write_transaction_timeout: Duration,
 }
 
 impl Default for Settings {
     /// The defaults of the design: no trusted proxy, 16 MiB, 30 s, twice the 10
-    /// connections of a default pool in flight.
+    /// connections of a default pool in flight, writes of at most 60 s.
     fn default() -> Self {
         Self {
             trusted_proxies: Vec::new(),
@@ -135,6 +138,7 @@ impl Default for Settings {
             request_timeout: Duration::from_secs(30),
             max_in_flight: 20,
             public_origin: None,
+            write_transaction_timeout: Duration::from_secs(60),
         }
     }
 }

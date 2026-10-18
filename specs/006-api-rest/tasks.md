@@ -105,10 +105,18 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P3 — Lectures
 
-- [ ] 9. Lectures datées et cache : analyse stricte RFC 3339, `as_of` futur refusé,
+- [x] 9. Lectures datées et cache : analyse stricte RFC 3339, `as_of` futur refusé,
   `transaction_timeout` sur le pool d'écriture, passé figé `immutable`, ETag fort
   (objet) et faible (page), 304 — REQ-006-5, 6 — verify : date sans décalage → 400 ;
   `immutable` seulement au-delà de `T` ; 304 puis 200 après un changeset
+  — `dated.rs` : extracteur `Dates` (`valid_at`, `as_of` en doublon → 400), `Moment`
+  (`now()` de la base lu avant les données, figé si `now − as_of ≥ T + 1 s`), `ETag`
+  (`version` fort, `page` faible SHA-256), `respond` (304 par comparaison faible,
+  `Cache-Control` et `ETag` sur 200 comme 304) ; `transport::Settings::
+  write_transaction_timeout` ; `read::version` et `read::now` (store) ;
+  `app::bounded` : `transaction_timeout` sur le pool unique de `run` (arbitrage : pas de
+  second pool, design corrigé) ; `tests/dated.rs` (route d'essai), `tests/pool.rs`
+  (serveur, transaction coupée au-delà de la borne)
 - [ ] 10. Curseur signé (`Purpose::Cursor`), pagination par clé sur les préfixes,
   `Link: rel="next"`, `page_size` 1 à 1 000, curseur seul avec `page_size` — REQ-006-7,
   8 — verify : octet modifié → 400 ; écritures entre deux pages sans saut ni répétition ;

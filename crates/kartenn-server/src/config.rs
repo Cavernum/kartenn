@@ -83,6 +83,22 @@ const fn write_transaction_timeout_s() -> u64 {
     60
 }
 
+impl Config {
+    /// Longest write transaction (`[http] write_transaction_timeout_s`, 60 s without an
+    /// `[http]` section): the `transaction_timeout` of the pool of an instance, on which
+    /// the frozen past of the reads rests (spec 006, « Lectures datées et cache »).
+    #[must_use]
+    pub fn write_transaction_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(
+            self.http
+                .as_ref()
+                .map_or_else(write_transaction_timeout_s, |h| {
+                    h.write_transaction_timeout_s
+                }),
+        )
+    }
+}
+
 /// Certificate and key, PEM, read again on `SIGHUP`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]

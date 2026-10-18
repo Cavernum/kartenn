@@ -83,6 +83,20 @@ async fn shutdown() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
+/// The pool of an instance, its transactions bounded by `bound`.
+async fn connect_bounded(
+    database: &str,
+    bound: std::time::Duration,
+) -> anyhow::Result<sqlx::PgPool> {
+    let redacted = || kartenn_telemetry::capture::redact_credentials(database);
+    let options = database
+        .parse::<sqlx::postgres::PgConnectOptions>()
+        .with_context(|| format!("parsing {}", redacted()))?;
+    sqlx::PgPool::connect_with(kartenn_server::app::bounded(options, bound))
+        .await
+        .with_context(|| format!("connecting to {}", redacted()))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<ExitCode> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -106,7 +120,7 @@ async fn main() -> anyhow::Result<ExitCode> {
         }
         [command, database, rest @ ..] if command == "run" && rest.len() <= 1 => {
             let config = kartenn_server::config::load(rest.first().map(Path::new))?;
-            let pool = connect(database).await?;
+            let pool = connect_bounded(database, config.write_transaction_timeout()).await?;
             let report = kartenn_server::app::run(pool, &config, shutdown()).await?;
             if report.lost_technical > 0 {
                 eprintln!("kartenn: {} technical records lost", report.lost_technical);
