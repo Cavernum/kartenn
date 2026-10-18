@@ -68,11 +68,17 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P2 — Authentification
 
-- [ ] 6. Couche d'authentification : cookie, Bearer, Basic → `Principal` ; deux preuves
+- [x] 6. Couche d'authentification : cookie, Bearer, Basic → `Principal` ; deux preuves
   → 400 ; `authn::seen` (juste-à-temps sans événement) ; 401 et `WWW-Authenticate`
   (RFC 6750) ; Basic et cookies refusés hors TLS ; `FailureLimiter` branché —
   REQ-006-26, 27 — verify : jeton expiré → `invalid_token` ; sans preuve → 401 sans
   `error` ; aucun `authn.login.succeeded` par requête Bearer ; matrice TLS × `Forwarded`
+  — `authn.rs` : port `Authenticator` (`Authn` sur les briques de la 005, `Nobody` sans
+  `[auth]`), couche 6 entre les limites et le quota ; publiques : hors `/v1` et
+  `auth/login|callback|breakglass` ; défi `Bearer` seul (pas de `Basic` : dialogue du
+  navigateur) ; clés d'émetteur injoignables → 503 ; `FailureLimiter` 20/min par source
+  → 429, échecs agrégés vidés par la minuterie des quotas ; `authn::seen` dans le
+  service ; `tests/authn.rs` (5 tests), `tests/common` (authentificateur des autres tests)
 - [ ] 7. Module `cookies` et routes `auth/login`, `auth/callback`, `auth/logout`,
   `auth/breakglass`, `me` ; réémission au plus une fois par minute ; session de secours
   d'1 h ; `session_closed` — REQ-006-24, 25 — verify : flux OIDC contre l'émetteur de

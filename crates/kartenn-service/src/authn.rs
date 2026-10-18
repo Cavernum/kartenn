@@ -375,6 +375,46 @@ pub async fn logged_in<I: Identities, J: AuditJournal>(
     identities: &I,
     journal: &J,
     aggregator: &FailureAggregator,
+    who: (&str, &str, Option<&str>),
+    groups: Vec<String>,
+    method: Method,
+    source: Source,
+    at: Instant,
+) -> Result<Principal, AuthnError> {
+    let principal = seen(
+        identities,
+        journal,
+        aggregator,
+        who,
+        groups,
+        method,
+        source.clone(),
+        at,
+    )
+    .await?;
+    let event = principal
+        .context(source)
+        .event(&AUTHN_LOGIN_SUCCEEDED, Outcome::Success)
+        .and_then(|e| e.detail("method", method.as_str()))
+        .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
+    journal.record(&event).await.map_err(AuthnError::Audit)?;
+    Ok(principal)
+}
+
+/// A person who presents an access token of `issuer` as `subject` (REQ-006-26): as
+/// [`logged_in`], created just in time, a disabled identity refused and the refusal
+/// audited, but no `authn.login.succeeded`: each request of a token is not a login (the
+/// request itself is audited with its actor).
+///
+/// # Errors
+///
+/// [`AuthnError::Refused`] for a disabled identity; [`AuthnError::Store`],
+/// [`AuthnError::Audit`].
+#[allow(clippy::too_many_arguments)] // who, from where, and how it is recorded
+pub async fn seen<I: Identities, J: AuditJournal>(
+    identities: &I,
+    journal: &J,
+    aggregator: &FailureAggregator,
     (issuer, subject, name): (&str, &str, Option<&str>),
     groups: Vec<String>,
     method: Method,
@@ -402,20 +442,13 @@ pub async fn logged_in<I: Identities, J: AuditJournal>(
         .await?;
         return Err(AuthnError::Refused);
     }
-    let principal = Principal {
+    Ok(Principal {
         identity,
         kind: IdentityKind::Person,
         issuer: Some(issuer.to_owned()),
         groups,
         method,
-    };
-    let event = principal
-        .context(source)
-        .event(&AUTHN_LOGIN_SUCCEEDED, Outcome::Success)
-        .and_then(|e| e.detail("method", method.as_str()))
-        .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
-    journal.record(&event).await.map_err(AuthnError::Audit)?;
-    Ok(principal)
+    })
 }
 
 /// The state of the identities, read at each request and kept a few seconds per instance

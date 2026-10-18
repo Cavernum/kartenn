@@ -21,6 +21,8 @@ use kartenn_rest::transport::Settings;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
+mod common;
+
 struct Ready;
 
 impl Readiness for Ready {
@@ -46,14 +48,17 @@ fn app() -> Router {
         Arc::new(Ready),
         Settings::default(),
         Arc::new(Quotas::new(Rates::default())),
+        common::anyone(),
     )
 }
 
 async fn get_with(uri: &str, accept: &str) -> Response {
-    let mut request = Request::get(uri)
-        .header(header::ACCEPT_ENCODING, accept)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = common::bearer(
+        Request::get(uri)
+            .header(header::ACCEPT_ENCODING, accept)
+            .body(Body::empty())
+            .unwrap(),
+    );
     let peer = SocketAddr::from(([192, 0, 2, 1], 40000));
     request.extensions_mut().insert(ConnectInfo(peer));
     app().oneshot(request).await.unwrap()

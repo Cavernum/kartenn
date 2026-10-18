@@ -1,6 +1,7 @@
 //! The REST API of kartenn (spec 006): router, problems, layers. No business logic: each
 //! route calls the service, or the store after a rights check.
 
+pub mod authn;
 pub mod compression;
 pub mod error;
 pub mod health;
@@ -19,6 +20,7 @@ use axum::response::{IntoResponse, Response};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::timeout::RequestBodyTimeoutLayer;
 
+use crate::authn::Authenticator;
 use crate::health::Readiness;
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{InFlight, Quotas};
@@ -41,13 +43,14 @@ async fn not_found() -> Problem {
 
 /// The application: `api` under `/v1`, the probes, and the layers around them (design
 /// « Pile de couches »), the request identifier outermost so that every response carries
-/// it, then the load shedding, the delay, the client, the bounded body, the quotas and,
-/// innermost, the compression.
+/// it, then the load shedding, the delay, the client, the bounded body, the
+/// authentication, the quotas and, innermost, the compression.
 pub fn router(
     api: Router,
     readiness: Arc<dyn Readiness>,
     transport: Settings,
     quotas: Arc<Quotas>,
+    authenticator: Arc<dyn Authenticator>,
 ) -> Router {
     let transport = Arc::new(transport);
     let in_flight = Arc::new(InFlight::new(transport.max_in_flight));
@@ -59,8 +62,9 @@ pub fn router(
         .layer(compression::layer())
         // The limit is that of layer 5, not the 2 MB of the extractors.
         .layer(DefaultBodyLimit::disable())
-        // Layer 7; the authentication (layer 6) comes outside it.
+        // Layer 7, then layer 6 outside it: the quota counts per identity.
         .layer(from_fn_with_state(quotas, quota::layer))
+        .layer(from_fn_with_state(authenticator, authn::layer))
         .layer(RequestBodyTimeoutLayer::new(transport.request_timeout))
         .layer(from_fn_with_state(transport.clone(), transport::limits))
         .layer(from_fn_with_state(transport.clone(), transport::forwarded))

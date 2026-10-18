@@ -21,6 +21,8 @@ use kartenn_rest::transport::{Client, Settings};
 use kartenn_service::audit::RequestContext;
 use tokio::sync::Notify;
 use tower::ServiceExt;
+
+mod common;
 use uuid::Uuid;
 
 struct Ready;
@@ -39,7 +41,7 @@ fn from(peer: &str, method: Method, uri: &str) -> Request {
         .unwrap();
     let peer = SocketAddr::new(peer.parse().unwrap(), 40000);
     request.extensions_mut().insert(ConnectInfo(peer));
-    request
+    common::bearer(request)
 }
 
 /// The quota layer alone, behind an identity as the authentication (task 6) will set it.
@@ -93,22 +95,24 @@ async fn the_21st_write_of_a_burst_is_refused_with_its_headers() {
 
 #[tokio::test]
 async fn without_identity_the_client_address_is_counted() {
-    let api = Router::new().route("/r", get(|| async { "ok" }));
+    let api = Router::new().route("/auth/login", get(|| async { "ok" }));
     let app = kartenn_rest::router(
         api,
         Arc::new(Ready),
         Settings::default(),
         Arc::new(Quotas::new(Rates::default())),
+        common::anyone(),
     );
+    // A login route: anonymous.
     for _ in 0..20 {
-        let response = status(&app, from("192.0.2.1", Method::GET, "/v1/r")).await;
+        let response = status(&app, from("192.0.2.1", Method::GET, "/v1/auth/login")).await;
         assert_eq!(response.status(), StatusCode::OK);
     }
-    let response = status(&app, from("192.0.2.1", Method::GET, "/v1/r")).await;
+    let response = status(&app, from("192.0.2.1", Method::GET, "/v1/auth/login")).await;
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(response.headers()["ratelimit-policy"], "\"a\";q=20;w=1");
     assert!(response.headers().contains_key("request-id"));
-    let other = status(&app, from("192.0.2.2", Method::GET, "/v1/r")).await;
+    let other = status(&app, from("192.0.2.2", Method::GET, "/v1/auth/login")).await;
     assert_eq!(other.status(), StatusCode::OK, "another address");
 }
 
@@ -137,6 +141,7 @@ async fn at_the_ceiling_the_request_is_shed_without_reaching_the_route() {
             ..Settings::default()
         },
         Arc::new(Quotas::new(Rates::default())),
+        common::anyone(),
     );
     let first = tokio::spawn(
         app.clone()
@@ -163,12 +168,18 @@ async fn at_the_ceiling_the_request_is_shed_without_reaching_the_route() {
 #[tokio::test]
 async fn the_table_of_keys_stays_under_its_ceiling() {
     let quotas = Arc::new(Quotas::with_max_keys(Rates::default(), 100));
-    let api = Router::new().route("/r", get(|| async { "ok" }));
-    let app = kartenn_rest::router(api, Arc::new(Ready), Settings::default(), quotas.clone());
+    let api = Router::new().route("/auth/login", get(|| async { "ok" }));
+    let app = kartenn_rest::router(
+        api,
+        Arc::new(Ready),
+        Settings::default(),
+        quotas.clone(),
+        common::anyone(),
+    );
     for n in 0..1000u32 {
         let [_, _, c, d] = (0x0A00_0000 | n).to_be_bytes();
         let peer = format!("2001:db8:{c:x}:{d:x}::1");
-        let response = status(&app, from(&peer, Method::GET, "/v1/r")).await;
+        let response = status(&app, from(&peer, Method::GET, "/v1/auth/login")).await;
         assert_ne!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         let [_, _, anonymous] = quotas.keys();
         assert!(anonymous <= 100, "{anonymous} keys after {n}");

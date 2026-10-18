@@ -16,9 +16,11 @@ use hyper::body::Bytes;
 use hyper::client::conn::{http1, http2};
 use hyper::{Request, StatusCode, Version};
 use hyper_util::rt::{TokioExecutor, TokioIo};
+use kartenn_rest::authn::{Authenticator, Proof, Refusal};
 use kartenn_rest::health::Readiness;
 use kartenn_server::config::Tls;
 use kartenn_server::http::{Certificates, serve};
+use kartenn_service::authn::{IdentityKind, Method, Principal};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -80,7 +82,27 @@ fn app() -> axum::Router {
         Arc::new(kartenn_rest::quota::Quotas::new(
             kartenn_rest::quota::Rates::default(),
         )),
+        Arc::new(Anyone),
     )
+}
+
+/// Any access token is the same person: the authentication is not the subject here.
+struct Anyone;
+
+impl Authenticator for Anyone {
+    fn authenticate<'a>(
+        &'a self,
+        _: Proof,
+        _: kartenn_core::audit::Source,
+    ) -> Pin<Box<dyn Future<Output = Result<Principal, Refusal>> + Send + 'a>> {
+        Box::pin(std::future::ready(Ok(Principal {
+            identity: Uuid::nil(),
+            kind: IdentityKind::Person,
+            issuer: None,
+            groups: Vec::new(),
+            method: Method::Bearer,
+        })))
+    }
 }
 
 /// Serves [`app`] on a local port until the sender is dropped or fires.
@@ -145,12 +167,14 @@ where
 fn get_h1(path: &str) -> Request<Empty<Bytes>> {
     Request::get(path)
         .header("host", "localhost")
+        .header("authorization", "Bearer test")
         .body(Empty::new())
         .unwrap()
 }
 
 fn get_h2(path: &str) -> Request<Empty<Bytes>> {
     Request::get(format!("https://localhost{path}"))
+        .header("authorization", "Bearer test")
         .body(Empty::new())
         .unwrap()
 }

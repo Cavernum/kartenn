@@ -20,6 +20,8 @@ use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::{Client, ConnectionTls, MAX_URL, Settings};
 use tower::ServiceExt;
 
+mod common;
+
 struct Ready;
 
 impl Readiness for Ready {
@@ -53,6 +55,7 @@ fn app(settings: Settings, called: Arc<AtomicBool>) -> Router {
         Arc::new(Ready),
         settings,
         Arc::new(Quotas::new(Rates::default())),
+        common::anyone(),
     )
 }
 
@@ -69,7 +72,7 @@ fn from(peer: &str, tls: bool, mut request: Request<Body>) -> Request<Body> {
     let peer: SocketAddr = format!("{peer}:40000").parse().unwrap();
     request.extensions_mut().insert(ConnectInfo(peer));
     request.extensions_mut().insert(ConnectionTls(tls));
-    request
+    common::bearer(request)
 }
 
 async fn text(response: Response<Body>) -> String {

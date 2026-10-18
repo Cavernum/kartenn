@@ -22,6 +22,8 @@ use kartenn_service::audit::{
 use kartenn_telemetry::capture::{CaptureLayer, Output};
 use sqlx::PgPool;
 use tower::ServiceExt;
+
+mod common;
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 
@@ -34,7 +36,13 @@ impl Readiness for Ready {
 }
 
 fn app(api: Router) -> Router {
-    kartenn_rest::router(api, Arc::new(Ready(true)), Settings::default(), quotas())
+    kartenn_rest::router(
+        api,
+        Arc::new(Ready(true)),
+        Settings::default(),
+        quotas(),
+        common::anyone(),
+    )
 }
 
 fn quotas() -> Arc<Quotas> {
@@ -42,9 +50,11 @@ fn quotas() -> Arc<Quotas> {
 }
 
 async fn call(app: Router, uri: &str) -> Response<Body> {
-    app.oneshot(Request::get(uri).body(Body::empty()).unwrap())
-        .await
-        .unwrap()
+    app.oneshot(common::bearer(
+        Request::get(uri).body(Body::empty()).unwrap(),
+    ))
+    .await
+    .unwrap()
 }
 
 fn request_id(response: &Response<Body>) -> Uuid {
@@ -114,6 +124,7 @@ async fn the_same_identifier_is_in_the_response_the_log_and_the_audit() {
     let response = app(api)
         .oneshot(
             Request::get("/v1/denied")
+                .header("authorization", "Bearer test")
                 .header("request-id", &incoming)
                 .header("traceparent", "not a traceparent")
                 .body(Body::empty())
@@ -157,6 +168,7 @@ async fn ready_follows_the_database_and_the_audit_outputs(pool: PgPool) {
         Arc::new(PgReadiness::new(pool.clone(), audit.clone())),
         Settings::default(),
         quotas(),
+        common::anyone(),
     );
     assert_eq!(
         call(app.clone(), "/health/ready").await.status(),

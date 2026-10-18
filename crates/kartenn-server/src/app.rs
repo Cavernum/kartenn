@@ -462,7 +462,7 @@ pub async fn run(
     disabled_sinks(&pool, &journal, config).await?;
     let audit_status = AuditStatus::default();
     let mut api = match &config.http {
-        Some(http) => Some(Api::start(http, &pool, &audit_status).await?),
+        Some(http) => Some(Api::start(http, &pool, &audit_status, auth.as_ref(), &journal).await?),
         None => None,
     };
 
@@ -492,7 +492,7 @@ pub async fn run(
             }
             _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
-            _ = quotas.tick() => record_refusals(&journal, api.as_ref().map(|a| &*a.quotas), false).await,
+            _ = quotas.tick() => Api::record_refusals(api.as_ref(), &journal).await,
             _ = reread.tick() => {
                 if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
                     let pairs: Vec<(String, String)> =
@@ -532,18 +532,56 @@ pub async fn run(
 }
 
 /// Purges the idle keys of the quotas and records their refusals aggregated per minute
-/// (REQ-006-29), of every window when `all` (at shutdown).
+/// (REQ-006-29), and the failed authentications aggregated (REQ-012-19), of every window
+/// when `all` (at shutdown).
 async fn record_refusals(
     journal: &PgAuditJournal,
-    quotas: Option<&kartenn_rest::quota::Quotas>,
+    quotas: &kartenn_rest::quota::Quotas,
+    authn: Option<&ServerAuthn>,
     all: bool,
 ) {
-    let Some(quotas) = quotas else { return };
-    for event in quotas.tick(kartenn_service::audit::now(), all) {
+    let at = kartenn_service::audit::now();
+    let mut events = quotas.tick(at, all);
+    if let Some(authn) = authn {
+        events.extend(authn.tick(at, all));
+    }
+    for event in events {
         if let Err(e) = journal.record(&event).await {
             tracing::error!(name: "audit.record_failed", error = %e, "rate refusals not recorded");
         }
     }
+}
+
+/// The authentication of the API.
+type ServerAuthn = kartenn_rest::authn::Authn<
+    kartenn_store_pg::write::PgStore,
+    PgAuditJournal,
+    kartenn_auth::tokens::HttpKeys,
+>;
+
+/// The authentication of `auth` (spec 005): failures limited to 20 per minute and
+/// source (REQ-005-13), aggregated beyond 10 per minute (REQ-012-19), the state of the
+/// identities kept 5 s (K10).
+fn authn(
+    auth: &crate::auth::Loaded,
+    pool: &PgPool,
+    journal: &PgAuditJournal,
+) -> anyhow::Result<ServerAuthn> {
+    let client = kartenn_auth::http::HttpClient::new().context("loading the roots of trust")?;
+    Ok(kartenn_rest::authn::Authn {
+        identities: kartenn_store_pg::write::PgStore::new(pool.clone()),
+        journal: journal.clone(),
+        ring: auth.ring.clone(),
+        tokens: kartenn_auth::tokens::TokenVerifier::new(
+            auth.issuers.clone(),
+            kartenn_auth::tokens::HttpKeys(client),
+        ),
+        states: kartenn_service::authn::StateCache::new(Duration::from_secs(5)),
+        limiter: kartenn_auth::secrets::FailureLimiter::new(20, Duration::from_mins(1)),
+        aggregator: kartenn_service::aggregate::FailureAggregator::new(10, Duration::from_mins(1)),
+        idle: auth.idle,
+        absolute: auth.absolute,
+    })
 }
 
 /// The API being served.
@@ -553,6 +591,9 @@ struct Api {
     certificates: Option<Arc<crate::http::Certificates>>,
     /// The quotas, purged by the main loop, which records their refusals.
     quotas: Arc<kartenn_rest::quota::Quotas>,
+    /// The authentication, whose aggregated failures the main loop records; none without
+    /// `[auth]`.
+    authn: Option<Arc<ServerAuthn>>,
     #[cfg(unix)]
     hangup: Option<tokio::signal::unix::Signal>,
 }
@@ -563,7 +604,16 @@ impl Api {
         http: &crate::config::Http,
         pool: &PgPool,
         audit: &AuditStatus,
+        auth: Option<&crate::auth::Loaded>,
+        journal: &PgAuditJournal,
     ) -> anyhow::Result<Self> {
+        let authn = auth
+            .map(|auth| authn(auth, pool, journal).map(Arc::new))
+            .transpose()?;
+        let authenticator: Arc<dyn kartenn_rest::authn::Authenticator> = match &authn {
+            Some(authn) => authn.clone(),
+            None => Arc::new(kartenn_rest::authn::Nobody),
+        };
         let certificates = http
             .tls
             .as_ref()
@@ -611,6 +661,7 @@ impl Api {
                 },
             },
             quotas.clone(),
+            authenticator,
         );
         tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
         let (stop, stopped) = tokio::sync::oneshot::channel();
@@ -622,6 +673,7 @@ impl Api {
             server,
             certificates,
             quotas,
+            authn,
             #[cfg(unix)]
             hangup,
         })
@@ -639,13 +691,20 @@ impl Api {
         }
     }
 
+    /// Records the refusals of the windows over, if the API is served.
+    async fn record_refusals(api: Option<&Self>, journal: &PgAuditJournal) {
+        if let Some(api) = api {
+            record_refusals(journal, &api.quotas, api.authn.as_deref(), false).await;
+        }
+    }
+
     /// Stops accepting, then waits for the requests in flight (bounded by
     /// [`crate::http::DRAIN_WITHIN`]), and records the refusals of the quotas still
     /// counted.
     async fn stop(self, journal: &PgAuditJournal) {
         let _ = self.stop.send(());
         let _ = self.server.await;
-        record_refusals(journal, Some(&self.quotas), true).await;
+        record_refusals(journal, &self.quotas, self.authn.as_deref(), true).await;
     }
 }
 
