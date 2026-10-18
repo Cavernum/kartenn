@@ -471,6 +471,7 @@ pub async fn run(
     let mut reread =
         tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));
     let mut clock = tokio::time::interval(CLOCK_EVERY);
+    let mut quotas = tokio::time::interval(Duration::from_mins(1));
     let mut seal = tokio::time::interval(Duration::from_millis(config.audit.seal_interval_ms));
     let mut relay = tokio::time::interval(Duration::from_millis(config.audit.relay_interval_ms));
     let mut drops = tokio::time::interval(WARN_EVERY);
@@ -491,6 +492,7 @@ pub async fn run(
             }
             _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
+            _ = quotas.tick() => record_refusals(&journal, api.as_ref().map(|a| &*a.quotas), false).await,
             _ = reread.tick() => {
                 if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
                     let pairs: Vec<(String, String)> =
@@ -505,7 +507,7 @@ pub async fn run(
 
     // The API first: no request starts while the journal is closed.
     if let Some(api) = api {
-        api.stop().await;
+        api.stop(&journal).await;
     }
     let lost_so_far = dropped(&telemetry);
     let finish = async {
@@ -529,11 +531,28 @@ pub async fn run(
     Ok(stop(telemetry, finish).await)
 }
 
+/// Purges the idle keys of the quotas and records their refusals aggregated per minute
+/// (REQ-006-29), of every window when `all` (at shutdown).
+async fn record_refusals(
+    journal: &PgAuditJournal,
+    quotas: Option<&kartenn_rest::quota::Quotas>,
+    all: bool,
+) {
+    let Some(quotas) = quotas else { return };
+    for event in quotas.tick(kartenn_service::audit::now(), all) {
+        if let Err(e) = journal.record(&event).await {
+            tracing::error!(name: "audit.record_failed", error = %e, "rate refusals not recorded");
+        }
+    }
+}
+
 /// The API being served.
 struct Api {
     stop: tokio::sync::oneshot::Sender<()>,
     server: JoinHandle<()>,
     certificates: Option<Arc<crate::http::Certificates>>,
+    /// The quotas, purged by the main loop, which records their refusals.
+    quotas: Arc<kartenn_rest::quota::Quotas>,
     #[cfg(unix)]
     hangup: Option<tokio::signal::unix::Signal>,
 }
@@ -562,6 +581,17 @@ impl Api {
             ),
             None => None,
         };
+        let rate = |r: crate::config::Rate| {
+            kartenn_rest::quota::Rate::new(r.per_second, r.burst)
+                .context("http.rate: per_second and burst must be positive")
+        };
+        let quotas = Arc::new(kartenn_rest::quota::Quotas::new(
+            kartenn_rest::quota::Rates {
+                read: rate(http.rate.read)?,
+                write: rate(http.rate.write)?,
+                anonymous: rate(http.rate.anonymous)?,
+            },
+        ));
         let listener = tokio::net::TcpListener::bind(http.listen)
             .await
             .with_context(|| format!("listening on {}", http.listen))?;
@@ -575,7 +605,12 @@ impl Api {
                 trusted_proxies: http.trusted_proxies.clone(),
                 max_body_bytes: http.max_body_bytes,
                 request_timeout: Duration::from_millis(http.request_timeout_ms),
+                max_in_flight: match http.max_in_flight {
+                    0 => 2 * pool.options().get_max_connections() as usize,
+                    n => n,
+                },
             },
+            quotas.clone(),
         );
         tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
         let (stop, stopped) = tokio::sync::oneshot::channel();
@@ -586,6 +621,7 @@ impl Api {
             stop,
             server,
             certificates,
+            quotas,
             #[cfg(unix)]
             hangup,
         })
@@ -604,10 +640,12 @@ impl Api {
     }
 
     /// Stops accepting, then waits for the requests in flight (bounded by
-    /// [`crate::http::DRAIN_WITHIN`]).
-    async fn stop(self) {
+    /// [`crate::http::DRAIN_WITHIN`]), and records the refusals of the quotas still
+    /// counted.
+    async fn stop(self, journal: &PgAuditJournal) {
         let _ = self.stop.send(());
         let _ = self.server.await;
+        record_refusals(journal, Some(&self.quotas), true).await;
     }
 }
 

@@ -767,7 +767,9 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "limit": {}
+            "count": {},
+            "limit": {},
+            "window_seconds": {}
           },
           "type": "object"
         },

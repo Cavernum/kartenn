@@ -16,6 +16,7 @@ use axum::http::{Request, Response, StatusCode, header};
 use axum::routing::{get, post};
 use http_body_util::BodyExt;
 use kartenn_rest::health::Readiness;
+use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::{Client, ConnectionTls, MAX_URL, Settings};
 use tower::ServiceExt;
 
@@ -47,7 +48,12 @@ fn app(settings: Settings, called: Arc<AtomicBool>) -> Router {
                 "late"
             }),
         );
-    kartenn_rest::router(api, Arc::new(Ready), settings)
+    kartenn_rest::router(
+        api,
+        Arc::new(Ready),
+        settings,
+        Arc::new(Quotas::new(Rates::default())),
+    )
 }
 
 fn settings() -> Settings {
@@ -55,6 +61,7 @@ fn settings() -> Settings {
         trusted_proxies: vec!["10.0.0.0/8".parse().unwrap()],
         max_body_bytes: 1024,
         request_timeout: Duration::from_millis(200),
+        ..Settings::default()
     }
 }
 

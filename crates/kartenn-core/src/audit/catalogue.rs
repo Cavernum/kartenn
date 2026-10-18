@@ -164,9 +164,9 @@ events! {
         "Detection Finding 2004 / Create", "intrusion_detection",
         "La vérification de la chaîne des sceaux a trouvé un lot altéré.";
     // Abuse.
-    RATE_LIMITED = "abuse.rate.exceeded", Warn, Normal, ["limit"], ["REQ-012-8"],
+    RATE_LIMITED = "abuse.rate.exceeded", Warn, Normal, ["limit", "count", "window_seconds"], ["REQ-012-8", "REQ-006-29"],
         "API Activity 6003 / Other", "web",
-        "Une limite de débit a été dépassée.";
+        "Une limite de débit a été dépassée, refus agrégés par minute et par identité ou adresse.";
     INPUT_REJECTED = "abuse.input.rejected", Warn, Normal, ["reason"], ["REQ-012-8"],
         "API Activity 6003 / Other", "web",
         "Une entrée a été refusée par la validation à la frontière.";

@@ -44,5 +44,5 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `sys.output.disabled` | WARN | high | Une sortie a été désactivée. | `output` | REQ-012-26 | Application Lifecycle 6002 / Other | `process` |
 | `audit.seal.created` | INFO | normal | Un lot d'événements d'audit a été scellé. | `seal`, `count`, `hash`, `key_id` | REQ-012-13 | Application Lifecycle 6002 / Other | `configuration` |
 | `audit.chain.broken` | ERROR | high | La vérification de la chaîne des sceaux a trouvé un lot altéré. | `seal` | REQ-012-14 | Detection Finding 2004 / Create | `intrusion_detection` |
-| `abuse.rate.exceeded` | WARN | normal | Une limite de débit a été dépassée. | `limit` | REQ-012-8 | API Activity 6003 / Other | `web` |
+| `abuse.rate.exceeded` | WARN | normal | Une limite de débit a été dépassée, refus agrégés par minute et par identité ou adresse. | `limit`, `count`, `window_seconds` | REQ-012-8, REQ-006-29 | API Activity 6003 / Other | `web` |
 | `abuse.input.rejected` | WARN | normal | Une entrée a été refusée par la validation à la frontière. | `reason` | REQ-012-8 | API Activity 6003 / Other | `web` |

@@ -118,15 +118,19 @@ pub struct Settings {
     pub max_body_bytes: usize,
     /// Longest request, until the response headers.
     pub request_timeout: Duration,
+    /// Most requests in flight (REQ-006-30).
+    pub max_in_flight: usize,
 }
 
 impl Default for Settings {
-    /// The defaults of the design: no trusted proxy, 16 MiB, 30 s.
+    /// The defaults of the design: no trusted proxy, 16 MiB, 30 s, twice the 10
+    /// connections of a default pool in flight.
     fn default() -> Self {
         Self {
             trusted_proxies: Vec::new(),
             max_body_bytes: 16 * 1024 * 1024,
             request_timeout: Duration::from_secs(30),
+            max_in_flight: 20,
         }
     }
 }

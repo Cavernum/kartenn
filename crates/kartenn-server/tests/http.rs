@@ -77,6 +77,9 @@ fn app() -> axum::Router {
         api,
         Arc::new(Ready),
         kartenn_rest::transport::Settings::default(),
+        Arc::new(kartenn_rest::quota::Quotas::new(
+            kartenn_rest::quota::Rates::default(),
+        )),
     )
 }
 

@@ -44,11 +44,20 @@ routeur complet, sauf mention « vrai TCP ».
   `RequestBodyTimeoutLayer`, `traceparent` suivi des proxys de confiance (REQ-012-7),
   `router(…, Settings)` ; `[http] trusted_proxies` typé et contrôlé ;
   `tests/transport.rs` (5 tests) et tests unitaires du parcours `Forwarded`
-- [ ] 4. Délestage (`LoadShed` + `ConcurrencyLimit` → 503) et quotas GCRA par identité
+- [x] 4. Délestage (`LoadShed` + `ConcurrencyLimit` → 503) et quotas GCRA par identité
   (couche propre sur `governor` : poids, `Retry-After`, `RateLimit-Policy`,
   `RateLimit`, purge et plafond de clés, événement d'abus agrégé) — REQ-006-29, 30 —
   verify : 21ᵉ écriture d'une rafale → 429 et en-têtes ; plafond atteint → 503 sans
-  requête SQL ; la table des clés ne dépasse pas son plafond sous clés variées
+  requête SQL ; la table des clés ne dépasse pas son plafond sous clés variées —
+  `kartenn-rest/src/quota.rs` : délestage par sémaphore à `try_acquire` (couche 2,
+  même effet que `LoadShed` + `ConcurrencyLimit`, qu'axum aurait posés route par
+  route), 503 `Retry-After: 1` ; `Quotas` (`r`, `w` par identité du `RequestContext`,
+  `a` par adresse, IPv6 en /64), `Charge::weigh` et `chunk_weight` pour les imports,
+  plafond de clés (100 000, au-delà une clé de débordement partagée), `tick` : purge
+  et refus agrégés par minute ; `abuse.rate.exceeded` gagne `count` et
+  `window_seconds`, acteur `system` sans identité (REQ-012-9) ; serveur : plafond
+  2 × le pool, minuterie d'une minute, refus restants écrits à l'arrêt ;
+  `tests/quota.rs` (4 tests) et tests unitaires (poids, /64, agrégation)
 - [ ] 5. Compression (`zstd`, `br`, `gzip`, > 1 Kio) sauf extension `Secret` —
   REQ-006-32 — verify : liste compressée selon `Accept-Encoding` ; réponse marquée
   `Secret` jamais compressée, `no-store`
