@@ -6,6 +6,23 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 `specs/005-authn-rbac/design.md`). Crate cible : `kartenn-rest` (axum, utoipa ;
 `docs/spec/architecture.md`).
 
+## Synthèse
+- H1 périmètre : conventions et toute la surface existante (002 à 005, 012).
+- H2 écritures : `POST /changesets` et routes par ressource enveloppant un changeset.
+- H3 URL : `/v1/<collection>/{uuid}`, clé naturelle en filtre, liens.
+- H4 dates : `valid_at`, `as_of` en RFC 3339 ; passé `immutable`, présent `no-cache` + ETag.
+- H5 pagination : curseur signé, 100 / 1000, sans total.
+- H6 filtres : paramètres en conjonction ; `QUERY` (RFC 10008) pour les filtres longs.
+- H7 erreurs : RFC 9457, liste complète pour un même type, le plus pertinent sinon.
+- H8 concurrence : `If-Match` obligatoire (428, 412) ; `Idempotency-Key` (24 h).
+- H9 imports : dépôt par morceaux, worker à bail dans PostgreSQL, suivi par interrogation.
+- H10 CSRF : `SameSite=Strict`, `Sec-Fetch-Site`, `Origin` en repli.
+- H11 débit : délestage par instance (503) et quota GCRA par identité (429).
+- H12 versions : `/v1`, évolution additive, OpenAPI tiré du code et vérifié.
+- H13 représentations : JSON Merge Patch ; objets complets avec résumé des liés.
+- H14 transport : TLS configurable, HTTP/1.1 et 2, réponses compressées.
+- H15 budgets : D14 mesurés à travers HTTP ; matrices de sécurité de bout en bout.
+
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
   pagination, dates, concurrence, idempotence, versions, et les routes de ce que
@@ -278,3 +295,63 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   partiels) ; `fields=` et `expand=` (coût non borné, RBAC et lecture datée à chaque
   expansion, ETag composite, oracle possible sur un objet invisible).
 - Décidé par : utilisateur, après comparaison
+
+## H14 — Transport : TLS, versions HTTP, compression
+- Décision :
+  - TLS : **terminaison configurable**, par le répartiteur par défaut ou par kartenn
+    (rustls). Derrière un proxy, `Forwarded: proto=https` (RFC 7239) n'est cru que des
+    adresses de proxys configurées (même liste que H11) ; une requête arrivée sans TLS
+    voit le Basic refusé et ne reçoit aucun cookie (REQ-005-12, `__Host-`, `Secure`).
+  - HTTP/1.1 et HTTP/2 (ALPN `h2` en TLS, `h2c` derrière un proxy) ; pas de HTTP/3
+    dans kartenn, il relève du proxy de bordure.
+  - Réponses compressées (`zstd`, `br`, `gzip` selon `Accept-Encoding`, au-delà de
+    1 Kio, `Vary: Accept-Encoding`), sauf celles qui montrent un secret une fois
+    (secret de compte de service, 005) : non compressées et `Cache-Control: no-store`
+    (BREACH). Corps de requête compressés refusés en v1 (415) : pas de bombe de
+    décompression, limite 413 exacte.
+- Pourquoi : la topologie d'architecture met TLS au répartiteur, mais une petite
+  installation doit pouvoir s'en passer ; les exigences TLS de la 005 restent tenues
+  dans les deux cas. HTTP/1.1 et 2 sont fournis par hyper ; les listes JSON se
+  compressent de 5 à 10 fois ; nos corps ne portent pas de secret, sauf l'exception
+  traitée.
+- Rejeté : TLS au répartiteur seulement (pas d'installation sans proxy) ; TLS dans
+  kartenn seulement (rotation de certificats dans chaque instance imposée) ; HTTP/3 dans
+  kartenn (pile QUIC séparée sans gain derrière un répartiteur) ; décompression des
+  requêtes.
+- Décidé par : recommandation acceptée
+
+## H15 — Budgets et tests
+- Décision :
+  - Budgets D14 mesurés **à travers HTTP**, serveur en processus : mêmes scénarios que
+    les bancs actuels, en passant par axum (authentification cookie et Bearer, RBAC,
+    JSON, compression). Un test de charge vérifie 200 utilisateurs concurrents et
+    50 écritures/s soutenues, sans 5xx hors délestage volontaire (H11). Les bancs du
+    service restent, pour localiser le surcoût HTTP (cible : < 10 ms au p95).
+  - Tests fonctionnels en processus (`tower`) : une route et un code d'erreur H7 par
+    test ; test de contrat OpenAPI (H12) ; matrices de sécurité de bout en bout (CSRF
+    H10, 404 pour un objet invisible, Basic refusé hors TLS via l'en-tête transféré H14,
+    428 et 412, curseur altéré, idempotence : rejeu, contenu différent, en cours, 429 et
+    503, attributs des cookies de la 005).
+  - Quelques tests sur vrai TCP et TLS pour ce que `tower` ne voit pas : ALPN, cookies,
+    `Forwarded`.
+  - Le déploiement complet (répartiteur, TLS, plusieurs instances) est hors CI v1 : banc
+    d'exploitation documenté dans le runbook.
+- Pourquoi : la couche HTTP peut régresser seule (sérialisation, filtrage RBAC,
+  compression) ; la mesure en processus reste reproductible en CI.
+- Rejeté : service seul (ne voit pas la couche HTTP) ; déploiement complet en CI
+  (infrastructure dédiée, mesures bruitées).
+- Décidé par : recommandation acceptée
+
+## Fin de l'entretien
+Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
+routes de connexion, déconnexion et secours, variante de `logged_in` sans événement,
+rechargement des JWKS) : déjà décidés par la 005, repris tels quels dans les exigences.
+
+Questions ouvertes, toutes de design :
+- séparateur des opérateurs de filtre, les clés de propriétés contenant des points
+  (H6) ;
+- borne de l'`immutable` et du gel de l'`as_of` : durée maximale d'une transaction
+  d'écriture (H4) ;
+- champs où `null` et absent différeraient, pour JSON Merge Patch (H13a) ;
+- prise en charge de QUERY par axum et les proxys inverses (H6) ;
+- crate de limitation GCRA (H11, `crate-scout`).
