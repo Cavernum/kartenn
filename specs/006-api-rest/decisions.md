@@ -342,6 +342,26 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   (infrastructure dédiée, mesures bruitées).
 - Décidé par : recommandation acceptée
 
+## H16 — Tâches de fond
+- Constat (Claude, en écrivant les exigences) : plusieurs specs renvoient à la 006
+  l'ordonnanceur des tâches de fond : expiration des changesets en attente (004),
+  réévaluation des sources de valeurs attendues (003), réécriture de l'indicateur
+  `public` après une mise à jour des registres (002), purge des clés d'idempotence
+  (H8), et le worker d'import (H9).
+- Décision : **le mécanisme de bail de H9, généralisé**. Une table de tâches (nom,
+  prochaine échéance, période, bail, battement) ; chaque instance réclame les tâches
+  échues (`FOR UPDATE SKIP LOCKED`), une seule les exécute ; une instance morte laisse
+  expirer le bail. Les tâches propres à une instance (purge de `StateCache` et du
+  `FailureLimiter`, rechargement des JWKS et de la découverte) restent des minuteries
+  locales. La purge de l'audit garde sa sous-commande pour une minuterie externe (012).
+- Pourquoi : pas de composant à état de plus (D9, D15) ; un seul mécanisme pour les
+  imports et les tâches périodiques.
+- Rejeté : verrou consultatif PostgreSQL tenu par une instance « chef » (une connexion
+  monopolisée, bascule plus lente) ; minuterie externe pour tout (dépendance
+  d'exploitation pour des tâches dont la correction dépend, comme l'expiration).
+- Décidé par : Claude (délégation, « continue au maximum »), à confirmer à la relecture
+  des exigences
+
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
 routes de connexion, déconnexion et secours, variante de `logged_in` sans événement,
