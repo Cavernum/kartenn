@@ -6,7 +6,7 @@
 | [002-noyau-adressage](002-noyau-adressage/) | implémentées | implémentée | [tasks](002-noyau-adressage/tasks.md) (28/28) |
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
-| [005-authn-rbac](005-authn-rbac/) | approuvées (REQ-005-1 à 29) | approuvée | [tasks](005-authn-rbac/tasks.md) (0/17) |
+| [005-authn-rbac](005-authn-rbac/) | implémentées (un arbitrage ouvert, REQ-005-25) | implémentée | [tasks](005-authn-rbac/tasks.md) (17/17) |
 | 006-api-rest-conventions | à écrire | — | — |
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
@@ -28,9 +28,9 @@ Une phase ne commence que lorsque la précédente est verte.
 | **P5 — Lectures et exploitation** | Arbre, occupation, prochain libre, filtrage, anomalies, audit, imports, annulation, outbox | 002 : 23 à 26 ; 003 : 14, 15 ; 004 : 16 à 22 |
 | **P6 — Budgets et synchronisation** | Bancs CI bloquants, synchronisation de `docs/spec/`, ADR proposés → acceptés | 002 : 27, 28 ; 003 : 16, 17 ; 004 : 23, 24 |
 
-Le RBAC (005) n'est pas encore spécifié : en P4, les contrôles de droits passent par une
-interface (`Authorizer`, avec `authorize_many`) et une implémentation de test
-configurable ; l'implémentation réelle viendra avec la 005.
+En P4, les contrôles de droits passaient par une interface (`Authorizer`, avec
+`authorize_many`) et une implémentation de test configurable ; la 005 l'a implémentée
+(`PgAuthorizer`).
 
 ## Point d'étape — 2026-10-17
 
@@ -100,3 +100,16 @@ Toutes tranchées le 2026-10-14, selon la recommandation : 002/A12 (1), 003/P9 (
   par domaine n'avait pas de test (REQ-004-37, précisée).
 - Le contrat de famille d'adresses portait toutes les particularités d'IPv4 et d'IPv6
   (REQ-002-1).
+
+## Point d'étape — 2026-10-18 : spec 005
+
+Authentification et RBAC implémentés (17/17) : BFF OIDC à cookie chiffré (ADR 0020),
+jetons d'accès RFC 9068, comptes de service à secret généré (HMAC, K8), comptes de
+secours à phrase de passe et TOTP ; RBAC par périmètre évalué en SQL, émetteurs confinés
+à leurs entités (ADR 0021), administration par changesets sans escalade ; 372 tests.
+Budgets tenus avec 1 000 liaisons et 50 groupes (banc `bench-rbac`) ; le surcoût relatif
+n'est pas borné (K15). Corrigés après l'audit spec-keeper : un code TOTP accepté deux
+fois par deux requêtes simultanées, un compte de secours désactivable par changeset,
+l'annulation muette des changesets d'administration, des événements d'audit jamais
+émis. Un arbitrage ouvert : REQ-005-25 « annulable ». Ce qui revient à la couche HTTP est
+listé à la fin du design de la 005.

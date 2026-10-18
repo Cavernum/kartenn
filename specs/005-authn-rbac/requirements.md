@@ -1,5 +1,5 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-18
 ---
 
@@ -16,7 +16,7 @@ d'identité. Tout refus est par défaut, toute décision est journalisée (012),
 modification des droits passe par un changeset (004). Les routes HTTP, cookies et
 formats d'erreur sont la spec 006, qui appelle ce que la 005 fournit.
 
-Décisions : [`decisions.md`](decisions.md) (K1–K14) ; D9, D11, D13 (amendé par K8), D14,
+Décisions : [`decisions.md`](decisions.md) (K1–K15) ; D9, D11, D13 (amendé par K8), D14,
 D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; ADR 0009, 0010,
 0014 ; 003/P6, P7, P17 ; 004 (politiques d'approbation, propositions) ; 012 (événements
 d'audit). Sources :
@@ -231,7 +231,7 @@ Acceptation :
 
 #### REQ-005-19 — Refus par défaut
 Si aucune liaison n'accorde la permission, alors kartenn doit refuser, y compris en
-lecture, et enregistrer `authz.access.denied`. [K5, INV-22]
+lecture, et enregistrer `authz.access.denied`. [K5, INV-25]
 
 Acceptation :
 - Une identité sans liaison ne lit aucun objet ; une liste lui renvoie une page vide.
@@ -333,7 +333,13 @@ Acceptation :
 
 ## Questions ouvertes
 
-- [ ] Clé serveur des empreintes HMAC et du chiffrement des cookies et des secrets TOTP :
-  fichier, rotation, partage entre instances. (Claude, conception)
-- [ ] Cache des liaisons et de l'état des identités entre instances : durée, invalidation
-  après un changeset de droits. (Claude, conception)
+- [x] Clé serveur des empreintes HMAC et du chiffrement des cookies et des secrets TOTP :
+  fichier, rotation, partage entre instances. (Claude, conception) — `auth.key_file`, un
+  trousseau partagé, clé courante en tête (design « Trousseau »).
+- [x] Cache des liaisons et de l'état des identités entre instances : durée, invalidation
+  après un changeset de droits. (Claude, conception) — état des identités : 5 s, oublié
+  par l'instance qui le change ; liaisons : pas de cache (K15).
+- [ ] REQ-005-25 « annulable » : l'annulation (004) n'a pas d'inverse pour les opérations
+  d'administration ; elle les liste comme non prises en charge, comme les déclarations.
+  Garder cet écart (amender REQ-005-25) ou écrire les inverses des rôles, liaisons et
+  rattachements ? (utilisateur)

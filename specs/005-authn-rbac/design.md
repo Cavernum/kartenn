@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-17
+status: implemented
+updated: 2026-10-18
 ---
 
 # 005 — Authentification et RBAC : conception
@@ -15,7 +15,7 @@ flowchart LR
     edge[Couche HTTP 006] --> authn[kartenn-auth : OIDC BFF, jetons, Basic, TOTP, cookies]
     authn -- "Principal" --> svc[kartenn-service]
     svc -- "Authorizer (port), Subject" --> rbac[kartenn-store-pg : PgAuthorizer, prédicats SQL]
-    svc -- "IdentityStore (port)" --> ids[(person, rbac)]
+    svc -- "Identities (port)" --> ids[(person, rbac)]
   end
   authn -- "découverte, JWKS, code, refresh" --> idp[Émetteurs OIDC]
   rbac --> pg[(PostgreSQL)]
@@ -37,11 +37,11 @@ flowchart LR
 
 | Crate | Rôle | Dépendances nouvelles |
 |---|---|---|
-| `kartenn-core` | catalogue des permissions (`authz::catalogue`), rôles livrés, types `Permission`, `ScopeKind` | — |
-| `kartenn-service` | `Subject`, `Principal` ; port `Authorizer` étendu ; ports `IdentityStore`, `SecretHasher` ; contrôles d'écriture par type d'objet ; opérations d'administration ; `authn` (identité juste-à-temps, événements) | — |
+| `kartenn-core` | catalogue des permissions (`authz::PERMISSIONS`, `catalogue_markdown`), rôles livrés (`BUILTIN_ROLES` : `reader`, `editor`, `approver`, `administrator`), type `Permission` | — |
+| `kartenn-service` | `Subject`, `Principal` ; port `Authorizer` étendu ; ports `Identities`, `SecretHasher`, `BreakglassVerifier` ; contrôles d'écriture par type d'objet ; opérations d'administration ; `authn` (identité juste-à-temps, événements) | — |
 | `kartenn-auth` (nouvelle) | client OIDC du BFF (découverte, PKCE, `state`, `nonce`, validation du jeton d'identité, rafraîchissement), validation des jetons d'accès RFC 9068, cookie de session chiffré, trousseau de clés, HMAC des secrets, Argon2id, TOTP | `jsonwebtoken` 11 (moteur RustCrypto), `aes-gcm`, `hkdf`, `hmac`, `sha2`, `argon2`, `subtle` ; client HTTP sur hyper-rustls avec `ring`, sans aws-lc (comme la 012) ; pas de crate `openidconnect` : le flux est écrit sur ces briques (précision de la tâche 12) |
-| `kartenn-store-pg` | migration `0028_rbac.sql` ; `PgAuthorizer`, `Visibility` ; identités ; comptes | — |
-| `kartenn-server` | configuration `[auth]` ; sous-commande `breakglass` ; synchronisation des rôles livrés au job de migration | — |
+| `kartenn-store-pg` | migrations 0028 (tables, `kartenn_owner`, `kartenn_site`), 0029 (`kartenn_visible`), 0030 (`kartenn_readable`, retiré en 0033), 0031 et 0032 (noms uniques des comptes), 0033 (`kartenn_scopes`, coût des prédicats) ; `PgAuthorizer`, `Visibility`, `ReadScope` ; identités ; comptes ; `breakglass::create` | — |
+| `kartenn-server` | configuration `[auth]` (`config::Auth`, lue par `auth::load`) ; sous-commande `breakglass create <url> <nom> <heures> <fichier-de-clés>` ; synchronisation des rôles livrés au job de migration | — |
 
 Les crates `openidconnect` et `jsonwebtoken` sont confirmées en tâche 1 (versions,
 moteur cryptographique sans aws-lc, couverture de RFC 9068 et de RFC 9207) ; à défaut,
@@ -51,8 +51,9 @@ la validation est écrite sur `jsonwebtoken` seul.
 
 - `Principal` (sortie de l'authentification) : `identity: Uuid`, `kind` (`person`,
   `service_account`, `breakglass`), `issuer: Option<String>`, `groups: Vec<String>`,
-  `method` (`oidc_session`, `bearer`, `basic`, `breakglass`), `session_started`.
-  Il alimente `RequestContext` (012).
+  `method` (`oidc_session`, `bearer`, `basic`, `breakglass`). Le début de la session
+  est passé à `StateCache::check`, qui compare à `revoked_after`. Il alimente
+  `RequestContext` (012).
 - `Subject` (entrée de l'autorisation) : `id`, `issuer`, `groups`. Le port devient
   `authorize_many(&Subject, permission, objects)` ; `Grants` et `Unrestricted` suivent.
   Un changeset en attente garde un instantané des groupes de son auteur
@@ -62,7 +63,8 @@ la validation est écrite sur `jsonwebtoken` seul.
 ### Modèle de données — migration `0028_rbac.sql`
 
 - `person` (existante) devient la table des **identités** : colonnes `kind`
-  (`person`, `service_account`, `breakglass`), `disabled_at`, `revoked_after` ;
+  (`person`, `service_account`, `breakglass`, et `system` pour kartenn lui-même),
+  `disabled_at`, `revoked_after` ;
   `issuer`, `subject` déjà présents (unicité (`issuer`, `subject`)) ; `email` cesse
   d'être écrit (K3).
 - Tables versionnées comme les objets du noyau (`valid_period`, historique, ADR 0017) :
@@ -82,7 +84,7 @@ la validation est écrite sur `jsonwebtoken` seul.
 
 ### Catalogue des permissions et rôles livrés (REQ-005-16, 17)
 
-- `kartenn_core::authz::catalogue` : macro comme celle des événements d'audit ; chaque
+- `kartenn_core::authz` (`PERMISSIONS`) : macro comme celle des événements d'audit ; chaque
   entrée : nom, module, résumé, objet, action ; `EVENTS` → `PERMISSIONS`. Les permissions
   de propriété (`prop.<clé>.*`) sont dérivées des déclarations (003) ; `read` n'existe
   que pour les propriétés sensibles.
@@ -116,9 +118,8 @@ la validation est écrite sur `jsonwebtoken` seul.
 4. **Prédicat** : `(global OR owner = ANY(entities) OR site = ANY(sites) OR domain_id =
    ANY(domains) OR value <<= ANY(prefixes du même domaine)) AND (confinement IS NULL OR
    owner = ANY(confinement))`, paramètres en tableaux liés. `authorize_many` l'applique à
-   `unnest(objets)` et renvoie les refusés ; les lectures de listes (filtre, arbre,
-   occupation, prochain libre, propositions) le reçoivent en paramètre
-   (`&Visibility`).
+   `unnest(objets)` et renvoie les refusés ; les listes filtre et arbre le reçoivent en
+   paramètre (`ReadScope`, point 6) ; les propositions passent par `Authorizer`.
 5. **Écritures** (REQ-005-22) : chaque objet écrit demande `core.<sorte>.write`
    (déclarations : `core.property.admin`), décidé **dans la transaction du changeset**
    (`Authorizer::authorize_in` → `WriteTx::rbac_outside`), qui voit ses propres
@@ -136,29 +137,38 @@ la validation est écrite sur `jsonwebtoken` seul.
    aplati en semi-jointure sur toute la base) : `filter_in`, `children_in` ; l'occupation et
    le prochain libre restent des statistiques du préfixe, sous `core.prefix.read`.
    `kartenn_readable` (0030), qui reconstruisait les tableaux à chaque ligne, est retiré.
-7. **Valeurs sensibles** (REQ-005-21) : `read_object` reçoit la `Visibility` de
-   `prop.<clé>.read` pour chaque propriété sensible ; sans ce droit, la valeur est retirée
+7. **Valeurs sensibles** (REQ-005-21) : `read_object` demande `prop.<clé>.read` à
+   `Authorizer::authorize_many` pour chaque propriété sensible ; sans ce droit, la valeur est retirée
    et sa clé listée dans `masked`, et seul un lecteur autorisé produit
    `data.sensitive.read`.
 
-Pas de cache des liaisons en v0.1 (une requête par décision, cible < 1 ms au p95) ; cache
+Pas de cache des liaisons en v0.1 (une requête par décision ; mesuré : environ 10 ms
+pour 1 000 liaisons, budgets tenus, 005/K15) ; cache
 de l'état des identités de 5 s par instance (K10) : l'instance qui applique un changement
 d'état oublie l'entrée (coupure à la requête suivante, REQ-005-3) ; les autres instances
 coupent au plus 5 s plus tard (précision de la tâche 13).
 
 ### Administration (REQ-005-25 à 27)
 
-- Opérations : `CreateRole`, `SetRolePermissions`, `CloseRole` ; `Bind`, `Unbind`
-  (clôture de la période) ; `AttachIssuer`, `DetachIssuer` ; `CreateServiceAccount`,
-  `AddServiceSecret`, `RevokeServiceSecret` ; `DisableIdentity`, `EnableIdentity`,
-  `RevokeSessions`.
+- Opérations : `SetRole` (crée ou remplace les permissions), `CloseRole` (clôt aussi ses
+  liaisons) ; `Bind`, `Unbind` (clôture de la période) ; `AttachIssuer`, `DetachIssuer` ;
+  `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret` ; `SetIdentityState`
+  (désactiver, réactiver, révoquer les sessions ; personnes et comptes de service
+  seulement, jamais un compte de secours ni kartenn). Une permission `prop.<clé>.<action>`
+  d'un rôle nomme une propriété déclarée (en base ou par le même changeset).
+- Les permissions d'administration globales portent sur l'objet fixe `RBAC_OBJECT`, sans
+  propriétaire : seul un sujet non confiné peut les détenir (K13).
+- Annulation (004) : ces opérations n'ont pas d'inverse ; l'annulation les liste comme
+  non prises en charge (comme les déclarations), on les refait par un changeset.
 - Contrôles (nouvelles règles du pipeline) : `core.role.admin`, `core.issuer.admin` et
   `core.account.admin` sur le périmètre global ; une liaison exige `core.rbac.admin` sur
   un périmètre qui contient le sien et toutes les permissions du rôle sur ce périmètre
   (K7) — vérifié par le prédicat sur l'objet du périmètre ; refus :
   `core.binding.escalation`.
 - Politiques d'approbation (004) : périmètre (entité, site, sous-arbre) et auteurs par
-  rôle ou groupe, évalués avec le même modèle.
+  rôle ou groupe, évalués avec le même modèle ; déclencheur `bound_roles` : le changeset
+  lie l'un de ces rôles (second administrateur pour le rôle administrateur), rangé avec
+  les périmètres de la politique.
 - Le secret d'un compte de service est généré hors du pipeline (`SecretHasher`) :
   l'opération ne transporte que l'empreinte et l'identifiant de clé ; l'appelant (006)
   montre le secret une fois.
@@ -178,24 +188,32 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
 - **Cookie de session** : AES-256-GCM, données associées = nom du cookie et identifiant de
   clé ; contenu : identité, émetteur, `sub`, groupes, début, dernière activité, jeton de
   rafraîchissement, jeton d'identité (pour la déconnexion). Réémis au plus une fois par
-  minute (inactivité glissante). Au-delà de 4 Kio, découpage en au plus trois cookies
+  minute (inactivité glissante, à la charge de la 006). Au-delà de 4 Kio, découpage en au plus trois cookies
   `__Host-kartenn-N`.
 - **Rafraîchissement des groupes** : à l'expiration du jeton d'accès de l'IdP (au plus
   15 min), le jeton de rafraîchissement est échangé ; un échec ferme la session.
 - **Jetons Bearer** : validation RFC 9068 par `jsonwebtoken`, clés JWKS en cache par
   émetteur, rechargement sur `kid` inconnu au plus une fois par minute ; identité
-  juste-à-temps comme à la connexion.
+  juste-à-temps comme à la connexion. Une clé retirée par l'émetteur reste acceptée
+  jusqu'au redémarrage (pas de rechargement périodique) ; révoquer les sessions ne coupe
+  pas un jeton d'accès (sa durée de vie le borne), désactiver l'identité si.
 - **Basic** : `user` = nom du compte de service ; empreinte HMAC comparée en temps
-  constant aux secrets actifs ; état relu à chaque requête. Limitation de débit par source
-  (seau à jetons par instance).
-- **Secours** : sous-commande `kartenn-server breakglass create <url> <nom> <heures>`
+  constant aux secrets actifs ; état relu à chaque requête. Limitation des échecs par
+  source (`FailureLimiter`, fenêtre fixe par instance), branchée par la 006.
+- **Secours** : sous-commande `kartenn-server breakglass create <url> <nom> <heures>
+  <fichier-de-clés>`
   (propriétaire du schéma) : génère une phrase de passe de 20 caractères et un secret TOTP
   de 160 bits, affichés une fois (URI `otpauth://`). La connexion (route de la 006)
   vérifie la phrase (Argon2id, 64 Mio, t = 3, p = 4) puis le code TOTP (pas courant ou
-  précédent, strictement après `last_totp_step`) et ouvre une session d'au plus 1 h ;
-  100 échecs consécutifs désactivent le compte.
+  précédent, strictement après `last_totp_step`, pris par une mise à jour conditionnelle :
+  deux requêtes simultanées avec le même code n'en ouvrent qu'une) et ouvre une session
+  d'au plus 1 h (006) ; 100 échecs consécutifs (phrase ou code faux, comptés en base)
+  désactivent le compte et produisent `authn.account.locked`.
 
 ### Configuration
+
+`[auth]` est facultatif (sans lui, personne ne se connecte) ; `redirect_uri` et
+`issuer` admettent `http` sur la boucle locale pour le développement.
 
 ```toml
 [auth]
@@ -223,9 +241,13 @@ algorithms = ["RS256", "ES256"]
   `TokenError::reason` (`kartenn-auth`) ; s'y ajoutent `transaction`, `refused`,
   `exchange`, `subject`, `issuer_unknown`, `issuer_unavailable`, `malformed`,
   `token_type`, `algorithm`, `claims`, ainsi que `unknown` et `expired` pour les comptes.
-- Nouveaux événements : `authn.breakglass.used` (WARN, high).
+- Nouveaux événements : `authn.breakglass.used` (WARN, high),
+  `account.breakglass.created` ; `authn.account.locked` à 100 échecs de secours.
+- Fermeture de session : `authn::session_closed` (cause `logout`, `idle`, `absolute`,
+  `refresh_failed`, `revoked`), appelée par la 006 là où elle voit la session finir.
 - Les changesets d'administration sont audités par la 012 (`changeset.state.applied`) ;
-  `rbac.role.changed` et `account.service.changed` (déjà au catalogue) en plus.
+  en plus `rbac.role.changed` (le rôle en détail), `rbac.binding.changed` (la liaison
+  visée) et `account.service.changed` (`created`, `secret_added`, `secret_revoked`).
 
 ## Erreurs et cas limites
 
@@ -242,8 +264,8 @@ algorithms = ["RS256", "ES256"]
 ## Alternatives considérées
 
 - **Cache des liaisons par instance avec invalidation par l'outbox** : plus rapide, mais
-  une fenêtre d'incohérence entre instances après un retrait de droits ; à envisager si le
-  banc le demande.
+  une fenêtre d'incohérence entre instances après un retrait de droits. Le banc ne l'a pas
+  demandé : les budgets tiennent sans lui (K15).
 - **Table de visibilité matérialisée (objet × sujet)** : coût d'écriture en
   O(objets × sujets) à chaque changement de liaison ou d'arbre.
 - **Port `Authorizer` inchangé (sujet = `Uuid`) avec un autorisateur par requête** :
@@ -271,9 +293,29 @@ algorithms = ["RS256", "ES256"]
   aucune liaison d'un administrateur délégué n'élève un droit (REQ-005-26).
 - Tests SQL du confinement et des périmètres sur un petit arbre (entités, sites, domaines,
   préfixes) ; rôle `kartenn_app` pour les droits d'écriture des comptes de secours.
-- Banc `bench-core` avec 1 000 liaisons et 50 groupes par identité (REQ-005-29).
+- Banc `bench-rbac` (jeu de `bench-core`) avec 1 000 liaisons et 50 groupes par identité
+  (REQ-005-29, K15).
 
 ## ADR
 
-- [`docs/adr/0020-session-bff-cookie-sans-etat.md`](../../docs/adr/0020-session-bff-cookie-sans-etat.md) (proposé)
-- [`docs/adr/0021-rbac-predicats-sql-confinement.md`](../../docs/adr/0021-rbac-predicats-sql-confinement.md) (proposé)
+- [`docs/adr/0020-session-bff-cookie-sans-etat.md`](../../docs/adr/0020-session-bff-cookie-sans-etat.md) (acceptée)
+- [`docs/adr/0021-rbac-predicats-sql-confinement.md`](../../docs/adr/0021-rbac-predicats-sql-confinement.md) (acceptée)
+
+## Laissé à la couche HTTP (006)
+
+La 005 fournit les briques ; la 006 les branche et en porte les tests de bout en bout :
+
+- attributs des cookies (`__Host-`, `Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/`),
+  suppression du cookie de transaction et du cookie de session, réémission au plus une
+  fois par minute (REQ-005-6, 8) ;
+- refus du Basic hors TLS, réponse `invalid_token` (RFC 6750), branchement du
+  `FailureLimiter` (REQ-005-12, 13) ;
+- session de secours d'1 h au plus (REQ-005-15) ; appel de `authn::session_closed` ;
+- identité juste-à-temps des jetons d'accès **sans** `authn.login.succeeded` à chaque
+  requête : une variante de `authn::logged_in` sans événement est à ajouter avec la 006 ;
+- contrôle `core.prefix.read` des lectures qui ne passent pas par le service avec un
+  droit (occupation, prochain libre, anomalies, explication, différentiel, lectures
+  datées) ; un contexte sans identité n'est que celui de kartenn lui-même, jamais celui
+  d'un appel anonyme ;
+- purge des entrées de `StateCache` et de `FailureLimiter`, rechargement périodique des
+  JWKS et de la découverte.

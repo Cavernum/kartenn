@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-17
+status: accepted
+date: 2026-10-18
 ---
 
 # 0020 — Session du navigateur : BFF à cookie chiffré sans état

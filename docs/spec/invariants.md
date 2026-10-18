@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Invariants
@@ -34,25 +34,32 @@ concurrence).
 
 | ID | Invariant | Garantie | Test |
 |---|---|---|---|
-| INV-20 | Aucun secret Basic n'est accepté hors TLS ; aucun secret n'est stocké en clair | Config + App (Argon2id) | Tests d'intégration |
-| INV-21 | Un jeton OIDC n'est accepté que d'un émetteur configuré, avec `iss`, `aud`, signature et expiration valides | App | Tests par cas de refus (RFC 8725) |
+| INV-20 | Aucun secret Basic n'est accepté hors TLS ; aucun secret n'est stocké en clair (comptes de service : HMAC-SHA-256 sous le trousseau ; secours : Argon2id) | Config (006, TLS) + App | `auth/tests/service_accounts.rs` (secret absent de la base et de l'audit) ; refus hors TLS : 006 |
+| INV-21 | Un jeton OIDC n'est accepté que d'un émetteur configuré, avec `iss`, `aud`, signature par une clé de l'émetteur et un algorithme de sa liste fermée (clé publique seulement, jamais `none`), expiration valide | App + Config | `auth/tests/access_tokens.rs`, `oidc.rs` (RFC 8725, RFC 9068) |
 | INV-22 | Toute écriture exige le droit sur les objets visés **et** sur chaque changement de valeur résolue d'une propriété (effets indirects compris) | App | REQ-003-17, REQ-003-18 |
 | INV-23 | Un plugin UI n'obtient jamais plus de droits que l'utilisateur | Architecture (accès par l'API seulement) + CSP | Revue, tests E2E |
 | INV-24 | Les décisions de flux (v0.2) se fondent sur la valeur résolue, jamais sur la valeur attendue | App | REQ-003-24 |
+| INV-25 | Refus par défaut : sans liaison qui l'accorde, aucune lecture ni écriture ; un objet non lisible est répondu absent ; une liste ne contient que ce que la décision unitaire autorise | App + prédicat SQL | `service/tests/rbac.rs` (`lists_hold_what_the_decision_allows`) |
+| INV-26 | Un émetteur confiné n'accorde rien hors des sous-arbres des entités qui lui sont rattachées, quelles que soient les liaisons | Prédicat SQL | `an_issuer_is_confined_to_its_entities` |
+| INV-27 | Aucun administrateur délégué n'accorde un droit qu'il ne détient pas sur le périmètre | App | `a_delegate_cannot_escalate` |
+| INV-28 | Un compte de secours exige phrase de passe **et** code TOTP, un code n'est jamais accepté deux fois (même par deux requêtes simultanées), et aucune opération de l'API ne le crée ni ne le modifie | App + Base (mise à jour conditionnelle, droits du rôle applicatif) | `auth/tests/breakglass.rs`, `rbac_schema.rs` |
 
 ## Performance (D14) — p95 serveur, 10⁶ objets, 3 ans d'historique
 
 Le banc `bench-core` (002/A14) est bloquant par son code de sortie ; il n'y a pas encore
 d'intégration continue pour l'exécuter à chaque changement. Les 200 utilisateurs
-concurrents d'INV-36 seront mesurés avec l'API (006).
+concurrents d'INV-36 seront mesurés avec l'API (006). Le banc `bench-rbac` (005/K15)
+mesure INV-30 à 34 pour une personne à 1 000 liaisons et 50 groupes, avec et sans
+contrôle d'accès ; les changesets de 10⁴ objets et les imports prennent la même décision
+une fois par changeset ou par lot.
 
 | ID | Budget | Test |
 |---|---|---|
-| INV-30 | Lecture d'un objet < 50 ms | Banc `bench-core` |
-| INV-31 | Page filtrée (curseur, 100) < 150 ms, y compris filtre sur valeur résolue | Banc `bench-core` |
-| INV-32 | Sous-arbre et occupation < 200 ms | Banc `bench-core` |
-| INV-33 | Lecture « à la date X » ≤ ×2 la lecture courante | Banc `bench-core` |
-| INV-34 | Changeset unitaire validé et appliqué < 200 ms | Banc `bench-core` |
+| INV-30 | Lecture d'un objet < 50 ms | Bancs `bench-core`, `bench-rbac` |
+| INV-31 | Page filtrée (curseur, 100) < 150 ms, y compris filtre sur valeur résolue | Bancs `bench-core`, `bench-rbac` |
+| INV-32 | Sous-arbre et occupation < 200 ms | Bancs `bench-core`, `bench-rbac` |
+| INV-33 | Lecture « à la date X » ≤ ×2 la lecture courante | Bancs `bench-core`, `bench-rbac` |
+| INV-34 | Changeset unitaire validé et appliqué < 200 ms | Bancs `bench-core`, `bench-rbac` |
 | INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc `bench-core` |
 | INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Banc `bench-core` |
 

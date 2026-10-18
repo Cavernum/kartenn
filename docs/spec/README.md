@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # kartenn — spécification système
@@ -36,8 +36,10 @@ Objectifs :
 - Performance à l'échelle : budgets p95 chiffrés sur 10⁶ objets (D14), vérifiés en CI.
 - Historique bitemporel interrogeable (D8, D10).
 - Modularité : modules métier compilés, plugins UI à chaud, connecteurs externes (D6).
-- Accès : OIDC multi-émetteurs et Basic Auth, RBAC par périmètre et par propriété
-  (D13, D36, 003/P6–P7).
+- Accès : OIDC multi-émetteurs par un BFF à cookie chiffré, jetons d'accès pour les
+  clients, comptes de service en Basic, comptes de secours à deux facteurs ; RBAC par
+  périmètre et par propriété, émetteurs confinés à leurs entités (D13, D36, 003/P6–P7,
+  spec 005).
 - Interfaces : REST et Web en v0.1 ; CLI, TUI et MCP ensuite, comme clients REST (D7).
 
 Non-objectifs :
@@ -97,6 +99,7 @@ Non-objectifs :
 | [data.md](data.md) | Modèle de données, bitemporel, propriétés, stockage PostgreSQL |
 | [invariants.md](invariants.md) | Propriétés qui doivent toujours tenir, et comment elles sont garanties |
 | [regles-noyau.md](regles-noyau.md) | Catalogue des règles de validation du noyau (généré depuis le code) |
+| [permissions.md](permissions.md) | Catalogue des permissions et des rôles livrés (généré depuis le code) |
 | [evenements-audit.md](evenements-audit.md) | Catalogue des événements d'audit (généré depuis le code) ; [schéma JSON](evenements-audit.schema.json) de leur forme exportée |
 | [`../adr/`](../adr/) | Architecture Decision Records |
 | [`../../specs/`](../../specs/) | Specs de fonctionnalités et journaux de décisions |
@@ -126,8 +129,8 @@ Non-objectifs :
 | [0017](../adr/0017-temps-systeme-tables-historique.md) | Temps système : table courante, historique, déclencheur | accepted |
 | [0018](../adr/0018-outbox-ordonnee-par-domaine.md) | Outbox transactionnelle ordonnée par domaine (CloudEvents) | accepted |
 | [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | accepted |
-| [0020](../adr/0020-session-bff-cookie-sans-etat.md) | Session du navigateur : BFF à cookie chiffré sans état | proposed |
-| [0021](../adr/0021-rbac-predicats-sql-confinement.md) | RBAC évalué en SQL : périmètres hérités et confinement des émetteurs | proposed |
+| [0020](../adr/0020-session-bff-cookie-sans-etat.md) | Session du navigateur : BFF à cookie chiffré sans état | accepted |
+| [0021](../adr/0021-rbac-predicats-sql-confinement.md) | RBAC évalué en SQL : périmètres hérités et confinement des émetteurs | accepted |
 
 ## Questions ouvertes
 

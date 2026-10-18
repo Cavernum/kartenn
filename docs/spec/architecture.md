@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Architecture
@@ -46,12 +46,13 @@ flowchart LR
 | Couche service | Cas d'usage ; pipeline d'écriture ; transactions ; maintenance des origines et différentiel des propriétés (calcul ensembliste délégué à l'adaptateur) ; audit ; outbox | Changesets, journal d'audit, outbox |
 | Journal d'audit (012) | Événements typés remis au port `AuditJournal`, écrits dans la transaction de l'action (échec fermé) ; scellement par lots chaînés, relais vers les sorties d'audit, purge par criticité, vérification | Schéma `audit` |
 | Télémétrie (`kartenn-telemetry`) | Capture unique des événements `tracing`, files bornées par sortie (stdout, fichier, journald, syslog, OTLP), masquage ; OpenTelemetry (traces, métriques, logs) ; sorties d'audit (`AuditSink`) | — |
-| Binaire (`kartenn-server`) | Composition : configuration, sorties, tâches de scellement et de relais, arrêt propre ; sous-commandes `migrate`, `run`, `audit verify`, `audit purge` | — |
+| Binaire (`kartenn-server`) | Composition : configuration, sorties, tâches de scellement et de relais, arrêt propre ; sous-commandes `migrate`, `run`, `audit verify`, `audit purge`, `breakglass create` ; configuration `[auth]` | — |
 | `syslog-sender` | Bibliothèque autonome (MPL-2.0) : messages RFC 5424 et RFC 3164, transports local, UDP, TCP, TLS avec comptage d'octets | — |
 | Ports de stockage | Interfaces définies par le domaine et la couche service (lecture datée, écriture de versions, verrous) | — |
 | Adaptateur PostgreSQL | Implémente les ports ; contraintes en base (dernier rempart) ; requêtes temporelles | Schéma PostgreSQL |
 | Adaptateur REST | Ressources, sérialisation, erreurs RFC 9457, pagination, OpenAPI | — |
-| AuthN / AuthZ | Basic (comptes de service, secours), OIDC (JWT multi-émetteurs) ; évaluation RBAC | Comptes de service, rôles, liaisons |
+| Authentification (`kartenn-auth`) | Trousseau de clés (HKDF par usage), cookies scellés, flux OIDC du BFF, jetons d'accès RFC 9068, secrets des comptes de service, comptes de secours (Argon2id, TOTP) ; derrière les ports `Identities`, `SecretHasher`, `BreakglassVerifier` de la couche service | — |
+| Autorisation (service et adaptateur) | Port `Authorizer` ; décisions et administration dans la couche service ; visibilités et prédicats SQL dans l'adaptateur PostgreSQL (`PgAuthorizer`, ADR 0021) | Identités, rôles, liaisons, rattachements, secrets |
 | Workers | Relais outbox (webhooks, invalidations), jobs longs (imports, rapports) ; répartis sans doublon | État des jobs |
 | Shell Web | Navigation, vues du noyau, hôte des plugins UI ; client de l'API | — |
 | Connecteurs | Import / synchronisation depuis des sources externes via l'API | Correspondances d'identifiants (dans kartenn) |
@@ -70,15 +71,15 @@ sequenceDiagram
   participant D as Domaine
   participant P as PostgreSQL
   C->>R: changeset (opérations, valid_period, motif)
-  R->>A: identité, permissions sur les objets visés
-  A-->>R: refus 401/403 ou poursuite
+  R->>A: identité (session, jeton, Basic)
+  A-->>R: refus 401 ou sujet (identité, émetteur, groupes)
   R->>S: soumettre
   S->>D: règles locales (sans base)
   S->>P: BEGIN ; verrous sur les portées touchées
   S->>P: écrire les versions dans la transaction (temps système = horodatage de transaction)
   S->>D: invariants globaux sur l'état final, à toute la période visée
   S->>P: maintenir les origines des propriétés ; différentiel (003)
-  S->>A: permission sur l'effet (003/REQ-003-18), approbation requise ?
+  S->>P: permissions sur les objets écrits et sur l'effet, dans la transaction (005, 003/REQ-003-18) ; approbation requise ?
   alt refus
     S->>P: ROLLBACK ; journaliser le refus (transaction séparée)
     S-->>C: erreur RFC 9457 (règles, objets)
@@ -114,8 +115,7 @@ types de valeurs ; règles de validation (identifiant, sévérité) ; sources de
 attendues ; permissions ; ressources REST ; contribution au graphe de topologie ;
 plugin UI éventuel.
 
-Organisation du workspace (les crates `kartenn-rest` et `kartenn-auth` sont la cible des
-specs 005 et 006 ; voir
+Organisation du workspace (la crate `kartenn-rest` est la cible de la spec 006 ; voir
 [`../practices/rust-build.md`](../practices/rust-build.md)) :
 
 ```
@@ -124,9 +124,10 @@ crates/
   kartenn-service/     cas d'usage, pipeline d'écriture, différentiel
   kartenn-store-pg/    adaptateur PostgreSQL (sqlx), migrations du noyau
   kartenn-rest/        adaptateur REST (axum), OpenAPI (utoipa)
-  kartenn-auth/        Basic, OIDC, RBAC
+  kartenn-auth/        trousseau, OIDC, jetons, secrets, comptes de secours
   kartenn-server/      binaire : composition, configuration, observabilité
-  kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26)
+  kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26,
+                       REQ-005-29)
   kartenn-<module>/    un module métier (vlan, machines, policy…)
   kartenn-workspace-hack/
 web/
@@ -148,8 +149,10 @@ flowchart TB
   static[Web statique + plugins] --> lb
 ```
 
-- Instances **sans état** ; sessions portées par des jetons ; aucun cache local faisant
-  autorité.
+- Instances **sans état** ; sessions portées par un cookie chiffré (ADR 0020) ; aucun
+  cache local faisant autorité : l'état des identités est gardé 5 s au plus par
+  instance (l'instance qui le change l'oublie aussitôt), les droits sont relus à chaque
+  requête (005/K15).
 - Un **job de migration** dédié, exécuté une fois avant le déploiement des instances.
 - Tâches de fond réparties par verrous en base : le relais d'outbox prend un verrou
   consultatif par consommateur, le scellement de l'audit et chaque relais d'audit le

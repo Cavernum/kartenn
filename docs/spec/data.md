@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Données
@@ -144,6 +144,31 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - **Filtres changés à chaud** : `observability_override` (migration 0026), une ligne par
   sortie jusqu'à son expiration.
 
+## Identités et RBAC (spec 005, ADR 0021)
+
+- **Identités** (`person`, étendue par la migration 0028) : `kind` (`person`,
+  `service_account`, `breakglass`, `system`), émetteur et `sub` pour une personne (une
+  identité par couple), nom affiché seul, `disabled_at`, `revoked_after` (sessions
+  ouvertes avant refusées). Le nom d'un compte de service ou de secours est unique dans
+  sa sorte (migrations 0031, 0032) et sert d'identifiant de connexion.
+- **Bitemporels** (déclencheur de versionnement, ADR 0017) : `role` (clé unique sur la
+  période, `builtin` pour les rôles livrés), `role_permission`, `binding` (sujet :
+  identité, groupe d'un émetteur ou émetteur ; périmètre : global, entité, site,
+  domaine, préfixe ; clore un rôle clôt ses liaisons), `issuer_attachment` (entité, ou
+  aucune pour un rattachement global). « Qui avait tel rôle à telle date » se lit par
+  une lecture datée.
+- **Non versionnés** : `service_secret` (empreinte HMAC-SHA-256 et identifiant de clé du
+  trousseau, expiration, révocation ; deux actifs au plus par compte, contrainte
+  différée) ; `breakglass_account` (empreinte Argon2id, secret TOTP scellé sous le
+  trousseau, dernier pas TOTP accepté, échecs consécutifs, fin de validité), écrit par
+  le seul propriétaire du schéma : le rôle applicatif n'y met à jour que le pas et les
+  échecs.
+- **Fonctions SQL** : `kartenn_owner` et `kartenn_site` (propriétaire et site résolus
+  d'un objet, 0028) ; `kartenn_visible` (un objet dans une visibilité : global, domaine,
+  sous-arbres, puis entités et sites, borné par le confinement ; 0029, réécrite en 0033
+  pour tester d'abord les périmètres bon marché) ; `kartenn_scopes` (une portée de
+  lecture JSON en tableaux typés, matérialisée une fois par requête, 0033).
+
 ## Stockage PostgreSQL (D15, ADR 0004)
 
 - Préfixes en `cidr`, adresses en `inet` ; jamais de texte utilisateur transmis tel quel
@@ -169,3 +194,4 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - Exécutées par un job dédié, jamais au démarrage des instances (D9).
 - Les propriétés déclarées par un module évoluent avec le code du module, synchronisées
   par le job de migration (003/P12).
+- Les rôles livrés (005/K12) sont synchronisés de même, par un changeset de kartenn.

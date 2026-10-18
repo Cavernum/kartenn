@@ -1,12 +1,13 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Interfaces
 
-Les détails normatifs viendront des specs 005 (authentification, RBAC), 006 (conventions
-REST) et 007 (shell et plugins). Ce document fixe les principes déjà décidés.
+Les détails normatifs viendront des specs 006 (conventions REST) et 007 (shell et
+plugins) ; l'authentification et le RBAC sont fixés par la spec 005. Ce document fixe les
+principes décidés.
 
 ## API REST (D7, ADR 0002)
 
@@ -27,30 +28,64 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
 | Capacités | Endpoint listant les modules actifs, leurs versions, propriétés et plugins UI | D7, D17 |
 | Versionnement | À décider (Q-ouv-7) | — |
 
-## Authentification (D13, ADR 0009)
+## Authentification (D13, ADR 0009 amendée par 005/K8, ADR 0020 ; spec 005)
 
-- **Humains** : OIDC, authorization code + PKCE (RFC 7636), plusieurs émetteurs de
-  confiance configurés ; le serveur valide les JWT (signature via JWKS en cache,
-  `iss`, `aud`, expiration ; RFC 8725). Les claims (groupes) sont mappés sur des liaisons
-  RBAC.
+- **Personnes, navigateur** : BFF (ADR 0020). kartenn est client confidentiel OIDC de
+  chaque émetteur (code d'autorisation, PKCE S256 RFC 7636, `state`, `nonce`, paramètre
+  `iss` RFC 9207) ; le navigateur ne reçoit qu'un cookie de session chiffré (AES-256-GCM,
+  trousseau partagé par les instances), sans état côté serveur. Inactivité 30 min,
+  durée absolue 8 h (réglables, au plus 60 min et 24 h) ; groupes rafraîchis par le
+  jeton de rafraîchissement de l'émetteur.
+- **Personnes, clients non navigateurs** : jetons d'accès JWT de l'émetteur (RFC 9068 :
+  `typ` `at+jwt`, `iss` exact, audience de kartenn, algorithme de la liste fermée de
+  l'émetteur, `exp` à 60 s près) ; clés JWKS en cache, rechargées sur `kid` inconnu au
+  plus une fois par minute.
+- **Identités** : une par (émetteur, `sub`), créée à la première connexion avec le seul
+  nom affiché (pas d'adresse électronique). Désactivation et révocation des sessions
+  par changeset, effectives à la requête suivante (cache d'état de 5 s par instance au
+  plus).
 - **Machines** (CLI, connecteurs, scripts) : comptes de service en **Basic** (RFC 7617)
-  sur TLS ; secrets hachés en Argon2id (RFC 9106).
-- **Secours** : comptes humains locaux en Basic, réservés au break-glass.
+  sur TLS ; secret de 256 bits généré par kartenn, montré une fois, stocké en empreinte
+  HMAC-SHA-256 sous le trousseau (K8, pas d'Argon2id : le secret est aléatoire) ; deux
+  secrets actifs au plus (rotation), expiration, révocation immédiate.
+- **Secours** : comptes locaux créés hors de l'API par le propriétaire du schéma
+  (`kartenn-server breakglass create`), valables 1 à 24 h ; phrase de passe (Argon2id,
+  RFC 9106) **et** code TOTP (RFC 6238), un code jamais accepté deux fois ; 100 échecs
+  consécutifs désactivent le compte ; chaque usage audité en criticité haute.
+- **Refus** : une seule réponse à l'appelant ; la raison codée (`state`, `iss`, `nonce`,
+  `signature`, `expired`, `audience`, `secret`, `totp`, `disabled`, `revoked`…) et
+  l'émetteur vont à l'audit (`authn.login.failed`), l'identifiant revendiqué en empreinte.
+- Couche HTTP (006) : routes, attributs des cookies (`__Host-`, `Secure`, `HttpOnly`,
+  `SameSite`), refus hors TLS, limitation de débit des échecs Basic, réponse
+  `invalid_token`, appel de `authn::session_closed` à la fin d'une session.
 
-## Autorisation (D36, 003/P6–P7, ADR 0010)
+## Autorisation (D36, 003/P6–P7, ADR 0010, ADR 0021 ; spec 005)
 
-- Permissions déclarées par les modules (`<module>.<objet>.<action>`, et
-  `prop.<clé>.write` par propriété).
-- Rôle = ensemble de permissions ; liaison = sujet × rôle × périmètre (entité, site,
-  domaine, sous-arbre de préfixes), héritée vers le bas.
-- Une écriture exige le droit sur les objets visés **et** sur les effets indirects
-  (différentiel des propriétés).
-- Politiques d'approbation dans le même modèle ; les créer, les modifier ou les
-  désactiver exige `core.approval_policy.admin` (règle `changeset.policy.forbidden`).
-- En attendant la 005, le service vérifie les permissions `prop.<clé>.write` et
-  `prop.<clé>.propose` et celle des politiques, par le port `Authorizer`
-  (`crates/kartenn-service/src/authz.rs`) ; les permissions par type d'objet
-  (`core.address.write`…) viendront avec le catalogue de la 005.
+- Catalogue des permissions généré : [`permissions.md`](permissions.md)
+  (`core.<objet>.<action>`, `prop.<clé>.<action>`, `prop.*.<action>` hors propriétés
+  sensibles, `*`) ; rôles livrés `reader`, `editor`, `approver`, `administrator`,
+  synchronisés par le job de migration et non modifiables.
+- Rôle = ensemble de permissions ; liaison = sujet (identité, groupe d'un émetteur,
+  émetteur entier) × rôle × périmètre (global, entité, site, domaine, sous-arbre de
+  préfixes), héritée vers le bas. **Refus par défaut**, pas de règle de refus.
+- **Confinement** : un émetteur rattaché à des entités n'accorde rien hors de leurs
+  sous-arbres, quelles que soient les liaisons ; rattachement global possible. Les
+  rattachements vivent en base, pas dans la configuration.
+- Une lecture sans droit répond l'objet absent (`authz.access.denied` audité) ; les
+  listes (`filter_in`, `children_in`) sont filtrées par le même prédicat SQL que la
+  décision ; une valeur sensible sans `prop.<clé>.read` est retirée et sa clé listée.
+- Une écriture exige `core.<sorte>.write` (ou `propose`, qui en fait une proposition)
+  sur chaque objet visé, décidé dans la transaction du changeset, **et** le droit sur
+  les effets indirects (différentiel des propriétés).
+- Administration par changesets : rôles, liaisons, rattachements, comptes de service,
+  état des identités ; un administrateur délégué n'accorde que ce qu'il détient sur le
+  périmètre (`core.binding.escalation`). Ces opérations ne s'annulent pas : l'annulation
+  les liste comme non prises en charge, on les refait par un nouveau changeset.
+- Politiques d'approbation dans le même modèle : périmètre (domaine, entité, site,
+  sous-arbre), auteur (personne, rôle, groupe), rôle lié (`bound_roles`, par exemple un
+  second administrateur pour toute liaison du rôle administrateur) ; les modifier exige
+  `core.approval_policy.admin`.
+- Budgets : tenus avec 1 000 liaisons et 50 groupes (banc `bench-rbac`, 005/K15).
 
 ## SDK de plugins UI (D17, ADR 0011)
 
@@ -68,7 +103,9 @@ Avant l'API (006), le service expose `submit` et le type `Operation`
 restauration des objets du noyau ; déplacement et renommage (`Rename`, l'UUID est
 conservé) des entités, des sites et des domaines ; déclarations, valeurs de listes et
 affectations de propriétés ; liaison d'identifiants externes ; politiques d'approbation ;
-`Within` pour donner sa propre période à une opération.
+administration du RBAC (`SetRole`, `CloseRole`, `Bind`, `Unbind`, `AttachIssuer`,
+`DetachIssuer`, `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret`,
+`SetIdentityState`) ; `Within` pour donner sa propre période à une opération.
 
 ## Événements sortants (D11, ADR 0018)
 
@@ -103,7 +140,7 @@ changesets en attente. Le transport (webhook, file de messages) est l'objet de l
     de 1 à 24 h, avec la connexion du propriétaire du schéma ; affiche une fois la phrase
     de passe et l'URI `otpauth://` du second facteur (REQ-005-14).
 
-## Authentification (spec 005)
+## Configuration de l'authentification (spec 005)
 
 **Réglages** (`[auth]`, facultatif : sans lui, personne ne peut se connecter) :
 `key_file` (trousseau, une clé de 256 bits par ligne, la première courante),

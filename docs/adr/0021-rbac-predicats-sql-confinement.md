@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-17
+status: accepted
+date: 2026-10-18
 ---
 
 # 0021 — RBAC évalué en SQL : périmètres hérités et confinement des émetteurs
@@ -34,7 +34,9 @@ filtrage des listes. Refus par défaut ; pas de règle de refus explicite.
 ## Consequences
 
 - La résolution matérialisée des propriétés (ADR 0016) porte aussi le RBAC ; son coût
-  sur les listes est mesuré au banc.
+  sur les listes est mesuré au banc `bench-rbac` (005-16) : pour 1 000 liaisons et 50
+  groupes, les budgets de D14 tiennent ; la résolution des liaisons à chaque requête
+  coûte environ 10 ms, accepté sans cache (005/K15).
 - Un objet sans propriétaire résolu n'est visible que d'un sujet non confiné.
 - Les droits de l'auteur d'un changeset en attente sont revalidés avec un instantané de
   ses groupes.

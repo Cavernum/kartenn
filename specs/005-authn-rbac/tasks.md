@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-17
+status: implemented
+updated: 2026-10-18
 ---
 
 # 005 — Authentification et RBAC : tâches
@@ -130,10 +130,18 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
 - [x] 16. Banc : `bench-core` avec 1 000 liaisons et 50 groupes — REQ-005-29 — verify :
   ~~surcoût sous 10 %~~ budgets tenus avec contrôle d'accès (K15) — banc `bench-rbac`
   (jeu de `bench-core`, une personne, 50 groupes, 1 000 liaisons). Jeu de référence
-  (2026-10-18), p95 avec contrôle (sans) / budget : lecture d'un objet 12,7 ms (1,2) /
-  50 ms ; page filtrée 55,1 ms (67,5) / 150 ms ; sous-arbre 10,1 ms (3,6) / 200 ms ;
-  changeset unitaire 10,8 ms (4,1) / 200 ms. Le surcoût restant est la résolution des
-  liaisons à chaque requête (≈ 10 ms, dont 8 ms pour les 980 préfixes des périmètres) ;
-  les prédicats sont devenus négligeables (migration 0033)
-- [ ] 17. Synchroniser `docs/spec/`, ADR 0020 et 0021 acceptés, statut `implemented`,
-  rapport spec-keeper
+  (2026-10-18), p95 avec contrôle (sans) / budget : lecture d'un objet 11,9 ms (1,3) /
+  50 ms ; lecture datée 12,8 ms (3,6) / 23,7 ms (deux fois la lecture courante) ; page
+  filtrée 47,6 ms (73,0) / 150 ms ; sous-arbre 13,7 ms (6,3) / 200 ms ; changeset
+  unitaire 10,1 ms (3,4) / 200 ms. Le surcoût restant est la résolution des liaisons à
+  chaque requête (≈ 8 à 10 ms, surtout les 980 préfixes des périmètres) ; les prédicats
+  sont devenus négligeables (migration 0033)
+- [x] 17. Synchroniser `docs/spec/`, ADR 0020 et 0021 acceptés, statut `implemented`,
+  rapport spec-keeper — `interfaces.md`, `data.md`, `architecture.md`, `invariants.md`
+  (INV-20, 21 corrigés ; INV-25 à 28), `README.md` ; ADR 0020 et 0021 acceptés, ADR 0009
+  amendée (K8). Le rapport spec-keeper a mené à ces corrections : pas TOTP rejoué par
+  deux requêtes simultanées, `SetIdentityState` sur un compte de secours, propriété non
+  déclarée dans un rôle, événements `rbac.binding.changed`, `account.service.changed`,
+  `authn.session.closed`, annulation muette des changesets d'administration, politique
+  `bound_roles` (second administrateur) ; ce qui revient à la 006 est listé à la fin de
+  `design.md`. Reste un arbitrage : REQ-005-25 « annulable »

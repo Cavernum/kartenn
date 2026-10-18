@@ -28,3 +28,14 @@ jetons localement (JWKS en cache).
 
 - Gestion par émetteur : JWKS, audiences, correspondance des claims.
 - Une même personne via deux émetteurs = deux identités (question ouverte Q-ouv-5).
+
+## Amendement — 2026-10-18 (spec 005)
+
+- Secrets des comptes de service : générés par kartenn (256 bits) et stockés en
+  empreinte HMAC-SHA-256 sous le trousseau, non en Argon2id : un secret aléatoire de
+  cette taille ne se devine pas, et la vérification reste sous la milliseconde
+  (005/K8, amendement de D13).
+- Secours : phrase de passe (Argon2id) et code TOTP, connexion par une route dédiée et
+  non en Basic (005/K9).
+- Navigateur : BFF à cookie chiffré sans état (ADR 0020) ; la validation locale des
+  jetons vaut pour les jetons d'accès des clients non navigateurs (RFC 9068).
