@@ -3,9 +3,10 @@
 //! a span that follows or links the incoming `traceparent`.
 
 use std::fmt;
+use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::Response;
@@ -17,6 +18,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use uuid::Uuid;
 
 use crate::problem::Problem;
+use crate::transport::{self, Settings};
 
 /// Header of the request identifier in responses.
 pub static REQUEST_ID: HeaderName = HeaderName::from_static("request-id");
@@ -73,17 +75,22 @@ fn context(id: RequestId) -> RequestContext {
 }
 
 /// The layer: identifier and [`RequestContext`] in the request extensions, span around
-/// the rest of the stack, `Request-Id` on the response and `instance` in its problem.
-pub async fn layer(mut request: Request, next: Next) -> Response {
+/// the rest of the stack, `Request-Id` on the response and `instance` in its problem. The
+/// incoming `traceparent` is followed only from a trusted proxy (REQ-012-7).
+pub async fn layer(
+    State(settings): State<Arc<Settings>>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let id = RequestId::new();
     let method = request.method().clone();
-    // Trusted callers come with the trusted proxies (task 006-3): none for now.
+    let trusted = transport::peer(&request).is_some_and(|peer| settings.trusts(peer));
     let incoming = otel::incoming(
         request
             .headers()
             .get("traceparent")
             .and_then(|v| v.to_str().ok()),
-        false,
+        trusted,
     );
     let span = tracing::info_span!("http.request", request_id = %id, method = %method);
     if let Some(parent) = incoming.parent {

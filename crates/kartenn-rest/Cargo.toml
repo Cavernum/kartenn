@@ -24,10 +24,12 @@ tracing = "0.1.44"
 uuid = { version = "1.28.0", features = ["v7"] }
 axum = { version = "0.8.9", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path"] }
 tracing-opentelemetry = { version = "0.34", default-features = false }
-tower-http = { version = "0.7", features = ["catch-panic"] }
+tower-http = { version = "0.7", features = ["catch-panic", "timeout"] }
+http-body-util = "0.1.5"
+thiserror = "2.0.21"
 
 [dev-dependencies]
-http-body-util = "0.1.5"
+futures-util = { version = "0.3", default-features = false }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }

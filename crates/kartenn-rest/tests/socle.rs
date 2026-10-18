@@ -14,6 +14,7 @@ use http_body_util::BodyExt;
 use kartenn_core::audit::AUTHZ_DENIED;
 use kartenn_rest::health::{PgReadiness, Readiness};
 use kartenn_rest::problem::{Problem, ProblemKind};
+use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{
     AuditJournal, AuditStatus, MemoryJournal, Outcome, RequestContext, SinkHealth,
 };
@@ -32,7 +33,7 @@ impl Readiness for Ready {
 }
 
 fn app(api: Router) -> Router {
-    kartenn_rest::router(api, Arc::new(Ready(true)))
+    kartenn_rest::router(api, Arc::new(Ready(true)), Settings::default())
 }
 
 async fn call(app: Router, uri: &str) -> Response<Body> {
@@ -149,6 +150,7 @@ async fn ready_follows_the_database_and_the_audit_outputs(pool: PgPool) {
     let app = kartenn_rest::router(
         kartenn_rest::v1(),
         Arc::new(PgReadiness::new(pool.clone(), audit.clone())),
+        Settings::default(),
     );
     assert_eq!(
         call(app.clone(), "/health/ready").await.status(),

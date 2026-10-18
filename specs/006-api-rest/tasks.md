@@ -33,10 +33,17 @@ routeur complet, sauf mention « vrai TCP ».
   main 10 s, `ConnectInfo`, vidange 5 s), `app.rs` (`Api` arrêtée en premier, `SIGHUP`,
   `AuditStatus` mis à jour par `relay_all`) ; `tests/http.rs` (5 tests vrai TCP, dont
   `run` complet : `ready`, `SIGHUP`, arrêt < 10 s)
-- [ ] 3. Couches de transport : proxys de confiance et `Forwarded` (RFC 7239), délai,
+- [x] 3. Couches de transport : proxys de confiance et `Forwarded` (RFC 7239), délai,
   limite de corps, refus de `Content-Encoding`, 414 au-delà de 8 Kio d'URL —
   REQ-006-10 (414), 27 (transport), 31 — verify : `Forwarded` d'une adresse non
-  configurée ignoré ; 413 annoncé et en cours de lecture ; 415 ; 414
+  configurée ignoré ; 413 annoncé et en cours de lecture ; 415 ; 414 —
+  `kartenn-rest/src/transport.rs` (`TrustedProxy` CIDR, `Settings`, `Client` en
+  extension, `ConnectionTls` posé par le serveur ; couches délai → 503 `unavailable`
+  en problème, `Forwarded`, limites : 414 sans corps, 415 avec `Accept-Encoding:
+  identity`, 413 sur `Content-Length` puis `Limited` en lecture),
+  `RequestBodyTimeoutLayer`, `traceparent` suivi des proxys de confiance (REQ-012-7),
+  `router(…, Settings)` ; `[http] trusted_proxies` typé et contrôlé ;
+  `tests/transport.rs` (5 tests) et tests unitaires du parcours `Forwarded`
 - [ ] 4. Délestage (`LoadShed` + `ConcurrencyLimit` → 503) et quotas GCRA par identité
   (couche propre sur `governor` : poids, `Retry-After`, `RateLimit-Policy`,
   `RateLimit`, purge et plafond de clés, événement d'abus agrégé) — REQ-006-29, 30 —

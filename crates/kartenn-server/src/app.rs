@@ -571,6 +571,11 @@ impl Api {
                 pool.clone(),
                 audit.clone(),
             )),
+            kartenn_rest::transport::Settings {
+                trusted_proxies: http.trusted_proxies.clone(),
+                max_body_bytes: http.max_body_bytes,
+                request_timeout: Duration::from_millis(http.request_timeout_ms),
+            },
         );
         tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
         let (stop, stopped) = tokio::sync::oneshot::channel();

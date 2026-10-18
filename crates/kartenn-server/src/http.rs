@@ -16,6 +16,7 @@ use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use hyper_util::server::conn::auto;
 use hyper_util::server::graceful::{GracefulShutdown, Watcher};
+use kartenn_rest::transport::ConnectionTls;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -107,7 +108,8 @@ fn certified(files: &config::Tls, provider: &CryptoProvider) -> anyhow::Result<C
 
 /// Serves `app` on `listener` until `shutdown`, over TLS when `tls` is given; then stops
 /// accepting and waits for the open connections at most [`DRAIN_WITHIN`]. Each request
-/// carries the client address (`ConnectInfo`).
+/// carries the peer address (`ConnectInfo`) and whether its connection is TLS
+/// ([`ConnectionTls`]).
 pub async fn serve(
     listener: TcpListener,
     app: Router,
@@ -135,9 +137,9 @@ pub async fn serve(
                     let tls = tls.clone();
                     tokio::spawn(async move {
                         match tls {
-                            None => connection.serve(stream).await,
+                            None => connection.serve(stream, false).await,
                             Some(tls) => match tokio::time::timeout(HANDSHAKE_WITHIN, tls.accept(stream)).await {
-                                Ok(Ok(stream)) => connection.serve(stream).await,
+                                Ok(Ok(stream)) => connection.serve(stream, true).await,
                                 Ok(Err(e)) => tracing::debug!(name: "http.tls.failed", peer = %peer, error = %e, "TLS handshake failed"),
                                 Err(_) => tracing::debug!(name: "http.tls.failed", peer = %peer, "TLS handshake too slow"),
                             },
@@ -169,7 +171,7 @@ struct Connection {
 }
 
 impl Connection {
-    async fn serve<S>(self, stream: S)
+    async fn serve<S>(self, stream: S, tls: bool)
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
@@ -181,6 +183,7 @@ impl Connection {
         } = self;
         let service = hyper::service::service_fn(move |mut request: hyper::Request<Incoming>| {
             request.extensions_mut().insert(ConnectInfo(peer));
+            request.extensions_mut().insert(ConnectionTls(tls));
             app.clone().call(request)
         });
         let connection = builder

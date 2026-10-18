@@ -73,7 +73,11 @@ fn app() -> axum::Router {
         "/peer",
         get(|ConnectInfo(peer): ConnectInfo<SocketAddr>| async move { peer.to_string() }),
     );
-    kartenn_rest::router(api, Arc::new(Ready))
+    kartenn_rest::router(
+        api,
+        Arc::new(Ready),
+        kartenn_rest::transport::Settings::default(),
+    )
 }
 
 /// Serves [`app`] on a local port until the sender is dropped or fires.

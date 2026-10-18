@@ -48,9 +48,10 @@ pub struct Http {
     /// The public origin (`https://host[:port]`): CSRF, absolute links, default
     /// `redirect_uri`.
     pub public_origin: Option<String>,
-    /// Proxies whose `Forwarded` is believed, as CIDR blocks.
+    /// Proxies whose `Forwarded` and `traceparent` are believed, as addresses or CIDR
+    /// blocks.
     #[serde(default)]
-    pub trusted_proxies: Vec<String>,
+    pub trusted_proxies: Vec<kartenn_rest::transport::TrustedProxy>,
     /// Largest request body.
     #[serde(default = "max_body_bytes")]
     pub max_body_bytes: usize,
@@ -967,6 +968,10 @@ mod tests {
             (
                 format!("{HTTP}\n[http.rate]\nread = {{ per_second = 0, burst = 1 }}"),
                 "http.rate.read",
+            ),
+            (
+                HTTP.replace("8443\"", "8443\"\ntrusted_proxies = [\"10.0.0.1/8\"]"),
+                "10.0.0.1/8",
             ),
         ];
         for (text, reason) in cases {
