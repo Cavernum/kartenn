@@ -176,6 +176,13 @@ routeur complet, sauf mention « vrai TCP ».
   (`core.anomaly.acknowledge` sur l'objet, `motive` obligatoire, événement d'audit, sans
   `If-Match`) — REQ-006-4, 23 — verify : anomalie d'un objet invisible absente et 404 à
   l'acquittement ; motif manquant → 422 ; acquittement audité
+- [ ] 12d. Dettes de lecture (12a, 12b) : enfants et historique paginés par clé et curseur
+  signé (enfants : adresse, rang, id ; historique : validité, temps système) ; arbre à
+  un `as_of` passé indexé (préfixe lu d'abord, domaine et valeur passés en paramètres
+  aux requêtes des enfants et ancêtres ; index des partitions de `prefix_history` à
+  vérifier) ; mesure « sous-arbre au passé » dans `bench-core` — REQ-006-4, 5, 7, 8 —
+  verify : page suivante des enfants et de l'historique par curseur ; sous-arbre au passé
+  < 200 ms (p95) au `bench-core`
 - [ ] 13. Lectures des propriétés : déclarations, valeurs, valeurs résolues,
   explication, suggestion, écarts ; lecture à un temps système passé ; filtres
   `prop.<clé>` des listes de 12a — REQ-006-4, 9 —
