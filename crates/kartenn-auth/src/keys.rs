@@ -20,6 +20,8 @@ pub enum Purpose {
     ServiceSecret,
     /// The TOTP secrets of break-glass accounts.
     Totp,
+    /// The pagination cursors of the API (spec 006, REQ-006-8).
+    Cursor,
 }
 
 impl Purpose {
@@ -29,6 +31,7 @@ impl Purpose {
             Self::Login => b"kartenn/login/v1",
             Self::ServiceSecret => b"kartenn/service-secret/v1",
             Self::Totp => b"kartenn/totp/v1",
+            Self::Cursor => b"kartenn/cursor/v1",
         }
     }
 }

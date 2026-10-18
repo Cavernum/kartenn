@@ -117,10 +117,18 @@ routeur complet, sauf mention « vrai TCP ».
   `app::bounded` : `transaction_timeout` sur le pool unique de `run` (arbitrage : pas de
   second pool, design corrigé) ; `tests/dated.rs` (route d'essai), `tests/pool.rs`
   (serveur, transaction coupée au-delà de la borne)
-- [ ] 10. Curseur signé (`Purpose::Cursor`), pagination par clé sur les préfixes,
+- [x] 10. Curseur signé (`Purpose::Cursor`), pagination par clé sur les préfixes,
   `Link: rel="next"`, `page_size` 1 à 1 000, curseur seul avec `page_size` — REQ-006-7,
   8 — verify : octet modifié → 400 ; écritures entre deux pages sans saut ni répétition ;
   liaison retirée entre deux pages
+  — `kartenn-auth::signed` (`v1.<clé>.<contenu>.<HMAC>`, base64url, étiquette vérifiée
+  avant décodage) ; `cursor.rs` : `Page::from_query` (dates figées par le curseur,
+  paramètres restants triés pour 006-11), `Page::next`, `next_href`, `respond_page`
+  (`{items, links.next}`, `Link`, ETag faible) ; `list::prefixes` (store, clé domaine,
+  valeur, UUID, portée de lecture) et migration 0034 (index de clé, table et historique) ;
+  `tests/cursor.rs` (route d'essai). Écarts au design : le curseur porte aussi la
+  collection (un curseur d'une autre liste → `invalid-cursor`) ; pas de « sens », la
+  pagination n'allant qu'en avant
 - [ ] 11. Filtres par paramètres (opérateurs après `:`), traduction vers
   `kartenn_store_pg::filter`, route `QUERY` (`any()`, contrôle de méthode, `Allow` écrit,
   `Accept-Query`) — REQ-006-9, 10 — verify : mêmes éléments par `GET` et `QUERY` ;

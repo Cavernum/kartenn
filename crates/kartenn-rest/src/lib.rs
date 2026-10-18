@@ -6,6 +6,7 @@ pub mod authn;
 pub mod compression;
 pub mod cookies;
 pub mod csrf;
+pub mod cursor;
 pub mod dated;
 pub mod error;
 pub mod health;
