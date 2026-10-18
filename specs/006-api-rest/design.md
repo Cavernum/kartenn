@@ -1,0 +1,404 @@
+---
+status: draft
+updated: 2026-10-18
+---
+
+# 006 — API REST : conception
+
+## Vue d'ensemble
+
+```mermaid
+flowchart LR
+  nav[Navigateur] -- "cookie __Host-" --> lb
+  cli[CLI, MCP, connecteurs] -- "Bearer / Basic" --> lb
+  lb[Répartiteur TLS, facultatif] --> stack
+  subgraph srv[kartenn-server]
+    stack[Pile de couches : identifiant, délestage, corps, transport, authentification, quota, CSRF] --> routes[kartenn-rest : routes, DTO, problèmes, curseurs]
+    routes --> svc[kartenn-service : pipeline, lectures, authn, imports, revue]
+    jobs[Planificateur de tâches sous bail] --> svc
+    svc --> pg[(PostgreSQL)]
+    jobs --> pg
+  end
+```
+
+1. **`kartenn-rest`** (nouvelle crate) : routeur axum, types de requête et de réponse
+   (DTO, distincts des types du noyau), conversion des erreurs en problèmes, curseurs,
+   filtres, cache, contrat OpenAPI (utoipa). Aucune logique métier : chaque route
+   appelle le service ou, pour une lecture sans cas d'usage dans le service, le store
+   après un contrôle de droit (fin de la 005).
+2. **Pile de couches** (tower) : transverse, dans l'ordre de REQ-006-22.
+3. **`kartenn-server`** : compose le routeur, le serveur HTTP (TLS facultatif) et le
+   planificateur de tâches dans `app::run`, à côté des relais et du scellement de la 012.
+
+## Changements
+
+### Crates et dépendances
+
+| Crate | Rôle | Dépendances nouvelles |
+|---|---|---|
+| `kartenn-rest` (nouvelle) | routeur, DTO, problèmes, curseurs, filtres, cache, CSRF, quotas, OpenAPI | `axum` 0.8.9, `tower` 0.5 (`limit`, `load-shed`), `tower-http` 0.7 (`compression-zstd`, `-br`, `-gzip`, `limit`, `timeout`), `utoipa` 6 et `utoipa-axum` 0.3, `governor` 0.10 (GCRA), `serde_json` |
+| `kartenn-server` | boucle d'acceptation propre, HTTP/1.1 et HTTP/2 (`hyper-util` 0.1 `auto`), TLS par `tokio-rustls` 0.26 avec `ring` (sans aws-lc, comme la 012), configuration `[http]`, planificateur, câblage | `hyper-util`, `tokio-rustls`, `arc-swap` |
+| `kartenn-service` | `authn::seen` (identité juste-à-temps sans événement), `RequestContext` rempli depuis HTTP, `Outcome::Replayed` complété (réponse reconstruite), port `Jobs` | — |
+| `kartenn-store-pg` | migration `job` (tâches sous bail), verrou d'idempotence, `transaction_timeout`, lectures paginées par clé | — |
+| `kartenn-auth` | usage de clé `Purpose::Cursor` (HKDF, `kartenn/cursor/v1`) | — |
+
+Évaluées le 2026-10-18 (`crate-scout`) : licences MIT ou MIT/Apache-2.0, MSRV ≤ 1.98.
+- `http` 1.5 a `Method::QUERY` ; hyper accepte tout jeton de méthode. axum 0.8 n'a pas
+  de `MethodFilter` pour `QUERY` : la route `QUERY` passe par `any()` et un contrôle de
+  la méthode, et l'en-tête `Allow` des 405 est écrit par kartenn (`any()` le supprime).
+  Le passage de `QUERY` en HTTP/2 est vérifié par un test d'intégration.
+- `governor` est appelé par une couche propre (`check_key_n` pour le poids, `NotUntil`
+  pour `Retry-After`, `retain_recent` et un plafond du nombre de clés contre la
+  croissance par clés variées) plutôt que par `tower_governor` (poids fixe, en-têtes
+  non standard, pas de purge).
+- TLS : boucle d'acceptation sur `tokio-rustls` plutôt que `axum-server` (maintenance
+  plus lente) : maîtrise du délai de poignée de main, du nombre de connexions et de
+  l'arrêt propre ; rechargement du certificat par un `ResolvesServerCert` sur
+  `ArcSwap`.
+- Aucun crate Rust mûr ne compare deux documents OpenAPI : comparateur interne.
+
+### Pile de couches (REQ-006-20, 22, 27 à 31, 37)
+
+De l'extérieur vers la route :
+
+| # | Couche | Effet |
+|---|---|---|
+| 1 | Identifiant de requête et trace | UUID v7 toujours généré (un identifiant entrant n'est jamais repris), en-tête `Request-Id` en réponse ; `traceparent` selon REQ-012-7 ; `RequestContext` |
+| 2 | Délestage | `LoadShed` à l'extérieur de `ConcurrencyLimit` (dans l'autre ordre, `poll_ready` attend au lieu de refuser) ; `Overloaded` → 503 `Retry-After` par `HandleErrorLayer` |
+| 3 | Délai | `TimeoutLayer::with_status_code(503)`, 30 s par défaut jusqu'aux en-têtes de réponse ; `RequestBodyTimeoutLayer` pour la lecture du corps |
+| 4 | Transport | adresse cliente et TLS : directs, ou `Forwarded` des proxys de confiance seulement |
+| 5 | Limite de corps | `Content-Length` ou flux au-delà de la limite → 413 ; `Content-Encoding` → 415 |
+| 6 | Authentification | cookie, Bearer ou Basic → `Principal` ; échec → 401 ; anonyme permis seulement sur les routes publiques |
+| 7 | Quota | GCRA par identité (par adresse avant authentification) → 429 |
+| 8 | CSRF | méthode non sûre par cookie : `Sec-Fetch-Site`, puis `Origin` → 403 |
+| 9 | Route | extraction (syntaxe → 400, type de média → 415), préconditions (428, 412), service (403, 404, 409, 422) |
+| 10 | Compression | au retour, sauf réponses marquées « secret » (extension de réponse) |
+
+L'ordre réalise REQ-006-22 : une requête non authentifiée et malformée est arrêtée en 6
+(401) avant que la route n'en lise le corps. Le quota vient après l'authentification
+pour compter par identité ; avant elle, la couche 7 compte par adresse les requêtes
+dont l'authentification échoue, avec le `FailureLimiter` (005) pour les échecs.
+
+### Ressources et routes (REQ-006-1, 4, 11, 12, 16 à 19, 24, 33 à 36)
+
+Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
+
+| Domaine | Routes |
+|---|---|
+| Objets du noyau | `entities`, `sites`, `domains`, `prefixes`, `ranges`, `addresses` : `GET`/`QUERY` collection, `POST` collection, `GET`/`PATCH`/`DELETE` objet, `GET …/{id}/history` |
+| Arbre | `GET /v1/prefixes/{id}/children`, `…/ancestors`, `…/occupancy`, `…/next-free?kind=prefix&length=26` ou `kind=address` |
+| Anomalies | `GET /v1/anomalies` ; `POST /v1/anomalies/{id}/acknowledgement` |
+| Propriétés | `property-declarations`, `property-declarations/{key}/values` ; `GET /v1/<collection>/{id}/properties` (valeurs résolues), `…/properties/{key}/explanation`, `…/properties/{key}/suggestion` ; `GET /v1/property-gaps` (écarts) |
+| Changesets | `POST /v1/changesets` (`?simulate=true` → 200 sans écriture) ; `GET` collection et objet ; `GET …/{id}/diff` (décompte, détail paginé) ; `POST …/{id}/validation`, `…/rejection`, `…/withdrawal`, `…/undo` ; `GET /v1/proposals` |
+| Imports | `POST /v1/imports` ; `PUT /v1/imports/{id}/chunks/{n}` ; `POST …/start`, `…/resume`, `…/cancel` ; `GET …/{id}` |
+| Droits | `roles`, `bindings`, `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état), `GET /v1/me` (session, droits effectifs résumés) |
+| Audit | `GET`/`QUERY /v1/audit-events` ; `POST /v1/identities/{id}/pseudonymisation` |
+| Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` |
+| Exploitation | `GET /v1/capabilities`, `GET /v1/openapi.json`, `PUT /v1/log-filters/{output}` ; `/health/live`, `/health/ready` |
+
+- Les actions d'un changeset sont des sous-ressources en `POST` (RFC 9205 §4.5 : une
+  action non idempotente est un `POST`) ; elles exigent `If-Match` (ETag du changeset =
+  son état), comme `PATCH`.
+- Les morceaux d'import sont des `PUT` à numéro explicite : un renvoi identique est
+  idempotent par nature (H9) ; un contenu différent sous le même numéro → 409.
+- Les routes de connexion sont publiques ; `logout` exige la session et le contrôle CSRF.
+
+### Représentations et DTO (REQ-006-2, 3, 13)
+
+- Un DTO par type d'objet dans `kartenn-rest`, dérivé du type du noyau par `From` ; le
+  schéma OpenAPI se dérive du DTO. Les types du noyau restent libres d'évoluer.
+- Résumé d'un objet lié : `{ id, <clé naturelle>, href }`, lu par la même requête
+  (jointure fixe). Liens : `links.self`, `links.history`, et les liens de navigation.
+- Valeurs canoniques en sortie (préfixes et adresses, REQ-002-6), dates RFC 3339 en UTC.
+- Membres réservés des corps d'écriture : `motive` (obligatoire), `valid_from`,
+  `valid_to` ; jamais confondus avec des champs de l'objet (le noyau n'a aucun champ de
+  ce nom ; un test du contrat le garantit).
+- **`null` et absent (question ouverte H13a, tranchée)** : dans les objets du noyau,
+  aucun champ ne distingue `null` d'absent. Dans les propriétés, deux gestes diffèrent :
+  retirer l'affectation (l'héritage reprend) et l'effacement explicite (REQ-003-13, qui
+  bloque l'héritage). `null` vaut retrait ; l'effacement s'écrit
+  `{"properties": {"k": {"clear": true}}}`. Aucun type de propriété n'a de valeur objet,
+  la forme est donc sans ambiguïté.
+
+### Lectures datées et cache (REQ-006-5, 6)
+
+- `valid_at`, `as_of` : RFC 3339 avec décalage, analysés strictement ; absents → `now()`
+  de la base, renvoyé dans la réponse (`as_of` effectif) pour que le client puisse figer
+  ses lectures suivantes.
+- **Passé figé (question ouverte H4, tranchée)** : PostgreSQL 18 borne la durée d'une
+  transaction (`transaction_timeout`). Le pool d'écriture la fixe à `T` (configuration
+  `[http] write_transaction_timeout`, 60 s par défaut ; la plus longue écriture mesurée,
+  un changeset de 10⁴ objets, prend 2,5 s, INV-35). Une transaction commencée à `s` est
+  close avant `s + T` ; si `as_of ≤ now() − T − 1 s` (marge d'horloge), aucune écriture
+  ne peut plus apparaître à `as_of`. La comparaison se fait avec `now()` de la base, lu
+  dans la requête de lecture. Alors : `Cache-Control: private, max-age=31536000,
+  immutable`.
+- Sinon : `private, no-cache`, ETag ; objet : ETag fort = identifiant du dernier
+  changeset qui l'a modifié (le même que `expected`, REQ-004-11) ; liste : ETag faible =
+  empreinte du contenu de la page. `If-None-Match` → 304 sans corps.
+- Même au passé figé, la réponse reste `private` : elle dépend des droits de l'appelant,
+  un cache partagé ne doit jamais la servir à un autre.
+
+### Curseurs (REQ-006-7, 8)
+
+- Contenu : version, identifiant de la clé du trousseau, `as_of` figé, `valid_at`,
+  filtres normalisés, taille de page, dernière clé de tri vue, sens. Sérialisé en JSON
+  compact, HMAC-SHA-256 par la sous-clé `Purpose::Cursor`, encodé base64url. Non chiffré :
+  il ne contient que ce que le client a envoyé et des clés visibles de lui.
+- `as_of` figé = `now()` de la base à la première page. Une transaction commencée avant
+  et validée après peut faire apparaître un élément derrière le curseur : c'est le cas
+  d'une insertion concurrente ordinaire, sans répétition ni saut d'un élément déjà vu
+  (tri par clé). Le gel n'est donc pas borné par `T`, contrairement à `immutable`.
+- Une requête avec `cursor` n'accepte que `page_size` ; tout autre paramètre → 400
+  (les filtres sont dans le curseur, le lien `next` les contient déjà).
+- Signature fausse, clé inconnue ou version inconnue → 400 `invalid-cursor`. Le RBAC est
+  le prédicat SQL habituel (ADR 0021), réappliqué à chaque page.
+- Tri : clé naturelle puis UUID (préfixes : domaine, valeur ; adresses : domaine,
+  valeur ; changesets : temps système décroissant, UUID). Lecture par index (keyset),
+  `LIMIT page_size + 1` pour savoir s'il existe une suite.
+
+### Filtres (REQ-006-9, 10)
+
+- **Séparateur des opérateurs (question ouverte H6, tranchée)** : une clé de propriété
+  suit `[a-z][a-z0-9_]*.[a-z][a-z0-9_]*` (REQ-003-2) et ne contient jamais `:`. L'opérateur
+  suit donc la clé après `:` :
+  - `prop.policy.environment=prod` : égal ; répété → un parmi ;
+  - `prop.dns.ttl:between=60..3600`, bornes ouvertes `..3600` ou `60..` ;
+  - `prop.dns.fqdn:exists=true` ou `false` : présent ou absent.
+  Mêmes opérateurs pour les champs du noyau (`usage`, `nature`…) ; `within=<CIDR>`
+  désigne l'inclusion. `:` est permis dans une requête (RFC 3986 §3.4, `pchar`).
+- Traduction vers le moteur de filtres de la 003 (`kartenn_store_pg::filter`), qui
+  garde ses plans et ses budgets ; un paramètre inconnu, une clé non déclarée ou une
+  valeur mal typée → 400 avec le nom du paramètre.
+- `QUERY` : corps `application/json`
+  `{ "valid_at", "as_of", "filters": [{ "field", "op", "value" }], "page_size" }` ; mêmes
+  conditions, même traduction. `Accept-Query: "application/json"` sur les collections ;
+  réponse avec `Content-Location` absent (pas de ressource de résultat stockée, D9).
+  Cache : `private` comme `GET` ; ETag faible de la page ; conditionnelles comme `GET`.
+- Une URL de plus de 8 Kio → 414 avant le routage.
+
+### Écritures (REQ-006-11 à 15)
+
+- **Routes par ressource** : `POST /v1/prefixes` → `Operation::CreatePrefix` ;
+  `PATCH /v1/prefixes/{id}` → `Operation::Modify…` avec les champs du Merge Patch et
+  `expected` = ETag ; `DELETE` → `Operation::Close…` (corps facultatif : `motive`,
+  `valid_from`). Le motif d'un `DELETE` sans corps manque → 422 `motive-required`.
+- **Réponses** : 201 et `Location` vers l'objet (création), 200 (modification ou
+  clôture), 202 (en attente) ; toujours `Link: </v1/changesets/{id}>; rel="changeset"`
+  (type de relation d'extension : URI propre à kartenn, RFC 8288 §2.1.2) et
+  `changeset` dans le corps.
+- **`If-Match`** : absent sur `PATCH`, `DELETE` ou une action de changeset → 428 ; la
+  valeur devient `expected` ; un conflit du pipeline (`expected` périmé) → 412.
+  `If-Match: *` est refusé (428) : il ne protège de rien.
+- **Idempotence** : en-tête `Idempotency-Key` (1 à 255 caractères imprimables) →
+  `ChangesetRequest.idempotency_key`.
+  - En cours (H8, 409) : `pg_try_advisory_xact_lock` sur l'empreinte (identité, clé) au
+    début de la transaction de soumission ; verrou pris par une autre → 409
+    `idempotency-in-progress`. Sans lui, la seconde soumission attendrait l'index
+    unique puis rejouerait : correct, mais contraire à REQ-006-15.
+  - Rejeu : `Outcome::Replayed` donne le changeset ; la route reconstruit la réponse du
+    journal du changeset (même statut, même corps). La réponse est fonction du journal,
+    lui-même immuable : « inchangée » sans stocker de réponse.
+  - Contenu différent : `RequestError::IdempotencyConflict` → 422.
+  - Purge des clés expirées : tâche de fond (REQ-006-38).
+
+### Erreurs (REQ-006-20 à 23)
+
+- `type` : URN stable `urn:kartenn:problem:<slug>` (RFC 9457 §3.1.1 demande une
+  référence d'URI, pas une URL résoluble) ; une URL demanderait un nom de domaine réel
+  et stable. Chaque slug est documenté dans le contrat OpenAPI.
+- Correspondance des erreurs du service :
+
+| Erreur | Statut | `type` |
+|---|---|---|
+| JSON invalide, paramètre inconnu, date sans décalage, curseur invalide | 400 | `bad-request`, `invalid-cursor` |
+| Sans authentification, jeton invalide | 401 | `unauthenticated` |
+| Droit manquant sur un objet visible, CSRF | 403 | `forbidden`, `cross-site-request` |
+| Objet absent ou invisible | 404 | `not-found` |
+| Annulation en conflit, état d'un changeset incompatible, idempotence en cours, morceau différent | 409 | `conflict`, `undo-conflict`, `idempotency-in-progress` |
+| ETag périmé | 412 | `precondition-failed` |
+| Corps trop gros | 413 | `payload-too-large` |
+| URL trop longue | 414 | — (avant le routage, corps minimal) |
+| Type de média | 415 | `unsupported-media-type` |
+| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused` |
+| `If-Match` absent | 428 | `precondition-required` |
+| Quota | 429 | `rate-limited` |
+| Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
+| Panique, erreur inattendue | 500 | `internal` |
+
+- `violations[]` : `{ rule, severity, detail, subjects[], operation, pointer }`, où
+  `pointer` est un JSON Pointer (RFC 6901) dans le corps de la requête
+  (`/operations/2/value`) ; pour une route par ressource, l'indice est omis.
+- Un 404 pour un objet invisible est produit par le prédicat de lecture (ADR 0021) : la
+  requête ne distingue pas « absent » d'« invisible », il n'y a rien à masquer après coup.
+- Les détails ne contiennent que des identifiants et des messages de règles ; une
+  valeur de propriété sensible (REQ-005-21) n'y figure jamais.
+
+### Authentification et sessions (REQ-006-24 à 28)
+
+- **Couche d'authentification** : `Authorization: Bearer` → `kartenn_auth::tokens` ;
+  `Basic` → `authn::authenticate_service` ; sinon cookie `__Host-kartenn-N` →
+  `Session::open`, `StateCache::check`. Deux preuves à la fois (cookie et
+  `Authorization`) → 400 : pas de priorité implicite.
+- **Identité juste-à-temps des jetons** : `authn::seen`, variante de `logged_in` sans
+  événement ; `logged_in` reste pour la connexion OIDC.
+- **Cookies** : un module `cookies` construit les `Set-Cookie` (`__Host-`, `Secure`,
+  `HttpOnly`, `SameSite=Strict`, `Path=/`, pas de `Domain`) ; la session est réémise si
+  sa dernière activité date de plus d'une minute ; suppression par `Max-Age=0`.
+- **Secours** : `POST /v1/auth/breakglass` (`name`, `passphrase`, `code`) →
+  `authn::authenticate_breakglass` ; session marquée « secours », absolue 1 h.
+- **TLS** : `Transport { client, tls }` calculé en couche 4 ; sans TLS, Basic → 401 et
+  aucun `Set-Cookie` (la couche des cookies vérifie `tls` avant d'émettre).
+- **CSRF** : couche 8, sur `POST`, `PUT`, `PATCH`, `DELETE` authentifiés par cookie.
+  `QUERY`, `GET`, `HEAD`, `OPTIONS` exemptés. Pas de CORS : l'API ne répond à aucun
+  pré-vol (`OPTIONS` → 405 hors routes), le BFF est de même origine.
+
+### Débit et délestage (REQ-006-29, 30)
+
+- `governor` : un limiteur à clé par compartiment (lecture, écriture, anonyme), clé =
+  UUID d'identité ou adresse IP (IPv6 regroupée par /64). Poids : 1 par requête ; un
+  morceau d'import pèse `⌈éléments / 1 000⌉`. Mémoire : purge des clés inactives par
+  minuterie locale (`retain_recent`).
+- 429 : `Retry-After` = attente avant le prochain jeton, arrondie à la seconde
+  supérieure ; `RateLimit-Policy: "w";q=20;w=1` et `RateLimit: "w";r=0;t=<s>` (draft-11,
+  noms de politique `r`, `w`, `a`). Événement d'audit d'abus agrégé (REQ-012-19).
+- Délestage : `LoadShedLayer` puis `ConcurrencyLimitLayer` → 503 `Retry-After: 1`.
+  Plafond par défaut : 2 × la taille du pool. Pas de file d'attente dans kartenn : la
+  file est celle du noyau (connexions acceptées non encore lues) ; une requête qui
+  attendrait serait de toute façon hors budget.
+
+### Transport (REQ-006-31, 32)
+
+- Écoute : `hyper-util` (HTTP/1.1 et HTTP/2) ; en TLS, `tokio-rustls` avec ALPN `h2`,
+  `http/1.1` ; sans TLS, `h2c` par connaissance préalable (derrière un proxy).
+- Certificats : `[http.tls] cert_file`, `key_file`, relus sur `SIGHUP` (rotation sans
+  arrêt) ; TLS 1.2 et 1.3 seulement (défauts de rustls).
+- Compression : `CompressionLayer` (`zstd`, `br`, `gzip`), prédicat
+  `SizeAbove::new(1024)` et un prédicat propre : absence de l'extension de réponse
+  `Secret` posée par les routes qui montrent un secret (création de compte de service,
+  ajout de secret). Une réponse de taille inconnue est compressée (comportement de
+  `SizeAbove`), sans effet : nos réponses ont une taille connue.
+- Limite de corps : `RequestBodyLimitLayer` (16 Mio par défaut ; 413 sur
+  `Content-Length` annoncé ou en cours de lecture) ; morceaux d'import : 10 000 éléments
+  vérifiés après lecture (413).
+
+### Versions et contrat (REQ-006-33 à 35)
+
+- Routeur `/v1` construit par features : chaque module ajoute ses routes et ses schémas
+  (`OpenApiRouter` d'utoipa-axum). `GET /v1/openapi.json` sert le document de la build.
+- Contrat de référence : `specs/006-api-rest/openapi-v1.json`, régénéré par
+  `cargo run -p kartenn-rest --bin openapi --all-features`. Test : le document produit
+  est comparé au fichier par un comparateur interne (chemins, opérations, paramètres
+  requis, schémas : un retrait, un champ requis ajouté en entrée, un type changé →
+  échec) ; un ajout demande de régénérer le fichier.
+- `QUERY` dans OpenAPI : OpenAPI 3.2 a un champ `query` dans `PathItem`, que utoipa 6
+  sait produire, mais la macro `#[utoipa::path]` ne connaît pas `QUERY` et le champ est
+  invalide dans un document 3.1. Le contrat reste en 3.1 (H12, générateurs de SDK) ;
+  l'opération `QUERY` est construite à la main et placée dans l'extension `x-query` du
+  `PathItem`. Passer en 3.2 quand les générateurs suivront : changement additif.
+- Capacités : modules, versions, déclarations de propriétés, plugins UI, et les limites
+  (page, changeset, morceau, corps, rétention d'idempotence).
+
+### Imports et tâches de fond (REQ-006-17 à 19, 38)
+
+- Migration : `import_chunk (import_id, n, digest, elements jsonb)` ; `import.state`
+  gagne `uploading`. `start` lit les morceaux dans l'ordre, appelle `create_import` (tri,
+  lots) dans une transaction, passe l'import à `ready`.
+- Table `job (name, due_at, period, lease_until, holder, heartbeat_at)` ; une ligne par
+  tâche périodique, plus une par import prêt (`import:<id>`). Boucle de chaque instance
+  (toutes les 5 s) : `SELECT … WHERE due_at <= now() AND (lease_until IS NULL OR
+  lease_until < now()) FOR UPDATE SKIP LOCKED LIMIT 1`, prise du bail (30 s), battement
+  toutes les 10 s pendant l'exécution, puis `due_at = now() + period` et bail libéré.
+- Tâches : `import` (`run_import`, un lot par battement au plus), `expire-pending`
+  (`review::expire_pending`, 1 min), `reevaluate-expected` (`expected::reevaluate_outdated`,
+  5 min), `public-drift` (`registry::public_drift` puis changeset système, au démarrage
+  de la version et chaque jour), `idempotency-purge` (1 h).
+- Minuteries locales : purge de `StateCache`, du `FailureLimiter` et des limiteurs,
+  rechargement des JWKS et de la découverte (5 min).
+
+### Sondes et corrélation (REQ-006-36, 37)
+
+- `live` : 200 si la boucle tourne. `ready` : `SELECT` de la version des migrations,
+  état des sorties d'audit (`SinkHealth`) ; 503 sinon, corps sans détail.
+- `Request-Id` en réponse et `instance` dans le problème ; `RequestContext { actor,
+  source, request_id, trace }` rempli par les couches 1, 4 et 6.
+
+### Configuration
+
+```toml
+[http]
+listen = "0.0.0.0:8443"
+public_origin = "https://kartenn.example"   # CSRF, liens absolus, redirect_uri par défaut
+trusted_proxies = ["10.0.0.0/8"]
+max_body_bytes = 16777216
+request_timeout_ms = 30000
+write_transaction_timeout_s = 60
+max_in_flight = 0            # 0 = 2 × la taille du pool
+
+[http.tls]                  # absent = HTTP clair derrière un proxy
+cert_file = "/etc/kartenn/tls.crt"
+key_file = "/etc/kartenn/tls.key"
+
+[http.rate]
+read = { per_second = 50, burst = 200 }
+write = { per_second = 10, burst = 20 }
+anonymous = { per_second = 20, burst = 20 }
+```
+
+`kartenn.example` est un domaine réservé (RFC 2606). Sans `[http]`, l'instance ne sert
+pas l'API (tâches de fond seules), utile à un job dédié.
+
+## Erreurs et cas limites
+
+| Cas | Comportement | REQ |
+|---|---|---|
+| Deux preuves d'authentification | 400 | 26 |
+| `If-Match: *` | 428 | 14 |
+| Curseur d'une clé retirée du trousseau | 400 ; le client recommence | 8 |
+| `as_of` dans le futur | 400 (le temps système n'a pas d'avenir) | 5 |
+| Import `start` deux fois | 409 (état `ready` ou au-delà) | 17 |
+| Instance arrêtée pendant un lot | lot atomique, rejoué par une autre instance | 18 |
+| `QUERY` vers une route sans `QUERY` | 405 et `Allow` | 10 |
+| Journal d'audit indisponible pendant une lecture | 503 (échec fermé, REQ-012-11) | 20 |
+| Horloge de l'instance décalée | sans effet : `now()` de la base fait foi | 6 |
+
+## Alternatives considérées
+
+- Réponse rejouée stockée en base (`idempotency_key.response`) : reconstruction depuis
+  le journal suffisante et sans stockage.
+- Attendre l'index unique pour une clé d'idempotence en cours : rejet, contredit le 409
+  de REQ-006-15.
+- Curseur chiffré : rien de secret dedans ; la signature suffit.
+- `type` des problèmes en URL HTTP : demande un nom de domaine réel ; l'URN est stable.
+- CORS ouvert : aucun client navigateur hors BFF prévu.
+
+## Risques
+
+- **`QUERY` mal relayé** par un proxy ancien (méthode inconnue → 405 ou 501 du proxy) :
+  `GET` reste disponible pour tout filtre sous 8 Kio ; documenté dans le guide
+  d'exploitation.
+- **Limites par instance** : plafond réel N × la limite ; documenté (H11).
+- **`transaction_timeout`** coupe une écriture anormalement longue : c'est voulu, mais
+  un import mal dimensionné échouera ; lots ≤ 10 000 opérations (2,5 s mesurées).
+- **Contrat** : un comparateur interne peut laisser passer un cas cassant rare ; il
+  couvre les cas listés, complété par la revue.
+
+## Stratégie de test
+
+| REQ | Tests |
+|---|---|
+| 1 à 4, 33 à 35 | Contrat : opérations présentes, comparateur sur le fichier de référence |
+| 5 à 10 | Intégration `tower` : formats de date, cache (`immutable`, 304), pagination sous écritures concurrentes, curseur altéré, filtres et `QUERY` équivalents, 414 |
+| 11 à 16 | Intégration : réponses 201, 200, 202, 422 et `violations`, 428, 412, idempotence (rejeu, contenu différent, en cours par deux requêtes simultanées), actions sur changeset |
+| 17 à 19, 38 | Intégration à plusieurs planificateurs sur la même base : un seul exécutant, reprise après arrêt simulé |
+| 20 à 23 | Un test par ligne du tableau des erreurs ; 404 identique pour invisible et absent |
+| 24 à 28 | Matrices : CSRF, TLS et `Forwarded`, cookies (attributs, réémission), Bearer et Basic ; flux OIDC contre un émetteur de test |
+| 29 à 32 | Quotas et délestage sous charge ; compression et exception « secret » ; HTTP/2 et ALPN sur vrai TCP + TLS |
+| 36, 37 | Sondes base arrêtée ; `Request-Id` identique dans réponse, log et audit |
+| 39 | Banc `bench-http` : scénarios de `bench-core` à travers HTTP, et charge (200 utilisateurs, 50 écritures/s) |
+
+## ADR
+
+- ADR 0022 (proposé) : contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge
+  Patch, `If-Match` obligatoire, URN de problèmes.
+- ADR 0023 (proposé) : tâches de fond sous bail dans PostgreSQL (H9, H16).
