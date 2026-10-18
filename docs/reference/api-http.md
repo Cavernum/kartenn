@@ -111,9 +111,16 @@ longues, idempotence, compatibilité), et seulement quand plusieurs guides conco
 - §3.1 : membres `type` (URI, par défaut `about:blank`), `status`, `title`, `detail`,
   `instance`. Un membre de type incorrect MUST être ignoré.
 - §3.2 : extensions permises ; un client MUST ignorer celles qu'il ne connaît pas.
-- Media type `application/problem+json` (§3, §6). §3 : pour plusieurs problèmes, il est
-  RECOMMENDED de ne représenter que le plus pertinent ; une liste d'erreurs est donc une
-  extension propre à l'API.
+- Media type `application/problem+json` (§3, §6).
+- §3, plusieurs problèmes (relu à la source le 2026-10-18) :
+  - **du même type** : une extension propre au type peut en porter plusieurs. L'exemple
+    de la RFC est une erreur de validation en 422 avec un tableau `errors`, chaque
+    membre ayant un `detail` et un `pointer` (JSON Pointer dans la requête) ;
+  - **de types différents** : « it is RECOMMENDED that the most relevant or urgent
+    problem be represented in the response ». La raison donnée : des types « batch »
+    qui mêlent des problèmes disparates « do not map well into HTTP semantics ». Une
+    réponse n'a qu'un code de statut, et des problèmes disparates en appelleraient
+    plusieurs (403, 409, 422…).
 
 ### Liens et pagination
 
