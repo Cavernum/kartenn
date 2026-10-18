@@ -15,6 +15,13 @@
 - **Langue** : documentation en français pour l'instant (question ouverte Q-ouv-6).
 - **Commits** : Conventional Commits, atomiques.
 - **Environnement** : devenv (`devenv shell`, `devenv test`). PostgreSQL 18 via `devenv up`.
+- **Frontend** (`web/`, ADR 0024) : pnpm uniquement (pas de npm/npx), navigateurs Playwright
+  fournis par Nix (`@playwright/test` épinglé sur la version de `playwright-driver`). Le
+  serveur Vite est le processus devenv `web` : le lancer et lire ses logs par le MCP devenv
+  (`start_process`, `get_process_logs`), jamais `pnpm dev` au premier plan. Voir le
+  rendu avec le MCP `playwright` (headless, limité à `127.0.0.1:5173`) : `browser_snapshot`
+  (arbre d'accessibilité, compact) plutôt que `browser_take_screenshot`, sauf question
+  visuelle.
 
 ## Économie de contexte
 
@@ -24,10 +31,11 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   `tasks.md` et git). Pas d'enchaînement de tâches dans une même session : pour un travail
   autonome long, `scripts/claude-taches.sh`.
 - **Sorties courtes.** Vérifier avec `k-check [args nextest]` (verdict sur une ligne, détail
-  seulement en échec) plutôt que `cargo test` brut. Builds et commandes bavardes passent
+  seulement en échec) plutôt que `cargo test` brut ; côté web, `k-web-check [args vitest]`
+  (prettier, eslint, vue-tsc, vitest) et `k-web-e2e [args playwright]`. Builds et commandes bavardes passent
   par `| tail`/`head` ou une redirection vers le scratchpad.
 - **Lire ciblé.** Pas de `cat` d'un fichier de plus de 150 lignes : `k-ctx <fichier>` (plan
-  avec numéros de ligne) ou `grep -n`, puis la plage utile. `git diff --stat` avant un diff
+  avec numéros de ligne ; Rust, SQL, Markdown, Vue, TypeScript) ou `grep -n`, puis la plage utile. `git diff --stat` avant un diff
   complet. Les décisions se lisent d'abord dans la synthèse en tête de `decisions.md`.
 - **Regrouper** les commandes indépendantes dans un même appel ou des appels parallèles.
 - **Déléguer le travail bavard** à un sous-agent léger qui ne rend que la conclusion :
