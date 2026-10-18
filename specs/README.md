@@ -103,7 +103,7 @@ Toutes tranchées le 2026-10-14, selon la recommandation : 002/A12 (1), 003/P9 (
 
 ## Point d'étape — 2026-10-18 : spec 005
 
-Authentification et RBAC implémentés (17/17) : BFF OIDC à cookie chiffré (ADR 0020),
+Authentification et RBAC implémentés (18/18) : BFF OIDC à cookie chiffré (ADR 0020),
 jetons d'accès RFC 9068, comptes de service à secret généré (HMAC, K8), comptes de
 secours à phrase de passe et TOTP ; RBAC par périmètre évalué en SQL, émetteurs confinés
 à leurs entités (ADR 0021), administration par changesets sans escalade ; 372 tests.
@@ -111,5 +111,6 @@ Budgets tenus avec 1 000 liaisons et 50 groupes (banc `bench-rbac`) ; le surcoû
 n'est pas borné (K15). Corrigés après l'audit spec-keeper : un code TOTP accepté deux
 fois par deux requêtes simultanées, un compte de secours désactivable par changeset,
 l'annulation muette des changesets d'administration, des événements d'audit jamais
-émis. Un arbitrage ouvert : REQ-005-25 « annulable ». Ce qui revient à la couche HTTP est
-listé à la fin du design de la 005.
+émis. REQ-005-25 « annulable » tranché (K16, tâche 18) : l'annulation inverse rôles,
+liaisons et rattachements par des opérations ordinaires, sous les mêmes contrôles
+(380 tests). Ce qui revient à la couche HTTP est listé à la fin du design de la 005.

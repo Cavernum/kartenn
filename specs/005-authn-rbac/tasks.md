@@ -148,9 +148,12 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
 
 ## P4 — Annulation de l'administration (K16)
 
-- [ ] 18. Inverses des rôles, liaisons et rattachements d'émetteurs — REQ-005-25 —
+- [x] 18. Inverses des rôles, liaisons et rattachements d'émetteurs — REQ-005-25 —
   verify : annuler la création d'un rôle, d'une liaison et d'un rattachement rend l'état
   d'avant ; annuler une clôture de rôle rend le rôle et ses liaisons ; annuler la
   suppression d'une liaison future la recrée ; une liaison écrite depuis est un
   conflit ; l'inverse d'une liaison passe le contrôle d'escalade ; comptes de service
-  toujours listés non annulables
+  toujours listés non annulables — `UndoFacts::rbac`
+  (`kartenn-store-pg/src/undo.rs`, lignes supprimées retrouvées par la fin de leur
+  historique à l'instant d'application), `undo::rbac_inverse` (`tests/undo.rs`,
+  `tests/rbac.rs::an_undo_cannot_escalate`)

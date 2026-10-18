@@ -79,8 +79,12 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
   les effets indirects (différentiel des propriétés).
 - Administration par changesets : rôles, liaisons, rattachements, comptes de service,
   état des identités ; un administrateur délégué n'accorde que ce qu'il détient sur le
-  périmètre (`core.binding.escalation`). Ces opérations ne s'annulent pas : l'annulation
-  les liste comme non prises en charge, on les refait par un nouveau changeset.
+  périmètre (`core.binding.escalation`). L'annulation inverse les rôles, liaisons et
+  rattachements par des opérations ordinaires (`CloseRole`/`SetRole`,
+  `Unbind`/`Bind`, `DetachIssuer`/`AttachIssuer`), soumises aux mêmes contrôles ; une
+  liaison rendue reçoit un nouvel identifiant ; ce qu'un changeset plus récent a écrit
+  est un conflit laissé de côté (005/K16). Comptes de service, secrets et état des
+  identités ne s'annulent pas : listés comme non pris en charge.
 - Politiques d'approbation dans le même modèle : périmètre (domaine, entité, site,
   sous-arbre), auteur (personne, rôle, groupe), rôle lié (`bound_roles`, par exemple un
   second administrateur pour toute liaison du rôle administrateur) ; les modifier exige
