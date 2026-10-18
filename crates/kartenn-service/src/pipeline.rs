@@ -343,6 +343,9 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
         | Operation::CloseRole { .. }
         | Operation::Unbind { .. }
         | Operation::SetIdentityState { .. }
+        | Operation::CreateServiceAccount { .. }
+        | Operation::AddServiceSecret { .. }
+        | Operation::RevokeServiceSecret { .. }
         | Operation::Within { .. } => vec![],
     }
 }
@@ -813,7 +816,10 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
             | Operation::Unbind { .. }
             | Operation::AttachIssuer { .. }
             | Operation::DetachIssuer { .. }
-            | Operation::SetIdentityState { .. } => {
+            | Operation::SetIdentityState { .. }
+            | Operation::CreateServiceAccount { .. }
+            | Operation::AddServiceSecret { .. }
+            | Operation::RevokeServiceSecret { .. } => {
                 match crate::rbac::plan(op, id, |r| resolve(r, &ids)) {
                     Some(Ok(p)) => planned.push(p),
                     Some(Err(v)) => violations.push(v),

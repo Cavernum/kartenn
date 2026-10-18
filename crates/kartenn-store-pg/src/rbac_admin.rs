@@ -257,6 +257,112 @@ async fn identity_state(
     Ok(())
 }
 
+/// A secret of `account`; a third active one is refused (rotation keeps two).
+async fn add_secret(
+    conn: &mut PgConnection,
+    account: Uuid,
+    secret: &kartenn_service::operations::SecretRecord,
+) -> Result<(), WriteError> {
+    let digest: Vec<u8> = (0..secret.digest.len())
+        .step_by(2)
+        .filter_map(|i| u8::from_str_radix(&secret.digest[i..i + 2], 16).ok())
+        .collect();
+    let expires = secret
+        .expires_at
+        .map(|m| OffsetDateTime::from_unix_timestamp_nanos(i128::from(m) * 1_000))
+        .transpose()
+        .map_err(|e| WriteError::Store(store_err(e)))?;
+    sqlx::query(
+        "INSERT INTO service_secret (id, account_id, digest, key_id, expires_at)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(secret.id)
+    .bind(account)
+    .bind(digest)
+    .bind(&secret.key_id)
+    .bind(expires)
+    .execute(&mut *conn)
+    .await
+    .map_err(|e| {
+        if e.as_database_error()
+            .is_some_and(|d| d.message().contains("two active secrets"))
+        {
+            WriteError::Rule(
+                Violation::new(
+                    &rules::RBAC_INVALID,
+                    "a service account holds two active secrets at most: revoke one first",
+                )
+                .with_subjects([account]),
+            )
+        } else {
+            write_err(e)
+        }
+    })?;
+    Ok(())
+}
+
+/// Writes an operation on a service account.
+async fn account(conn: &mut PgConnection, op: &RbacOp) -> Result<(), WriteError> {
+    match op {
+        RbacOp::CreateAccount { id, name, secret } => {
+            sqlx::query(
+                "INSERT INTO person (id, display_name, kind) VALUES ($1, $2, 'service_account')",
+            )
+            .bind(id)
+            .bind(name)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| {
+                if e.as_database_error()
+                    .and_then(|d| d.constraint())
+                    .is_some_and(|c| c == "person_service_account_name")
+                {
+                    WriteError::Rule(
+                        Violation::new(
+                            &rules::RBAC_INVALID,
+                            format!("a service account is already named '{name}'"),
+                        )
+                        .with_subjects([*id]),
+                    )
+                } else {
+                    write_err(e)
+                }
+            })?;
+            add_secret(conn, *id, secret).await
+        }
+        RbacOp::AddSecret { account, secret } => {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM person WHERE id = $1 AND kind = 'service_account')",
+            )
+            .bind(account)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(write_err)?;
+            if !exists {
+                return Err(WriteError::NoVersion(*account));
+            }
+            add_secret(conn, *account, secret).await
+        }
+        RbacOp::RevokeSecret { account, secret } => {
+            let revoked = sqlx::query(
+                "UPDATE service_secret SET revoked_at = now()
+                 WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL",
+            )
+            .bind(secret)
+            .bind(account)
+            .execute(&mut *conn)
+            .await
+            .map_err(write_err)?
+            .rows_affected();
+            if revoked == 0 {
+                return Err(WriteError::NoVersion(*secret));
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Writes `op` over a period starting at `at` (transaction time if null) and ending at
 /// `until` (unbounded if null).
 pub(crate) async fn write(
@@ -348,5 +454,8 @@ pub(crate) async fn write(
             disabled,
             revoke_sessions,
         } => identity_state(conn, *identity, *disabled, *revoke_sessions).await,
+        RbacOp::CreateAccount { .. } | RbacOp::AddSecret { .. } | RbacOp::RevokeSecret { .. } => {
+            account(conn, op).await
+        }
     }
 }

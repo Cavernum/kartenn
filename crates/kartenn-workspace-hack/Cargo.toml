@@ -51,7 +51,6 @@ tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "tls-native-roots", "tls-ring", "transport"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 zeroize = { version = "1" }
 
@@ -87,7 +86,6 @@ tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net",
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]

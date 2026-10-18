@@ -11,6 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+hmac = "0.13"
 kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
 kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }

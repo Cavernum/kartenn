@@ -333,6 +333,30 @@ pub enum Operation {
         #[serde(default)]
         revoke_sessions: bool,
     },
+    /// Creates a service account with its first secret (005, REQ-005-11): only the digest
+    /// of a secret generated outside the pipeline travels.
+    CreateServiceAccount {
+        /// Local name of the account.
+        local: Option<u32>,
+        /// Name, the Basic user (no `:`).
+        name: String,
+        /// Its first secret.
+        secret: SecretRecord,
+    },
+    /// Adds a secret to a service account, for a rotation (005, REQ-005-11).
+    AddServiceSecret {
+        /// The account.
+        account: Uuid,
+        /// The secret.
+        secret: SecretRecord,
+    },
+    /// Revokes a secret of a service account (005).
+    RevokeServiceSecret {
+        /// The account.
+        account: Uuid,
+        /// The secret.
+        secret: Uuid,
+    },
     /// Creates or replaces, by name, an approval policy (REQ-004-20, 40): it holds the
     /// changesets that match every trigger it defines.
     SetApprovalPolicy {
@@ -613,8 +637,11 @@ impl Operation {
             | Self::CreateSite { local, .. }
             | Self::DeclareProperty { local, .. }
             | Self::Bind { local, .. }
+            | Self::CreateServiceAccount { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
-            Self::SetRole { .. }
+            Self::AddServiceSecret { .. }
+            | Self::RevokeServiceSecret { .. }
+            | Self::SetRole { .. }
             | Self::CloseRole { .. }
             | Self::Unbind { .. }
             | Self::AttachIssuer { .. }
@@ -637,6 +664,20 @@ impl Operation {
             | Self::UnassignProperty { .. } => None,
         }
     }
+}
+
+/// The digest of a generated secret of a service account (005, K8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SecretRecord {
+    /// Identifier.
+    pub id: Uuid,
+    /// HMAC-SHA-256 of the secret, 64 hexadecimal digits.
+    pub digest: String,
+    /// The key of the ring that made the digest.
+    pub key_id: String,
+    /// Expiry (microseconds since the epoch), if any.
+    #[serde(default)]
+    pub expires_at: Option<i64>,
 }
 
 /// Who a binding serves (005, K4).

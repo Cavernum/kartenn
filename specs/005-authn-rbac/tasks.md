@@ -78,8 +78,15 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   ligne, la première écrit), `seal::{seal, open}` (données associées : nom du cookie et
   identifiant de clé ; nom ou usage différent refusé) ; RustCrypto (sha2 0.10, hmac,
   hkdf, aes-gcm), aucun aws-lc dans l'arbre
-- [ ] 10. Comptes de service : secrets générés, HMAC, Basic, rotation, expiration,
-  limitation de débit — REQ-005-11 à 13 — verify : tests, coût < 1 ms
+- [x] 10. Comptes de service : secrets générés, HMAC, Basic, rotation, expiration,
+  limitation de débit — REQ-005-11 à 13 — verify : tests, coût < 1 ms — opérations
+  `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret` (venues de la tâche 7) ;
+  `kartenn_auth::secrets::{generate, parse_basic, FailureLimiter}`, `KeyRing:
+  SecretHasher` ; `kartenn_service::authn::authenticate_service` (une seule réponse de
+  refus, la raison dans l'audit, l'identifiant revendiqué en empreinte HMAC sous la clé
+  d'instance) ; un succès Basic n'est pas audité à part (la requête l'est, avec son
+  acteur) ; le refus hors TLS et le branchement du limiteur reviennent à la couche HTTP
+  (006), qui connaît le transport (`kartenn-auth/tests/service_accounts.rs`)
 - [ ] 11. Jetons d'accès RFC 9068 et clés des émetteurs (cache, rechargement borné) —
   REQ-005-9, 10 — verify : IdP de test en processus, chaque refus
 - [ ] 12. Flux OIDC du BFF : début, rappel (`state`, `iss`, `nonce`, PKCE), identité

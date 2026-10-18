@@ -1350,12 +1350,18 @@ dependencies = [
  "getrandom 0.3.4",
  "hkdf 0.12.4",
  "hmac 0.12.1",
+ "kartenn-core",
+ "kartenn-service",
+ "kartenn-store-pg",
  "kartenn-workspace-hack",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sqlx",
  "subtle",
  "thiserror",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -1442,6 +1448,7 @@ dependencies = [
 name = "kartenn-store-pg"
 version = "0.0.0"
 dependencies = [
+ "hmac 0.13.0",
  "kartenn-core",
  "kartenn-service",
  "kartenn-workspace-hack",
@@ -1525,7 +1532,6 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-core",
- "typenum",
  "uuid",
  "zeroize",
 ]

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::authz::{Authorizer, Subject};
 use crate::declarations::SYSTEM_AUTHOR;
-use crate::operations::{BindingScope, BindingSubject, Operation, Ref};
+use crate::operations::{BindingScope, BindingSubject, Operation, Ref, SecretRecord};
 use crate::pipeline::Planned;
 use crate::port::{StoreError, WriteTx};
 
@@ -65,6 +65,29 @@ pub enum RbacOp {
         /// Entity; `None`: the global attachment.
         entity: Option<Uuid>,
     },
+    /// A new service account with its first secret.
+    CreateAccount {
+        /// Its identifier.
+        id: Uuid,
+        /// Name.
+        name: String,
+        /// First secret.
+        secret: SecretRecord,
+    },
+    /// A new secret of a service account.
+    AddSecret {
+        /// The account.
+        account: Uuid,
+        /// The secret.
+        secret: SecretRecord,
+    },
+    /// A secret revoked.
+    RevokeSecret {
+        /// The account.
+        account: Uuid,
+        /// The secret.
+        secret: Uuid,
+    },
     /// Disables or enables an identity, revokes its sessions.
     IdentityState {
         /// The identity.
@@ -81,8 +104,9 @@ impl RbacOp {
     #[must_use]
     pub const fn object(&self) -> Uuid {
         match self {
-            Self::Bind { id, .. } | Self::Unbind { id } => *id,
+            Self::Bind { id, .. } | Self::Unbind { id } | Self::CreateAccount { id, .. } => *id,
             Self::IdentityState { identity, .. } => *identity,
+            Self::AddSecret { account, .. } | Self::RevokeSecret { account, .. } => *account,
             _ => RBAC_OBJECT,
         }
     }
@@ -112,6 +136,52 @@ fn issuer(value: &str) -> Result<String, Violation> {
     } else {
         Ok(value.to_owned())
     }
+}
+
+/// A secret record with a digest of 64 hexadecimal digits.
+fn secret_record(secret: &SecretRecord) -> Result<SecretRecord, Violation> {
+    if secret.digest.len() == 64 && secret.digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(secret.clone())
+    } else {
+        Err(invalid("a secret digest has 64 hexadecimal digits".into()))
+    }
+}
+
+/// Plans a binding: a subject well formed, a role key, its scope resolved.
+fn plan_bind(
+    id: Uuid,
+    subject: &BindingSubject,
+    role: &str,
+    scope: BindingScope,
+    resolve: &impl Fn(Ref) -> Uuid,
+) -> Result<RbacOp, Violation> {
+    let subject = match subject {
+        BindingSubject::Identity { id } => BindingSubject::Identity { id: *id },
+        BindingSubject::Group { issuer: i, group } => {
+            if group.trim().is_empty() {
+                return Err(invalid("a group is not empty".into()));
+            }
+            BindingSubject::Group {
+                issuer: issuer(i)?,
+                group: group.trim().to_owned(),
+            }
+        }
+        BindingSubject::Issuer { issuer: i } => BindingSubject::Issuer { issuer: issuer(i)? },
+    };
+    let (scope_kind, scope) = match scope {
+        BindingScope::Global => ("global", None),
+        BindingScope::Entity { id } => ("entity", Some(resolve(id))),
+        BindingScope::Site { id } => ("site", Some(resolve(id))),
+        BindingScope::Domain { id } => ("domain", Some(resolve(id))),
+        BindingScope::Prefix { id } => ("prefix", Some(resolve(id))),
+    };
+    Ok(RbacOp::Bind {
+        id,
+        subject,
+        role: role_key(role)?,
+        scope_kind,
+        scope,
+    })
 }
 
 /// Plans `op` when it is an administration operation of the RBAC; `None` otherwise.
@@ -150,37 +220,7 @@ pub(crate) fn plan(
             role,
             scope,
             ..
-        } => (|| {
-            let subject = match subject {
-                BindingSubject::Identity { id } => BindingSubject::Identity { id: *id },
-                BindingSubject::Group { issuer: i, group } => {
-                    if group.trim().is_empty() {
-                        return Err(invalid("a group is not empty".into()));
-                    }
-                    BindingSubject::Group {
-                        issuer: issuer(i)?,
-                        group: group.trim().to_owned(),
-                    }
-                }
-                BindingSubject::Issuer { issuer: i } => {
-                    BindingSubject::Issuer { issuer: issuer(i)? }
-                }
-            };
-            let (scope_kind, scope) = match scope {
-                BindingScope::Global => ("global", None),
-                BindingScope::Entity { id } => ("entity", Some(resolve(*id))),
-                BindingScope::Site { id } => ("site", Some(resolve(*id))),
-                BindingScope::Domain { id } => ("domain", Some(resolve(*id))),
-                BindingScope::Prefix { id } => ("prefix", Some(resolve(*id))),
-            };
-            Ok(RbacOp::Bind {
-                id,
-                subject,
-                role: role_key(role)?,
-                scope_kind,
-                scope,
-            })
-        })(),
+        } => plan_bind(id, subject, role, *scope, &resolve),
         Operation::Unbind { id } => Ok(RbacOp::Unbind { id: *id }),
         Operation::AttachIssuer { issuer: i, entity } => issuer(i).map(|issuer| RbacOp::Attach {
             issuer,
@@ -189,6 +229,27 @@ pub(crate) fn plan(
         Operation::DetachIssuer { issuer: i, entity } => issuer(i).map(|issuer| RbacOp::Detach {
             issuer,
             entity: entity.map(&resolve),
+        }),
+        Operation::CreateServiceAccount { name, secret, .. } => (|| {
+            let name = name.trim();
+            if name.is_empty() || name.contains(':') || name.chars().any(char::is_control) {
+                return Err(invalid(format!("'{name}' is not a service account name")));
+            }
+            Ok(RbacOp::CreateAccount {
+                id,
+                name: name.to_owned(),
+                secret: secret_record(secret)?,
+            })
+        })(),
+        Operation::AddServiceSecret { account, secret } => {
+            secret_record(secret).map(|secret| RbacOp::AddSecret {
+                account: *account,
+                secret,
+            })
+        }
+        Operation::RevokeServiceSecret { account, secret } => Ok(RbacOp::RevokeSecret {
+            account: *account,
+            secret: *secret,
         }),
         Operation::SetIdentityState {
             identity,
@@ -240,7 +301,10 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
                 ("core.role.admin", RBAC_OBJECT)
             }
             RbacOp::Attach { .. } | RbacOp::Detach { .. } => ("core.issuer.admin", RBAC_OBJECT),
-            RbacOp::IdentityState { .. } => ("core.account.admin", RBAC_OBJECT),
+            RbacOp::IdentityState { .. }
+            | RbacOp::CreateAccount { .. }
+            | RbacOp::AddSecret { .. }
+            | RbacOp::RevokeSecret { .. } => ("core.account.admin", RBAC_OBJECT),
             RbacOp::Bind { scope, .. } => ("core.rbac.admin", scope.unwrap_or(RBAC_OBJECT)),
             RbacOp::Unbind { id } => match tx.binding_scope(*id).await? {
                 Some(scope) => ("core.rbac.admin", scope),

@@ -4,3 +4,4 @@
 
 pub mod keys;
 pub mod seal;
+pub mod secrets;

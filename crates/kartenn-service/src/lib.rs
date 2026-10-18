@@ -6,6 +6,7 @@
 
 pub mod aggregate;
 pub mod audit;
+pub mod authn;
 pub mod authz;
 mod cascade;
 pub mod declarations;

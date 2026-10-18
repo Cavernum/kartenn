@@ -11,6 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 aes-gcm = "0.10"
 base64 = "0.22"
 getrandom = "0.3"
@@ -22,3 +24,9 @@ sha2 = "0.10"
 subtle = "2.6.1"
 thiserror = "2.0.21"
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+uuid = { version = "1.28.0", features = ["v7"] }
+
+[dev-dependencies]
+kartenn-store-pg = { path = "../kartenn-store-pg" }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
