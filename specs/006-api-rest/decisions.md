@@ -224,3 +224,57 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   à D9 et D15) ; proxy inverse seul (ne connaît pas l'identité, compte par adresse
   derrière NAT et BFF ; il peut rester une barrière grossière en amont).
 - Décidé par : recommandation acceptée
+
+## H12 — Versions et contrat OpenAPI
+- Décision : **version majeure dans le chemin, évolution additive, OpenAPI tiré du
+  code**.
+  - `/v1` : dans une version, seulement des ajouts ; les clients tolèrent les champs et
+    les valeurs d'énumération inconnus. Un changement cassant ouvre `/v2`, servi à côté
+    de `/v1` pendant un préavis, avec `Deprecation` (RFC 9745), `Sunset` (RFC 8594) et
+    un lien `rel="successor-version"`.
+  - OpenAPI 3.1 généré par utoipa, servi à `GET /v1/openapi.json` pour les modules de
+    cette build (la liste est aussi dans `GET /v1/capabilities`). Le contrat de
+    référence (build toutes features) est versionné dans le dépôt ; un test le compare
+    au contrat produit et refuse tout changement cassant dans `/v1` (ajout : contrat mis
+    à jour ; retrait ou changement de type : échec).
+- Pourquoi : un lien simple se teste et se cache sans `Vary` ; les SDK (CLI, MCP,
+  TypeScript) se génèrent d'un contrat qui ne peut pas dériver du code ; le test rend
+  la promesse additive vérifiable.
+- Rejeté : version dans le type de média (`Vary: Accept`, outils et générateurs mal
+  à l'aise) ; versions datées par requête (couches de traduction à maintenir, trop lourd
+  pour la taille du projet) ; contrat écrit à la main (dérive possible du code).
+- Décidé par : recommandation acceptée
+
+## H13a — Format du PATCH
+- Décision : **JSON Merge Patch seul** (RFC 7396, `application/merge-patch+json`).
+  Les champs envoyés deviennent une opération `Set…` ; `null` retire un champ
+  facultatif ; les tableaux sont remplacés entiers ; les tables de propriétés se
+  modifient clé par clé (`{"properties": {"k": "v", "old": null}}`). Le motif et la
+  période de validité (H2) sont des membres réservés de premier niveau, documentés.
+  Concurrence par `If-Match` (H8).
+- Réserve (Claude) : `null` vaut retrait ; le design vérifie, champ par champ, qu'aucun
+  champ ne distingue `null` d'absent.
+- Pourquoi : correspond directement aux opérations ; idempotent ; schéma OpenAPI précis
+  (la ressource, champs facultatifs) ; facile pour un formulaire ou le CLI. Les
+  modifications fines ou multi-objets passent par `POST /changesets`.
+- Rejeté : JSON Patch (RFC 6902) : second langage d'opérations à côté des changesets,
+  non idempotent, `value` non typé, chemins liés à la forme JSON et aux indices,
+  `move`/`copy` sans sens, aucune place pour le motif (contraire à H2) ; les deux formats
+  (double surface pour un gain limité aux tableaux, courts chez nous).
+- Décidé par : utilisateur, après comparaison
+
+## H13b — Réponses partielles et expansion
+- Décision : **représentations complètes et liens, avec un résumé des objets liés**
+  (`domain: {id, slug, href}` : identifiant, clé naturelle, lien). Ni `fields=` ni
+  `expand=` en v1 ; les propriétés héritées (003) restent hors de la représentation et
+  se lisent par leur route.
+- Pourquoi : coût de requête prévisible (budgets D14), une variante de cache par URL et
+  par appelant, ETag = version de l'objet (H8 reste simple), RBAC vérifié une fois,
+  types OpenAPI exacts. Le besoin réel du Web (listes affichant domaine et site) est
+  couvert par le résumé, jointure fixe et bornée. Les objets sont petits : une réponse
+  partielle n'économiserait presque rien. Les deux mécanismes restent ajoutables sans
+  rupture (H12) si une mesure le justifie.
+- Rejeté : `fields=` (variantes de cache, ETag partiel inutilisable en `If-Match`, types
+  partiels) ; `fields=` et `expand=` (coût non borné, RBAC et lecture datée à chaque
+  expansion, ETag composite, oracle possible sur un objet invisible).
+- Décidé par : utilisateur, après comparaison
