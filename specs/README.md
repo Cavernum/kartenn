@@ -6,8 +6,8 @@
 | [002-noyau-adressage](002-noyau-adressage/) | implémentées | implémentée | [tasks](002-noyau-adressage/tasks.md) (28/28) |
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
-| [005-authn-rbac](005-authn-rbac/) | implémentées (un arbitrage ouvert, REQ-005-25) | implémentée | [tasks](005-authn-rbac/tasks.md) (17/17) |
-| 006-api-rest-conventions | à écrire | — | — |
+| [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (18/18) |
+| [006-api-rest](006-api-rest/) | approuvées (H1–H16) | approuvée | [tasks](006-api-rest/tasks.md) (0/26, à valider) |
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
