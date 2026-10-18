@@ -24,7 +24,7 @@ tracing = "0.1.44"
 uuid = { version = "1.28.0", features = ["v7"] }
 axum = { version = "0.8.9", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path"] }
 tracing-opentelemetry = { version = "0.34", default-features = false }
-tower-http = { version = "0.7", features = ["catch-panic", "timeout"] }
+tower-http = { version = "0.7", features = ["catch-panic", "compression-br", "compression-gzip", "compression-zstd", "timeout"] }
 http-body-util = "0.1.5"
 thiserror = "2.0.21"
 governor = { version = "0.10.4", default-features = false, features = ["std", "dashmap"] }

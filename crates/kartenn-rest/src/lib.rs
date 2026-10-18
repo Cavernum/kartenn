@@ -1,6 +1,7 @@
 //! The REST API of kartenn (spec 006): router, problems, layers. No business logic: each
 //! route calls the service, or the store after a rights check.
 
+pub mod compression;
 pub mod error;
 pub mod health;
 pub mod problem;
@@ -40,7 +41,8 @@ async fn not_found() -> Problem {
 
 /// The application: `api` under `/v1`, the probes, and the layers around them (design
 /// « Pile de couches »), the request identifier outermost so that every response carries
-/// it, then the load shedding, the delay, the client, the bounded body and the quotas.
+/// it, then the load shedding, the delay, the client, the bounded body, the quotas and,
+/// innermost, the compression.
 pub fn router(
     api: Router,
     readiness: Arc<dyn Readiness>,
@@ -53,6 +55,8 @@ pub fn router(
         .nest("/v1", api)
         .merge(health::routes(readiness))
         .fallback(not_found)
+        // Layer 10, on the way back.
+        .layer(compression::layer())
         // The limit is that of layer 5, not the 2 MB of the extractors.
         .layer(DefaultBodyLimit::disable())
         // Layer 7; the authentication (layer 6) comes outside it.

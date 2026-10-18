@@ -58,9 +58,13 @@ routeur complet, sauf mention « vrai TCP ».
   `window_seconds`, acteur `system` sans identité (REQ-012-9) ; serveur : plafond
   2 × le pool, minuterie d'une minute, refus restants écrits à l'arrêt ;
   `tests/quota.rs` (4 tests) et tests unitaires (poids, /64, agrégation)
-- [ ] 5. Compression (`zstd`, `br`, `gzip`, > 1 Kio) sauf extension `Secret` —
+- [x] 5. Compression (`zstd`, `br`, `gzip`, > 1 Kio) sauf extension `Secret` —
   REQ-006-32 — verify : liste compressée selon `Accept-Encoding` ; réponse marquée
   `Secret` jamais compressée, `no-store`
+  — `compression.rs` : `CompressionLayer` (sans `deflate`), `SizeAbove(1025)` et
+  absence de `Secret` ; `Secret` est une partie de réponse qui pose l'extension et
+  `Cache-Control: no-store` ; couche 10, la plus intérieure ; `tests/compression.rs`
+  (3 tests)
 
 ## P2 — Authentification
 
