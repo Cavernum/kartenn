@@ -359,8 +359,8 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Rejeté : verrou consultatif PostgreSQL tenu par une instance « chef » (une connexion
   monopolisée, bascule plus lente) ; minuterie externe pour tout (dépendance
   d'exploitation pour des tâches dont la correction dépend, comme l'expiration).
-- Décidé par : Claude (délégation, « continue au maximum »), à confirmer à la relecture
-  des exigences
+- Décidé par : Claude (délégation, « continue au maximum ») ; approuvé par l'utilisateur
+  avec les exigences (2026-10-18)
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,

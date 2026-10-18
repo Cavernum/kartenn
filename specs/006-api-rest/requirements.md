@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-18
 ---
 
@@ -455,5 +455,5 @@ Acceptation :
 - [ ] Prise en charge de `QUERY` par axum, hyper et les proxys inverses courants (H6).
   (Claude, design, `crate-scout`)
 - [ ] Crate de limitation GCRA (H11). (Claude, design, `crate-scout`)
-- [ ] H16 (tâches de fond sous bail) décidé par délégation. (utilisateur, à la
-  relecture)
+- [x] H16 (tâches de fond sous bail) décidé par délégation. (utilisateur, à la
+  relecture) — approuvé avec les exigences le 2026-10-18.
