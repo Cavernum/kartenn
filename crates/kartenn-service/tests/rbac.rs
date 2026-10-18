@@ -13,6 +13,7 @@ use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::pipeline::PendingKind;
 use kartenn_service::rbac::sync_roles;
 use kartenn_service::reads::{ReadAudit, read_object};
+use kartenn_service::undo::inverse;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{Condition, filter, filter_in};
@@ -1012,6 +1013,64 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
             None => assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}"),
         }
     }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_undo_cannot_escalate(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let user = t.identity().await;
+    let branch = BindingScope::Entity {
+        id: Ref::Id(t.ids["branch"]),
+    };
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_role("writer", &["core.address.read", "core.address.write"]),
+                bind_op(user.id, "writer", branch),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let Outcome::Applied {
+        changeset: unbound, ..
+    } = t
+        .submit_as(&root, vec![Operation::Unbind { id: binding }])
+        .await
+    else {
+        panic!("the unbinding is applied");
+    };
+    // A delegate administers the branch but cannot write addresses: the inverse binds
+    // `writer` again, under the same checks as a binding of its own (spec 005, K16).
+    let delegate = t.identity().await;
+    let manager = t
+        .role("manager", &["core.rbac.admin", "core.address.read"])
+        .await;
+    t.bind(Binding::Identity(delegate.id), manager, "group", None)
+        .await;
+    let undo = inverse(&t.store, unbound, delegate.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let outcome = t
+        .submit_as(&delegate, undo.request.operations.clone())
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.binding.escalation"]);
+    let outcome = t.submit_as(&root, undo.request.operations).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(
+        t.allowed(&user, "core.address.write", &["10.5.0.7"]).await,
+        ["10.5.0.7"]
+    );
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]

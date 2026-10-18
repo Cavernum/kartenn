@@ -224,8 +224,80 @@ pub struct UndoFacts {
     pub start: i64,
     /// Objects and assignments it wrote.
     pub touched: Vec<Touched>,
-    /// What it wrote that is not undone: declarations, closed-list values (kind, id).
+    /// What it wrote that is not undone: declarations, closed-list values, accounts
+    /// (kind, id).
     pub unsupported: Vec<(String, Uuid)>,
+    /// Roles, bindings and issuer attachments it wrote (spec 005, REQ-005-25, K16).
+    pub rbac: Vec<RbacTouched>,
+}
+
+/// A role, a binding or an issuer attachment written by a changeset to undo (spec 005,
+/// K16).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RbacTouched {
+    /// Which one.
+    pub row: RbacRow,
+    /// As it was in force before the changeset, from the start of the undo; `None`: the
+    /// changeset created it.
+    pub before: Option<RbacBefore>,
+    /// One is in force after the changeset, from the start of the undo.
+    pub after: bool,
+    /// A later changeset that wrote it there: a conflict.
+    pub later: Option<Uuid>,
+}
+
+/// The identity of a role, a binding or an issuer attachment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RbacRow {
+    /// A role, by key.
+    Role {
+        /// Key.
+        key: String,
+    },
+    /// A binding.
+    Binding {
+        /// Its identifier.
+        id: Uuid,
+    },
+    /// The attachment of an issuer to an entity, or everywhere.
+    Attachment {
+        /// Issuer.
+        issuer: String,
+        /// Entity; `None`: everywhere.
+        entity: Option<Uuid>,
+    },
+}
+
+/// A role, a binding or an attachment as it was before a changeset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RbacBefore {
+    /// Its application period then.
+    pub period: crate::operations::PeriodSpec,
+    /// What it was.
+    pub state: RbacState,
+}
+
+/// The content of a role or a binding before a changeset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RbacState {
+    /// A role.
+    Role {
+        /// Label.
+        label: String,
+        /// Entries.
+        entries: Vec<String>,
+    },
+    /// A binding.
+    Binding {
+        /// Who.
+        subject: crate::operations::BindingSubject,
+        /// Role key.
+        role: String,
+        /// Where.
+        scope: crate::operations::BindingScope,
+    },
+    /// An attachment: nothing beyond its identity.
+    Attachment,
 }
 
 /// An object, or an assignment of it, written by a changeset to undo.
