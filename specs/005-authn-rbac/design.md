@@ -130,9 +130,12 @@ la validation est écrite sur `jsonwebtoken` seul.
    Les droits de propriété (003) et d'approbation passent aussi par la transaction.
 6. **Lecture d'un objet** (REQ-005-19) : sans `core.<sorte>.read`, l'objet est répondu
    absent (son existence n'est pas révélée) et `authz.access.denied` est audité. Les
-   listes reçoivent un `ReadScope` (une visibilité par sorte, en JSON) et le prédicat
-   `kartenn_readable` (migration 0030) : `filter_in`, `children_in` ; l'occupation et le
-   prochain libre restent des statistiques du préfixe, sous `core.prefix.read`.
+   listes reçoivent un `ReadScope` (une visibilité par sorte, en JSON), matérialisé une
+   fois par requête en tableaux typés (`kartenn_scopes`, migration 0033) et testé par
+   `kartenn_visible` sur chaque ligne candidate (sous-requête scalaire : un `EXISTS` serait
+   aplati en semi-jointure sur toute la base) : `filter_in`, `children_in` ; l'occupation et
+   le prochain libre restent des statistiques du préfixe, sous `core.prefix.read`.
+   `kartenn_readable` (0030), qui reconstruisait les tableaux à chaque ligne, est retiré.
 7. **Valeurs sensibles** (REQ-005-21) : `read_object` reçoit la `Visibility` de
    `prop.<clé>.read` pour chaque propriété sensible ; sans ce droit, la valeur est retirée
    et sa clé listée dans `masked`, et seul un lecteur autorisé produit
@@ -250,6 +253,12 @@ algorithms = ["RS256", "ES256"]
 
 - **Coût du prédicat sur les listes** : résolution du propriétaire par objet ; mesuré au
   banc (REQ-005-29) ; repli : colonne de propriétaire résolu maintenue avec l'origine.
+  Mesuré (tâche 16) : `kartenn_visible` teste d'abord les périmètres bon marché (global,
+  domaine, sous-arbres) et ne résout le propriétaire ou le site que si une entité, un site
+  ou un confinement le demande (0033) ; une visibilité est normalisée (un sous-arbre d'un
+  domaine accordé, ou inclus dans un autre, disparaît) ; les six permissions de lecture
+  d'un `ReadScope` sont résolues en une passe (une requête des liaisons, préfixes
+  joints, permissions agrégées par rôle).
 - **Taille du cookie** : jetons de l'IdP volumineux ; découpage borné à trois cookies,
   au-delà la connexion échoue avec une erreur explicite.
 - **Crates OIDC** : surface et dépendances (client HTTP) ; vérifiées en tâche 1.

@@ -122,13 +122,14 @@ fn filter_sql(heritable: bool, predicate: Option<&str>, absent: bool) -> String 
              JOIN addressing_object o ON o.id = r.id AND o.domain_id = $2 AND o.valid_period @> $3"
         )
     };
+    let visible = crate::rbac::readable("v.id", "v.kind", "v.domain_id", "v.value", "$3");
     format!(
-        "SELECT DISTINCT id FROM ({wanted}) w
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($10))
+         SELECT DISTINCT id FROM ({wanted}) w
          WHERE ($4::uuid IS NULL OR id > $4)
-           AND ($10::jsonb IS NULL OR EXISTS (
-                SELECT 1 FROM addressing_object v
-                WHERE v.id = w.id AND v.valid_period @> $3
-                  AND kartenn_readable(v.id, v.kind, v.domain_id, v.value, $3, $10)))
+           AND ($10::jsonb IS NULL OR coalesce((
+                SELECT {visible} FROM addressing_object v
+                WHERE v.id = w.id AND v.valid_period @> $3), false))
          ORDER BY id LIMIT $5"
     )
 }

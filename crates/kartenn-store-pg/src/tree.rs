@@ -5,7 +5,7 @@
 //! at the date considered (D34); nothing is stored. Occupancy and next free values reuse
 //! the pure functions of `kartenn_core::occupancy` on the direct content read here.
 
-use crate::rbac::ReadScope;
+use crate::rbac::{ReadScope, readable};
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{IpRange, Nature, PrefixObject, RangeUsage};
@@ -148,27 +148,33 @@ pub async fn children_in(
 ) -> sqlx::Result<Vec<Node>> {
     // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
     // 'a' address (a = value).
-    let rows: Vec<ChildRow> = sqlx::query_as(
-        "WITH p AS (SELECT domain_id, prefix FROM prefix WHERE id = $1 AND valid_period @> $2)
+    let (prefix_readable, range_readable, address_readable) = (
+        readable("q.id", "'prefix'", "q.domain_id", "q.prefix", "$2"),
+        readable("g.id", "'range'", "g.domain_id", "lower(g.range)", "$2"),
+        readable("a.id", "'address'", "a.domain_id", "a.address", "$2"),
+    );
+    let rows: Vec<ChildRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH p AS (SELECT domain_id, prefix FROM prefix WHERE id = $1 AND valid_period @> $2),
+              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT 'p', q.id, q.prefix::text, q.nature, NULL FROM prefix q, p
          WHERE q.domain_id = p.domain_id AND q.prefix << p.prefix AND q.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND q.prefix << r.prefix)
-           AND ($3::jsonb IS NULL OR kartenn_readable(q.id, 'prefix', q.domain_id, q.prefix, $2, $3))
+           AND ($3::jsonb IS NULL OR {prefix_readable})
          UNION ALL
          SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage FROM ip_range g, p
          WHERE g.domain_id = p.domain_id AND lower(g.range) <<= p.prefix AND upper(g.range) <<= p.prefix
            AND g.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND lower(g.range) <<= r.prefix)
-           AND ($3::jsonb IS NULL OR kartenn_readable(g.id, 'range', g.domain_id, lower(g.range), $2, $3))
+           AND ($3::jsonb IS NULL OR {range_readable})
          UNION ALL
          SELECT 'a', a.id, host(a.address), NULL, NULL FROM address a, p
          WHERE a.domain_id = p.domain_id AND a.address <<= p.prefix AND a.valid_period @> $2
            AND NOT EXISTS (SELECT 1 FROM prefix r WHERE r.domain_id = p.domain_id AND r.valid_period @> $2
                            AND r.prefix << p.prefix AND a.address <<= r.prefix)
-           AND ($3::jsonb IS NULL OR kartenn_readable(a.id, 'address', a.domain_id, a.address, $2, $3))",
-    )
+           AND ($3::jsonb IS NULL OR {address_readable})"
+    )))
     .bind(prefix)
     .bind(at)
     .bind(scope.to_json())

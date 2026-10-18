@@ -3,6 +3,7 @@
 //! [`Authorizer::authorize_many`] by the predicate `kartenn_visible` (migration 0029),
 //! which also filters the lists.
 
+use kartenn_core::addr::Prefix;
 use kartenn_service::StoreError;
 use kartenn_service::authz::{Authorizer, Subject};
 use std::future::Future;
@@ -52,6 +53,48 @@ impl Visibility {
             && self.prefixes.is_empty()
     }
 
+    /// Without the scopes that others already cover, same meaning (bench 005-16): with
+    /// `global`, nothing else; a prefix subtree of a granted domain, or inside another
+    /// granted subtree of its domain, goes; duplicates go.
+    pub fn normalize(&mut self) {
+        if self.global {
+            self.entities.clear();
+            self.sites.clear();
+            self.domains.clear();
+            self.prefixes.clear();
+            return;
+        }
+        for list in [&mut self.entities, &mut self.sites, &mut self.domains] {
+            list.sort_unstable();
+            list.dedup();
+        }
+        let parse = |text: &str| Prefix::parse_any(&kartenn_core::family::ALL, text).ok();
+        let mut kept: Vec<(Uuid, String, Option<Prefix>)> = Vec::new();
+        let mut candidates: Vec<(Uuid, String, Option<Prefix>)> =
+            std::mem::take(&mut self.prefixes)
+                .into_iter()
+                .filter(|(domain, _)| self.domains.binary_search(domain).is_err())
+                .map(|(domain, text)| {
+                    let parsed = parse(&text);
+                    (domain, text, parsed)
+                })
+                .collect();
+        // The widest first: a subtree is dropped when a kept one contains it.
+        candidates
+            .sort_by_key(|(domain, text, p)| (*domain, p.map(Prefix::prefix_len), text.clone()));
+        for (domain, text, prefix) in candidates {
+            let covered = kept.iter().any(|(d, t, p)| {
+                *d == domain
+                    && (*t == text
+                        || matches!((p, prefix), (Some(outer), Some(inner)) if outer.contains(inner)))
+            });
+            if !covered {
+                kept.push((domain, text, prefix));
+            }
+        }
+        self.prefixes = kept.into_iter().map(|(d, t, _)| (d, t)).collect();
+    }
+
     /// The arguments of `kartenn_visible` after the object, its domain, its value and the
     /// date, in order.
     #[must_use]
@@ -90,7 +133,7 @@ pub struct VisibilityArguments {
 }
 
 impl Visibility {
-    /// As a JSON object, for `kartenn_readable` (migration 0030).
+    /// As a JSON object, for `kartenn_scopes` (migration 0033).
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
         let (prefix_domains, prefixes): (Vec<Uuid>, Vec<String>) =
@@ -105,6 +148,20 @@ impl Visibility {
             "confinement": self.confinement,
         })
     }
+}
+
+/// The condition that the object `id` of `kind`, in `domain` at `value`, is readable at
+/// `at` under the scope materialised as `s` by `kartenn_scopes` (migration 0033): the
+/// arrays are built once per query, not per row. A scalar subquery, which the planner
+/// keeps per candidate row: an `EXISTS` would be flattened into a semi-join that tests
+/// every object of the base (bench 005-16).
+pub(crate) fn readable(id: &str, kind: &str, domain: &str, value: &str, at: &str) -> String {
+    format!(
+        "coalesce((SELECT bool_or(kartenn_visible({id}, {domain}, {value}, {at}, s.global,
+                                                 s.entities, s.sites, s.domains, s.prefix_domains,
+                                                 s.prefixes, s.confinement))
+                   FROM s WHERE s.kind = {kind}), false)"
+    )
 }
 
 /// The kinds of objects of the core, with their read permission.
@@ -129,7 +186,7 @@ impl ReadScope {
         Self(None)
     }
 
-    /// The scope as the JSON argument of `kartenn_readable`; `None` for everything.
+    /// The scope as the JSON argument of `kartenn_scopes`; `None` for everything.
     #[must_use]
     pub fn to_json(&self) -> Option<serde_json::Value> {
         self.0.as_ref().map(|kinds| {
@@ -211,60 +268,163 @@ pub async fn visibility_on(
     permission: &str,
     at: OffsetDateTime,
 ) -> Result<Visibility, StoreError> {
-    let action = permission.rsplit('.').next().unwrap_or_default();
-    let pattern_applies =
-        permission.starts_with("prop.") && !sensitive(conn, permission, at).await?;
-    let rows: Vec<(String, Option<Uuid>)> = sqlx::query_as(
-        "SELECT DISTINCT b.scope_kind, b.scope_id
+    Ok(visibilities_on(conn, subject, &[permission], at)
+        .await?
+        .pop()
+        .unwrap_or_default())
+}
+
+/// A scope of the bindings of a subject: kind, identifier, the permissions granting it,
+/// and the domain and value of a prefix subtree.
+type ScopeRow = (
+    String,
+    Option<Uuid>,
+    Vec<String>,
+    Option<Uuid>,
+    Option<String>,
+);
+
+/// Whether a binding row of `granted` grants `permission`: `*`, the permission itself, or
+/// `prop.*.<action>` for a property that is not sensitive (`pattern`).
+fn grants(granted: &str, permission: &str, pattern: bool) -> bool {
+    granted == "*"
+        || granted == permission
+        || (pattern
+            && granted.strip_prefix("prop.*.")
+                == Some(permission.rsplit('.').next().unwrap_or_default()))
+}
+
+/// [`visibility_on`] for several permissions at once, in their order: the bindings, the
+/// subtrees of entities and sites, the prefixes and the confinement read once for all
+/// (a read scope asks for six; bench 005-16).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn visibilities_on(
+    conn: &mut PgConnection,
+    subject: &Subject,
+    permissions: &[&str],
+    at: OffsetDateTime,
+) -> Result<Vec<Visibility>, StoreError> {
+    let mut patterns = Vec::with_capacity(permissions.len());
+    for permission in permissions {
+        patterns.push(permission.starts_with("prop.") && !sensitive(conn, permission, at).await?);
+    }
+    let wanted: Vec<&str> = permissions.to_vec();
+    // One row per binding, with the permissions of its role that matter here and, for a
+    // prefix subtree, its domain and value (none once the prefix is closed: it grants
+    // nothing then). No sort: duplicates go in `Visibility::normalize`.
+    let rows: Vec<ScopeRow> = sqlx::query_as(
+        "WITH granting AS (
+             SELECT rp.role_id, array_agg(rp.permission) AS permissions
+             FROM role r JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> $2
+             WHERE r.valid_period @> $2
+               AND (rp.permission = '*' OR rp.permission = ANY($1)
+                    OR ($6 AND rp.permission LIKE 'prop.*.%'))
+             GROUP BY rp.role_id)
+         SELECT b.scope_kind, b.scope_id, g.permissions, p.domain_id, p.prefix::text
          FROM binding b
-         JOIN role r ON r.id = b.role_id AND r.valid_period @> $2
-         JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> $2
+         JOIN granting g ON g.role_id = b.role_id
+         LEFT JOIN prefix p ON b.scope_kind = 'prefix' AND p.id = b.scope_id
+                           AND p.valid_period @> $2
          WHERE b.valid_period @> $2
-           AND (rp.permission IN ('*', $1)
-                OR ($6 AND rp.permission = 'prop.*.' || $7))
            AND ((b.subject_kind = 'identity' AND b.subject_id = $3)
                 OR (b.subject_kind = 'group' AND b.issuer = $4 AND b.group_name = ANY($5))
                 OR (b.subject_kind = 'issuer' AND b.issuer = $4))",
     )
-    .bind(permission)
+    .bind(&wanted)
     .bind(at)
     .bind(subject.id)
     .bind(subject.issuer.as_deref())
     .bind(&subject.groups)
-    .bind(pattern_applies)
-    .bind(action)
+    .bind(patterns.iter().any(|p| *p))
     .fetch_all(&mut *conn)
     .await
     .map_err(store_err)?;
-    // A global-only permission acts on the global scope alone (K7, K11).
-    let global_only = kartenn_core::authz::permission(permission).is_some_and(|p| p.global_only);
-    let mut v = Visibility::none();
-    let (mut entities, mut sites, mut prefix_ids) = (Vec::new(), Vec::new(), Vec::new());
-    for (kind, id) in rows {
-        match (kind.as_str(), id) {
-            ("global", _) => v.global = true,
-            (_, _) if global_only => {}
-            ("entity", Some(id)) => entities.push(id),
-            ("site", Some(id)) => sites.push(id),
-            ("domain", Some(id)) => v.domains.push(id),
-            ("prefix", Some(id)) => prefix_ids.push(id),
-            _ => {}
+    // The scopes of each permission; a global-only one acts on the global scope alone
+    // (K7, K11).
+    let mut out: Vec<Visibility> = vec![Visibility::none(); permissions.len()];
+    let mut trees: Vec<Vec<(&str, Uuid)>> = vec![Vec::new(); permissions.len()];
+    for (k, permission) in permissions.iter().enumerate() {
+        let global_only =
+            kartenn_core::authz::permission(permission).is_some_and(|p| p.global_only);
+        for (kind, id, granted, domain, prefix) in &rows {
+            if !granted.iter().any(|g| grants(g, permission, patterns[k])) {
+                continue;
+            }
+            match (kind.as_str(), id) {
+                ("global", _) => out[k].global = true,
+                (_, _) if global_only => {}
+                ("domain", Some(id)) => out[k].domains.push(*id),
+                ("prefix", Some(_)) => {
+                    if let (Some(domain), Some(prefix)) = (domain, prefix) {
+                        out[k].prefixes.push((*domain, prefix.clone()));
+                    }
+                }
+                (kind @ ("entity" | "site"), Some(id)) => trees[k].push((kind, *id)),
+                _ => {}
+            }
         }
     }
-    v.entities = descendants(conn, "entity", &entities, at).await?;
-    v.sites = descendants(conn, "site", &sites, at).await?;
-    if !prefix_ids.is_empty() {
-        v.prefixes = sqlx::query_as(
-            "SELECT domain_id, prefix::text FROM prefix WHERE id = ANY($1) AND valid_period @> $2",
-        )
-        .bind(&prefix_ids)
-        .bind(at)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(store_err)?;
+    let of = |kind: &str| -> Vec<Uuid> {
+        let mut ids: Vec<Uuid> = trees
+            .iter()
+            .flatten()
+            .filter(|(k, _)| *k == kind)
+            .map(|(_, id)| *id)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    };
+    let entities = descendants_by_root(conn, "entity", &of("entity"), at).await?;
+    let sites = descendants_by_root(conn, "site", &of("site"), at).await?;
+    let confinement = confinement(conn, subject, at).await?;
+    for (v, trees) in out.iter_mut().zip(trees) {
+        for (kind, id) in trees {
+            let found = if kind == "entity" { &entities } else { &sites };
+            let list = if kind == "entity" {
+                &mut v.entities
+            } else {
+                &mut v.sites
+            };
+            list.extend(found.get(&id).into_iter().flatten());
+        }
+        v.confinement.clone_from(&confinement);
+        v.normalize();
     }
-    v.confinement = confinement(conn, subject, at).await?;
-    Ok(v)
+    Ok(out)
+}
+
+/// `roots` with their descendants in `table` (`entity` or `site`) at `at`, by root.
+async fn descendants_by_root(
+    conn: &mut PgConnection,
+    table: &str,
+    roots: &[Uuid],
+    at: OffsetDateTime,
+) -> Result<std::collections::HashMap<Uuid, Vec<Uuid>>, StoreError> {
+    let mut out: std::collections::HashMap<Uuid, Vec<Uuid>> = std::collections::HashMap::new();
+    if roots.is_empty() {
+        return Ok(out);
+    }
+    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH RECURSIVE tree(root, id) AS (
+             SELECT t.id, t.id FROM {table} t WHERE t.id = ANY($1) AND t.valid_period @> $2
+             UNION
+             SELECT tree.root, c.id FROM {table} c JOIN tree ON c.parent_id = tree.id
+             WHERE c.valid_period @> $2)
+         SELECT root, id FROM tree"
+    )))
+    .bind(roots)
+    .bind(at)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    for (root, id) in rows {
+        out.entry(root).or_default().push(id);
+    }
+    Ok(out)
 }
 
 /// The bound of the issuer of `subject` (K4, K13): `None` without issuer or with a global
@@ -380,13 +540,13 @@ impl PgAuthorizer {
         at: OffsetDateTime,
     ) -> Result<ReadScope, StoreError> {
         let mut conn = self.pool.acquire().await.map_err(store_err)?;
-        let mut kinds = std::collections::BTreeMap::new();
-        for (kind, permission) in READ_PERMISSIONS {
-            kinds.insert(
-                kind,
-                visibility_on(&mut conn, subject, permission, at).await?,
-            );
-        }
+        let permissions: Vec<&str> = READ_PERMISSIONS.iter().map(|(_, p)| *p).collect();
+        let visibilities = visibilities_on(&mut conn, subject, &permissions, at).await?;
+        let kinds = READ_PERMISSIONS
+            .iter()
+            .map(|(kind, _)| *kind)
+            .zip(visibilities)
+            .collect();
         Ok(ReadScope(Some(kinds)))
     }
 
@@ -484,4 +644,47 @@ pub async fn roles_of_on(
     .fetch_all(&mut *conn)
     .await
     .map_err(store_err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_visibility_drops_what_others_cover() {
+        let (a, b) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        let mut v = Visibility {
+            domains: vec![a, a],
+            prefixes: vec![
+                (a, "10.0.0.0/8".into()),
+                (b, "10.1.0.0/16".into()),
+                (b, "10.0.0.0/8".into()),
+                (b, "10.1.2.0/24".into()),
+                (b, "10.0.0.0/8".into()),
+                (b, "192.0.2.0/24".into()),
+                (b, "2001:db8::/32".into()),
+            ],
+            ..Visibility::none()
+        };
+        v.normalize();
+        assert_eq!(v.domains, [a], "duplicates go");
+        assert_eq!(
+            v.prefixes,
+            [
+                (b, "10.0.0.0/8".to_owned()),
+                (b, "192.0.2.0/24".to_owned()),
+                (b, "2001:db8::/32".to_owned()),
+            ],
+            "the subtrees of a granted domain, or inside a granted subtree, go"
+        );
+        let mut global = Visibility {
+            global: true,
+            domains: vec![a],
+            confinement: Some(vec![b]),
+            ..Visibility::none()
+        };
+        global.normalize();
+        assert!(global.domains.is_empty());
+        assert_eq!(global.confinement, Some(vec![b]), "the bound stays");
+    }
 }
