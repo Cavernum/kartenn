@@ -334,6 +334,27 @@
     {
       "properties": {
         "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "object": {},
+            "rule": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "anomaly.state.acknowledged"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
           "const": "high"
         },
         "details": {

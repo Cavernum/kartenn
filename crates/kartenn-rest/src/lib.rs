@@ -1,6 +1,7 @@
 //! The REST API of kartenn (spec 006): router, problems, layers. No business logic: each
 //! route calls the service, or the store after a rights check.
 
+pub mod anomalies;
 pub mod auth;
 pub mod authn;
 pub mod compression;
@@ -36,7 +37,9 @@ use crate::transport::Settings;
 
 /// The routes under `/v1`.
 pub fn v1(api: objects::Api) -> Router {
-    objects::routes(api.clone()).merge(tree::routes(api))
+    objects::routes(api.clone())
+        .merge(tree::routes(api.clone()))
+        .merge(anomalies::routes(api))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

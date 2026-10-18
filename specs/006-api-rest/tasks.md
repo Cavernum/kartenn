@@ -172,10 +172,21 @@ routeur complet, sauf mention « vrai TCP ».
   préfixe ; ne pas proposer un pris). Dettes : enfants non paginés (comme
   l'historique) ; arbre à un `as_of` passé en parcours complet de `prefix` (l'`UNION ALL`
   avec l'historique partitionné n'est pas aplati, l'index par domaine est perdu)
-- [ ] 12c. Anomalies : liste filtrée par la visibilité de l'objet, acquittement
+- [x] 12c. Anomalies : liste filtrée par la visibilité de l'objet, acquittement
   (`core.anomaly.acknowledge` sur l'objet, `motive` obligatoire, événement d'audit, sans
   `If-Match`) — REQ-006-4, 23 — verify : anomalie d'un objet invisible absente et 404 à
   l'acquittement ; motif manquant → 422 ; acquittement audité
+  — `anomalies.rs` (rest) : `GET /v1/anomalies?rule|domain|entity` (lecture auditée
+  `data.objects.read`, lien vers l'objet), `POST /v1/anomalies/{id}/acknowledgement` →
+  204 ; ordre : anomalie ouverte → `gate` de lecture (404 + `authz.access.denied`) →
+  permission (403 audité) → corps (415, 400, 422 `motive-required`), pour qu'aucune
+  erreur de corps ne serve d'oracle. Store : `anomalies::open_within` (portée de lecture,
+  objet courant), `find`. Catalogues : permission `core.anomaly.acknowledge` (aucun rôle
+  livré hors `*`), événement `anomaly.state.acknowledged` (détails `rule`, `object`) ;
+  docs générées. Titre de `motive-required` rendu générique. `tests/objects.rs`
+  (`anomalies_follow_the_visibility_of_their_object`). Écarts : liste non paginée ;
+  écriture et audit hors d'une même transaction (comme les lectures) ; une anomalie
+  dont l'objet est clos n'est plus listée ni acquittable
 - [ ] 12d. Dettes de lecture (12a, 12b) : enfants et historique paginés par clé et curseur
   signé (enfants : adresse, rang, id ; historique : validité, temps système) ; arbre à
   un `as_of` passé indexé (préfixe lu d'abord, domaine et valeur passés en paramètres

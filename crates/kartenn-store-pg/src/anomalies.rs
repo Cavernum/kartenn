@@ -7,6 +7,9 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgPool, Postgres, Transaction};
 
+use crate::list::Kind;
+use crate::rbac::{ReadScope, readable};
+
 /// Versioned tables whose current rows tell which changeset last wrote an object: every
 /// object an anomaly can be about.
 const VERSIONED: [&str; 6] = [
@@ -119,15 +122,36 @@ pub struct AnomalyFilter<'a> {
 ///
 /// Database errors.
 pub async fn open(pool: &PgPool, filter: &AnomalyFilter<'_>) -> sqlx::Result<Vec<Anomaly>> {
+    let found = open_within(pool, filter, &ReadScope::all()).await?;
+    Ok(found.into_iter().map(|(anomaly, _)| anomaly).collect())
+}
+
+/// [`open`] restricted to the anomalies whose object `scope` lets read now (spec 006,
+/// REQ-006-23): the anomaly of an object the caller may not read is not listed. Each comes
+/// with the kind of its object now (`None` for an object that no longer exists).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn open_within(
+    pool: &PgPool,
+    filter: &AnomalyFilter<'_>,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<(Anomaly, Option<Kind>)>> {
+    let object_readable = readable("x.id", "x.kind", "x.domain_id", "x.value", "now()");
     let sql = format!(
-        "WITH RECURSIVE sub(id, depth) AS (
+        "WITH RECURSIVE s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
+         sub(id, depth) AS (
              SELECT id, 0 FROM entity WHERE id = $3 AND valid_period @> now()
              UNION ALL
              SELECT c.id, sub.depth + 1 FROM sub
              JOIN entity c ON c.parent_id = sub.id AND c.valid_period @> now()
              WHERE sub.depth < 1000
          )
-         SELECT a.id, a.rule_id, a.object_id, a.message, a.opened_at FROM anomaly a
+         SELECT a.id, a.rule_id, a.object_id, a.message, a.opened_at,
+                (SELECT x.kind FROM carrier_object x
+                 WHERE x.id = a.object_id AND x.valid_period @> now() LIMIT 1)
+         FROM anomaly a
          WHERE a.closed_at IS NULL AND ($1::text IS NULL OR a.rule_id = $1)
            AND ($2::uuid IS NULL OR a.object_id = $2 OR EXISTS (
                    SELECT 1 FROM carrier_object x
@@ -141,6 +165,9 @@ pub async fn open(pool: &PgPool, filter: &AnomalyFilter<'_>) -> sqlx::Result<Vec
                      AND p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
                      AND v.v_uuid IN (SELECT id FROM sub)))
            AND (a.acknowledged_at IS NULL OR a.acked_changeset IS DISTINCT FROM ({} LIMIT 1))
+           AND ($4::jsonb IS NULL OR EXISTS (
+                   SELECT 1 FROM carrier_object x
+                   WHERE x.id = a.object_id AND x.valid_period @> now() AND {object_readable}))
          ORDER BY a.opened_at, a.id",
         last_changeset_sql()
     );
@@ -148,8 +175,46 @@ pub async fn open(pool: &PgPool, filter: &AnomalyFilter<'_>) -> sqlx::Result<Vec
         .bind(filter.rule)
         .bind(filter.domain)
         .bind(filter.entity)
+        .bind(scope.to_json())
         .fetch_all(pool)
         .await
+        .map(|rows: Vec<Row>| rows.into_iter().map(listed).collect())
+}
+
+/// Row of [`open_within`] and [`find`]: an anomaly and the kind of its object.
+type Row = (Uuid, String, Uuid, String, OffsetDateTime, Option<String>);
+
+fn listed((id, rule_id, object_id, message, opened_at, kind): Row) -> (Anomaly, Option<Kind>) {
+    let kind = kind.and_then(|kind| Kind::ALL.into_iter().find(|k| k.as_str() == kind));
+    let anomaly = Anomaly {
+        id,
+        rule_id,
+        object_id,
+        message,
+        opened_at,
+    };
+    (anomaly, kind)
+}
+
+/// The open anomaly `id` and the kind of its object now; `None` if it is closed, absent, or
+/// its object no longer exists.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn find(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<(Anomaly, Kind)>> {
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT a.id, a.rule_id, a.object_id, a.message, a.opened_at, x.kind FROM anomaly a
+         JOIN carrier_object x ON x.id = a.object_id AND x.valid_period @> now()
+         WHERE a.id = $1 AND a.closed_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.and_then(|row| match listed(row) {
+        (anomaly, Some(kind)) => Some((anomaly, kind)),
+        (_, None) => None,
+    }))
 }
 
 /// Acknowledges an anomaly with a motive, against the current version of its object.

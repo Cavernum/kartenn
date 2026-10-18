@@ -1,7 +1,8 @@
 //! The objects of the core through the router (spec 006, REQ-006-1, 2, 4, 23; task
 //! 006-12a): the natural key as a filter, a summary per linked object, the URL kept by a
 //! rename, the history, and the same 404 for an invisible object as for an absent one;
-//! the tree under a prefix (task 006-12b): what the caller may not read is absent.
+//! the tree under a prefix (task 006-12b): what the caller may not read is absent; the
+//! anomalies and their acknowledgement (task 006-12c).
 
 mod common;
 
@@ -467,4 +468,133 @@ async fn the_tree_shows_only_what_the_caller_may_read(pool: PgPool) {
         &format!("/v1/prefixes/{block}/children?as_of=2020-01-01T00:00:00Z"),
     )
     .await;
+}
+
+async fn acknowledge(app: &Router, id: Uuid, body: &str) -> Response {
+    app.clone()
+        .oneshot(common::bearer(
+            Request::post(format!("/v1/anomalies/{id}/acknowledgement"))
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_owned()))
+                .unwrap(),
+        ))
+        .await
+        .unwrap()
+}
+
+/// An open anomaly of `rule` on `object`, opened by a changeset of `author`.
+async fn anomaly(pool: &PgPool, author: Uuid, object: Uuid, rule: &str) -> Uuid {
+    let changeset: Uuid = sqlx::query_scalar(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES (gen_random_uuid(), $1, 'm', 'applied', 'direct', tstzrange(now(), NULL))
+         RETURNING id",
+    )
+    .bind(author)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    sqlx::query_scalar(
+        "INSERT INTO anomaly (rule_id, object_id, message, opened_by)
+         VALUES ($1, $2, 'warning', $3) RETURNING id",
+    )
+    .bind(rule)
+    .bind(object)
+    .bind(changeset)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn anomalies_follow_the_visibility_of_their_object(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let seen = prefix(&pool, lab, "10.1.2.0/24").await;
+    let hidden = prefix(&pool, dmz, "10.9.0.0/24").await;
+    let acknowledger = person(
+        &pool,
+        &["core.prefix.read", "core.anomaly.acknowledge"],
+        ("domain", Some(lab)),
+    )
+    .await;
+    let author = acknowledger.identity;
+    let mine = anomaly(&pool, author, seen, "core.test.seen").await;
+    let theirs = anomaly(&pool, author, hidden, "core.test.hidden").await;
+    let other = anomaly(&pool, author, seen, "core.test.other").await;
+    let reader = app(
+        &pool,
+        person(&pool, &["core.prefix.read"], ("domain", Some(lab))).await,
+    );
+    let app = app(&pool, acknowledger);
+
+    let body = ok(&app, "/v1/anomalies?rule=core.test.seen").await;
+    assert_eq!(ids_of(&body), [mine.to_string()]);
+    assert_eq!(
+        body["items"][0]["object"]["href"],
+        format!("/v1/prefixes/{seen}")
+    );
+    assert_eq!(
+        ids_of(&ok(&app, "/v1/anomalies").await),
+        [mine.to_string(), other.to_string()],
+        "invisible anomaly listed"
+    );
+    assert_eq!(
+        get(&app, "/v1/anomalies?as_of=2020-01-01T00:00:00Z")
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+
+    // An invisible anomaly answers as an absent one, whatever the body.
+    let absent = acknowledge(&app, Uuid::now_v7(), "{}").await;
+    assert_eq!(absent.status(), StatusCode::NOT_FOUND);
+    let mut absent = json_of(absent).await;
+    let hidden = acknowledge(&app, theirs, r#"{"motive":"known"}"#).await;
+    assert_eq!(hidden.status(), StatusCode::NOT_FOUND);
+    let mut hidden = json_of(hidden).await;
+    absent.as_object_mut().unwrap().remove("instance");
+    hidden.as_object_mut().unwrap().remove("instance");
+    assert_eq!(hidden, absent);
+
+    let missing = acknowledge(&app, mine, "{}").await;
+    assert_eq!(missing.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let problem = json_of(missing).await;
+    assert!(
+        problem["type"]
+            .as_str()
+            .unwrap()
+            .ends_with("motive-required"),
+        "{problem}"
+    );
+    assert_eq!(
+        acknowledge(&app, mine, r#"{"motive":"known"}"#)
+            .await
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        ids_of(&ok(&app, "/v1/anomalies").await),
+        [other.to_string()]
+    );
+    let audited: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit.event WHERE name = 'anomaly.state.acknowledged'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(audited, 1, "acknowledgement not audited");
+    let motive: String = sqlx::query_scalar("SELECT motive FROM anomaly WHERE id = $1")
+        .bind(mine)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(motive, "known");
+
+    // A reader who sees the object but may not acknowledge.
+    assert_eq!(
+        acknowledge(&reader, other, r#"{"motive":"known"}"#)
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
 }

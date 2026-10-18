@@ -28,6 +28,7 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `core.address.write` | — | Créer, modifier ou clore une adresse. |
 | `core.address.propose` | — | Proposer un changement d'adresse. |
 | `core.changeset.approve` | — | Valider un changeset en attente qui touche le périmètre. |
+| `core.anomaly.acknowledge` | — | Acquitter, avec un motif, une anomalie d'un objet du périmètre. |
 | `core.property.admin` | oui | Déclarer une propriété, changer sa sensibilité. |
 | `core.approval_policy.admin` | — | Créer, modifier ou désactiver une politique d'approbation. |
 | `core.rbac.admin` | — | Poser ou clore des liaisons dans le périmètre, pour des rôles dont on détient les permissions. |

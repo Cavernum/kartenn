@@ -44,7 +44,7 @@ pub enum ProblemKind {
     UnsupportedMediaType,
     /// The changeset is refused by the rules.
     ChangesetRefused,
-    /// The changeset has no motive.
+    /// The changeset or the acknowledgement has no motive.
     MotiveRequired,
     /// The changeset has too many operations.
     TooManyOperations,
@@ -158,7 +158,7 @@ impl ProblemKind {
             Self::PayloadTooLarge => "The body is too large",
             Self::UnsupportedMediaType => "Unsupported media type",
             Self::ChangesetRefused => "The changeset is refused",
-            Self::MotiveRequired => "The changeset needs a motive",
+            Self::MotiveRequired => "A motive is required",
             Self::TooManyOperations => "The changeset has too many operations",
             Self::IdempotencyKeyReused => "The idempotency key was used for another request",
             Self::PreconditionRequired => "If-Match is required",

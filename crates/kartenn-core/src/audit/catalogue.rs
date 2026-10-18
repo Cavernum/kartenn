@@ -97,6 +97,10 @@ events! {
     CHANGESET_REVALIDATION_FAILED = "changeset.state.stale", Warn, Normal, ["rules"], ["REQ-012-8"],
         "API Activity 6003 / Update", "configuration",
         "Un changeset en attente n'a pas passé sa revalidation au moment d'être validé.";
+    // Anomalies.
+    ANOMALY_ACKNOWLEDGED = "anomaly.state.acknowledged", Info, Normal, ["rule", "object"], ["REQ-002-36"],
+        "API Activity 6003 / Update", "configuration",
+        "Une anomalie a été acquittée avec un motif, pour la version courante de son objet.";
     // Administration.
     RBAC_ROLE_CHANGED = "rbac.role.changed", Info, High, ["role"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "iam",

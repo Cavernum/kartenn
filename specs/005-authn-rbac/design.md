@@ -92,7 +92,7 @@ la validation est écrite sur `jsonwebtoken` seul.
   `core.changeset.approve` (renomme `changeset.approve`), `core.rbac.admin`,
   `core.role.admin`, `core.issuer.admin`, `core.account.admin` (comptes de service et
   état des identités), `core.audit.read`, `core.observability.admin`,
-  `core.approval_policy.admin`.
+  `core.approval_policy.admin`, `core.anomaly.acknowledge` (ajoutée par 006, tâche 12c).
 - Publication : `docs/spec/permissions.md`, généré et vérifié par un test
   (`KARTENN_BLESS`).
 - Rôles livrés : constantes du noyau, synchronisées par le job de migration (comme les

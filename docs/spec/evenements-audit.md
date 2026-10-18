@@ -23,6 +23,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `changeset.state.rejected` | INFO | normal | Un valideur a rejeté un changeset en attente. | — | REQ-012-8 | API Activity 6003 / Update | `configuration` |
 | `changeset.state.expired` | INFO | normal | Un changeset en attente a expiré. | — | REQ-012-8 | API Activity 6003 / Update | `configuration` |
 | `changeset.state.stale` | WARN | normal | Un changeset en attente n'a pas passé sa revalidation au moment d'être validé. | `rules` | REQ-012-8 | API Activity 6003 / Update | `configuration` |
+| `anomaly.state.acknowledged` | INFO | normal | Une anomalie a été acquittée avec un motif, pour la version courante de son objet. | `rule`, `object` | REQ-002-36 | API Activity 6003 / Update | `configuration` |
 | `rbac.role.changed` | INFO | high | Un rôle ou ses permissions ont changé. | `role` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `rbac.binding.changed` | INFO | high | Une liaison sujet × rôle × périmètre a été créée ou retirée. | `role`, `scope` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `account.service.changed` | INFO | high | Un compte de service a été créé, renouvelé ou révoqué. | `change` | REQ-012-8 | Account Change 3001 / Create | `iam` |
