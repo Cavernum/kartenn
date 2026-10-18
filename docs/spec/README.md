@@ -131,6 +131,8 @@ Non-objectifs :
 | [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | accepted |
 | [0020](../adr/0020-session-bff-cookie-sans-etat.md) | Session du navigateur : BFF à cookie chiffré sans état | accepted |
 | [0021](../adr/0021-rbac-predicats-sql-confinement.md) | RBAC évalué en SQL : périmètres hérités et confinement des émetteurs | accepted |
+| [0022](../adr/0022-contrat-http-api.md) | Contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge Patch, `If-Match` | proposed |
+| [0023](../adr/0023-taches-de-fond-sous-bail.md) | Tâches de fond sous bail dans PostgreSQL | proposed |
 
 ## Questions ouvertes
 

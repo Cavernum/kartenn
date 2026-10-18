@@ -220,8 +220,10 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 ## H11 — Limitation de débit
 - Décision : **deux couches en mémoire, par instance, configurables**.
   - Délestage (protège PostgreSQL) : plafond de requêtes en cours par instance (par
-    défaut 2 × la taille du pool), courte file bornée devant ; au-delà → 503 et
-    `Retry-After`. C'est lui qui tient les budgets D14 sous charge, quel que soit le
+    défaut 2 × la taille du pool) ; au-delà → 503 et `Retry-After`, aussitôt.
+    Amendé au design (2026-10-18, utilisateur) : pas de file d'attente dans kartenn
+    (tower n'en fournit pas ; une requête qui attend sort déjà de son budget) ; la file
+    est celle des connexions en attente du système. C'est lui qui tient les budgets D14 sous charge, quel que soit le
     nombre d'identités.
   - Quota par identité (équité) : GCRA, compartiments lecture et écriture distincts ;
     avant authentification, clé = adresse source (en-tête transféré lu seulement
