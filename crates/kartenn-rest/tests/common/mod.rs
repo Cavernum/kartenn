@@ -3,13 +3,11 @@
 
 #![allow(dead_code)] // each test binary uses its own part of it
 
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::http::{HeaderValue, Request, header};
 use kartenn_core::audit::Source;
-use kartenn_rest::authn::{Authenticator, Proof, Refusal};
+use kartenn_rest::authn::{Answer, Authenticated, Authenticator, Proof, Refusal};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
 use uuid::Uuid;
 
@@ -17,11 +15,7 @@ use uuid::Uuid;
 pub(crate) struct Anyone(pub Uuid);
 
 impl Authenticator for Anyone {
-    fn authenticate<'a>(
-        &'a self,
-        proof: Proof,
-        _: Source,
-    ) -> Pin<Box<dyn Future<Output = Result<Principal, Refusal>> + Send + 'a>> {
+    fn authenticate(&self, proof: Proof, _: Source) -> Answer<'_, Authenticated> {
         let principal = match proof {
             Proof::Bearer(_) => Ok(Principal {
                 identity: self.0,
@@ -29,7 +23,8 @@ impl Authenticator for Anyone {
                 issuer: Some("https://idp.example.invalid".into()),
                 groups: Vec::new(),
                 method: Method::Bearer,
-            }),
+            }
+            .into()),
             _ => Err(Refusal::Unauthenticated),
         };
         Box::pin(std::future::ready(principal))

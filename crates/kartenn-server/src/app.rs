@@ -572,9 +572,15 @@ fn authn(
         identities: kartenn_store_pg::write::PgStore::new(pool.clone()),
         journal: journal.clone(),
         ring: auth.ring.clone(),
-        tokens: kartenn_auth::tokens::TokenVerifier::new(
-            auth.issuers.clone(),
-            kartenn_auth::tokens::HttpKeys(client),
+        oidc: kartenn_auth::oidc::Oidc::new(
+            kartenn_auth::tokens::TokenVerifier::new(
+                auth.issuers.clone(),
+                kartenn_auth::tokens::HttpKeys(client.clone()),
+            ),
+            client,
+            auth.ring.clone(),
+            // Required with issuers (configuration); without, no login starts.
+            auth.redirect_uri.clone().unwrap_or_default(),
         ),
         states: kartenn_service::authn::StateCache::new(Duration::from_secs(5)),
         limiter: kartenn_auth::secrets::FailureLimiter::new(20, Duration::from_mins(1)),

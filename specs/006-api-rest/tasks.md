@@ -79,11 +79,20 @@ routeur complet, sauf mention « vrai TCP ».
   navigateur) ; clés d'émetteur injoignables → 503 ; `FailureLimiter` 20/min par source
   → 429, échecs agrégés vidés par la minuterie des quotas ; `authn::seen` dans le
   service ; `tests/authn.rs` (5 tests), `tests/common` (authentificateur des autres tests)
-- [ ] 7. Module `cookies` et routes `auth/login`, `auth/callback`, `auth/logout`,
+- [x] 7. Module `cookies` et routes `auth/login`, `auth/callback`, `auth/logout`,
   `auth/breakglass`, `me` ; réémission au plus une fois par minute ; session de secours
   d'1 h ; `session_closed` — REQ-006-24, 25 — verify : flux OIDC contre l'émetteur de
   test de la 005 ; `state` rejoué refusé ; attributs des cookies ; secours refusé après
   1 h
+  — `cookies.rs` (pose, lecture par morceaux, suppression `Max-Age=0`), `auth.rs`
+  (routes, 303 vers l'émetteur, `/` ou sa déconnexion ; `breakglass` → 204 ; `me` avec
+  les rôles) ; port `Authenticator` étendu (`begin`, `complete`, `breakglass`, `logout`,
+  `roles`), `Authn` porte l'`Oidc` ; couche 6 : session réémise après 60 s ou après
+  rafraîchissement des groupes (REQ-005-7, refus de l'émetteur → `refresh_failed`),
+  cookie supprimé à toute fin de session, `session_closed` (`idle`, `absolute`,
+  `revoked`, `logout`) ; 005 : `Session::breakglass` (1 h), `unseal`/`check`,
+  `Identities::roles` ; hors TLS → 400 sans cookie ; `tests/sessions.rs` (5 tests,
+  émetteur de test sur la boucle locale)
 - [ ] 8. Couche CSRF (`Sec-Fetch-Site`, repli `Origin` = origine publique) —
   REQ-006-28 — verify : matrice complète `Sec-Fetch-Site` × `Origin` ; Bearer et `QUERY`
   non concernés

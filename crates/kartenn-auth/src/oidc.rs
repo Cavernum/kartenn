@@ -32,6 +32,8 @@ pub const LOGIN_COOKIE: &str = "__Host-kartenn-login";
 pub const SESSION_COOKIE: &str = "__Host-kartenn";
 /// How long a login may take.
 pub const LOGIN_WITHIN: i64 = 600;
+/// Most seconds a break-glass session lives (REQ-005-15, REQ-006-24).
+pub const BREAKGLASS_LIFETIME: i64 = 3_600;
 
 /// Why a login fails; [`LoginError::reason`] is recorded in the audit.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -172,6 +174,14 @@ impl<S> std::fmt::Debug for Oidc<S> {
         f.debug_struct("Oidc")
             .field("redirect_uri", &self.redirect_uri)
             .finish_non_exhaustive()
+    }
+}
+
+impl<S> Oidc<S> {
+    /// The verifier of the tokens of its issuers, shared with the access tokens.
+    #[must_use]
+    pub const fn tokens(&self) -> &TokenVerifier<S> {
+        &self.tokens
     }
 }
 
@@ -441,6 +451,9 @@ pub struct Session {
     pub id_token: Option<String>,
     /// When the groups are to be refreshed (Unix seconds).
     pub refresh_at: i64,
+    /// A break-glass session: no issuer, at most [`BREAKGLASS_LIFETIME`].
+    #[serde(default)]
+    pub breakglass: bool,
 }
 
 impl Session {
@@ -459,6 +472,26 @@ impl Session {
             refresh_token: login.refresh_token.clone(),
             id_token: Some(login.id_token.clone()),
             refresh_at: at + login.expires_in.min(900),
+            breakglass: false,
+        }
+    }
+
+    /// A new break-glass session of `identity`, now: nothing to refresh.
+    #[must_use]
+    pub fn breakglass(identity: Uuid) -> Self {
+        let at = now();
+        Self {
+            identity,
+            issuer_id: String::new(),
+            issuer: String::new(),
+            subject: String::new(),
+            groups: Vec::new(),
+            started: at,
+            seen: at,
+            refresh_token: None,
+            id_token: None,
+            refresh_at: i64::MAX,
+            breakglass: true,
         }
     }
 
@@ -485,18 +518,44 @@ impl Session {
         idle: i64,
         absolute: i64,
     ) -> Result<Self, SessionError> {
-        let mut session: Self = open(ring, Purpose::Session, SESSION_COOKIE, chunks)
+        let mut session = Self::unseal(ring, chunks)?;
+        session.check(at, idle, absolute)?;
+        Ok(session)
+    }
+
+    /// Opens a session cookie, without checking its lifetimes: [`Self::check`] then, so
+    /// that the caller knows whose session ended.
+    ///
+    /// # Errors
+    ///
+    /// [`SessionError::Invalid`].
+    pub fn unseal(ring: &KeyRing, chunks: &[&str]) -> Result<Self, SessionError> {
+        open(ring, Purpose::Session, SESSION_COOKIE, chunks)
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .ok_or(SessionError::Invalid)?;
-        if at - session.started >= absolute {
+            .ok_or(SessionError::Invalid)
+    }
+
+    /// Whether it lives at `at`, within `idle` and `absolute` seconds (a break-glass
+    /// session at most [`BREAKGLASS_LIFETIME`]); marks it seen.
+    ///
+    /// # Errors
+    ///
+    /// [`SessionError::Idle`], [`SessionError::Expired`].
+    pub fn check(&mut self, at: i64, idle: i64, absolute: i64) -> Result<(), SessionError> {
+        let absolute = if self.breakglass {
+            absolute.min(BREAKGLASS_LIFETIME)
+        } else {
+            absolute
+        };
+        if at - self.started >= absolute {
             return Err(SessionError::Expired);
         }
-        if at - session.seen >= idle {
+        if at - self.seen >= idle {
             return Err(SessionError::Idle);
         }
-        session.seen = at;
-        Ok(session)
+        self.seen = at;
+        Ok(())
     }
 
     /// Whether its groups are due for a refresh at `at`.

@@ -1,9 +1,11 @@
-//! Authentication (REQ-006-26, 27; layer 6): the session cookie, `Authorization: Bearer`
+//! Authentication (REQ-006-24 to 27; layer 6): the session cookie, `Authorization: Bearer`
 //! or `Basic` → a [`Principal`] in the request extensions, and the [`RequestContext`] of
 //! its actor. Two proofs at once → 400, no implicit priority; no proof → 401 without
 //! error code; a refused token → 401 `invalid_token` (RFC 6750 §3.1). Without TLS, a
 //! `Basic` header or a session cookie is refused (REQ-006-27). The routes outside `/v1`
-//! and the login routes ([`PUBLIC`]) answer without authentication.
+//! and the login routes ([`PUBLIC`]) answer without authentication. A session is sent
+//! again at most once a minute, or when its groups were refreshed; its end is audited
+//! (`authn.session.closed`) and its cookie removed.
 
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr};
@@ -15,18 +17,22 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use kartenn_auth::breakglass::Verifier;
 use kartenn_auth::keys::KeyRing;
-use kartenn_auth::oidc::{SESSION_COOKIE, Session};
+use kartenn_auth::oidc::{
+    Callback, LoginError, LoginStart, Oidc, SESSION_COOKIE, Session, SessionError,
+};
 use kartenn_auth::secrets::{FailureLimiter, parse_basic};
-use kartenn_auth::tokens::{KeySource, TokenError, TokenVerifier};
+use kartenn_auth::tokens::{KeySource, TokenError};
 use kartenn_core::audit::{AuditEvent, Source};
 use kartenn_core::period::Instant;
 use kartenn_service::aggregate::FailureAggregator;
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::{
-    self, AuthnError, Failure, Identities, IdentityKind, Method, Principal, StateCache,
+    self, AuthnError, Failure, Identities, IdentityKind, Method, Principal, SessionEnd, StateCache,
 };
 
+use crate::cookies;
 use crate::problem::{Problem, ProblemKind};
 use crate::transport::Client;
 
@@ -73,11 +79,18 @@ pub enum Refusal {
     Unavailable,
     /// Two proofs at once (a session and `Authorization`, or two `Authorization`): 400.
     TwoProofs,
+    /// A login at an issuer kartenn does not know: 400.
+    UnknownIssuer,
+    /// A login in clear: no cookie is set without TLS (REQ-006-27): 400.
+    NotTls,
+    /// A logout without a session: 400.
+    NoSession,
 }
 
 impl IntoResponse for Refusal {
     fn into_response(self) -> Response {
         let challenge = |value| [(header::WWW_AUTHENTICATE, HeaderValue::from_static(value))];
+        let bad = |detail| Problem::new(ProblemKind::BadRequest).detail(detail);
         match self {
             Self::Unauthenticated => (
                 challenge(CHALLENGE),
@@ -93,21 +106,97 @@ impl IntoResponse for Refusal {
                 .detail("too many failed authentications")
                 .into_response(),
             Self::Unavailable => Problem::new(ProblemKind::Unavailable).into_response(),
-            Self::TwoProofs => Problem::new(ProblemKind::BadRequest)
-                .detail("two proofs of authentication")
-                .into_response(),
+            Self::TwoProofs => bad("two proofs of authentication").into_response(),
+            Self::UnknownIssuer => bad("unknown issuer").into_response(),
+            Self::NotTls => bad("TLS required").into_response(),
+            Self::NoSession => bad("no session").into_response(),
         }
     }
 }
 
-/// Turns a proof into a principal (the port of the layer).
+/// A proof accepted.
+#[derive(Debug, Clone)]
+pub struct Authenticated {
+    /// Who.
+    pub principal: Principal,
+    /// The session, for a session cookie.
+    pub session: Option<Session>,
+    /// The chunks of the session cookie to send again, if due.
+    pub cookie: Option<Vec<String>>,
+}
+
+impl From<Principal> for Authenticated {
+    fn from(principal: Principal) -> Self {
+        Self {
+            principal,
+            session: None,
+            cookie: None,
+        }
+    }
+}
+
+/// What the [`Authenticator`] answers, later.
+pub type Answer<'a, T> = Pin<Box<dyn Future<Output = Result<T, Refusal>> + Send + 'a>>;
+
+fn refused<'a, T: Send + 'a>(refusal: Refusal) -> Answer<'a, T> {
+    Box::pin(std::future::ready(Err(refusal)))
+}
+
+/// Turns a proof into a principal, and opens and closes sessions (the port of the layer
+/// and of the login routes). Only [`Self::authenticate`] is required: by default, no
+/// login is possible.
 pub trait Authenticator: Send + Sync {
     /// The principal of `proof`, presented from `source`.
-    fn authenticate<'a>(
-        &'a self,
-        proof: Proof,
+    fn authenticate(&self, proof: Proof, source: Source) -> Answer<'_, Authenticated>;
+
+    /// Starts a login at the issuer `issuer`.
+    fn begin(&self, issuer: String) -> Answer<'_, LoginStart> {
+        let _ = issuer;
+        refused(Refusal::UnknownIssuer)
+    }
+
+    /// Completes a login from its `callback` and the chunks of its login cookie: the
+    /// chunks of the session cookie.
+    fn complete(
+        &self,
+        callback: Callback,
+        login: Vec<String>,
         source: Source,
-    ) -> Pin<Box<dyn Future<Output = Result<Principal, Refusal>> + Send + 'a>>;
+    ) -> Answer<'_, Vec<String>> {
+        let _ = (callback, login, source);
+        refused(Refusal::Unauthenticated)
+    }
+
+    /// Opens a break-glass session for `name` by its passphrase and a TOTP code: the
+    /// chunks of the session cookie.
+    fn breakglass(
+        &self,
+        name: String,
+        passphrase: String,
+        code: String,
+        source: Source,
+    ) -> Answer<'_, Vec<String>> {
+        let _ = (name, passphrase, code, source);
+        refused(Refusal::Unauthenticated)
+    }
+
+    /// Closes `session` of `principal`: where to send the browser at the issuer, if
+    /// anywhere (REQ-005-8).
+    fn logout(
+        &self,
+        session: Session,
+        principal: Principal,
+        source: Source,
+    ) -> Answer<'_, Option<String>> {
+        let _ = (session, principal, source);
+        refused(Refusal::Unavailable)
+    }
+
+    /// The keys of the roles `principal` holds now.
+    fn roles<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Vec<String>> {
+        let _ = principal;
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
 }
 
 /// No authentication configured (no `[auth]`): every proof is refused.
@@ -115,12 +204,8 @@ pub trait Authenticator: Send + Sync {
 pub struct Nobody;
 
 impl Authenticator for Nobody {
-    fn authenticate<'a>(
-        &'a self,
-        _: Proof,
-        _: Source,
-    ) -> Pin<Box<dyn Future<Output = Result<Principal, Refusal>> + Send + 'a>> {
-        Box::pin(std::future::ready(Err(Refusal::Unauthenticated)))
+    fn authenticate(&self, _: Proof, _: Source) -> Answer<'_, Authenticated> {
+        refused(Refusal::Unauthenticated)
     }
 }
 
@@ -131,10 +216,10 @@ pub struct Authn<I, J, S> {
     pub identities: I,
     /// The audit journal.
     pub journal: J,
-    /// The key ring: session cookies, secrets of the service accounts.
+    /// The key ring: session cookies, secrets of the service accounts, TOTP secrets.
     pub ring: KeyRing,
-    /// The access tokens of the issuers.
-    pub tokens: TokenVerifier<S>,
+    /// The OIDC client of the issuers, and the verifier of their access tokens.
+    pub oidc: Oidc<S>,
     /// The state of the identities (K10).
     pub states: StateCache,
     /// The failures per source (REQ-005-13).
@@ -169,6 +254,27 @@ fn refusal(error: &AuthnError, refused: Refusal) -> Refusal {
     }
 }
 
+/// The principal of a session.
+fn principal_of(session: &Session) -> Principal {
+    if session.breakglass {
+        Principal {
+            identity: session.identity,
+            kind: IdentityKind::Breakglass,
+            issuer: None,
+            groups: Vec::new(),
+            method: Method::Breakglass,
+        }
+    } else {
+        Principal {
+            identity: session.identity,
+            kind: IdentityKind::Person,
+            issuer: Some(session.issuer.clone()),
+            groups: session.groups.clone(),
+            method: Method::OidcSession,
+        }
+    }
+}
+
 impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
     /// The events of the failures aggregated in windows over at `at`, or of every window
     /// if `all`, to record.
@@ -176,6 +282,7 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         self.aggregator.flush(at, all)
     }
 
+    /// Audits a failure: [`Refusal::Unauthenticated`], or why it cannot be audited.
     async fn failed(&self, method: Method, reason: &str, source: Source) -> Refusal {
         let failure = Failure {
             claimed: "",
@@ -199,39 +306,89 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         }
     }
 
-    async fn session(&self, chunks: &[String], source: Source) -> Result<Principal, Refusal> {
+    /// Audits the end of the session of `principal`: [`Refusal::Unauthenticated`], or why
+    /// it cannot be audited.
+    async fn closed(&self, principal: &Principal, end: SessionEnd, source: Source) -> Refusal {
+        match authn::session_closed(&self.journal, principal, end, source).await {
+            Ok(()) => Refusal::Unauthenticated,
+            Err(e) => refusal(&e, Refusal::Unauthenticated),
+        }
+    }
+
+    fn sealed(&self, session: &Session) -> Result<Vec<String>, Refusal> {
+        session.seal(&self.ring).map_err(|e| {
+            tracing::error!(name: "authn.unavailable", error = %e, "the session cannot be sealed");
+            Refusal::Unavailable
+        })
+    }
+
+    async fn session(&self, chunks: &[String], source: Source) -> Result<Authenticated, Refusal> {
+        let at = unix_now();
         let chunks: Vec<&str> = chunks.iter().map(String::as_str).collect();
-        let session = Session::open(
-            &self.ring,
-            &chunks,
-            unix_now(),
-            seconds(self.idle),
-            seconds(self.absolute),
-        )
-        .map_err(|_| Refusal::Unauthenticated)?;
-        let principal = Principal {
-            identity: session.identity,
-            kind: IdentityKind::Person,
-            issuer: Some(session.issuer),
-            groups: session.groups,
-            method: Method::OidcSession,
-        };
+        let mut session =
+            Session::unseal(&self.ring, &chunks).map_err(|_| Refusal::Unauthenticated)?;
+        let mut principal = principal_of(&session);
+        let last = session.seen;
+        if let Err(e) = session.check(at, seconds(self.idle), seconds(self.absolute)) {
+            let end = if e == SessionError::Idle {
+                SessionEnd::Idle
+            } else {
+                SessionEnd::Absolute
+            };
+            return Err(self.closed(&principal, end, source).await);
+        }
         let started = Instant(session.started.saturating_mul(1_000_000));
-        self.states
+        let state = self
+            .states
             .check(
                 &self.identities,
                 &self.journal,
                 &principal,
                 Some(started),
-                source,
+                source.clone(),
             )
-            .await
-            .map_err(|e| refusal(&e, Refusal::Unauthenticated))?;
-        Ok(principal)
+            .await;
+        match state {
+            Ok(()) => {}
+            Err(AuthnError::Refused) => {
+                return Err(self.closed(&principal, SessionEnd::Revoked, source).await);
+            }
+            Err(e) => return Err(refusal(&e, Refusal::Unauthenticated)),
+        }
+        let mut reissue = at - last >= cookies::REISSUE_AFTER;
+        // REQ-005-7: the groups refreshed at the issuer when its access token expires.
+        if !session.breakglass && session.refresh_due(at) {
+            match self.oidc.refresh(&mut session).await {
+                Ok(()) => {
+                    principal.groups.clone_from(&session.groups);
+                    reissue = true;
+                }
+                Err(LoginError::Unavailable(e)) => {
+                    tracing::error!(name: "authn.issuer_unavailable", error = %e, "the groups cannot be refreshed");
+                    return Err(Refusal::Unavailable);
+                }
+                Err(e) => {
+                    tracing::warn!(name: "authn.refresh_failed", reason = e.reason(), "the issuer refused to refresh a session");
+                    return Err(self
+                        .closed(&principal, SessionEnd::RefreshFailed, source)
+                        .await);
+                }
+            }
+        }
+        let cookie = if reissue {
+            Some(self.sealed(&session)?)
+        } else {
+            None
+        };
+        Ok(Authenticated {
+            principal,
+            session: Some(session),
+            cookie,
+        })
     }
 
-    async fn bearer(&self, token: &str, source: Source) -> Result<Principal, Refusal> {
-        let verified = match self.tokens.verify(token).await {
+    async fn bearer(&self, token: &str, source: Source) -> Result<Authenticated, Refusal> {
+        let verified = match self.oidc.tokens().verify(token).await {
             Ok(verified) => verified,
             Err(TokenError::Keys(e)) => {
                 tracing::error!(name: "authn.issuer_unavailable", error = %e, "the keys of an issuer cannot be fetched");
@@ -264,10 +421,10 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             .check(&self.identities, &self.journal, &principal, None, source)
             .await
             .map_err(|e| refusal(&e, Refusal::InvalidToken))?;
-        Ok(principal)
+        Ok(principal.into())
     }
 
-    async fn basic(&self, header: &str, source: Source) -> Result<Principal, Refusal> {
+    async fn basic(&self, header: &str, source: Source) -> Result<Authenticated, Refusal> {
         let Some((name, secret)) = parse_basic(header) else {
             return Err(self.failed(Method::Basic, "malformed", source).await);
         };
@@ -282,19 +439,22 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             kartenn_service::audit::now(),
         )
         .await
+        .map(Authenticated::from)
         .map_err(|e| refusal(&e, Refusal::Unauthenticated))
     }
 
-    async fn run(&self, proof: Proof, source: Source) -> Result<Principal, Refusal> {
+    /// `attempt`, refused at once after too many failures from `source`, its own failure
+    /// counted (REQ-005-13).
+    async fn limited<T>(
+        &self,
+        source: &Source,
+        attempt: impl Future<Output = Result<T, Refusal>>,
+    ) -> Result<T, Refusal> {
         let ip = source.ip.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
         if !self.limiter.allows(ip, std::time::Instant::now()) {
             return Err(Refusal::TooManyFailures);
         }
-        let result = match &proof {
-            Proof::Session(chunks) => self.session(chunks, source).await,
-            Proof::Bearer(token) => self.bearer(token, source).await,
-            Proof::Basic(header) => self.basic(header, source).await,
-        };
+        let result = attempt.await;
         if matches!(
             result,
             Err(Refusal::Unauthenticated | Refusal::InvalidToken)
@@ -302,6 +462,93 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             self.limiter.failed(ip, std::time::Instant::now());
         }
         result
+    }
+
+    async fn run(&self, proof: Proof, source: Source) -> Result<Authenticated, Refusal> {
+        let attempt = async {
+            match &proof {
+                Proof::Session(chunks) => self.session(chunks, source.clone()).await,
+                Proof::Bearer(token) => self.bearer(token, source.clone()).await,
+                Proof::Basic(header) => self.basic(header, source.clone()).await,
+            }
+        };
+        self.limited(&source, attempt).await
+    }
+
+    async fn completed(
+        &self,
+        callback: Callback,
+        login: Vec<String>,
+        source: Source,
+    ) -> Result<Vec<String>, Refusal> {
+        let chunks: Vec<&str> = login.iter().map(String::as_str).collect();
+        let login = match self.oidc.complete(&callback, &chunks).await {
+            Ok(login) => login,
+            Err(e) => {
+                let audited = self.failed(Method::OidcSession, e.reason(), source).await;
+                return Err(match e {
+                    LoginError::Unavailable(_) if audited == Refusal::Unauthenticated => {
+                        Refusal::Unavailable
+                    }
+                    _ => audited,
+                });
+            }
+        };
+        let principal = authn::logged_in(
+            &self.identities,
+            &self.journal,
+            &self.aggregator,
+            (&login.issuer, &login.subject, login.name.as_deref()),
+            login.groups.clone(),
+            Method::OidcSession,
+            source,
+            kartenn_service::audit::now(),
+        )
+        .await
+        .map_err(|e| refusal(&e, Refusal::Unauthenticated))?;
+        self.sealed(&Session::new(principal.identity, &login))
+    }
+
+    async fn broken(
+        &self,
+        (name, passphrase, code): (String, String, String),
+        source: Source,
+    ) -> Result<Vec<String>, Refusal> {
+        let principal = authn::authenticate_breakglass(
+            &self.identities,
+            &Verifier(self.ring.clone()),
+            &self.journal,
+            &self.aggregator,
+            (&name, &passphrase, &code),
+            source.ip,
+            kartenn_service::audit::now(),
+        )
+        .await
+        .map_err(|e| refusal(&e, Refusal::Unauthenticated))?;
+        self.sealed(&Session::breakglass(principal.identity))
+    }
+
+    async fn closing(
+        &self,
+        session: Session,
+        principal: Principal,
+        source: Source,
+    ) -> Result<Option<String>, Refusal> {
+        authn::session_closed(&self.journal, &principal, SessionEnd::Logout, source)
+            .await
+            .map_err(|e| refusal(&e, Refusal::Unavailable))?;
+        if session.breakglass {
+            return Ok(None);
+        }
+        // The session is closed here whatever the issuer answers.
+        Ok(self
+            .oidc
+            .logout_url(&session, None)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(name: "authn.issuer_unavailable", error = %e, "no logout at the issuer");
+                None
+            }))
     }
 }
 
@@ -311,45 +558,67 @@ where
     J: AuditJournal,
     S: KeySource,
 {
-    fn authenticate<'a>(
-        &'a self,
-        proof: Proof,
-        source: Source,
-    ) -> Pin<Box<dyn Future<Output = Result<Principal, Refusal>> + Send + 'a>> {
+    fn authenticate(&self, proof: Proof, source: Source) -> Answer<'_, Authenticated> {
         Box::pin(self.run(proof, source))
     }
-}
 
-/// The chunks of the session cookie: `__Host-kartenn` alone, or `__Host-kartenn-1`… in
-/// order; `None` without any.
-fn session_cookie(headers: &HeaderMap) -> Option<Vec<String>> {
-    let mut whole = None;
-    let mut chunks: Vec<(u8, String)> = Vec::new();
-    let pairs = headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|v| v.split(';'))
-        .filter_map(|pair| pair.trim().split_once('='));
-    for (name, value) in pairs {
-        if name == SESSION_COOKIE {
-            whole = Some(value.to_owned());
-        } else if let Some(n) = name
-            .strip_prefix(SESSION_COOKIE)
-            .and_then(|rest| rest.strip_prefix('-'))
-            .and_then(|n| n.parse::<u8>().ok())
-        {
-            chunks.push((n, value.to_owned()));
-        }
+    fn begin(&self, issuer: String) -> Answer<'_, LoginStart> {
+        Box::pin(async move {
+            self.oidc.begin(&issuer).await.map_err(|e| match e {
+                LoginError::UnknownIssuer => Refusal::UnknownIssuer,
+                e => {
+                    tracing::error!(name: "authn.issuer_unavailable", error = %e, "no login at the issuer");
+                    Refusal::Unavailable
+                }
+            })
+        })
     }
-    if let Some(whole) = whole {
-        return Some(vec![whole]);
+
+    fn complete(
+        &self,
+        callback: Callback,
+        login: Vec<String>,
+        source: Source,
+    ) -> Answer<'_, Vec<String>> {
+        Box::pin(async move {
+            self.limited(&source, self.completed(callback, login, source.clone()))
+                .await
+        })
     }
-    if chunks.is_empty() {
-        return None;
+
+    fn breakglass(
+        &self,
+        name: String,
+        passphrase: String,
+        code: String,
+        source: Source,
+    ) -> Answer<'_, Vec<String>> {
+        Box::pin(async move {
+            self.limited(
+                &source,
+                self.broken((name, passphrase, code), source.clone()),
+            )
+            .await
+        })
     }
-    chunks.sort_by_key(|(n, _)| *n);
-    Some(chunks.into_iter().map(|(_, value)| value).collect())
+
+    fn logout(
+        &self,
+        session: Session,
+        principal: Principal,
+        source: Source,
+    ) -> Answer<'_, Option<String>> {
+        Box::pin(self.closing(session, principal, source))
+    }
+
+    fn roles<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Vec<String>> {
+        Box::pin(async move {
+            self.identities
+                .roles(&principal.subject())
+                .await
+                .map_err(|e| refusal(&AuthnError::Store(e), Refusal::Unavailable))
+        })
+    }
 }
 
 /// The proof of a request: `Err` with the answer when there are two, a malformed one, or
@@ -360,7 +629,7 @@ fn proof(headers: &HeaderMap, client: Client) -> Result<Proof, Refusal> {
     if authorizations.next().is_some() {
         return Err(Refusal::TwoProofs);
     }
-    let proof = match (authorization, session_cookie(headers)) {
+    let proof = match (authorization, cookies::read(headers, SESSION_COOKIE)) {
         (Some(_), Some(_)) => return Err(Refusal::TwoProofs),
         (None, None) => return Err(Refusal::Unauthenticated),
         (None, Some(chunks)) => Proof::Session(chunks),
@@ -389,8 +658,32 @@ fn public(path: &str) -> bool {
     !(path == "/v1" || path.starts_with("/v1/")) || PUBLIC.contains(&path)
 }
 
-/// Layer 6: the [`Principal`] and the [`RequestContext`] of its actor in the request
-/// extensions, or the refusal.
+/// The client of a request, as layer 4 found it.
+pub(crate) fn client(request: &Request) -> Client {
+    request
+        .extensions()
+        .get::<Client>()
+        .copied()
+        .unwrap_or(Client {
+            addr: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            tls: false,
+        })
+}
+
+/// Where a request comes from, for the audit.
+pub(crate) fn source(client: Client, headers: &HeaderMap) -> Source {
+    Source {
+        ip: Some(client.addr),
+        user_agent: headers
+            .get(header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    }
+}
+
+/// Layer 6: the [`Principal`], its [`Session`] if any, and the [`RequestContext`] of its
+/// actor in the request extensions, or the refusal; the session cookie sent again when
+/// due, removed when the session ended.
 pub async fn layer(
     State(authenticator): State<Arc<dyn Authenticator>>,
     mut request: Request,
@@ -399,29 +692,26 @@ pub async fn layer(
     if public(request.uri().path()) {
         return next.run(request).await;
     }
-    let client = request
-        .extensions()
-        .get::<Client>()
-        .copied()
-        .unwrap_or(Client {
-            addr: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-            tls: false,
-        });
+    let client = client(&request);
     let proof = match proof(request.headers(), client) {
         Ok(proof) => proof,
         Err(refusal) => return refusal.into_response(),
     };
-    let source = Source {
-        ip: Some(client.addr),
-        user_agent: request
-            .headers()
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned),
-    };
-    let principal = match authenticator.authenticate(proof, source.clone()).await {
-        Ok(principal) => principal,
-        Err(refusal) => return refusal.into_response(),
+    let by_session = matches!(proof, Proof::Session(_));
+    let source = source(client, request.headers());
+    let Authenticated {
+        principal,
+        session,
+        cookie,
+    } = match authenticator.authenticate(proof, source.clone()).await {
+        Ok(authenticated) => authenticated,
+        Err(refusal) => {
+            let mut response = refusal.into_response();
+            if by_session && refusal == Refusal::Unauthenticated {
+                cookies::append(response.headers_mut(), cookies::remove(SESSION_COOKIE));
+            }
+            return response;
+        }
     };
     let mut context = principal.context(source);
     if let Some(before) = request.extensions().get::<RequestContext>() {
@@ -429,7 +719,19 @@ pub async fn layer(
     }
     request.extensions_mut().insert(context);
     request.extensions_mut().insert(principal);
-    next.run(request).await
+    if let Some(session) = session {
+        request.extensions_mut().insert(session);
+    }
+    let mut response = next.run(request).await;
+    if let Some(cookie) = cookie
+        && response.extensions().get::<cookies::Ended>().is_none()
+    {
+        cookies::append(
+            response.headers_mut(),
+            cookies::set(SESSION_COOKIE, &cookie, None),
+        );
+    }
+    response
 }
 
 #[cfg(test)]
@@ -451,26 +753,6 @@ mod tests {
         addr: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
         tls: true,
     };
-
-    #[test]
-    fn the_session_cookie_is_read_whole_or_by_chunks() {
-        assert_eq!(
-            session_cookie(&headers(&[("cookie", "a=1; __Host-kartenn=xyz")])),
-            Some(vec!["xyz".into()])
-        );
-        assert_eq!(
-            session_cookie(&headers(&[
-                ("cookie", "__Host-kartenn-2=b"),
-                ("cookie", "x=y; __Host-kartenn-1=a")
-            ])),
-            Some(vec!["a".into(), "b".into()])
-        );
-        assert_eq!(
-            session_cookie(&headers(&[("cookie", "__Host-kartenn-login=l")])),
-            None,
-            "the login cookie is no session"
-        );
-    }
 
     #[test]
     fn a_request_presents_one_proof() {

@@ -213,6 +213,12 @@ pub trait Identities: Send + Sync {
         &self,
         claimed: &str,
     ) -> impl Future<Output = Result<String, StoreError>> + Send;
+
+    /// The keys of the roles `subject` holds now, on any scope (`GET /v1/me`, 006).
+    fn roles(
+        &self,
+        subject: &Subject,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
 }
 
 /// Why an authentication fails.

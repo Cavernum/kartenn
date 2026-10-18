@@ -19,9 +19,10 @@ use base64::engine::general_purpose::STANDARD;
 use http_body_util::BodyExt;
 use jsonwebtoken::jwk::{Jwk, JwkSet};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+use kartenn_auth::http::HttpClient;
 use kartenn_auth::issuer::IssuerConfig;
 use kartenn_auth::keys::KeyRing;
-use kartenn_auth::oidc::{LoggedIn, Session};
+use kartenn_auth::oidc::{LoggedIn, Oidc, Session};
 use kartenn_auth::secrets::{FailureLimiter, generate};
 use kartenn_auth::tokens::{KeySource, TokenError, TokenVerifier};
 use kartenn_rest::authn::Authn;
@@ -108,7 +109,12 @@ impl Fixture {
             identities: store.clone(),
             journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
             ring: ring.clone(),
-            tokens: TokenVerifier::new(vec![issuer()], Published(vec![jwk])),
+            oidc: Oidc::new(
+                TokenVerifier::new(vec![issuer()], Published(vec![jwk])),
+                HttpClient::new().unwrap(),
+                ring.clone(),
+                "https://kartenn.example.invalid/v1/auth/callback".into(),
+            ),
             states: StateCache::new(Duration::from_secs(5)),
             limiter: FailureLimiter::new(failures, Duration::from_mins(1)),
             aggregator: FailureAggregator::new(10, Duration::from_mins(1)),
@@ -116,7 +122,7 @@ impl Fixture {
             absolute: Duration::from_hours(8),
         };
         let api = Router::new().route(
-            "/me",
+            "/whoami",
             get(
                 |Extension(principal): Extension<Principal>,
                  Extension(context): Extension<RequestContext>| async move {
@@ -227,9 +233,9 @@ impl Fixture {
     }
 }
 
-/// A request to `/v1/me` from `peer`, over TLS or not, with `headers`.
+/// A request to `/v1/whoami` from `peer`, over TLS or not, with `headers`.
 fn me(peer: &str, tls: bool, headers: &[(header::HeaderName, &str)]) -> Request<Body> {
-    let mut request = Request::get("/v1/me");
+    let mut request = Request::get("/v1/whoami");
     for (name, value) in headers {
         request = request.header(name, *value);
     }

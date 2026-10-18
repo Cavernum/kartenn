@@ -9,6 +9,7 @@ use kartenn_service::authn::{
     BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, Identities,
     IdentityState, ServiceAccount, StoredSecret,
 };
+use kartenn_service::authz::Subject;
 use sha2::Sha256;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -200,5 +201,10 @@ impl Identities for PgStore {
         let mut mac = Hmac::<Sha256>::new_from_slice(&key).map_err(store_err)?;
         mac.update(claimed.as_bytes());
         Ok(kartenn_core::audit::seal::hex(&mac.finalize().into_bytes()))
+    }
+
+    async fn roles(&self, subject: &Subject) -> Result<Vec<String>, StoreError> {
+        let mut conn = self.pool().acquire().await.map_err(store_err)?;
+        crate::rbac::roles_of_on(&mut conn, subject).await
     }
 }

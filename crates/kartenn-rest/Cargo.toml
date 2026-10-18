@@ -29,6 +29,7 @@ tower-http = { version = "0.7", features = ["catch-panic", "compression-br", "co
 http-body-util = "0.1.5"
 thiserror = "2.0.21"
 governor = { version = "0.10.4", default-features = false, features = ["std", "dashmap"] }
+form_urlencoded = "1.2.2"
 
 [dev-dependencies]
 base64 = "0.22"
@@ -36,7 +37,7 @@ futures-util = { version = "0.3", default-features = false }
 jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }

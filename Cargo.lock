@@ -1784,6 +1784,7 @@ version = "0.0.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "form_urlencoded",
  "futures-util",
  "governor",
  "http-body-util",
@@ -1917,6 +1918,7 @@ dependencies = [
  "digest 0.10.7",
  "digest 0.11.3",
  "either",
+ "form_urlencoded",
  "futures-channel",
  "futures-sink",
  "futures-task",

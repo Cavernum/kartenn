@@ -1,8 +1,10 @@
 //! The REST API of kartenn (spec 006): router, problems, layers. No business logic: each
 //! route calls the service, or the store after a rights check.
 
+pub mod auth;
 pub mod authn;
 pub mod compression;
+pub mod cookies;
 pub mod error;
 pub mod health;
 pub mod problem;
@@ -41,7 +43,8 @@ async fn not_found() -> Problem {
     Problem::new(ProblemKind::NotFound)
 }
 
-/// The application: `api` under `/v1`, the probes, and the layers around them (design
+/// The application: `api` and the login routes under `/v1`, the probes, and the layers
+/// around them (design
 /// « Pile de couches »), the request identifier outermost so that every response carries
 /// it, then the load shedding, the delay, the client, the bounded body, the
 /// authentication, the quotas and, innermost, the compression.
@@ -55,7 +58,7 @@ pub fn router(
     let transport = Arc::new(transport);
     let in_flight = Arc::new(InFlight::new(transport.max_in_flight));
     Router::new()
-        .nest("/v1", api)
+        .nest("/v1", api.merge(auth::routes(authenticator.clone())))
         .merge(health::routes(readiness))
         .fallback(not_found)
         // Layer 10, on the way back.
