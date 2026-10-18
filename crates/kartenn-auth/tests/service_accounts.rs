@@ -190,6 +190,19 @@ async fn a_service_account_lives_by_its_secrets(pool: PgPool) {
             Some("disabled".to_owned())
         ]
     );
+    // Each change of the account audited on it (REQ-005-28): the refused third secret
+    // is not.
+    let changes: Vec<String> = sqlx::query_scalar(
+        "SELECT details ->> 'change' FROM audit.event WHERE name = 'account.service.changed'
+         ORDER BY seq",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        changes,
+        ["created", "secret_added", "secret_revoked", "secret_added"]
+    );
     // The secret never reaches the database.
     let leaked: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM audit.event WHERE to_jsonb(audit.event.*)::text LIKE '%' || $1 || '%'",
@@ -329,6 +342,22 @@ async fn a_revoked_session_is_cut_at_the_next_request(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(reason.as_deref(), Some("session.revoked"));
+    // The end of the session audited with its cause (REQ-005-28).
+    kartenn_service::authn::session_closed(
+        &f.journal,
+        &person,
+        kartenn_service::authn::SessionEnd::Revoked,
+        kartenn_core::audit::Source::default(),
+    )
+    .await
+    .unwrap();
+    let cause: Option<String> = sqlx::query_scalar(
+        "SELECT details ->> 'cause' FROM audit.event WHERE name = 'authn.session.closed'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(cause.as_deref(), Some("revoked"));
     // A session opened after the revocation is fine.
     assert!(check(&f, &person, &cache, now()).await.is_ok());
     // Another instance, without cache: a disabled identity is refused at once.

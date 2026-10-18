@@ -942,6 +942,17 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
             .await
             .unwrap();
     assert!(ended, "the binding is ended, not erased");
+    // Each change of a binding audited on it (REQ-005-28).
+    let audited: Vec<(Vec<Uuid>, Option<String>)> = sqlx::query_as(
+        "SELECT target_ids, details ->> 'role' FROM audit.event
+         WHERE name = 'rbac.binding.changed' ORDER BY seq",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(audited.len(), 2, "{audited:?}");
+    assert_eq!(audited[1].0, [binding]);
+    assert!(audited[0].1.is_some() && audited[1].1.is_none());
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]

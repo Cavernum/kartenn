@@ -507,6 +507,55 @@ impl StateCache {
     }
 }
 
+/// Why a session ended (REQ-005-7, 8), as `authn.session.closed` records it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionEnd {
+    /// The person logged out.
+    Logout,
+    /// No request within the inactivity limit.
+    Idle,
+    /// The absolute lifetime ran out.
+    Absolute,
+    /// The issuer refused to refresh it (groups, REQ-005-7).
+    RefreshFailed,
+    /// Its identity was disabled or its sessions revoked (REQ-005-3).
+    Revoked,
+}
+
+impl SessionEnd {
+    /// As recorded in the audit.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Logout => "logout",
+            Self::Idle => "idle",
+            Self::Absolute => "absolute",
+            Self::RefreshFailed => "refresh_failed",
+            Self::Revoked => "revoked",
+        }
+    }
+}
+
+/// Records the end of a session of `principal` (REQ-005-28), called by the HTTP layer
+/// (006) where it sees the session end.
+///
+/// # Errors
+///
+/// [`AuthnError::Audit`] when the audit fails.
+pub async fn session_closed<J: AuditJournal>(
+    journal: &J,
+    principal: &Principal,
+    end: SessionEnd,
+    source: Source,
+) -> Result<(), AuthnError> {
+    let event = principal
+        .context(source)
+        .event(&kartenn_core::audit::AUTHN_SESSION_CLOSED, Outcome::Success)
+        .and_then(|e| e.detail("cause", end.as_str()))
+        .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
+    journal.record(&event).await.map_err(AuthnError::Audit)
+}
+
 /// A break-glass attempt, as recorded on its account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BreakglassAttempt {

@@ -305,16 +305,10 @@ pub(crate) fn changeset_events(
                     .detail("enabled", policy.enabled)
                     .map_err(|e| audit_err(&e))?,
             ),
-            // The administration of the RBAC (005, REQ-005-28): a changed role is audited
-            // on its own, the other operations by the changeset.
-            Planned::Rbac(
-                crate::rbac::RbacOp::SetRole { key, .. } | crate::rbac::RbacOp::CloseRole { key },
-            ) => events.push(
-                event(&kartenn_core::audit::RBAC_ROLE_CHANGED, Outcome::Success)?
-                    .target("role", [crate::rbac::RBAC_OBJECT])
-                    .detail("role", key.as_str())
-                    .map_err(|e| audit_err(&e))?,
-            ),
+            // The administration of the RBAC (005, REQ-005-28): roles, bindings and
+            // service accounts each have their event; attachments and identity states are
+            // audited by the changeset.
+            Planned::Rbac(op) => events.extend(rbac_event(&event, op)?),
             Planned::Modify {
                 kind: crate::ObjectKind::Property,
                 id,
@@ -337,6 +331,55 @@ pub(crate) fn changeset_events(
         }
     }
     Ok(events)
+}
+
+/// The event of an operation of RBAC administration, if it has its own.
+fn rbac_event(
+    event: &impl Fn(&'static EventKind, Outcome) -> Result<AuditEvent, RequestError>,
+    op: &crate::rbac::RbacOp,
+) -> Result<Option<AuditEvent>, RequestError> {
+    use crate::rbac::RbacOp;
+    use kartenn_core::audit::{RBAC_BINDING_CHANGED, RBAC_ROLE_CHANGED, SERVICE_ACCOUNT_CHANGED};
+    let account = |id: Uuid, change: &str| -> Result<AuditEvent, RequestError> {
+        event(&SERVICE_ACCOUNT_CHANGED, Outcome::Success)?
+            .target("service_account", [id])
+            .detail("change", change)
+            .map_err(|e| audit_err(&e))
+    };
+    Ok(Some(match op {
+        RbacOp::SetRole { key, .. } | RbacOp::CloseRole { key } => {
+            event(&RBAC_ROLE_CHANGED, Outcome::Success)?
+                .target("role", [crate::rbac::RBAC_OBJECT])
+                .detail("role", key.as_str())
+                .map_err(|e| audit_err(&e))?
+        }
+        RbacOp::Bind {
+            id,
+            role,
+            scope_kind,
+            scope,
+            ..
+        } => event(&RBAC_BINDING_CHANGED, Outcome::Success)?
+            .target("binding", [*id])
+            .detail("role", role.as_str())
+            .and_then(|e| {
+                e.detail(
+                    "scope",
+                    scope.map_or_else(|| (*scope_kind).to_owned(), |s| format!("{scope_kind}:{s}")),
+                )
+            })
+            .map_err(|e| audit_err(&e))?,
+        // Its role and scope are those of the binding it ends, in the changeset.
+        RbacOp::Unbind { id } => {
+            event(&RBAC_BINDING_CHANGED, Outcome::Success)?.target("binding", [*id])
+        }
+        RbacOp::CreateAccount { id, .. } => account(*id, "created")?,
+        RbacOp::AddSecret { account: id, .. } => account(*id, "secret_added")?,
+        RbacOp::RevokeSecret { account: id, .. } => account(*id, "secret_revoked")?,
+        RbacOp::Attach { .. } | RbacOp::Detach { .. } | RbacOp::IdentityState { .. } => {
+            return Ok(None);
+        }
+    }))
 }
 
 /// The current time as an [`Instant`].
