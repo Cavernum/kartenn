@@ -72,9 +72,12 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
 
 ## P2 — Authentification
 
-- [ ] 9. Crate `kartenn-auth` : trousseau, HKDF, cookie chiffré (AES-256-GCM, découpage) ;
+- [x] 9. Crate `kartenn-auth` : trousseau, HKDF, cookie chiffré (AES-256-GCM, découpage) ;
   vérification des dépendances (sans aws-lc) — REQ-005-6 — verify : aller-retour, octet
-  modifié refusé, clé retirée, autre instance
+  modifié refusé, clé retirée, autre instance — `keys::KeyRing` (`<id> <base64>` par
+  ligne, la première écrit), `seal::{seal, open}` (données associées : nom du cookie et
+  identifiant de clé ; nom ou usage différent refusé) ; RustCrypto (sha2 0.10, hmac,
+  hkdf, aes-gcm), aucun aws-lc dans l'arbre
 - [ ] 10. Comptes de service : secrets générés, HMAC, Basic, rotation, expiration,
   limitation de débit — REQ-005-11 à 13 — verify : tests, coût < 1 ms
 - [ ] 11. Jetons d'accès RFC 9068 et clés des émetteurs (cache, rechargement borné) —
