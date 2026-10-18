@@ -103,9 +103,18 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Pourquoi : correspond exactement au moteur de la 003 (pas de OU entre champs) ; un GET
   reste sûr et cacheable.
 - Rejeté : expression `?filter=` (grammaire à spécifier et à borner, disjonctions hors
-  budget, moteur sans OU) ; POST de recherche en JSON (non cacheable ; la méthode QUERY
-  n'est qu'un draft).
+  budget, moteur sans OU) ; POST de recherche en JSON (non cacheable).
 - Décidé par : recommandation acceptée
+- Amendement (2026-10-18, utilisateur) : la méthode QUERY est normalisée
+  ([RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) ; le rejet « seulement un
+  draft » était faux. Les collections acceptent aussi **`QUERY` avec un corps JSON**
+  portant les mêmes conditions, pour les filtres longs ou structurés ; c'est l'issue
+  quand l'URL dépasserait 8 Kio. Sûre et idempotente (§2) : rejouable sans
+  `Idempotency-Key`. Clé de cache incluant le corps (§2.7), `private` comme `GET` ;
+  conditionnelles comme `GET` (§2.6) ; `Accept-Query: "application/json"` annonce la
+  prise en charge (§3) ; sans `Content-Type` → 415 (§2.1 impose un 4xx). Hors liste
+  CORS « safelisted » : sans effet pour le BFF de même origine. Prise en charge par
+  axum et les proxys inverses à vérifier dans le design.
 
 ## H7 — Erreurs
 - Décision : **Problem Details, liste complète pour un même type, le plus pertinent
@@ -175,4 +184,43 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Rejeté : corps unique en flux JSON Lines (une coupure fait tout recommencer, limite
   de taille propre à la route, requête longue) ; file de messages externe (composant à
   état de plus, contraire à D9).
+- Décidé par : recommandation acceptée
+
+## H10 — CSRF des sessions par cookie
+- Décision : **`SameSite=Strict`, Fetch Metadata, `Origin` en repli**. Sur une méthode
+  non sûre authentifiée par cookie (`POST`, `PATCH`, `DELETE`) : `Sec-Fetch-Site` doit
+  valoir `same-origin` (`same-site`, `cross-site`, `none` → 403) ; en son absence,
+  `Origin` doit égaler l'origine publique configurée ; ni l'un ni l'autre → 403. Les
+  méthodes sûres (`GET`, `HEAD`, `QUERY`) ne sont pas contrôlées. Bearer et Basic ne sont
+  pas concernés : le navigateur ne les envoie pas de lui-même.
+- Pourquoi : aucun jeton à stocker (D9) ; `SameSite=Strict` seul laisse passer un
+  sous-domaine (même site) et les vieux navigateurs, Fetch Metadata et `Origin` les
+  couvrent.
+- Rejeté : jeton synchroniseur en plus (en-tête propre et travail du client Web pour une
+  défense déjà couverte) ; `SameSite=Strict` seul.
+- Décidé par : recommandation acceptée
+
+## H11 — Limitation de débit
+- Décision : **deux couches en mémoire, par instance, configurables**.
+  - Délestage (protège PostgreSQL) : plafond de requêtes en cours par instance (par
+    défaut 2 × la taille du pool), courte file bornée devant ; au-delà → 503 et
+    `Retry-After`. C'est lui qui tient les budgets D14 sous charge, quel que soit le
+    nombre d'identités.
+  - Quota par identité (équité) : GCRA, compartiments lecture et écriture distincts ;
+    avant authentification, clé = adresse source (en-tête transféré lu seulement
+    derrière des proxys de confiance configurés). Dépassement → 429, `Retry-After`,
+    et `RateLimit-Policy` / `RateLimit` (draft-11, indicatifs). Les morceaux d'import
+    comptent comme écritures pondérées par leur taille. Défauts : lecture 50/s rafale
+    200, écriture 10/s rafale 20, avant authentification 20/s par adresse.
+  - Documenté comme par instance : plafond réel N × la limite. But : équité et
+    protection, pas facturation. Des quotas globaux exacts pourront s'ajouter plus tard
+    (seaux locaux, répartition périodique par PostgreSQL) sans changer l'API.
+  - La force brute sur les connexions reste au `FailureLimiter` (005).
+- Pourquoi : coût d'environ 100 ns sans entrée-sortie, aucun état nouveau (D9) ; GCRA
+  donne un débit régulier et une rafale bornée en un entier par clé, sans le double
+  débit des fenêtres fixes. Crate à évaluer au design (`crate-scout`).
+- Rejeté : compteurs dans PostgreSQL (une écriture par requête sur le seul primaire,
+  qu'on veut protéger) ; magasin clé-valeur partagé (composant à état de plus, contraire
+  à D9 et D15) ; proxy inverse seul (ne connaît pas l'identité, compte par adresse
+  derrière NAT et BFF ; il peut rester une barrière grossière en amont).
 - Décidé par : recommandation acceptée
