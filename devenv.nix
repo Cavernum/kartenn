@@ -291,5 +291,17 @@ in {
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
     hooks.git-hooks-run.enable = false;
+    # Context economy (CLAUDE.md): compact while the prompt cache is warm, after a task
+    # commit, and stop once before a prompt that would rewrite an expired cache.
+    hooks.fin-tache = {
+      name = "Advise /compact after a task commit";
+      hookType = "Stop";
+      command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/fin-tache.sh'';
+    };
+    hooks.reprise-froide = {
+      name = "Stop once before rewriting an expired cache";
+      hookType = "UserPromptSubmit";
+      command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/reprise-froide.sh'';
+    };
   };
 }
