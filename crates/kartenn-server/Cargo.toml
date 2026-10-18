@@ -23,9 +23,16 @@ serde = { version = "1.0.229", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid"] }
 syslog-sender = { version = "0.1.0", path = "../syslog-sender" }
 thiserror = "2.0.21"
-tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "signal", "time", "sync"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "signal", "time", "sync", "net"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry", "env-filter"] }
+hyper-util = { version = "0.1.21", features = ["server-auto", "server-graceful", "tokio", "http1", "http2"] }
+hyper = { version = "1.12.0", features = ["server", "http1", "http2"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
+arc-swap = "1.9.3"
+axum = { version = "0.8.9", default-features = false }
+kartenn-rest = { version = "0.0.0", path = "../kartenn-rest" }
+tower-service = "0.3"
 
 [dev-dependencies]
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics", "testing"] }
@@ -33,3 +40,6 @@ opentelemetry-proto = { version = "0.33.1", default-features = false, features =
 serde_json = "1.0.154"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid"] }
 tonic = { version = "0.14.1", default-features = false, features = ["server", "router", "transport"] }
+rcgen = "0.14.10"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }

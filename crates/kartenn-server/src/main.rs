@@ -7,7 +7,8 @@
 //!   the audit seals, and their signatures with the public key (spec 012, REQ-012-14);
 //!   exits with 2 when the journal is altered.
 //! - `kartenn-server run <database-url> [<config-file>]`: an instance (technical logs,
-//!   OpenTelemetry, sealing and export of the audit), until SIGTERM or Ctrl-C (spec 012).
+//!   OpenTelemetry, sealing and export of the audit, the API with `[http]`), until SIGTERM
+//!   or Ctrl-C (specs 012, 006); SIGHUP reads the TLS certificate again.
 //! - `kartenn-server audit purge <database-url> [<config-file>]`: retention of the audit
 //!   by criticality, with the owner of the schema (REQ-012-16), for a daily timer.
 //! - `kartenn-server breakglass create <database-url> <name> <hours> <key-file>`: a

@@ -34,6 +34,118 @@ pub struct Config {
     /// Authentication (spec 005); without it, no one can log in.
     #[serde(default)]
     pub auth: Option<Auth>,
+    /// The HTTP API (spec 006); without it, the instance runs the background work alone.
+    #[serde(default)]
+    pub http: Option<Http>,
+}
+
+/// The HTTP API (spec 006, design « Configuration »).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Http {
+    /// Address and port to listen on.
+    pub listen: std::net::SocketAddr,
+    /// The public origin (`https://host[:port]`): CSRF, absolute links, default
+    /// `redirect_uri`.
+    pub public_origin: Option<String>,
+    /// Proxies whose `Forwarded` is believed, as CIDR blocks.
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
+    /// Largest request body.
+    #[serde(default = "max_body_bytes")]
+    pub max_body_bytes: usize,
+    /// Longest request.
+    #[serde(default = "request_timeout_ms")]
+    pub request_timeout_ms: u64,
+    /// Longest write transaction, in seconds.
+    #[serde(default = "write_transaction_timeout_s")]
+    pub write_transaction_timeout_s: u64,
+    /// Most requests in flight; `0` is twice the size of the pool.
+    #[serde(default)]
+    pub max_in_flight: usize,
+    /// TLS terminated by kartenn; absent, clear HTTP behind a proxy.
+    pub tls: Option<Tls>,
+    /// Quotas by identity.
+    #[serde(default)]
+    pub rate: Rates,
+}
+
+const fn max_body_bytes() -> usize {
+    16 * 1024 * 1024
+}
+
+const fn request_timeout_ms() -> u64 {
+    30_000
+}
+
+const fn write_transaction_timeout_s() -> u64 {
+    60
+}
+
+/// Certificate and key, PEM, read again on `SIGHUP`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Tls {
+    /// The certificate chain, leaf first.
+    pub cert_file: PathBuf,
+    /// The private key (PKCS#8, PKCS#1 or SEC1).
+    pub key_file: PathBuf,
+}
+
+/// Quotas by identity (GCRA, REQ-006-29).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rates {
+    /// Reads of an authenticated identity.
+    #[serde(default = "read_rate")]
+    pub read: Rate,
+    /// Writes of an authenticated identity.
+    #[serde(default = "write_rate")]
+    pub write: Rate,
+    /// Requests without identity, by client address.
+    #[serde(default = "anonymous_rate")]
+    pub anonymous: Rate,
+}
+
+impl Default for Rates {
+    fn default() -> Self {
+        Self {
+            read: read_rate(),
+            write: write_rate(),
+            anonymous: anonymous_rate(),
+        }
+    }
+}
+
+/// A sustained rate and the burst above it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rate {
+    /// Requests per second, sustained.
+    pub per_second: u32,
+    /// Requests at once.
+    pub burst: u32,
+}
+
+const fn read_rate() -> Rate {
+    Rate {
+        per_second: 50,
+        burst: 200,
+    }
+}
+
+const fn write_rate() -> Rate {
+    Rate {
+        per_second: 10,
+        burst: 20,
+    }
+}
+
+const fn anonymous_rate() -> Rate {
+    Rate {
+        per_second: 20,
+        burst: 20,
+    }
 }
 
 /// Authentication (spec 005, design « Configuration »): the key ring, the sessions and the
@@ -572,6 +684,40 @@ fn check(config: &Config) -> Result<(), ConfigError> {
     if let Some(auth) = &config.auth {
         check_auth(auth).map_err(ConfigError::Invalid)?;
     }
+    if let Some(http) = &config.http {
+        check_http(http).map_err(ConfigError::Invalid)?;
+    }
+    Ok(())
+}
+
+fn check_http(http: &Http) -> Result<(), String> {
+    if http.max_body_bytes == 0
+        || http.request_timeout_ms == 0
+        || http.write_transaction_timeout_s == 0
+    {
+        return Err("http: limits and timeouts must be positive".into());
+    }
+    if let Some(origin) = &http.public_origin
+        && (!secure_url(origin)
+            || origin
+                .split_once("://")
+                .is_some_and(|(_, host)| host.contains('/')))
+    {
+        return Err(format!(
+            "http.public_origin: an origin in https (or http on loopback), without path: {origin}"
+        ));
+    }
+    for (name, rate) in [
+        ("read", http.rate.read),
+        ("write", http.rate.write),
+        ("anonymous", http.rate.anonymous),
+    ] {
+        if rate.per_second == 0 || rate.burst == 0 {
+            return Err(format!(
+                "http.rate.{name}: per_second and burst must be positive"
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -758,6 +904,70 @@ mod tests {
                 "HS256 refused",
             ),
             (format!("{AUTH}algorithms = [\"none\"]"), "none refused"),
+        ];
+        for (text, reason) in cases {
+            let error = from_toml(&text).unwrap_err().to_string();
+            assert!(error.contains(reason), "{reason}: {error}");
+        }
+    }
+
+    const HTTP: &str = r#"
+        [http]
+        listen = "127.0.0.1:8443"
+        public_origin = "https://kartenn.example"
+        [http.tls]
+        cert_file = "/etc/kartenn/tls.crt"
+        key_file = "/etc/kartenn/tls.key"
+    "#;
+
+    #[test]
+    fn an_http_section_takes_the_defaults_of_the_design() {
+        assert_eq!(from_toml("").unwrap().http, None);
+        let http = from_toml(HTTP).unwrap().http.unwrap();
+        assert_eq!(http.listen, "127.0.0.1:8443".parse().unwrap());
+        assert_eq!(http.max_body_bytes, 16_777_216);
+        assert_eq!(http.request_timeout_ms, 30_000);
+        assert_eq!(http.write_transaction_timeout_s, 60);
+        assert_eq!(http.max_in_flight, 0);
+        assert_eq!(
+            http.rate.write,
+            Rate {
+                per_second: 10,
+                burst: 20
+            }
+        );
+        assert!(http.trusted_proxies.is_empty());
+        assert_eq!(
+            http.tls.unwrap().key_file,
+            PathBuf::from("/etc/kartenn/tls.key")
+        );
+    }
+
+    #[test]
+    fn a_faulty_http_section_stops_the_start_with_its_reason() {
+        let cases = [
+            (HTTP.replace("listen", "address"), "address"),
+            (HTTP.replace("cert_file", "certificate"), "certificate"),
+            (
+                HTTP.replace("[http.tls]", "[http.tls]\nca_file = \"/x\""),
+                "ca_file",
+            ),
+            (
+                HTTP.replace("8443\"", "8443\"\nmax_body_bytes = 0"),
+                "positive",
+            ),
+            (
+                HTTP.replace("https://kartenn.example", "http://kartenn.example"),
+                "public_origin",
+            ),
+            (
+                HTTP.replace("kartenn.example", "kartenn.example/api"),
+                "public_origin",
+            ),
+            (
+                format!("{HTTP}\n[http.rate]\nread = {{ per_second = 0, burst = 1 }}"),
+                "http.rate.read",
+            ),
         ];
         for (text, reason) in cases {
             let error = from_toml(&text).unwrap_err().to_string();

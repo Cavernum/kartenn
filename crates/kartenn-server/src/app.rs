@@ -1,7 +1,8 @@
 //! Composition of a running instance (spec 012, REQ-012-2, 13, 15, 20, 24, 26, 31, 34):
 //! the outputs of the technical logs and OpenTelemetry from the configuration, the audit
 //! outputs, the periodic sealing and relays, and a clean stop that drains everything.
-//! The HTTP API (006) will be served by the same instance.
+//! With `[http]`, the same instance serves the API (spec 006, REQ-006-32): drained first at
+//! the stop, its certificate read again on `SIGHUP`.
 
 use std::future::Future;
 use std::path::Path;
@@ -11,7 +12,9 @@ use std::time::Duration;
 use anyhow::{Context as _, anyhow};
 use kartenn_core::audit::seal::SealKey;
 use kartenn_core::audit::{Outcome, SYS_OUTPUT_DISABLED, SYS_STARTED, SYS_STOPPED};
-use kartenn_service::audit::{AuditJournal, Instance, RequestContext, SinkHealth, now};
+use kartenn_service::audit::{
+    AuditJournal, AuditStatus, Instance, RequestContext, SinkHealth, now,
+};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::audit_relay::{RelayError, export_lag, relay_once};
 use kartenn_store_pg::audit_seal::seal_once;
@@ -349,6 +352,7 @@ async fn relay_all(
     sinks: &mut [(AnySink, SinkHealth)],
     instruments: Option<&Instruments>,
     throttle: &mut Throttle,
+    status: &AuditStatus,
 ) {
     for (sink, health) in sinks.iter_mut() {
         let started = std::time::Instant::now();
@@ -387,6 +391,30 @@ async fn relay_all(
             );
         }
     }
+    status.update(sinks.iter().map(|(_, health)| health));
+}
+
+/// The filters of the technical outputs, as configured, before any change at run time.
+fn filters(config: &Config) -> capture::FilterOverrides {
+    capture::FilterOverrides::new(
+        config.telemetry.names().into_iter().zip(
+            config
+                .telemetry
+                .outputs
+                .iter()
+                .map(|o| o.filter().to_owned()),
+        ),
+    )
+}
+
+/// The key signing the seals, when configured.
+fn seal_key(config: &Config) -> anyhow::Result<Option<SealKey>> {
+    let Some(path) = &config.audit.signing_key_file else {
+        return Ok(None);
+    };
+    Ok(Some(SealKey::from_pkcs8_pem(
+        &std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?,
+    )?))
 }
 
 /// Runs an instance until `shutdown`: technical outputs, audit sealing and relays; at
@@ -413,13 +441,7 @@ pub async fn run(
     let telemetry = telemetry(config, &identity)?;
     kartenn_telemetry::panic::install();
     let instruments = telemetry.instruments.clone();
-    let key = match &config.audit.signing_key_file {
-        Some(path) => Some(SealKey::from_pkcs8_pem(
-            &std::fs::read_to_string(path)
-                .with_context(|| format!("reading {}", path.display()))?,
-        )?),
-        None => None,
-    };
+    let key = seal_key(config)?;
     // The files of `[auth]`, before anything is recorded: a missing one stops the start.
     let auth = config.auth.as_ref().map(crate::auth::load).transpose()?;
     let mut sinks = sinks(config)?;
@@ -438,17 +460,14 @@ pub async fn run(
         tracing::warn!("no [auth] section: no one can log in");
     }
     disabled_sinks(&pool, &journal, config).await?;
+    let audit_status = AuditStatus::default();
+    let mut api = match &config.http {
+        Some(http) => Some(Api::start(http, &pool, &audit_status).await?),
+        None => None,
+    };
 
     let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
-    let mut filters = capture::FilterOverrides::new(
-        config.telemetry.names().into_iter().zip(
-            config
-                .telemetry
-                .outputs
-                .iter()
-                .map(|o| o.filter().to_owned()),
-        ),
-    );
+    let mut filters = filters(config);
     let mut reread =
         tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));
     let mut clock = tokio::time::interval(CLOCK_EVERY);
@@ -461,9 +480,14 @@ pub async fn run(
     loop {
         tokio::select! {
             () = &mut shutdown => break,
+            () = hangup(api.as_mut()) => {
+                if let Some(api) = &api {
+                    api.reload();
+                }
+            }
             _ = seal.tick() => seal_all(&pool, key.as_ref(), &instance).await,
             _ = relay.tick() => {
-                relay_all(&pool, &journal, &mut sinks, instruments.as_ref(), &mut throttle).await;
+                relay_all(&pool, &journal, &mut sinks, instruments.as_ref(), &mut throttle, &audit_status).await;
             }
             _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
@@ -479,6 +503,10 @@ pub async fn run(
         }
     }
 
+    // The API first: no request starts while the journal is closed.
+    if let Some(api) = api {
+        api.stop().await;
+    }
     let lost_so_far = dropped(&telemetry);
     let finish = async {
         let stopped = RequestContext::system()
@@ -494,10 +522,100 @@ pub async fn run(
             &mut sinks,
             instruments.as_ref(),
             &mut throttle,
+            &audit_status,
         )
         .await;
     };
     Ok(stop(telemetry, finish).await)
+}
+
+/// The API being served.
+struct Api {
+    stop: tokio::sync::oneshot::Sender<()>,
+    server: JoinHandle<()>,
+    certificates: Option<Arc<crate::http::Certificates>>,
+    #[cfg(unix)]
+    hangup: Option<tokio::signal::unix::Signal>,
+}
+
+impl Api {
+    /// Binds the address, reads the certificate, and serves in the background.
+    async fn start(
+        http: &crate::config::Http,
+        pool: &PgPool,
+        audit: &AuditStatus,
+    ) -> anyhow::Result<Self> {
+        let certificates = http
+            .tls
+            .as_ref()
+            .map(|tls| crate::http::Certificates::load(tls).map(Arc::new))
+            .transpose()?;
+        let acceptor = certificates
+            .as_ref()
+            .map(crate::http::Certificates::acceptor)
+            .transpose()?;
+        #[cfg(unix)]
+        let hangup = match certificates {
+            Some(_) => Some(
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
+                    .context("installing the SIGHUP handler")?,
+            ),
+            None => None,
+        };
+        let listener = tokio::net::TcpListener::bind(http.listen)
+            .await
+            .with_context(|| format!("listening on {}", http.listen))?;
+        let app = kartenn_rest::router(
+            kartenn_rest::v1(),
+            Arc::new(kartenn_rest::health::PgReadiness::new(
+                pool.clone(),
+                audit.clone(),
+            )),
+        );
+        tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(crate::http::serve(listener, app, acceptor, async {
+            let _ = stopped.await;
+        }));
+        Ok(Self {
+            stop,
+            server,
+            certificates,
+            #[cfg(unix)]
+            hangup,
+        })
+    }
+
+    /// Reads the certificate again; a faulty one leaves the current one in place.
+    fn reload(&self) {
+        if let Some(certificates) = &self.certificates {
+            match certificates.reload() {
+                Ok(()) => tracing::info!(name: "http.tls.reloaded", "certificate read again"),
+                Err(e) => {
+                    tracing::error!(name: "http.tls.reload_failed", error = format!("{e:#}"), "certificate refused, the current one stays");
+                }
+            }
+        }
+    }
+
+    /// Stops accepting, then waits for the requests in flight (bounded by
+    /// [`crate::http::DRAIN_WITHIN`]).
+    async fn stop(self) {
+        let _ = self.stop.send(());
+        let _ = self.server.await;
+    }
+}
+
+/// Resolves at each `SIGHUP` when the API terminates TLS; never otherwise.
+async fn hangup(api: Option<&mut Api>) {
+    #[cfg(unix)]
+    if let Some(signal) = api.and_then(|api| api.hangup.as_mut()) {
+        signal.recv().await;
+        return;
+    }
+    #[cfg(not(unix))]
+    let _ = api;
+    std::future::pending::<()>().await;
 }
 
 fn dropped(telemetry: &Telemetry) -> u64 {

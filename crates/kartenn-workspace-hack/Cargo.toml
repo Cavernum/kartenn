@@ -31,7 +31,7 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.17" }
 hyper = { version = "1", features = ["client", "http1", "http2", "server"] }
-hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "server-graceful", "service"] }
 idna = { version = "1" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 memchr = { version = "2" }

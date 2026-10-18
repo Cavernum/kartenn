@@ -73,6 +73,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "arc-swap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "380962b3d93b99642e50b9febf72c071e97e8b32d86eae9cf4ef582bb960ae6e"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1646,22 +1655,31 @@ name = "kartenn-server"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
+ "axum",
  "figment",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "kartenn-auth",
  "kartenn-core",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-telemetry",
  "kartenn-workspace-hack",
  "opentelemetry-proto",
  "opentelemetry_sdk",
+ "rcgen",
  "serde",
  "serde_json",
  "sqlx",
  "syslog-sender",
  "thiserror",
  "tokio",
+ "tokio-rustls",
  "tonic",
+ "tower-service",
  "tracing",
  "tracing-subscriber",
 ]

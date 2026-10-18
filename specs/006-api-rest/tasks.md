@@ -23,11 +23,16 @@ routeur complet, sauf mention « vrai TCP ».
   `AuditStatus` partagé, nouveau dans `kartenn-service::audit`) ; `tests/socle.rs`.
   Dettes : `AuditStatus::update` depuis `relay_all` et `traceparent` de confiance
   (toujours `false`) à câbler en 2 et 3
-- [ ] 2. Serveur : configuration `[http]` (refus des champs inconnus), boucle
+- [x] 2. Serveur : configuration `[http]` (refus des champs inconnus), boucle
   d'acceptation `hyper-util` (HTTP/1.1, h2, h2c), TLS `tokio-rustls` + `ring`, ALPN,
   délai de poignée de main, rechargement du certificat sur `SIGHUP`, arrêt propre dans
   `app::run` — REQ-006-32 — verify (vrai TCP) : h2 par ALPN, HTTP/1.1, rechargement sans
-  coupure, arrêt dans les 10 s de REQ-012-34
+  coupure, arrêt dans les 10 s de REQ-012-34 —
+  `config.rs` (`Http`, `Tls`, `Rates`, défauts du design, contrôles), `http.rs`
+  (`Certificates` sur `ArcSwap`, clé vérifiée contre le certificat ; `serve` : poignée de
+  main 10 s, `ConnectInfo`, vidange 5 s), `app.rs` (`Api` arrêtée en premier, `SIGHUP`,
+  `AuditStatus` mis à jour par `relay_all`) ; `tests/http.rs` (5 tests vrai TCP, dont
+  `run` complet : `ready`, `SIGHUP`, arrêt < 10 s)
 - [ ] 3. Couches de transport : proxys de confiance et `Forwarded` (RFC 7239), délai,
   limite de corps, refus de `Content-Encoding`, 414 au-delà de 8 Kio d'URL —
   REQ-006-10 (414), 27 (transport), 31 — verify : `Forwarded` d'une adresse non
