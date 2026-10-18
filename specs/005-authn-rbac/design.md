@@ -158,8 +158,19 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
   d'un rôle nomme une propriété déclarée (en base ou par le même changeset).
 - Les permissions d'administration globales portent sur l'objet fixe `RBAC_OBJECT`, sans
   propriétaire : seul un sujet non confiné peut les détenir (K13).
-- Annulation (004) : ces opérations n'ont pas d'inverse ; l'annulation les liste comme
-  non prises en charge (comme les déclarations), on les refait par un changeset.
+- Annulation (004, K16) : `UndoFacts` porte, par rôle, liaison et rattachement écrit
+  par le changeset (sa ligne porte son identifiant, ou une ligne d'historique se termine
+  à son instant d'application : lignes supprimées), l'état d'avant (version enregistrée
+  avant l'application, en vigueur sur `[début, ∞)`) et s'il en reste un après.
+  L'inverse en tire des opérations ordinaires : rôle créé → `CloseRole`, rôle d'avant →
+  `SetRole` (libellé, permissions) ; liaison créée → `Unbind`, liaison d'avant disparue →
+  `Bind` (sujet, clé du rôle, périmètre ; nouvel identifiant) ; rattachement créé →
+  `DetachIssuer`, disparu → `AttachIssuer`. Une période d'avant bornée ou qui commence
+  après le début passe par `Within`. Les rôles viennent avant les liaisons, pour qu'une
+  liaison recréée trouve son rôle rendu. Conflit (laissé de côté, listé) : une ligne de
+  la même clé écrite après l'application par un autre changeset, ou, pour un rôle créé,
+  une liaison de ce rôle écrite par un autre changeset. Les comptes de service, leurs
+  secrets et l'état des identités restent listés comme non pris en charge.
 - Contrôles (nouvelles règles du pipeline) : `core.role.admin`, `core.issuer.admin` et
   `core.account.admin` sur le périmètre global ; une liaison exige `core.rbac.admin` sur
   un périmètre qui contient le sien et toutes les permissions du rôle sur ce périmètre

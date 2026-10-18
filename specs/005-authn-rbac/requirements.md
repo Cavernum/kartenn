@@ -288,6 +288,10 @@ Acceptation :
 - « Qui avait le rôle administrateur sur E le 3 mars ? » se répond par une lecture datée.
 - Une politique peut exiger un second administrateur pour toute liaison du rôle
   administrateur.
+- L'annulation d'un changeset qui crée un rôle, lie ce rôle et rattache un émetteur rend
+  l'état d'avant ; celle d'un changeset qui clôt un rôle rend le rôle et ses liaisons
+  (K16). Les comptes de service, leurs secrets et l'état des identités sont listés comme
+  non annulables.
 
 #### REQ-005-26 — Délégation sans escalade
 kartenn doit n'autoriser une liaison que si son auteur détient `core.rbac.admin` sur un
@@ -339,7 +343,7 @@ Acceptation :
 - [x] Cache des liaisons et de l'état des identités entre instances : durée, invalidation
   après un changeset de droits. (Claude, conception) — état des identités : 5 s, oublié
   par l'instance qui le change ; liaisons : pas de cache (K15).
-- [ ] REQ-005-25 « annulable » : l'annulation (004) n'a pas d'inverse pour les opérations
-  d'administration ; elle les liste comme non prises en charge, comme les déclarations.
-  Garder cet écart (amender REQ-005-25) ou écrire les inverses des rôles, liaisons et
-  rattachements ? (utilisateur)
+- [x] REQ-005-25 « annulable » : l'annulation (004) n'avait pas d'inverse pour les
+  opérations d'administration. (utilisateur) — inverses des rôles, liaisons et
+  rattachements par des opérations ordinaires (K16) ; comptes de service, secrets et état
+  des identités non annulables.

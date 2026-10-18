@@ -144,4 +144,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   déclarée dans un rôle, événements `rbac.binding.changed`, `account.service.changed`,
   `authn.session.closed`, annulation muette des changesets d'administration, politique
   `bound_roles` (second administrateur) ; ce qui revient à la 006 est listé à la fin de
-  `design.md`. Reste un arbitrage : REQ-005-25 « annulable »
+  `design.md`. Reste un arbitrage : REQ-005-25 « annulable » (tranché : K16)
+
+## P4 — Annulation de l'administration (K16)
+
+- [ ] 18. Inverses des rôles, liaisons et rattachements d'émetteurs — REQ-005-25 —
+  verify : annuler la création d'un rôle, d'une liaison et d'un rattachement rend l'état
+  d'avant ; annuler une clôture de rôle rend le rôle et ses liaisons ; annuler la
+  suppression d'une liaison future la recrée ; une liaison écrite depuis est un
+  conflit ; l'inverse d'une liaison passe le contrôle d'escalade ; comptes de service
+  toujours listés non annulables

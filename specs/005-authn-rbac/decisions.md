@@ -200,3 +200,21 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   dénormalisation du domaine et de la valeur du préfixe dans la liaison (copie à
   maintenir).
 - Décidé par : utilisateur (2026-10-18)
+
+## K16 — Annulation des changesets d'administration (REQ-005-25)
+- Décision : l'annulation (004) inverse les rôles, leurs permissions, les liaisons et les
+  rattachements d'émetteurs par des **opérations ordinaires** : un rôle créé est clos
+  (`CloseRole`), un rôle modifié ou clos reprend son libellé et ses permissions d'avant
+  (`SetRole`) ; une liaison créée est close (`Unbind`), une liaison close est recréée
+  (`Bind`, nouvel identifiant) sur sa période d'avant ; de même `DetachIssuer` et
+  `AttachIssuer`. Un rôle, une liaison ou un rattachement écrit depuis par un autre
+  changeset est un conflit, laissé de côté ; un rôle créé que lie une liaison d'un autre
+  changeset aussi. Les comptes de service, leurs secrets et l'état des identités restent
+  non annulables (tables sans historique).
+- Pourquoi : l'inverse passe par les mêmes contrôles que l'opération directe (droits
+  d'administration, pas d'escalade, politiques d'approbation, audit) ; une restauration
+  brute des lignes contournerait le contrôle d'escalade sur une liaison recréée.
+- Rejeté : garder l'écart (amender REQ-005-25) ; restauration ligne à ligne comme
+  `Restore` (contrôles des liaisons à réécrire pour elle, identifiants conservés au prix
+  d'un chemin de droits distinct).
+- Décidé par : utilisateur (inverses, 2026-10-18) ; forme : recommandation de Claude
