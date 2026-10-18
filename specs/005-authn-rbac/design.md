@@ -139,7 +139,9 @@ la validation est écrite sur `jsonwebtoken` seul.
    `data.sensitive.read`.
 
 Pas de cache des liaisons en v0.1 (une requête par décision, cible < 1 ms au p95) ; cache
-de l'état des identités de 5 s par instance (K10).
+de l'état des identités de 5 s par instance (K10) : l'instance qui applique un changement
+d'état oublie l'entrée (coupure à la requête suivante, REQ-005-3) ; les autres instances
+coupent au plus 5 s plus tard (précision de la tâche 13).
 
 ### Administration (REQ-005-25 à 27)
 

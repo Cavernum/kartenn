@@ -121,6 +121,15 @@ pub struct ServiceAccount {
     pub secrets: Vec<StoredSecret>,
 }
 
+/// Whether an identity may act (REQ-005-3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdentityState {
+    /// Disabled.
+    pub disabled: bool,
+    /// Its sessions opened before this instant are revoked.
+    pub revoked_after: Option<Instant>,
+}
+
 /// Digests of secrets under the key ring (`kartenn-auth`).
 pub trait SecretHasher: Send + Sync {
     /// The digest of `secret` under the key `key_id`, if the ring holds it.
@@ -143,6 +152,12 @@ pub trait Identities: Send + Sync {
         subject: &str,
         name: &str,
     ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
+
+    /// The state of an identity (REQ-005-3), if it exists.
+    fn identity_state(
+        &self,
+        identity: Uuid,
+    ) -> impl Future<Output = Result<Option<IdentityState>, StoreError>> + Send;
 
     /// The digest of an identifier claimed by an unknown actor (REQ-012-9), in hexadecimal.
     fn claimed_digest(
@@ -323,4 +338,93 @@ pub async fn logged_in<I: Identities, J: AuditJournal>(
         .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
     journal.record(&event).await.map_err(AuthnError::Audit)?;
     Ok(principal)
+}
+
+/// The state of the identities, read at each request and kept a few seconds per instance
+/// (K10): a change applied on this instance takes effect at once ([`StateCache::forget`]),
+/// on the others within the time to live.
+#[derive(Debug)]
+pub struct StateCache {
+    ttl: std::time::Duration,
+    entries: std::sync::Mutex<std::collections::HashMap<Uuid, (IdentityState, std::time::Instant)>>,
+}
+
+impl StateCache {
+    /// Entries kept `ttl` (5 s in production).
+    #[must_use]
+    pub fn new(ttl: std::time::Duration) -> Self {
+        Self {
+            ttl,
+            entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// Forgets `identity`, after a change of its state on this instance.
+    pub fn forget(&self, identity: Uuid) {
+        self.entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&identity);
+    }
+
+    async fn state<I: Identities>(
+        &self,
+        identities: &I,
+        identity: Uuid,
+    ) -> Result<Option<IdentityState>, StoreError> {
+        let cached = self
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&identity)
+            .filter(|(_, at)| at.elapsed() < self.ttl)
+            .map(|(state, _)| *state);
+        if let Some(state) = cached {
+            return Ok(Some(state));
+        }
+        let state = identities.identity_state(identity).await?;
+        if let Some(state) = state {
+            self.entries
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(identity, (state, std::time::Instant::now()));
+        }
+        Ok(state)
+    }
+
+    /// Whether `principal`, in a session opened at `session_started` if any, may act now:
+    /// its identity exists, is enabled, and its sessions were not revoked since; a refusal
+    /// is audited (`authz.access.denied`, reason `identity.disabled` or `session.revoked`).
+    ///
+    /// # Errors
+    ///
+    /// [`AuthnError::Refused`]; [`AuthnError::Store`], [`AuthnError::Audit`].
+    pub async fn check<I: Identities, J: AuditJournal>(
+        &self,
+        identities: &I,
+        journal: &J,
+        principal: &Principal,
+        session_started: Option<Instant>,
+        source: Source,
+    ) -> Result<(), AuthnError> {
+        let state = self
+            .state(identities, principal.identity)
+            .await
+            .map_err(AuthnError::Store)?;
+        let reason = match state {
+            None | Some(IdentityState { disabled: true, .. }) => "identity.disabled",
+            Some(IdentityState {
+                revoked_after: Some(revoked),
+                ..
+            }) if session_started.is_some_and(|started| started <= revoked) => "session.revoked",
+            Some(_) => return Ok(()),
+        };
+        let event = principal
+            .context(source)
+            .event(&kartenn_core::audit::AUTHZ_DENIED, Outcome::Denied)
+            .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?
+            .reason(reason);
+        journal.record(&event).await.map_err(AuthnError::Audit)?;
+        Err(AuthnError::Refused)
+    }
 }

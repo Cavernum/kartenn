@@ -5,7 +5,7 @@
 use hmac::{Hmac, KeyInit, Mac};
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
-use kartenn_service::authn::{Identities, ServiceAccount, StoredSecret};
+use kartenn_service::authn::{Identities, IdentityState, ServiceAccount, StoredSecret};
 use sha2::Sha256;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -85,6 +85,24 @@ impl Identities for PgStore {
         .fetch_one(self.pool())
         .await
         .map_err(store_err)
+    }
+
+    async fn identity_state(&self, identity: Uuid) -> Result<Option<IdentityState>, StoreError> {
+        let row: Option<(bool, Option<OffsetDateTime>)> = sqlx::query_as(
+            "SELECT disabled_at IS NOT NULL, revoked_after FROM person WHERE id = $1",
+        )
+        .bind(identity)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(store_err)?;
+        Ok(row.map(|(disabled, revoked)| IdentityState {
+            disabled,
+            revoked_after: revoked.and_then(|t| {
+                i64::try_from(t.unix_timestamp_nanos() / 1_000)
+                    .ok()
+                    .map(Instant)
+            }),
+        }))
     }
 
     async fn claimed_digest(&self, claimed: &str) -> Result<String, StoreError> {

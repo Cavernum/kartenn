@@ -104,8 +104,11 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   `nonce` pour le jeton d'un rafraîchissement, OIDC Core §12.2) ; `Session` scellée ;
   `authn::logged_in` crée ou met à jour l'identité et audite la connexion ; IdP HTTP dans
   le processus de test (`kartenn-auth/tests/oidc.rs`, `service_accounts.rs`)
-- [ ] 13. État des identités : désactivation, révocation des sessions, cache de 5 s —
-  REQ-005-3 — verify : session coupée à la requête suivante
+- [x] 13. État des identités : désactivation, révocation des sessions, cache de 5 s —
+  REQ-005-3 — verify : session coupée à la requête suivante — `authn::StateCache` ;
+  l'instance qui applique le changement oublie l'entrée (coupure à la requête suivante),
+  les autres au plus 5 s après ; refus audité `authz.access.denied`
+  (`identity.disabled`, `session.revoked`) (`service_accounts.rs`)
 - [ ] 14. Comptes de secours : sous-commande, Argon2id, TOTP, session d'1 h, 100 échecs —
   REQ-005-14, 15 — verify : code rejoué refusé, rôle applicatif sans écriture
 - [ ] 15. Configuration `[auth]` et événements d'authentification — REQ-005-28 — verify :

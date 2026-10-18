@@ -270,6 +270,80 @@ async fn a_person_is_created_at_its_first_login(pool: PgPool) {
     );
 }
 
+/// Whether `person`, in a session opened at `started`, may act.
+async fn check(
+    f: &Fixture,
+    person: &kartenn_service::authn::Principal,
+    cache: &kartenn_service::authn::StateCache,
+    started: Instant,
+) -> Result<(), AuthnError> {
+    cache
+        .check(
+            &f.store,
+            &f.journal,
+            person,
+            Some(started),
+            kartenn_core::audit::Source::default(),
+        )
+        .await
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_revoked_session_is_cut_at_the_next_request(pool: PgPool) {
+    use kartenn_service::authn::{Method, StateCache, logged_in};
+    let f = Fixture::new(&pool).await;
+    let person = logged_in(
+        &f.store,
+        &f.journal,
+        &f.aggregator,
+        ("https://idp.example.invalid", "u-7", Some("B. Person")),
+        Vec::new(),
+        Method::OidcSession,
+        kartenn_core::audit::Source::default(),
+        now(),
+    )
+    .await
+    .unwrap();
+    let opened = now();
+    let cache = StateCache::new(Duration::from_secs(5));
+    assert!(check(&f, &person, &cache, opened).await.is_ok());
+    std::thread::sleep(Duration::from_millis(2));
+    let outcome = f
+        .apply(vec![Operation::SetIdentityState {
+            identity: person.identity,
+            disabled: None,
+            revoke_sessions: true,
+        }])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // This instance applied the change: it forgets the identity, the next request is cut.
+    cache.forget(person.identity);
+    assert!(matches!(
+        check(&f, &person, &cache, opened).await,
+        Err(AuthnError::Refused)
+    ));
+    let reason: Option<String> = sqlx::query_scalar(
+        "SELECT reason FROM audit.event WHERE name = 'authz.access.denied' ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(reason.as_deref(), Some("session.revoked"));
+    // A session opened after the revocation is fine.
+    assert!(check(&f, &person, &cache, now()).await.is_ok());
+    // Another instance, without cache: a disabled identity is refused at once.
+    let other = StateCache::new(Duration::ZERO);
+    sqlx::query("UPDATE person SET disabled_at = now() WHERE id = $1")
+        .bind(person.identity)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(matches!(
+        check(&f, &person, &other, now()).await,
+        Err(AuthnError::Refused)
+    ));
+}
+
 #[test]
 fn verifying_a_secret_costs_microseconds() {
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
