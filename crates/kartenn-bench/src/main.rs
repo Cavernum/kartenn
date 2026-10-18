@@ -9,8 +9,8 @@
 //! `kartenn-bench core <database-url> <seed> [small]`: the same for the budgets of the
 //! core (REQ-002-45, REQ-004-38).
 //!
-//! `kartenn-bench rbac <database-url> <seed> [small]`: the overhead of access control on
-//! those budgets, for a person with 50 groups and 1 000 bindings (REQ-005-29).
+//! `kartenn-bench rbac <database-url> <seed> [small]`: those budgets with access control,
+//! for a person with 50 groups and 1 000 bindings, and its overhead (REQ-005-29).
 //!
 //! `kartenn-bench telemetry <database-url> <seed> [small]`: the overhead of the telemetry
 //! on those budgets, in three configurations (REQ-012-23), and the volume of the audit

@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # 005 — Authentification et RBAC : exigences
@@ -313,11 +313,13 @@ des droits. [REQ-012-8, REQ-012-9]
 
 #### REQ-005-29 — Budgets
 kartenn doit tenir les budgets INV-30 à INV-36 avec le contrôle d'accès actif, pour 1 000
-liaisons et 50 groupes par identité ; le surcoût de la décision et du filtrage sur le p95
-de chaque budget doit rester sous 10 %. [D14, K14]
+liaisons et 50 groupes par identité. [D14, K14, K15]
 
 Acceptation :
-- Mesuré par le banc `bench-core` étendu d'un jeu de liaisons.
+- Mesuré par le banc `bench-rbac` (jeu de `bench-core` et un jeu de liaisons) : chaque
+  p95 avec contrôle d'accès sous son budget ; le surcoût relatif est rapporté.
+- ~~Surcoût de la décision et du filtrage sous 10 % du p95~~ : retiré (K15), hors d'atteinte
+  sans cache pour des lectures sous la milliseconde, et sans effet sur les budgets.
 
 ## Non-objectifs
 

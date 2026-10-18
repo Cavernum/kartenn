@@ -185,3 +185,18 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   authentification mutuelle TLS des comptes de service, jetons opaques (introspection
   RFC 7662), règles de refus, ABAC.
 - Décidé par : délégué (2026-10-17)
+
+## K15 — Surcoût du contrôle d'accès (banc 005-16)
+- Décision : le critère de REQ-005-29 est la tenue des budgets absolus INV-30 à 36 avec
+  le contrôle d'accès actif ; le surcoût relatif est mesuré et rapporté par
+  `bench-rbac`, sans seuil. Pas de cache des visibilités pour l'instant.
+- Pourquoi : au jeu de référence, les budgets tiennent largement (lecture 12,7 ms pour
+  50 ms, page 55 ms pour 150 ms, sous-arbre 10 ms pour 200 ms, changeset 11 ms pour
+  200 ms). Un surcoût de 10 % sur une lecture d'1,2 ms laisse 120 µs, moins qu'un aller-
+  retour en base : il imposerait un cache par instance, donc un délai de prise d'effet
+  d'un retrait de droits entre instances.
+- Rejeté : cache des visibilités par sujet avec durée de 5 s (retrait de droits différé
+  sur les autres instances, code en plus pour un gain sans effet sur les budgets) ;
+  dénormalisation du domaine et de la valeur du préfixe dans la liaison (copie à
+  maintenir).
+- Décidé par : utilisateur (2026-10-18)

@@ -2,8 +2,8 @@
 //! the dataset of `bench-core`, and a person of an issuer with 50 groups and 1 000
 //! bindings (20 on domains, the others on prefix subtrees and on the identity). Each
 //! budget is measured twice on the same draws, alternately: without access control (the
-//! system), then with the decision and the filtering of the person; the overhead on the
-//! p95 must stay under 10 %.
+//! system), then with the decision and the filtering of the person; each p95 with access
+//! control must hold its budget, the overhead is reported (005/K15).
 
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
@@ -34,20 +34,21 @@ const GROUPS: usize = 50;
 const BINDINGS: usize = 1_000;
 /// Bindings on the identity itself, the others on its groups.
 const OWN: usize = 10;
-/// Most overhead of access control on a p95 (REQ-005-29).
-const OVERHEAD_MAX: f64 = 0.10;
 
 /// One budget measured both ways.
 struct Pair {
     name: &'static str,
+    /// The budget of the p95 (INV-30 to 34, as in `bench-core`).
+    limit: Duration,
     plain: Vec<Duration>,
     controlled: Vec<Duration>,
 }
 
 impl Pair {
-    const fn new(name: &'static str) -> Self {
+    const fn new(name: &'static str, limit: Duration) -> Self {
         Self {
             name,
+            limit,
             plain: Vec::new(),
             controlled: Vec::new(),
         }
@@ -164,7 +165,8 @@ async fn unitary<A: Authorizer>(
     }
 }
 
-/// Loads, binds and measures; returns the report and whether every overhead holds.
+/// Loads, binds and measures; returns the report and whether every budget holds with
+/// access control.
 ///
 /// # Errors
 ///
@@ -218,7 +220,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     }
 
     // Reading an object: the read, then the decision on it.
-    let mut read = Pair::new("read an object");
+    let mut read = Pair::new("read an object", Duration::from_millis(50));
     for _ in 0..200 {
         let id = if rng.random_range(0..4) == 0 {
             data.prefixes[rng.random_range(0..data.prefixes.len())].id
@@ -245,7 +247,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     }
 
     // Filtered pages of 100: the scope of the person, then the filtered page.
-    let mut page = Pair::new("filtered page of 100");
+    let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
     let mut scopes = Vec::new();
     for _ in 0..100 {
         let domain = data.domains[rng.random_range(0..data.domains.len())].id;
@@ -269,7 +271,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     }
 
     // Subtree and occupancy.
-    let mut subtree = Pair::new("subtree and occupancy");
+    let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
     for _ in 0..200 {
         let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
         let t = Instant::now();
@@ -293,7 +295,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .filter(|p| p.nature == crate::Nature::Network)
         .map(|p| (p.id, data.domains[p.domain].id))
         .collect();
-    let mut changeset = Pair::new("unitary changeset");
+    let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
     for _ in 0..100 {
         let network = networks[rng.random_range(0..networks.len())];
         let operation = new_address(&pool, network).await?;
@@ -318,15 +320,15 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         let plain = p95(pair.plain);
         let controlled = p95(pair.controlled);
         let overhead = controlled.as_secs_f64() / plain.as_secs_f64().max(1e-9) - 1.0;
-        let pass = overhead < OVERHEAD_MAX;
+        let pass = controlled <= pair.limit;
         ok &= pass;
         writeln!(
             report,
-            "{} {}, p95: {plain:?} without, {controlled:?} with access control ({:+.1} %, at most {:.0} %)",
+            "{} {}, p95: {controlled:?} with access control, budget {:?} ({plain:?} without, {:+.1} %)",
             if pass { "PASS" } else { "FAIL" },
             pair.name,
+            pair.limit,
             overhead * 100.0,
-            OVERHEAD_MAX * 100.0,
         )?;
     }
     Ok((report, ok))
