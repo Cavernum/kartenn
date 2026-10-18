@@ -129,10 +129,20 @@ routeur complet, sauf mention « vrai TCP ».
   `tests/cursor.rs` (route d'essai). Écarts au design : le curseur porte aussi la
   collection (un curseur d'une autre liste → `invalid-cursor`) ; pas de « sens », la
   pagination n'allant qu'en avant
-- [ ] 11. Filtres par paramètres (opérateurs après `:`), traduction vers
+- [x] 11. Filtres par paramètres (opérateurs après `:`), traduction vers
   `kartenn_store_pg::filter`, route `QUERY` (`any()`, contrôle de méthode, `Allow` écrit,
   `Accept-Query`) — REQ-006-9, 10 — verify : mêmes éléments par `GET` et `QUERY` ;
   paramètre inconnu → 400 nommé ; `QUERY` sans `Content-Type` → 415 ; 405 et `Allow`
+  — `filter.rs` : `parse` (champs du noyau de la collection, `prop.<clé>`, `:between`
+  `a..b`, `:exists`, valeurs répétées → `OneOf`, 400 nommant le paramètre) vers
+  `Condition` du store ; corps `QUERY` (`filters[{field, op: eq|between|exists,
+  value}]`, bornes `[bas, haut]`) réécrit en paramètres canoniques, ajoutés à ceux de
+  l'URL, lus par l'extracteur `ListQuery` : même code et même curseur que `GET` ;
+  `collection(list)` ; `ProblemKind::MethodNotAllowed` ; `tests/filter.rs` (route
+  d'essai sur `filter_in`). Écarts : `get(…).fallback(…)` plutôt que `any()` (axum ne
+  connaît pas `QUERY` ; laisse place au `.post` de 006-14), 405 en `method-not-allowed`
+  (classe absente de la table « Erreurs ») ; clé non déclarée → 400 à la charge des
+  routes (006-12, 13)
 - [ ] 12. DTO et lectures des objets du noyau (entités, sites, domaines, préfixes,
   plages, adresses) avec résumés liés, historique, arbre, occupation, prochain libre,
   anomalies et acquittement — REQ-006-1, 2, 4, 23 — verify : clé naturelle en filtre ;

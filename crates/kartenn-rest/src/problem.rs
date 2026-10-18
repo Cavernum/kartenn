@@ -28,6 +28,8 @@ pub enum ProblemKind {
     CrossSiteRequest,
     /// The object is absent or invisible.
     NotFound,
+    /// The route does not take the method.
+    MethodNotAllowed,
     /// The state of the target does not allow the action.
     Conflict,
     /// An undo that conflicts with later changes.
@@ -60,13 +62,14 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
         Self::Forbidden,
         Self::CrossSiteRequest,
         Self::NotFound,
+        Self::MethodNotAllowed,
         Self::Conflict,
         Self::UndoConflict,
         Self::IdempotencyInProgress,
@@ -93,6 +96,7 @@ impl ProblemKind {
             Self::Forbidden => "forbidden",
             Self::CrossSiteRequest => "cross-site-request",
             Self::NotFound => "not-found",
+            Self::MethodNotAllowed => "method-not-allowed",
             Self::Conflict => "conflict",
             Self::UndoConflict => "undo-conflict",
             Self::IdempotencyInProgress => "idempotency-in-progress",
@@ -118,6 +122,7 @@ impl ProblemKind {
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::CrossSiteRequest => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict | Self::UndoConflict | Self::IdempotencyInProgress => {
                 StatusCode::CONFLICT
             }
@@ -145,6 +150,7 @@ impl ProblemKind {
             Self::Forbidden => "The action is not permitted",
             Self::CrossSiteRequest => "Cross-site request refused",
             Self::NotFound => "Not found",
+            Self::MethodNotAllowed => "Method not allowed",
             Self::Conflict => "The current state does not allow the action",
             Self::UndoConflict => "The undo conflicts with later changes",
             Self::IdempotencyInProgress => "A request with this idempotency key is in progress",

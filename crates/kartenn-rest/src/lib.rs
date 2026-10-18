@@ -9,6 +9,7 @@ pub mod csrf;
 pub mod cursor;
 pub mod dated;
 pub mod error;
+pub mod filter;
 pub mod health;
 pub mod problem;
 pub mod quota;
