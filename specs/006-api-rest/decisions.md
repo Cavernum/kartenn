@@ -125,3 +125,54 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Rejeté : un seul problème toujours (amender REQ-004-7, corrections en boucle) ; liste
   mêlant les types (contraire au RECOMMENDED de la RFC) ; format JSON propre.
 - Décidé par : utilisateur (après relecture de RFC 9457 §3, 2026-10-18)
+
+## H8 — Concurrence et idempotence
+- Décision : **`If-Match` obligatoire sur les ressources, `Idempotency-Key` en
+  en-tête**.
+  - Concurrence : `PATCH` et `DELETE` d'une ressource exigent `If-Match` ; absent →
+    428 (RFC 6585 §3, la réponse dit comment resoumettre), périmé → 412. L'ETag est la
+    version de l'objet et devient l'`expected` de l'opération (REQ-004-11) : un seul
+    mécanisme. Dans `POST /changesets`, `expected` reste dans le corps, par opération,
+    facultatif comme en 004.
+  - Idempotence : en-tête `Idempotency-Key` sur `POST /changesets` et sur les créations
+    de ressources, porté sur l'`idempotency_key` existante avec les règles de
+    REQ-004-10 (24 h, par identité). Même clé, contenu différent → 422 ; même clé en
+    cours de traitement → 409 ; rejeu après la fin → la première réponse, inchangée. La
+    durée de rétention est publiée dans l'OpenAPI.
+- Réserve : le draft `Idempotency-Key` a expiré (-07) ; kartenn suit une proposition
+  de la voie normative, pas un standard. La sémantique est celle de la 004 dans tous les
+  cas.
+- Pourquoi : un référentiel édité à plusieurs (Web, CLI, connecteurs) perd sinon des
+  modifications en silence ; la précondition ne coûte qu'un GET que le client fait déjà.
+  L'en-tête est reconnu par les intergiciels de rejeu génériques, la clé dans le corps
+  non.
+- Rejeté : `If-Match` facultatif (mises à jour perdues dès qu'il manque) ; clé
+  d'idempotence dans le corps seulement (invisible des clients HTTP génériques).
+- Décidé par : recommandation acceptée
+
+## H9 — Imports et opérations longues
+- Décision : **ressource d'import remplie par morceaux, exécutée par un worker sur
+  PostgreSQL, suivie par interrogation**.
+  - Dépôt : `POST /v1/imports` (source) → 201 et `Location` ;
+    `POST /v1/imports/{id}/chunks` avec un numéro de séquence et 10 000 éléments au
+    plus (un morceau renvoyé sous le même numéro est ignoré) ;
+    `POST /v1/imports/{id}/start` clôt le dépôt, trie et découpe (004), répond 202 et
+    `Location` vers l'import.
+  - Exécution : chaque instance porte un worker qui réclame un import prêt
+    (`FOR UPDATE SKIP LOCKED`, bail et battement de cœur) ; une instance morte laisse
+    expirer le bail, une autre reprend au premier lot non appliqué (REQ-004-29). Pas de
+    file externe : PostgreSQL reste le seul composant à état (D9, D15).
+  - Suivi : `GET /v1/imports/{id}` (état, lots appliqués et restants, rapport ;
+    `Retry-After` indicatif pendant l'exécution) ; `POST …/resume` relance un import en
+    pause ; `POST …/cancel` l'arrête après le lot en cours, les lots appliqués restent
+    (changesets ordinaires, annulables).
+  - Les imports sont la seule opération longue : les changesets restent synchrones, pas
+    de ressource générique `/operations`. Pas de notification de fin : les événements
+    sortants relèvent de leurs specs.
+- Pourquoi : corps bornés (une seule limite 413 pour l'API), dépôt reprenable après une
+  coupure, aucune requête n'occupe une instance pendant les minutes d'envoi de 10⁶
+  éléments ; la reprise par bail découle de REQ-004-29 sans nouvel état.
+- Rejeté : corps unique en flux JSON Lines (une coupure fait tout recommencer, limite
+  de taille propre à la route, requête longue) ; file de messages externe (composant à
+  état de plus, contraire à D9).
+- Décidé par : recommandation acceptée
