@@ -75,7 +75,7 @@ pub fn permission(name: &str) -> Option<&'static Permission> {
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
 /// `prop.*.<action>`, or `*`. The key of a property permission is checked against the
-/// declarations by the service.
+/// declarations by the service (`rbac::check`).
 #[must_use]
 pub fn valid_role_entry(entry: &str) -> bool {
     if entry == "*" || permission(entry).is_some() {

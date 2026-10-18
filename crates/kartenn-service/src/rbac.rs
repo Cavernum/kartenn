@@ -287,6 +287,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
             format!("this administration needs {permission}"),
         )
     };
+    undeclared(tx, planned, violations).await?;
     for p in planned {
         let Planned::Rbac(op) = p else { continue };
         let (permission, scope) = match op {
@@ -358,6 +359,60 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
                         ),
                     )
                     .with_subjects([*id]),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The property permissions of the roles `planned` sets whose key is declared neither in
+/// the base nor by the same changeset (REQ-005-17): `core.role.invalid`.
+async fn undeclared<T: WriteTx + Send>(
+    tx: &mut T,
+    planned: &[Planned],
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let mut declared: std::collections::BTreeSet<String> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Declare { declaration, .. } => Some(declaration.key.to_string()),
+            _ => None,
+        })
+        .collect();
+    let mut namespaces = std::collections::BTreeSet::new();
+    for p in planned {
+        let Planned::Rbac(RbacOp::SetRole {
+            key: role, entries, ..
+        }) = p
+        else {
+            continue;
+        };
+        for entry in entries {
+            let Some((key, _)) = entry
+                .strip_prefix("prop.")
+                .and_then(|rest| rest.rsplit_once('.'))
+            else {
+                continue;
+            };
+            if key == "*" {
+                continue;
+            }
+            let namespace = key.split('.').next().unwrap_or_default();
+            if namespaces.insert(namespace.to_owned()) {
+                declared.extend(
+                    tx.declarations_in(namespace)
+                        .await?
+                        .into_iter()
+                        .map(|(_, d, _)| d.key.to_string()),
+                );
+            }
+            if !declared.contains(key) {
+                violations.push(
+                    invalid(format!(
+                        "the role '{role}' names the property '{key}', which is not declared"
+                    ))
+                    .with_subjects([RBAC_OBJECT]),
                 );
             }
         }

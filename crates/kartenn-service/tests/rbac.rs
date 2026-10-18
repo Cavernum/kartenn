@@ -845,6 +845,53 @@ async fn the_delivered_roles_are_synchronised_once(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_role_names_known_permissions_only(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    // Outside the catalogue, or a property no one declared (REQ-005-17).
+    for entries in [&["core.nothing.read"][..], &["prop.custom.nowhere.write"]] {
+        let outcome = t.submit_as(&root, vec![set_role("odd", entries)]).await;
+        assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{entries:?}");
+    }
+    // A declared property, a pattern, or a property declared by the same changeset.
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                Operation::DeclareProperty {
+                    local: None,
+                    declaration: kartenn_service::operations::DeclarationInput {
+                        key: "custom.rack".into(),
+                        value_type: kartenn_service::operations::TypeInput::Int {
+                            min: 0,
+                            max: 100,
+                        },
+                        cardinality: kartenn_core::values::Cardinality::Single,
+                        carriers: vec!["address".into()],
+                        inherit: None,
+                        module: None,
+                        obligations: Vec::new(),
+                        expected: None,
+                    },
+                },
+                set_role(
+                    "racks",
+                    &[
+                        "prop.core.owner.read",
+                        "prop.*.read",
+                        "prop.custom.rack.write",
+                    ],
+                ),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn an_administrator_binds_and_unbinds(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
