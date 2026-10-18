@@ -125,6 +125,14 @@ pub(crate) async fn facts(pool: &PgPool, id: Uuid) -> Result<Option<UndoFacts>, 
          UNION SELECT 'property', id FROM property_declaration_history WHERE changeset_id = $1
          UNION SELECT 'enum_value', id FROM property_enum_value WHERE changeset_id = $1
          UNION SELECT 'enum_value', id FROM property_enum_value_history WHERE changeset_id = $1
+         -- The administration of the RBAC (005): roles, bindings, attachments, accounts,
+         -- secrets and identity states have no inverse operation; listed by operation.
+         UNION SELECT payload ->> 'op', changeset_id FROM changeset_operation
+               WHERE changeset_id = $1
+                 AND payload ->> 'op' IN ('set_role', 'close_role', 'bind', 'unbind',
+                                          'attach_issuer', 'detach_issuer',
+                                          'create_service_account', 'add_service_secret',
+                                          'revoke_service_secret', 'set_identity_state')
          ORDER BY 1, 2",
     )
     .bind(id)

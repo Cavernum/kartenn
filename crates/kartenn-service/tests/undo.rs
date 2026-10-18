@@ -258,3 +258,33 @@ async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     assert_eq!(undo.unsupported.len(), 1);
     assert_eq!(undo.unsupported[0].0, "property");
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_administration_changeset_says_it_cannot_be_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let administered = f
+        .applied(vec![
+            Operation::SetRole {
+                key: "auditor".into(),
+                label: "Auditor".into(),
+                entries: vec!["core.audit.read".into()],
+            },
+            Operation::AttachIssuer {
+                issuer: "https://idp.example.invalid".into(),
+                entity: None,
+            },
+        ])
+        .await;
+    let undo = inverse(&f.store, administered, f.author)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(undo.request.operations.is_empty());
+    assert_eq!(
+        undo.unsupported,
+        [
+            ("attach_issuer".to_owned(), administered),
+            ("set_role".to_owned(), administered)
+        ]
+    );
+}
