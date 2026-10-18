@@ -117,8 +117,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   (`burn`, pas d'oracle temporel) ; événements `authn.breakglass.used` et
   `account.breakglass.created` (criticité haute) ; la durée d'1 h de la session est
   appliquée par la couche HTTP (spec 006) (`tests/breakglass.rs`, `rbac_schema.rs`)
-- [ ] 15. Configuration `[auth]` et événements d'authentification — REQ-005-28 — verify :
-  configurations invalides refusées ; événements de chaque refus
+- [x] 15. Configuration `[auth]` et événements d'authentification — REQ-005-28 — verify :
+  configurations invalides refusées ; événements de chaque refus — `config::Auth`
+  (durées bornées, URL en https, identifiants uniques, algorithmes à clé publique
+  seulement), `kartenn_server::auth::load` (trousseau et secrets lus au démarrage) ;
+  `authn::Failure` porte l'émetteur ; raisons codées par `LoginError::reason` et
+  `TokenError::reason`, un refus de jeton garde sa cause (`signature`, `expired`,
+  `audience`, `nonce`) (`config.rs`, `auth.rs`, `tests/refusals.rs`)
 
 ## P3 — Budgets et synchronisation
 

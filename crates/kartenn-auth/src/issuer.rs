@@ -58,6 +58,20 @@ pub struct Discovery {
     pub authorization_response_iss_parameter_supported: bool,
 }
 
+/// The algorithm named `name` if kartenn accepts it for the tokens of an issuer: signatures
+/// by a public key only, never `none` nor a MAC whose key the clients share (RFC 8725 §3.1,
+/// §3.2; a choice of kartenn).
+#[must_use]
+pub fn accepted_algorithm(name: &str) -> Option<Algorithm> {
+    use Algorithm::{ES256, ES384, EdDSA, PS256, PS384, PS512, RS256, RS384, RS512};
+    let algorithm: Algorithm = name.parse().ok()?;
+    matches!(
+        algorithm,
+        RS256 | RS384 | RS512 | PS256 | PS384 | PS512 | ES256 | ES384 | EdDSA
+    )
+    .then_some(algorithm)
+}
+
 impl IssuerConfig {
     /// Where its discovery document lies.
     #[must_use]
@@ -66,5 +80,19 @@ impl IssuerConfig {
             "{}/.well-known/openid-configuration",
             self.issuer.trim_end_matches('/')
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_public_key_signatures_are_accepted() {
+        assert_eq!(accepted_algorithm("RS256"), Some(Algorithm::RS256));
+        assert_eq!(accepted_algorithm("EdDSA"), Some(Algorithm::EdDSA));
+        for refused in ["none", "HS256", "HS512", "rs256", ""] {
+            assert_eq!(accepted_algorithm(refused), None, "{refused}");
+        }
     }
 }

@@ -31,6 +31,147 @@ pub struct Config {
     /// Audit journal.
     #[serde(default)]
     pub audit: Audit,
+    /// Authentication (spec 005); without it, no one can log in.
+    #[serde(default)]
+    pub auth: Option<Auth>,
+}
+
+/// Authentication (spec 005, design « Configuration »): the key ring, the sessions and the
+/// OIDC issuers. Their confinement lives in the base (K11).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Auth {
+    /// The key ring: one key of 256 bits per line, the first one current.
+    pub key_file: PathBuf,
+    /// Inactivity that closes a session, in minutes (1 to 60; REQ-005-6).
+    #[serde(default = "idle_minutes")]
+    pub session_idle_minutes: u64,
+    /// Lifetime of a session whatever its activity, in hours (1 to 24; REQ-005-6).
+    #[serde(default = "absolute_hours")]
+    pub session_absolute_hours: u64,
+    /// Where the issuers send the browser back, compared exactly (RFC 9700 §4.1.3).
+    pub redirect_uri: Option<String>,
+    /// The issuers.
+    #[serde(default)]
+    pub issuers: Vec<Issuer>,
+}
+
+/// An OIDC issuer.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Issuer {
+    /// Local name: lowercase letters, digits and dashes.
+    pub id: String,
+    /// Issuer identifier (`iss`).
+    pub issuer: String,
+    /// Client of kartenn at this issuer.
+    pub client_id: String,
+    /// File holding its secret.
+    pub client_secret_file: PathBuf,
+    /// Audience of the access tokens of the clients other than browsers.
+    pub audience: String,
+    /// Claim holding the groups.
+    #[serde(default = "groups_claim")]
+    pub groups_claim: String,
+    /// Algorithms of its signatures, public key only.
+    #[serde(default = "algorithms")]
+    pub algorithms: Vec<String>,
+}
+
+const fn idle_minutes() -> u64 {
+    30
+}
+
+const fn absolute_hours() -> u64 {
+    8
+}
+
+fn groups_claim() -> String {
+    "groups".into()
+}
+
+fn algorithms() -> Vec<String> {
+    vec!["RS256".into(), "ES256".into()]
+}
+
+/// Whether `url` is `https`, or `http` on the loopback for development (RFC 8252 §7.3),
+/// without fragment (RFC 6749 §3.1.2).
+fn secure_url(url: &str) -> bool {
+    let loopback = ["http://127.0.0.1", "http://[::1]", "http://localhost"]
+        .iter()
+        .any(|base| {
+            url.strip_prefix(base)
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with([':', '/']))
+        });
+    (url.len() > "https://".len() && url.starts_with("https://") || loopback) && !url.contains('#')
+}
+
+fn check_auth(auth: &Auth) -> Result<(), String> {
+    if !(1..=60).contains(&auth.session_idle_minutes) {
+        return Err("auth.session_idle_minutes: from 1 to 60".into());
+    }
+    if !(1..=24).contains(&auth.session_absolute_hours) {
+        return Err("auth.session_absolute_hours: from 1 to 24".into());
+    }
+    if auth.session_idle_minutes > auth.session_absolute_hours * 60 {
+        return Err("auth.session_idle_minutes exceeds the absolute duration".into());
+    }
+    match &auth.redirect_uri {
+        None if !auth.issuers.is_empty() => {
+            return Err("auth.redirect_uri: required with issuers".into());
+        }
+        Some(uri) if !secure_url(uri) => {
+            return Err("auth.redirect_uri: https, without fragment".into());
+        }
+        _ => {}
+    }
+    let (mut ids, mut urls) = (
+        std::collections::BTreeSet::new(),
+        std::collections::BTreeSet::new(),
+    );
+    for issuer in &auth.issuers {
+        let id = &issuer.id;
+        if id.is_empty()
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            return Err(format!("auth.issuers: {id:?} is not a local name"));
+        }
+        if !ids.insert(id) {
+            return Err(format!("auth.issuers: two issuers are named {id}"));
+        }
+        if !urls.insert(issuer.issuer.trim_end_matches('/')) {
+            return Err(format!(
+                "auth.issuers.{id}: another issuer has this identifier"
+            ));
+        }
+        if !secure_url(&issuer.issuer) || issuer.issuer.contains('?') {
+            // OpenID Connect Discovery 1.0 §3: https, no query, no fragment.
+            return Err(format!("auth.issuers.{id}.issuer: https, without query"));
+        }
+        if issuer.client_id.is_empty()
+            || issuer.audience.is_empty()
+            || issuer.groups_claim.is_empty()
+        {
+            return Err(format!(
+                "auth.issuers.{id}: client_id, audience and groups_claim are required"
+            ));
+        }
+        if issuer.algorithms.is_empty() {
+            return Err(format!("auth.issuers.{id}.algorithms: at least one"));
+        }
+        if let Some(refused) = issuer
+            .algorithms
+            .iter()
+            .find(|a| kartenn_auth::issuer::accepted_algorithm(a).is_none())
+        {
+            return Err(format!(
+                "auth.issuers.{id}.algorithms: {refused} refused (public key signatures only)"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Technical logs and OpenTelemetry (REQ-012-20, 24).
@@ -428,6 +569,9 @@ fn check(config: &Config) -> Result<(), ConfigError> {
         // A retention of zero days would purge every sealed and exported event.
         return invalid("audit.retention_days: at least one day for each criticality".into());
     }
+    if let Some(auth) = &config.auth {
+        check_auth(auth).map_err(ConfigError::Invalid)?;
+    }
     Ok(())
 }
 
@@ -513,5 +657,111 @@ mod tests {
         let config =
             from_toml("audit.retention_days = { low = 30, normal = 365, high = 1095 }").unwrap();
         assert_eq!(config.audit.retention_days.low, 30);
+    }
+
+    const AUTH: &str = r#"
+        [auth]
+        key_file = "/run/secrets/kartenn-auth.keys"
+        redirect_uri = "https://kartenn.example.invalid/auth/callback"
+        [[auth.issuers]]
+        id = "internal"
+        issuer = "https://idp.example.invalid/realms/main"
+        client_id = "kartenn"
+        client_secret_file = "/run/secrets/oidc-internal"
+        audience = "kartenn"
+    "#;
+
+    #[test]
+    fn an_auth_section_takes_the_defaults_of_the_design() {
+        assert_eq!(from_toml("").unwrap().auth, None);
+        let auth = from_toml(AUTH).unwrap().auth.unwrap();
+        assert_eq!(
+            (auth.session_idle_minutes, auth.session_absolute_hours),
+            (30, 8)
+        );
+        assert_eq!(auth.issuers[0].groups_claim, "groups");
+        assert_eq!(auth.issuers[0].algorithms, ["RS256", "ES256"]);
+        let local = AUTH
+            .replace("https://kartenn.example.invalid", "http://127.0.0.1:8080")
+            .replace("https://idp.example.invalid", "http://localhost:8180");
+        assert!(from_toml(&local).is_ok(), "the loopback, for development");
+    }
+
+    #[test]
+    fn a_faulty_auth_section_stops_the_start_with_its_reason() {
+        let second = r#"
+            [[auth.issuers]]
+            id = "internal"
+            issuer = "https://other.example.invalid"
+            client_id = "kartenn"
+            client_secret_file = "/x"
+            audience = "kartenn"
+        "#;
+        let cases = [
+            (AUTH.replace("key_file", "keyfile"), "keyfile"),
+            (
+                AUTH.replace("[auth]", "[auth]\nsession_idle_minutes = 0"),
+                "session_idle_minutes",
+            ),
+            (
+                AUTH.replace("[auth]", "[auth]\nsession_idle_minutes = 90"),
+                "session_idle_minutes",
+            ),
+            (
+                AUTH.replace("[auth]", "[auth]\nsession_absolute_hours = 48"),
+                "session_absolute_hours",
+            ),
+            (
+                AUTH.replace(
+                    "redirect_uri = \"https://kartenn.example.invalid/auth/callback\"",
+                    "",
+                ),
+                "redirect_uri: required",
+            ),
+            (
+                AUTH.replace(
+                    "https://kartenn.example.invalid",
+                    "http://kartenn.example.invalid",
+                ),
+                "redirect_uri",
+            ),
+            (AUTH.replace("callback", "callback#x"), "fragment"),
+            (
+                AUTH.replace("https://idp.example.invalid", "http://idp.example.invalid"),
+                "issuer: https",
+            ),
+            (
+                AUTH.replace("realms/main", "realms/main?x=1"),
+                "without query",
+            ),
+            (
+                AUTH.replace("id = \"internal\"", "id = \"Internal IdP\""),
+                "local name",
+            ),
+            (format!("{AUTH}{second}"), "two issuers"),
+            (
+                format!(
+                    "{AUTH}{}",
+                    second
+                        .replace("\"internal\"", "\"partner\"")
+                        .replace("other.example.invalid", "idp.example.invalid/realms/main/")
+                ),
+                "another issuer",
+            ),
+            (
+                AUTH.replace("audience = \"kartenn\"", "audience = \"\""),
+                "audience",
+            ),
+            (format!("{AUTH}algorithms = []"), "at least one"),
+            (
+                format!("{AUTH}algorithms = [\"RS256\", \"HS256\"]"),
+                "HS256 refused",
+            ),
+            (format!("{AUTH}algorithms = [\"none\"]"), "none refused"),
+        ];
+        for (text, reason) in cases {
+            let error = from_toml(&text).unwrap_err().to_string();
+            assert!(error.contains(reason), "{reason}: {error}");
+        }
     }
 }

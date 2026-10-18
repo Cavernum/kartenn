@@ -99,6 +99,28 @@ changesets en attente. Le transport (webhook, file de messages) est l'objet de l
     signatures ; code de sortie 2 si le journal est altéré (REQ-012-14) ;
   - `audit purge <url> [<config>]` : rétention par criticité (REQ-012-16), pour une
     minuterie quotidienne (cron, systemd).
+  - `breakglass create <url> <nom> <heures> <fichier-de-clés>` : compte de secours valable
+    de 1 à 24 h, avec la connexion du propriétaire du schéma ; affiche une fois la phrase
+    de passe et l'URI `otpauth://` du second facteur (REQ-005-14).
+
+## Authentification (spec 005)
+
+**Réglages** (`[auth]`, facultatif : sans lui, personne ne peut se connecter) :
+`key_file` (trousseau, une clé de 256 bits par ligne, la première courante),
+`session_idle_minutes` (30, de 1 à 60), `session_absolute_hours` (8, de 1 à 24),
+`redirect_uri` (requis avec des émetteurs) et `[[auth.issuers]]` : `id` (minuscules,
+chiffres, tirets ; unique), `issuer`, `client_id`, `client_secret_file`, `audience`,
+`groups_claim` (`groups`), `algorithms` (`["RS256", "ES256"]`).
+
+- `redirect_uri` et `issuer` sont en `https`, ou en `http` sur la boucle locale pour le
+  développement (RFC 8252 §7.3), sans fragment (RFC 6749 §3.1.2) ; un `issuer` sans
+  requête (OpenID Connect Discovery 1.0 §3).
+- `algorithms` ne prend que des signatures à clé publique (RS, PS, ES, EdDSA) : `none` et
+  les HMAC sont refusés (RFC 8725 §3.1 ; choix de kartenn).
+- Le trousseau et les secrets des clients sont lus au démarrage : un fichier absent, un
+  trousseau mal formé ou un secret vide refusent le démarrage (`kartenn_server::auth`).
+- Le rattachement d'un émetteur à une entité vit en base (K11), pas dans la
+  configuration.
 
 ## Journalisation et audit (spec 012, ADR 0019)
 

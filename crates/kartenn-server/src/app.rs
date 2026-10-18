@@ -420,6 +420,8 @@ pub async fn run(
         )?),
         None => None,
     };
+    // The files of `[auth]`, before anything is recorded: a missing one stops the start.
+    let auth = config.auth.as_ref().map(crate::auth::load).transpose()?;
     let mut sinks = sinks(config)?;
     let journal = PgAuditJournal::new(pool.clone(), instance.clone());
     let started = RequestContext::system()
@@ -430,6 +432,11 @@ pub async fn run(
         .await
         .map_err(|e| anyhow!("recording the start: {}", e.0))?;
     tracing::info!(name: "sys.instance.started", version = instance.version, instance = %id, "kartenn started");
+    if let Some(auth) = &auth {
+        tracing::info!(issuers = auth.issuers.len(), "authentication configured");
+    } else {
+        tracing::warn!("no [auth] section: no one can log in");
+    }
     disabled_sinks(&pool, &journal, config).await?;
 
     let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
