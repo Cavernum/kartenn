@@ -72,6 +72,54 @@ in {
     '';
   };
 
+  # Short outputs for Claude Code sessions (CLAUDE.md, « Économie de contexte »): a
+  # verdict, and the detail only on failure; the full logs stay in a temporary directory.
+  # `k-check [nextest args…]`, e.g. `k-check -p kartenn-service rbac`.
+  scripts.k-check = {
+    description = "fmt, clippy and tests, printing a one-line verdict or the failures only";
+    exec = ''
+      set -uo pipefail
+      log=$(mktemp -d -t k-check.XXXXXX)
+      if ! cargo fmt --all --check >"$log/fmt" 2>&1; then
+        echo "KO fmt ($log/fmt) — cargo fmt --all"; grep '^Diff in' "$log/fmt" | head -20; exit 1
+      fi
+      if ! cargo clippy -q --workspace --all-targets --all-features >"$log/clippy" 2>&1; then
+        echo "KO clippy ($log/clippy)"; grep -E '^(error|warning)|^ *-->' "$log/clippy" | head -40; exit 1
+      fi
+      warnings=$(grep -c '^warning' "$log/clippy" || true)
+      [ "$warnings" -gt 0 ] && warnings=", clippy : $warnings avertissement(s)" || warnings=""
+      if ! cargo nextest run --workspace --all-features --hide-progress-bar \
+          --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
+        echo "KO tests ($log/test)"
+        grep -E '^ +(FAIL|SIGSEGV|TIMEOUT|LEAK)|^error' "$log/test" | sort -u | head -20
+        echo "---"; grep -E 'panicked at|assertion|left:|right:|^error(\[|:)| --> ' "$log/test" | head -40
+        exit 1
+      fi
+      if [ $# -eq 0 ] && ! cargo test -q --workspace --doc --all-features >"$log/doc" 2>&1; then
+        echo "KO doctests ($log/doc)"; grep -E 'FAILED|panicked|error' "$log/doc" | head -30; exit 1
+      fi
+      echo "OK — $(grep -E '^ +Summary' "$log/test" | tail -1 | sed 's/^ *//')$warnings"
+    '';
+  };
+
+  # Outline of a file (items with line numbers), to read a targeted range afterwards:
+  # `k-ctx <file>…`.
+  scripts.k-ctx = {
+    description = "Outline a Rust, SQL or Markdown file with line numbers";
+    exec = ''
+      set -uo pipefail
+      for f in "$@"; do
+        echo "== $f ($(wc -l <"$f") lignes)"
+        case "$f" in
+          *.rs) grep -nE '^\s*(pub(\([a-z]+\))? )?(async |const |unsafe )*(fn|struct|enum|trait|impl|mod|type|macro_rules!) |^\s*#\[(test|sqlx::test|tokio::test)' "$f" ;;
+          *.sql) grep -niE '^\s*(create|alter|drop|comment on|grant|revoke) ' "$f" ;;
+          *.md) grep -nE '^#{1,4} |^- \[[ x]\] [0-9]+\.' "$f" ;;
+          *) grep -nE '^\S' "$f" | head -80 ;;
+        esac
+      done
+    '';
+  };
+
   # Budgets of the properties (spec 003, REQ-003-26) on the reference dataset of
   # REQ-002-45, in a database recreated for the run: `bench-properties [seed] [small]`.
   scripts.bench-properties = {
