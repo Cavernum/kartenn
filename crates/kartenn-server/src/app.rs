@@ -434,6 +434,7 @@ pub fn bounded(options: PgConnectOptions, bound: Duration) -> PgConnectOptions {
 ///
 /// A configuration that cannot be put to work (an output that cannot start, an unreadable
 /// key), or a database that refuses the start event.
+#[allow(clippy::too_many_lines)] // the start, the main loop and the stop, in order
 pub async fn run(
     pool: PgPool,
     config: &Config,
@@ -472,7 +473,17 @@ pub async fn run(
     disabled_sinks(&pool, &journal, config).await?;
     let audit_status = AuditStatus::default();
     let mut api = match &config.http {
-        Some(http) => Some(Api::start(http, &pool, &audit_status, auth.as_ref(), &journal).await?),
+        Some(http) => Some(
+            Api::start(
+                http,
+                &pool,
+                &audit_status,
+                auth.as_ref(),
+                &journal,
+                config.audit.read_audit(),
+            )
+            .await?,
+        ),
         None => None,
     };
 
@@ -622,6 +633,7 @@ impl Api {
         audit: &AuditStatus,
         auth: Option<&crate::auth::Loaded>,
         journal: &PgAuditJournal,
+        read_audit: kartenn_service::reads::ReadAudit,
     ) -> anyhow::Result<Self> {
         let authn = auth
             .map(|auth| authn(auth, pool, journal).map(Arc::new))
@@ -661,8 +673,23 @@ impl Api {
         let listener = tokio::net::TcpListener::bind(http.listen)
             .await
             .with_context(|| format!("listening on {}", http.listen))?;
+        let write_transaction_timeout = Duration::from_secs(http.write_transaction_timeout_s);
+        let objects = kartenn_rest::objects::Api {
+            pool: pool.clone(),
+            // Without `[auth]` no request reaches the objects; a fresh ring will do.
+            ring: match auth {
+                Some(auth) => auth.ring.clone(),
+                None => kartenn_auth::keys::KeyRing::parse(
+                    &kartenn_auth::keys::KeyRing::generate_line("k1"),
+                )
+                .context("drawing a key ring")?,
+            },
+            bound: write_transaction_timeout,
+            journal: journal.clone(),
+            audit: read_audit,
+        };
         let app = kartenn_rest::router(
-            kartenn_rest::v1(),
+            kartenn_rest::v1(objects),
             Arc::new(kartenn_rest::health::PgReadiness::new(
                 pool.clone(),
                 audit.clone(),
@@ -676,7 +703,7 @@ impl Api {
                     n => n,
                 },
                 public_origin: http.public_origin.clone(),
-                write_transaction_timeout: Duration::from_secs(http.write_transaction_timeout_s),
+                write_transaction_timeout,
             },
             quotas.clone(),
             authenticator,

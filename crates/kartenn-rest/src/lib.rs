@@ -11,6 +11,7 @@ pub mod dated;
 pub mod error;
 pub mod filter;
 pub mod health;
+pub mod objects;
 pub mod problem;
 pub mod quota;
 pub mod request_id;
@@ -33,8 +34,8 @@ use crate::quota::{InFlight, Quotas};
 use crate::transport::Settings;
 
 /// The routes under `/v1`.
-pub fn v1() -> Router {
-    Router::new()
+pub fn v1(api: objects::Api) -> Router {
+    objects::routes(api)
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

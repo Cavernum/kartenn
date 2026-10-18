@@ -31,6 +31,19 @@ impl Authenticator for Anyone {
     }
 }
 
+/// Any `Bearer` token is this principal; any other proof is refused.
+pub(crate) struct As(pub Principal);
+
+impl Authenticator for As {
+    fn authenticate(&self, proof: Proof, _: Source) -> Answer<'_, Authenticated> {
+        let principal = match proof {
+            Proof::Bearer(_) => Ok(self.0.clone().into()),
+            _ => Err(Refusal::Unauthenticated),
+        };
+        Box::pin(std::future::ready(principal))
+    }
+}
+
 /// [`Anyone`], as the router takes it.
 pub(crate) fn anyone() -> Arc<dyn Authenticator> {
     Arc::new(Anyone(Uuid::now_v7()))

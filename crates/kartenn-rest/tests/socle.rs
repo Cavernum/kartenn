@@ -92,7 +92,7 @@ async fn a_panic_answers_a_generic_500_with_the_request_identifier() {
 
 #[tokio::test]
 async fn an_unknown_route_is_a_not_found_problem() {
-    let response = call(app(kartenn_rest::v1()), "/v1/nothing").await;
+    let response = call(app(Router::new()), "/v1/nothing").await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let id = request_id(&response);
     let body = problem(response).await;
@@ -164,7 +164,7 @@ async fn the_same_identifier_is_in_the_response_the_log_and_the_audit() {
 async fn ready_follows_the_database_and_the_audit_outputs(pool: PgPool) {
     let audit = AuditStatus::default();
     let app = kartenn_rest::router(
-        kartenn_rest::v1(),
+        Router::new(),
         Arc::new(PgReadiness::new(pool.clone(), audit.clone())),
         Settings::default(),
         quotas(),

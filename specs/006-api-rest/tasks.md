@@ -143,12 +143,29 @@ routeur complet, sauf mention « vrai TCP ».
   connaît pas `QUERY` ; laisse place au `.post` de 006-14), 405 en `method-not-allowed`
   (classe absente de la table « Erreurs ») ; clé non déclarée → 400 à la charge des
   routes (006-12, 13)
-- [ ] 12. DTO et lectures des objets du noyau (entités, sites, domaines, préfixes,
-  plages, adresses) avec résumés liés, historique, arbre, occupation, prochain libre,
-  anomalies et acquittement — REQ-006-1, 2, 4, 23 — verify : clé naturelle en filtre ;
-  renommage sans changement d'URL ; 404 identique pour invisible et absent
+- [x] 12a. État de `v1`, DTO et lectures des objets du noyau (entités, sites, domaines,
+  préfixes, plages, adresses) : listes paginées et filtrées par clé naturelle, lecture
+  par UUID avec résumés liés, historique — REQ-006-1, 2, 4, 23 — verify : clé naturelle
+  en filtre ; renommage sans changement d'URL ; 404 identique pour invisible et absent
+  — `objects.rs` : `Api` (pool, anneau des curseurs, borne, journal, `ReadAudit`),
+  `v1(api)`, DTO par type (résumés `{id, slug, href}`, `links.self/history/properties`,
+  valeurs canoniques par le noyau), filtres de clé naturelle (égalité ou « l'une de »,
+  valeurs vérifiées), lecture par `reads::read_object` (droits, audit, 404 si autre
+  type), historique (droit de lecture actuel, sinon 404) ; listes et historique audités
+  (`data.objects.read`) ; `list::objects`, `list::link`, `list::history` (store,
+  `list::prefixes` réécrit dessus) et migration 0035 (index de clé) ; câblage dans
+  `app::Api::start` (anneau de `[auth]`, sinon tiré au départ) ; `tests/objects.rs`.
+  Dettes : historique non paginé ; `prop.<clé>` → 400 jusqu'à 006-13
+- [ ] 12b. Arbre : enfants, ancêtres, occupation, prochain libre (`kind=prefix&length=…`,
+  `kind=address`), liens de navigation des préfixes — REQ-006-4, 23 — verify : enfants
+  invisibles absents ; préfixe invisible → 404
+- [ ] 12c. Anomalies : liste filtrée par la visibilité de l'objet, acquittement
+  (`core.anomaly.acknowledge` sur l'objet, `motive` obligatoire, événement d'audit, sans
+  `If-Match`) — REQ-006-4, 23 — verify : anomalie d'un objet invisible absente et 404 à
+  l'acquittement ; motif manquant → 422 ; acquittement audité
 - [ ] 13. Lectures des propriétés : déclarations, valeurs, valeurs résolues,
-  explication, suggestion, écarts ; lecture à un temps système passé — REQ-006-4 —
+  explication, suggestion, écarts ; lecture à un temps système passé ; filtres
+  `prop.<clé>` des listes de 12a — REQ-006-4, 9 —
   verify : valeur sensible masquée sans droit ; explication au passé
 
 ## P4 — Écritures
