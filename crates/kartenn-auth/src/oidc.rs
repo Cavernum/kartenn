@@ -24,7 +24,7 @@ use crate::http::{HttpClient, encode};
 use crate::issuer::{Discovery, IssuerConfig};
 use crate::keys::{KeyRing, Purpose};
 use crate::seal::{open, seal};
-use crate::tokens::{KeySource, TokenVerifier};
+use crate::tokens::{KeySource, TokenError, TokenVerifier};
 
 /// The cookie of a login in progress.
 pub const LOGIN_COOKIE: &str = "__Host-kartenn-login";
@@ -59,7 +59,10 @@ pub enum LoginError {
     Exchange(String),
     /// The ID token is refused (signature, audience, expiry, nonce).
     #[error("ID token: {0}")]
-    IdToken(String),
+    IdToken(TokenError),
+    /// A refreshed ID token names another subject (OIDC Core §12.2).
+    #[error("another subject")]
+    Subject,
 }
 
 impl LoginError {
@@ -74,7 +77,8 @@ impl LoginError {
             Self::Issuer => "iss",
             Self::Refused(_) => "refused",
             Self::Exchange(_) => "exchange",
-            Self::IdToken(_) => "id_token",
+            Self::IdToken(e) => e.reason(),
+            Self::Subject => "subject",
         }
     }
 }
@@ -310,7 +314,7 @@ impl<S: KeySource> Oidc<S> {
             .tokens
             .verify_id_token(issuer, &id_token, Some(&transaction.nonce))
             .await
-            .map_err(|e| LoginError::IdToken(e.to_string()))?;
+            .map_err(LoginError::IdToken)?;
         Ok(LoggedIn {
             issuer_id: issuer.id.clone(),
             issuer: verified.issuer,
@@ -357,9 +361,9 @@ impl<S: KeySource> Oidc<S> {
                 .tokens
                 .verify_id_token(issuer, &id_token, None)
                 .await
-                .map_err(|e| LoginError::IdToken(e.to_string()))?;
+                .map_err(LoginError::IdToken)?;
             if verified.subject != session.subject {
-                return Err(LoginError::IdToken("another subject".into()));
+                return Err(LoginError::Subject);
             }
             session.groups = verified.groups;
             session.id_token = Some(id_token);

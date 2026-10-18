@@ -39,12 +39,54 @@ pub enum TokenError {
     /// No key of the issuer with that `kid`, after a reload.
     #[error("unknown key")]
     UnknownKey,
-    /// Signature, audience, issuer or expiry refused.
+    /// A signature that no key of the issuer verifies.
+    #[error("signature")]
+    Signature,
+    /// Expired, or not valid yet.
+    #[error("expired")]
+    Expired,
+    /// An audience other than kartenn (or than its client, for an ID token).
+    #[error("audience")]
+    Audience,
+    /// The nonce of another login (OIDC Core §3.1.3.7, point 11).
+    #[error("nonce")]
+    Nonce,
+    /// Another refused claim: issuer, missing subject, authorised party.
     #[error("{0}")]
-    Invalid(String),
+    Claims(String),
     /// The keys cannot be fetched.
     #[error("keys: {0}")]
     Keys(String),
+}
+
+impl TokenError {
+    /// The coded reason of the audit (spec 005, design « Audit »).
+    #[must_use]
+    pub const fn reason(&self) -> &'static str {
+        match self {
+            Self::Malformed => "malformed",
+            Self::NotAccessToken => "token_type",
+            Self::UnknownIssuer => "issuer_unknown",
+            Self::Algorithm => "algorithm",
+            Self::UnknownKey | Self::Signature => "signature",
+            Self::Expired => "expired",
+            Self::Audience => "audience",
+            Self::Nonce => "nonce",
+            Self::Claims(_) => "claims",
+            Self::Keys(_) => "issuer_unavailable",
+        }
+    }
+}
+
+/// A refusal of `jsonwebtoken`, by its kind.
+fn refused(error: &jsonwebtoken::errors::Error) -> TokenError {
+    use jsonwebtoken::errors::ErrorKind;
+    match error.kind() {
+        ErrorKind::InvalidSignature => TokenError::Signature,
+        ErrorKind::ExpiredSignature | ErrorKind::ImmatureSignature => TokenError::Expired,
+        ErrorKind::InvalidAudience => TokenError::Audience,
+        _ => TokenError::Claims(error.to_string()),
+    }
 }
 
 /// A valid access token.
@@ -200,8 +242,7 @@ impl<S: KeySource> TokenVerifier<S> {
         validation.set_audience(&[&issuer.audience]);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
         validation.leeway = LEEWAY;
-        let data = decode::<Value>(token, &key, &validation)
-            .map_err(|e| TokenError::Invalid(e.to_string()))?;
+        let data = decode::<Value>(token, &key, &validation).map_err(|e| refused(&e))?;
         let claims = data.claims;
         let groups = claims[issuer.groups_claim.as_str()]
             .as_array()
@@ -232,7 +273,7 @@ impl<S: KeySource> TokenVerifier<S> {
     ///
     /// # Errors
     ///
-    /// [`TokenError`] for any refusal; a wrong nonce is [`TokenError::Invalid`].
+    /// [`TokenError`] for any refusal; a wrong nonce is [`TokenError::Nonce`].
     pub async fn verify_id_token(
         &self,
         issuer: &IssuerConfig,
@@ -255,7 +296,7 @@ impl<S: KeySource> TokenVerifier<S> {
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
         validation.leeway = LEEWAY;
         let claims = decode::<Value>(token, &key, &validation)
-            .map_err(|e| TokenError::Invalid(e.to_string()))?
+            .map_err(|e| refused(&e))?
             .claims;
         // No audience but the client (§3.1.3.7, point 3), and `azp` the client if present.
         let audiences: Vec<&str> = match &claims["aud"] {
@@ -264,20 +305,20 @@ impl<S: KeySource> TokenVerifier<S> {
             _ => Vec::new(),
         };
         if audiences.iter().any(|a| *a != issuer.client_id) {
-            return Err(TokenError::Invalid("an untrusted audience".into()));
+            return Err(TokenError::Audience);
         }
         if claims["azp"]
             .as_str()
             .is_some_and(|azp| azp != issuer.client_id)
         {
-            return Err(TokenError::Invalid("another authorised party".into()));
+            return Err(TokenError::Claims("another authorised party".into()));
         }
         if let Some(nonce) = nonce {
             let matches = claims["nonce"].as_str().is_some_and(|n| {
                 subtle::ConstantTimeEq::ct_eq(n.as_bytes(), nonce.as_bytes()).into()
             });
             if !matches {
-                return Err(TokenError::Invalid("nonce".into()));
+                return Err(TokenError::Nonce);
             }
         }
         Ok(VerifiedToken {

@@ -216,7 +216,10 @@ algorithms = ["RS256", "ES256"]
 - Connexion, échec (raison codée : `state`, `iss`, `nonce`, `signature`, `expired`,
   `audience`, `secret`, `totp`, `disabled`, `revoked`), fermeture de session : événements
   existants du catalogue (012), méthode et émetteur en détails ; l'identifiant revendiqué
-  d'un échec en empreinte HMAC (REQ-012-9).
+  d'un échec en empreinte HMAC (REQ-012-9). Raisons complètes : `LoginError::reason` et
+  `TokenError::reason` (`kartenn-auth`) ; s'y ajoutent `transaction`, `refused`,
+  `exchange`, `subject`, `issuer_unknown`, `issuer_unavailable`, `malformed`,
+  `token_type`, `algorithm`, `claims`, ainsi que `unknown` et `expired` pour les comptes.
 - Nouveaux événements : `authn.breakglass.used` (WARN, high).
 - Les changesets d'administration sont audités par la 012 (`changeset.state.applied`) ;
   `rbac.role.changed` et `account.service.changed` (déjà au catalogue) en plus.

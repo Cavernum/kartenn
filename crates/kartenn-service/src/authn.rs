@@ -233,8 +233,21 @@ fn same(a: &[u8; 32], b: &[u8; 32]) -> bool {
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// Records a failed authentication of `claimed` from `source` for `reason`, through the
-/// aggregator of repeated failures (REQ-012-19).
+/// A failed authentication, as the audit records it (spec 005, design « Audit »).
+#[derive(Debug, Clone, Copy)]
+pub struct Failure<'a> {
+    /// The identifier claimed, recorded as a digest only (REQ-012-9).
+    pub claimed: &'a str,
+    /// How the caller tried.
+    pub method: Method,
+    /// The issuer, for an OIDC login or an access token.
+    pub issuer: Option<&'a str>,
+    /// Coded reason: `secret`, `totp`, `state`, `iss`, `nonce`, `signature`, `expired`…
+    pub reason: &'a str,
+}
+
+/// Records `failure` from `source`, through the aggregator of repeated failures
+/// (REQ-012-19).
 ///
 /// # Errors
 ///
@@ -243,15 +256,21 @@ pub async fn failed<I: Identities, J: AuditJournal>(
     identities: &I,
     journal: &J,
     aggregator: &FailureAggregator,
-    (claimed, method, reason): (&str, Method, &str),
+    failure: Failure<'_>,
     source: Source,
     at: Instant,
 ) -> Result<(), AuthnError> {
+    let Failure {
+        claimed,
+        method,
+        issuer,
+        reason,
+    } = failure;
     let actor = Actor {
         kind: ActorKind::Unknown,
         id: None,
         auth_method: Some(method.as_str().to_owned()),
-        issuer: None,
+        issuer: issuer.map(str::to_owned),
         claimed: Some(
             identities
                 .claimed_digest(claimed)
@@ -318,7 +337,12 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
             identities,
             journal,
             aggregator,
-            (name, Method::Basic, reason),
+            Failure {
+                claimed: name,
+                method: Method::Basic,
+                issuer: None,
+                reason,
+            },
             source,
             at,
         )
@@ -365,7 +389,12 @@ pub async fn logged_in<I: Identities, J: AuditJournal>(
             identities,
             journal,
             aggregator,
-            (&format!("{issuer} {subject}"), method, "disabled"),
+            Failure {
+                claimed: &format!("{issuer} {subject}"),
+                method,
+                issuer: Some(issuer),
+                reason: "disabled",
+            },
             source,
             at,
         )
@@ -544,7 +573,12 @@ pub async fn authenticate_breakglass<I: Identities, V: BreakglassVerifier, J: Au
             identities,
             journal,
             aggregator,
-            (name, Method::Breakglass, reason),
+            Failure {
+                claimed: name,
+                method: Method::Breakglass,
+                issuer: None,
+                reason,
+            },
             source,
             at,
         )

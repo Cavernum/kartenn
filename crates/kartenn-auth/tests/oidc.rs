@@ -19,7 +19,7 @@ use kartenn_auth::http::HttpClient;
 use kartenn_auth::issuer::IssuerConfig;
 use kartenn_auth::keys::KeyRing;
 use kartenn_auth::oidc::{Callback, LoginError, Oidc, Session, SessionError};
-use kartenn_auth::tokens::{HttpKeys, TokenVerifier};
+use kartenn_auth::tokens::{HttpKeys, TokenError, TokenVerifier};
 use p256::pkcs8::EncodePrivateKey;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -366,16 +366,13 @@ async fn each_refusal_of_the_callback() {
     idp.lock().unwrap().iss_supported = false;
     // An ID token of another login (nonce), or for another client (audience).
     idp.lock().unwrap().nonce_override = Some("another-login".into());
-    assert!(matches!(
-        attempt(Box::new(|_| {})).await,
-        Err(LoginError::IdToken(_))
-    ));
+    let refused = attempt(Box::new(|_| {})).await.unwrap_err();
+    assert_eq!(refused, LoginError::IdToken(TokenError::Nonce));
+    assert_eq!(refused.reason(), "nonce");
     idp.lock().unwrap().nonce_override = None;
     idp.lock().unwrap().audience_override = Some("another-client".into());
-    assert!(matches!(
-        attempt(Box::new(|_| {})).await,
-        Err(LoginError::IdToken(_))
-    ));
+    let refused = attempt(Box::new(|_| {})).await.unwrap_err();
+    assert_eq!(refused.reason(), "audience");
     idp.lock().unwrap().audience_override = None;
     // A code replayed, or a code with another PKCE verifier: the IdP refuses the exchange.
     assert!(matches!(

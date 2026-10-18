@@ -123,41 +123,39 @@ async fn every_refusal_of_rfc_9068() {
     header.typ = Some("at+jwt".into());
     let mac = encode(&header, &claims(), &EncodingKey::from_secret(b"guess")).unwrap();
     assert_eq!(verifier.verify(&mac).await, Err(TokenError::Algorithm));
-    // Another audience, an expired token, a signature by an unpublished key.
-    for (what, claims) in [
-        ("audience", with(&|c| c["aud"] = "another-service".into())),
-        (
-            "expiry",
-            with(&|c| c["exp"] = (c["iat"].as_u64().unwrap() - 600).into()),
-        ),
-    ] {
-        assert!(
-            matches!(
-                verifier
-                    .verify(&token(&signing, "k1", "at+jwt", &claims))
-                    .await,
-                Err(TokenError::Invalid(_))
-            ),
-            "{what}"
-        );
-    }
+    // Another audience, an expired token, a signature by an unpublished key, no subject:
+    // each with its coded reason for the audit.
     let (rogue, _) = key("k1");
-    assert!(matches!(
-        verifier
-            .verify(&token(&rogue, "k1", "at+jwt", &claims()))
-            .await,
-        Err(TokenError::Invalid(_))
-    ));
-    // No subject.
     let anonymous = with(&|c| {
         c.as_object_mut().unwrap().remove("sub");
     });
-    assert!(matches!(
-        verifier
-            .verify(&token(&signing, "k1", "at+jwt", &anonymous))
-            .await,
-        Err(TokenError::Invalid(_))
-    ));
+    for (signing, claims, refusal, reason) in [
+        (
+            &signing,
+            with(&|c| c["aud"] = "another-service".into()),
+            TokenError::Audience,
+            "audience",
+        ),
+        (
+            &signing,
+            with(&|c| c["exp"] = (c["iat"].as_u64().unwrap() - 600).into()),
+            TokenError::Expired,
+            "expired",
+        ),
+        (&rogue, claims(), TokenError::Signature, "signature"),
+    ] {
+        let error = verifier
+            .verify(&token(signing, "k1", "at+jwt", &claims))
+            .await
+            .unwrap_err();
+        assert_eq!(error, refusal);
+        assert_eq!(error.reason(), reason);
+    }
+    let error = verifier
+        .verify(&token(&signing, "k1", "at+jwt", &anonymous))
+        .await
+        .unwrap_err();
+    assert_eq!(error.reason(), "claims", "{error}");
 }
 
 #[tokio::test]
