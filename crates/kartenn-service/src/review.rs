@@ -35,6 +35,8 @@ pub struct Exposure {
     pub author_roles: BTreeSet<String>,
     /// The author's groups, as (issuer, group) (005).
     pub author_groups: BTreeSet<(String, String)>,
+    /// The roles the changeset binds (005).
+    pub bound_roles: BTreeSet<String>,
 }
 
 /// Whether `policy` holds a changeset: every trigger it defines matches, and it defines
@@ -74,6 +76,13 @@ pub fn holds(policy: &ApprovalPolicy, exposure: &Exposure) -> bool {
                     .author_groups
                     .iter()
                     .any(|g| exposure.author_groups.contains(g))
+        }),
+        // A binding of a role.
+        (!policy.bound_roles.is_empty()).then(|| {
+            policy
+                .bound_roles
+                .iter()
+                .any(|r| exposure.bound_roles.contains(r))
         }),
     ];
     policy.enabled && triggers.iter().any(Option::is_some) && triggers.iter().flatten().all(|t| *t)
@@ -141,6 +150,13 @@ pub(crate) async fn holding_policy<T: WriteTx>(
         scopes_touched,
         author_roles,
         author_groups,
+        bound_roles: planned
+            .iter()
+            .filter_map(|p| match p {
+                Planned::Rbac(crate::rbac::RbacOp::Bind { role, .. }) => Some(role.clone()),
+                _ => None,
+            })
+            .collect(),
     };
     Ok(policies.iter().find(|p| holds(p, &exposure)).map(|p| p.id))
 }
@@ -429,6 +445,7 @@ mod tests {
             scopes: Vec::new(),
             author_roles: Vec::new(),
             author_groups: Vec::new(),
+            bound_roles: Vec::new(),
             enabled: true,
         }
     }
@@ -444,6 +461,7 @@ mod tests {
             scopes_touched: [Uuid::from_u128(5)].into(),
             author_roles: ["auditor".to_owned()].into(),
             author_groups: [("idp".to_owned(), "netops".to_owned())].into(),
+            bound_roles: ["administrator".to_owned()].into(),
         };
         // No trigger: holds nothing.
         assert!(!holds(&policy(), &exposure));
@@ -477,6 +495,19 @@ mod tests {
                 ..keys
             },
             &exposure
+        ));
+        // 005: a binding of the administrator role (REQ-005-25).
+        let second = ApprovalPolicy {
+            bound_roles: vec!["administrator".into()],
+            ..policy()
+        };
+        assert!(holds(&second, &exposure));
+        assert!(!holds(
+            &second,
+            &Exposure {
+                bound_roles: ["reader".to_owned()].into(),
+                ..exposure.clone()
+            }
         ));
         // 005: a scope touched; an author by role or by group.
         let scoped = ApprovalPolicy {

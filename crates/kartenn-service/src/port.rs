@@ -268,6 +268,9 @@ pub struct ApprovalPolicy {
     pub author_roles: Vec<String>,
     /// The author belongs to one of these groups (issuer, group) (005).
     pub author_groups: Vec<(String, String)>,
+    /// The changeset binds one of these roles (005, REQ-005-25: a second administrator
+    /// for any binding of the administrator role).
+    pub bound_roles: Vec<String>,
     /// Disabled policies hold nothing.
     pub enabled: bool,
 }

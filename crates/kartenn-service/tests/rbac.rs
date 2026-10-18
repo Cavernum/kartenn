@@ -1098,6 +1098,54 @@ async fn issuers_and_identities_need_global_administration(pool: PgPool) {
     assert_eq!(untouched, 2);
 }
 
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    t.role("reader_too", &["core.address.read"]).await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![Operation::SetApprovalPolicy {
+                name: "second-administrator".into(),
+                min_operations: None,
+                min_diff_objects: None,
+                property_keys: Vec::new(),
+                domains: Vec::new(),
+                authors: Vec::new(),
+                scopes: Vec::new(),
+                author_roles: Vec::new(),
+                author_groups: Vec::new(),
+                bound_roles: vec!["root".into()],
+                enabled: true,
+            }],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let newcomer = t.identity().await;
+    // REQ-005-25: any binding of the administrator role waits; another role does not.
+    match t
+        .submit_as(
+            &root,
+            vec![bind_op(newcomer.id, "root", BindingScope::Global)],
+        )
+        .await
+    {
+        Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
+        other => panic!("expected an approval, got {other:?}"),
+    }
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![bind_op(newcomer.id, "reader_too", BindingScope::Global)],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
 fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -> Operation {
     Operation::SetApprovalPolicy {
         name: name.into(),
@@ -1109,6 +1157,7 @@ fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -
         scopes,
         author_roles,
         author_groups: Vec::new(),
+        bound_roles: Vec::new(),
         enabled: true,
     }
 }

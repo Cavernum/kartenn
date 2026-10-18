@@ -248,6 +248,7 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                         })
                         .collect(),
                     author_roles: texts(&authors, "role"),
+                    bound_roles: texts(&perimeters, "bound_role"),
                     author_groups: authors
                         .as_array()
                         .into_iter()
@@ -293,6 +294,13 @@ pub(crate) async fn set_policy(
                 .scopes
                 .iter()
                 .map(|(kind, id)| serde_json::json!({ kind.as_str(): id })),
+        )
+        // What the changeset binds belongs with what it touches (005).
+        .chain(
+            policy
+                .bound_roles
+                .iter()
+                .map(|r| serde_json::json!({ "bound_role": r })),
         )
         .collect();
     let authors: Vec<serde_json::Value> = policy

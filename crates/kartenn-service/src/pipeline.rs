@@ -668,6 +668,7 @@ fn plan_policy(
         scopes,
         author_roles,
         author_groups,
+        bound_roles,
         enabled,
     } = op
     else {
@@ -687,6 +688,7 @@ fn plan_policy(
         scopes: Vec::new(),
         author_roles: author_roles.clone(),
         author_groups: author_groups.clone(),
+        bound_roles: bound_roles.iter().map(|r| r.trim().to_owned()).collect(),
         enabled: *enabled,
     };
     let mut policy = policy;
@@ -720,7 +722,8 @@ fn plan_policy(
         || !policy.scopes.is_empty()
         || !policy.authors.is_empty()
         || !policy.author_roles.is_empty()
-        || !policy.author_groups.is_empty();
+        || !policy.author_groups.is_empty()
+        || !policy.bound_roles.is_empty();
     if policy.name.is_empty() || !triggers {
         return Err(Violation::new(
             &rules::POLICY_INVALID,

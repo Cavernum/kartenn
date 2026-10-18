@@ -387,6 +387,9 @@ pub enum Operation {
         /// The author belongs to one of these groups, as (issuer, group) (005).
         #[serde(default)]
         author_groups: Vec<(String, String)>,
+        /// The changeset binds one of these roles (005, REQ-005-25).
+        #[serde(default)]
+        bound_roles: Vec<String>,
         /// A disabled policy holds nothing.
         #[serde(default = "enabled")]
         enabled: bool,
