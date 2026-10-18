@@ -102,6 +102,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - Les morceaux d'import sont des `PUT` à numéro explicite : un renvoi identique est
   idempotent par nature (H9) ; un contenu différent sous le même numéro → 409.
 - Les routes de connexion sont publiques ; `logout` exige la session et le contrôle CSRF.
+- **Anomalies (arbitrage du 2026-10-18)** : la liste ne montre que les anomalies dont
+  l'objet est lisible par l'appelant ; l'acquittement exige la permission
+  `core.anomaly.acknowledge` (nouvelle, catalogue 005) sur l'objet de l'anomalie, un
+  `motive` (membre réservé, sinon 422 `motive-required`), et enregistre un événement
+  d'audit ; il n'exige pas `If-Match`, l'acquittement étant lié à la version courante
+  de l'objet (REQ-002-36). Une anomalie d'un objet invisible répond 404.
 
 ### Représentations et DTO (REQ-006-2, 3, 13)
 
@@ -110,6 +116,19 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - Résumé d'un objet lié : `{ id, <clé naturelle>, href }`, lu par la même requête
   (jointure fixe). Liens : `links.self`, `links.history`, et les liens de navigation.
 - Valeurs canoniques en sortie (préfixes et adresses, REQ-002-6), dates RFC 3339 en UTC.
+- **Objets du noyau (arbitrage du 2026-10-18)** : `domains` `{id, slug}`, `entities`
+  et `sites` `{id, slug, parent}`, `prefixes` `{id, domain, value, nature,
+  point_to_point, anycast, public}`, `ranges` `{id, domain, first, last, usage,
+  public}`, `addresses` `{id, domain, value, usage, public}` ; `domain` et `parent` sont
+  des résumés `{id, slug, href}` (`parent` vaut `null` à la racine). Les propriétés ne
+  sont pas dans l'objet : `links.properties` mène aux valeurs résolues (006-13). Filtres
+  de clé naturelle : `slug` ; `parent` (slug) pour les entités et les sites ; `domain`
+  (slug) et `value` (`first` pour une plage) pour les objets d'adressage ; une valeur
+  répétée vaut « l'une de ». Les listes sont triées par clé naturelle puis UUID.
+- **Historique** : `GET …/{id}/history` rend `{items: [{valid_from, valid_to,
+  asserted_from, asserted_to, changeset: {id, href}, object}]}` (`valid_to` et
+  `asserted_to` `null` quand ouverts), trié par début de validité puis d'assertion ;
+  lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
 - Membres réservés des corps d'écriture : `motive` (obligatoire), `valid_from`,
   `valid_to` ; jamais confondus avec des champs de l'objet (le noyau n'a aucun champ de
   ce nom ; un test du contrat le garantit).
