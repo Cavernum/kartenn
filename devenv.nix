@@ -1,8 +1,18 @@
 {
   pkgs,
+  lib,
   config,
   ...
 }: let
+  # Frontend (ADR 0024): pnpm workspace under web/; the tooling stays inert until it exists.
+  hasWeb = builtins.pathExists ./web/package.json;
+  # Pre-commit hands paths relative to the repository; tools run from web/.
+  webHook = tool:
+    pkgs.writeShellScript "web-${tool}" ''
+      set -euo pipefail
+      [ -f web/package.json ] || exit 0
+      exec pnpm -C web exec ${tool} "''${@#web/}"
+    '';
   # Development console (D35, spec 012/L17): OpenObserve shows logs, traces and metrics
   # in one UI (http://127.0.0.1:5080). Development-only credentials, bound to loopback;
   # the header is the Basic encoding of the same pair.
@@ -26,14 +36,43 @@ in {
     pkgs.cargo-hakari
     pkgs.sqlx-cli
     pkgs.cargo-nextest
+    # Frontend: language servers for Claude Code's LSP tool and the editor, and the
+    # browser of Claude Code (claude.code.mcpServers.playwright).
+    pkgs.vue-language-server
+    pkgs.vtsls
+    pkgs.playwright-mcp
   ];
 
-  # Frontend (D17): Vue 3 + TypeScript shell and plugin SDK under web/.
+  # Frontend (D17, ADR 0024): Vue 3 + TypeScript shell and plugin SDK, a pnpm workspace
+  # under web/. `pnpm install` runs on shell entry once web/package.json exists.
   languages.javascript = {
     enable = true;
     package = pkgs.nodejs_24;
+    directory = "web";
+    pnpm = {
+      enable = true;
+      install.enable = hasWeb;
+    };
   };
   languages.typescript.enable = true;
+
+  # Browsers come from Nix, never from npm (ADR 0024): @playwright/test in web/ must pin
+  # the version of pkgs.playwright-driver.
+  env.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+  env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+  env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+
+  # Vite dev server, driven through the devenv MCP server (start_process,
+  # get_process_logs) rather than a foreground `pnpm dev`. The /api proxy to
+  # kartenn-server belongs to the Vite configuration (spec 007).
+  processes.web = lib.mkIf hasWeb {
+    exec = "exec pnpm -C web --filter shell dev --host 127.0.0.1 --port 5173 --strictPort";
+    ready.http.get = {
+      host = "127.0.0.1";
+      port = 5173;
+      path = "/";
+    };
+  };
 
   # Storage adapter (D15): PostgreSQL >= 18 for local development.
   services.postgres = {
@@ -102,10 +141,67 @@ in {
     '';
   };
 
+  # Same for the frontend (ADR 0024): `k-web-check [vitest args…]`, in ${WEB_DIR:-web}.
+  # Convention: each workspace package defines a `typecheck` script (vue-tsc); vitest
+  # runs from the workspace root (projects).
+  scripts.k-web-check = {
+    description = "prettier, eslint, vue-tsc and vitest, printing a one-line verdict or the failures only";
+    exec = ''
+      set -uo pipefail
+      export NO_COLOR=1 FORCE_COLOR=0
+      dir=''${WEB_DIR:-web}
+      [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
+      cd "$dir"
+      log=$(mktemp -d -t k-web-check.XXXXXX)
+      # ko <step> <log> <pattern> [hint]: the matching lines, else the end of the log.
+      ko() {
+        echo "KO $1 ($2)''${4:+ — $4}"
+        n=$(grep -cE "$3" "$2")
+        if [ "$n" -gt 0 ]; then grep -E "$3" "$2" | head -20 | sed "s#$PWD/##"; [ "$n" -gt 20 ] && echo "… $((n - 20)) de plus"; else tail -15 "$2"; fi
+        exit 1
+      }
+      pnpm exec prettier --check . >"$log/prettier" 2>&1 ||
+        ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write ."
+      pnpm exec eslint . >"$log/eslint" 2>&1 ||
+        ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
+      # Package by package, so that error paths are prefixed with the package directory.
+      tsc=0
+      while read -r pkg; do
+        rel=''${pkg#"$PWD"}; rel=''${rel#/}
+        (cd "$pkg" && pnpm run --if-present --silent typecheck) 2>&1 |
+          sed -E "s#^([^ ][^(]*\([0-9]+,[0-9]+\): error)#''${rel:+$rel/}\1#" >>"$log/tsc" || tsc=1
+      done < <(pnpm -r ls --depth -1 --parseable)
+      [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
+      pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
+        ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
+      echo "OK — $(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')"
+    '';
+  };
+
+  # End-to-end journeys (Playwright, browsers from Nix): `k-web-e2e [playwright args…]`.
+  scripts.k-web-e2e = {
+    description = "Playwright end-to-end tests, printing a one-line verdict or the failures only";
+    exec = ''
+      set -uo pipefail
+      export NO_COLOR=1 FORCE_COLOR=0
+      dir=''${WEB_DIR:-web}
+      [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
+      cd "$dir"
+      log=$(mktemp -d -t k-web-e2e.XXXXXX)
+      if ! pnpm exec playwright test --reporter=line "$@" >"$log/e2e" 2>&1; then
+        echo "KO playwright ($log/e2e)"
+        re='^ *[0-9]+\) |Error:|Expected|Received|^ *at .*:[0-9]+:[0-9]+'
+        if grep -qE "$re" "$log/e2e"; then grep -E "$re" "$log/e2e" | head -30 | sed "s#$PWD/##"; else tail -15 "$log/e2e"; fi
+        exit 1
+      fi
+      echo "OK — $(grep -E '^ *[0-9]+ passed' "$log/e2e" | tail -1 | sed 's/^ *//')"
+    '';
+  };
+
   # Outline of a file (items with line numbers), to read a targeted range afterwards:
   # `k-ctx <file>…`.
   scripts.k-ctx = {
-    description = "Outline a Rust, SQL or Markdown file with line numbers";
+    description = "Outline a Rust, SQL, Markdown, Vue or TypeScript file with line numbers";
     exec = ''
       set -uo pipefail
       for f in "$@"; do
@@ -114,6 +210,8 @@ in {
           *.rs) grep -nE '^\s*(pub(\([a-z]+\))? )?(async |const |unsafe )*(fn|struct|enum|trait|impl|mod|type|macro_rules!) |^\s*#\[(test|sqlx::test|tokio::test)' "$f" ;;
           *.sql) grep -niE '^\s*(create|alter|drop|comment on|grant|revoke) ' "$f" ;;
           *.md) grep -nE '^#{1,4} |^- \[[ x]\] [0-9]+\.' "$f" ;;
+          *.vue) grep -nE '^<(script|template|style)|^</(script|template)>|^(export )?(async )?(function|const|interface|type|class) |define(Props|Emits|Model|Slots|Expose)' "$f" ;;
+          *.ts|*.tsx|*.js|*.mjs) grep -nE '^(export )?(default )?(declare )?(abstract )?(async )?(function|const|let|interface|type|class|enum|namespace) |^export (\{|\*)|^\s*(describe|it|test)\(' "$f" ;;
           *) grep -nE '^\S' "$f" | head -80 ;;
         esac
       done
@@ -258,6 +356,20 @@ in {
     trim-trailing-whitespace.enable = true;
     rustfmt.enable = true;
     clippy.enable = true;
+    # Frontend, with web/'s own tool versions; no-ops until web/ exists.
+    web-prettier = {
+      enable = true;
+      name = "prettier (web)";
+      entry = "${webHook "prettier"} --write --ignore-unknown";
+      files = "^web/.*\\.(vue|ts|tsx|js|mjs|json|css|html|md)$";
+      excludes = ["(^|/)pnpm-lock\\.yaml$"];
+    };
+    web-eslint = {
+      enable = true;
+      name = "eslint (web)";
+      entry = "${webHook "eslint"} --fix";
+      files = "^web/.*\\.(vue|ts|tsx|js|mjs)$";
+    };
   };
 
   enterTest = ''
@@ -270,6 +382,7 @@ in {
       cargo test --workspace --all-targets --all-features
     fi
     postgres --version
+    k-web-check
   '';
 
   # Project-local devenv MCP server: devenv writes .mcp.json from this.
@@ -288,6 +401,22 @@ in {
       url = "http://127.0.0.1:5080/api/default/mcp";
       headers.Authorization = "Basic ${openobserve.basic}";
     };
+    # Browser of Claude Code (ADR 0024): headless Chromium from Nix (the wrapper sets
+    # PLAYWRIGHT_BROWSERS_PATH), in-memory profile, requests limited to the local Vite
+    # dev and preview servers.
+    mcpServers.playwright = {
+      type = "stdio";
+      command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
+      args = [
+        "--headless"
+        "--isolated"
+        "--allowed-origins"
+        "http://127.0.0.1:5173;http://localhost:5173;http://127.0.0.1:4173"
+        "--output-dir"
+        "${config.devenv.state}/playwright-mcp"
+      ];
+    };
+    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*"];
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
     hooks.git-hooks-run.enable = false;

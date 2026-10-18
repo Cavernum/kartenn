@@ -16,3 +16,7 @@ devenv.local.yaml
 # node
 node_modules/
 dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+.playwright-mcp/
