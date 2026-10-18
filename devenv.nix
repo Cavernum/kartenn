@@ -94,6 +94,17 @@ in {
     '';
   };
 
+  # Cost of access control (REQ-005-29) on the budgets of the core, for a person with 50
+  # groups and 1 000 bindings: `bench-rbac [seed] [small]`.
+  scripts.bench-rbac = {
+    description = "Measure the cost of access control on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- rbac "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
   scripts.bench-telemetry = {

@@ -9,6 +9,9 @@
 //! `kartenn-bench core <database-url> <seed> [small]`: the same for the budgets of the
 //! core (REQ-002-45, REQ-004-38).
 //!
+//! `kartenn-bench rbac <database-url> <seed> [small]`: the overhead of access control on
+//! those budgets, for a person with 50 groups and 1 000 bindings (REQ-005-29).
+//!
 //! `kartenn-bench telemetry <database-url> <seed> [small]`: the overhead of the telemetry
 //! on those budgets, in three configurations (REQ-012-23), and the volume of the audit
 //! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
@@ -33,14 +36,16 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
-        [command, database, seed, rest @ ..] if command == "props" || command == "core" => {
+        [command, database, seed, rest @ ..]
+            if command == "props" || command == "core" || command == "rbac" =>
+        {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let data = generate(seed, scale(rest));
             let runtime = tokio::runtime::Runtime::new()?;
-            let (report, ok) = if command == "props" {
-                runtime.block_on(kartenn_bench::props::run(database, &data, seed))?
-            } else {
-                runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?
+            let (report, ok) = match command.as_str() {
+                "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
+                "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed))?,
+                _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
             };
             print!("{report}");
             if !ok {
@@ -73,7 +78,7 @@ fn main() -> anyhow::Result<()> {
             ))
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|telemetry <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|telemetry <database-url> <seed> [small]"
         ),
     }
 }

@@ -128,6 +128,13 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
 ## P3 — Budgets et synchronisation
 
 - [ ] 16. Banc : `bench-core` avec 1 000 liaisons et 50 groupes — REQ-005-29 — verify :
-  surcoût sous 10 %
+  surcoût sous 10 % — banc `bench-rbac` (jeu de `bench-core`, une personne, 50 groupes, 1 000
+  liaisons). **Non tenu, arbitrage demandé.** Jeu de référence (2026-10-18), p95 sans →
+  avec contrôle : lecture d'un objet 1,2 → 12,7 ms ; page filtrée 67,5 → 55,1 ms ;
+  sous-arbre 3,6 → 10,1 ms ; changeset unitaire 4,1 → 10,8 ms. Tous les budgets
+  absolus (INV-30 à 34) tiennent, mais pas un surcoût relatif de 10 %. Le coût restant est
+  la résolution des liaisons à chaque requête (≈ 10 ms, dont 8 ms pour retrouver les
+  980 préfixes des périmètres) ; les prédicats eux-mêmes sont désormais négligeables
+  (migration 0033)
 - [ ] 17. Synchroniser `docs/spec/`, ADR 0020 et 0021 acceptés, statut `implemented`,
   rapport spec-keeper
