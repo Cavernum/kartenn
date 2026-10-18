@@ -87,8 +87,14 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   d'instance) ; un succès Basic n'est pas audité à part (la requête l'est, avec son
   acteur) ; le refus hors TLS et le branchement du limiteur reviennent à la couche HTTP
   (006), qui connaît le transport (`kartenn-auth/tests/service_accounts.rs`)
-- [ ] 11. Jetons d'accès RFC 9068 et clés des émetteurs (cache, rechargement borné) —
-  REQ-005-9, 10 — verify : IdP de test en processus, chaque refus
+- [x] 11. Jetons d'accès RFC 9068 et clés des émetteurs (cache, rechargement borné) —
+  REQ-005-9, 10 — verify : IdP de test en processus, chaque refus —
+  `kartenn_auth::tokens::TokenVerifier` (`jsonwebtoken` 11, moteur RustCrypto, sans
+  aws-lc) ; `kid` exigé ; l'émetteur nommé par le jeton choisit la configuration, la
+  validation le revérifie signé ; seuls les rechargements causés par un `kid` inconnu
+  sont bornés à un par minute (une rotation juste après le démarrage passe) ;
+  `HttpClient` sur hyper-rustls (`ring`), HTTP seulement vers la boucle locale ; source
+  de clés en mémoire dans les tests (`kartenn-auth/tests/access_tokens.rs`)
 - [ ] 12. Flux OIDC du BFF : début, rappel (`state`, `iss`, `nonce`, PKCE), identité
   juste-à-temps, session, rafraîchissement des groupes, déconnexion — REQ-005-1, 2, 4 à 8
   — verify : IdP de test ; refus de REQ-005-4, 5
