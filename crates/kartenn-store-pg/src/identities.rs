@@ -6,8 +6,8 @@ use hmac::{Hmac, KeyInit, Mac};
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
 use kartenn_service::authn::{
-    BREAKGLASS_FAILURES_MAX, BreakglassAccount, Identities, IdentityState, ServiceAccount,
-    StoredSecret,
+    BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, Identities,
+    IdentityState, ServiceAccount, StoredSecret,
 };
 use sha2::Sha256;
 use sqlx::types::Uuid;
@@ -144,22 +144,42 @@ impl Identities for PgStore {
     async fn record_breakglass(
         &self,
         id: Uuid,
-        step: Option<i64>,
-        failures: i32,
-    ) -> Result<(), StoreError> {
+        attempt: BreakglassAttempt,
+    ) -> Result<BreakglassRecorded, StoreError> {
         let mut tx = self.pool().begin().await.map_err(store_err)?;
-        sqlx::query(
-            "UPDATE breakglass_account
-             SET failures = $2, last_totp_step = coalesce($3, last_totp_step)
-             WHERE account_id = $1",
-        )
-        .bind(id)
-        .bind(failures)
-        .bind(step)
-        .execute(&mut *tx)
-        .await
-        .map_err(store_err)?;
-        if failures >= BREAKGLASS_FAILURES_MAX {
+        let recorded = match attempt {
+            // Conditional: of two requests with the same code, one updates the row, the
+            // other finds it already past that step.
+            BreakglassAttempt::Accepted(step) => sqlx::query(
+                "UPDATE breakglass_account SET failures = 0, last_totp_step = $2
+                 WHERE account_id = $1 AND last_totp_step < $2",
+            )
+            .bind(id)
+            .bind(step)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)
+            .map(|done| {
+                if done.rows_affected() == 1 {
+                    BreakglassRecorded::Taken
+                } else {
+                    BreakglassRecorded::Replayed
+                }
+            })?,
+            BreakglassAttempt::Failed => BreakglassRecorded::Failures(
+                sqlx::query_scalar(
+                    "UPDATE breakglass_account SET failures = failures + 1
+                     WHERE account_id = $1 RETURNING failures",
+                )
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(store_err)?,
+            ),
+        };
+        if let BreakglassRecorded::Failures(failures) = recorded
+            && failures >= BREAKGLASS_FAILURES_MAX
+        {
             sqlx::query(
                 "UPDATE person SET disabled_at = coalesce(disabled_at, now()) WHERE id = $1",
             )
@@ -168,7 +188,8 @@ impl Identities for PgStore {
             .await
             .map_err(store_err)?;
         }
-        tx.commit().await.map_err(store_err)
+        tx.commit().await.map_err(store_err)?;
+        Ok(recorded)
     }
 
     async fn claimed_digest(&self, claimed: &str) -> Result<String, StoreError> {

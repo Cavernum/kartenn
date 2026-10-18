@@ -198,14 +198,15 @@ pub trait Identities: Send + Sync {
         name: &str,
     ) -> impl Future<Output = Result<Option<BreakglassAccount>, StoreError>> + Send;
 
-    /// Records the outcome of a break-glass attempt: the step accepted (on success) and
-    /// the consecutive failures; past [`BREAKGLASS_FAILURES_MAX`], disables the account.
+    /// Records a break-glass attempt atomically, against concurrent attempts: a step is
+    /// taken only if it is after the last one taken (a code is never accepted twice, even
+    /// by two requests at once) and resets the failures; a failure increments them and,
+    /// at [`BREAKGLASS_FAILURES_MAX`], disables the account.
     fn record_breakglass(
         &self,
         id: Uuid,
-        step: Option<i64>,
-        failures: i32,
-    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+        attempt: BreakglassAttempt,
+    ) -> impl Future<Output = Result<BreakglassRecorded, StoreError>> + Send;
 
     /// The digest of an identifier claimed by an unknown actor (REQ-012-9), in hexadecimal.
     fn claimed_digest(
@@ -506,6 +507,26 @@ impl StateCache {
     }
 }
 
+/// A break-glass attempt, as recorded on its account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BreakglassAttempt {
+    /// Both proofs hold, with the TOTP code of this step.
+    Accepted(i64),
+    /// A wrong passphrase or code.
+    Failed,
+}
+
+/// What recording an attempt did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BreakglassRecorded {
+    /// The step is taken: the login goes on.
+    Taken,
+    /// Another request took this step or a later one first: a replay.
+    Replayed,
+    /// The consecutive failures, this one included.
+    Failures(i32),
+}
+
 /// Authenticates the break-glass account `name` by its passphrase and a TOTP code
 /// (REQ-005-15): valid, enabled, the passphrase and a code never used; each use audited
 /// at high criticality and logged as a WARN; 100 consecutive failures disable it.
@@ -532,7 +553,7 @@ pub async fn authenticate_breakglass<I: Identities, V: BreakglassVerifier, J: Au
         .await
         .map_err(AuthnError::Store)?;
     let unix = at.0.div_euclid(1_000_000);
-    let (reason, step) = match &account {
+    let (mut reason, step) = match &account {
         None => {
             verifier.burn(passphrase);
             ("unknown", None)
@@ -548,16 +569,22 @@ pub async fn authenticate_breakglass<I: Identities, V: BreakglassVerifier, J: Au
     if let Some(account) = &account
         && matches!(reason, "secret" | "totp" | "")
     {
-        let failures = if reason.is_empty() {
-            0
-        } else {
-            account.failures + 1
-        };
-        identities
-            .record_breakglass(account.id, step, failures)
+        let mut recorded = identities
+            .record_breakglass(
+                account.id,
+                step.map_or(BreakglassAttempt::Failed, BreakglassAttempt::Accepted),
+            )
             .await
             .map_err(AuthnError::Store)?;
-        if failures >= BREAKGLASS_FAILURES_MAX {
+        if recorded == BreakglassRecorded::Replayed {
+            // The same code twice at once: the second is a failure (RFC 6238 §5.2).
+            reason = "totp";
+            recorded = identities
+                .record_breakglass(account.id, BreakglassAttempt::Failed)
+                .await
+                .map_err(AuthnError::Store)?;
+        }
+        if recorded == BreakglassRecorded::Failures(BREAKGLASS_FAILURES_MAX) {
             let locked = AuditEvent::new(
                 &kartenn_core::audit::AUTHN_ACCOUNT_LOCKED,
                 Actor::person(account.id),

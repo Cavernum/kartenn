@@ -181,3 +181,49 @@ async fn an_expired_account_is_refused(pool: PgPool) {
     .await;
     assert!(matches!(outcome, Err(AuthnError::Refused)));
 }
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_code_sent_twice_at_once_opens_one_session(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let account = create(&ring, "rescue");
+    let instance = Instance::new("test");
+    kartenn_store_pg::breakglass::create(
+        &pool,
+        &Stored {
+            name: "rescue",
+            password_hash: &account.password_hash,
+            totp_sealed: &account.totp_sealed,
+            totp_key_id: &account.totp_key_id,
+            valid_until: OffsetDateTime::now_utc() + Duration::from_hours(1),
+        },
+        &instance,
+    )
+    .await
+    .unwrap();
+    let otp = format!(
+        "{:06}",
+        code(&secret_of(&account.otpauth), now().0 / 1_000_000 / STEP)
+    );
+    let store = PgStore::new(pool.clone());
+    let journal = PgAuditJournal::new(pool.clone(), instance);
+    let aggregator = FailureAggregator::new(1_000, Duration::from_mins(1));
+    let verifier = Verifier(ring);
+    let login = || {
+        authenticate_breakglass(
+            &store,
+            &verifier,
+            &journal,
+            &aggregator,
+            ("rescue", &account.passphrase, &otp),
+            None,
+            now(),
+        )
+    };
+    // Both read the account before either records its step (RFC 6238 §5.2).
+    let (first, second) = tokio::join!(login(), login());
+    assert_eq!(
+        usize::from(first.is_ok()) + usize::from(second.is_ok()),
+        1,
+        "{first:?} {second:?}"
+    );
+}
