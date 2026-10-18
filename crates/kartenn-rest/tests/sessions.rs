@@ -288,7 +288,11 @@ fn with_body(
     tls: bool,
     body: Body,
 ) -> Request<Body> {
-    let mut request = Request::builder().method(method).uri(uri);
+    // As a browser sends it on the page of kartenn (REQ-006-28).
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("sec-fetch-site", "same-origin");
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
     }

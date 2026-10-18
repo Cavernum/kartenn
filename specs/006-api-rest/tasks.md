@@ -93,9 +93,15 @@ routeur complet, sauf mention « vrai TCP ».
   `revoked`, `logout`) ; 005 : `Session::breakglass` (1 h), `unseal`/`check`,
   `Identities::roles` ; hors TLS → 400 sans cookie ; `tests/sessions.rs` (5 tests,
   émetteur de test sur la boucle locale)
-- [ ] 8. Couche CSRF (`Sec-Fetch-Site`, repli `Origin` = origine publique) —
+- [x] 8. Couche CSRF (`Sec-Fetch-Site`, repli `Origin` = origine publique) —
   REQ-006-28 — verify : matrice complète `Sec-Fetch-Site` × `Origin` ; Bearer et `QUERY`
   non concernés
+  — `csrf.rs` : couche 8 entre le quota et la route, sur les principaux par cookie
+  (`OidcSession`, `Breakglass`) et toute méthode hors `GET`, `HEAD`, `OPTIONS`, `QUERY`
+  (`quota::reads`) ; `Origin` comparé entier, sans casse ; sans `public_origin`, seul
+  `same-origin` passe ; `transport::Settings::public_origin` alimenté par `[http]` ;
+  `tests/csrf.rs` (matrice × `POST`/`PUT`/`PATCH`/`DELETE`, méthodes sûres et Bearer) ;
+  `tests/sessions.rs` envoie `Sec-Fetch-Site: same-origin`
 
 ## P3 — Lectures
 

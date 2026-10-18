@@ -402,7 +402,7 @@ fn header_value(text: &str) -> HeaderValue {
 }
 
 /// Methods counted as reads: the safe ones (RFC 9110 §9.2.1), and `QUERY`.
-fn reads(method: &Method) -> bool {
+pub(crate) fn reads(method: &Method) -> bool {
     matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) || method.as_str() == "QUERY"
 }
 

@@ -120,6 +120,9 @@ pub struct Settings {
     pub request_timeout: Duration,
     /// Most requests in flight (REQ-006-30).
     pub max_in_flight: usize,
+    /// The origin through which the browser reaches kartenn, for the CSRF check of an
+    /// `Origin` header (REQ-006-28).
+    pub public_origin: Option<String>,
 }
 
 impl Default for Settings {
@@ -131,6 +134,7 @@ impl Default for Settings {
             max_body_bytes: 16 * 1024 * 1024,
             request_timeout: Duration::from_secs(30),
             max_in_flight: 20,
+            public_origin: None,
         }
     }
 }

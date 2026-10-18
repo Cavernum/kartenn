@@ -665,6 +665,7 @@ impl Api {
                     0 => 2 * pool.options().get_max_connections() as usize,
                     n => n,
                 },
+                public_origin: http.public_origin.clone(),
             },
             quotas.clone(),
             authenticator,

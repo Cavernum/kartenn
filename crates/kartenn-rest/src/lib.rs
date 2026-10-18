@@ -5,6 +5,7 @@ pub mod auth;
 pub mod authn;
 pub mod compression;
 pub mod cookies;
+pub mod csrf;
 pub mod error;
 pub mod health;
 pub mod problem;
@@ -47,7 +48,7 @@ async fn not_found() -> Problem {
 /// around them (design
 /// « Pile de couches »), the request identifier outermost so that every response carries
 /// it, then the load shedding, the delay, the client, the bounded body, the
-/// authentication, the quotas and, innermost, the compression.
+/// authentication, the quotas, the CSRF check and, innermost, the compression.
 pub fn router(
     api: Router,
     readiness: Arc<dyn Readiness>,
@@ -65,7 +66,8 @@ pub fn router(
         .layer(compression::layer())
         // The limit is that of layer 5, not the 2 MB of the extractors.
         .layer(DefaultBodyLimit::disable())
-        // Layer 7, then layer 6 outside it: the quota counts per identity.
+        // Layer 8, then layer 7, then layer 6 outside them: the quota counts per identity.
+        .layer(from_fn_with_state(transport.clone(), csrf::layer))
         .layer(from_fn_with_state(quotas, quota::layer))
         .layer(from_fn_with_state(authenticator, authn::layer))
         .layer(RequestBodyTimeoutLayer::new(transport.request_timeout))
