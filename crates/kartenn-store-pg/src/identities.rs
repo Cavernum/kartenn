@@ -5,7 +5,10 @@
 use hmac::{Hmac, KeyInit, Mac};
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
-use kartenn_service::authn::{Identities, IdentityState, ServiceAccount, StoredSecret};
+use kartenn_service::authn::{
+    BREAKGLASS_FAILURES_MAX, BreakglassAccount, Identities, IdentityState, ServiceAccount,
+    StoredSecret,
+};
 use sha2::Sha256;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -15,6 +18,10 @@ use crate::write::PgStore;
 fn store_err(e: impl std::fmt::Display) -> StoreError {
     StoreError(e.to_string())
 }
+
+/// A break-glass row: id, hash, sealed TOTP secret, last step, failures, validity,
+/// disabled.
+type BreakglassRow = (Uuid, String, Vec<u8>, i64, i32, OffsetDateTime, bool);
 
 /// A secret row: id, digest, key, expiry, revoked.
 type SecretRow = (Uuid, Vec<u8>, String, Option<OffsetDateTime>, bool);
@@ -103,6 +110,65 @@ impl Identities for PgStore {
                     .map(Instant)
             }),
         }))
+    }
+
+    async fn breakglass(&self, name: &str) -> Result<Option<BreakglassAccount>, StoreError> {
+        let row: Option<BreakglassRow> = sqlx::query_as(
+            "SELECT p.id, b.password_hash, b.totp_secret, b.last_totp_step, b.failures,
+                        b.valid_until, p.disabled_at IS NOT NULL
+                 FROM person p JOIN breakglass_account b ON b.account_id = p.id
+                 WHERE p.kind = 'breakglass' AND p.display_name = $1",
+        )
+        .bind(name)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(store_err)?;
+        Ok(row.map(
+            |(id, password_hash, totp_sealed, last_step, failures, valid_until, disabled)| {
+                BreakglassAccount {
+                    id,
+                    password_hash,
+                    totp_sealed,
+                    last_step,
+                    failures,
+                    valid_until: Instant(
+                        i64::try_from(valid_until.unix_timestamp_nanos() / 1_000)
+                            .unwrap_or(i64::MAX),
+                    ),
+                    disabled,
+                }
+            },
+        ))
+    }
+
+    async fn record_breakglass(
+        &self,
+        id: Uuid,
+        step: Option<i64>,
+        failures: i32,
+    ) -> Result<(), StoreError> {
+        let mut tx = self.pool().begin().await.map_err(store_err)?;
+        sqlx::query(
+            "UPDATE breakglass_account
+             SET failures = $2, last_totp_step = coalesce($3, last_totp_step)
+             WHERE account_id = $1",
+        )
+        .bind(id)
+        .bind(failures)
+        .bind(step)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        if failures >= BREAKGLASS_FAILURES_MAX {
+            sqlx::query(
+                "UPDATE person SET disabled_at = coalesce(disabled_at, now()) WHERE id = $1",
+            )
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?;
+        }
+        tx.commit().await.map_err(store_err)
     }
 
     async fn claimed_digest(&self, claimed: &str) -> Result<String, StoreError> {

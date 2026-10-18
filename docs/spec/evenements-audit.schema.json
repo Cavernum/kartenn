@@ -165,6 +165,26 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "method": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.breakglass.used"
+        },
+        "severity": {
+          "const": "WARN"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
             "permission": {}
           },
           "type": "object"
@@ -369,6 +389,26 @@
         },
         "severity": {
           "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "valid_until": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "account.breakglass.created"
+        },
+        "severity": {
+          "const": "WARN"
         }
       }
     },

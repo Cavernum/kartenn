@@ -130,6 +130,39 @@ pub struct IdentityState {
     pub revoked_after: Option<Instant>,
 }
 
+/// A break-glass account, as authentication needs it (REQ-005-14, 15).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakglassAccount {
+    /// Identifier.
+    pub id: Uuid,
+    /// Argon2id hash of the passphrase.
+    pub password_hash: String,
+    /// The TOTP secret, sealed under the key ring.
+    pub totp_sealed: Vec<u8>,
+    /// The last TOTP step accepted (a code is never accepted twice).
+    pub last_step: i64,
+    /// Consecutive failures.
+    pub failures: i32,
+    /// End of its validity.
+    pub valid_until: Instant,
+    /// Disabled.
+    pub disabled: bool,
+}
+
+/// The checks of a break-glass login (`kartenn-auth`).
+pub trait BreakglassVerifier: Send + Sync {
+    /// Whether `passphrase` matches `hash` (Argon2id).
+    fn passphrase(&self, hash: &str, passphrase: &str) -> bool;
+    /// The same work as [`Self::passphrase`], for an unknown name: the time of an answer
+    /// does not tell whether the account exists.
+    fn burn(&self, passphrase: &str);
+    /// The step at which `code` is accepted at `now` (Unix seconds), after `last_step`.
+    fn totp_step(&self, sealed: &[u8], code: &str, now: i64, last_step: i64) -> Option<i64>;
+}
+
+/// Consecutive failures that disable a break-glass account (NIST SP 800-63B §3.2.2).
+pub const BREAKGLASS_FAILURES_MAX: i32 = 100;
+
 /// Digests of secrets under the key ring (`kartenn-auth`).
 pub trait SecretHasher: Send + Sync {
     /// The digest of `secret` under the key `key_id`, if the ring holds it.
@@ -158,6 +191,21 @@ pub trait Identities: Send + Sync {
         &self,
         identity: Uuid,
     ) -> impl Future<Output = Result<Option<IdentityState>, StoreError>> + Send;
+
+    /// The break-glass account `name`, read now.
+    fn breakglass(
+        &self,
+        name: &str,
+    ) -> impl Future<Output = Result<Option<BreakglassAccount>, StoreError>> + Send;
+
+    /// Records the outcome of a break-glass attempt: the step accepted (on success) and
+    /// the consecutive failures; past [`BREAKGLASS_FAILURES_MAX`], disables the account.
+    fn record_breakglass(
+        &self,
+        id: Uuid,
+        step: Option<i64>,
+        failures: i32,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// The digest of an identifier claimed by an unknown actor (REQ-012-9), in hexadecimal.
     fn claimed_digest(
@@ -427,4 +475,98 @@ impl StateCache {
         journal.record(&event).await.map_err(AuthnError::Audit)?;
         Err(AuthnError::Refused)
     }
+}
+
+/// Authenticates the break-glass account `name` by its passphrase and a TOTP code
+/// (REQ-005-15): valid, enabled, the passphrase and a code never used; each use audited
+/// at high criticality and logged as a WARN; 100 consecutive failures disable it.
+///
+/// # Errors
+///
+/// [`AuthnError::Refused`] for any failure; [`AuthnError::Store`], [`AuthnError::Audit`].
+#[allow(clippy::too_many_arguments)] // a proof, where it comes from and how it is recorded
+pub async fn authenticate_breakglass<I: Identities, V: BreakglassVerifier, J: AuditJournal>(
+    identities: &I,
+    verifier: &V,
+    journal: &J,
+    aggregator: &FailureAggregator,
+    (name, passphrase, code): (&str, &str, &str),
+    ip: Option<IpAddr>,
+    at: Instant,
+) -> Result<Principal, AuthnError> {
+    let source = Source {
+        ip,
+        user_agent: None,
+    };
+    let account = identities
+        .breakglass(name)
+        .await
+        .map_err(AuthnError::Store)?;
+    let unix = at.0.div_euclid(1_000_000);
+    let (reason, step) = match &account {
+        None => {
+            verifier.burn(passphrase);
+            ("unknown", None)
+        }
+        Some(a) if a.disabled => ("disabled", None),
+        Some(a) if a.valid_until <= at => ("expired", None),
+        Some(a) if !verifier.passphrase(&a.password_hash, passphrase) => ("secret", None),
+        Some(a) => match verifier.totp_step(&a.totp_sealed, code, unix, a.last_step) {
+            None => ("totp", None),
+            Some(step) => ("", Some(step)),
+        },
+    };
+    if let Some(account) = &account
+        && matches!(reason, "secret" | "totp" | "")
+    {
+        let failures = if reason.is_empty() {
+            0
+        } else {
+            account.failures + 1
+        };
+        identities
+            .record_breakglass(account.id, step, failures)
+            .await
+            .map_err(AuthnError::Store)?;
+        if failures >= BREAKGLASS_FAILURES_MAX {
+            let locked = AuditEvent::new(
+                &kartenn_core::audit::AUTHN_ACCOUNT_LOCKED,
+                Actor::person(account.id),
+                Outcome::Success,
+                at,
+            )
+            .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
+            journal.record(&locked).await.map_err(AuthnError::Audit)?;
+        }
+    }
+    let Some(account) = account.filter(|_| reason.is_empty()) else {
+        failed(
+            identities,
+            journal,
+            aggregator,
+            (name, Method::Breakglass, reason),
+            source,
+            at,
+        )
+        .await?;
+        return Err(AuthnError::Refused);
+    };
+    let principal = Principal {
+        identity: account.id,
+        kind: IdentityKind::Breakglass,
+        issuer: None,
+        groups: Vec::new(),
+        method: Method::Breakglass,
+    };
+    let event = principal
+        .context(source)
+        .event(
+            &kartenn_core::audit::AUTHN_BREAKGLASS_USED,
+            Outcome::Success,
+        )
+        .and_then(|e| e.detail("method", Method::Breakglass.as_str()))
+        .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
+    journal.record(&event).await.map_err(AuthnError::Audit)?;
+    tracing::warn!(name: "authn.breakglass.used", identity = %account.id, "a break-glass account opened a session");
+    Ok(principal)
 }

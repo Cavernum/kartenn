@@ -10,6 +10,9 @@
 //!   OpenTelemetry, sealing and export of the audit), until SIGTERM or Ctrl-C (spec 012).
 //! - `kartenn-server audit purge <database-url> [<config-file>]`: retention of the audit
 //!   by criticality, with the owner of the schema (REQ-012-16), for a daily timer.
+//! - `kartenn-server breakglass create <database-url> <name> <hours> <key-file>`: a
+//!   break-glass account valid `hours` (24 at most), with the owner of the schema (spec
+//!   005, REQ-005-14); prints its passphrase and TOTP URI once.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -24,6 +27,44 @@ fn public_key(text: &str) -> anyhow::Result<[u8; 32]> {
         .collect::<Result<_, _>>()
         .context("the public key is hexadecimal")?;
     <[u8; 32]>::try_from(bytes.as_slice()).context("the public key has 32 octets")
+}
+
+/// Creates a break-glass account valid `hours` (1 to 24), its TOTP secret sealed under the
+/// key ring of `key_file`; prints its passphrase and TOTP URI once (REQ-005-14).
+async fn create_breakglass(
+    pool: &sqlx::PgPool,
+    name: &str,
+    hours: &str,
+    key_file: &str,
+) -> anyhow::Result<()> {
+    let hours: u64 = hours.parse().context("hours is a number")?;
+    if !(1..=24).contains(&hours) {
+        bail!("a break-glass account is valid from 1 to 24 hours");
+    }
+    let ring = kartenn_auth::keys::KeyRing::parse(
+        &std::fs::read_to_string(key_file).with_context(|| format!("reading {key_file}"))?,
+    )?;
+    let account = kartenn_auth::breakglass::create(&ring, name);
+    let valid_until = sqlx::types::time::OffsetDateTime::now_utc()
+        + std::time::Duration::from_secs(hours * 3_600);
+    let instance = kartenn_service::audit::Instance::new(env!("CARGO_PKG_VERSION"));
+    kartenn_store_pg::breakglass::create(
+        pool,
+        &kartenn_store_pg::breakglass::Stored {
+            name,
+            password_hash: &account.password_hash,
+            totp_sealed: &account.totp_sealed,
+            totp_key_id: &account.totp_key_id,
+            valid_until,
+        },
+        &instance,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e.0))?;
+    println!("break-glass account {name}, valid {hours} h; shown once:");
+    println!("passphrase: {}", account.passphrase);
+    println!("TOTP: {}", account.otpauth);
+    Ok(())
 }
 
 /// Resolves at SIGTERM or Ctrl-C.
@@ -126,8 +167,14 @@ async fn main() -> anyhow::Result<ExitCode> {
                 }
             })
         }
+        [bg, create, database, name, hours, key_file]
+            if bg == "breakglass" && create == "create" =>
+        {
+            create_breakglass(&connect(database).await?, name, hours, key_file).await?;
+            Ok(ExitCode::SUCCESS)
+        }
         _ => bail!(
-            "usage: kartenn-server migrate <database-url>\n       kartenn-server run <database-url> [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge <database-url> [<config-file>]"
+            "usage: kartenn-server migrate <database-url>\n       kartenn-server run <database-url> [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge <database-url> [<config-file>]\n       kartenn-server breakglass create <database-url> <name> <hours> <key-file>"
         ),
     }
 }

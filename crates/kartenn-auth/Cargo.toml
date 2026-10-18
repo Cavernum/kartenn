@@ -32,6 +32,8 @@ hyper = { version = "1.12.0", features = ["client", "http1"] }
 http-body-util = "0.1.5"
 bytes = "1.12.1"
 tokio = { version = "1.53.3", features = ["time", "sync"] }
+argon2 = "0.5"
+sha1 = "0.10"
 
 [dev-dependencies]
 hyper = { version = "1.12.0", features = ["server", "http1"] }

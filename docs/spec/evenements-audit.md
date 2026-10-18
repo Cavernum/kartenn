@@ -14,6 +14,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `authn.account.locked` | WARN | high | Un compte a été verrouillé après des échecs répétés. | — | REQ-012-8 | Account Change 3001 / Lock | `iam` |
 | `authn.token.reused` | WARN | high | Un jeton déjà utilisé ou révoqué a été présenté. | — | REQ-012-8 | Authentication 3002 / Logon | `authentication` |
 | `authn.session.closed` | INFO | low | Une session s'est terminée (déconnexion ou expiration). | `cause` | REQ-012-8 | Authentication 3002 / Logoff | `authentication` |
+| `authn.breakglass.used` | WARN | high | Un compte de secours a ouvert une session. | `method` | REQ-005-15 | Authentication 3002 / Logon | `authentication` |
 | `authz.access.denied` | WARN | high | Un droit a été refusé à l'acteur sur les objets cibles. | `permission` | REQ-012-8 | Authorize Session 3003 / Assign Privileges | `iam` |
 | `changeset.state.pending` | INFO | normal | Un changeset attend une approbation ou une validation de proposition. | `kind` | REQ-012-8 | API Activity 6003 / Create | `configuration` |
 | `changeset.state.applied` | INFO | normal | Un changeset a été appliqué. | `operations` | REQ-012-8 | API Activity 6003 / Update | `configuration` |
@@ -25,6 +26,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `rbac.role.changed` | INFO | high | Un rôle ou ses permissions ont changé. | `role` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `rbac.binding.changed` | INFO | high | Une liaison sujet × rôle × périmètre a été créée ou retirée. | `role`, `scope` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `account.service.changed` | INFO | high | Un compte de service a été créé, renouvelé ou révoqué. | `change` | REQ-012-8 | Account Change 3001 / Create | `iam` |
+| `account.breakglass.created` | WARN | high | Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma. | `valid_until` | REQ-005-14 | Account Change 3001 / Create | `iam` |
 | `policy.approval.changed` | INFO | high | Une politique d'approbation a été créée, modifiée ou désactivée. | `enabled` | REQ-012-8 | Entity Management 3004 / Update | `configuration` |
 | `property.declaration.changed` | INFO | normal | Une déclaration de propriété a été créée ou modifiée. | `key`, `sensitive` | REQ-012-8, REQ-003-27 | Entity Management 3004 / Update | `configuration` |
 | `person.identity.pseudonymised` | INFO | high | Les données d'identité d'une personne ont été pseudonymisées. | — | REQ-012-8 | Account Change 3001 / Other | `iam` |

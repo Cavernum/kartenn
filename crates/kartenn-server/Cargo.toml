@@ -14,6 +14,7 @@ workspace = true
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
 figment = { version = "0.10.19", features = ["toml", "env"] }
+kartenn-auth = { version = "0.0.0", path = "../kartenn-auth" }
 kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
 kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }

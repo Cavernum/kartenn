@@ -109,8 +109,14 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   l'instance qui applique le changement oublie l'entrée (coupure à la requête suivante),
   les autres au plus 5 s après ; refus audité `authz.access.denied`
   (`identity.disabled`, `session.revoked`) (`service_accounts.rs`)
-- [ ] 14. Comptes de secours : sous-commande, Argon2id, TOTP, session d'1 h, 100 échecs —
-  REQ-005-14, 15 — verify : code rejoué refusé, rôle applicatif sans écriture
+- [x] 14. Comptes de secours : sous-commande, Argon2id, TOTP, session d'1 h, 100 échecs —
+  REQ-005-14, 15 — verify : code rejoué refusé, rôle applicatif sans écriture —
+  `kartenn-server breakglass create` (1 à 24 h, phrase et URI `otpauth://` affichées une
+  fois), `kartenn_auth::breakglass` (Argon2id RFC 9106, TOTP RFC 6238 avec `last_step`),
+  `authn::authenticate_breakglass` ; un compte inconnu calcule quand même un hachage
+  (`burn`, pas d'oracle temporel) ; événements `authn.breakglass.used` et
+  `account.breakglass.created` (criticité haute) ; la durée d'1 h de la session est
+  appliquée par la couche HTTP (spec 006) (`tests/breakglass.rs`, `rbac_schema.rs`)
 - [ ] 15. Configuration `[auth]` et événements d'authentification — REQ-005-28 — verify :
   configurations invalides refusées ; événements de chaque refus
 

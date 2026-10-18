@@ -68,6 +68,9 @@ events! {
     AUTHN_SESSION_CLOSED = "authn.session.closed", Info, Low, ["cause"], ["REQ-012-8"],
         "Authentication 3002 / Logoff", "authentication",
         "Une session s'est terminée (déconnexion ou expiration).";
+    AUTHN_BREAKGLASS_USED = "authn.breakglass.used", Warn, High, ["method"], ["REQ-005-15"],
+        "Authentication 3002 / Logon", "authentication",
+        "Un compte de secours a ouvert une session.";
     // Authorisation.
     AUTHZ_DENIED = "authz.access.denied", Warn, High, ["permission"], ["REQ-012-8"],
         "Authorize Session 3003 / Assign Privileges", "iam",
@@ -104,6 +107,9 @@ events! {
     SERVICE_ACCOUNT_CHANGED = "account.service.changed", Info, High, ["change"], ["REQ-012-8"],
         "Account Change 3001 / Create", "iam",
         "Un compte de service a été créé, renouvelé ou révoqué.";
+    BREAKGLASS_CREATED = "account.breakglass.created", Warn, High, ["valid_until"], ["REQ-005-14"],
+        "Account Change 3001 / Create", "iam",
+        "Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma.";
     APPROVAL_POLICY_CHANGED = "policy.approval.changed", Info, High, ["enabled"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "configuration",
         "Une politique d'approbation a été créée, modifiée ou désactivée.";
