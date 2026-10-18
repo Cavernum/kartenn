@@ -38,7 +38,8 @@ const OWN: usize = 10;
 /// One budget measured both ways.
 struct Pair {
     name: &'static str,
-    /// The budget of the p95 (INV-30 to 34, as in `bench-core`).
+    /// The budget of the p95 (INV-30 to 34, as in `bench-core`; INV-33 relative to the
+    /// current read).
     limit: Duration,
     plain: Vec<Duration>,
     controlled: Vec<Duration>,
@@ -246,6 +247,31 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         }
     }
 
+    // Reading an object as known in the past (INV-33): the same decision, on now.
+    let mut dated = Pair::new(
+        "read an object as known in the past",
+        Duration::from_millis(50),
+    );
+    let from = OffsetDateTime::from_unix_timestamp(1_696_118_400)?;
+    for _ in 0..200 {
+        let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
+        let as_of = Some(from + Duration::from_hours(24) * rng.random_range(0..700));
+        let t = Instant::now();
+        object(&pool, id, now, as_of)
+            .await?
+            .context("a past version is missing")?;
+        dated.plain.push(t.elapsed());
+        let t = Instant::now();
+        object(&pool, id, now, as_of)
+            .await?
+            .context("a past version is missing")?;
+        authorizer
+            .authorize_many(&subject, "core.address.read", &[id])
+            .await
+            .map_err(|e| anyhow!(e.0))?;
+        dated.controlled.push(t.elapsed());
+    }
+
     // Filtered pages of 100: the scope of the person, then the filtered page.
     let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
     let mut scopes = Vec::new();
@@ -315,8 +341,10 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         p95(scopes)
     )?;
 
+    // INV-33: twice the current read, with access control as well (floor 5 ms).
+    dated.limit = (p95(read.controlled.clone()) * 2).max(Duration::from_millis(5));
     let mut ok = true;
-    for pair in [read, page, subtree, changeset] {
+    for pair in [read, dated, page, subtree, changeset] {
         let plain = p95(pair.plain);
         let controlled = p95(pair.controlled);
         let overhead = controlled.as_secs_f64() / plain.as_secs_f64().max(1e-9) - 1.0;
