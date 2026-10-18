@@ -11,12 +11,18 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P1 — Socle
 
-- [ ] 1. Crate `kartenn-rest` (dépendances du design, `workspace-hack` à jour), routeur
+- [x] 1. Crate `kartenn-rest` (dépendances du design, `workspace-hack` à jour), routeur
   `/v1`, type `Problem` et table de correspondance des erreurs du service, couche
   d'identifiant de requête (UUID v7 toujours généré, `Request-Id`), sondes
   `/health/live` et `/health/ready` — REQ-006-3, 20, 36, 37 — verify : panique → 500
   générique avec l'identifiant ; base arrêtée → `ready` 503, `live` 200 ; même
-  identifiant dans la réponse, le log et l'audit
+  identifiant dans la réponse, le log et l'audit — `problem.rs` (`ProblemKind`, URN),
+  `error.rs` (`RequestError`, `WriteError`, `ImportError` ; erreurs de structure du
+  changeset → 400), `request_id.rs` (contexte à acteur `Unknown`, `instance` réécrit
+  au retour, log `http.request`), `health.rs` (`PgReadiness` : migrations +
+  `AuditStatus` partagé, nouveau dans `kartenn-service::audit`) ; `tests/socle.rs`.
+  Dettes : `AuditStatus::update` depuis `relay_all` et `traceparent` de confiance
+  (toujours `false`) à câbler en 2 et 3
 - [ ] 2. Serveur : configuration `[http]` (refus des champs inconnus), boucle
   d'acceptation `hyper-util` (HTTP/1.1, h2, h2c), TLS `tokio-rustls` + `ring`, ALPN,
   délai de poignée de main, rechargement du certificat sur `SIGHUP`, arrêt propre dans

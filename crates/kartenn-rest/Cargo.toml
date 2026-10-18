@@ -1,0 +1,34 @@
+[package]
+name = "kartenn-rest"
+version = "0.0.0"
+description = "kartenn REST API: router, representations, problems"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }
+kartenn-telemetry = { version = "0.0.0", path = "../kartenn-telemetry" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid"] }
+tokio = { version = "1.53.3", features = ["time"] }
+tracing = "0.1.44"
+uuid = { version = "1.28.0", features = ["v7"] }
+axum = { version = "0.8.9", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path"] }
+tracing-opentelemetry = { version = "0.34", default-features = false }
+tower-http = { version = "0.7", features = ["catch-panic"] }
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }

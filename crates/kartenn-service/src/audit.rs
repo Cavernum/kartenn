@@ -6,6 +6,7 @@
 //! [`WriteTx::audit`]: crate::WriteTx::audit
 
 use std::future::Future;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -169,6 +170,31 @@ impl SinkHealth {
             return Some(&kartenn_core::audit::SYS_OUTPUT_UNAVAILABLE);
         }
         None
+    }
+
+    /// Whether the output is reported unavailable (failing for a minute or more).
+    #[must_use]
+    pub const fn unavailable(&self) -> bool {
+        self.reported
+    }
+}
+
+/// The number of audit outputs reported unavailable, shared between the relays that
+/// observe them and the readiness probe (006, REQ-006-36).
+#[derive(Debug, Clone, Default)]
+pub struct AuditStatus(Arc<AtomicUsize>);
+
+impl AuditStatus {
+    /// Records the state of every output after a relay pass.
+    pub fn update<'a>(&self, outputs: impl IntoIterator<Item = &'a SinkHealth>) {
+        let down = outputs.into_iter().filter(|h| h.unavailable()).count();
+        self.0.store(down, Ordering::Relaxed);
+    }
+
+    /// Whether every output is available.
+    #[must_use]
+    pub fn available(&self) -> bool {
+        self.0.load(Ordering::Relaxed) == 0
     }
 }
 
@@ -416,6 +442,26 @@ mod tests {
         // A short failure is not reported.
         assert_eq!(health.observe(false, s(200)), None);
         assert_eq!(health.observe(true, s(210)), None);
+    }
+
+    #[test]
+    fn the_status_counts_the_outputs_reported_unavailable() {
+        let s = |secs: i64| Instant(secs * 1_000_000);
+        let status = AuditStatus::default();
+        let (mut up, mut down) = (SinkHealth::default(), SinkHealth::default());
+        up.observe(true, s(0));
+        down.observe(false, s(0));
+        status.update([&up, &down]);
+        assert!(
+            status.available(),
+            "a failure under a minute is not reported"
+        );
+        down.observe(false, s(60));
+        status.clone().update([&up, &down]);
+        assert!(!status.available(), "clones share the state");
+        down.observe(true, s(61));
+        status.update([&up, &down]);
+        assert!(status.available());
     }
 
     #[tokio::test]
