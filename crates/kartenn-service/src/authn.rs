@@ -8,7 +8,9 @@
 use std::future::Future;
 use std::net::IpAddr;
 
-use kartenn_core::audit::{AUTHN_LOGIN_FAILED, Actor, ActorKind, AuditEvent, Outcome, Source};
+use kartenn_core::audit::{
+    AUTHN_LOGIN_FAILED, AUTHN_LOGIN_SUCCEEDED, Actor, ActorKind, AuditEvent, Outcome, Source,
+};
 use kartenn_core::period::Instant;
 use uuid::Uuid;
 
@@ -132,6 +134,15 @@ pub trait Identities: Send + Sync {
         &self,
         name: &str,
     ) -> impl Future<Output = Result<Option<ServiceAccount>, StoreError>> + Send;
+
+    /// The person (`issuer`, `subject`), created at its first login with `name` as display
+    /// name, or updated (REQ-005-1, 2; K3): its identifier and whether it is disabled.
+    fn upsert_person(
+        &self,
+        issuer: &str,
+        subject: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
 
     /// The digest of an identifier claimed by an unknown actor (REQ-012-9), in hexadecimal.
     fn claimed_digest(
@@ -261,4 +272,55 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
         groups: Vec::new(),
         method: Method::Basic,
     })
+}
+
+/// A person who completed a login at `issuer` as `subject` (REQ-005-1, 2): its identity,
+/// created at the first login, and `authn.login.succeeded` recorded; a disabled identity
+/// is refused, the refusal audited.
+///
+/// # Errors
+///
+/// [`AuthnError::Refused`] for a disabled identity; [`AuthnError::Store`],
+/// [`AuthnError::Audit`].
+#[allow(clippy::too_many_arguments)] // who, from where, and how it is recorded
+pub async fn logged_in<I: Identities, J: AuditJournal>(
+    identities: &I,
+    journal: &J,
+    aggregator: &FailureAggregator,
+    (issuer, subject, name): (&str, &str, Option<&str>),
+    groups: Vec<String>,
+    method: Method,
+    source: Source,
+    at: Instant,
+) -> Result<Principal, AuthnError> {
+    let (identity, disabled) = identities
+        .upsert_person(issuer, subject, name.unwrap_or(subject))
+        .await
+        .map_err(AuthnError::Store)?;
+    if disabled {
+        failed(
+            identities,
+            journal,
+            aggregator,
+            (&format!("{issuer} {subject}"), method, "disabled"),
+            source,
+            at,
+        )
+        .await?;
+        return Err(AuthnError::Refused);
+    }
+    let principal = Principal {
+        identity,
+        kind: IdentityKind::Person,
+        issuer: Some(issuer.to_owned()),
+        groups,
+        method,
+    };
+    let event = principal
+        .context(source)
+        .event(&AUTHN_LOGIN_SUCCEEDED, Outcome::Success)
+        .and_then(|e| e.detail("method", method.as_str()))
+        .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?;
+    journal.record(&event).await.map_err(AuthnError::Audit)?;
+    Ok(principal)
 }

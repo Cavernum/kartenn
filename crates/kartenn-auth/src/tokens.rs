@@ -218,4 +218,80 @@ impl<S: KeySource> TokenVerifier<S> {
             groups,
         })
     }
+
+    /// The issuer configured as `id`.
+    #[must_use]
+    pub fn issuer(&self, id: &str) -> Option<&IssuerConfig> {
+        self.issuers.iter().find(|i| i.id == id)
+    }
+
+    /// Validates the ID token of a login at `issuer` (OIDC Core §3.1.3.7): exact `iss`,
+    /// `aud` holding the client and no audience else, `azp` the client if present, a key of
+    /// the issuer and an algorithm of its list, unexpired, and the `nonce` of the login
+    /// (`None` for the ID token of a refresh, which carries none, §12.2).
+    ///
+    /// # Errors
+    ///
+    /// [`TokenError`] for any refusal; a wrong nonce is [`TokenError::Invalid`].
+    pub async fn verify_id_token(
+        &self,
+        issuer: &IssuerConfig,
+        token: &str,
+        nonce: Option<&str>,
+    ) -> Result<VerifiedToken, TokenError> {
+        let header = decode_header(token).map_err(|_| TokenError::Malformed)?;
+        if is_access_token(header.typ.as_deref()) {
+            return Err(TokenError::Malformed);
+        }
+        if !issuer.algorithms.contains(&header.alg) {
+            return Err(TokenError::Algorithm);
+        }
+        let kid = header.kid.clone().ok_or(TokenError::Malformed)?;
+        let key = self.key(issuer, &kid).await?;
+        let mut validation = Validation::new(header.alg);
+        validation.algorithms = vec![header.alg];
+        validation.set_issuer(&[&issuer.issuer]);
+        validation.set_audience(&[&issuer.client_id]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+        validation.leeway = LEEWAY;
+        let claims = decode::<Value>(token, &key, &validation)
+            .map_err(|e| TokenError::Invalid(e.to_string()))?
+            .claims;
+        // No audience but the client (§3.1.3.7, point 3), and `azp` the client if present.
+        let audiences: Vec<&str> = match &claims["aud"] {
+            Value::String(a) => vec![a.as_str()],
+            Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
+            _ => Vec::new(),
+        };
+        if audiences.iter().any(|a| *a != issuer.client_id) {
+            return Err(TokenError::Invalid("an untrusted audience".into()));
+        }
+        if claims["azp"]
+            .as_str()
+            .is_some_and(|azp| azp != issuer.client_id)
+        {
+            return Err(TokenError::Invalid("another authorised party".into()));
+        }
+        if let Some(nonce) = nonce {
+            let matches = claims["nonce"].as_str().is_some_and(|n| {
+                subtle::ConstantTimeEq::ct_eq(n.as_bytes(), nonce.as_bytes()).into()
+            });
+            if !matches {
+                return Err(TokenError::Invalid("nonce".into()));
+            }
+        }
+        Ok(VerifiedToken {
+            issuer: issuer.issuer.clone(),
+            subject: claims["sub"].as_str().unwrap_or_default().to_owned(),
+            name: claims["name"].as_str().map(str::to_owned),
+            groups: claims[issuer.groups_claim.as_str()]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|g| g.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+    }
 }

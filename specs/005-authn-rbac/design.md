@@ -39,7 +39,7 @@ flowchart LR
 |---|---|---|
 | `kartenn-core` | catalogue des permissions (`authz::catalogue`), rôles livrés, types `Permission`, `ScopeKind` | — |
 | `kartenn-service` | `Subject`, `Principal` ; port `Authorizer` étendu ; ports `IdentityStore`, `SecretHasher` ; contrôles d'écriture par type d'objet ; opérations d'administration ; `authn` (identité juste-à-temps, événements) | — |
-| `kartenn-auth` (nouvelle) | client OIDC du BFF (découverte, PKCE, `state`, `nonce`, validation du jeton d'identité, rafraîchissement), validation des jetons d'accès RFC 9068, cookie de session chiffré, trousseau de clés, HMAC des secrets, Argon2id, TOTP | `openidconnect` (flux du BFF), `jsonwebtoken` (jetons d'accès, moteur RustCrypto), `aes-gcm`, `hkdf`, `hmac`, `sha2`, `argon2`, `subtle` ; client HTTP sur rustls avec `ring`, sans aws-lc (comme la 012) |
+| `kartenn-auth` (nouvelle) | client OIDC du BFF (découverte, PKCE, `state`, `nonce`, validation du jeton d'identité, rafraîchissement), validation des jetons d'accès RFC 9068, cookie de session chiffré, trousseau de clés, HMAC des secrets, Argon2id, TOTP | `jsonwebtoken` 11 (moteur RustCrypto), `aes-gcm`, `hkdf`, `hmac`, `sha2`, `argon2`, `subtle` ; client HTTP sur hyper-rustls avec `ring`, sans aws-lc (comme la 012) ; pas de crate `openidconnect` : le flux est écrit sur ces briques (précision de la tâche 12) |
 | `kartenn-store-pg` | migration `0028_rbac.sql` ; `PgAuthorizer`, `Visibility` ; identités ; comptes | — |
 | `kartenn-server` | configuration `[auth]` ; sous-commande `breakglass` ; synchronisation des rôles livrés au job de migration | — |
 

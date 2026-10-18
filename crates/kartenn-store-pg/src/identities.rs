@@ -63,6 +63,30 @@ impl Identities for PgStore {
         }))
     }
 
+    async fn upsert_person(
+        &self,
+        issuer: &str,
+        subject: &str,
+        name: &str,
+    ) -> Result<(Uuid, bool), StoreError> {
+        // A pseudonymised person keeps its pseudonym (004, REQ-004-33).
+        sqlx::query_as(
+            "INSERT INTO person (id, display_name, issuer, subject, kind)
+             VALUES ($1, $2, $3, $4, 'person')
+             ON CONFLICT (issuer, subject) DO UPDATE
+                 SET display_name = CASE WHEN person.pseudonymized_at IS NULL
+                                         THEN EXCLUDED.display_name ELSE person.display_name END
+             RETURNING id, disabled_at IS NOT NULL",
+        )
+        .bind(Uuid::now_v7())
+        .bind(name)
+        .bind(issuer)
+        .bind(subject)
+        .fetch_one(self.pool())
+        .await
+        .map_err(store_err)
+    }
+
     async fn claimed_digest(&self, claimed: &str) -> Result<String, StoreError> {
         let key: Vec<u8> = sqlx::query_scalar("SELECT hmac_key FROM audit.instance_key")
             .fetch_one(self.pool())

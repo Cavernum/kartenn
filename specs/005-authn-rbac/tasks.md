@@ -95,9 +95,15 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   sont bornés à un par minute (une rotation juste après le démarrage passe) ;
   `HttpClient` sur hyper-rustls (`ring`), HTTP seulement vers la boucle locale ; source
   de clés en mémoire dans les tests (`kartenn-auth/tests/access_tokens.rs`)
-- [ ] 12. Flux OIDC du BFF : début, rappel (`state`, `iss`, `nonce`, PKCE), identité
+- [x] 12. Flux OIDC du BFF : début, rappel (`state`, `iss`, `nonce`, PKCE), identité
   juste-à-temps, session, rafraîchissement des groupes, déconnexion — REQ-005-1, 2, 4 à 8
-  — verify : IdP de test ; refus de REQ-005-4, 5
+  — verify : IdP de test ; refus de REQ-005-4, 5 — `kartenn_auth::oidc` écrit sur le client
+  HTTP et `jsonwebtoken` plutôt que la crate `openidconnect` (le flux est court, ses
+  contrôles listés par RFC 9700 et OIDC Core, une dépendance lourde de moins) ;
+  `TokenVerifier::verify_id_token` (audience = le seul client, `azp`, `nonce` ; sans
+  `nonce` pour le jeton d'un rafraîchissement, OIDC Core §12.2) ; `Session` scellée ;
+  `authn::logged_in` crée ou met à jour l'identité et audite la connexion ; IdP HTTP dans
+  le processus de test (`kartenn-auth/tests/oidc.rs`, `service_accounts.rs`)
 - [ ] 13. État des identités : désactivation, révocation des sessions, cache de 5 s —
   REQ-005-3 — verify : session coupée à la requête suivante
 - [ ] 14. Comptes de secours : sous-commande, Argon2id, TOTP, session d'1 h, 100 échecs —

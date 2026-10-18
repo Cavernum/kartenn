@@ -201,6 +201,75 @@ async fn a_service_account_lives_by_its_secrets(pool: PgPool) {
     assert_eq!(leaked, 0);
 }
 
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_person_is_created_at_its_first_login(pool: PgPool) {
+    use kartenn_service::authn::{Method, logged_in};
+    let f = Fixture::new(&pool).await;
+    let login = |issuer: &'static str, name: &'static str| {
+        let f = &f;
+        async move {
+            logged_in(
+                &f.store,
+                &f.journal,
+                &f.aggregator,
+                (issuer, "u-42", Some(name)),
+                vec!["netops".into()],
+                Method::OidcSession,
+                kartenn_core::audit::Source::default(),
+                now(),
+            )
+            .await
+        }
+    };
+    let first = login("https://idp.example.invalid", "A. Person")
+        .await
+        .unwrap();
+    assert_eq!(first.groups, ["netops"]);
+    let again = login("https://idp.example.invalid", "A. Person-Renamed")
+        .await
+        .unwrap();
+    assert_eq!(
+        again.identity, first.identity,
+        "the same identity (REQ-005-1)"
+    );
+    let (name, email): (String, Option<String>) =
+        sqlx::query_as("SELECT display_name, email FROM person WHERE id = $1")
+            .bind(first.identity)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        (name.as_str(), email),
+        ("A. Person-Renamed", None),
+        "a name, no e-mail (K3)"
+    );
+    // The same subject at another issuer: another identity (K2).
+    let other = login("https://vendor.example.invalid", "A. Person")
+        .await
+        .unwrap();
+    assert_ne!(other.identity, first.identity);
+    let succeeded: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit.event WHERE name = 'authn.login.succeeded'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(succeeded, 3);
+    // Disabled: refused, audited.
+    sqlx::query("UPDATE person SET disabled_at = now() WHERE id = $1")
+        .bind(first.identity)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(matches!(
+        login("https://idp.example.invalid", "A. Person").await,
+        Err(AuthnError::Refused)
+    ));
+    assert_eq!(
+        f.failures().await.last().unwrap().1.as_deref(),
+        Some("disabled")
+    );
+}
+
 #[test]
 fn verifying_a_secret_costs_microseconds() {
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();

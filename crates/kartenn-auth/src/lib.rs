@@ -5,6 +5,7 @@
 pub mod http;
 pub mod issuer;
 pub mod keys;
+pub mod oidc;
 pub mod seal;
 pub mod secrets;
 pub mod tokens;
