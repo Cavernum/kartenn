@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::cursor::{Page, next_href, respond_page};
@@ -130,8 +131,9 @@ pub fn routes(api: Api) -> Router {
                     move |state: State<Api>,
                           context: Extension<RequestContext>,
                           id: Path<Uuid>,
+                          query: RawQuery,
                           headers: HeaderMap| {
-                        history(kind, state, context, id, headers)
+                        history(kind, state, context, id, query, headers)
                     },
                 ),
             );
@@ -652,24 +654,60 @@ pub(crate) async fn gate(
     Ok(())
 }
 
-/// `GET /v1/<collection>/{id}/history`: every version of an object the caller may read
-/// now, on both axes (REQ-004-18); 404 otherwise.
+/// The key of a version as written in a cursor by [`history`].
+fn version_key(key: &Value) -> Result<(OffsetDateTime, OffsetDateTime), Problem> {
+    let invalid = || Problem::new(ProblemKind::InvalidCursor);
+    let parse = |t: &str| OffsetDateTime::parse(t, &Rfc3339).map_err(|_| invalid());
+    let (valid, asserted) =
+        serde_json::from_value::<(String, String)>(key.clone()).map_err(|_| invalid())?;
+    Ok((parse(&valid)?, parse(&asserted)?))
+}
+
+/// `GET /v1/<collection>/{id}/history`: the versions of an object the caller may read
+/// now, on both axes (REQ-004-18), as known at `as_of`, by pages (REQ-006-7, 8) keyed by
+/// the start of validity then of assertion; 404 otherwise. `valid_at` has no effect: the
+/// history spans every validity.
 async fn history(
     kind: Kind,
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
+    let name = format!("{}/{id}/history", collection(kind));
+    let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
+    page.unfiltered()?;
+    let after = page.after().map(version_key).transpose()?;
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-    let moment = Dates::default().at(now, api.bound)?;
+    let moment = page.dates.at(now, api.bound)?;
     gate(&api, &context, kind, id).await?;
-    let versions = list::history(&api.pool, kind, id)
-        .await
-        .map_err(|e| store(&e))?;
-    if versions.is_empty() {
+    let size = usize::from(page.size);
+    let mut versions = list::history_page(
+        &api.pool,
+        kind,
+        id,
+        moment.as_of,
+        after,
+        Some(i64::from(page.size) + 1),
+    )
+    .await
+    .map_err(|e| store(&e))?;
+    if versions.is_empty() && after.is_none() {
         return Err(Problem::new(ProblemKind::NotFound));
     }
+    let next = (versions.len() > size).then(|| {
+        versions.truncate(size);
+        let last = &versions[size - 1];
+        let at = |t: OffsetDateTime| rfc3339(instant(t));
+        let cursor = page.next(
+            &api.ring,
+            &name,
+            &moment,
+            json!([at(last.valid_from), at(last.asserted_from)]),
+        );
+        next_href(&format!("/v1/{name}"), &cursor)
+    });
     let items = versions
         .into_iter()
         .map(|v| version_of(kind, &v))
@@ -681,7 +719,7 @@ async fn history(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    Ok(respond_page(&headers, &moment, &items, None))
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 #[cfg(test)]

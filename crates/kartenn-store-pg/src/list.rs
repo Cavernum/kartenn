@@ -404,13 +404,32 @@ pub struct Version {
 /// # Errors
 ///
 /// Database errors.
+pub async fn history(pool: &PgPool, kind: Kind, id: Uuid) -> sqlx::Result<Vec<Version>> {
+    history_page(pool, kind, id, None, None, None).await
+}
+
+/// [`history`] as known at `as_of` (now when `None`): the versions asserted then, a
+/// version retracted later shown as current; at most `limit` of them (all when `None`)
+/// after the key `after`, the start of validity then of assertion of the last one read
+/// (REQ-006-7).
+///
+/// # Errors
+///
+/// Database errors.
 #[tracing::instrument(name = "SELECT history", skip_all, fields(
     db.system.name = "postgresql",
     db.operation.name = "SELECT",
     db.query.summary = "SELECT history",
     kartenn.kind = kind.as_str(),
 ))]
-pub async fn history(pool: &PgPool, kind: Kind, id: Uuid) -> sqlx::Result<Vec<Version>> {
+pub async fn history_page(
+    pool: &PgPool,
+    kind: Kind,
+    id: Uuid,
+    as_of: Option<OffsetDateTime>,
+    after: Option<(OffsetDateTime, OffsetDateTime)>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Version>> {
     let shape = kind.shape();
     let versions = history_of(shape.table, shape.columns).map_err(|e| sql_err(&e))?;
     let link = match shape.link {
@@ -422,10 +441,15 @@ pub async fn history(pool: &PgPool, kind: Kind, id: Uuid) -> sqlx::Result<Vec<Ve
     };
     let sql = format!(
         "SELECT to_jsonb(h) - 'valid_period' - 'sys_start' - 'sys_end' - 'changeset_id',
-                {link}, lower(h.valid_period), upper(h.valid_period), h.sys_start, h.sys_end,
+                {link}, lower(h.valid_period), upper(h.valid_period), h.sys_start,
+                CASE WHEN $2::timestamptz IS NULL OR h.sys_end <= $2 THEN h.sys_end END,
                 h.changeset_id
          FROM ({}) h
-         ORDER BY lower(h.valid_period), h.sys_start",
+         WHERE ($2::timestamptz IS NULL OR h.sys_start <= $2)
+           AND ($3::timestamptz IS NULL
+                OR (lower(h.valid_period), h.sys_start) > ($3::timestamptz, $4::timestamptz))
+         ORDER BY lower(h.valid_period), h.sys_start
+         LIMIT $5",
         versions.0
     );
     type VersionRow = (
@@ -439,6 +463,10 @@ pub async fn history(pool: &PgPool, kind: Kind, id: Uuid) -> sqlx::Result<Vec<Ve
     );
     let rows: Vec<VersionRow> = sqlx::query_as(AssertSqlSafe(sql))
         .bind(id)
+        .bind(as_of)
+        .bind(after.map(|(valid_from, _)| valid_from))
+        .bind(after.map(|(_, asserted_from)| asserted_from))
+        .bind(limit)
         .fetch_all(pool)
         .await?;
     Ok(rows

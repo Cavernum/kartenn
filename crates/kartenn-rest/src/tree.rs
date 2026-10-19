@@ -10,7 +10,9 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
+use kartenn_core::addr::Addr;
 use kartenn_core::audit::rfc3339;
+use kartenn_core::family::ALL;
 use kartenn_core::objects::{Nature, PrefixObject, RangeUsage};
 use kartenn_service::RequestError;
 use kartenn_service::audit::{AuditJournal, RequestContext};
@@ -19,12 +21,12 @@ use kartenn_service::reads::objects_read;
 use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
-use kartenn_store_pg::tree::{self, Node};
+use kartenn_store_pg::tree::{self, ChildKey, Node};
 use serde::Serialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::cursor::respond_page;
+use crate::cursor::{Page, next_href, respond_page};
 use crate::dated::{Dates, ETag, Moment, respond};
 use crate::objects::{Api, audited, bad, gate, href, instant, store};
 use crate::problem::{Problem, ProblemKind};
@@ -165,26 +167,60 @@ fn document(headers: &HeaderMap, moment: &Moment, body: &Value) -> Response {
     respond(headers, moment, &etag, Json(body.clone()))
 }
 
+/// The key of a child as written in a cursor by [`children`].
+fn child_key(key: &Value) -> Result<ChildKey, Problem> {
+    let invalid = || Problem::new(ProblemKind::InvalidCursor);
+    let (start, rank, id) =
+        serde_json::from_value::<(String, i16, Uuid)>(key.clone()).map_err(|_| invalid())?;
+    let start = Addr::parse_any(&ALL, &start).map_err(|_| invalid())?;
+    Ok(ChildKey { start, rank, id })
+}
+
 /// `GET /v1/prefixes/{id}/children`: the direct children the caller may read, in address
-/// order (REQ-002-42).
+/// order (REQ-002-42), by pages (REQ-006-7, 8): the key of a child is its first address,
+/// its rank (prefix, range, address) and its identifier.
 async fn children(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
     Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
-    dates: Dates,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let (moment, _) = prefix(&api, &context, id, dates).await?;
+    let name = format!("prefixes/{id}/children");
+    let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
+    page.unfiltered()?;
+    let after = page.after().map(child_key).transpose()?;
+    let (moment, parent) = prefix(&api, &context, id, page.dates).await?;
     let scope = PgAuthorizer::new(api.pool.clone())
         .read_scope(&principal.subject(), moment.now)
         .await?;
-    let nodes = tree::children_as_of(&api.pool, id, moment.valid_at, moment.as_of, &scope)
-        .await
-        .map_err(|e| store(&e))?;
+    let size = usize::from(page.size);
+    let mut nodes = tree::children_of(
+        &api.pool,
+        &parent,
+        moment.valid_at,
+        moment.as_of,
+        &scope,
+        after.as_ref(),
+        Some(i64::from(page.size) + 1),
+    )
+    .await
+    .map_err(|e| store(&e))?;
+    let next = (nodes.len() > size).then(|| {
+        nodes.truncate(size);
+        let last = nodes[size - 1].key();
+        let cursor = page.next(
+            &api.ring,
+            &name,
+            &moment,
+            json!([last.start.to_string(), last.rank, last.id]),
+        );
+        next_href(&format!("/v1/{name}"), &cursor)
+    });
     let (items, ids) = listed(&nodes)?;
     record(&api, &context, &moment, "children", id, &ids).await?;
-    Ok(respond_page(&headers, &moment, &items, None))
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// `GET /v1/prefixes/{id}/ancestors`: the ancestors the caller may read, nearest first
@@ -197,11 +233,11 @@ async fn ancestors(
     dates: Dates,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let (moment, _) = prefix(&api, &context, id, dates).await?;
+    let (moment, found) = prefix(&api, &context, id, dates).await?;
     let scope = PgAuthorizer::new(api.pool.clone())
         .read_scope(&principal.subject(), moment.now)
         .await?;
-    let nodes = tree::ancestors_as_of(&api.pool, id, moment.valid_at, moment.as_of, &scope)
+    let nodes = tree::ancestors_of(&api.pool, &found, moment.valid_at, moment.as_of, &scope)
         .await
         .map_err(|e| store(&e))?;
     let (items, ids) = listed(&nodes)?;

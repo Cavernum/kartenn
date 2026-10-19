@@ -187,13 +187,25 @@ routeur complet, sauf mention « vrai TCP ».
   (`anomalies_follow_the_visibility_of_their_object`). Écarts : liste non paginée ;
   écriture et audit hors d'une même transaction (comme les lectures) ; une anomalie
   dont l'objet est clos n'est plus listée ni acquittable
-- [ ] 12d. Dettes de lecture (12a, 12b) : enfants et historique paginés par clé et curseur
+- [x] 12d. Dettes de lecture (12a, 12b) : enfants et historique paginés par clé et curseur
   signé (enfants : adresse, rang, id ; historique : validité, temps système) ; arbre à
   un `as_of` passé indexé (préfixe lu d'abord, domaine et valeur passés en paramètres
   aux requêtes des enfants et ancêtres ; index des partitions de `prefix_history` à
   vérifier) ; mesure « sous-arbre au passé » dans `bench-core` — REQ-006-4, 5, 7, 8 —
   verify : page suivante des enfants et de l'historique par curseur ; sous-arbre au passé
   < 200 ms (p95) au `bench-core`
+  — Store : `tree::children_of` (préfixe lu d'abord, domaine et valeur en paramètres,
+  clé `ChildKey` = première adresse, rang, id ; `LIMIT`), `ancestors_of` et
+  `ancestors_as_of` sur le même principe ; occupation et prochain libre réutilisent le
+  préfixe déjà lu ; `list::history_page` (`as_of` : versions assertées alors, une
+  version retirée plus tard rendue courante ; clé validité, temps système). Rest :
+  `children` et `history` par `Page` (collection propre à l'objet, filtre inconnu → 400,
+  `valid_at` sans effet sur l'historique), `Page::unfiltered`. `tests/objects.rs`
+  (`children_and_history_page_by_cursor` : enfant créé entre deux pages absent, curseur
+  altéré ou d'une autre liste → 400). `bench-core` : « subtree and occupancy in the
+  past » p95 13 ms (courant 4 ms) ; plan : index `*_keyset` par domaine sur les
+  partitions peuplées, parcours séquentiels sur les seules partitions vides.
+  Écart : ancêtres non paginés (profondeur ≤ 128)
 - [ ] 13. Lectures des propriétés : déclarations, valeurs, valeurs résolues,
   explication, suggestion, écarts ; lecture à un temps système passé ; filtres
   `prop.<clé>` des listes de 12a — REQ-006-4, 9 —

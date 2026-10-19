@@ -131,11 +131,6 @@ pub async fn ancestors(pool: &PgPool, object: Uuid, at: OffsetDateTime) -> sqlx:
 /// # Errors
 ///
 /// As [`ancestors`].
-#[tracing::instrument(name = "SELECT ancestors", skip_all, fields(
-    db.system.name = "postgresql",
-    db.operation.name = "SELECT",
-    db.query.summary = "SELECT ancestors",
-))]
 pub async fn ancestors_as_of(
     pool: &PgPool,
     object: Uuid,
@@ -143,22 +138,70 @@ pub async fn ancestors_as_of(
     as_of: Option<OffsetDateTime>,
     scope: &ReadScope,
 ) -> sqlx::Result<Vec<Node>> {
-    let prefix_readable = readable("p.id", "'prefix'", "p.domain_id", "p.prefix", "$1");
-    let rows: Vec<(Uuid, String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "WITH {},
-              o AS (SELECT domain_id, prefix::inet AS v FROM pf WHERE id = $3
-                    UNION ALL SELECT domain_id, lower(range) FROM rg WHERE id = $3
-                    UNION ALL SELECT domain_id, address FROM ad WHERE id = $3),
-              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4))
-         SELECT p.id, p.prefix::text, p.nature FROM pf p, o
-         WHERE p.domain_id = o.domain_id AND p.prefix >> o.v
-           AND ($4::jsonb IS NULL OR {prefix_readable})
-         ORDER BY masklen(p.prefix) DESC",
+    let found: Option<(Uuid, String)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH {} SELECT domain_id, prefix::text FROM pf WHERE id = $3
+         UNION ALL SELECT domain_id, host(lower(range)) FROM rg WHERE id = $3
+         UNION ALL SELECT domain_id, host(address) FROM ad WHERE id = $3",
         relations(as_of)?
     )))
     .bind(valid_at)
     .bind(as_of)
     .bind(object)
+    .fetch_optional(pool)
+    .await?;
+    match found {
+        Some((domain, value)) => ancestors_at(pool, domain, &value, valid_at, as_of, scope).await,
+        None => Ok(Vec::new()),
+    }
+}
+
+/// [`ancestors_as_of`] of the prefix `parent`, read before: its domain and value are
+/// parameters of the query, so that a past read keeps the per-domain index of the
+/// history (task 006-12d).
+///
+/// # Errors
+///
+/// As [`ancestors`].
+pub async fn ancestors_of(
+    pool: &PgPool,
+    parent: &PrefixObject,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<Node>> {
+    let value = parent.value.to_string();
+    ancestors_at(pool, parent.domain, &value, valid_at, as_of, scope).await
+}
+
+/// The prefixes of `domain` strictly holding `value` (a prefix or an address), nearest
+/// first, within what `scope` lets read.
+#[tracing::instrument(name = "SELECT ancestors", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT ancestors",
+))]
+async fn ancestors_at(
+    pool: &PgPool,
+    domain: Uuid,
+    value: &str,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<Node>> {
+    let prefix_readable = readable("p.id", "'prefix'", "p.domain_id", "p.prefix", "$1");
+    let rows: Vec<(Uuid, String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH {},
+              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($5))
+         SELECT p.id, p.prefix::text, p.nature FROM pf p
+         WHERE p.domain_id = $3 AND p.prefix >> $4::inet
+           AND ($5::jsonb IS NULL OR {prefix_readable})
+         ORDER BY masklen(p.prefix) DESC",
+        relations(as_of)?
+    )))
+    .bind(valid_at)
+    .bind(as_of)
+    .bind(domain)
+    .bind(value)
     .bind(scope.to_json())
     .fetch_all(pool)
     .await?;
@@ -200,7 +243,66 @@ pub async fn children_in(
     children_as_of(pool, prefix, at, None, scope).await
 }
 
-/// [`children_in`] valid at `valid_at` as asserted at `as_of` (now when `None`).
+/// [`children_in`] valid at `valid_at` as asserted at `as_of` (now when `None`); empty if
+/// `prefix` is not a prefix then.
+///
+/// # Errors
+///
+/// As [`children`].
+pub async fn children_as_of(
+    pool: &PgPool,
+    prefix: Uuid,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<Node>> {
+    match prefix_as_of(pool, prefix, valid_at, as_of).await? {
+        Some(parent) => children_of(pool, &parent, valid_at, as_of, scope, None, None).await,
+        None => Ok(Vec::new()),
+    }
+}
+
+/// Position of a child in address order: its first address, then its rank (prefix,
+/// range, address: the wider first at the same start), then its identifier.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ChildKey {
+    /// First address.
+    pub start: Addr,
+    /// 0 prefix, 1 range, 2 address.
+    pub rank: i16,
+    /// Identifier.
+    pub id: Uuid,
+}
+
+impl Node {
+    /// Its position among the children of its parent.
+    #[must_use]
+    pub const fn key(&self) -> ChildKey {
+        match *self {
+            Self::Prefix { id, value, .. } => ChildKey {
+                start: value.network(),
+                rank: 0,
+                id,
+            },
+            Self::Range { id, first, .. } => ChildKey {
+                start: first,
+                rank: 1,
+                id,
+            },
+            Self::Address { id, value } => ChildKey {
+                start: value,
+                rank: 2,
+                id,
+            },
+        }
+    }
+}
+
+/// The direct children of the prefix `parent`, read before, valid at `valid_at` as
+/// asserted at `as_of`, within what `scope` lets read: at most `limit` of them (all when
+/// `None`) after the key `after`, in [`ChildKey`] order (REQ-002-42, REQ-006-7). The
+/// domain and the value of `parent` are parameters of the query, so that a past read
+/// keeps the per-domain index of the history (task 006-12d).
 ///
 /// # Errors
 ///
@@ -210,15 +312,17 @@ pub async fn children_in(
     db.operation.name = "SELECT",
     db.query.summary = "SELECT children",
 ))]
-pub async fn children_as_of(
+pub async fn children_of(
     pool: &PgPool,
-    prefix: Uuid,
+    parent: &PrefixObject,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
     scope: &ReadScope,
+    after: Option<&ChildKey>,
+    limit: Option<i64>,
 ) -> sqlx::Result<Vec<Node>> {
     // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
-    // 'a' address (a = value).
+    // 'a' address (a = value); start: the first address, without mask, for the order.
     let (prefix_readable, range_readable, address_readable) = (
         readable("q.id", "'prefix'", "q.domain_id", "q.prefix", "$1"),
         readable("g.id", "'range'", "g.domain_id", "lower(g.range)", "$1"),
@@ -226,35 +330,45 @@ pub async fn children_as_of(
     );
     let rows: Vec<ChildRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH {},
-              p AS (SELECT domain_id, prefix FROM pf WHERE id = $3),
-              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4))
-         SELECT 'p', q.id, q.prefix::text, q.nature, NULL FROM pf q, p
-         WHERE q.domain_id = p.domain_id AND q.prefix << p.prefix
-           AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = p.domain_id
-                           AND r.prefix << p.prefix AND q.prefix << r.prefix)
-           AND ($4::jsonb IS NULL OR {prefix_readable})
-         UNION ALL
-         SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage FROM rg g, p
-         WHERE g.domain_id = p.domain_id AND lower(g.range) <<= p.prefix AND upper(g.range) <<= p.prefix
-           AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = p.domain_id
-                           AND r.prefix << p.prefix AND lower(g.range) <<= r.prefix)
-           AND ($4::jsonb IS NULL OR {range_readable})
-         UNION ALL
-         SELECT 'a', a.id, host(a.address), NULL, NULL FROM ad a, p
-         WHERE a.domain_id = p.domain_id AND a.address <<= p.prefix
-           AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = p.domain_id
-                           AND r.prefix << p.prefix AND a.address <<= r.prefix)
-           AND ($4::jsonb IS NULL OR {address_readable})",
+              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($5))
+         SELECT kind, id, a, b, c FROM (
+           SELECT 'p' AS kind, q.id, q.prefix::text AS a, q.nature AS b, NULL AS c,
+                  host(q.prefix)::inet AS start, 0 AS rank FROM pf q
+           WHERE q.domain_id = $3 AND q.prefix << $4::cidr
+             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
+                             AND r.prefix << $4::cidr AND q.prefix << r.prefix)
+             AND ($5::jsonb IS NULL OR {prefix_readable})
+           UNION ALL
+           SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage,
+                  host(lower(g.range))::inet, 1 FROM rg g
+           WHERE g.domain_id = $3 AND lower(g.range) <<= $4::cidr AND upper(g.range) <<= $4::cidr
+             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
+                             AND r.prefix << $4::cidr AND lower(g.range) <<= r.prefix)
+             AND ($5::jsonb IS NULL OR {range_readable})
+           UNION ALL
+           SELECT 'a', a.id, host(a.address), NULL, NULL, host(a.address)::inet, 2 FROM ad a
+           WHERE a.domain_id = $3 AND a.address <<= $4::cidr
+             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
+                             AND r.prefix << $4::cidr AND a.address <<= r.prefix)
+             AND ($5::jsonb IS NULL OR {address_readable})
+         ) c
+         WHERE $6::inet IS NULL OR (c.start, c.rank, c.id) > ($6::inet, $7::int, $8::uuid)
+         ORDER BY c.start, c.rank, c.id
+         LIMIT $9",
         relations(as_of)?
     )))
     .bind(valid_at)
     .bind(as_of)
-    .bind(prefix)
+    .bind(parent.domain)
+    .bind(parent.value.to_string())
     .bind(scope.to_json())
+    .bind(after.map(|k| k.start.to_string()))
+    .bind(after.map(|k| i32::from(k.rank)))
+    .bind(after.map(|k| k.id))
+    .bind(limit)
     .fetch_all(pool)
     .await?;
-    let mut nodes: Vec<Node> = rows
-        .into_iter()
+    rows.into_iter()
         .map(|(kind, id, a, b, c)| match (kind.as_str(), b, c) {
             ("p", Some(n), _) => Ok(Node::Prefix {
                 id,
@@ -273,14 +387,7 @@ pub async fn children_as_of(
             }),
             _ => Err(decode_err(format!("malformed child row of kind {kind}"))),
         })
-        .collect::<Result<_, sqlx::Error>>()?;
-    // Address order; at the same start, the wider node first (prefix, range, address).
-    nodes.sort_by_key(|n| match n {
-        Node::Prefix { value, .. } => (value.network(), 0, value.prefix_len()),
-        Node::Range { first, .. } => (*first, 1, 0),
-        Node::Address { value, .. } => (*value, 2, 0),
-    });
-    Ok(nodes)
+        .collect()
 }
 
 /// The prefix `id` valid at `valid_at` as asserted at `as_of` (now when `None`); `None`
@@ -403,7 +510,7 @@ pub async fn occupancy_as_of(
     let Some(p) = prefix_as_of(pool, prefix, valid_at, as_of).await? else {
         return Ok(None);
     };
-    let content = children_as_of(pool, prefix, valid_at, as_of, &ReadScope::all()).await?;
+    let content = children_of(pool, &p, valid_at, as_of, &ReadScope::all(), None, None).await?;
     Ok(Some(match p.nature {
         Nature::Network => occupancy::network_occupancy(
             &p,
@@ -451,7 +558,7 @@ pub async fn next_free_address_as_of(
     if p.nature != Nature::Network {
         return Ok(None);
     }
-    let content = children_as_of(pool, network, valid_at, as_of, &ReadScope::all()).await?;
+    let content = children_of(pool, &p, valid_at, as_of, &ReadScope::all(), None, None).await?;
     Ok(occupancy::next_free_address(
         &p,
         &ranges_of(&content, p.domain),
@@ -497,7 +604,7 @@ pub async fn next_free_prefix_as_of(
     if p.nature != Nature::Container {
         return Ok(None);
     }
-    let content = children_as_of(pool, container, valid_at, as_of, &ReadScope::all()).await?;
+    let content = children_of(pool, &p, valid_at, as_of, &ReadScope::all(), None, None).await?;
     Ok(occupancy::next_free_prefix(
         p.value,
         &prefixes_of(&content),

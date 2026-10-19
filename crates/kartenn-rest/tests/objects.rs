@@ -2,7 +2,8 @@
 //! 006-12a): the natural key as a filter, a summary per linked object, the URL kept by a
 //! rename, the history, and the same 404 for an invisible object as for an absent one;
 //! the tree under a prefix (task 006-12b): what the caller may not read is absent; the
-//! anomalies and their acknowledgement (task 006-12c).
+//! anomalies and their acknowledgement (task 006-12c); children and history by pages
+//! (task 006-12d).
 
 mod common;
 
@@ -290,6 +291,77 @@ async fn a_rename_keeps_the_url_and_makes_history(pool: PgPool) {
             .await
             .unwrap();
     assert!(reads >= 3, "{reads}");
+}
+
+/// An address of `domain`.
+async fn address(pool: &PgPool, domain: Uuid, value: &str) -> Uuid {
+    let sql = format!(
+        "INSERT INTO address (id, domain_id, address, usage, public, registry_version,
+                              valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1::uuid, $2::inet, 'gateway', false, 'test', {SINCE})
+         RETURNING id"
+    );
+    insert(pool, &sql, &[&domain.to_string(), value]).await
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn children_and_history_page_by_cursor(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let first = address(&pool, lab, "10.1.0.5").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    address(&pool, lab, "10.1.2.1").await;
+    let other = prefix(&pool, lab, "10.1.3.0/24").await;
+    let last = address(&pool, lab, "10.1.4.1").await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    // Children by two, in address order; a child created between two pages appears in
+    // neither: the cursor froze `as_of`.
+    let body = ok(&app, &format!("/v1/prefixes/{block}/children?page_size=2")).await;
+    assert_eq!(ids_of(&body), [first.to_string(), net.to_string()]);
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    assert!(next.starts_with(&format!("/v1/prefixes/{block}/children?cursor=")));
+    prefix(&pool, lab, "10.1.1.0/24").await;
+    let body = ok(&app, &next).await;
+    assert_eq!(ids_of(&body), [other.to_string(), last.to_string()]);
+    assert_eq!(body["links"]["next"], Value::Null);
+
+    // An altered cursor, or one of another list, is refused.
+    let (path, cursor) = next.split_once("cursor=").unwrap();
+    let altered = format!("{path}cursor=A{}", &cursor[1..]);
+    assert_eq!(get(&app, &altered).await.status(), StatusCode::BAD_REQUEST);
+    let elsewhere = format!("/v1/prefixes/{net}/children?cursor={cursor}");
+    assert_eq!(
+        get(&app, &elsewhere).await.status(),
+        StatusCode::BAD_REQUEST
+    );
+    let filtered = format!("/v1/prefixes/{block}/children?nature=network");
+    assert_eq!(get(&app, &filtered).await.status(), StatusCode::BAD_REQUEST);
+
+    // The history by two: three versions of a domain renamed twice.
+    for slug in ["core", "edge"] {
+        sqlx::query("UPDATE addressing_domain SET slug = $2, changeset_id = gen_random_uuid() WHERE id = $1")
+            .bind(lab)
+            .bind(slug)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let body = ok(&app, &format!("/v1/domains/{lab}/history?page_size=2")).await;
+    let slugs = |body: &Value| -> Vec<String> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["object"]["slug"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(slugs(&body), ["lab", "core"]);
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    assert!(next.starts_with(&format!("/v1/domains/{lab}/history?cursor=")));
+    let body = ok(&app, &next).await;
+    assert_eq!(slugs(&body), ["edge"]);
+    assert_eq!(body["links"]["next"], Value::Null);
 }
 
 /// A 404 without what differs from one request to another.

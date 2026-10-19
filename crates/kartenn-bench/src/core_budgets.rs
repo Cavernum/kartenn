@@ -1,8 +1,9 @@
 //! Budgets of the core (spec 002, REQ-002-45; spec 004, REQ-004-38; tasks 002-27,
 //! 004-23) on the reference dataset with three years of history: reading an object now
-//! and as known in the past, a filtered page, a subtree with its occupancy, a unitary
-//! changeset, a sustained rate of unitary changesets and an import of as many addresses
-//! as the dataset holds, through the real service and storage adapter.
+//! and as known in the past, a filtered page, a subtree with its occupancy (now and as
+//! known in the past, task 006-12d), a unitary changeset, a sustained rate of unitary
+//! changesets and an import of as many addresses as the dataset holds, through the real
+//! service and storage adapter.
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -19,8 +20,11 @@ use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ImportItem;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::filter::{Condition, filter};
+use kartenn_store_pg::rbac::ReadScope;
 use kartenn_store_pg::read::object;
-use kartenn_store_pg::tree::{children, next_free_address, occupancy};
+use kartenn_store_pg::tree::{
+    children, children_as_of, next_free_address, occupancy, occupancy_as_of,
+};
 use kartenn_store_pg::write::PgStore;
 use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -411,6 +415,26 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         limit: Duration::from_millis(200),
         measured: p95(samples),
         note: "200 draws, containers and networks".into(),
+    });
+
+    // The same as known in the past (task 006-12d): the prefix read first, its domain and
+    // value given to the queries, so that the history keeps its per-domain index.
+    let mut samples = Vec::new();
+    for _ in 0..200 {
+        let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
+        let as_of = Some(from + DAY * rng.random_range(0..700));
+        let t = Instant::now();
+        children_as_of(&pool, p.id, now, as_of, &ReadScope::all()).await?;
+        occupancy_as_of(&pool, p.id, now, as_of)
+            .await?
+            .context("a past prefix is missing")?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "subtree and occupancy in the past, p95",
+        limit: Duration::from_millis(200),
+        measured: p95(samples),
+        note: "200 draws over two years of history".into(),
     });
 
     // Unitary changesets: a new address in a random network.

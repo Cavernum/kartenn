@@ -139,6 +139,18 @@ impl Page {
         })
     }
 
+    /// For a list that takes no filter.
+    ///
+    /// # Errors
+    ///
+    /// 400 `bad-request` naming the first parameter left to the route.
+    pub fn unfiltered(&self) -> Result<(), Problem> {
+        match self.filters.first() {
+            Some((name, _)) => Err(bad(format!("unknown parameter {name}"))),
+            None => Ok(()),
+        }
+    }
+
     /// The last key of the previous page, as the route wrote it in [`Page::next`]; `None`
     /// on the first page.
     #[must_use]
