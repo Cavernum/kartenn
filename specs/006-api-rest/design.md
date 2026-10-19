@@ -133,6 +133,56 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     `{id, property, object, message, opened_at}`. Leur message cite la valeur résolue :
     pour une propriété sensible sans `prop.<clé>.read`, il est remplacé par un texte
     générique, ici comme dans `/v1/anomalies`.
+- **Cycle d'un changeset (arbitrage du 2026-10-19, 006-17)** :
+  - lecture : `GET /v1/changesets/{id}`, `GET /v1/changesets` et `GET …/{id}/diff`
+    exigent `core.changeset.read`, nouvelle permission du catalogue 005, globale
+    uniquement (accordée sur l'objet sentinelle `CHANGESETS`) ; sans elle → 403
+    `forbidden` et `authz.access.denied`, avant toute recherche (un changeset absent
+    n'est pas un oracle) ; changeset absent → 404. Chaque lecture est auditée
+    (`data.objects.read`, cible `changeset`) ;
+  - masquage (REQ-005-21) : dans les opérations, les `values` d'une affectation d'une
+    propriété sensible valent `null` et l'opération porte `masked: true`, sauf
+    `prop.<clé>.read` sur l'objet (propriété ou objet en référence locale : toujours
+    masqué) ; dans le différentiel, `before` et `after` d'une propriété sensible sans ce
+    droit valent `null`, `masked: true` ; une valeur sensible rendue est auditée
+    (`data.sensitive.read`). Le condensat d'un secret de compte de service
+    (`secret.digest`) n'est jamais rendu ; les messages de violation sont masqués comme
+    dans la réponse d'une soumission ;
+  - représentation : `{id, state, kind, author, validator, motive, valid_from, valid_to,
+    submitted_at, applied_at, expires_at, policy, rejection, operations, violations,
+    diff, cascaded, links: {diff}}` (`diff` : le décompte journalisé ; `violations` :
+    erreurs puis avertissements, avec `operation` et `pointer` comme en 006-14). ETag
+    fort `"<état>"` (`"pending"`, `"applied"`…) ;
+  - liste : `GET /v1/changesets?state=…&author=…` (chaque filtre au plus une fois, un
+    état du schéma, un auteur UUID ; `valid_at` ou `as_of` → 400), tri par temps
+    système (`submitted_at`) décroissant puis UUID décroissant, curseur lu à l'état
+    courant à chaque page (comme 006-13b), migration 0038 d'index `(submitted_at, id)` ;
+    élément `{id, href, state, kind, author, motive, submitted_at}` ;
+  - différentiel : `GET …/{id}/diff?property=…` → `{counts, items, links: {next}}`,
+    `counts` le décompte journalisé, `items` `{property, object: {id}, before, after,
+    masked}` dans l'ordre `seq` du journal, curseur sur `seq` ;
+  - propositions : `GET /v1/proposals`, celles que l'appelant peut valider (REQ-004-43,
+    sans `core.changeset.read`), plus anciennes d'abord, curseur sur `(submitted_at,
+    id)` ; élément comme dans la liste, plus `required` (`[{permission, objects}]`) ;
+  - actions : `POST …/validation`, `…/rejection` (`{motive}` obligatoire, sinon 422
+    `motive-required`), `…/withdrawal`, `…/undo` ; seule `undo` exige
+    `core.changeset.read` (elle lit le changeset pour l'inverser). `If-Match`
+    obligatoire : absent ou `*` → 428 ; une étiquette qui n'est pas l'état courant →
+    412 ; l'état attendu est `"pending"` (validation, rejet, retrait) ou `"applied"`
+    (annulation). Changeset absent → 404 ; décidé entre-temps → 409 `conflict`. Auteur
+    qui valide ou rejette, validateur sans le droit, non-auteur qui retire → 403
+    (`changeset.approval.self`, `changeset.approval.forbidden`,
+    `changeset.state.not_author`, audités) ;
+  - réponses : validation appliquée → 200, corps de soumission et `Link` vers le
+    changeset ; revalidation échouée → 422 `changeset-refused` avec les violations ;
+    rejet et retrait → 200 `{changeset, state}` ;
+  - annulation : inverse généré (REQ-004-34) ; s'il a des conflits (objets ou droits
+    écrits depuis, REQ-004-35) → 409 `undo-conflict`, extension `conflicts` :
+    `[{kind, id, property, by}]` puis `[{row, by}]` pour les droits ; sinon soumis par
+    le pipeline sous les droits de l'appelant : 201/202/422 comme `POST /v1/changesets`,
+    `Location` et `Link` vers le nouveau changeset, plus `undoes` et `unsupported`
+    (`[{kind, id}]`, ce qui n'est pas annulé) dans le corps ; `?simulate=true` → 200,
+    la réponse de simulation plus les `operations` de l'inverse, rien d'écrit.
 
 ### Représentations et DTO (REQ-006-2, 3, 13)
 
