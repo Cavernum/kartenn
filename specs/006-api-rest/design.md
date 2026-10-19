@@ -129,6 +129,11 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   asserted_from, asserted_to, changeset: {id, href}, object}]}` (`valid_to` et
   `asserted_to` `null` quand ouverts), trié par début de validité puis d'assertion ;
   lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
+  `valid_at` donné ne garde que les versions valides à cette date (toutes leurs
+  assertions), sur toutes les pages : la clé du curseur le porte. À un `as_of` passé,
+  l'historique est celui connu alors : versions assertées à `as_of`, et une version
+  retirée après `as_of` rendue avec `asserted_to` `null` — rien de postérieur ne
+  transparaît, la réponse au passé figé reste immuable (REQ-006-6) (006-12e).
 - Membres réservés des corps d'écriture : `motive` (obligatoire), `valid_from`,
   `valid_to` ; jamais confondus avec des champs de l'objet (le noyau n'a aucun champ de
   ce nom ; un test du contrat le garantit).

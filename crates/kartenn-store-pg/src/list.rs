@@ -405,11 +405,12 @@ pub struct Version {
 ///
 /// Database errors.
 pub async fn history(pool: &PgPool, kind: Kind, id: Uuid) -> sqlx::Result<Vec<Version>> {
-    history_page(pool, kind, id, None, None, None).await
+    history_page(pool, kind, id, None, None, None, None).await
 }
 
 /// [`history`] as known at `as_of` (now when `None`): the versions asserted then, a
-/// version retracted later shown as current; at most `limit` of them (all when `None`)
+/// version retracted later shown as current; only those valid at `valid_at` when given
+/// (REQ-006-5); at most `limit` of them (all when `None`)
 /// after the key `after`, the start of validity then of assertion of the last one read
 /// (REQ-006-7).
 ///
@@ -426,6 +427,7 @@ pub async fn history_page(
     pool: &PgPool,
     kind: Kind,
     id: Uuid,
+    valid_at: Option<OffsetDateTime>,
     as_of: Option<OffsetDateTime>,
     after: Option<(OffsetDateTime, OffsetDateTime)>,
     limit: Option<i64>,
@@ -446,6 +448,7 @@ pub async fn history_page(
                 h.changeset_id
          FROM ({}) h
          WHERE ($2::timestamptz IS NULL OR h.sys_start <= $2)
+           AND ($6::timestamptz IS NULL OR h.valid_period @> $6::timestamptz)
            AND ($3::timestamptz IS NULL
                 OR (lower(h.valid_period), h.sys_start) > ($3::timestamptz, $4::timestamptz))
          ORDER BY lower(h.valid_period), h.sys_start
@@ -467,6 +470,7 @@ pub async fn history_page(
         .bind(after.map(|(valid_from, _)| valid_from))
         .bind(after.map(|(_, asserted_from)| asserted_from))
         .bind(limit)
+        .bind(valid_at)
         .fetch_all(pool)
         .await?;
     Ok(rows

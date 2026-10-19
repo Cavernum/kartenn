@@ -125,7 +125,8 @@ Acceptation :
 kartenn doit paginer toute liste par curseur opaque, 100 éléments par défaut et 1 000 au
 plus (`page_size`), sans total, le lien suivant dans `Link` (`rel="next"`) et dans le
 corps, et aucun lien suivant en fin de liste ; le curseur doit figer `as_of` à la
-première page. [H5, RFC 8288]
+première page. [H5, RFC 8288] Exception : la chaîne des ancêtres d'un préfixe, bornée
+par la profondeur de l'arbre (128 au plus), est rendue en entier sans curseur (006-12e).
 
 Acceptation :
 - `page_size=1001` → 400.

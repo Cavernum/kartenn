@@ -206,7 +206,7 @@ routeur complet, sauf mention « vrai TCP ».
   past » p95 13 ms (courant 4 ms) ; plan : index `*_keyset` par domaine sur les
   partitions peuplées, parcours séquentiels sur les seules partitions vides.
   Écart : ancêtres non paginés (profondeur ≤ 128)
-- [ ] 12e. Écarts de 12d à arbitrer puis traiter : ancêtres non paginés (au plus 128,
+- [x] 12e. Écarts de 12d à arbitrer puis traiter : ancêtres non paginés (au plus 128,
   à paginer comme les autres listes ou exception écrite à REQ-006-7) ; `valid_at`
   accepté sans effet sur l'historique (REQ-006-5 : le refuser par 400, ou ne garder
   que les versions valides à cette date) ; historique à un `as_of` passé : une version
@@ -214,6 +214,12 @@ routeur complet, sauf mention « vrai TCP ».
   `design.md` ; planification des lectures au passé (~9 ms au `bench-core`, une
   partition d'historique par mois) à surveiller — REQ-006-5, 7 — verify : selon
   l'arbitrage
+  — Arbitré : ancêtres en entier, exception écrite à REQ-006-7 ; `valid_at` filtre
+  l'historique (store `list::history_page`, `valid_period @> valid_at`), gardé par la
+  clé du curseur `[valid_from, asserted_from, valid_at]` ; `asserted_to` nul au passé,
+  écrit dans `design.md` (Historique). `tests/objects.rs`
+  (`history_keeps_the_versions_valid_at_and_known_as_of`). Planification au passé :
+  à surveiller au `bench-core`, sans changement.
 - [ ] 13. Lectures des propriétés : déclarations, valeurs, valeurs résolues,
   explication, suggestion, écarts ; lecture à un temps système passé ; filtres
   `prop.<clé>` des listes de 12a — REQ-006-4, 9 —

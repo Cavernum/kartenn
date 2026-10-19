@@ -654,19 +654,24 @@ pub(crate) async fn gate(
     Ok(())
 }
 
-/// The key of a version as written in a cursor by [`history`].
-fn version_key(key: &Value) -> Result<(OffsetDateTime, OffsetDateTime), Problem> {
+/// The key of a version as written in a cursor by [`history`], with the `valid_at` the
+/// first page asked for: the cursor freezes a valid time even when none was given.
+type VersionKey = ((OffsetDateTime, OffsetDateTime), Option<OffsetDateTime>);
+
+fn version_key(key: &Value) -> Result<VersionKey, Problem> {
     let invalid = || Problem::new(ProblemKind::InvalidCursor);
     let parse = |t: &str| OffsetDateTime::parse(t, &Rfc3339).map_err(|_| invalid());
-    let (valid, asserted) =
-        serde_json::from_value::<(String, String)>(key.clone()).map_err(|_| invalid())?;
-    Ok((parse(&valid)?, parse(&asserted)?))
+    let (valid, asserted, valid_at) =
+        serde_json::from_value::<(String, String, Option<String>)>(key.clone())
+            .map_err(|_| invalid())?;
+    let valid_at = valid_at.as_deref().map(parse).transpose()?;
+    Ok(((parse(&valid)?, parse(&asserted)?), valid_at))
 }
 
 /// `GET /v1/<collection>/{id}/history`: the versions of an object the caller may read
-/// now, on both axes (REQ-004-18), as known at `as_of`, by pages (REQ-006-7, 8) keyed by
-/// the start of validity then of assertion; 404 otherwise. `valid_at` has no effect: the
-/// history spans every validity.
+/// now, on both axes (REQ-004-18), as known at `as_of` (a version retracted later shown
+/// as current), only those valid at `valid_at` when given (REQ-006-5), by pages
+/// (REQ-006-7, 8) keyed by the start of validity then of assertion; 404 otherwise.
 async fn history(
     kind: Kind,
     State(api): State<Api>,
@@ -678,7 +683,10 @@ async fn history(
     let name = format!("{}/{id}/history", collection(kind));
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
     page.unfiltered()?;
-    let after = page.after().map(version_key).transpose()?;
+    let (after, valid_at) = match page.after().map(version_key).transpose()? {
+        Some((after, valid_at)) => (Some(after), valid_at),
+        None => (None, page.dates.valid_at),
+    };
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let moment = page.dates.at(now, api.bound)?;
     gate(&api, &context, kind, id).await?;
@@ -687,6 +695,7 @@ async fn history(
         &api.pool,
         kind,
         id,
+        valid_at,
         moment.as_of,
         after,
         Some(i64::from(page.size) + 1),
@@ -704,7 +713,11 @@ async fn history(
             &api.ring,
             &name,
             &moment,
-            json!([at(last.valid_from), at(last.asserted_from)]),
+            json!([
+                at(last.valid_from),
+                at(last.asserted_from),
+                valid_at.map(at)
+            ]),
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });

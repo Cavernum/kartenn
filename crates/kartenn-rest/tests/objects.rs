@@ -364,6 +364,70 @@ async fn children_and_history_page_by_cursor(pool: PgPool) {
     assert_eq!(body["links"]["next"], Value::Null);
 }
 
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn history_keeps_the_versions_valid_at_and_known_as_of(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let now = || async {
+        let at: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        at.format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+            .replace('+', "%2B")
+    };
+    let before = now().await;
+    // From 2025 on, the domain is named `wan`: its first version is retracted.
+    sqlx::query(
+        "UPDATE addressing_domain
+         SET valid_period = tstzrange('2020-01-01', '2025-01-01'),
+             changeset_id = gen_random_uuid()
+         WHERE id = $1",
+    )
+    .bind(lab)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO addressing_domain (id, slug, valid_period, changeset_id)
+         VALUES ($1, 'wan', tstzrange('2025-01-01', NULL), gen_random_uuid())",
+    )
+    .bind(lab)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let uri = format!("/v1/domains/{lab}/history");
+    let slugs = |body: &Value| -> Vec<String> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["object"]["slug"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(slugs(&ok(&app, &uri).await), ["lab", "lab", "wan"]);
+
+    // `valid_at` keeps the versions valid then, on every page.
+    let body = ok(
+        &app,
+        &format!("{uri}?valid_at=2024-06-01T00:00:00Z&page_size=1"),
+    )
+    .await;
+    assert_eq!(slugs(&body), ["lab"]);
+    let body = ok(&app, body["links"]["next"].as_str().unwrap()).await;
+    assert_eq!(slugs(&body), ["lab"]);
+    assert_eq!(body["links"]["next"], Value::Null);
+    let body = ok(&app, &format!("{uri}?valid_at=2025-06-01T00:00:00Z")).await;
+    assert_eq!(slugs(&body), ["lab", "wan"]);
+
+    // As known before the change: one version, still asserted then.
+    let body = ok(&app, &format!("{uri}?as_of={before}")).await;
+    assert_eq!(slugs(&body), ["lab"]);
+    assert_eq!(body["items"][0]["asserted_to"], Value::Null);
+    assert_eq!(body["items"][0]["valid_to"], Value::Null);
+}
+
 /// A 404 without what differs from one request to another.
 async fn not_found(app: &Router, uri: &str) -> Value {
     let response = get(app, uri).await;
