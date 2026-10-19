@@ -244,6 +244,48 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `PATCH /v1/prefixes/{id}` → `Operation::Modify…` avec les champs du Merge Patch et
   `expected` = ETag ; `DELETE` → `Operation::Close…` (corps facultatif : `motive`,
   `valid_from`). Le motif d'un `DELETE` sans corps manque → 422 `motive-required`.
+- **Routes par ressource (arbitrage du 2026-10-19, 006-16)** :
+  - corps de `POST` : les membres du DTO, plus les membres réservés ; `domain` et
+    `parent` sont des références `{"id": …}` (la forme du résumé, sans `href`).
+    `domains` `{slug}`, `entities` et `sites` `{slug, parent}`, `prefixes` `{domain,
+    value, nature, point_to_point, anycast}`, `ranges` `{domain, first, last, usage}`,
+    `addresses` `{domain, value, usage}`. Un membre inconnu → 400. 201 et `Location`
+    vers l'objet créé, retrouvé par son changeset (la ligne, courante ou historique,
+    écrite par lui). `Idempotency-Key` y est accepté comme sur `POST /v1/changesets`
+    (REQ-006-15) ; le rejeu rend la même réponse, `Location` compris ;
+  - `PATCH` : un seul changeset de N opérations, dans l'ordre : une garde
+    `Operation::Expect {kind, id, expected}` (valeur de `If-Match`), puis les champs
+    (`slug` → `Rename` ; `parent` → `MoveEntity`/`MoveSite`, `null` = racine ; `domain`,
+    `value`, `nature`, `point_to_point`, `anycast`, `usage` → `Update…`, l'`usage`
+    courant complété par la route quand il manque), puis les propriétés dans l'ordre des
+    clés : valeur (scalaire ou tableau) → `AssignProperty`, `null` → `UnassignProperty`,
+    `{"clear": true}` → `ClearProperty`. Seule la garde porte `expected`. Un membre que
+    le service ne modifie pas (`id`, `public`, `value` d'une adresse, `first`/`last`
+    d'une plage) ou une propriété non déclarée → 422 `invalid-member` et `pointer` vers
+    le membre ;
+  - `DELETE` : `Close {expected, cascade: false}` ; corps facultatif `{motive,
+    valid_from}` ;
+  - réponses : 201 (création), 200 (modification, clôture) avec le corps de
+    `POST /v1/changesets` (`{changeset, state, warnings, diff, cascaded}`), 202 en
+    attente ; `Link` vers le changeset. Un refus dont une violation est
+    `changeset.operation.conflict` → 412 (`violations` et `changeset` en extensions),
+    sinon 422 ; `operation` est omis, `pointer` désigne le membre source (`/slug`,
+    `/parent`, `/properties/<clé>`), `""` (le corps entier) pour la garde, une
+    création, une clôture ou un `Update…`, `null` pour une règle de l'état final ;
+  - `If-Match` : une seule étiquette forte dont l'opaque est un UUID ; absent ou `*` →
+    428, plusieurs valeurs ou syntaxe invalide → 400, étiquette faible ou opaque qui
+    n'est pas un UUID → 412 (ne peut égaler aucune version).
+- **Version d'un objet (arbitrage du 2026-10-19, 006-16)** : la version est le dernier
+  changeset qui a écrit l'objet **ou ses propriétés**. Migration 0037 `object_version
+  (object_id PK, changeset_id)`, mise à jour dans la transaction du changeset par toute
+  écriture de l'objet (création, modification, déplacement, renommage, clôture,
+  restauration, cascade) ou de ses affectations (affectation, effacement, retrait),
+  initialisée depuis les lignes courantes. Elle donne l'ETag de toute lecture sans
+  `as_of` (une lecture à un `as_of` passé garde le changeset de la ligne, pour le 304),
+  et `conflict()` (REQ-004-11) lui compare `expected` pour toutes les opérations,
+  `POST /v1/changesets` compris. Elle ignore la période visée : une écriture d'une autre
+  période la relève aussi (412 superflu possible, perte jamais). La garde `Expect` exige
+  `core.<kind>.read` sur l'objet et n'écrit rien.
 - **Réponses** : 201 et `Location` vers l'objet (création), 200 (modification ou
   clôture), 202 (en attente) ; toujours
   `Link: </v1/changesets/{id}>; rel="urn:kartenn:rel:changeset"` (type de relation
@@ -303,7 +345,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Corps trop gros | 413 | `payload-too-large` |
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
-| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused` |
+| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member` |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
