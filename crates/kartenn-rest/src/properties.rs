@@ -8,12 +8,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use axum::Extension;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::{Extension, Router};
 use kartenn_core::audit::rfc3339;
 use kartenn_core::period::Period;
 use kartenn_core::rules::PROP_EXPECTED_MISMATCH;
@@ -31,25 +31,50 @@ use kartenn_store_pg::property_read::{self, DeclarationRead};
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
+use serde::Serialize;
 use serde_json::{Value, json};
+use utoipa::ToSchema;
+use utoipa::openapi::path::HttpMethod;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::cursor::{Page, next_href, respond_page};
-use crate::dated::{Dates, ETag, Moment, respond};
+use crate::anomalies::ObjectRef;
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
+use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
 use crate::objects::{Api, audited, bad, collection, gate, href, instant, store};
+use crate::openapi::{documented, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 
 /// The routes of the properties.
-pub fn routes(api: Api) -> Router {
-    let mut router = Router::new()
-        .route("/property-declarations", get(declarations))
-        .route("/property-declarations/{key}/values", get(values))
-        .route("/property-gaps", get(gaps));
+pub fn routes() -> OpenApiRouter<Api> {
+    let mut router = OpenApiRouter::new()
+        .routes(routes!(declarations))
+        .routes(routes!(values))
+        .routes(routes!(gaps));
     for kind in Kind::ALL {
         let name = collection(kind);
+        let object = format!("The {}.", kind.as_str());
+        let mut schemas = Vec::new();
+        schemas_of::<Resolved>(&mut schemas);
+        schemas_of::<ExplanationDto>(&mut schemas);
+        schemas_of::<SuggestionDto>(&mut schemas);
         router = router
-            .route(
+            .routes(documented(
                 &format!("/{name}/{{id}}/properties"),
+                vec![(
+                    HttpMethod::Get,
+                    op(
+                        &format!("{}_properties", kind.as_str()),
+                        "properties",
+                        "The resolved values of the properties of the object.",
+                    )
+                    .path("id", &object, true)
+                    .params::<DatesParams>()
+                    .answers("200", "The resolved values.", "Resolved")
+                    .build(),
+                )],
+                schemas.clone(),
                 get(
                     move |state: State<Api>,
                           context: Extension<RequestContext>,
@@ -59,9 +84,23 @@ pub fn routes(api: Api) -> Router {
                         resolved(kind, state, context, id, dates, headers)
                     },
                 ),
-            )
-            .route(
+            ))
+            .routes(documented(
                 &format!("/{name}/{{id}}/properties/{{key}}/explanation"),
+                vec![(
+                    HttpMethod::Get,
+                    op(
+                        &format!("{}_property_explanation", kind.as_str()),
+                        "properties",
+                        "How the value of a property resolves on the object (REQ-003-14).",
+                    )
+                    .path("id", &object, true)
+                    .path("key", "The property.", false)
+                    .params::<DatesParams>()
+                    .answers("200", "The explanation.", "Explanation")
+                    .build(),
+                )],
+                Vec::new(),
                 get(
                     move |state: State<Api>,
                           context: Extension<RequestContext>,
@@ -71,9 +110,23 @@ pub fn routes(api: Api) -> Router {
                         explanation(kind, state, context, path, dates, headers)
                     },
                 ),
-            )
-            .route(
+            ))
+            .routes(documented(
                 &format!("/{name}/{{id}}/properties/{{key}}/suggestion"),
+                vec![(
+                    HttpMethod::Get,
+                    op(
+                        &format!("{}_property_suggestion", kind.as_str()),
+                        "properties",
+                        "The value the source of a property expects for the object (REQ-003-23).",
+                    )
+                    .path("id", &object, true)
+                    .path("key", "The property.", false)
+                    .params::<DatesParams>()
+                    .answers("200", "The suggestion.", "Suggestion")
+                    .build(),
+                )],
+                Vec::new(),
                 get(
                     move |state: State<Api>,
                           context: Extension<RequestContext>,
@@ -83,13 +136,13 @@ pub fn routes(api: Api) -> Router {
                         suggestion(kind, state, context, path, dates, headers)
                     },
                 ),
-            );
+            ));
     }
-    router.with_state(api)
+    router
 }
 
 /// `body` as a dated read, with the weak tag of its content.
-fn respond_json(headers: &HeaderMap, moment: &Moment, body: &Value) -> Response {
+fn respond_json<T: Serialize>(headers: &HeaderMap, moment: &Moment, body: &T) -> Response {
     let bytes = serde_json::to_vec(body).expect("JSON values serialise");
     let etag = ETag::page(&bytes);
     let response = ([(CONTENT_TYPE, "application/json")], bytes).into_response();
@@ -103,21 +156,67 @@ async fn moment_of(api: &Api, dates: Dates) -> Result<Moment, Problem> {
 
 // ---------------------------------------------------------------- declarations
 
-fn declaration_of(found: &DeclarationRead) -> Value {
-    json!({
-        "id": found.id,
-        "key": found.key,
-        "type": found.value_type,
-        "params": found.params,
-        "cardinality": found.cardinality,
-        "carriers": found.carriers,
-        "inherit": found.inherit,
-        "sensitive": found.sensitive,
-        "expected": found.expected.as_ref().map(|(source, mode)| {
-            json!({ "source": source, "mode": mode })
+/// The source of the expected values of a property.
+#[derive(Debug, Serialize, ToSchema)]
+struct ExpectedItem {
+    /// The source.
+    source: String,
+    /// `suggest`, `default` or `check`.
+    mode: String,
+}
+
+/// The links of a declaration.
+#[derive(Debug, Serialize, ToSchema)]
+struct DeclarationLinks {
+    /// The values of its closed list.
+    values: String,
+}
+
+/// The declaration of a property (003).
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct DeclarationItem {
+    /// Identifier.
+    id: Uuid,
+    /// The key.
+    key: String,
+    /// Its type.
+    #[serde(rename = "type")]
+    value_type: String,
+    /// The parameters of its type.
+    #[schema(value_type = Object)]
+    params: Value,
+    /// `single` or `set`.
+    cardinality: String,
+    /// The kinds of object that carry it.
+    carriers: Vec<String>,
+    /// The tree it is inherited along.
+    inherit: Option<String>,
+    /// Its values are sensitive (REQ-003-27).
+    sensitive: bool,
+    /// The source of its expected values.
+    expected: Option<ExpectedItem>,
+    /// Links.
+    links: DeclarationLinks,
+}
+
+pub(crate) fn declaration_of(found: &DeclarationRead) -> DeclarationItem {
+    DeclarationItem {
+        id: found.id,
+        key: found.key.clone(),
+        value_type: found.value_type.clone(),
+        params: found.params.clone(),
+        cardinality: found.cardinality.clone(),
+        carriers: found.carriers.clone(),
+        inherit: found.inherit.clone(),
+        sensitive: found.sensitive,
+        expected: found.expected.as_ref().map(|(source, mode)| ExpectedItem {
+            source: source.clone(),
+            mode: mode.clone(),
         }),
-        "links": { "values": format!("/v1/property-declarations/{}/values", found.key) },
-    })
+        links: DeclarationLinks {
+            values: format!("/v1/property-declarations/{}/values", found.key),
+        },
+    }
 }
 
 /// The key after which a page starts, as [`Page::next`] wrote it.
@@ -129,6 +228,14 @@ fn after_key(page: &Page) -> Result<Option<String>, Problem> {
 }
 
 /// `GET /v1/property-declarations`: the declarations at the dates of the read, by key.
+#[utoipa::path(
+    get,
+    path = "/property-declarations",
+    operation_id = "list_property_declarations",
+    tag = "properties",
+    params(DatesParams, PageParams),
+    responses((status = 200, description = "The declarations, by key.", body = Listing<DeclarationItem>))
+)]
 async fn declarations(
     State(api): State<Api>,
     RawQuery(query): RawQuery,
@@ -154,12 +261,27 @@ async fn declarations(
         let cursor = page.next(&api.ring, name, &moment, json!(found[size - 1].key));
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let items: Vec<Value> = found.iter().map(declaration_of).collect();
+    let items: Vec<DeclarationItem> = found.iter().map(declaration_of).collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
+}
+
+/// A value of a closed list.
+#[derive(Debug, Serialize, ToSchema)]
+struct EnumValueItem {
+    /// Its key.
+    key: String,
 }
 
 /// `GET /v1/property-declarations/{key}/values`: the keys of a closed list, sorted; 404
 /// for a key not declared at the dates, 409 for a property of another type.
+#[utoipa::path(
+    get,
+    path = "/property-declarations/{key}/values",
+    operation_id = "list_property_values",
+    tag = "properties",
+    params(("key" = String, Path, description = "The property."), DatesParams, PageParams),
+    responses((status = 200, description = "The values of the closed list, sorted.", body = Listing<EnumValueItem>))
+)]
 async fn values(
     State(api): State<Api>,
     Path(key): Path<String>,
@@ -198,11 +320,33 @@ async fn values(
         let cursor = page.next(&api.ring, &name, &moment, json!(keys[size - 1]));
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let items: Vec<Value> = keys.into_iter().map(|key| json!({ "key": key })).collect();
+    let items: Vec<EnumValueItem> = keys.into_iter().map(|key| EnumValueItem { key }).collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 // ---------------------------------------------------------------- one object
+
+/// The links of the resolved values of an object.
+#[derive(Debug, Serialize, ToSchema)]
+struct ResolvedLinks {
+    /// These values.
+    #[serde(rename = "self")]
+    this: String,
+    /// The object.
+    object: String,
+}
+
+/// The resolved values of the properties of an object.
+#[derive(Debug, Serialize, ToSchema)]
+struct Resolved {
+    /// The values by key; `null`: « no value » explicitly.
+    #[schema(value_type = BTreeMap<String, Object>)]
+    properties: BTreeMap<String, Option<Value>>,
+    /// The keys of the values the caller may not see (REQ-005-21).
+    masked: BTreeSet<String>,
+    /// Links.
+    links: ResolvedLinks,
+}
 
 /// `GET /v1/<collection>/{id}/properties`: the resolved values of the object, those the
 /// caller may not see named in `masked`; 404 as the object.
@@ -228,12 +372,14 @@ async fn resolved(
     .await?
     .filter(|found| found.kind == kind.as_str())
     .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    let this = format!("{}/properties", href(kind, id));
-    let body = json!({
-        "properties": found.properties,
-        "masked": found.masked,
-        "links": { "self": this, "object": href(kind, id) },
-    });
+    let body = Resolved {
+        properties: found.properties,
+        masked: found.masked,
+        links: ResolvedLinks {
+            this: format!("{}/properties", href(kind, id)),
+            object: href(kind, id),
+        },
+    };
     Ok(respond_json(&headers, &moment, &body))
 }
 
@@ -299,6 +445,18 @@ async fn audit_read(
     Ok(())
 }
 
+/// An object an explanation walks.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+struct Node {
+    /// Its kind.
+    #[schema(value_type = crate::openapi::enums::KindSchema)]
+    kind: &'static str,
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+}
+
 /// The objects among `ids` the caller may read now, as nodes `{kind, id, href}`; the
 /// others, and those absent at the dates, are left out.
 async fn visible_nodes(
@@ -306,7 +464,7 @@ async fn visible_nodes(
     context: &RequestContext,
     ids: &[Uuid],
     moment: &Moment,
-) -> Result<BTreeMap<Uuid, Value>, Problem> {
+) -> Result<BTreeMap<Uuid, Node>, Problem> {
     let kinds = property_read::kinds(&api.pool, ids, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))?;
@@ -333,7 +491,11 @@ async fn visible_nodes(
         .into_iter()
         .filter(|(id, _)| !denied.contains(id))
         .map(|(id, kind)| {
-            let node = json!({ "kind": kind.as_str(), "id": id, "href": href(kind, id) });
+            let node = Node {
+                kind: kind.as_str(),
+                id,
+                href: href(kind, id),
+            };
             (id, node)
         })
         .collect())
@@ -345,6 +507,46 @@ fn value_of(text: Option<&str>) -> Result<Value, Problem> {
         .transpose()
         .map(Option::unwrap_or_default)
         .map_err(|_| Problem::new(ProblemKind::Internal))
+}
+
+/// The assignment an explicit one replaces.
+#[derive(Debug, Serialize, ToSchema)]
+struct Replaced {
+    /// Where it comes from; `null` if the caller may not read it.
+    origin: Option<Node>,
+    /// Its value; `null` when masked.
+    #[schema(value_type = Object)]
+    value: Value,
+}
+
+/// The links of an explanation or a suggestion.
+#[derive(Debug, Serialize, ToSchema)]
+struct ObjectLinks {
+    /// The object.
+    object: String,
+}
+
+/// How the value of a property resolves on an object (REQ-003-14, 15).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = Explanation)]
+struct ExplanationDto {
+    /// The property.
+    property: String,
+    /// The resolved value; `null` when masked or without value.
+    #[schema(value_type = Object)]
+    value: Value,
+    /// The caller may not see the value (REQ-005-21).
+    masked: bool,
+    /// The object the value comes from; `null` if the caller may not read it.
+    origin: Option<Node>,
+    /// The objects walked, nearest first; `null` for one the caller may not read.
+    chain: Vec<Option<Node>>,
+    /// How the value was obtained.
+    provenance: Option<String>,
+    /// The assignment it replaces.
+    replaces: Option<Replaced>,
+    /// Links.
+    links: ObjectLinks,
 }
 
 /// `GET /v1/<collection>/{id}/properties/{key}/explanation`: how the value of `key`
@@ -367,7 +569,7 @@ async fn explanation(
     walked.extend(found.origin);
     walked.extend(found.replaces.as_ref().map(|(origin, _)| *origin));
     let nodes = visible_nodes(&api, &context, &walked, &moment).await?;
-    let node = |id: &Uuid| nodes.get(id).cloned().unwrap_or(Value::Null);
+    let node = |id: &Uuid| nodes.get(id).cloned();
     let criteria = json!({
         "object": id,
         "property": key,
@@ -383,22 +585,28 @@ async fn explanation(
         Value::Null
     };
     let replaces = match &found.replaces {
-        Some((origin, replaced)) => json!({
-            "origin": node(origin),
-            "value": if shown { value_of(replaced.as_deref())? } else { Value::Null },
+        Some((origin, replaced)) => Some(Replaced {
+            origin: node(origin),
+            value: if shown {
+                value_of(replaced.as_deref())?
+            } else {
+                Value::Null
+            },
         }),
-        None => Value::Null,
+        None => None,
     };
-    let body = json!({
-        "property": found.property,
-        "value": value,
-        "masked": !shown,
-        "origin": found.origin.as_ref().map_or(Value::Null, node),
-        "chain": found.chain.iter().map(node).collect::<Vec<_>>(),
-        "provenance": found.provenance,
-        "replaces": replaces,
-        "links": { "object": href(kind, id) },
-    });
+    let body = ExplanationDto {
+        property: found.property,
+        value,
+        masked: !shown,
+        origin: found.origin.as_ref().and_then(node),
+        chain: found.chain.iter().map(node).collect(),
+        provenance: found.provenance,
+        replaces,
+        links: ObjectLinks {
+            object: href(kind, id),
+        },
+    };
     Ok(respond_json(&headers, &moment, &body))
 }
 
@@ -408,6 +616,37 @@ fn raw_value(input: &RawInput) -> Value {
         RawInput::Int(i) => json!(i),
         RawInput::Text(t) => json!(t),
     }
+}
+
+/// The value a source expects, or its mask.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(untagged)]
+enum Expected {
+    /// The values and why.
+    Shown {
+        /// One value, or the elements of a set.
+        #[schema(value_type = Vec<crate::operation::RawDto>)]
+        values: Vec<Value>,
+        /// How the source reached them.
+        explanation: String,
+    },
+    /// The caller may not see them (REQ-005-21).
+    Masked {
+        /// `true`.
+        masked: bool,
+    },
+}
+
+/// The value the source of a property expects for an object (REQ-003-23).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = Suggestion)]
+struct SuggestionDto {
+    /// The property.
+    property: String,
+    /// The suggestion; `null` when the source has none.
+    suggestion: Option<Expected>,
+    /// Links.
+    links: ObjectLinks,
 }
 
 /// `GET /v1/<collection>/{id}/properties/{key}/suggestion`: the value the source of the
@@ -443,18 +682,22 @@ async fn suggestion(
     });
     audit_read(&api, &context, kind, id, criteria).await?;
     let suggestion = match found {
-        Some(found) if discloses(&api, &context, &declaration, id).await? => json!({
-            "values": found.values.iter().map(raw_value).collect::<Vec<_>>(),
-            "explanation": found.explanation,
-        }),
-        Some(_) => json!({ "masked": true }),
-        None => Value::Null,
+        Some(found) if discloses(&api, &context, &declaration, id).await? => {
+            Some(Expected::Shown {
+                values: found.values.iter().map(raw_value).collect(),
+                explanation: found.explanation,
+            })
+        }
+        Some(_) => Some(Expected::Masked { masked: true }),
+        None => None,
     };
-    let body = json!({
-        "property": declaration.key,
-        "suggestion": suggestion,
-        "links": { "object": href(kind, id) },
-    });
+    let body = SuggestionDto {
+        property: declaration.key,
+        suggestion,
+        links: ObjectLinks {
+            object: href(kind, id),
+        },
+    };
     Ok(respond_json(&headers, &moment, &body))
 }
 
@@ -533,8 +776,35 @@ fn gap_filter(query: Option<&str>) -> Result<GapFilter, Problem> {
     Ok((property, id("domain", domain)?, id("entity", entity)?))
 }
 
+/// A deviation between a resolved and an expected value.
+#[derive(Debug, Serialize, ToSchema)]
+struct Gap {
+    /// Identifier of its anomaly.
+    id: Uuid,
+    /// The property.
+    property: Option<String>,
+    /// Its object.
+    object: ObjectRef,
+    /// The message; generic for a sensitive property the caller may not see.
+    message: String,
+    /// Its opening, RFC 3339.
+    opened_at: String,
+}
+
 /// `GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between
 /// resolved and expected values (REQ-003-24) whose object the caller may read now.
+#[utoipa::path(
+    get,
+    path = "/property-gaps",
+    operation_id = "list_property_gaps",
+    tag = "properties",
+    params(
+        ("property" = Option<String>, Query, description = "The property."),
+        ("domain" = Option<Uuid>, Query, description = "The domain of the object."),
+        ("entity" = Option<Uuid>, Query, description = "The entity of the object."),
+    ),
+    responses((status = 200, description = "The open deviations.", body = Listing<Gap>))
+)]
 async fn gaps(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -567,20 +837,14 @@ async fn gaps(
         .await
         .map_err(RequestError::Audit)?;
     mask_gaps(&api, &context, &mut found).await?;
-    let items: Vec<Value> = found
+    let items: Vec<Gap> = found
         .iter()
-        .map(|(anomaly, kind)| {
-            json!({
-                "id": anomaly.id,
-                "property": gap_property(anomaly),
-                "object": {
-                    "kind": kind.map(Kind::as_str),
-                    "id": anomaly.object_id,
-                    "href": kind.map(|k| href(k, anomaly.object_id)),
-                },
-                "message": anomaly.message,
-                "opened_at": rfc3339(instant(anomaly.opened_at)),
-            })
+        .map(|(anomaly, kind)| Gap {
+            id: anomaly.id,
+            property: gap_property(anomaly).map(str::to_owned),
+            object: ObjectRef::new(*kind, anomaly.object_id),
+            message: anomaly.message.clone(),
+            opened_at: rfc3339(instant(anomaly.opened_at)),
         })
         .collect();
     Ok(respond_page(&headers, &moment, &items, None))

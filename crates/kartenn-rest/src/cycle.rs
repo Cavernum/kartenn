@@ -25,7 +25,7 @@ use kartenn_service::port::{DiffItem, RbacRow};
 use kartenn_service::reads::{changesets_readable, objects_read, sensitive_disclosed};
 use kartenn_service::review::{proposals_for, reject, validate_pending, withdraw};
 use kartenn_service::undo::inverse;
-use kartenn_service::{Operation, Ref, RequestError};
+use kartenn_service::{ObjectKind, Operation, Ref, RequestError};
 use kartenn_store_pg::audit::diff_page;
 use kartenn_store_pg::changesets::{
     self, ChangesetFilter, ChangesetRead, ChangesetSummary, STATES,
@@ -34,19 +34,23 @@ use kartenn_store_pg::idempotency;
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::anomalies::motive;
+use crate::anomalies::{Motive, motive};
 use crate::changesets::{
-    Answer, Pointers, answered, cascaded, href, linked, simulate, submit_answered, summary,
-    violations, write_store,
+    Answer, Cascaded, ChangesetApplied, ChangesetPending, ChangesetRef, ChangesetSimulated,
+    DiffCountDto, Pointers, ViolationDto, answered, cascaded, href, linked, simulate,
+    submit_answered, summary, violations, write_store,
 };
-use crate::cursor::{Page, next_href, respond_page};
+use crate::cursor::{Listing, ListingLinks, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, instant, store};
+use crate::operation::{OperationDto, TargetKindDto};
 use crate::problem::{Problem, ProblemKind};
 use crate::resources::{entity_tag, stale};
 
@@ -90,16 +94,35 @@ async fn audit_read(
 }
 
 /// A changeset as listed.
-fn listed(found: &ChangesetSummary) -> Value {
-    json!({
-        "id": found.id,
-        "href": href(found.id),
-        "state": found.state,
-        "kind": found.kind,
-        "author": found.author,
-        "motive": found.motive,
-        "submitted_at": time(found.submitted_at),
-    })
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ChangesetItem {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// A state of the journal.
+    state: String,
+    /// `direct`, `approval` or `proposal`.
+    kind: String,
+    /// Its author.
+    author: Uuid,
+    /// Why.
+    motive: String,
+    /// Its submission, RFC 3339.
+    submitted_at: String,
+}
+
+/// A changeset as listed.
+fn listed(found: &ChangesetSummary) -> ChangesetItem {
+    ChangesetItem {
+        id: found.id,
+        href: href(found.id),
+        state: found.state.clone(),
+        kind: found.kind.clone(),
+        author: found.author,
+        motive: found.motive.clone(),
+        submitted_at: time(found.submitted_at),
+    }
 }
 
 /// The moment of a list read at the current state; `valid_at` or `as_of` on its first
@@ -138,6 +161,25 @@ struct Criteria {
     object: Option<Uuid>,
     from: Option<OffsetDateTime>,
     to: Option<OffsetDateTime>,
+    retroactive: Option<bool>,
+}
+
+/// The filter of the list, as the contract names it.
+#[derive(Debug, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+struct CriteriaParams {
+    /// A state of the journal.
+    state: Option<String>,
+    /// The author.
+    author: Option<Uuid>,
+    /// An object the changeset wrote.
+    object: Option<Uuid>,
+    /// The first instant of submission, RFC 3339 with an offset.
+    from: Option<String>,
+    /// The last instant of submission, RFC 3339 with an offset.
+    to: Option<String>,
+    /// Only the changesets that start before their submission, or only the others.
     retroactive: Option<bool>,
 }
 
@@ -189,6 +231,14 @@ fn filter(page: &Page) -> Result<Criteria, Problem> {
 
 /// `GET /v1/changesets?state=…&author=…&object=…&from=…&to=…&retroactive=…`: the
 /// changesets, newest first (REQ-004-32).
+#[utoipa::path(
+    get,
+    path = "/changesets",
+    operation_id = "list_changesets",
+    tag = "changesets",
+    params(CriteriaParams, PageParams),
+    responses((status = 200, description = "The changesets, newest first.", body = Listing<ChangesetItem>))
+)]
 pub(crate) async fn list(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -231,7 +281,7 @@ pub(crate) async fn list(
         "retroactive": criteria.retroactive,
     } });
     audit_read(&api, &context, &ids, criteria).await?;
-    let items: Vec<Value> = found.iter().map(listed).collect();
+    let items: Vec<ChangesetItem> = found.iter().map(listed).collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
@@ -354,32 +404,85 @@ async fn operations(
 }
 
 /// A changeset as read.
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ChangesetDto {
+    /// Identifier.
+    id: Uuid,
+    /// A state of the journal.
+    state: String,
+    /// `direct`, `approval` or `proposal`.
+    kind: String,
+    /// Its author.
+    author: Uuid,
+    /// Who validated it.
+    validator: Option<Uuid>,
+    /// Why.
+    motive: String,
+    /// The start of its period, RFC 3339.
+    valid_from: String,
+    /// The end of its period, RFC 3339; `null`: unbounded.
+    valid_to: Option<String>,
+    /// Its submission, RFC 3339.
+    submitted_at: String,
+    /// Its application, RFC 3339.
+    applied_at: Option<String>,
+    /// The end of the wait for a decision, RFC 3339.
+    expires_at: Option<String>,
+    /// The approval policy that held it.
+    policy: Option<Uuid>,
+    /// The motive of its rejection.
+    rejection: Option<String>,
+    /// Its operations, as submitted: the values of a sensitive property are `null` with
+    /// `masked: true` without the right to read them, the digest of a secret never shown.
+    #[schema(value_type = Vec<OperationDto>)]
+    operations: Vec<Value>,
+    /// The violations of its result.
+    violations: Vec<ViolationDto>,
+    /// The counted differential.
+    #[schema(value_type = Vec<DiffCountDto>)]
+    diff: Value,
+    /// The objects closed by cascade.
+    cascaded: Vec<Cascaded>,
+    /// Links.
+    links: ChangesetLinks,
+}
+
+/// The links of a changeset.
+#[derive(Debug, Serialize, ToSchema)]
+struct ChangesetLinks {
+    /// Its differential, by pages.
+    diff: String,
+}
+
+/// A changeset as read.
 async fn represent(
     api: &Api,
     context: &RequestContext,
     found: &ChangesetRead,
-) -> Result<Value, Problem> {
+) -> Result<ChangesetDto, Problem> {
     let s = &found.summary;
-    Ok(json!({
-        "id": s.id,
-        "state": s.state,
-        "kind": s.kind,
-        "author": s.author,
-        "validator": found.validator,
-        "motive": s.motive,
-        "valid_from": time(found.valid_from),
-        "valid_to": found.valid_to.map(time),
-        "submitted_at": time(s.submitted_at),
-        "applied_at": found.applied_at.map(time),
-        "expires_at": found.expires_at.map(time),
-        "policy": found.policy,
-        "rejection": found.rejection,
-        "operations": operations(api, context, &found.operations).await?,
-        "violations": violations(api, &found.violations, Pointers::Operations).await?,
-        "diff": counts(api, context, s.id, found.diff.clone()).await?,
-        "cascaded": cascaded(&found.cascaded),
-        "links": { "diff": format!("{}/diff", href(s.id)) },
-    }))
+    Ok(ChangesetDto {
+        id: s.id,
+        state: s.state.clone(),
+        kind: s.kind.clone(),
+        author: s.author,
+        validator: found.validator,
+        motive: s.motive.clone(),
+        valid_from: time(found.valid_from),
+        valid_to: found.valid_to.map(time),
+        submitted_at: time(s.submitted_at),
+        applied_at: found.applied_at.map(time),
+        expires_at: found.expires_at.map(time),
+        policy: found.policy,
+        rejection: found.rejection.clone(),
+        operations: operations(api, context, &found.operations).await?,
+        violations: violations(api, &found.violations, Pointers::Operations).await?,
+        diff: counts(api, context, s.id, found.diff.clone()).await?,
+        cascaded: cascaded(&found.cascaded),
+        links: ChangesetLinks {
+            diff: format!("{}/diff", href(s.id)),
+        },
+    })
 }
 
 /// The strong `ETag` of a changeset: its state.
@@ -388,6 +491,14 @@ fn etag(state: &str) -> Result<HeaderValue, Problem> {
 }
 
 /// `GET /v1/changesets/{id}`: state, operations, result and counted differential.
+#[utoipa::path(
+    get,
+    path = "/changesets/{id}",
+    operation_id = "show_changeset",
+    tag = "changesets",
+    params(("id" = Uuid, Path, description = "The changeset.")),
+    responses((status = 200, description = "The changeset; its state is its strong ETag.", body = ChangesetDto))
+)]
 pub(crate) async fn show(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -406,25 +517,73 @@ pub(crate) async fn show(
     Ok(response)
 }
 
+/// An object of the differential.
+#[derive(Debug, Serialize, ToSchema)]
+struct DiffObject {
+    /// Identifier.
+    id: Uuid,
+}
+
+/// One object of the differential, as served.
+#[derive(Debug, Serialize, ToSchema)]
+struct DiffEntry {
+    /// Property key.
+    property: String,
+    /// The object.
+    object: DiffObject,
+    /// The value before; `null`: no value, or masked.
+    #[schema(value_type = Object)]
+    before: Value,
+    /// The value after; `null`: no value, or masked.
+    #[schema(value_type = Object)]
+    after: Value,
+    /// The values are masked: the caller may not read them.
+    masked: bool,
+}
+
 /// A differential entry as served, its values masked unless `shown`.
-fn diff_entry(item: &DiffItem, shown: bool) -> Result<Value, Problem> {
+fn diff_entry(item: &DiffItem, shown: bool) -> Result<DiffEntry, Problem> {
     let value = |text: &Option<String>| -> Result<Value, Problem> {
         match text {
             Some(text) if shown => serde_json::from_str(text).map_err(internal),
             _ => Ok(Value::Null),
         }
     };
-    Ok(json!({
-        "property": item.property,
-        "object": { "id": item.object },
-        "before": value(&item.before)?,
-        "after": value(&item.after)?,
-        "masked": !shown,
-    }))
+    Ok(DiffEntry {
+        property: item.property.clone(),
+        object: DiffObject { id: item.object },
+        before: value(&item.before)?,
+        after: value(&item.after)?,
+        masked: !shown,
+    })
+}
+
+/// The differential of a changeset: its counts, and its objects by pages.
+#[derive(Debug, Serialize, ToSchema)]
+struct DiffPage<'a> {
+    /// The counted differential.
+    #[schema(value_type = Vec<DiffCountDto>)]
+    counts: Value,
+    /// The objects of the page.
+    items: Vec<DiffEntry>,
+    /// The links of the page.
+    links: ListingLinks<'a>,
 }
 
 /// `GET /v1/changesets/{id}/diff?property=…`: the counted differential and its detail by
 /// pages, in the order of the journal.
+#[utoipa::path(
+    get,
+    path = "/changesets/{id}/diff",
+    operation_id = "changeset_diff",
+    tag = "changesets",
+    params(
+        ("id" = Uuid, Path, description = "The changeset."),
+        ("property" = Option<String>, Query, description = "Only this property."),
+        PageParams,
+    ),
+    responses((status = 200, description = "The differential.", body = DiffPage))
+)]
 pub(crate) async fn diff(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -498,11 +657,13 @@ pub(crate) async fn diff(
         json!({ "changeset": id, "diff": { "property": property } }),
     )
     .await?;
-    let mut response = axum::Json(json!({
-        "counts": counts(&api, &context, id, journal.diff).await?,
-        "items": items,
-        "links": { "next": next },
-    }))
+    let mut response = axum::Json(DiffPage {
+        counts: counts(&api, &context, id, journal.diff).await?,
+        items,
+        links: ListingLinks {
+            next: next.as_deref(),
+        },
+    })
     .into_response();
     if let Some(next) = &next {
         response.headers_mut().insert(
@@ -513,8 +674,35 @@ pub(crate) async fn diff(
     Ok(response)
 }
 
+/// A write permission the author of a proposal lacks, with the objects concerned.
+#[derive(Debug, Serialize, ToSchema)]
+struct Required {
+    /// The permission.
+    permission: String,
+    /// The objects.
+    objects: Vec<Uuid>,
+}
+
+/// A proposal the caller may validate.
+#[derive(Debug, Serialize, ToSchema)]
+struct ProposalItem {
+    /// The changeset.
+    #[serde(flatten)]
+    changeset: ChangesetItem,
+    /// The write permissions its author lacks.
+    required: Vec<Required>,
+}
+
 /// `GET /v1/proposals`: the pending proposals the caller may validate (REQ-004-43), oldest
 /// first.
+#[utoipa::path(
+    get,
+    path = "/proposals",
+    operation_id = "list_proposals",
+    tag = "changesets",
+    params(PageParams),
+    responses((status = 200, description = "The proposals, oldest first.", body = Listing<ProposalItem>))
+)]
 pub(crate) async fn proposals(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -542,22 +730,21 @@ pub(crate) async fn proposals(
         let cursor = page.next_current(&api.ring, name, &moment, key(&found[size - 1]));
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let items: Vec<Value> = found
+    let items: Vec<ProposalItem> = found
         .iter()
-        .map(|c| {
-            let mut item = listed(c);
-            let required = pending
+        .map(|c| ProposalItem {
+            changeset: listed(c),
+            required: pending
                 .iter()
                 .find(|p| p.id == c.id)
-                .map(|p| &p.pending.required);
-            item["required"] = required
+                .map(|p| &p.pending.required)
                 .into_iter()
                 .flatten()
-                .map(
-                    |(permission, objects)| json!({ "permission": permission, "objects": objects }),
-                )
-                .collect();
-            item
+                .map(|(permission, objects)| Required {
+                    permission: permission.clone(),
+                    objects: objects.clone(),
+                })
+                .collect(),
         })
         .collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
@@ -581,10 +768,23 @@ async fn expected(api: &Api, id: Uuid, headers: &HeaderMap) -> Result<String, Pr
     Ok(state)
 }
 
+/// A changeset decided.
+#[derive(Debug, Serialize, ToSchema)]
+struct Decided {
+    /// The changeset.
+    changeset: ChangesetRef,
+    /// Its state now.
+    state: &'static str,
+}
+
 /// 200 `{changeset, state}` and a link to the changeset.
-fn decided(id: Uuid, state: &str) -> Response {
+fn decided(id: Uuid, state: &'static str) -> Response {
     linked(
-        axum::Json(json!({ "changeset": summary(id), "state": state })).into_response(),
+        axum::Json(Decided {
+            changeset: summary(id),
+            state,
+        })
+        .into_response(),
         id,
         None,
     )
@@ -592,6 +792,17 @@ fn decided(id: Uuid, state: &str) -> Response {
 
 /// `POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current
 /// state (REQ-004-21, 22, 42); 200, or 422 when it no longer holds.
+#[utoipa::path(
+    post,
+    path = "/changesets/{id}/validation",
+    operation_id = "validate_changeset",
+    tag = "changesets",
+    params(
+        ("id" = Uuid, Path, description = "The changeset."),
+        ("If-Match" = String, Header, description = "Its state, as its ETag."),
+    ),
+    responses((status = 200, description = "Applied.", body = ChangesetApplied))
+)]
 pub(crate) async fn validation(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -612,6 +823,18 @@ pub(crate) async fn validation(
 }
 
 /// `POST /v1/changesets/{id}/rejection` with `{"motive": "…"}` (REQ-004-23, 43).
+#[utoipa::path(
+    post,
+    path = "/changesets/{id}/rejection",
+    operation_id = "reject_changeset",
+    tag = "changesets",
+    params(
+        ("id" = Uuid, Path, description = "The changeset."),
+        ("If-Match" = String, Header, description = "Its state, as its ETag."),
+    ),
+    request_body(content = Motive, content_type = "application/json"),
+    responses((status = 200, description = "Rejected.", body = Decided))
+)]
 pub(crate) async fn rejection(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -633,6 +856,17 @@ pub(crate) async fn rejection(
 }
 
 /// `POST /v1/changesets/{id}/withdrawal`: by its author only (REQ-004-23).
+#[utoipa::path(
+    post,
+    path = "/changesets/{id}/withdrawal",
+    operation_id = "withdraw_changeset",
+    tag = "changesets",
+    params(
+        ("id" = Uuid, Path, description = "The changeset."),
+        ("If-Match" = String, Header, description = "Its state, as its ETag."),
+    ),
+    responses((status = 200, description = "Withdrawn.", body = Decided))
+)]
 pub(crate) async fn withdrawal(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -672,10 +906,78 @@ async fn with_members(
     Ok(Response::from_parts(parts, Body::from(bytes)))
 }
 
+/// An object the inverse of a changeset does not restore.
+#[derive(Debug, Serialize, ToSchema)]
+struct Unsupported {
+    /// Its kind.
+    kind: String,
+    /// Identifier.
+    id: Uuid,
+}
+
+/// What an undo adds to the answer of its inverse.
+#[derive(Debug, Serialize, ToSchema)]
+struct UndoMembers {
+    /// The changeset undone.
+    undoes: ChangesetRef,
+    /// What the inverse does not restore.
+    unsupported: Vec<Unsupported>,
+    /// Simulated: the operations of the inverse.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Vec<OperationDto>>)]
+    operations: Option<Value>,
+}
+
+/// The inverse of a changeset applied, and what the undo adds.
+#[derive(Debug, Serialize, ToSchema)]
+#[allow(dead_code)]
+struct UndoApplied {
+    #[serde(flatten)]
+    answer: ChangesetApplied,
+    #[serde(flatten)]
+    undo: UndoMembers,
+}
+
+/// The inverse of a changeset held for a decision, and what the undo adds.
+#[derive(Debug, Serialize, ToSchema)]
+#[allow(dead_code)]
+struct UndoPending {
+    #[serde(flatten)]
+    answer: ChangesetPending,
+    #[serde(flatten)]
+    undo: UndoMembers,
+}
+
+/// The inverse of a changeset simulated, and what the undo adds.
+#[derive(Debug, Serialize, ToSchema)]
+#[allow(dead_code)]
+struct UndoSimulated {
+    #[serde(flatten)]
+    answer: ChangesetSimulated,
+    #[serde(flatten)]
+    undo: UndoMembers,
+}
+
 /// `POST /v1/changesets/{id}/undo[?simulate=true]`: submits the inverse of an applied
 /// changeset under the rights of the caller (REQ-004-34), answered as a submission with
 /// `undoes` and `unsupported`; 409 `undo-conflict` with the objects and rights written
 /// since (REQ-004-35).
+#[utoipa::path(
+    post,
+    path = "/changesets/{id}/undo",
+    operation_id = "undo_changeset",
+    tag = "changesets",
+    params(
+        ("id" = Uuid, Path, description = "The changeset."),
+        ("If-Match" = String, Header, description = "Its state, as its ETag."),
+        ("simulate" = Option<bool>, Query, description = "Validate the inverse without writing."),
+    ),
+    responses(
+        (status = 201, description = "The inverse applied.", body = UndoApplied),
+        (status = 202, description = "The inverse held for a decision.", body = UndoPending),
+        (status = 200, description = "The inverse simulated.", body = UndoSimulated),
+    )
+)]
 pub(crate) async fn undo(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -710,25 +1012,44 @@ pub(crate) async fn undo(
                 conflicts.len()
             ))
             .extension("conflicts", Value::Array(conflicts))
-            .extension("changeset", summary(id)));
+            .extension(
+                "changeset",
+                serde_json::to_value(summary(id)).map_err(internal)?,
+            ));
     }
     found.request.simulate = simulate;
     let response = submit_answered(&api, &context, &found.request, &Answer::SUBMISSION).await?;
-    let mut members = Map::new();
-    members.insert("undoes".into(), summary(id));
-    members.insert(
-        "unsupported".into(),
-        found
+    let added = UndoMembers {
+        undoes: summary(id),
+        unsupported: found
             .unsupported
             .iter()
-            .map(|(kind, id)| json!({ "kind": kind, "id": id }))
+            .map(|(kind, id)| Unsupported {
+                kind: kind.clone(),
+                id: *id,
+            })
             .collect(),
-    );
-    if simulate {
-        members.insert(
-            "operations".into(),
-            serde_json::to_value(&found.request.operations).map_err(internal)?,
-        );
-    }
+        operations: simulate
+            .then(|| serde_json::to_value(&found.request.operations))
+            .transpose()
+            .map_err(internal)?,
+    };
+    let Value::Object(members) = serde_json::to_value(added).map_err(internal)? else {
+        return Err(internal("the members of an undo are no object"));
+    };
     with_members(response, members).await
+}
+
+#[allow(dead_code)]
+const fn kinds(kind: ObjectKind) -> TargetKindDto {
+    match kind {
+        ObjectKind::Domain => TargetKindDto::Domain,
+        ObjectKind::Prefix => TargetKindDto::Prefix,
+        ObjectKind::Range => TargetKindDto::Range,
+        ObjectKind::Address => TargetKindDto::Address,
+        ObjectKind::Property => TargetKindDto::Property,
+        ObjectKind::EnumValue => TargetKindDto::EnumValue,
+        ObjectKind::Entity => TargetKindDto::Entity,
+        ObjectKind::Site => TargetKindDto::Site,
+    }
 }

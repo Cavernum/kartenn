@@ -4,6 +4,7 @@
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
+use utoipa::ToSchema;
 
 /// Media type of a problem (RFC 9457 §3).
 pub const PROBLEM_JSON: &str = "application/problem+json";
@@ -189,19 +190,26 @@ impl ProblemKind {
 
 /// A problem (RFC 9457 §3.1). `instance` is the request identifier, set by the request
 /// layer on the way out.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct Problem {
     #[serde(skip)]
     kind: ProblemKind,
+    /// The class of the problem, an URN `urn:kartenn:problem:<slug>`.
     #[serde(rename = "type")]
     type_: String,
+    /// The title of the class.
     title: &'static str,
+    /// The HTTP status.
     status: u16,
+    /// This occurrence, explained.
     #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<String>,
+    /// The identifier of the request, `urn:uuid:…`.
     #[serde(skip_serializing_if = "Option::is_none")]
     instance: Option<String>,
+    /// Extension members, such as `violations` (RFC 9457 §3.2).
     #[serde(flatten)]
+    #[schema(additional_properties)]
     extensions: serde_json::Map<String, serde_json::Value>,
 }
 

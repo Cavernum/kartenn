@@ -1,2 +1,2 @@
 # Project vocabulary accepted in documentation without backticks.
-doc-valid-idents = ["CloudEvents", "PostgreSQL", "OpenID", "IdP", ".."]
+doc-valid-idents = ["CloudEvents", "PostgreSQL", "OpenID", "OpenAPI", "IdP", ".."]

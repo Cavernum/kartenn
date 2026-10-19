@@ -17,6 +17,7 @@ use axum::response::{IntoResponse, Response};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::problem::{Problem, ProblemKind};
@@ -39,6 +40,17 @@ pub struct Dates {
     pub valid_at: Option<OffsetDateTime>,
     /// System time: what kartenn asserted then.
     pub as_of: Option<OffsetDateTime>,
+}
+
+/// The dates of a read, as the contract names them.
+#[derive(Debug, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+pub(crate) struct DatesParams {
+    /// Valid time, RFC 3339 with its offset; now by default.
+    valid_at: Option<String>,
+    /// System time, RFC 3339 with its offset: what kartenn asserted then; now by default.
+    as_of: Option<String>,
 }
 
 fn bad(detail: impl Into<String>) -> Problem {

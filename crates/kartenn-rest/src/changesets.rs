@@ -13,14 +13,14 @@ use axum::body::Bytes;
 use axum::extract::{RawQuery, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Extension, Json, Router};
+use axum::{Extension, Json};
 use kartenn_core::rules::{CHANGESET_CONFLICT, PROP_EXPECTED_MISMATCH, Severity, Violation};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::operations::PeriodSpec;
 use kartenn_service::pipeline::MAX_OPERATIONS;
-use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, submit_in};
+use kartenn_service::port::{DiffCount, DiffItem};
+use kartenn_service::{ChangesetRequest, ObjectKind, Outcome, submit_in};
 use kartenn_store_pg::idempotency;
 use kartenn_store_pg::list::{self, Kind};
 use kartenn_store_pg::property_read;
@@ -28,32 +28,36 @@ use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::rbac_read;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
-use serde::Deserialize;
-use serde_json::{Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
 use crate::cycle;
 use crate::dated;
 use crate::objects::{self, Api, bad, instant, store};
+use crate::operation::{OperationDto, TargetKindDto};
 use crate::problem::{Problem, ProblemKind};
 use crate::properties::masked_gap;
+use crate::rights::SecretShown;
 
 /// The relation type of the link to a changeset: an extension type, hence an URI
 /// (RFC 8288 §2.1.2).
 pub const REL_CHANGESET: &str = "urn:kartenn:rel:changeset";
 
 /// The routes of the changesets.
-pub fn routes(api: Api) -> Router {
-    Router::new()
-        .route("/changesets", post(submit).get(cycle::list))
-        .route("/changesets/{id}", get(cycle::show))
-        .route("/changesets/{id}/diff", get(cycle::diff))
-        .route("/changesets/{id}/validation", post(cycle::validation))
-        .route("/changesets/{id}/rejection", post(cycle::rejection))
-        .route("/changesets/{id}/withdrawal", post(cycle::withdrawal))
-        .route("/changesets/{id}/undo", post(cycle::undo))
-        .route("/proposals", get(cycle::proposals))
-        .with_state(api)
+pub fn routes() -> OpenApiRouter<Api> {
+    OpenApiRouter::new()
+        .routes(routes!(submit, cycle::list))
+        .routes(routes!(cycle::show))
+        .routes(routes!(cycle::diff))
+        .routes(routes!(cycle::validation))
+        .routes(routes!(cycle::rejection))
+        .routes(routes!(cycle::withdrawal))
+        .routes(routes!(cycle::undo))
+        .routes(routes!(cycle::proposals))
 }
 
 /// The path of a changeset.
@@ -63,14 +67,19 @@ pub fn href(id: Uuid) -> String {
 }
 
 /// The body of a submission (design « Écritures », arbitrage of 2026-10-19).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
+#[schema(as = Submission)]
 struct Body {
+    /// Why; required by the rules.
     #[serde(default)]
     motive: String,
+    /// The start of the period of the changeset, RFC 3339; now by default.
     valid_from: Option<String>,
+    /// The end of the period of the changeset, RFC 3339; unbounded by default.
     valid_to: Option<String>,
-    operations: Vec<Operation>,
+    /// The operations, applied in order (at most 10 000).
+    operations: Vec<OperationDto>,
 }
 
 /// Whether to simulate: `simulate=true|false`, at most once; anything else → 400.
@@ -200,28 +209,49 @@ impl Answer<'_> {
     };
 }
 
+/// A violation of a rule (REQ-006-21), as served.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct ViolationDto {
+    /// The rule.
+    rule: &'static str,
+    /// `error` or `warning`.
+    severity: &'static str,
+    /// The message of the rule.
+    detail: String,
+    /// The objects concerned.
+    subjects: Vec<Uuid>,
+    /// `POST /v1/changesets`: the index of the operation; `null` for a rule of the final
+    /// state. Absent from the routes by resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<usize>)]
+    #[allow(clippy::option_option)] // Absent, `null` or an index: three states.
+    operation: Option<Option<usize>>,
+    /// The JSON Pointer (RFC 6901) to what the violation comes from in the request;
+    /// `null` for a rule of the final state.
+    pointer: Option<String>,
+}
+
 /// A violation as served: its operation and a pointer to it in the request
 /// (RFC 6901), `null` for a rule of the final state (REQ-004-7).
-fn violation(v: &Violation, pointers: Pointers<'_>) -> Value {
-    let mut served = json!({
-        "rule": v.rule.id,
-        "severity": match v.rule.severity {
+fn violation(v: &Violation, pointers: Pointers<'_>) -> ViolationDto {
+    let (operation, pointer) = match pointers {
+        Pointers::Operations => (
+            Some(v.operation),
+            v.operation.map(|i| format!("/operations/{i}")),
+        ),
+        Pointers::Members(members) => (None, v.operation.and_then(|i| members.get(i).cloned())),
+    };
+    ViolationDto {
+        rule: v.rule.id,
+        severity: match v.rule.severity {
             Severity::Error => "error",
             Severity::Warning => "warning",
         },
-        "detail": v.message,
-        "subjects": v.subjects,
-    });
-    match pointers {
-        Pointers::Operations => {
-            served["operation"] = json!(v.operation);
-            served["pointer"] = json!(v.operation.map(|i| format!("/operations/{i}")));
-        }
-        Pointers::Members(members) => {
-            served["pointer"] = json!(v.operation.and_then(|i| members.get(i)));
-        }
+        detail: v.message.clone(),
+        subjects: v.subjects.clone(),
+        operation,
+        pointer,
     }
-    served
 }
 
 /// The violations as served, the message of a deviation of a sensitive property replaced:
@@ -230,7 +260,7 @@ pub(crate) async fn violations(
     api: &Api,
     found: &[Violation],
     pointers: Pointers<'_>,
-) -> Result<Value, Problem> {
+) -> Result<Vec<ViolationDto>, Problem> {
     let sensitive = if found.iter().any(|v| v.rule.id == PROP_EXPECTED_MISMATCH.id) {
         property_read::sensitive_keys(&api.pool)
             .await
@@ -238,25 +268,37 @@ pub(crate) async fn violations(
     } else {
         BTreeSet::new()
     };
-    Ok(Value::Array(
-        found
-            .iter()
-            .map(|v| {
-                let mut served = violation(v, pointers);
-                if v.rule.id == PROP_EXPECTED_MISMATCH.id
-                    && let Some((key, _)) = v.message.split_once(':')
-                    && sensitive.contains(key)
-                {
-                    served["detail"] = Value::String(masked_gap(key));
-                }
-                served
-            })
-            .collect(),
-    ))
+    Ok(found
+        .iter()
+        .map(|v| {
+            let mut served = violation(v, pointers);
+            if v.rule.id == PROP_EXPECTED_MISMATCH.id
+                && let Some((key, _)) = v.message.split_once(':')
+                && sensitive.contains(key)
+            {
+                served.detail = masked_gap(key);
+            }
+            served
+        })
+        .collect())
 }
 
-pub(crate) fn summary(id: Uuid) -> Value {
-    json!({ "id": id, "href": href(id) })
+/// The violations as the member of a problem.
+pub(crate) fn violations_value(served: &[ViolationDto]) -> Value {
+    serde_json::to_value(served).expect("violations serialise")
+}
+
+/// A changeset, named.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct ChangesetRef {
+    /// Identifier.
+    pub(crate) id: Uuid,
+    /// Its URL.
+    pub(crate) href: String,
+}
+
+pub(crate) fn summary(id: Uuid) -> ChangesetRef {
+    ChangesetRef { id, href: href(id) }
 }
 
 /// `Link` to changeset `id`, and `Location` to `location` when given.
@@ -272,11 +314,177 @@ pub(crate) fn linked(mut response: Response, id: Uuid, location: Option<String>)
     response
 }
 
-pub(crate) fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Value {
+/// An object closed by cascade (REQ-004-26).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct Cascaded {
+    /// Its kind.
+    #[schema(value_type = TargetKindDto)]
+    kind: ObjectKind,
+    /// Identifier.
+    id: Uuid,
+}
+
+pub(crate) fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Vec<Cascaded> {
     closures
         .iter()
-        .map(|(kind, id)| json!({ "kind": kind, "id": id }))
+        .map(|&(kind, id)| Cascaded { kind, id })
         .collect()
+}
+
+/// A line of the counted differential (REQ-003-19): how many objects see a property go
+/// from one value to another.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct DiffCountDto {
+    /// Property key.
+    property: String,
+    /// The value before, as JSON text; `null`: no value.
+    before: Option<String>,
+    /// The value after, as JSON text; `null`: no value.
+    after: Option<String>,
+    /// Objects.
+    count: u64,
+    /// In a changeset read: the values are masked, the caller may not read them on every
+    /// object counted (REQ-005-21).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    masked: Option<bool>,
+}
+
+impl From<&DiffCount> for DiffCountDto {
+    fn from(d: &DiffCount) -> Self {
+        Self {
+            property: d.property.clone(),
+            before: d.before.clone(),
+            after: d.after.clone(),
+            count: d.count,
+            masked: None,
+        }
+    }
+}
+
+/// One object of the differential (REQ-003-19).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct DiffItemDto {
+    /// Property key.
+    property: String,
+    /// The object.
+    object: Uuid,
+    /// The value before, as JSON text; `null`: no value.
+    before: Option<String>,
+    /// The value after, as JSON text; `null`: no value.
+    after: Option<String>,
+}
+
+impl From<&DiffItem> for DiffItemDto {
+    fn from(d: &DiffItem) -> Self {
+        Self {
+            property: d.property.clone(),
+            object: d.object,
+            before: d.before.clone(),
+            after: d.after.clone(),
+        }
+    }
+}
+
+/// A changeset applied.
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ChangesetApplied {
+    /// The changeset.
+    changeset: ChangesetRef,
+    /// `applied`.
+    state: &'static str,
+    /// The warnings of the rules.
+    warnings: Vec<ViolationDto>,
+    /// The counted differential.
+    #[schema(value_type = Vec<DiffCountDto>)]
+    diff: Value,
+    /// The objects closed by cascade.
+    cascaded: Vec<Cascaded>,
+    /// The secret the changeset generated, shown once.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<SecretShown>)]
+    secret: Option<Value>,
+}
+
+/// 201 (or 200): the changeset applied, its warnings, differential and closures by cascade.
+async fn applied(
+    api: &Api,
+    changeset: Uuid,
+    warnings: &[Violation],
+    diff: Value,
+    closures: &[(ObjectKind, Uuid)],
+    answer: &Answer<'_>,
+) -> Result<Response, Problem> {
+    let body = ChangesetApplied {
+        changeset: summary(changeset),
+        state: "applied",
+        warnings: violations(api, warnings, answer.pointers).await?,
+        diff,
+        cascaded: cascaded(closures),
+        secret: answer.shown.cloned(),
+    };
+    Ok(linked(
+        (answer.applied, Json(body)).into_response(),
+        changeset,
+        location(api, changeset, answer).await?,
+    ))
+}
+
+/// A changeset held for a decision.
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ChangesetPending {
+    /// The changeset.
+    changeset: ChangesetRef,
+    /// `pending`.
+    state: &'static str,
+    /// `approval` or `proposal`.
+    kind: String,
+    /// The approval policy that holds it.
+    policy: Option<Uuid>,
+    /// The counted differential.
+    #[schema(value_type = Vec<DiffCountDto>)]
+    diff: Value,
+    /// The secret the changeset generated, shown once.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<SecretShown>)]
+    secret: Option<Value>,
+}
+
+/// 202: the changeset held for a decision.
+fn pending(
+    changeset: Uuid,
+    kind: &str,
+    policy: Option<Uuid>,
+    diff: &Value,
+    shown: Option<&Value>,
+) -> Response {
+    let body = ChangesetPending {
+        changeset: summary(changeset),
+        state: "pending",
+        kind: kind.to_owned(),
+        policy,
+        diff: diff.clone(),
+        secret: shown.cloned(),
+    };
+    linked(
+        (StatusCode::ACCEPTED, Json(body)).into_response(),
+        changeset,
+        None,
+    )
+}
+
+/// A changeset simulated: nothing is written (REQ-004-9).
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ChangesetSimulated {
+    /// No violation is an error.
+    valid: bool,
+    /// Every violation, errors and warnings.
+    violations: Vec<ViolationDto>,
+    /// The counted differential applying would produce.
+    diff: Vec<DiffCountDto>,
+    /// Its first entries.
+    sample: Vec<DiffItemDto>,
+    /// The closures a cascade would add.
+    cascaded: Vec<Cascaded>,
 }
 
 /// What `Location` names for the changeset `changeset` applied.
@@ -302,60 +510,6 @@ async fn location(
     })
 }
 
-/// 201 (or 200): the changeset applied, its warnings, differential and closures by cascade.
-async fn applied(
-    api: &Api,
-    changeset: Uuid,
-    warnings: &[Violation],
-    diff: Value,
-    closures: &[(ObjectKind, Uuid)],
-    answer: &Answer<'_>,
-) -> Result<Response, Problem> {
-    let mut body = json!({
-        "changeset": summary(changeset),
-        "state": "applied",
-        "warnings": violations(api, warnings, answer.pointers).await?,
-        "diff": diff,
-        "cascaded": cascaded(closures),
-    });
-    show(&mut body, answer.shown);
-    Ok(linked(
-        (answer.applied, Json(body)).into_response(),
-        changeset,
-        location(api, changeset, answer).await?,
-    ))
-}
-
-/// Adds the secret `shown`, if any, to `body`.
-fn show(body: &mut Value, shown: Option<&Value>) {
-    if let (Some(members), Some(secret)) = (body.as_object_mut(), shown) {
-        members.insert("secret".to_owned(), secret.clone());
-    }
-}
-
-/// 202: the changeset held for a decision.
-fn pending(
-    changeset: Uuid,
-    kind: &str,
-    policy: Option<Uuid>,
-    diff: &Value,
-    shown: Option<&Value>,
-) -> Response {
-    let mut body = json!({
-        "changeset": summary(changeset),
-        "state": "pending",
-        "kind": kind,
-        "policy": policy,
-        "diff": diff,
-    });
-    show(&mut body, shown);
-    linked(
-        (StatusCode::ACCEPTED, Json(body)).into_response(),
-        changeset,
-        None,
-    )
-}
-
 /// 422: every violation of the refused changeset, errors then warnings as journaled; 412
 /// when a precondition is answered and a version conflicts (REQ-006-14).
 async fn refused(
@@ -375,13 +529,14 @@ async fn refused(
             found.iter().filter(|v| v.is_error()).count()
         ))
     };
+    let served = violations(api, &found, answer.pointers).await?;
     Ok(linked(
         problem
+            .extension("violations", violations_value(&served))
             .extension(
-                "violations",
-                violations(api, &found, answer.pointers).await?,
+                "changeset",
+                serde_json::to_value(summary(changeset)).expect("a summary serialises"),
             )
-            .extension("changeset", summary(changeset))
             .into_response(),
         changeset,
         None,
@@ -428,8 +583,10 @@ async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Res
     }
 }
 
-fn counted(diff: &[kartenn_service::port::DiffCount]) -> Result<Value, Problem> {
-    serde_json::to_value(diff).map_err(|e| {
+/// The counted differential as served, the form the journal keeps.
+fn counted(diff: &[DiffCount]) -> Result<Value, Problem> {
+    let served: Vec<DiffCountDto> = diff.iter().map(DiffCountDto::from).collect();
+    serde_json::to_value(served).map_err(|e| {
         tracing::error!(name: "http.changeset.diff", error = %e, "a differential does not serialise");
         Problem::new(ProblemKind::Internal)
     })
@@ -509,13 +666,13 @@ pub(crate) async fn answered(
             diff,
             sample,
             cascaded: closures,
-        } => Json(json!({
-            "valid": !found.iter().any(Violation::is_error),
-            "violations": violations(api, &found, answer.pointers).await?,
-            "diff": diff,
-            "sample": sample,
-            "cascaded": cascaded(&closures),
-        }))
+        } => Json(ChangesetSimulated {
+            valid: !found.iter().any(Violation::is_error),
+            violations: violations(api, &found, answer.pointers).await?,
+            diff: diff.iter().map(DiffCountDto::from).collect(),
+            sample: sample.iter().map(DiffItemDto::from).collect(),
+            cascaded: cascaded(&closures),
+        })
         .into_response(),
         other => {
             tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a changeset had an unexpected outcome");
@@ -528,6 +685,22 @@ pub(crate) async fn answered(
 /// `POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,
 /// operations}`. The problems come in the order of HTTP (REQ-006-22): the authentication
 /// (layer 6) before the syntax, the syntax (400, 415) before the rules (422).
+#[utoipa::path(
+    post,
+    path = "/changesets",
+    operation_id = "submit_changeset",
+    tag = "changesets",
+    params(
+        ("simulate" = Option<bool>, Query, description = "Validate and report without writing."),
+        ("Idempotency-Key" = Option<String>, Header, description = "Makes the submission idempotent for 24 h."),
+    ),
+    request_body = Body,
+    responses(
+        (status = 201, description = "Applied.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+        (status = 200, description = "Simulated.", body = ChangesetSimulated),
+    )
+)]
 async fn submit(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -543,7 +716,7 @@ async fn submit(
         author: principal.identity,
         motive: body.motive.clone(),
         period: period(&api, body.valid_from.as_deref(), body.valid_to.as_deref()).await?,
-        operations: body.operations,
+        operations: body.operations.into_iter().map(Into::into).collect(),
         simulate,
         idempotency_key,
     };
@@ -599,14 +772,18 @@ mod tests {
     #[test]
     fn a_violation_points_to_its_operation() {
         let v = Violation::new(&rules::PREFIX_DUPLICATE, "dup").at(2);
-        let served = violation(&v, Pointers::Operations);
+        let served = serde_json::to_value(violation(&v, Pointers::Operations)).unwrap();
         assert_eq!(served["operation"], 2);
         assert_eq!(served["pointer"], "/operations/2");
         assert_eq!(served["severity"], "error");
-        let final_state = violation(
+        let final_state = serde_json::to_value(violation(
             &Violation::new(&rules::PREFIX_DUPLICATE, "dup"),
             Pointers::Operations,
-        );
+        ))
+        .unwrap();
         assert_eq!(final_state["pointer"], Value::Null);
+        assert_eq!(final_state["operation"], Value::Null);
+        let by_member = serde_json::to_value(violation(&v, Pointers::Members(&[]))).unwrap();
+        assert!(by_member.get("operation").is_none());
     }
 }

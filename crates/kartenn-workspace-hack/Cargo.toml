@@ -35,6 +35,7 @@ hashbrown = { version = "0.17" }
 hyper = { version = "1", features = ["client", "http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "server-graceful", "service"] }
 idna = { version = "1" }
+indexmap = { version = "2", features = ["serde"] }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 memchr = { version = "2" }
 num-bigint = { version = "0.4" }
@@ -86,6 +87,7 @@ generic-array = { version = "0.14", default-features = false, features = ["more_
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.17" }
 idna = { version = "1" }
+indexmap = { version = "2", features = ["serde"] }
 memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }

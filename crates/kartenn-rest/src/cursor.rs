@@ -13,9 +13,10 @@ use axum::response::{IntoResponse, Response};
 use kartenn_auth::keys::{KeyRing, Purpose};
 use kartenn_auth::signed;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::dated::{Dates, ETag, Moment, respond};
 use crate::problem::{Problem, ProblemKind};
@@ -217,23 +218,53 @@ pub fn next_href(path: &str, cursor: &str) -> String {
     format!("{path}?cursor={cursor}")
 }
 
+/// The parameters of a page, as the contract names them.
+#[derive(Debug, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+pub(crate) struct PageParams {
+    /// The next page, from `links.next`; it freezes the dates and the filters.
+    cursor: Option<String>,
+    /// The size of a page, 1 to 1 000; 100 by default.
+    page_size: Option<u16>,
+}
+
+/// A page of a list, as answered.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Listing<'a, T> {
+    /// The elements of the page.
+    pub items: &'a [T],
+    /// The links of the page.
+    pub links: ListingLinks<'a>,
+}
+
+/// The links of a page.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ListingLinks<'a> {
+    /// The next page; `null` at the end of the list.
+    pub next: Option<&'a str>,
+}
+
 /// The response of a page: `{"items": […], "links": {"next": …}}`, the next page also in
 /// `Link`, a weak `ETag` of the content (REQ-006-6), 304 when `If-None-Match` names it.
 ///
 /// # Panics
 ///
 /// Never: a path and a percent-encoded cursor make a header value.
-pub fn respond_page(
+pub fn respond_page<T: Serialize>(
     request: &HeaderMap,
     moment: &Moment,
-    items: &[Value],
+    items: &[T],
     next: Option<&str>,
 ) -> Response {
     let link = next.map(|next| {
         HeaderValue::try_from(format!("<{next}>; rel=\"next\""))
             .expect("a path and a percent-encoded cursor make a header value")
     });
-    let body = json!({ "items": items, "links": { "next": next } });
+    let body = Listing {
+        items,
+        links: ListingLinks { next },
+    };
     let bytes = serde_json::to_vec(&body).expect("JSON values serialise");
     let etag = ETag::page(&bytes);
     let mut response = ([(CONTENT_TYPE, "application/json")], bytes).into_response();
@@ -247,6 +278,7 @@ pub fn respond_page(
 mod tests {
     use std::time::Duration;
 
+    use serde_json::json;
     use time::macros::datetime;
 
     use super::*;

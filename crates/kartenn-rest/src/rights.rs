@@ -12,13 +12,12 @@ use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Extension, Json, Router};
+use axum::{Extension, Json};
 use kartenn_auth::secrets;
 use kartenn_core::audit::rfc3339;
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
-use kartenn_service::operations::{BindingScope, BindingSubject, Ref};
+use kartenn_service::operations::{BindingScope, Ref};
 use kartenn_service::reads::{objects_read, rbac_readable};
 use kartenn_service::{ChangesetRequest, Operation, RequestError};
 use kartenn_store_pg::rbac::PgAuthorizer;
@@ -26,42 +25,44 @@ use kartenn_store_pg::rbac_read::{
     self, AccountRead, AttachmentRead, BindingRead, IdentityRead, RoleRead,
 };
 use kartenn_store_pg::read;
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::changesets::{Answer, Location, Pointers, idempotency_key, period, submit_answered};
+use crate::changesets::{
+    Answer, ChangesetApplied, ChangesetPending, Location, Pointers, idempotency_key, period,
+    submit_answered,
+};
 use crate::compression::Secret;
-use crate::cursor::{Page, next_href, respond_page};
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, instant, store};
+use crate::operation::SubjectDto;
 use crate::problem::{Problem, ProblemKind};
-use crate::resources::{MERGE_PATCH, Reserved, WHOLE, invalid, members, reserved, typed};
+use crate::resources::{
+    Closure, MERGE_PATCH, Reserved, WHOLE, invalid, members, reserved, typed, written,
+};
 
 /// The routes of the rights.
-pub fn routes(api: Api) -> Router {
-    Router::new()
-        .route("/roles", get(roles))
-        .route("/roles/{key}", get(role).put(set_role).delete(close_role))
-        .route("/bindings", get(bindings).post(bind))
-        .route("/bindings/{id}", get(binding).delete(unbind))
-        .route(
-            "/issuer-attachments",
-            get(attachments).post(attach).delete(detach),
-        )
-        .route("/service-accounts", get(accounts).post(create_account))
-        .route("/service-accounts/{id}", get(account))
-        .route("/service-accounts/{id}/secrets", post(add_secret))
-        .route(
-            "/service-accounts/{id}/secrets/{secret}",
-            axum::routing::delete(revoke_secret),
-        )
-        .route("/identities", get(identities))
-        .route("/identities/{id}", get(identity).patch(identity_state))
-        .with_state(api)
+pub fn routes() -> OpenApiRouter<Api> {
+    OpenApiRouter::new()
+        .routes(routes!(roles))
+        .routes(routes!(role, set_role, close_role))
+        .routes(routes!(bindings, bind))
+        .routes(routes!(binding, unbind))
+        .routes(routes!(attachments, attach, detach))
+        .routes(routes!(accounts, create_account))
+        .routes(routes!(account))
+        .routes(routes!(add_secret))
+        .routes(routes!(revoke_secret))
+        .routes(routes!(identities))
+        .routes(routes!(identity, identity_state))
 }
 
 fn time(at: OffsetDateTime) -> String {
@@ -114,7 +115,7 @@ fn after<T: DeserializeOwned>(page: &Page) -> Result<Option<T>, Problem> {
 /// Serves a page of `found` (one more than the page asks: the next exists), keyed by
 /// `key`, after auditing the read of their `ids`.
 #[allow(clippy::too_many_arguments)]
-async fn served<T>(
+async fn served<T, I: Serialize>(
     api: &Api,
     context: &RequestContext,
     headers: &HeaderMap,
@@ -122,7 +123,7 @@ async fn served<T>(
     name: &str,
     mut found: Vec<T>,
     key: impl Fn(&T) -> Value,
-    (id, item): (impl Fn(&T) -> Option<Uuid>, impl Fn(&T) -> Value),
+    (id, item): (impl Fn(&T) -> Option<Uuid>, impl Fn(&T) -> I),
 ) -> Result<Response, Problem> {
     let size = usize::from(page.size);
     let next = (found.len() > size).then(|| {
@@ -132,7 +133,7 @@ async fn served<T>(
     });
     let ids: Vec<Uuid> = found.iter().filter_map(&id).collect();
     audit_read(api, context, &ids, json!({ name: {} })).await?;
-    let items: Vec<Value> = found.iter().map(item).collect();
+    let items: Vec<I> = found.iter().map(item).collect();
     Ok(respond_page(headers, moment, &items, next.as_deref()))
 }
 
@@ -192,49 +193,26 @@ fn answer<'a>(
     }
 }
 
-/// The body of a write as a JSON object (an empty body is an empty object when
-/// `optional`), its reserved members taken out.
-fn body(
+/// The body of a write (an empty body is an empty object when `optional`): its reserved
+/// members, and the others as `T`.
+fn body<T: DeserializeOwned>(
     headers: &HeaderMap,
     raw: &[u8],
     media_type: &str,
     optional: bool,
-) -> Result<(Map<String, Value>, Reserved), Problem> {
+) -> Result<(T, Reserved), Problem> {
     let mut members = if optional && raw.is_empty() {
         Map::new()
     } else {
         members(headers, raw, media_type)?
     };
     let reserved = reserved(&mut members)?;
-    Ok((members, reserved))
+    Ok((typed("the body", Value::Object(members))?, reserved))
 }
 
-/// The member `name` of `members` as `T`, or 400 when it is required and absent.
-fn member<T: DeserializeOwned>(
-    members: &mut Map<String, Value>,
-    name: &str,
-) -> Result<Option<T>, Problem> {
-    members
-        .remove(name)
-        .filter(|v| !v.is_null())
-        .map(|v| typed(name, v))
-        .transpose()
-}
-
-fn required<T: DeserializeOwned>(
-    members: &mut Map<String, Value>,
-    name: &str,
-) -> Result<T, Problem> {
-    member(members, name)?
-        .ok_or_else(|| invalid(&format!("/{name}"), format!("{name} is required")))
-}
-
-/// 400 for the first member left unread.
-fn no_other(members: &Map<String, Value>) -> Result<(), Problem> {
-    match members.keys().next() {
-        Some(unknown) => Err(bad(format!("unknown member {unknown}"))),
-        None => Ok(()),
-    }
+/// A member the write requires, or 422 pointing at it.
+fn required<T>(value: Option<T>, name: &str) -> Result<T, Problem> {
+    value.ok_or_else(|| invalid(&format!("/{name}"), format!("{name} is required")))
 }
 
 /// An instant of RFC 3339 as microseconds since the epoch.
@@ -248,23 +226,75 @@ fn micros(name: &str, value: &str) -> Result<i64, Problem> {
     Ok(instant(at).0)
 }
 
+/// A write with no member of its own.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct NoMembers {}
+
+written!(RoleWrite, RoleMembers, "The body that defines a role.");
+written!(BindWrite, BindMembers, "The body of a binding.");
+written!(AttachWrite, AttachMembers, "The body of an attachment.");
+written!(
+    AccountWrite,
+    AccountMembers,
+    "The body of a service account."
+);
+written!(SecretWrite, SecretMembers, "The body of a new secret.");
+written!(
+    IdentityWrite,
+    IdentityPatch,
+    "The body that changes the state of an identity."
+);
+
+/// The optional body of a closure: `{motive, valid_from}`, no `valid_to`.
+fn closure(headers: &HeaderMap, raw: &[u8]) -> Result<Reserved, Problem> {
+    let (NoMembers {}, reserved) = body(headers, raw, "application/json", true)?;
+    if reserved.valid_to.is_some() {
+        return Err(bad("a closure has no valid_to"));
+    }
+    Ok(reserved)
+}
+
 // ---- Roles ----
 
 fn role_href(key: &str) -> String {
     format!("/v1/roles/{key}")
 }
 
-fn role_item(role: &RoleRead) -> Value {
-    json!({
-        "key": role.key,
-        "href": role_href(&role.key),
-        "label": role.label,
-        "builtin": role.builtin,
-        "entries": role.entries,
-    })
+/// A role.
+#[derive(Debug, Serialize, ToSchema)]
+struct RoleItem {
+    /// Stable key.
+    key: String,
+    /// Its URL.
+    href: String,
+    /// Label.
+    label: String,
+    /// Built in kartenn.
+    builtin: bool,
+    /// Its entries: permissions, `prop.<key>.<action>`, `prop.*.<action>`, `*`.
+    entries: Vec<String>,
+}
+
+fn role_item(role: &RoleRead) -> RoleItem {
+    RoleItem {
+        key: role.key.clone(),
+        href: role_href(&role.key),
+        label: role.label.clone(),
+        builtin: role.builtin,
+        entries: role.entries.clone(),
+    }
 }
 
 /// `GET /v1/roles`.
+#[utoipa::path(
+    get,
+    path = "/roles",
+    operation_id = "list_roles",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The roles.", body = Listing<RoleItem>))
+)]
 async fn roles(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -289,6 +319,14 @@ async fn roles(
 }
 
 /// `GET /v1/roles/{key}`.
+#[utoipa::path(
+    get,
+    path = "/roles/{key}",
+    operation_id = "show_role",
+    tag = "rights",
+    params(("key" = String, Path, description = "The role.")),
+    responses((status = 200, description = "The role.", body = RoleItem))
+)]
 async fn role(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -302,8 +340,33 @@ async fn role(
     Ok(Json(role_item(&found)).into_response())
 }
 
+/// The members of a role.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct RoleMembers {
+    /// Label.
+    #[schema(required = true, value_type = String)]
+    label: Option<String>,
+    /// Entries.
+    #[schema(required = true, value_type = Vec<String>)]
+    entries: Option<Vec<String>>,
+}
+
 /// `PUT /v1/roles/{key}` `{label, entries}`: defines or replaces the role; 201 when it is
 /// created.
+#[utoipa::path(
+    put,
+    path = "/roles/{key}",
+    operation_id = "set_role",
+    tag = "rights",
+    params(("key" = String, Path, description = "The role.")),
+    request_body = RoleWrite,
+    responses(
+        (status = 200, description = "Replaced.", body = ChangesetApplied),
+        (status = 201, description = "Created.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn set_role(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -312,10 +375,9 @@ async fn set_role(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let (mut members, reserved) = body(&headers, &raw, "application/json", false)?;
-    let label: String = required(&mut members, "label")?;
-    let entries: Vec<String> = required(&mut members, "entries")?;
-    no_other(&members)?;
+    let (members, reserved): (RoleMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let label = required(members.label, "label")?;
+    let entries = required(members.entries, "entries")?;
     let exists = rbac_read::role(&api.pool, &key).await?.is_some();
     let href = role_href(&key);
     let pointers = pointers();
@@ -346,6 +408,18 @@ async fn set_role(
 }
 
 /// `DELETE /v1/roles/{key}`: closes the role and its bindings.
+#[utoipa::path(
+    delete,
+    path = "/roles/{key}",
+    operation_id = "close_role",
+    tag = "rights",
+    params(("key" = String, Path, description = "The role.")),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Closed.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn close_role(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -354,8 +428,7 @@ async fn close_role(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let (members, reserved) = closure(&headers, &raw)?;
-    no_other(&members)?;
+    let reserved = closure(&headers, &raw)?;
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::OK, None, None);
     let operation = Operation::CloseRole { key };
@@ -370,23 +443,16 @@ async fn close_role(
     .await
 }
 
-/// The optional body of a closure: `{motive, valid_from}`, no `valid_to`.
-fn closure(headers: &HeaderMap, raw: &[u8]) -> Result<(Map<String, Value>, Reserved), Problem> {
-    let (members, reserved) = body(headers, raw, "application/json", true)?;
-    if reserved.valid_to.is_some() {
-        return Err(bad("a closure has no valid_to"));
-    }
-    Ok((members, reserved))
-}
-
 // ---- Bindings ----
 
 /// The scope of a binding as served and received: `{kind, id}`, no `id` when global.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct Scope {
+    /// `global`, `entity`, `site`, `domain` or `prefix`.
     kind: String,
-    #[serde(default)]
+    /// The object; absent when global.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     id: Option<Uuid>,
 }
 
@@ -414,36 +480,87 @@ fn binding_href(id: Uuid) -> String {
     format!("/v1/bindings/{id}")
 }
 
-fn binding_item(binding: &BindingRead) -> Value {
-    json!({
-        "id": binding.id,
-        "href": binding_href(binding.id),
-        "subject": subject(binding),
-        "role": binding.role,
-        "scope": scope(binding),
-        "valid_from": time(binding.valid_from),
-        "valid_to": binding.valid_to.map(time),
-    })
+/// Who a binding serves, as served.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SubjectItem {
+    /// One identity.
+    Identity {
+        /// Its identifier.
+        id: Option<Uuid>,
+    },
+    /// The members of a group of an issuer.
+    Group {
+        /// Issuer.
+        issuer: Option<String>,
+        /// Group.
+        group: Option<String>,
+    },
+    /// Every identity of an issuer.
+    Issuer {
+        /// Issuer.
+        issuer: Option<String>,
+    },
 }
 
-fn subject(binding: &BindingRead) -> Value {
-    match binding.subject_kind.as_str() {
-        "identity" => json!({ "kind": "identity", "id": binding.subject_id }),
-        "group" => {
-            json!({ "kind": "group", "issuer": binding.issuer, "group": binding.group_name })
-        }
-        kind => json!({ "kind": kind, "issuer": binding.issuer }),
+/// A binding.
+#[derive(Debug, Serialize, ToSchema)]
+struct BindingItem {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// Who it serves.
+    subject: SubjectItem,
+    /// Role key.
+    role: String,
+    /// Where it acts.
+    scope: Scope,
+    /// Its start, RFC 3339.
+    valid_from: String,
+    /// Its end, RFC 3339; `null` while open.
+    valid_to: Option<String>,
+}
+
+fn binding_item(binding: &BindingRead) -> BindingItem {
+    BindingItem {
+        id: binding.id,
+        href: binding_href(binding.id),
+        subject: subject(binding),
+        role: binding.role.clone(),
+        scope: Scope {
+            kind: binding.scope_kind.clone(),
+            id: binding.scope_id,
+        },
+        valid_from: time(binding.valid_from),
+        valid_to: binding.valid_to.map(time),
     }
 }
 
-fn scope(binding: &BindingRead) -> Value {
-    match binding.scope_id {
-        Some(id) => json!({ "kind": binding.scope_kind, "id": id }),
-        None => json!({ "kind": binding.scope_kind }),
+fn subject(binding: &BindingRead) -> SubjectItem {
+    match binding.subject_kind.as_str() {
+        "identity" => SubjectItem::Identity {
+            id: binding.subject_id,
+        },
+        "group" => SubjectItem::Group {
+            issuer: binding.issuer.clone(),
+            group: binding.group_name.clone(),
+        },
+        _ => SubjectItem::Issuer {
+            issuer: binding.issuer.clone(),
+        },
     }
 }
 
 /// `GET /v1/bindings`.
+#[utoipa::path(
+    get,
+    path = "/bindings",
+    operation_id = "list_bindings",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The bindings.", body = Listing<BindingItem>))
+)]
 async fn bindings(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -468,6 +585,14 @@ async fn bindings(
 }
 
 /// `GET /v1/bindings/{id}`.
+#[utoipa::path(
+    get,
+    path = "/bindings/{id}",
+    operation_id = "show_binding",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The binding.")),
+    responses((status = 200, description = "The binding.", body = BindingItem))
+)]
 async fn binding(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -481,7 +606,34 @@ async fn binding(
     Ok(Json(binding_item(&found)).into_response())
 }
 
+/// The members of a binding.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct BindMembers {
+    /// Who it serves.
+    #[schema(required = true, value_type = SubjectDto)]
+    subject: Option<SubjectDto>,
+    /// Role key.
+    #[schema(required = true, value_type = String)]
+    role: Option<String>,
+    /// Where it acts.
+    #[schema(required = true, value_type = Scope)]
+    scope: Option<Scope>,
+}
+
 /// `POST /v1/bindings` `{subject, role, scope}`: 201 and `Location`.
+#[utoipa::path(
+    post,
+    path = "/bindings",
+    operation_id = "bind",
+    tag = "rights",
+    params(("Idempotency-Key" = Option<String>, Header, description = "Makes the write idempotent for 24 h.")),
+    request_body = BindWrite,
+    responses(
+        (status = 201, description = "Bound.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn bind(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -490,14 +642,13 @@ async fn bind(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let idempotency_key = idempotency_key(&headers)?;
-    let (mut members, reserved) = body(&headers, &raw, "application/json", false)?;
-    let subject: BindingSubject = required(&mut members, "subject")?;
-    let role: String = required(&mut members, "role")?;
-    let scope: Scope = required(&mut members, "scope")?;
-    no_other(&members)?;
+    let (members, reserved): (BindMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let subject = required(members.subject, "subject")?;
+    let role = required(members.role, "role")?;
+    let scope = required(members.scope, "scope")?;
     let operation = Operation::Bind {
         local: None,
-        subject,
+        subject: subject.into(),
         role,
         scope: scope.try_into()?,
     };
@@ -520,6 +671,18 @@ async fn bind(
 }
 
 /// `DELETE /v1/bindings/{id}`: ends the binding.
+#[utoipa::path(
+    delete,
+    path = "/bindings/{id}",
+    operation_id = "unbind",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The binding.")),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Ended.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn unbind(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -528,8 +691,7 @@ async fn unbind(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let (members, reserved) = closure(&headers, &raw)?;
-    no_other(&members)?;
+    let reserved = closure(&headers, &raw)?;
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::OK, None, None);
     let operation = Operation::Unbind { id };
@@ -546,11 +708,31 @@ async fn unbind(
 
 // ---- Attachments of issuers ----
 
-fn attachment_item(attachment: &AttachmentRead) -> Value {
-    json!({ "issuer": attachment.issuer, "entity": attachment.entity })
+/// The attachment of an issuer.
+#[derive(Debug, Serialize, ToSchema)]
+struct AttachmentItem {
+    /// Issuer identifier (`iss`).
+    issuer: String,
+    /// The entity; `null`: everywhere.
+    entity: Option<Uuid>,
+}
+
+fn attachment_item(attachment: &AttachmentRead) -> AttachmentItem {
+    AttachmentItem {
+        issuer: attachment.issuer.clone(),
+        entity: attachment.entity,
+    }
 }
 
 /// `GET /v1/issuer-attachments`.
+#[utoipa::path(
+    get,
+    path = "/issuer-attachments",
+    operation_id = "list_issuer_attachments",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The attachments.", body = Listing<AttachmentItem>))
+)]
 async fn attachments(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -582,7 +764,30 @@ async fn attachments(
     .await
 }
 
+/// The members of an attachment.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct AttachMembers {
+    /// Issuer identifier (`iss`).
+    #[schema(required = true, value_type = String)]
+    issuer: Option<String>,
+    /// The entity; absent: everywhere.
+    entity: Option<Uuid>,
+}
+
 /// `POST /v1/issuer-attachments` `{issuer, entity}`: 201.
+#[utoipa::path(
+    post,
+    path = "/issuer-attachments",
+    operation_id = "attach_issuer",
+    tag = "rights",
+    params(("Idempotency-Key" = Option<String>, Header, description = "Makes the write idempotent for 24 h.")),
+    request_body = AttachWrite,
+    responses(
+        (status = 201, description = "Attached.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn attach(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -591,13 +796,11 @@ async fn attach(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let idempotency_key = idempotency_key(&headers)?;
-    let (mut members, reserved) = body(&headers, &raw, "application/json", false)?;
-    let issuer: String = required(&mut members, "issuer")?;
-    let entity: Option<Uuid> = member(&mut members, "entity")?;
-    no_other(&members)?;
+    let (members, reserved): (AttachMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let issuer = required(members.issuer, "issuer")?;
     let operation = Operation::AttachIssuer {
         issuer,
-        entity: entity.map(Ref::Id),
+        entity: members.entity.map(Ref::Id),
     };
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::CREATED, None, None);
@@ -630,6 +833,21 @@ fn attachment_named(query: Option<&str>) -> Result<(String, Option<Uuid>), Probl
 
 /// `DELETE /v1/issuer-attachments?issuer=…[&entity=…]`: detaches the issuer from the
 /// entity, or its global attachment without `entity`.
+#[utoipa::path(
+    delete,
+    path = "/issuer-attachments",
+    operation_id = "detach_issuer",
+    tag = "rights",
+    params(
+        ("issuer" = String, Query, description = "The issuer."),
+        ("entity" = Option<Uuid>, Query, description = "The entity; absent: the global attachment."),
+    ),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Detached.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn detach(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -639,8 +857,7 @@ async fn detach(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let (issuer, entity) = attachment_named(query.as_deref())?;
-    let (members, reserved) = closure(&headers, &raw)?;
-    no_other(&members)?;
+    let reserved = closure(&headers, &raw)?;
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::OK, None, None);
     let operation = Operation::DetachIssuer {
@@ -664,30 +881,65 @@ fn account_href(id: Uuid) -> String {
     format!("/v1/service-accounts/{id}")
 }
 
-fn account_item(account: &AccountRead) -> Value {
-    let secrets: Vec<Value> = account
-        .secrets
-        .iter()
-        .map(|s| {
-            json!({
-                "id": s.id,
-                "key_id": s.key_id,
-                "created_at": time(s.created_at),
-                "expires_at": s.expires_at.map(time),
-                "revoked": s.revoked,
+/// A secret of a service account, never its value.
+#[derive(Debug, Serialize, ToSchema)]
+struct SecretItem {
+    /// Identifier.
+    id: Uuid,
+    /// The key of the ring that made its digest.
+    key_id: String,
+    /// Its creation, RFC 3339.
+    created_at: String,
+    /// Its expiry, RFC 3339; `null`: none.
+    expires_at: Option<String>,
+    /// Revoked.
+    revoked: bool,
+}
+
+/// A service account.
+#[derive(Debug, Serialize, ToSchema)]
+struct AccountItem {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// Name, the Basic user.
+    name: String,
+    /// Disabled.
+    disabled: bool,
+    /// Its secrets.
+    secrets: Vec<SecretItem>,
+}
+
+fn account_item(account: &AccountRead) -> AccountItem {
+    AccountItem {
+        id: account.id,
+        href: account_href(account.id),
+        name: account.name.clone(),
+        disabled: account.disabled,
+        secrets: account
+            .secrets
+            .iter()
+            .map(|s| SecretItem {
+                id: s.id,
+                key_id: s.key_id.clone(),
+                created_at: time(s.created_at),
+                expires_at: s.expires_at.map(time),
+                revoked: s.revoked,
             })
-        })
-        .collect();
-    json!({
-        "id": account.id,
-        "href": account_href(account.id),
-        "name": account.name,
-        "disabled": account.disabled,
-        "secrets": secrets,
-    })
+            .collect(),
+    }
 }
 
 /// `GET /v1/service-accounts`.
+#[utoipa::path(
+    get,
+    path = "/service-accounts",
+    operation_id = "list_service_accounts",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The service accounts.", body = Listing<AccountItem>))
+)]
 async fn accounts(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -713,6 +965,14 @@ async fn accounts(
 }
 
 /// `GET /v1/service-accounts/{id}`.
+#[utoipa::path(
+    get,
+    path = "/service-accounts/{id}",
+    operation_id = "show_service_account",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The service account.")),
+    responses((status = 200, description = "The service account.", body = AccountItem))
+)]
 async fn account(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -726,28 +986,58 @@ async fn account(
     Ok(Json(account_item(&found)).into_response())
 }
 
-/// A new secret valid until the member `expires_at` of `members`, if given, and what
-/// the response shows of it.
-fn new_secret(
-    api: &Api,
-    members: &mut Map<String, Value>,
-) -> Result<(secrets::NewSecret, Value), Problem> {
-    let expires: Option<String> = member(members, "expires_at")?;
+/// A secret generated by the server, shown once (design « Droits »).
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct SecretShown {
+    /// Identifier.
+    id: Uuid,
+    /// The secret: the Basic password.
+    value: String,
+    /// Its expiry, RFC 3339, as asked; `null`: none.
+    expires_at: Option<String>,
+}
+
+/// A new secret valid until `expires`, if given, and what the response shows of it.
+fn new_secret(api: &Api, expires: Option<String>) -> Result<(secrets::NewSecret, Value), Problem> {
     let expires_at = expires
         .as_deref()
         .map(|v| micros("expires_at", v))
         .transpose()?;
     let secret = secrets::generate(&api.ring, expires_at);
-    let shown = json!({
-        "id": secret.record.id,
-        "value": secret.plaintext,
-        "expires_at": expires,
-    });
+    let shown = SecretShown {
+        id: secret.record.id,
+        value: secret.plaintext.clone(),
+        expires_at: expires,
+    };
+    let shown = serde_json::to_value(shown).expect("a secret serialises");
     Ok((secret, shown))
+}
+
+/// The members of a service account.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct AccountMembers {
+    /// Name, the Basic user (no `:`).
+    #[schema(required = true, value_type = String)]
+    name: Option<String>,
+    /// The expiry of its first secret, RFC 3339; none by default.
+    expires_at: Option<String>,
 }
 
 /// `POST /v1/service-accounts` `{name, expires_at}`: 201, `Location`, and the first secret
 /// shown once.
+#[utoipa::path(
+    post,
+    path = "/service-accounts",
+    operation_id = "create_service_account",
+    tag = "rights",
+    params(("Idempotency-Key" = Option<String>, Header, description = "Makes the write idempotent for 24 h.")),
+    request_body = AccountWrite,
+    responses(
+        (status = 201, description = "Created, its secret in `secret`.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision, its secret in `secret`.", body = ChangesetPending),
+    )
+)]
 async fn create_account(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -756,10 +1046,9 @@ async fn create_account(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let idempotency_key = idempotency_key(&headers)?;
-    let (mut members, reserved) = body(&headers, &raw, "application/json", false)?;
-    let name: String = required(&mut members, "name")?;
-    let (secret, shown) = new_secret(&api, &mut members)?;
-    no_other(&members)?;
+    let (members, reserved): (AccountMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let name = required(members.name, "name")?;
+    let (secret, shown) = new_secret(&api, members.expires_at)?;
     let pointers = pointers();
     let answer = answer(
         &pointers,
@@ -784,7 +1073,30 @@ async fn create_account(
     Ok(secret_shown(response))
 }
 
+/// The members of a new secret.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct SecretMembers {
+    /// Its expiry, RFC 3339; none by default.
+    expires_at: Option<String>,
+}
+
 /// `POST /v1/service-accounts/{id}/secrets` `{expires_at}`: 201 and the secret shown once.
+#[utoipa::path(
+    post,
+    path = "/service-accounts/{id}/secrets",
+    operation_id = "add_service_secret",
+    tag = "rights",
+    params(
+        ("id" = Uuid, Path, description = "The service account."),
+        ("Idempotency-Key" = Option<String>, Header, description = "Makes the write idempotent for 24 h."),
+    ),
+    request_body(content = Option<SecretWrite>),
+    responses(
+        (status = 201, description = "Added, the secret in `secret`.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision, the secret in `secret`.", body = ChangesetPending),
+    )
+)]
 async fn add_secret(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -794,9 +1106,8 @@ async fn add_secret(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let idempotency_key = idempotency_key(&headers)?;
-    let (mut members, reserved) = body(&headers, &raw, "application/json", true)?;
-    let (secret, shown) = new_secret(&api, &mut members)?;
-    no_other(&members)?;
+    let (members, reserved): (SecretMembers, _) = body(&headers, &raw, "application/json", true)?;
+    let (secret, shown) = new_secret(&api, members.expires_at)?;
     let href = account_href(id);
     let pointers = pointers();
     let answer = answer(
@@ -822,6 +1133,21 @@ async fn add_secret(
 }
 
 /// `DELETE /v1/service-accounts/{id}/secrets/{secret}`: revokes the secret.
+#[utoipa::path(
+    delete,
+    path = "/service-accounts/{id}/secrets/{secret}",
+    operation_id = "revoke_service_secret",
+    tag = "rights",
+    params(
+        ("id" = Uuid, Path, description = "The service account."),
+        ("secret" = Uuid, Path, description = "The secret."),
+    ),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Revoked.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn revoke_secret(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -830,8 +1156,7 @@ async fn revoke_secret(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let (members, reserved) = closure(&headers, &raw)?;
-    no_other(&members)?;
+    let reserved = closure(&headers, &raw)?;
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::OK, None, None);
     let operation = Operation::RevokeServiceSecret {
@@ -855,19 +1180,46 @@ fn identity_href(id: Uuid) -> String {
     format!("/v1/identities/{id}")
 }
 
-pub(crate) fn identity_item(identity: &IdentityRead) -> Value {
-    json!({
-        "id": identity.id,
-        "href": identity_href(identity.id),
-        "kind": identity.kind,
-        "name": identity.name,
-        "issuer": identity.issuer,
-        "disabled": identity.disabled,
-        "revoked_after": identity.revoked_after.map(time),
-    })
+/// An identity and its state.
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct IdentityItem {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// `person`, `service_account` or `breakglass`.
+    kind: String,
+    /// Display name.
+    name: String,
+    /// Its issuer.
+    issuer: Option<String>,
+    /// Disabled.
+    disabled: bool,
+    /// The sessions opened before this instant are revoked, RFC 3339.
+    revoked_after: Option<String>,
+}
+
+pub(crate) fn identity_item(identity: &IdentityRead) -> IdentityItem {
+    IdentityItem {
+        id: identity.id,
+        href: identity_href(identity.id),
+        kind: identity.kind.clone(),
+        name: identity.name.clone(),
+        issuer: identity.issuer.clone(),
+        disabled: identity.disabled,
+        revoked_after: identity.revoked_after.map(time),
+    }
 }
 
 /// `GET /v1/identities`.
+#[utoipa::path(
+    get,
+    path = "/identities",
+    operation_id = "list_identities",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The identities.", body = Listing<IdentityItem>))
+)]
 async fn identities(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -892,6 +1244,14 @@ async fn identities(
 }
 
 /// `GET /v1/identities/{id}`.
+#[utoipa::path(
+    get,
+    path = "/identities/{id}",
+    operation_id = "show_identity",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The identity.")),
+    responses((status = 200, description = "The identity.", body = IdentityItem))
+)]
 async fn identity(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -905,7 +1265,29 @@ async fn identity(
     Ok(Json(identity_item(&found)).into_response())
 }
 
+/// The state of an identity, as a JSON Merge Patch (RFC 7396).
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct IdentityPatch {
+    /// `true` disables, `false` enables.
+    disabled: Option<bool>,
+    /// Revokes the sessions opened until now.
+    revoke_sessions: Option<bool>,
+}
+
 /// `PATCH /v1/identities/{id}` (JSON Merge Patch) `{disabled, revoke_sessions}`.
+#[utoipa::path(
+    patch,
+    path = "/identities/{id}",
+    operation_id = "set_identity_state",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The identity.")),
+    request_body(content = IdentityWrite, content_type = "application/merge-patch+json"),
+    responses(
+        (status = 200, description = "Changed.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
 async fn identity_state(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -914,16 +1296,13 @@ async fn identity_state(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let (mut members, reserved) = body(&headers, &raw, MERGE_PATCH, false)?;
-    let disabled: Option<bool> = member(&mut members, "disabled")?;
-    let revoke_sessions: Option<bool> = member(&mut members, "revoke_sessions")?;
-    no_other(&members)?;
+    let (members, reserved): (IdentityPatch, _) = body(&headers, &raw, MERGE_PATCH, false)?;
     let pointers = pointers();
     let answer = answer(&pointers, StatusCode::OK, None, None);
     let operation = Operation::SetIdentityState {
         identity: id,
-        disabled,
-        revoke_sessions: revoke_sessions.unwrap_or(false),
+        disabled: members.disabled,
+        revoke_sessions: members.revoke_sessions.unwrap_or(false),
     };
     submit(
         &api,

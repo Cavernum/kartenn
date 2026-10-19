@@ -12,7 +12,7 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Extension, Json};
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::audit::{AUTHZ_DENIED, rfc3339};
@@ -37,11 +37,18 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use time::OffsetDateTime;
 use time::format_description::well_known::{Iso8601, Rfc3339};
+use utoipa::ToSchema;
+use utoipa::openapi::path::HttpMethod;
+use utoipa::openapi::{RefOr, Schema};
+use utoipa_axum::router::OpenApiRouter;
 use uuid::Uuid;
 
-use crate::cursor::{Page, next_href, respond_page};
-use crate::dated::{Dates, ETag, Moment, respond};
+use crate::changesets::{ChangesetApplied, ChangesetPending, ChangesetRef};
+use crate::cursor::{Page, PageParams, next_href, respond_page};
+use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
 use crate::filter::{self, Field, ListQuery};
+use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
+use crate::openapi::{documented, listing_of, op, queryable, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::resources;
 
@@ -104,85 +111,192 @@ const fn key_fields(kind: Kind) -> &'static [&'static str] {
     }
 }
 
-/// The routes of the six collections.
-pub fn routes(api: Api) -> Router {
-    let mut router = Router::new();
+/// The schema of an object of `kind` and those it refers to, its name first.
+fn object_schemas(kind: Kind) -> (String, Vec<(String, RefOr<Schema>)>) {
+    fn of<T: ToSchema + 'static>() -> (String, Vec<(String, RefOr<Schema>)>) {
+        let mut schemas = Vec::new();
+        schemas_of::<T>(&mut schemas);
+        schemas.push(listing_of::<T>());
+        (T::name().into_owned(), schemas)
+    }
+    match kind {
+        Kind::Domain => of::<DomainDto>(),
+        Kind::Entity | Kind::Site => of::<NodeDto>(),
+        Kind::Prefix => of::<PrefixDto>(),
+        Kind::Range => of::<RangeDto>(),
+        Kind::Address => of::<AddressDto>(),
+    }
+}
+
+/// The routes of the six collections, documented one by one: the handlers serve every
+/// collection, which one `#[utoipa::path]` cannot name.
+#[allow(clippy::too_many_lines)]
+pub fn routes() -> OpenApiRouter<Api> {
+    let mut router = OpenApiRouter::new();
     for kind in Kind::ALL {
         let name = collection(kind);
-        router = router
-            .route(
-                &format!("/{name}"),
-                filter::collection(
-                    move |state: State<Api>,
-                          principal: Extension<Principal>,
-                          context: Extension<RequestContext>,
-                          query: ListQuery,
-                          headers: HeaderMap| {
-                        list(kind, state, principal, context, query, headers)
-                    },
-                )
-                .post(
-                    move |state: State<Api>,
-                          principal: Extension<Principal>,
-                          context: Extension<RequestContext>,
-                          headers: HeaderMap,
-                          raw: Bytes| {
-                        resources::create(kind, state, principal, context, headers, raw)
-                    },
-                ),
+        let one = kind.as_str();
+        let (dto, mut schemas) = object_schemas(kind);
+        let [(creation, _), (modification, _)] = resources::bodies(kind);
+        schemas.extend(resources::bodies(kind));
+        resources::referred(&mut schemas);
+        schemas_of::<ChangesetApplied>(&mut schemas);
+        schemas_of::<ChangesetPending>(&mut schemas);
+        schemas_of::<VersionDto>(&mut schemas);
+        schemas.push(listing_of::<VersionDto>());
+        let listing = format!("Listing_{dto}");
+        let mut list_op = op(
+            &format!("list_{name}"),
+            "core",
+            &format!(
+                "The {name} the caller may read, by natural key; `prop.<key>` filters by \
+                 property (`:between`, `:exists`)."
+            ),
+        );
+        for field in key_fields(kind) {
+            list_op = list_op.query(field, "Equal to (repeated: one of).");
+        }
+        let list_op = list_op
+            .params::<DatesParams>()
+            .params::<PageParams>()
+            .answers("200", "A page of the collection.", &listing)
+            .build();
+        let create_op = op(
+            &format!("create_{one}"),
+            "core",
+            &format!("Creates a {one}."),
+        )
+        .header(
+            "Idempotency-Key",
+            false,
+            "Makes the write idempotent for 24 h.",
+        )
+        .body("application/json", &creation, true)
+        .answers("201", "Created.", "ChangesetApplied")
+        .answers("202", "Held for a decision.", "ChangesetPending")
+        .build();
+        router = router.routes(documented(
+            &format!("/{name}"),
+            vec![(HttpMethod::Get, list_op), (HttpMethod::Post, create_op)],
+            schemas,
+            filter::collection(
+                move |state: State<Api>,
+                      principal: Extension<Principal>,
+                      context: Extension<RequestContext>,
+                      query: ListQuery,
+                      headers: HeaderMap| {
+                    list(kind, state, principal, context, query, headers)
+                },
             )
-            .route(
-                &format!("/{name}/{{id}}"),
-                get(
-                    move |state: State<Api>,
-                          context: Extension<RequestContext>,
-                          id: Path<Uuid>,
-                          dates: Dates,
-                          headers: HeaderMap| {
-                        object(kind, state, context, id, dates, headers)
-                    },
-                )
-                .patch(
-                    move |state: State<Api>,
-                          principal: Extension<Principal>,
-                          context: Extension<RequestContext>,
-                          id: Path<Uuid>,
-                          headers: HeaderMap,
-                          raw: Bytes| {
-                        resources::modify(kind, state, principal, context, id, headers, raw)
-                    },
-                )
-                .delete(
-                    move |state: State<Api>,
-                          principal: Extension<Principal>,
-                          context: Extension<RequestContext>,
-                          id: Path<Uuid>,
-                          headers: HeaderMap,
-                          raw: Bytes| {
-                        resources::close(kind, state, principal, context, id, headers, raw)
-                    },
-                ),
+            .post(
+                move |state: State<Api>,
+                      principal: Extension<Principal>,
+                      context: Extension<RequestContext>,
+                      headers: HeaderMap,
+                      raw: Bytes| {
+                    resources::create(kind, state, principal, context, headers, raw)
+                },
+            ),
+        ));
+        router = queryable(router, &format!("/{name}"), &format!("query_{name}"));
+        let the = format!("The {one}.");
+        let show_op = op(&format!("show_{one}"), "core", &format!("The {one}."))
+            .path("id", &the, true)
+            .params::<DatesParams>()
+            .answers("200", "The object; its version is its ETag.", &dto)
+            .build();
+        let modify_op = op(
+            &format!("modify_{one}"),
+            "core",
+            &format!("Modifies the {one} (JSON Merge Patch)."),
+        )
+        .path("id", &the, true)
+        .header("If-Match", true, "The version read, as its ETag.")
+        .body(resources::MERGE_PATCH, &modification, true)
+        .answers("200", "Modified.", "ChangesetApplied")
+        .answers("202", "Held for a decision.", "ChangesetPending")
+        .build();
+        let close_op = op(
+            &format!("close_{one}"),
+            "core",
+            &format!("Closes the {one}."),
+        )
+        .path("id", &the, true)
+        .header("If-Match", true, "The version read, as its ETag.")
+        .body("application/json", "Closure", false)
+        .answers("200", "Closed.", "ChangesetApplied")
+        .answers("202", "Held for a decision.", "ChangesetPending")
+        .build();
+        router = router.routes(documented(
+            &format!("/{name}/{{id}}"),
+            vec![
+                (HttpMethod::Get, show_op),
+                (HttpMethod::Patch, modify_op),
+                (HttpMethod::Delete, close_op),
+            ],
+            Vec::new(),
+            get(
+                move |state: State<Api>,
+                      context: Extension<RequestContext>,
+                      id: Path<Uuid>,
+                      dates: Dates,
+                      headers: HeaderMap| {
+                    object(kind, state, context, id, dates, headers)
+                },
             )
-            .route(
-                &format!("/{name}/{{id}}/history"),
-                get(
-                    move |state: State<Api>,
-                          context: Extension<RequestContext>,
-                          id: Path<Uuid>,
-                          query: RawQuery,
-                          headers: HeaderMap| {
-                        history(kind, state, context, id, query, headers)
-                    },
-                ),
-            );
+            .patch(
+                move |state: State<Api>,
+                      principal: Extension<Principal>,
+                      context: Extension<RequestContext>,
+                      id: Path<Uuid>,
+                      headers: HeaderMap,
+                      raw: Bytes| {
+                    resources::modify(kind, state, principal, context, id, headers, raw)
+                },
+            )
+            .delete(
+                move |state: State<Api>,
+                      principal: Extension<Principal>,
+                      context: Extension<RequestContext>,
+                      id: Path<Uuid>,
+                      headers: HeaderMap,
+                      raw: Bytes| {
+                    resources::close(kind, state, principal, context, id, headers, raw)
+                },
+            ),
+        ));
+        let history_op = op(
+            &format!("{one}_history"),
+            "core",
+            &format!("The versions of the {one}, on both axes (REQ-004-18)."),
+        )
+        .path("id", &the, true)
+        .params::<DatesParams>()
+        .params::<PageParams>()
+        .answers("200", "A page of versions.", "Listing_Version")
+        .build();
+        router = router.routes(documented(
+            &format!("/{name}/{{id}}/history"),
+            vec![(HttpMethod::Get, history_op)],
+            Vec::new(),
+            get(
+                move |state: State<Api>,
+                      context: Extension<RequestContext>,
+                      id: Path<Uuid>,
+                      query: RawQuery,
+                      headers: HeaderMap| {
+                    history(kind, state, context, id, query, headers)
+                },
+            ),
+        ));
     }
-    router.with_state(api)
+    router
 }
 
 // ---------------------------------------------------------------- representations
 
 /// The summary of a linked object.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Summary {
     /// Identifier.
     pub id: Uuid,
@@ -193,7 +307,8 @@ pub struct Summary {
 }
 
 /// The links of an object.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = ObjectLinks)]
 pub struct Links {
     /// The object.
     #[serde(rename = "self")]
@@ -229,7 +344,8 @@ impl Links {
 }
 
 /// An addressing domain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = Domain)]
 pub struct DomainDto {
     /// Identifier.
     pub id: Uuid,
@@ -240,7 +356,8 @@ pub struct DomainDto {
 }
 
 /// An entity or a site.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = Node)]
 pub struct NodeDto {
     /// Identifier.
     pub id: Uuid,
@@ -253,7 +370,8 @@ pub struct NodeDto {
 }
 
 /// A prefix.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = Prefix)]
 pub struct PrefixDto {
     /// Identifier.
     pub id: Uuid,
@@ -262,6 +380,7 @@ pub struct PrefixDto {
     /// Canonical CIDR (REQ-002-6).
     pub value: String,
     /// Nature.
+    #[schema(value_type = NatureSchema)]
     pub nature: Nature,
     /// Point-to-point link.
     pub point_to_point: bool,
@@ -274,7 +393,8 @@ pub struct PrefixDto {
 }
 
 /// A range.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = Range)]
 pub struct RangeDto {
     /// Identifier.
     pub id: Uuid,
@@ -285,6 +405,7 @@ pub struct RangeDto {
     /// Last address (included), canonical.
     pub last: String,
     /// Usage.
+    #[schema(value_type = RangeUsageSchema)]
     pub usage: RangeUsage,
     /// Public addressing.
     pub public: bool,
@@ -293,7 +414,8 @@ pub struct RangeDto {
 }
 
 /// An address.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = Address)]
 pub struct AddressDto {
     /// Identifier.
     pub id: Uuid,
@@ -302,11 +424,29 @@ pub struct AddressDto {
     /// Canonical address (REQ-002-6).
     pub value: String,
     /// Usage.
+    #[schema(value_type = AddressUsageSchema)]
     pub usage: AddressUsage,
     /// Public addressing.
     pub public: bool,
     /// Links.
     pub links: Links,
+}
+
+/// An object of the core, of any kind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(untagged)]
+#[schema(as = CoreObject)]
+pub enum ObjectDto {
+    /// An addressing domain.
+    Domain(DomainDto),
+    /// An entity or a site.
+    Node(NodeDto),
+    /// A prefix.
+    Prefix(PrefixDto),
+    /// A range.
+    Range(RangeDto),
+    /// An address.
+    Address(AddressDto),
 }
 
 /// The columns of an object, as the store reads them.
@@ -362,7 +502,7 @@ fn link_id(kind: Kind, fields: &Value) -> Option<Uuid> {
 
 /// The representation of an object of `kind` from its columns `fields` and the slug
 /// `link` of the object it links to.
-fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Problem> {
+fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<ObjectDto, Problem> {
     let c: Columns =
         serde_json::from_value(fields.clone()).map_err(|_| malformed(kind, "columns"))?;
     let links = Links::of(kind, c.id);
@@ -379,13 +519,13 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
             .ok_or_else(|| malformed(kind, "domain"))
     };
     let usage = || c.usage.clone().ok_or_else(|| malformed(kind, "usage"));
-    let value = match kind {
-        Kind::Domain => serde_json::to_value(DomainDto {
+    Ok(match kind {
+        Kind::Domain => ObjectDto::Domain(DomainDto {
             id: c.id,
             slug: slug()?,
             links,
         }),
-        Kind::Entity | Kind::Site => serde_json::to_value(NodeDto {
+        Kind::Entity | Kind::Site => ObjectDto::Node(NodeDto {
             id: c.id,
             slug: slug()?,
             parent: summary(kind, c.parent_id, link.map(str::to_owned)),
@@ -399,7 +539,7 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
             let value = Prefix::parse_any(&ALL, text)
                 .map_err(|_| malformed(kind, "prefix"))?
                 .to_string();
-            serde_json::to_value(PrefixDto {
+            ObjectDto::Prefix(PrefixDto {
                 id: c.id,
                 domain: domain()?,
                 value,
@@ -417,7 +557,7 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
                 .and_then(|r| r.strip_prefix('[')?.strip_suffix(']')?.split_once(','))
                 .and_then(|(a, b)| Some((address_text(a.trim())?, address_text(b.trim())?)))
                 .ok_or_else(|| malformed(kind, "range"))?;
-            serde_json::to_value(RangeDto {
+            ObjectDto::Range(RangeDto {
                 id: c.id,
                 domain: domain()?,
                 first,
@@ -434,7 +574,7 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
                 .as_deref()
                 .and_then(address_text)
                 .ok_or_else(|| malformed(kind, "address"))?;
-            serde_json::to_value(AddressDto {
+            ObjectDto::Address(AddressDto {
                 id: c.id,
                 domain: domain()?,
                 value,
@@ -444,8 +584,7 @@ fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<Value, Pr
                 links,
             })
         }
-    };
-    value.map_err(|_| malformed(kind, "representation"))
+    })
 }
 
 // ---------------------------------------------------------------- handlers
@@ -803,20 +942,35 @@ async fn object(
     ))
 }
 
+/// A version of an object, on both axes (REQ-004-18).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = Version)]
+struct VersionDto {
+    /// The start of its validity, RFC 3339.
+    valid_from: String,
+    /// The end of its validity, RFC 3339; `null` while open.
+    valid_to: Option<String>,
+    /// The start of its assertion, RFC 3339.
+    asserted_from: String,
+    /// The end of its assertion, RFC 3339; `null` while asserted.
+    asserted_to: Option<String>,
+    /// The changeset that wrote it.
+    changeset: ChangesetRef,
+    /// The object, as it was.
+    object: ObjectDto,
+}
+
 /// A version as served.
-fn version_of(kind: Kind, version: &Version) -> Result<Value, Problem> {
+fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
-    Ok(json!({
-        "valid_from": at(version.valid_from),
-        "valid_to": version.valid_to.map(at),
-        "asserted_from": at(version.asserted_from),
-        "asserted_to": version.asserted_to.map(at),
-        "changeset": {
-            "id": version.changeset,
-            "href": format!("/v1/changesets/{}", version.changeset),
-        },
-        "object": represent(kind, &version.fields, version.link.as_deref())?,
-    }))
+    Ok(VersionDto {
+        valid_from: at(version.valid_from),
+        valid_to: version.valid_to.map(at),
+        asserted_from: at(version.asserted_from),
+        asserted_to: version.asserted_to.map(at),
+        changeset: crate::changesets::summary(version.changeset),
+        object: represent(kind, &version.fields, version.link.as_deref())?,
+    })
 }
 
 /// 404, with `authz.access.denied` recorded, unless the subject of `context` may read the
@@ -935,6 +1089,10 @@ async fn history(
 mod tests {
     use super::*;
 
+    fn json_of(kind: Kind, fields: &Value, link: Option<&str>) -> Value {
+        serde_json::to_value(represent(kind, fields, link).unwrap()).unwrap()
+    }
+
     #[test]
     fn a_range_reads_as_its_bounds() {
         let id = Uuid::now_v7();
@@ -943,7 +1101,7 @@ mod tests {
             "id": id, "domain_id": domain, "range": "[10.0.0.10,10.0.0.20]",
             "usage": "dhcp", "public": false,
         });
-        let body = represent(Kind::Range, &fields, Some("lab")).unwrap();
+        let body = json_of(Kind::Range, &fields, Some("lab"));
         assert_eq!(body["first"], "10.0.0.10");
         assert_eq!(body["last"], "10.0.0.20");
         assert_eq!(body["domain"]["slug"], "lab");
@@ -957,7 +1115,7 @@ mod tests {
             "id": Uuid::now_v7(), "domain_id": Uuid::now_v7(), "address": "2001:db8:0:0::1",
             "usage": "host", "public": false,
         });
-        let body = represent(Kind::Address, &fields, None).unwrap();
+        let body = json_of(Kind::Address, &fields, None);
         assert_eq!(body["value"], "2001:db8::1");
         let params = |q: &str| vec![("value".to_owned(), q.to_owned())];
         let found = wanted(Kind::Prefix, &params("2001:DB8::/32")).unwrap();

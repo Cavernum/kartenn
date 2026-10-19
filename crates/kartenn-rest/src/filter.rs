@@ -20,6 +20,7 @@ use axum::routing::{MethodRouter, get};
 use kartenn_store_pg::filter::Condition;
 use serde::Deserialize;
 use serde_json::Value;
+use utoipa::ToSchema;
 
 use crate::problem::{Problem, ProblemKind};
 
@@ -126,26 +127,36 @@ fn condition(name: &str, op: &str, values: &[&str]) -> Result<Condition, Problem
 }
 
 /// The body of a `QUERY` (design « Filtres »).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
-struct Search {
+pub(crate) struct Search {
+    /// The date of validity, RFC 3339.
     valid_at: Option<String>,
+    /// The date of knowledge, RFC 3339.
     as_of: Option<String>,
+    /// The conditions, in conjunction.
     #[serde(default)]
     filters: Vec<Wanted>,
+    /// The size of a page.
     page_size: Option<u16>,
 }
 
-#[derive(Debug, Deserialize)]
+/// A condition on a field of the core or a property `prop.<key>`.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct Wanted {
+    /// The field.
     field: String,
+    /// The operator; equality by default.
     #[serde(default)]
     op: Op,
+    /// A scalar or a list of scalars (`eq`), `[low, high]` (`between`), a boolean
+    /// (`exists`).
     value: Value,
 }
 
-#[derive(Debug, Default, Clone, Copy, Deserialize)]
+/// The operator of a condition.
+#[derive(Debug, Default, Clone, Copy, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 enum Op {
     #[default]

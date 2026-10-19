@@ -421,7 +421,7 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P6 — Contrat, bout en bout, budgets
 
-- [ ] 22. Contrat OpenAPI 3.1 (utoipa, `x-query` construit à la main), `GET
+- [x] 22. Contrat OpenAPI 3.1 (utoipa, `x-query` construit à la main), `GET
   /v1/openapi.json`, `GET /v1/capabilities`, contrat de référence
   `specs/006-api-rest/openapi-v1.json` et comparateur — REQ-006-4, 33, 34, 35 — verify :
   toutes les opérations de REQ-006-4 présentes ; un champ retiré fait échouer le test ;
@@ -429,6 +429,32 @@ routeur complet, sauf mention « vrai TCP ».
   où : design « Versions et contrat » ; dépendances `utoipa`/`utoipa-axum` (design «
   Crates et dépendances ») ; routes existantes de `rest/src/*.rs` à annoter ; binaire
   `openapi` de `kartenn-rest`, à créer
+  — Dépendances `utoipa` 6 (`macros`, `uuid`) et `utoipa-axum` 0.3, workspace-hack
+  régénéré. Rest : `openapi.rs` (`document`, `json`, `finish` : problème par défaut,
+  schémas de sécurité, routes publiques ; `queryable` → `x-query` ; `op`, `documented`,
+  `listing_of` pour les routes par collection ; miroirs `enums`), `operation.rs`
+  (`OperationDto`, `ImportItemDto`), `contract.rs` (`breaches`), `capabilities.rs`,
+  `versions.rs` (`Retirement`, `retire`), binaire `openapi` ; routes de chaque module en
+  `OpenApiRouter` annotées, réponses `json!` remplacées par des DTO typés
+  (`cursor::Listing`, `changesets::ChangesetApplied`…). Store :
+  `IDEMPOTENCY_RETENTION_HOURS`. Contrat de référence `openapi-v1.json` (arbitrage du
+  design « Schémas du contrat »). Tests `rest/tests/contract.rs`
+  (`the_contract_keeps_its_reference`, `every_operation_of_the_surface_is_in_the_contract`,
+  `a_member_removed_fails_the_comparison`,
+  `the_contract_is_openapi_3_1_its_query_in_an_extension`,
+  `a_retired_route_announces_its_successor`,
+  `the_contract_and_the_capabilities_are_served`), unitaires `operation`
+  (`each_operation_reads_alike_through_the_mirror`), `contract`, `resources`
+  (`the_contract_of_a_patch_names_what_it_writes`), `openapi`
+  (`the_mirrors_serialise_as_the_core`)
+  choix : modules des capacités = étiquettes du contrat ; plugins UI `{name, version}`,
+  liste vide ; propriétés déclarées `{key, type}` ; événements d'audit en objet libre
+  (format de la 012) ; corps des écritures par ressource décrits par composition
+  `Reserved` + membres (`allOf`), leur analyse membre à membre inchangée ; corps des
+  écritures des droits lus par structures (`deny_unknown_fields`, membre inconnu
+  toujours 400, requis toujours 422) ; schémas nommés par `#[schema(as)]` (`Submission`,
+  `TreeNode`, `CoreObject`…) ; réponse `default` `Problem` sur toute opération ;
+  `OpenAPI` au vocabulaire de clippy
 - [ ] 23. Matrice des erreurs : un test par ligne du tableau du design — REQ-006-20 à
   23 — verify : statut, `type`, `Request-Id`, aucune valeur sensible
   où : design « Erreurs » (tableau) et « Erreurs et cas limites » ;

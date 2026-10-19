@@ -5,8 +5,10 @@ pub mod anomalies;
 pub mod audit;
 pub mod auth;
 pub mod authn;
+pub mod capabilities;
 pub mod changesets;
 pub mod compression;
+pub mod contract;
 pub mod cookies;
 pub mod csrf;
 pub mod cursor;
@@ -17,6 +19,8 @@ pub mod filter;
 pub mod health;
 pub mod imports;
 pub mod objects;
+pub mod openapi;
+mod operation;
 pub mod problem;
 pub mod properties;
 pub mod quota;
@@ -25,33 +29,44 @@ pub mod resources;
 pub mod rights;
 pub mod transport;
 pub mod tree;
+pub mod versions;
 
 use std::any::Any;
 use std::sync::Arc;
 
-use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::middleware::from_fn_with_state;
 use axum::response::{IntoResponse, Response};
+use axum::{Extension, Router};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::timeout::RequestBodyTimeoutLayer;
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::authn::Authenticator;
+use crate::capabilities::BodyLimit;
 use crate::health::Readiness;
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{InFlight, Quotas};
 use crate::transport::Settings;
 
-/// The routes under `/v1`.
+/// The routes under `/v1` but the login ones, with their contract: each module adds its
+/// routes and their schemas (design « Versions et contrat »).
+pub fn api() -> OpenApiRouter<objects::Api> {
+    objects::routes()
+        .merge(tree::routes())
+        .merge(anomalies::routes())
+        .merge(changesets::routes())
+        .merge(properties::routes())
+        .merge(rights::routes())
+        .merge(imports::routes())
+        .merge(audit::routes())
+        .merge(capabilities::routes())
+        .merge(openapi::routes())
+}
+
+/// The routes under `/v1` but the login ones.
 pub fn v1(api: objects::Api) -> Router {
-    objects::routes(api.clone())
-        .merge(tree::routes(api.clone()))
-        .merge(anomalies::routes(api.clone()))
-        .merge(changesets::routes(api.clone()))
-        .merge(properties::routes(api.clone()))
-        .merge(rights::routes(api.clone()))
-        .merge(imports::routes(api.clone()))
-        .merge(audit::routes(api))
+    self::api().with_state(api).split_for_parts().0
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the
@@ -79,9 +94,19 @@ pub fn router(
     let transport = Arc::new(transport);
     let in_flight = Arc::new(InFlight::new(transport.max_in_flight));
     Router::new()
-        .nest("/v1", api.merge(auth::routes(authenticator.clone())))
-        .merge(health::routes(readiness))
+        .nest(
+            "/v1",
+            api.merge(
+                auth::routes()
+                    .with_state(authenticator.clone())
+                    .split_for_parts()
+                    .0,
+            ),
+        )
+        .merge(health::routes().with_state(readiness).split_for_parts().0)
         .fallback(not_found)
+        // What `GET /v1/capabilities` tells of layer 5.
+        .layer(Extension(BodyLimit(transport.max_body_bytes)))
         // Layer 10, on the way back.
         .layer(compression::layer())
         // The limit is that of layer 5, not the 2 MB of the extractors.

@@ -554,7 +554,10 @@ fn earliest(request: &ChangesetRequest) -> Result<Option<OffsetDateTime>, StoreE
         .transpose()
 }
 
-/// The idempotency key of a submission, for 24 h (REQ-004-10).
+/// How long an idempotency key holds, in hours (REQ-004-10).
+pub const IDEMPOTENCY_RETENTION_HOURS: i32 = 24;
+
+/// The idempotency key of a submission, for [`IDEMPOTENCY_RETENTION_HOURS`] (REQ-004-10).
 async fn record_key(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
@@ -564,7 +567,7 @@ async fn record_key(
     };
     sqlx::query(
         "INSERT INTO idempotency_key (identity_id, key, request_hash, changeset_id, expires_at)
-             VALUES ($1, $2, $3, $4, now() + interval '24 hours')
+             VALUES ($1, $2, $3, $4, now() + make_interval(hours => $5))
              ON CONFLICT (identity_id, key) DO UPDATE
                SET request_hash = EXCLUDED.request_hash, changeset_id = EXCLUDED.changeset_id,
                    expires_at = EXCLUDED.expires_at
@@ -574,6 +577,7 @@ async fn record_key(
     .bind(key)
     .bind(request_hash(journal.request)?)
     .bind(journal.id)
+    .bind(IDEMPOTENCY_RETENTION_HOURS)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;

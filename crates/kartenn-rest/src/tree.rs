@@ -5,11 +5,10 @@
 //! absent one. The occupancy and the next free value count the whole content, readable or
 //! not: the first is a measure of the prefix, the second must not propose what is taken.
 
+use axum::Extension;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
-use axum::routing::get;
-use axum::{Extension, Json, Router};
 use kartenn_core::addr::Addr;
 use kartenn_core::audit::rfc3339;
 use kartenn_core::family::ALL;
@@ -24,26 +23,30 @@ use kartenn_store_pg::read;
 use kartenn_store_pg::tree::{self, ChildKey, Node};
 use serde::Serialize;
 use serde_json::{Value, json};
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::cursor::{Page, next_href, respond_page};
-use crate::dated::{Dates, ETag, Moment, respond};
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
+use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
 use crate::objects::{Api, audited, bad, gate, href, instant, store};
+use crate::openapi::enums::NatureSchema;
 use crate::problem::{Problem, ProblemKind};
 
 /// The routes of the tree.
-pub fn routes(api: Api) -> Router {
-    Router::new()
-        .route("/prefixes/{id}/children", get(children))
-        .route("/prefixes/{id}/ancestors", get(ancestors))
-        .route("/prefixes/{id}/occupancy", get(occupancy))
-        .route("/prefixes/{id}/next-free", get(next_free))
-        .with_state(api)
+pub fn routes() -> OpenApiRouter<Api> {
+    OpenApiRouter::new()
+        .routes(routes!(children))
+        .routes(routes!(ancestors))
+        .routes(routes!(occupancy))
+        .routes(routes!(next_free))
 }
 
 /// A node of the tree, as listed.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[schema(as = TreeNode)]
 pub enum NodeDto {
     /// A prefix.
     Prefix {
@@ -52,6 +55,7 @@ pub enum NodeDto {
         /// Canonical CIDR.
         value: String,
         /// Container or network.
+        #[schema(value_type = NatureSchema)]
         nature: Nature,
         /// Its URL.
         href: String,
@@ -65,6 +69,7 @@ pub enum NodeDto {
         /// Last address, included.
         last: String,
         /// Usage.
+        #[schema(value_type = crate::openapi::enums::RangeUsageSchema)]
         usage: RangeUsage,
         /// Its URL.
         href: String,
@@ -152,19 +157,72 @@ async fn record(
 }
 
 /// The nodes as listed, and their identifiers.
-fn listed(nodes: &[Node]) -> Result<(Vec<Value>, Vec<Uuid>), Problem> {
-    let items = nodes
-        .iter()
-        .map(|n| serde_json::to_value(NodeDto::from(n)))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| Problem::new(ProblemKind::Internal))?;
-    Ok((items, nodes.iter().map(Node::id).collect()))
+fn listed(nodes: &[Node]) -> (Vec<NodeDto>, Vec<Uuid>) {
+    (
+        nodes.iter().map(NodeDto::from).collect(),
+        nodes.iter().map(Node::id).collect(),
+    )
 }
 
 /// A document as served, its weak `ETag` that of its bytes.
-fn document(headers: &HeaderMap, moment: &Moment, body: &Value) -> Response {
-    let etag = ETag::page(body.to_string().as_bytes());
-    respond(headers, moment, &etag, Json(body.clone()))
+fn document<T: Serialize>(headers: &HeaderMap, moment: &Moment, body: &T) -> Response {
+    let bytes = serde_json::to_vec(body).expect("a document serialises");
+    let etag = ETag::page(&bytes);
+    respond(
+        headers,
+        moment,
+        &etag,
+        (
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            bytes,
+        ),
+    )
+}
+
+/// A prefix, as the tree names it.
+#[derive(Debug, Serialize, ToSchema)]
+struct PrefixRef {
+    /// Identifier.
+    id: Uuid,
+    /// Canonical CIDR.
+    value: String,
+    /// Its URL.
+    href: String,
+}
+
+impl PrefixRef {
+    fn of(found: &PrefixObject, id: Uuid) -> Self {
+        Self {
+            id,
+            value: found.value.to_string(),
+            href: href(Kind::Prefix, id),
+        }
+    }
+}
+
+/// The occupancy of a prefix.
+#[derive(Debug, Serialize, ToSchema)]
+struct Occupancy {
+    /// The prefix.
+    prefix: PrefixRef,
+    /// Its nature.
+    #[schema(value_type = NatureSchema)]
+    nature: Nature,
+    /// The addresses used, a decimal string.
+    used: String,
+    /// The addresses of the prefix, a decimal string.
+    total: String,
+}
+
+/// The first free value of a prefix.
+#[derive(Debug, Serialize, ToSchema)]
+struct NextFree {
+    /// The prefix.
+    prefix: PrefixRef,
+    /// `prefix` or `address`.
+    kind: &'static str,
+    /// The first free value; `null` when none is left.
+    value: Option<String>,
 }
 
 /// The key of a child as written in a cursor by [`children`].
@@ -179,6 +237,14 @@ fn child_key(key: &Value) -> Result<ChildKey, Problem> {
 /// `GET /v1/prefixes/{id}/children`: the direct children the caller may read, in address
 /// order (REQ-002-42), by pages (REQ-006-7, 8): the key of a child is its first address,
 /// its rank (prefix, range, address) and its identifier.
+#[utoipa::path(
+    get,
+    path = "/prefixes/{id}/children",
+    operation_id = "prefix_children",
+    tag = "core",
+    params(("id" = Uuid, Path, description = "The prefix."), DatesParams, PageParams),
+    responses((status = 200, description = "The direct children.", body = Listing<NodeDto>))
+)]
 async fn children(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -218,13 +284,21 @@ async fn children(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let (items, ids) = listed(&nodes)?;
+    let (items, ids) = listed(&nodes);
     record(&api, &context, &moment, "children", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// `GET /v1/prefixes/{id}/ancestors`: the ancestors the caller may read, nearest first
 /// (REQ-002-42).
+#[utoipa::path(
+    get,
+    path = "/prefixes/{id}/ancestors",
+    operation_id = "prefix_ancestors",
+    tag = "core",
+    params(("id" = Uuid, Path, description = "The prefix."), DatesParams),
+    responses((status = 200, description = "The ancestors, nearest first.", body = Listing<NodeDto>))
+)]
 async fn ancestors(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -240,13 +314,21 @@ async fn ancestors(
     let nodes = tree::ancestors_of(&api.pool, &found, moment.valid_at, moment.as_of, &scope)
         .await
         .map_err(|e| store(&e))?;
-    let (items, ids) = listed(&nodes)?;
+    let (items, ids) = listed(&nodes);
     record(&api, &context, &moment, "ancestors", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, None))
 }
 
 /// `GET /v1/prefixes/{id}/occupancy`: used and total addresses (REQ-002-43), as decimal
 /// strings: an IPv6 count exceeds the integers a JSON number carries exactly (RFC 8259 §6).
+#[utoipa::path(
+    get,
+    path = "/prefixes/{id}/occupancy",
+    operation_id = "prefix_occupancy",
+    tag = "core",
+    params(("id" = Uuid, Path, description = "The prefix."), DatesParams),
+    responses((status = 200, description = "The occupancy.", body = Occupancy))
+)]
 async fn occupancy(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -260,12 +342,12 @@ async fn occupancy(
         .map_err(|e| store(&e))?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     record(&api, &context, &moment, "occupancy", id, &[id]).await?;
-    let body = json!({
-        "prefix": { "id": id, "value": found.value.to_string(), "href": href(Kind::Prefix, id) },
-        "nature": found.nature,
-        "used": measure.used.to_string(),
-        "total": measure.total.to_string(),
-    });
+    let body = Occupancy {
+        prefix: PrefixRef::of(&found, id),
+        nature: found.nature,
+        used: measure.used.to_string(),
+        total: measure.total.to_string(),
+    };
     Ok(document(&headers, &moment, &body))
 }
 
@@ -306,6 +388,19 @@ fn wanted(query: Option<&str>) -> Result<Wanted, Problem> {
 /// `?kind=address` in a network: the first free value then, `null` when none is left,
 /// proposed and not assigned (REQ-002-44). A length outside the container → 400; a
 /// container asked for an address, or a network for a prefix → 409.
+#[utoipa::path(
+    get,
+    path = "/prefixes/{id}/next-free",
+    operation_id = "prefix_next_free",
+    tag = "core",
+    params(
+        ("id" = Uuid, Path, description = "The prefix."),
+        ("kind" = String, Query, description = "`prefix` or `address`."),
+        ("length" = Option<u8>, Query, description = "The length of the prefix wanted."),
+        DatesParams,
+    ),
+    responses((status = 200, description = "The first free value.", body = NextFree))
+)]
 async fn next_free(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -347,11 +442,11 @@ async fn next_free(
         }
     };
     record(&api, &context, &moment, "next-free", id, &[id]).await?;
-    let body = json!({
-        "prefix": { "id": id, "value": found.value.to_string(), "href": href(Kind::Prefix, id) },
-        "kind": kind,
-        "value": value,
-    });
+    let body = NextFree {
+        prefix: PrefixRef::of(&found, id),
+        kind,
+        value,
+    };
     Ok(document(&headers, &moment, &body))
 }
 

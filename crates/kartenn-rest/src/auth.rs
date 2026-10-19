@@ -7,30 +7,31 @@
 
 use std::sync::Arc;
 
-use axum::Router;
 use axum::extract::{Request, State};
 use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{get, post};
 use kartenn_auth::oidc::{Callback, LOGIN_COOKIE, LOGIN_WITHIN, SESSION_COOKIE, Session};
 use kartenn_core::audit::rfc3339;
 use kartenn_core::period::Instant;
 use kartenn_service::authn::{IdentityKind, Principal};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
+use uuid::Uuid;
 
 use crate::authn::{self, Authenticator, Refusal, SessionEnds};
 use crate::cookies;
 use crate::problem::{Problem, ProblemKind};
 
 /// The routes, under `/v1`.
-pub fn routes(authenticator: Arc<dyn Authenticator>) -> Router {
-    Router::new()
-        .route("/auth/login", get(login))
-        .route("/auth/callback", get(callback))
-        .route("/auth/breakglass", post(breakglass))
-        .route("/auth/logout", post(logout))
-        .route("/me", get(me))
-        .with_state(authenticator)
+pub fn routes() -> OpenApiRouter<Arc<dyn Authenticator>> {
+    OpenApiRouter::new()
+        .routes(routes!(login))
+        .routes(routes!(callback))
+        .routes(routes!(breakglass))
+        .routes(routes!(logout))
+        .routes(routes!(me))
 }
 
 /// The query parameter `name` of `uri`, decoded.
@@ -40,6 +41,16 @@ fn param(uri: &Uri, name: &str) -> Option<String> {
         .map(|(_, v)| v.into_owned())
 }
 
+/// Starts a login at the issuer `issuer` (OIDC, REQ-006-24): a redirection with the
+/// login cookie.
+#[utoipa::path(
+    get,
+    path = "/auth/login",
+    operation_id = "login",
+    tag = "authentication",
+    params(("issuer" = String, Query, description = "The issuer of the login.")),
+    responses((status = 303, description = "To the authorisation endpoint of the issuer."))
+)]
 async fn login(State(authenticator): State<Arc<dyn Authenticator>>, request: Request) -> Response {
     if !authn::client(&request).tls {
         return Refusal::NotTls.into_response();
@@ -60,6 +71,20 @@ async fn login(State(authenticator): State<Arc<dyn Authenticator>>, request: Req
     }
 }
 
+/// The return of a login from its issuer: a redirection to `/` with the session cookie.
+#[utoipa::path(
+    get,
+    path = "/auth/callback",
+    operation_id = "login_callback",
+    tag = "authentication",
+    params(
+        ("code" = Option<String>, Query, description = "The authorisation code."),
+        ("state" = Option<String>, Query, description = "The state of the login."),
+        ("iss" = Option<String>, Query, description = "The issuer (RFC 9207)."),
+        ("error" = Option<String>, Query, description = "The error of the issuer."),
+    ),
+    responses((status = 303, description = "To `/`, with the session cookie."))
+)]
 async fn callback(
     State(authenticator): State<Arc<dyn Authenticator>>,
     request: Request,
@@ -94,13 +119,22 @@ async fn callback(
 }
 
 /// The proofs of a break-glass login.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct Breakglass {
     name: String,
     passphrase: String,
     code: String,
 }
 
+/// A break-glass login (REQ-006-25): a session of at most 1 h.
+#[utoipa::path(
+    post,
+    path = "/auth/breakglass",
+    operation_id = "breakglass",
+    tag = "authentication",
+    request_body = Breakglass,
+    responses((status = 204, description = "The session cookie is set."))
+)]
 async fn breakglass(
     State(authenticator): State<Arc<dyn Authenticator>>,
     request: Request,
@@ -140,6 +174,14 @@ async fn breakglass(
     }
 }
 
+/// Ends the session, then on to the end-session endpoint of the issuer.
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    operation_id = "logout",
+    tag = "authentication",
+    responses((status = 303, description = "To the end-session endpoint of the issuer, or `/`."))
+)]
 async fn logout(State(authenticator): State<Arc<dyn Authenticator>>, request: Request) -> Response {
     let source = authn::source(authn::client(&request), request.headers());
     let (Some(principal), Some(session)) = (
@@ -168,6 +210,67 @@ const fn kind(kind: IdentityKind) -> &'static str {
     }
 }
 
+/// A binding that serves the caller.
+#[derive(Debug, Serialize, ToSchema)]
+struct HeldBinding {
+    /// Role key.
+    role: String,
+    /// Its scope.
+    scope: Scope,
+}
+
+/// The scope of a binding: `global`, or an object.
+#[derive(Debug, Serialize, ToSchema)]
+struct Scope {
+    /// `global`, `entity`, `site`, `domain` or `prefix`.
+    kind: String,
+    /// The object; absent when global.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<Uuid>,
+}
+
+/// The session of the caller.
+#[derive(Debug, Serialize, ToSchema)]
+struct SessionState {
+    /// A break-glass session.
+    breakglass: bool,
+    /// Its end, RFC 3339.
+    expires_at: Option<String>,
+}
+
+/// The caller and their effective rights, summed up.
+#[derive(Debug, Serialize, ToSchema)]
+struct Me {
+    /// Identity.
+    identity: Uuid,
+    /// `person`, `service_account` or `breakglass`.
+    kind: &'static str,
+    /// How the request was authenticated.
+    method: &'static str,
+    /// The issuer of the identity.
+    issuer: Option<String>,
+    /// The groups of the identity.
+    groups: Vec<String>,
+    /// Display name.
+    name: Option<String>,
+    /// The keys of the roles held, on any scope.
+    roles: Vec<String>,
+    /// The bindings that serve the caller.
+    bindings: Vec<HeldBinding>,
+    /// The entries of the roles of the global bindings.
+    global_permissions: Vec<String>,
+    /// The session; `null` without one.
+    session: Option<SessionState>,
+}
+
+/// The caller, their session and their effective rights, summed up.
+#[utoipa::path(
+    get,
+    path = "/me",
+    operation_id = "me",
+    tag = "authentication",
+    responses((status = 200, description = "The caller.", body = Me))
+)]
 async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Request) -> Response {
     let Some(principal) = request.extensions().get::<Principal>() else {
         return Refusal::Unauthenticated.into_response();
@@ -180,35 +283,35 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
         .extensions()
         .get::<SessionEnds>()
         .map(|SessionEnds(at)| rfc3339(Instant(at.saturating_mul(1_000_000))));
-    let session = request
-        .extensions()
-        .get::<Session>()
-        .map(|s| serde_json::json!({ "breakglass": s.breakglass, "expires_at": ends }));
-    let bindings: Vec<serde_json::Value> = rights
+    let session = request.extensions().get::<Session>().map(|s| SessionState {
+        breakglass: s.breakglass,
+        expires_at: ends,
+    });
+    let bindings = rights
         .bindings
         .iter()
-        .map(|b| {
-            let scope = match b.scope {
-                Some(id) => serde_json::json!({ "kind": b.scope_kind, "id": id }),
-                None => serde_json::json!({ "kind": b.scope_kind }),
-            };
-            serde_json::json!({ "role": b.role, "scope": scope })
+        .map(|b| HeldBinding {
+            role: b.role.clone(),
+            scope: Scope {
+                kind: b.scope_kind.clone(),
+                id: b.scope,
+            },
         })
         .collect();
     (
         [(header::CACHE_CONTROL, "no-store")],
-        axum::Json(serde_json::json!({
-            "identity": principal.identity,
-            "kind": kind(principal.kind),
-            "method": principal.method.as_str(),
-            "issuer": principal.issuer,
-            "groups": principal.groups,
-            "name": rights.name,
-            "roles": rights.roles,
-            "bindings": bindings,
-            "global_permissions": rights.global_permissions,
-            "session": session,
-        })),
+        axum::Json(Me {
+            identity: principal.identity,
+            kind: kind(principal.kind),
+            method: principal.method.as_str(),
+            issuer: principal.issuer.clone(),
+            groups: principal.groups.clone(),
+            name: rights.name,
+            roles: rights.roles,
+            bindings,
+            global_permissions: rights.global_permissions,
+            session,
+        }),
     )
         .into_response()
 }

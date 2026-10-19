@@ -1,0 +1,355 @@
+//! The contract (spec 006, REQ-006-4, 33 to 35; task 006-22): the OpenAPI 3.1 document of
+//! the build names every operation of the surface, keeps its reference of the repository
+//! (a member removed fails the comparison), carries `QUERY` in its extension; it is served
+//! with the capabilities; a retired route announces its successor.
+
+mod common;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use http_body_util::BodyExt;
+use kartenn_auth::keys::KeyRing;
+use kartenn_rest::contract::breaches;
+use kartenn_rest::health::PgReadiness;
+use kartenn_rest::objects::Api;
+use kartenn_rest::openapi::{QUERY_EXTENSION, REFERENCE, json as produced};
+use kartenn_rest::quota::{Quotas, Rates};
+use kartenn_rest::transport::Settings;
+use kartenn_rest::versions::{Retirement, retire};
+use kartenn_service::audit::{AuditStatus, Instance};
+use kartenn_service::authn::{IdentityKind, Method, Principal};
+use kartenn_service::reads::ReadAudit;
+use kartenn_store_pg::audit_journal::PgAuditJournal;
+use serde_json::Value;
+use sqlx::PgPool;
+use time::macros::datetime;
+use tower::ServiceExt;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
+use uuid::Uuid;
+
+/// The reference contract of the repository.
+fn reference() -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(REFERENCE);
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str(&text).unwrap()
+}
+
+#[test]
+fn the_contract_keeps_its_reference() {
+    let (reference, produced) = (reference(), produced());
+    let found = breaches(&reference, &produced);
+    assert!(
+        found.is_empty(),
+        "the contract of /v1 is broken:\n{}",
+        found
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    assert!(
+        produced == reference,
+        "the contract grew: write its reference again with \
+         `cargo run -p kartenn-rest --bin openapi --all-features`"
+    );
+}
+
+/// The operations REQ-006-4 asks for, by method and path.
+fn surface() -> Vec<(&'static str, String)> {
+    let mut wanted = Vec::new();
+    for collection in [
+        "entities",
+        "sites",
+        "domains",
+        "prefixes",
+        "ranges",
+        "addresses",
+    ] {
+        let one = format!("/v1/{collection}/{{id}}");
+        wanted.extend([
+            ("get", format!("/v1/{collection}")),
+            (QUERY_EXTENSION, format!("/v1/{collection}")),
+            ("post", format!("/v1/{collection}")),
+            ("get", one.clone()),
+            ("patch", one.clone()),
+            ("delete", one.clone()),
+            ("get", format!("{one}/history")),
+            ("get", format!("{one}/properties")),
+            ("get", format!("{one}/properties/{{key}}/explanation")),
+            ("get", format!("{one}/properties/{{key}}/suggestion")),
+        ]);
+    }
+    let fixed = [
+        // The tree, the anomalies.
+        ("get", "/v1/prefixes/{id}/children"),
+        ("get", "/v1/prefixes/{id}/ancestors"),
+        ("get", "/v1/prefixes/{id}/occupancy"),
+        ("get", "/v1/prefixes/{id}/next-free"),
+        ("get", "/v1/anomalies"),
+        ("post", "/v1/anomalies/{id}/acknowledgement"),
+        // The properties.
+        ("get", "/v1/property-declarations"),
+        ("get", "/v1/property-declarations/{key}/values"),
+        ("get", "/v1/property-gaps"),
+        // The changesets.
+        ("post", "/v1/changesets"),
+        ("get", "/v1/changesets"),
+        ("get", "/v1/changesets/{id}"),
+        ("get", "/v1/changesets/{id}/diff"),
+        ("post", "/v1/changesets/{id}/validation"),
+        ("post", "/v1/changesets/{id}/rejection"),
+        ("post", "/v1/changesets/{id}/withdrawal"),
+        ("post", "/v1/changesets/{id}/undo"),
+        ("get", "/v1/proposals"),
+        // The imports.
+        ("post", "/v1/imports"),
+        ("get", "/v1/imports/{id}"),
+        ("put", "/v1/imports/{id}/chunks/{n}"),
+        ("post", "/v1/imports/{id}/start"),
+        ("post", "/v1/imports/{id}/resume"),
+        ("post", "/v1/imports/{id}/cancel"),
+        // The rights.
+        ("get", "/v1/roles"),
+        ("get", "/v1/roles/{key}"),
+        ("put", "/v1/roles/{key}"),
+        ("delete", "/v1/roles/{key}"),
+        ("get", "/v1/bindings"),
+        ("post", "/v1/bindings"),
+        ("get", "/v1/bindings/{id}"),
+        ("delete", "/v1/bindings/{id}"),
+        ("get", "/v1/issuer-attachments"),
+        ("post", "/v1/issuer-attachments"),
+        ("delete", "/v1/issuer-attachments"),
+        ("get", "/v1/service-accounts"),
+        ("post", "/v1/service-accounts"),
+        ("get", "/v1/service-accounts/{id}"),
+        ("post", "/v1/service-accounts/{id}/secrets"),
+        ("delete", "/v1/service-accounts/{id}/secrets/{secret}"),
+        ("get", "/v1/identities"),
+        ("get", "/v1/identities/{id}"),
+        ("patch", "/v1/identities/{id}"),
+        ("get", "/v1/me"),
+        // The audit.
+        ("get", "/v1/audit-events"),
+        (QUERY_EXTENSION, "/v1/audit-events"),
+        ("post", "/v1/identities/{id}/pseudonymisation"),
+        // The authentication.
+        ("get", "/v1/auth/login"),
+        ("get", "/v1/auth/callback"),
+        ("post", "/v1/auth/logout"),
+        ("post", "/v1/auth/breakglass"),
+        // The operations.
+        ("get", "/v1/capabilities"),
+        ("get", "/v1/openapi.json"),
+        ("put", "/v1/log-filters/{output}"),
+        ("get", "/health/live"),
+        ("get", "/health/ready"),
+    ];
+    wanted.extend(fixed.into_iter().map(|(m, p)| (m, p.to_owned())));
+    wanted
+}
+
+#[test]
+fn every_operation_of_the_surface_is_in_the_contract() {
+    let document = produced();
+    let missing: Vec<String> = surface()
+        .into_iter()
+        .filter(|(method, path)| {
+            document["paths"]
+                .get(path)
+                .and_then(|item| item.get(*method))
+                .and_then(|op| op.get("responses"))
+                .is_none()
+        })
+        .map(|(method, path)| format!("{method} {path}"))
+        .collect();
+    assert!(missing.is_empty(), "missing: {missing:?}");
+}
+
+#[test]
+fn a_member_removed_fails_the_comparison() {
+    let reference = produced();
+    let mut produced = reference.clone();
+    produced["components"]["schemas"]["Prefix"]["properties"]
+        .as_object_mut()
+        .unwrap()
+        .remove("nature")
+        .unwrap();
+    let found = breaches(&reference, &produced);
+    assert!(
+        found
+            .iter()
+            .any(|b| b.at == "components.schemas.Prefix.nature" && b.what == "member removed"),
+        "{found:?}"
+    );
+    // A member of a request made required, an operation removed.
+    let mut produced = reference.clone();
+    produced["components"]["schemas"]["Submission"]["required"]
+        .as_array_mut()
+        .unwrap()
+        .push("valid_from".into());
+    produced["paths"]["/v1/prefixes"]
+        .as_object_mut()
+        .unwrap()
+        .remove(QUERY_EXTENSION);
+    let found: Vec<String> = breaches(&reference, &produced)
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert!(
+        found.contains(&"components.schemas.Submission.valid_from: member now required".into()),
+        "{found:?}"
+    );
+    assert!(
+        found.contains(&format!(
+            "paths./v1/prefixes.{QUERY_EXTENSION}: operation removed"
+        )),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn the_contract_is_openapi_3_1_its_query_in_an_extension() {
+    let document = produced();
+    assert_eq!(document["openapi"], "3.1.0");
+    let item = &document["paths"]["/v1/prefixes"];
+    assert!(item.get("query").is_none(), "a 3.1 path item has no query");
+    let query = &item[QUERY_EXTENSION];
+    assert_eq!(query["operationId"], "query_prefixes");
+    assert_eq!(
+        query["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/Search"
+    );
+    assert_eq!(query["responses"]["200"], item["get"]["responses"]["200"]);
+    // Every operation answers a problem; the login routes and the probes are public.
+    for (path, item) in document["paths"].as_object().unwrap() {
+        for (method, operation) in item.as_object().unwrap() {
+            assert!(
+                operation["responses"].get("default").is_some(),
+                "{method} {path} answers no problem"
+            );
+        }
+    }
+    assert_eq!(
+        document["paths"]["/health/live"]["get"]["security"],
+        serde_json::json!([])
+    );
+    assert!(document["paths"]["/v1/me"]["get"].get("security").is_none());
+}
+
+/// A route of a test version, retired.
+#[utoipa::path(get, path = "/v0/things", responses((status = 200, description = "Things.")))]
+async fn things() -> &'static str {
+    "[]"
+}
+
+#[tokio::test]
+async fn a_retired_route_announces_its_successor() {
+    let retirement = Retirement {
+        deprecated: datetime!(2026-07-01 00:00 UTC),
+        sunset: datetime!(2027-01-04 12:30:05 +02:00),
+        successor: "/v1/things".to_owned(),
+    };
+    let (router, document) = OpenApiRouter::<()>::new()
+        .routes(retire(routes!(things), retirement))
+        .split_for_parts();
+    let response = router
+        .oneshot(Request::get("/v0/things").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let header = |name: &str| response.headers()[name].to_str().unwrap().to_owned();
+    assert_eq!(header("deprecation"), "@1782864000");
+    assert_eq!(header("sunset"), "Mon, 04 Jan 2027 10:30:05 GMT");
+    assert_eq!(header("link"), "</v1/things>; rel=\"successor-version\"");
+    let document = serde_json::to_value(document).unwrap();
+    assert_eq!(document["paths"]["/v0/things"]["get"]["deprecated"], true);
+}
+
+fn app(pool: &PgPool, identity: Uuid, settings: Settings) -> axum::Router {
+    let api = Api {
+        pool: pool.clone(),
+        ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
+        bound: Duration::from_secs(60),
+        journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
+        audit: ReadAudit::default(),
+        sources: kartenn_service::expected::Sources::none(),
+        outputs: Arc::from([]),
+    };
+    kartenn_rest::router(
+        kartenn_rest::v1(api),
+        Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
+        settings,
+        Arc::new(Quotas::new(Rates::default())),
+        Arc::new(common::As(Principal {
+            identity,
+            kind: IdentityKind::Person,
+            issuer: None,
+            groups: Vec::new(),
+            method: Method::Bearer,
+        })),
+    )
+}
+
+async fn read(app: &axum::Router, path: &str) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(common::bearer(
+            Request::get(path).body(Body::empty()).unwrap(),
+        ))
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_contract_and_the_capabilities_are_served(pool: PgPool) {
+    let settings = Settings {
+        max_body_bytes: 4 * 1024 * 1024,
+        ..Settings::default()
+    };
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let app = app(&pool, identity, settings);
+    let (status, document) = read(&app, "/v1/openapi.json").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(document, produced());
+    let (status, capabilities) = read(&app, "/v1/capabilities").await;
+    assert_eq!(status, StatusCode::OK, "{capabilities}");
+    assert_eq!(capabilities["api_versions"], serde_json::json!(["v1"]));
+    let modules: Vec<&str> = capabilities["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap())
+        .collect();
+    for module in [
+        "audit",
+        "changesets",
+        "core",
+        "imports",
+        "properties",
+        "rights",
+    ] {
+        assert!(modules.contains(&module), "{modules:?}");
+    }
+    assert!(capabilities["properties"].is_array());
+    assert_eq!(capabilities["ui_plugins"], serde_json::json!([]));
+    let limits = &capabilities["limits"];
+    assert_eq!(limits["page_size_default"], 100);
+    assert_eq!(limits["page_size_max"], 1_000);
+    assert_eq!(limits["changeset_operations"], 10_000);
+    assert_eq!(limits["chunk_elements"], 10_000);
+    assert_eq!(limits["body_bytes"], 4 * 1024 * 1024);
+    assert_eq!(limits["idempotency_retention_seconds"], 86_400);
+}

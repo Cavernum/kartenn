@@ -22,10 +22,13 @@ use kartenn_store_pg::read;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::changesets::{Answer, Location, Pointers, idempotency_key, period, submit_answered};
 use crate::objects::{Api, bad, gate, store};
+use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
+use crate::operation::RawDto;
 use crate::problem::{Problem, ProblemKind};
 
 /// The media type of a `PATCH` (RFC 7396 §4).
@@ -79,9 +82,13 @@ pub(crate) fn typed<T: DeserializeOwned>(name: &str, value: Value) -> Result<T, 
 
 /// The reserved members of a write (design « Représentations »): `motive`, `valid_from`,
 /// `valid_to`, removed from `members`; `null` dates are absent.
+#[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct Reserved {
+    /// Why; required by the rules.
     pub(crate) motive: String,
+    /// The start of the period of the write, RFC 3339; now by default.
     pub(crate) valid_from: Option<String>,
+    /// The end of the period of the write, RFC 3339; unbounded by default.
     pub(crate) valid_to: Option<String>,
 }
 
@@ -100,11 +107,39 @@ pub(crate) fn reserved(members: &mut Map<String, Value>) -> Result<Reserved, Pro
     })
 }
 
+/// The body of a write as the contract describes it: the reserved members, read by
+/// [`reserved`], beside the members of the resource, read once they are taken out.
+macro_rules! written {
+    ($name:ident, $members:ty, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+        #[allow(dead_code)]
+        pub(crate) struct $name {
+            #[serde(flatten)]
+            reserved: $crate::resources::Reserved,
+            #[serde(flatten)]
+            members: $members,
+        }
+    };
+}
+pub(crate) use written;
+
+/// The optional body of a closure: its motive and its start, no `valid_to`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct Closure {
+    /// Why; required by the rules.
+    motive: String,
+    /// The start of the closure, RFC 3339; now by default.
+    valid_from: Option<String>,
+}
+
 /// A reference to another object: the summary without `href` (design « Routes par
 /// ressource »).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct Reference {
+    /// Its identifier.
     id: Uuid,
 }
 
@@ -114,47 +149,238 @@ impl From<Reference> for Ref {
     }
 }
 
-#[derive(Debug, Deserialize)]
+/// A new addressing domain.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct NewDomain {
+    /// Technical identifier.
     slug: String,
 }
 
-#[derive(Debug, Deserialize)]
+/// A new entity or site.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct NewNode {
+    /// Technical identifier.
     slug: String,
+    /// The parent; none for a root.
     #[serde(default)]
     parent: Option<Reference>,
 }
 
-#[derive(Debug, Deserialize)]
+/// A new prefix.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct NewPrefix {
+    /// The domain.
     domain: Reference,
+    /// `address/length`.
     value: String,
+    /// Container or network.
+    #[schema(value_type = NatureSchema)]
     nature: Nature,
+    /// Point-to-point network.
     #[serde(default)]
     point_to_point: bool,
+    /// Anycast network.
     #[serde(default)]
     anycast: bool,
 }
 
-#[derive(Debug, Deserialize)]
+/// A new range.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct NewRange {
+    /// The domain.
     domain: Reference,
+    /// First address.
     first: String,
+    /// Last address, included.
     last: String,
+    /// Usage.
+    #[schema(value_type = RangeUsageSchema)]
     usage: RangeUsage,
 }
 
-#[derive(Debug, Deserialize)]
+/// A new address.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct NewAddress {
+    /// The domain.
     domain: Reference,
+    /// Address.
     value: String,
+    /// Usage.
+    #[schema(value_type = AddressUsageSchema)]
     usage: AddressUsage,
+}
+
+written!(
+    DomainCreation,
+    NewDomain,
+    "The body that creates an addressing domain."
+);
+written!(
+    NodeCreation,
+    NewNode,
+    "The body that creates an entity or a site."
+);
+written!(PrefixCreation, NewPrefix, "The body that creates a prefix.");
+written!(RangeCreation, NewRange, "The body that creates a range.");
+written!(
+    AddressCreation,
+    NewAddress,
+    "The body that creates an address."
+);
+
+/// What a merge patch writes in a property: a value or the elements of a set assign it,
+/// `null` removes the assignment (inheritance resumes), `{"clear": true}` clears it
+/// explicitly (REQ-003-13).
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(untagged)]
+#[allow(dead_code)]
+enum PropertyWrite {
+    /// The elements of a set.
+    Values(Vec<RawDto>),
+    /// One value.
+    Value(RawDto),
+    /// An explicit clearing.
+    Clear(ClearMark),
+    /// `null`: the assignment removed.
+    Remove(()),
+}
+
+/// An explicit clearing of a property.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct ClearMark {
+    /// `true`.
+    clear: bool,
+}
+
+/// The members of a merge patch of a domain, read by [`fields`] (`writable`).
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct DomainPatch {
+    /// New slug.
+    slug: Option<String>,
+    /// The properties to write, by key.
+    properties: Option<BTreeMap<String, PropertyWrite>>,
+}
+
+/// The members of a merge patch of an entity or a site.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct NodePatch {
+    /// New slug.
+    slug: Option<String>,
+    /// New parent; `null`: to the root.
+    parent: Option<Reference>,
+    /// The properties to write, by key.
+    properties: Option<BTreeMap<String, PropertyWrite>>,
+}
+
+/// The members of a merge patch of a prefix.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct PrefixPatch {
+    /// The domain never changes (REQ-002-12): given another, the write is refused.
+    domain: Option<Reference>,
+    /// New value, `address/length` (resizing; same identifier).
+    value: Option<String>,
+    /// New nature.
+    #[schema(value_type = Option<NatureSchema>)]
+    nature: Option<Nature>,
+    /// Point-to-point network or not.
+    point_to_point: Option<bool>,
+    /// Anycast network or not.
+    anycast: Option<bool>,
+    /// The properties to write, by key.
+    properties: Option<BTreeMap<String, PropertyWrite>>,
+}
+
+/// The members of a merge patch of a range.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct RangePatch {
+    /// The domain never changes (REQ-002-12): given another, the write is refused.
+    domain: Option<Reference>,
+    /// New usage.
+    #[schema(value_type = Option<RangeUsageSchema>)]
+    usage: Option<RangeUsage>,
+    /// The properties to write, by key.
+    properties: Option<BTreeMap<String, PropertyWrite>>,
+}
+
+/// The members of a merge patch of an address.
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+struct AddressPatch {
+    /// The domain never changes (REQ-002-12): given another, the write is refused.
+    domain: Option<Reference>,
+    /// New usage.
+    #[schema(value_type = Option<AddressUsageSchema>)]
+    usage: Option<AddressUsage>,
+    /// The properties to write, by key.
+    properties: Option<BTreeMap<String, PropertyWrite>>,
+}
+
+written!(
+    DomainModification,
+    DomainPatch,
+    "A merge patch of an addressing domain."
+);
+written!(
+    NodeModification,
+    NodePatch,
+    "A merge patch of an entity or a site."
+);
+written!(
+    PrefixModification,
+    PrefixPatch,
+    "A merge patch of a prefix."
+);
+written!(RangeModification, RangePatch, "A merge patch of a range.");
+written!(
+    AddressModification,
+    AddressPatch,
+    "A merge patch of an address."
+);
+
+/// The schemas of the bodies of the writes of a kind, by the names the contract gives
+/// them: creation, then modification.
+pub(crate) fn bodies(kind: Kind) -> [(String, utoipa::openapi::RefOr<utoipa::openapi::Schema>); 2] {
+    fn named<T: ToSchema>() -> (String, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        (T::name().into_owned(), T::schema())
+    }
+    match kind {
+        Kind::Domain => [named::<DomainCreation>(), named::<DomainModification>()],
+        Kind::Entity | Kind::Site => [named::<NodeCreation>(), named::<NodeModification>()],
+        Kind::Prefix => [named::<PrefixCreation>(), named::<PrefixModification>()],
+        Kind::Range => [named::<RangeCreation>(), named::<RangeModification>()],
+        Kind::Address => [named::<AddressCreation>(), named::<AddressModification>()],
+    }
+}
+
+/// The schemas the bodies of the writes refer to.
+pub(crate) fn referred(
+    schemas: &mut Vec<(String, utoipa::openapi::RefOr<utoipa::openapi::Schema>)>,
+) {
+    crate::openapi::schemas_of::<Reserved>(schemas);
+    crate::openapi::schemas_of::<Closure>(schemas);
+    crate::openapi::schemas_of::<Reference>(schemas);
+    crate::openapi::schemas_of::<NewDomain>(schemas);
+    crate::openapi::schemas_of::<NewNode>(schemas);
+    crate::openapi::schemas_of::<NewPrefix>(schemas);
+    crate::openapi::schemas_of::<NewRange>(schemas);
+    crate::openapi::schemas_of::<NewAddress>(schemas);
+    crate::openapi::schemas_of::<DomainPatch>(schemas);
+    crate::openapi::schemas_of::<NodePatch>(schemas);
+    crate::openapi::schemas_of::<PrefixPatch>(schemas);
+    crate::openapi::schemas_of::<RangePatch>(schemas);
+    crate::openapi::schemas_of::<AddressPatch>(schemas);
+    crate::openapi::schemas_of::<PropertyWrite>(schemas);
+    crate::openapi::schemas_of::<ClearMark>(schemas);
 }
 
 /// The creation of an object of `kind` from the members of the body, or 400.
@@ -681,6 +907,10 @@ pub(crate) async fn close(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    use utoipa::PartialSchema;
+
     use super::*;
 
     fn with(name: header::HeaderName, value: &str) -> HeaderMap {
@@ -746,5 +976,34 @@ mod tests {
     #[test]
     fn a_pointer_escapes_its_key() {
         assert_eq!(token("a/b~c"), "a~1b~0c");
+    }
+
+    /// The members a schema names.
+    fn named<T: PartialSchema>() -> BTreeSet<String> {
+        let schema = serde_json::to_value(T::schema()).unwrap();
+        schema["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn the_contract_of_a_patch_names_what_it_writes() {
+        let patches = [
+            (Kind::Domain, named::<DomainPatch>()),
+            (Kind::Entity, named::<NodePatch>()),
+            (Kind::Site, named::<NodePatch>()),
+            (Kind::Prefix, named::<PrefixPatch>()),
+            (Kind::Range, named::<RangePatch>()),
+            (Kind::Address, named::<AddressPatch>()),
+        ];
+        for (kind, documented) in patches {
+            let mut written: BTreeSet<String> =
+                writable(kind).iter().map(|m| (*m).to_owned()).collect();
+            written.insert("properties".to_owned());
+            assert_eq!(documented, written, "{kind:?}");
+        }
     }
 }

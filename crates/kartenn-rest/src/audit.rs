@@ -10,8 +10,7 @@ use axum::body::{Body, Bytes};
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{post, put};
-use axum::{Extension, Json, Router};
+use axum::{Extension, Json};
 use futures_util::stream;
 use kartenn_core::audit::rfc3339;
 use kartenn_service::RequestError;
@@ -24,19 +23,23 @@ use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::rbac_read;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
-use serde::Deserialize;
-use serde_json::{Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::anomalies::motive;
-use crate::cursor::{Page, next_href, respond_page};
+use crate::anomalies::{Motive, motive};
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
 use crate::dated::Dates;
 use crate::filter::{self, ListQuery};
 use crate::objects::{Api, bad, instant, store};
+use crate::openapi::queryable;
 use crate::problem::{Problem, ProblemKind};
-use crate::rights::identity_item;
+use crate::rights::{IdentityItem, identity_item};
 
 /// The media type of an export: one JSON event per line.
 const NDJSON: &str = "application/x-ndjson";
@@ -48,17 +51,43 @@ const EXPORT_BATCH: u32 = 1_000;
 const EVENTS: &str = "audit-events";
 
 /// The routes of the audit and of the operations.
-pub fn routes(api: Api) -> Router {
-    Router::new()
-        .route("/audit-events", filter::collection(events))
-        .route("/identities/{id}/pseudonymisation", post(pseudonymise))
-        .route("/log-filters/{output}", put(log_filter))
-        .with_state(api)
+pub fn routes() -> OpenApiRouter<Api> {
+    // `GET` and `QUERY` by the same handler: the route of `filter::collection`, the
+    // contract of the annotation.
+    let (schemas, paths, _) = routes!(events);
+    let router = OpenApiRouter::new()
+        .routes((schemas, paths, filter::collection(events)))
+        .routes(routes!(pseudonymise))
+        .routes(routes!(log_filter));
+    queryable(router, "/audit-events", "query_audit_events")
 }
 
 /// A store that reads the journal and records as the server's instance.
 fn pg_store(api: &Api) -> PgStore {
     PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone())
+}
+
+/// An event of the audit journal, as journaled (spec 012, REQ-012-17).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(transparent)]
+#[schema(value_type = Object)]
+struct AuditEvent(Value);
+
+/// The criteria of a consultation, as the contract names them.
+#[derive(Debug, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+struct EventsParams {
+    /// The first instant, RFC 3339 with an offset.
+    from: Option<String>,
+    /// The last instant, RFC 3339 with an offset.
+    to: Option<String>,
+    /// The name of the event.
+    name: Option<String>,
+    /// The actor.
+    actor: Option<Uuid>,
+    /// An object the event names.
+    object: Option<Uuid>,
 }
 
 /// The criteria of a consultation: `from` and `to` (RFC 3339 with an offset), `name`,
@@ -109,6 +138,22 @@ fn exported(headers: &HeaderMap) -> bool {
 /// `GET`/`QUERY /v1/audit-events?from=…&to=…&name=…&actor=…&object=…`: the events, the
 /// most recent first, by pages keyed by their sequence number; under `Accept:
 /// application/x-ndjson`, the whole selection exported.
+#[utoipa::path(
+    get,
+    path = "/audit-events",
+    operation_id = "list_audit_events",
+    tag = "audit",
+    params(EventsParams, PageParams),
+    responses((
+        status = 200,
+        description = "A page of events, or under `Accept: application/x-ndjson` the whole \
+                       selection, one event per line.",
+        content(
+            (Listing<AuditEvent> = "application/json"),
+            (AuditEvent = "application/x-ndjson"),
+        )
+    ))
+)]
 async fn events(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -151,7 +196,8 @@ async fn events(
         }
         _ => None,
     };
-    Ok(respond_page(&headers, &moment, &found, next.as_deref()))
+    let items: Vec<AuditEvent> = found.into_iter().map(AuditEvent).collect();
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// The export of the selection of `query`, audited once before the first event is read,
@@ -229,6 +275,15 @@ async fn export(api: &Api, context: &RequestContext, query: &str) -> Result<Resp
 /// 200 with the identity. Without `core.identity.pseudonymise` → 403 (before any lookup);
 /// no motive → 422; unknown → 404; not a person → 409; pseudonymised before → 200, nothing
 /// done.
+#[utoipa::path(
+    post,
+    path = "/identities/{id}/pseudonymisation",
+    operation_id = "pseudonymise_identity",
+    tag = "audit",
+    params(("id" = Uuid, Path, description = "The person.")),
+    request_body(content = Motive, content_type = "application/json"),
+    responses((status = 200, description = "The identity, pseudonymised.", body = IdentityItem))
+)]
 async fn pseudonymise(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -257,18 +312,41 @@ async fn pseudonymise(
 }
 
 /// The body of `PUT /v1/log-filters/{output}`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct LogFilter {
+    /// The filter, in the syntax of the output.
     filter: String,
-    /// Seconds; a value that is no positive integer is an invalid duration.
+    /// Seconds, 1 to 86 400; 3 600 by default. A value that is no positive integer is an
+    /// invalid duration.
+    #[schema(value_type = Option<u64>)]
     ttl: Option<Value>,
+}
+
+/// The filter of an output, set.
+#[derive(Debug, Serialize, ToSchema)]
+struct LogFilterSet {
+    /// The output.
+    output: String,
+    /// Its filter.
+    filter: String,
+    /// The return to the configuration, RFC 3339.
+    expires_at: String,
 }
 
 /// `PUT /v1/log-filters/{output}` `{filter, ttl}`: the filter of a configured output for
 /// `ttl` seconds (1 hour by default, 24 at most), after which every instance returns to the
 /// configuration; 200 `{output, filter, expires_at}`. An output not configured → 404; a
 /// filter that does not parse or a duration out of bounds → 422 `invalid-override`.
+#[utoipa::path(
+    put,
+    path = "/log-filters/{output}",
+    operation_id = "set_log_filter",
+    tag = "operations",
+    params(("output" = String, Path, description = "A configured technical output.")),
+    request_body = LogFilter,
+    responses((status = 200, description = "The filter, set.", body = LogFilterSet))
+)]
 async fn log_filter(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -297,10 +375,10 @@ async fn log_filter(
         kartenn_telemetry::capture::valid_filter,
     )
     .await?;
-    Ok(Json(json!({
-        "output": set.output,
-        "filter": set.filter,
-        "expires_at": rfc3339(set.expires_at),
-    }))
+    Ok(Json(LogFilterSet {
+        output: set.output,
+        filter: set.filter,
+        expires_at: rfc3339(set.expires_at),
+    })
     .into_response())
 }

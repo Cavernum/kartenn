@@ -5,24 +5,27 @@
 //! `…/resume` and `…/cancel` steer it, `GET …/{id}` follows it. Only its author sees an
 //! import: for anyone else it does not exist (404).
 
+use axum::Extension;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post, put};
-use axum::{Extension, Router};
 use kartenn_service::authn::Principal;
 use kartenn_service::import::{ImportStatus, batches, import_status, open_import};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ImportItem;
 use kartenn_store_pg::imports::{self, Deposit, ImportHeader, Start};
 use kartenn_store_pg::write::PgStore;
-use serde::Deserialize;
-use serde_json::{Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
 use crate::objects::{Api, bad};
+use crate::operation::ImportItemDto;
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{Charge, chunk_weight};
 use crate::resources::{members, typed};
@@ -34,15 +37,14 @@ pub const MAX_CHUNK: usize = 10_000;
 const RETRY_AFTER: u32 = 5;
 
 /// The routes of the imports.
-pub fn routes(api: Api) -> Router {
-    Router::new()
-        .route("/imports", post(create))
-        .route("/imports/{id}", get(show))
-        .route("/imports/{id}/chunks/{n}", put(deposit))
-        .route("/imports/{id}/start", post(start))
-        .route("/imports/{id}/resume", post(resume))
-        .route("/imports/{id}/cancel", post(cancel))
-        .with_state(api)
+pub fn routes() -> OpenApiRouter<Api> {
+    OpenApiRouter::new()
+        .routes(routes!(create))
+        .routes(routes!(show))
+        .routes(routes!(deposit))
+        .routes(routes!(start))
+        .routes(routes!(resume))
+        .routes(routes!(cancel))
 }
 
 /// The path of an import.
@@ -51,11 +53,59 @@ pub fn href(id: Uuid) -> String {
     format!("/v1/imports/{id}")
 }
 
+/// The body of `POST /v1/imports`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct NewImport {
+    /// The source of the elements, not empty.
+    source: String,
+}
+
 /// The body of a chunk.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct Chunk {
-    elements: Vec<ImportItem>,
+    /// The elements, at most 10 000.
+    elements: Vec<ImportItemDto>,
+}
+
+/// An import, as followed by its author.
+#[derive(Debug, Serialize, ToSchema)]
+struct ImportDto {
+    /// Identifier.
+    id: Uuid,
+    /// The source of the elements.
+    source: String,
+    /// `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.
+    state: String,
+    /// The chunks received.
+    chunks: i64,
+    /// The elements received.
+    elements: i64,
+    /// The batches.
+    batches: Batches,
+    /// The report of the batches run.
+    #[schema(value_type = Object)]
+    report: Value,
+    /// Links.
+    links: ImportLinks,
+}
+
+/// The batches of an import.
+#[derive(Debug, Serialize, ToSchema)]
+struct Batches {
+    /// Applied.
+    applied: usize,
+    /// Still to run.
+    remaining: usize,
+}
+
+/// The links of an import.
+#[derive(Debug, Serialize, ToSchema)]
+struct ImportLinks {
+    /// The import.
+    #[serde(rename = "self")]
+    this: String,
 }
 
 /// The import `id` if `principal` wrote it; 404 otherwise.
@@ -75,7 +125,7 @@ async fn represented(api: &Api, id: Uuid, status: StatusCode) -> Result<Response
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let running = matches!(progress.state.as_str(), "ready" | "running");
-    let mut response = (status, axum::Json(representation(id, &header, &progress))).into_response();
+    let mut response = (status, axum::Json(representation(id, header, progress))).into_response();
     if running {
         response
             .headers_mut()
@@ -84,17 +134,20 @@ async fn represented(api: &Api, id: Uuid, status: StatusCode) -> Result<Response
     Ok(response)
 }
 
-fn representation(id: Uuid, header: &ImportHeader, progress: &ImportStatus) -> Value {
-    json!({
-        "id": id,
-        "source": header.source,
-        "state": progress.state,
-        "chunks": header.chunks,
-        "elements": header.elements,
-        "batches": { "applied": progress.applied, "remaining": progress.remaining },
-        "report": progress.report,
-        "links": { "self": href(id) },
-    })
+fn representation(id: Uuid, header: ImportHeader, progress: ImportStatus) -> ImportDto {
+    ImportDto {
+        id,
+        source: header.source,
+        state: progress.state,
+        chunks: header.chunks,
+        elements: header.elements,
+        batches: Batches {
+            applied: progress.applied,
+            remaining: progress.remaining,
+        },
+        report: progress.report,
+        links: ImportLinks { this: href(id) },
+    }
 }
 
 /// With `Location` to import `id`.
@@ -110,17 +163,24 @@ fn conflict(detail: &str) -> Problem {
 }
 
 /// `POST /v1/imports {source}` → 201.
+#[utoipa::path(
+    post,
+    path = "/imports",
+    operation_id = "create_import",
+    tag = "imports",
+    request_body = NewImport,
+    responses((status = 201, description = "The import, open to chunks.", body = ImportDto))
+)]
 async fn create(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let mut body = members(&headers, &raw, "application/json")?;
-    let source: String = typed("source", body.remove("source").unwrap_or(Value::Null))?;
-    if let Some(other) = body.keys().next() {
-        return Err(bad(format!("unknown member {other}")));
-    }
+    let NewImport { source } = typed(
+        "import",
+        Value::Object(members(&headers, &raw, "application/json")?),
+    )?;
     if source.is_empty() {
         return Err(bad("source must not be empty"));
     }
@@ -132,6 +192,14 @@ async fn create(
 }
 
 /// `GET /v1/imports/{id}`.
+#[utoipa::path(
+    get,
+    path = "/imports/{id}",
+    operation_id = "show_import",
+    tag = "imports",
+    params(("id" = Uuid, Path, description = "The import.")),
+    responses((status = 200, description = "The import.", body = ImportDto))
+)]
 async fn show(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -143,6 +211,21 @@ async fn show(
 
 /// `PUT /v1/imports/{id}/chunks/{n} {elements}`: new → 201, identical → 200, different
 /// → 409, too large → 413; the chunk weighs `⌈elements / 1 000⌉` on the quota.
+#[utoipa::path(
+    put,
+    path = "/imports/{id}/chunks/{n}",
+    operation_id = "deposit_import_chunk",
+    tag = "imports",
+    params(
+        ("id" = Uuid, Path, description = "The import."),
+        ("n" = i32, Path, description = "The number of the chunk, 0 or more."),
+    ),
+    request_body = Chunk,
+    responses(
+        (status = 201, description = "The chunk is received.", body = ImportDto),
+        (status = 200, description = "The same chunk was received already.", body = ImportDto),
+    )
+)]
 async fn deposit(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -151,23 +234,23 @@ async fn deposit(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Response {
-    let chunk = match chunk(n, &headers, &raw) {
-        Ok(chunk) => chunk,
+    let elements = match chunk(n, &headers, &raw) {
+        Ok(elements) => elements,
         Err(problem) => return problem.into_response(),
     };
     if let Some(Extension(charge)) = charge
-        && let Err(refused) = charge.weigh(chunk_weight(chunk.elements.len()))
+        && let Err(refused) = charge.weigh(chunk_weight(elements.len()))
     {
         return refused.into_response();
     }
-    deposited(&api, &principal, id, n, &chunk)
+    deposited(&api, &principal, id, n, &elements)
         .await
         .into_response()
 }
 
-/// Chunk `n` from its body: 400 for a negative number or a malformed body, 413 beyond
-/// [`MAX_CHUNK`] elements.
-fn chunk(n: i32, headers: &HeaderMap, raw: &[u8]) -> Result<Chunk, Problem> {
+/// The elements of chunk `n` from its body: 400 for a negative number or a malformed body,
+/// 413 beyond [`MAX_CHUNK`] elements.
+fn chunk(n: i32, headers: &HeaderMap, raw: &[u8]) -> Result<Vec<ImportItem>, Problem> {
     if n < 0 {
         return Err(bad("the number of a chunk is 0 or more"));
     }
@@ -179,7 +262,7 @@ fn chunk(n: i32, headers: &HeaderMap, raw: &[u8]) -> Result<Chunk, Problem> {
         return Err(Problem::new(ProblemKind::PayloadTooLarge)
             .detail(format!("a chunk holds at most {MAX_CHUNK} elements")));
     }
-    Ok(chunk)
+    Ok(chunk.elements.into_iter().map(Into::into).collect())
 }
 
 async fn deposited(
@@ -187,12 +270,12 @@ async fn deposited(
     principal: &Principal,
     id: Uuid,
     n: i32,
-    chunk: &Chunk,
+    elements: &[ImportItem],
 ) -> Result<Response, Problem> {
     owned(api, principal, id).await?;
-    let serialized = serde_json::to_vec(&chunk.elements).map_err(|e| bad(e.to_string()))?;
+    let serialized = serde_json::to_vec(elements).map_err(|e| bad(e.to_string()))?;
     let digest = Sha256::digest(serialized);
-    let status = match imports::deposit(&api.pool, id, n, &digest, &chunk.elements).await? {
+    let status = match imports::deposit(&api.pool, id, n, &digest, elements).await? {
         Deposit::Created => StatusCode::CREATED,
         Deposit::Same => StatusCode::OK,
         Deposit::Different => {
@@ -204,6 +287,14 @@ async fn deposited(
 }
 
 /// `POST /v1/imports/{id}/start` → 202: sorted, cut in batches and ready.
+#[utoipa::path(
+    post,
+    path = "/imports/{id}/start",
+    operation_id = "start_import",
+    tag = "imports",
+    params(("id" = Uuid, Path, description = "The import.")),
+    responses((status = 202, description = "The import is ready to run.", body = ImportDto))
+)]
 async fn start(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -221,6 +312,14 @@ async fn start(
 }
 
 /// `POST /v1/imports/{id}/resume` → 202: a paused import is ready again.
+#[utoipa::path(
+    post,
+    path = "/imports/{id}/resume",
+    operation_id = "resume_import",
+    tag = "imports",
+    params(("id" = Uuid, Path, description = "The import.")),
+    responses((status = 202, description = "The import is ready again.", body = ImportDto))
+)]
 async fn resume(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -238,6 +337,14 @@ async fn resume(
 
 /// `POST /v1/imports/{id}/cancel` → 200: the batch in progress ends, the batches applied
 /// stay.
+#[utoipa::path(
+    post,
+    path = "/imports/{id}/cancel",
+    operation_id = "cancel_import",
+    tag = "imports",
+    params(("id" = Uuid, Path, description = "The import.")),
+    responses((status = 200, description = "The import is cancelled.", body = ImportDto))
+)]
 async fn cancel(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
