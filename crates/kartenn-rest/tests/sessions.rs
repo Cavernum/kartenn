@@ -1,7 +1,8 @@
 //! Login routes and sessions (spec 006, REQ-006-24, 25; task 006-7): the OIDC flow against
 //! a test issuer, the callback played once, the attributes of the cookies, the session
 //! sent again at most once a minute, its groups refreshed, the logout to the issuer, a
-//! break-glass session refused after 1 h, no cookie without TLS.
+//! break-glass session refused after 1 h, no cookie without TLS; on a real port (task
+//! 006-24), the cookies through TLS in HTTP/1.1 and HTTP/2, and TLS read from `Forwarded`.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -41,6 +42,8 @@ use sqlx::PgPool;
 use sqlx::types::time::OffsetDateTime;
 use tower::ServiceExt;
 use uuid::Uuid;
+
+mod wire;
 
 const CLIENT: &str = "kartenn";
 const REDIRECT: &str = "https://kartenn.example.invalid/v1/auth/callback";
@@ -193,6 +196,10 @@ struct Fixture {
 
 impl Fixture {
     fn new(pool: &PgPool, idp: &Shared) -> Self {
+        Self::with(pool, idp, Settings::default())
+    }
+
+    fn with(pool: &PgPool, idp: &Shared, settings: Settings) -> Self {
         let issuer = IssuerConfig {
             id: "main".into(),
             issuer: idp.lock().unwrap().base.clone(),
@@ -223,7 +230,7 @@ impl Fixture {
         let app = kartenn_rest::router(
             Router::new(),
             Arc::new(Ready),
-            Settings::default(),
+            settings,
             Arc::new(Quotas::new(Rates::default())),
             Arc::new(authn),
         );
@@ -306,7 +313,7 @@ fn with_body(
     request
 }
 
-fn set_cookies(response: &Response) -> Vec<&str> {
+fn set_cookies<B>(response: &axum::http::Response<B>) -> Vec<&str> {
     response
         .headers()
         .get_all(header::SET_COOKIE)
@@ -316,7 +323,7 @@ fn set_cookies(response: &Response) -> Vec<&str> {
 }
 
 /// The value the response sets for the cookie `name`, if it sets one.
-fn value(response: &Response, name: &str) -> Option<String> {
+fn value<B>(response: &axum::http::Response<B>, name: &str) -> Option<String> {
     set_cookies(response).into_iter().find_map(|c| {
         let value = c.strip_prefix(&format!("{name}="))?.split(';').next()?;
         (!value.is_empty()).then(|| value.to_owned())
@@ -332,7 +339,7 @@ fn removes(response: &Response, name: &str) -> bool {
             .any(|c| c.starts_with(&format!("{name}=;")) && c.ends_with("Max-Age=0"))
 }
 
-fn location_of(response: &Response) -> String {
+fn location_of<B>(response: &axum::http::Response<B>) -> String {
     response.headers()[header::LOCATION]
         .to_str()
         .unwrap()
@@ -666,4 +673,134 @@ async fn no_cookie_is_set_without_tls(pool: PgPool) {
         .await;
     assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
     assert!(set_cookies(&unknown).is_empty());
+}
+
+/// A login through the issuer over `client`, as a browser on the page of kartenn sends
+/// it, with `forwarded` when set: the value of the session cookie.
+async fn login_over(
+    client: &mut wire::Client,
+    idp: &Shared,
+    forwarded: Option<&str>,
+) -> Option<String> {
+    let request = |client: &wire::Client, uri: &str, cookie: Option<&str>| {
+        let mut request = client
+            .request("GET", uri)
+            .header("sec-fetch-site", "same-origin");
+        if let Some(cookie) = cookie {
+            request = request.header(header::COOKIE, cookie);
+        }
+        if let Some(forwarded) = forwarded {
+            request = request.header(header::FORWARDED, forwarded);
+        }
+        request.body(wire::empty()).unwrap()
+    };
+    let started = client
+        .send(request(client, "/v1/auth/login?issuer=main", None))
+        .await;
+    if started.status() != StatusCode::SEE_OTHER {
+        assert_eq!(started.status(), StatusCode::BAD_REQUEST);
+        assert!(set_cookies(&started).is_empty(), "no cookie without TLS");
+        return None;
+    }
+    let location = location_of(&started);
+    let login = value(&started, LOGIN).unwrap();
+    let code = authorize(idp, &location);
+    let state = param(&location, "state");
+    let back = client
+        .send(request(
+            client,
+            &format!("/v1/auth/callback?code={code}&state={state}"),
+            Some(&format!("{LOGIN}={login}")),
+        ))
+        .await;
+    assert_eq!(back.status(), StatusCode::SEE_OTHER);
+    value(&back, SESSION)
+}
+
+/// `GET /v1/me` over `client` with the session cookie `session`.
+async fn me_over(
+    client: &mut wire::Client,
+    session: &str,
+    forwarded: Option<&str>,
+) -> axum::http::Response<axum::body::Bytes> {
+    let mut request = client
+        .request("GET", "/v1/me")
+        .header(header::COOKIE, format!("{SESSION}={session}"));
+    if let Some(forwarded) = forwarded {
+        request = request.header(header::FORWARDED, forwarded);
+    }
+    client.send(request.body(wire::empty()).unwrap()).await
+}
+
+/// REQ-006-25, 32: the cookies of a login cross a real TLS connection in HTTP/1.1 and
+/// HTTP/2, and the session they open is recognised on a new connection.
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_login_crosses_a_local_port_over_tls(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let server = wire::start(f.app.clone(), true).await;
+    for version in wire::VERSIONS {
+        let mut client = server.connect(version).await;
+        let session = login_over(&mut client, &idp, None).await.unwrap();
+        let mut again = server.connect(version).await;
+        let me = me_over(&mut again, &session, None).await;
+        assert_eq!(me.status(), StatusCode::OK, "{version:?}");
+        let body: Value = serde_json::from_slice(me.body()).unwrap();
+        assert_eq!(body["method"], "oidc", "{version:?}");
+    }
+    assert_eq!(f.events("authn.login.succeeded").await, 2);
+}
+
+/// REQ-006-27: behind a trusted proxy on clear HTTP, the cookies follow its
+/// `Forwarded: proto`; from an address not configured, `proto=https` is not believed; a
+/// session cookie or a password arriving in clear → 401.
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_cookies_follow_forwarded_on_a_local_port(pool: PgPool) {
+    const HTTPS: Option<&str> = Some("for=198.51.100.1;proto=https");
+    const HTTP: Option<&str> = Some("for=198.51.100.1;proto=http");
+    let idp = idp().await;
+    let proxied = Fixture::with(
+        &pool,
+        &idp,
+        Settings {
+            trusted_proxies: vec!["127.0.0.0/8".parse().unwrap()],
+            ..Settings::default()
+        },
+    );
+    let direct = Fixture::new(&pool, &idp);
+    let behind = wire::start(proxied.app.clone(), false).await;
+    let open = wire::start(direct.app.clone(), false).await;
+    for version in wire::VERSIONS {
+        let mut client = behind.connect(version).await;
+        let session = login_over(&mut client, &idp, HTTPS).await.unwrap();
+        assert_eq!(
+            me_over(&mut client, &session, HTTPS).await.status(),
+            StatusCode::OK,
+            "{version:?}"
+        );
+        assert_eq!(
+            me_over(&mut client, &session, HTTP).await.status(),
+            StatusCode::UNAUTHORIZED,
+            "{version:?}: a session cookie in clear"
+        );
+        assert_eq!(login_over(&mut client, &idp, HTTP).await, None);
+        let basic = client
+            .send(
+                client
+                    .request("GET", "/v1/me")
+                    .header(header::AUTHORIZATION, "Basic YTpi")
+                    .header(header::FORWARDED, HTTP.unwrap())
+                    .body(wire::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(basic.status(), StatusCode::UNAUTHORIZED, "{version:?}");
+
+        let mut client = open.connect(version).await;
+        assert_eq!(
+            login_over(&mut client, &idp, HTTPS).await,
+            None,
+            "{version:?}: an address not configured"
+        );
+    }
 }

@@ -1,6 +1,7 @@
 //! Transport layers (spec 006, REQ-006-10, 27, 31; task 006-3): `Forwarded` believed
 //! from the trusted proxies only, bounded body (413 announced and while reading, 415),
-//! URL of 8 KiB at most (414), delay (503).
+//! URL of 8 KiB at most (414), delay (503); on a real port (task 006-24), `QUERY` in
+//! HTTP/1.1 and HTTP/2, clear and TLS, and `Forwarded` from the connection to the handler.
 
 use std::future::Future;
 use std::net::SocketAddr;
@@ -15,12 +16,14 @@ use axum::extract::{ConnectInfo, Extension};
 use axum::http::{Request, Response, StatusCode, header};
 use axum::routing::{get, post};
 use http_body_util::BodyExt;
+use kartenn_rest::filter::{ListQuery, collection};
 use kartenn_rest::health::Readiness;
 use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::{Client, ConnectionTls, MAX_URL, Settings};
 use tower::ServiceExt;
 
 mod common;
+mod wire;
 
 struct Ready;
 
@@ -42,6 +45,10 @@ fn app(settings: Settings, called: Arc<AtomicBool>) -> Router {
                 called.store(true, Ordering::SeqCst);
                 async move { body.len().to_string() }
             }),
+        )
+        .route(
+            "/list",
+            collection(|ListQuery(q): ListQuery| async move { q }),
         )
         .route(
             "/slow",
@@ -239,4 +246,109 @@ async fn a_request_over_the_delay_answers_503() {
         problem_type(response).await,
         "urn:kartenn:problem:unavailable"
     );
+}
+
+/// REQ-006-10, 32: the same search by `GET` and by `QUERY`, over each transport; the
+/// `QUERY` without `Content-Type` → 415, played again → the same answer.
+#[tokio::test]
+async fn query_crosses_a_local_port_in_http1_and_h2() {
+    for tls in [false, true] {
+        let server = wire::start(app(settings(), Arc::default()), tls).await;
+        for version in wire::VERSIONS {
+            let mut client = server.connect(version).await;
+            let what = format!("{version:?}, TLS {tls}");
+            let get = client
+                .send(
+                    client
+                        .request("GET", "/v1/list?page_size=7")
+                        .header(header::AUTHORIZATION, "Bearer test")
+                        .body(wire::empty())
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(get.status(), StatusCode::OK, "{what}");
+            assert!(get.headers().contains_key("accept-query"), "{what}");
+            assert_eq!(get.body(), "page_size=7", "{what}");
+            for _ in 0..2 {
+                let query = client
+                    .send(
+                        client
+                            .request("QUERY", "/v1/list")
+                            .header(header::AUTHORIZATION, "Bearer test")
+                            .header(header::CONTENT_TYPE, "application/json")
+                            .body(wire::body(r#"{"page_size":7}"#))
+                            .unwrap(),
+                    )
+                    .await;
+                assert_eq!(query.status(), StatusCode::OK, "{what}");
+                assert!(query.headers().contains_key("accept-query"), "{what}");
+                assert_eq!(query.body(), get.body(), "{what}");
+            }
+            let untyped = client
+                .send(
+                    client
+                        .request("QUERY", "/v1/list")
+                        .header(header::AUTHORIZATION, "Bearer test")
+                        .body(wire::body(r#"{"page_size":7}"#))
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(
+                untyped.status(),
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "{what}"
+            );
+        }
+    }
+}
+
+/// REQ-006-27: the peer and the TLS of the connection reach the handler; `Forwarded` is
+/// believed from the loopback once it is a trusted proxy, ignored otherwise.
+#[tokio::test]
+async fn forwarded_crosses_a_local_port() {
+    let trusted = Settings {
+        trusted_proxies: vec!["127.0.0.0/8".parse().unwrap()],
+        ..settings()
+    };
+    for (settings, tls, forwarded, seen) in [
+        (settings(), false, None, "127.0.0.1 false"),
+        (settings(), true, None, "127.0.0.1 true"),
+        (
+            settings(),
+            false,
+            Some("for=198.51.100.1;proto=https"),
+            "127.0.0.1 false",
+        ),
+        (
+            trusted.clone(),
+            false,
+            Some("for=198.51.100.1;proto=https"),
+            "198.51.100.1 true",
+        ),
+        (
+            trusted.clone(),
+            true,
+            Some("for=198.51.100.1;proto=http"),
+            "198.51.100.1 false",
+        ),
+        (trusted.clone(), false, None, "127.0.0.1 false"),
+    ] {
+        let server = wire::start(app(settings, Arc::default()), tls).await;
+        for version in wire::VERSIONS {
+            let mut client = server.connect(version).await;
+            let mut request = client
+                .request("GET", "/v1/client")
+                .header(header::AUTHORIZATION, "Bearer test");
+            if let Some(forwarded) = forwarded {
+                request = request.header(header::FORWARDED, forwarded);
+            }
+            let response = client.send(request.body(wire::empty()).unwrap()).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.body(),
+                seen,
+                "{version:?}, TLS {tls}, {forwarded:?}"
+            );
+        }
+    }
 }

@@ -469,10 +469,20 @@ routeur complet, sauf mention « vrai TCP ».
   `core.object.forbidden`, 422 ; 403 aux actions hors changeset)
   choix : authentificateur de test par jeton fixe (`Who`) ; journal d'audit coupé par un
   déclencheur sur `audit.event` ; valeur sensible posée en SQL comme dans `objects.rs`
-- [ ] 24. Vrai TCP et TLS : `QUERY` en HTTP/1.1 et h2, cookies et `Forwarded` de bout en
+- [x] 24. Vrai TCP et TLS : `QUERY` en HTTP/1.1 et h2, cookies et `Forwarded` de bout en
   bout — REQ-006-10, 27, 32 — verify : tests d'intégration sur un port local
   où : design « Transport » ; `rest/src/transport.rs`, `kartenn-server/src/http.rs` ;
   tests à étendre `tests/transport.rs`, `tests/sessions.rs`, `tests/csrf.rs`
+  Module de test `rest/tests/wire` (routeur servi par `kartenn_server::http::serve`, en
+  clair ou en TLS auto-signé, client HTTP/1.1 ou h2 par ALPN, h2c en clair). Tests
+  `rest/tests/transport.rs` (`query_crosses_a_local_port_in_http1_and_h2`,
+  `forwarded_crosses_a_local_port`), `sessions.rs`
+  (`a_login_crosses_a_local_port_over_tls`, `the_cookies_follow_forwarded_on_a_local_port`),
+  `csrf.rs` (`the_check_holds_on_a_local_port`)
+  choix : `kartenn-server` en dépendance de développement de `kartenn-rest` (cycle de
+  dev-dépendance admis par cargo) pour servir par le vrai `serve` ; `hyper` client,
+  `hyper-util`, `tokio-rustls`, `rcgen` en dépendances de développement (déjà dans
+  l'espace de travail) ; le proxy de confiance des tests est le bouclage `127.0.0.0/8`
 - [ ] 25. Banc `bench-http` : scénarios de `bench-core` à travers HTTP, charge de
   200 utilisateurs et 50 écritures/s — REQ-006-39 — verify : p95 sous INV-30 à 34 et
   INV-36, surcoût rapporté par rapport au banc du service

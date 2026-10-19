@@ -46,7 +46,13 @@ jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust
 p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }
-tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net"] }
 time = { version = "0.3.55", features = ["formatting", "macros"] }
 tower = { version = "0.5", features = ["util"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }
+# Serving the router over a real port, in clear and in TLS (task 006-24).
+kartenn-server = { version = "0.0.0", path = "../kartenn-server" }
+hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
+rcgen = "0.14.10"

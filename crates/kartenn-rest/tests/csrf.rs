@@ -1,6 +1,7 @@
 //! The CSRF check (spec 006, REQ-006-28; task 006-8): through the router, an unsafe method
 //! of a cookie session from another origin → 403; the safe methods, `QUERY`, and the
-//! requests by `Bearer` pass whatever their headers.
+//! requests by `Bearer` pass whatever their headers; the same on a real port in TLS, in
+//! HTTP/1.1 and HTTP/2 (task 006-24).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -21,6 +22,8 @@ use kartenn_service::authn::{IdentityKind, Method, Principal};
 use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
+
+mod wire;
 
 const PUBLIC: &str = "https://kartenn.example.invalid";
 
@@ -161,5 +164,30 @@ async fn safe_methods_and_bearer_not_concerned() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NO_CONTENT, "{method}");
+    }
+}
+
+/// The cookie and the headers of the browser cross a real TLS connection: a cross-site
+/// `POST` by cookie → 403, the same-origin one and a cross-site `QUERY` pass.
+#[tokio::test]
+async fn the_check_holds_on_a_local_port() {
+    let server = wire::start(app(), true).await;
+    for version in wire::VERSIONS {
+        let mut client = server.connect(version).await;
+        for (method, site, status) in [
+            ("POST", "cross-site", StatusCode::FORBIDDEN),
+            ("POST", "same-origin", StatusCode::NO_CONTENT),
+            ("QUERY", "cross-site", StatusCode::NO_CONTENT),
+        ] {
+            let request = client
+                .request(method, "/v1/thing")
+                .header(header::COOKIE, "__Host-kartenn=s")
+                .header("sec-fetch-site", site)
+                .header(header::ORIGIN, "https://other.example.invalid")
+                .body(wire::empty())
+                .unwrap();
+            let response = client.send(request).await;
+            assert_eq!(response.status(), status, "{version:?} {method} {site}");
+        }
     }
 }
