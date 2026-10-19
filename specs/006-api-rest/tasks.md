@@ -313,9 +313,16 @@ routeur complet, sauf mention « vrai TCP ».
 - [ ] 18. Administration des droits : rôles, liaisons, rattachements, comptes de
   service et secrets (réponse `Secret`, `no-store`), état des identités — REQ-006-4,
   32 — verify : délégué sans escalade (005) par HTTP ; secret jamais compressé
+  où : design « Ressources et routes » (ligne Droits) ; store `rbac_admin.rs` (`bind`,
+  `add_secret`, `binding_scope`) ; réponse `compression::Secret` ; modèle de route
+  `rest/src/resources.rs`, branchement `rest/src/lib.rs::v1` ; test à imiter
+  `tests/resources.rs`
 - [ ] 19. Audit et exploitation : recherche et export (`GET`, `QUERY`),
   pseudonymisation, filtres de log à chaud — REQ-006-4 — verify : consultation sans
   permission refusée et auditée ; filtre qui revient à la configuration
+  où : design « Ressources et routes » (ligne Audit, Exploitation) ; service
+  `reads::read_audit`, `observability::set_log_filter` ; store `audit.rs` (`search`,
+  `pseudonymise`) ; `QUERY` comme `rest/src/filter.rs` ; test à imiter `tests/filter.rs`
 
 ## P5 — Tâches de fond et imports
 
@@ -324,11 +331,18 @@ routeur complet, sauf mention « vrai TCP ».
   `idempotency-purge` ; minuteries locales (caches, limiteurs, JWKS) — REQ-006-38 —
   verify : trois planificateurs sur une base, une exécution par échéance ; détenteur
   arrêté → reprise après le bail
+  où : design « Imports et tâches de fond » ; `review::expire_pending`,
+  `expected::reevaluate_outdated`, store `registry::public_drift` ; migration suivante
+  `0039_job.sql` ; boucle lancée depuis `kartenn-server/src/app.rs`
 - [ ] 21. Imports : migration `import_chunk` et état `uploading`, `PUT` des morceaux
   (identique ignoré, différent → 409, > 10 000 → 413), `start` (202), `resume`,
   `cancel`, état et `Retry-After`, exécution comme tâche — REQ-006-17, 18, 19 — verify :
   10⁶ éléments en 100 morceaux dont un renvoyé ; arrêt d'une instance pendant
   l'exécution, fin sur une autre sans doublon
+  où : design « Imports et tâches de fond », « Transport » (limites des morceaux) ;
+  service `import.rs` (`create_import`, `run_import`, `import_status`) ; migration
+  `import_chunk` après celle de la tâche 20 ; tâche `import` du planificateur de la tâche
+  20
 
 ## P6 — Contrat, bout en bout, budgets
 
@@ -337,13 +351,25 @@ routeur complet, sauf mention « vrai TCP ».
   `specs/006-api-rest/openapi-v1.json` et comparateur — REQ-006-4, 33, 34, 35 — verify :
   toutes les opérations de REQ-006-4 présentes ; un champ retiré fait échouer le test ;
   `Deprecation` et `Sunset` sur une route de test retirée
+  où : design « Versions et contrat » ; dépendances `utoipa`/`utoipa-axum` (design «
+  Crates et dépendances ») ; routes existantes de `rest/src/*.rs` à annoter ; binaire
+  `openapi` de `kartenn-rest`, à créer
 - [ ] 23. Matrice des erreurs : un test par ligne du tableau du design — REQ-006-20 à
   23 — verify : statut, `type`, `Request-Id`, aucune valeur sensible
+  où : design « Erreurs » (tableau) et « Erreurs et cas limites » ;
+  `rest/src/problem.rs`, `rest/src/error.rs` ; un test par ligne, à la manière de
+  `tests/socle.rs`
 - [ ] 24. Vrai TCP et TLS : `QUERY` en HTTP/1.1 et h2, cookies et `Forwarded` de bout en
   bout — REQ-006-10, 27, 32 — verify : tests d'intégration sur un port local
+  où : design « Transport » ; `rest/src/transport.rs`, `kartenn-server/src/http.rs` ;
+  tests à étendre `tests/transport.rs`, `tests/sessions.rs`, `tests/csrf.rs`
 - [ ] 25. Banc `bench-http` : scénarios de `bench-core` à travers HTTP, charge de
   200 utilisateurs et 50 écritures/s — REQ-006-39 — verify : p95 sous INV-30 à 34 et
   INV-36, surcoût rapporté par rapport au banc du service
+  où : design « Stratégie de test » (ligne 39) ; `kartenn-bench/src/core_budgets.rs`
+  (scénarios à rejouer), `main.rs` (sous-commandes) ; agent `bench-runner`
 - [ ] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (section API
   REST, Q-ouv-7 close), `invariants.md`, ADR 0022 et 0023 acceptés, `specs/README.md`
   — verify : `spec-keeper` sur `specs/006-api-rest`
+  où : `docs/spec/interfaces.md`, `docs/spec/invariants.md`, `docs/adr/0022-*`,
+  `docs/adr/0023-*`, `specs/README.md` ; agent `spec-keeper`
