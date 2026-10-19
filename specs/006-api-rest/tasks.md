@@ -340,6 +340,10 @@ routeur complet, sauf mention « vrai TCP ».
   où : design « Ressources et routes » (ligne Audit, Exploitation) ; service
   `reads::read_audit`, `observability::set_log_filter` ; store `audit.rs` (`search`,
   `pseudonymise`) ; `QUERY` comme `rest/src/filter.rs` ; test à imiter `tests/filter.rs`
+  — Arbitrage au design (« Audit et exploitation », 2026-10-19) : curseur sur `seq`,
+  export NDJSON par `Accept`, pseudonymisation immédiate sous
+  `core.identity.pseudonymise`, filtres `object`, `from`, `to`, `retroactive` sur
+  `GET /v1/changesets` (REQ-004-32)
 
 ## P5 — Tâches de fond et imports
 

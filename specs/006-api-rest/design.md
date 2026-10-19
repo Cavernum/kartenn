@@ -223,6 +223,38 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     directes, de groupe ou d'émetteur), `global_permissions` (celles des liaisons
     globales) et `session.expires_at` (fin de session, par inactivité ou durée absolue ;
     `session` reste `null` hors session cookie).
+- **Audit et exploitation (arbitrage du 2026-10-19, 006-19)** :
+  - journal : `GET /v1/audit-events?from=…&to=…&name=…&actor=…&object=…` et `QUERY
+    /v1/audit-events` (corps JSON, mêmes critères, chacun facultatif ; `from`/`to` en
+    RFC 3339 avec décalage, `actor`/`object` UUID) exigent `core.audit.read`
+    (REQ-012-17) ; sans elle → 403 `forbidden` et `authz.access.denied`. État courant
+    seulement (`valid_at`, `as_of` → 400). Un événement est la ligne exportée telle
+    quelle (`audit.event`, avec `seq`) ; tri par `seq` décroissant, curseur opaque sur
+    `seq` (`limit` jusqu'à 1000, 100 par défaut), `{items, links: {next}}`. Chaque page
+    est auditée `audit.events.read` (critères, nombre) ;
+  - export : la même route sous `Accept: application/x-ndjson` rend toute la sélection,
+    un événement par ligne, en flux lu par pages internes (pas de curseur ni de
+    `limit`) ; un seul `audit.events.read` avec les critères et le nombre total, écrit
+    avant le flux (son nombre est celui de la sélection au moment de l'audit), même
+    permission ;
+  - pseudonymisation : `POST /v1/identities/{id}/pseudonymisation {motive}` exige
+    `core.identity.pseudonymise`, nouvelle permission du catalogue 005, globale ; sans
+    elle → 403 et `authz.access.denied`, avant toute recherche. Immédiate, sans
+    condition de départ ni de délai (le traitement par lot de REQ-004-33 reste) ;
+    `motive` obligatoire (422 `motive-required`). Personne inconnue → 404 ; compte de
+    service → 409 `conflict` ; déjà pseudonymisée → 200 sans effet ni nouvel événement.
+    L'événement `person.pseudonymised` (acteur, motif) est écrit dans la transaction de
+    la pseudonymisation ; réponse 200, l'identité (forme de `GET /v1/identities/{id}`) ;
+  - recherche de changesets (REQ-004-32) : `GET /v1/changesets` gagne, par ajout
+    (REQ-006-33), `object` (UUID : changesets qui ont écrit l'objet, version courante
+    ou historique), `from` et `to` (temps de soumission, `from` inclus, `to` exclu,
+    RFC 3339 avec décalage) et `retroactive` (`true`/`false`), chacun au plus une fois ;
+  - filtres de log : `PUT /v1/log-filters/{output} {filter, ttl}` (`ttl` en secondes,
+    3600 par défaut, 86 400 au plus) exige `core.observability.admin` ; sortie non
+    configurée → 404 ; filtre qui ne s'analyse pas ou durée hors bornes → 422
+    `invalid-override` ; 200 `{output, filter, expires_at}`. Chaque instance applique la
+    surcharge à sa prochaine lecture et revient d'elle-même à la configuration à
+    l'échéance (REQ-012-27).
 
 ### Représentations et DTO (REQ-006-2, 3, 13)
 
