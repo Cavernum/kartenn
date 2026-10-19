@@ -19,7 +19,7 @@ le SDK et son client HTTP, le contexte temporel, les parcours d'écriture, les v
 la v0.1, l'internationalisation, l'accessibilité, les budgets du navigateur et les
 tests de bout en bout.
 
-Décisions : [`decisions.md`](decisions.md) (W1–W27) ; D6, D7, D14, D17, D31, D37
+Décisions : [`decisions.md`](decisions.md) (W1–W28) ; D6, D7, D14, D17, D31, D37
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; Q-ouv-1 (SDK en
 MPL-2.0), Q-ouv-6 (i18n, FR et EN) ; ADR 0011, 0020, 0022, 0024 ; 006 (surface et
 conventions de l'API). Sources :
@@ -659,8 +659,9 @@ le shell a besoin : les champs de `ui_plugins` (REQ-007-9) ; dans `GET /v1/me`,
 `permissions`, les entrées des rôles tenus sur au moins un périmètre ;
 `GET /v1/auth/issuers`, sans authentification, l'identifiant et le libellé de chaque
 émetteur (`label` facultatif de `[[auth.issuers]]`, défaut : `id`) ;
-`Clear-Site-Data: "storage"` sur la réponse de la déconnexion. Le contrat de référence
-doit être mis à jour avec eux. [W17, W18, W22, H12, REQ-006-34]
+`Clear-Site-Data: "storage"` sur la réponse de la déconnexion, et sa variante JSON
+(`Accept: application/json` → 200 et `end_session_url`). Le contrat de référence doit
+être mis à jour avec eux. [W17, W18, W22, W28, H12, REQ-006-34]
 
 ## Non-objectifs
 

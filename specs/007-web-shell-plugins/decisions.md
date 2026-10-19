@@ -37,6 +37,7 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - W25 livraison : un répertoire de build ; paquets OCI et NixOS hors 007 ; D35 amendée.
 - W26 développement : Vite relaie à kartenn-server ; E2E sur le build servi en TLS.
 - W27 choix de rédaction des exigences, validés par délégation.
+- W28 déconnexion par `fetch` : variante JSON de `POST /v1/auth/logout`.
 
 ## W1 — Périmètre des vues
 - Décision : **noyau, changesets et administration**. Données du noyau (domaines, arbre
@@ -365,4 +366,17 @@ maximum en fonction de tes recommandations ». W18 à W27 appliquent les recomma
   effacé après 7 jours ; `incomplete` d'axe-core non bloquant ; émetteur de
   développement sur la boucle locale ; plugin d'exemple non livré. S'y ajoutent des
   bornes : fichier d'un plugin ≤ 8 Mio, plugin ≤ 32 Mio, ensemble ≤ 128 Mio.
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W28 — Déconnexion par `fetch`
+- Décision : `POST /v1/auth/logout` demandé avec `Accept: application/json` répond 200
+  `{"end_session_url": …}` (`null` sans point de fin de session) au lieu de 303, avec la
+  même suppression du cookie et `Clear-Site-Data: "storage"` ; le shell navigue ensuite
+  vers cette URL. Sans cet en-tête, la réponse reste 303.
+- Pourquoi : `form-action 'self'` (W27) bloque la redirection d'un formulaire vers
+  l'émetteur, et un `fetch` ne peut lire la cible d'une redirection ; une navigation
+  vers une autre origine n'est pas soumise à la CSP.
+- Rejeté : `form-action` ouverte aux origines des émetteurs (liste à recalculer à chaque
+  découverte) ; pas de `form-action` (une injection de formulaire redeviendrait un
+  canal de fuite).
 - Décidé par : Claude, par délégation de l'utilisateur
