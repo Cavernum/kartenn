@@ -182,18 +182,20 @@ fn filter_sql<'a>(first: &str, others: impl Iterator<Item = &'a str>) -> String 
         sql
     });
     let visible = crate::rbac::readable("v.id", "v.kind", "v.domain_id", "v.value", "$3");
+    // The kind, the values and the scope in one scalar subquery, evaluated per object: as
+    // an `EXISTS` beside the scope, the planner joined the whole view (bench-http,
+    // 006-25: 2 s for a page of 100 at 10⁶ addresses).
     format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($10))
          SELECT DISTINCT id FROM ({first}) w
          WHERE ($4::uuid IS NULL OR id > $4){others}
-           AND (($11::text IS NULL AND cardinality($12::text[]) = 0) OR EXISTS (
-                SELECT 1 FROM addressing_object k
-                WHERE k.id = w.id AND k.valid_period @> $3
-                  AND ($11::text IS NULL OR k.kind = $11)
-                  AND (cardinality($12::text[]) = 0 OR k.value = ANY($12::text[]::inet[]))))
-           AND ($10::jsonb IS NULL OR coalesce((
-                SELECT {visible} FROM addressing_object v
-                WHERE v.id = w.id AND v.valid_period @> $3), false))
+           AND (($10::jsonb IS NULL AND $11::text IS NULL AND cardinality($12::text[]) = 0)
+                OR coalesce((
+                SELECT $10::jsonb IS NULL OR {visible} FROM addressing_object v
+                WHERE v.id = w.id AND v.valid_period @> $3
+                  AND ($11::text IS NULL OR v.kind = $11)
+                  AND (cardinality($12::text[]) = 0 OR v.value = ANY($12::text[]::inet[]))),
+                false))
          ORDER BY id LIMIT $5"
     )
 }
