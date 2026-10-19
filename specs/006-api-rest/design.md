@@ -245,9 +245,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `expected` = ETag ; `DELETE` → `Operation::Close…` (corps facultatif : `motive`,
   `valid_from`). Le motif d'un `DELETE` sans corps manque → 422 `motive-required`.
 - **Réponses** : 201 et `Location` vers l'objet (création), 200 (modification ou
-  clôture), 202 (en attente) ; toujours `Link: </v1/changesets/{id}>; rel="changeset"`
-  (type de relation d'extension : URI propre à kartenn, RFC 8288 §2.1.2) et
-  `changeset` dans le corps.
+  clôture), 202 (en attente) ; toujours
+  `Link: </v1/changesets/{id}>; rel="urn:kartenn:rel:changeset"` (type de relation
+  d'extension : URI propre à kartenn, RFC 8288 §2.1.2) et `changeset` dans le corps.
 - **`If-Match`** : absent sur `PATCH`, `DELETE` ou une action de changeset → 428 ; la
   valeur devient `expected` ; un conflit du pipeline (`expected` périmé) → 412.
   `If-Match: *` est refusé (428) : il ne protège de rien.
@@ -262,6 +262,22 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     lui-même immuable : « inchangée » sans stocker de réponse.
   - Contenu différent : `RequestError::IdempotencyConflict` → 422.
   - Purge des clés expirées : tâche de fond (REQ-006-38).
+- **`POST /v1/changesets` (arbitrage du 2026-10-19, 006-14)** :
+  - corps `application/json` (autre type → 415), ni JSON Patch ni Merge Patch :
+    `{motive, valid_from, valid_to, operations}`. `valid_from` et `valid_to` sont des
+    dates RFC 3339 avec décalage ; `valid_to` absent ou `null` vaut l'infini (pas de
+    valeur spéciale), `valid_from` absent vaut l'heure de la base (REQ-004-3) ; les
+    deux absents : `[instant de la transaction, ∞)`. Les opérations gardent la forme du
+    service (discriminant `op`, `Ref` `{"id": …}` ou `{"local": n}`, période de
+    `within` en microsecondes) jusqu'au DTO du contrat (006-22) ;
+  - `?simulate=true` → 200 `{valid, violations, diff, sample, cascaded}`, rien de
+    journalisé, donc sans lien ; appliqué → 201, `Location` et `Link` vers le
+    changeset ; en attente → 202 et `Link` ; corps `{changeset: {id, href}, state, …}` ;
+  - indice d'opération : la violation du noyau porte `operation: Option<usize>`,
+    renseigné par le pipeline là où une opération en est la source (planification,
+    écriture, cascade : l'opération de la clôture) et journalisé avec elle ; une
+    violation de l'état final (REQ-004-7) n'en a pas : `operation` et `pointer` valent
+    `null`. Le pointeur désigne l'opération entière (`/operations/2`), pas un membre.
 
 ### Erreurs (REQ-006-20 à 23)
 
