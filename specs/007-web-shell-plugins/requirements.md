@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-19
 ---
 
@@ -19,7 +19,7 @@ le SDK et son client HTTP, le contexte temporel, les parcours d'écriture, les v
 la v0.1, l'internationalisation, l'accessibilité, les budgets du navigateur et les
 tests de bout en bout.
 
-Décisions : [`decisions.md`](decisions.md) (W1–W17) ; D6, D7, D14, D17, D31, D37
+Décisions : [`decisions.md`](decisions.md) (W1–W27) ; D6, D7, D14, D17, D31, D37
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; Q-ouv-1 (SDK en
 MPL-2.0), Q-ouv-6 (i18n, FR et EN) ; ADR 0011, 0020, 0022, 0024 ; 006 (surface et
 conventions de l'API). Sources :
@@ -99,7 +99,8 @@ la seule origine (`connect-src 'self'`), aucun objet (`object-src 'none'`), aucu
 ancêtre (`frame-ancestors 'none'`), `base-uri 'none'` et `form-action 'self'` ; et sur
 toute réponse du shell et des plugins `X-Content-Type-Options: nosniff` et
 `Referrer-Policy: same-origin`. Le shell ne doit charger aucune ressource d'une autre
-origine (scripts, styles, polices, images, mesures). [W2, W4, W17, CSP3
+origine (scripts, styles, polices, images, mesures), ni style en ligne (`style-src
+'self'`). [W2, W4, W17, W19, CSP3
 §directive-script-src, §directive-frame-ancestors, §should-block-inline, INV-23]
 
 Acceptation :
@@ -141,12 +142,15 @@ Là où `[web] plugins_dir` est configuré, kartenn doit y lire un plugin par
 sous-répertoire contenant un manifeste valide et servir ses fichiers sous
 `/plugins/<nom>/<version>/`, nom et version tirés du manifeste ; seuls les types de
 fichiers d'une liste fermée (modules ES, CSS, JSON, images, polices) doivent être
-servis, avec leur type de média. Les octets servis doivent être ceux dont l'empreinte
-est publiée (REQ-007-9). [W3]
+servis, avec leur type de média, et à une requête authentifiée seulement. Les octets
+servis doivent être ceux dont l'empreinte est publiée (REQ-007-9). Sans session valide,
+`index.html` ne doit lister aucun plugin. [W3, W21]
 
 Acceptation :
 - Un plugin `exemple` version `1.2.0` est servi sous `/plugins/exemple/1.2.0/` ; un
   fichier `.sh` du même répertoire → 404.
+- Sans session : `GET /plugins/exemple/1.2.0/index.js` → 404, et `index.html` ne nomme
+  pas `exemple`.
 
 #### REQ-007-8 — Manifeste
 kartenn doit refuser un manifeste qui n'est pas conforme au schéma du manifeste publié
@@ -177,7 +181,8 @@ Acceptation :
 #### REQ-007-10 — Rechargement à chaud
 Quand l'exploitant ajoute, remplace ou retire un plugin, kartenn doit publier le nouvel
 ensemble dans les 30 s, ou dès `SIGHUP`, sans redémarrer ni reconstruire ; un shell
-déjà ouvert doit garder ses plugins jusqu'au rechargement de la page. [W3, D6]
+déjà ouvert doit garder les plugins de son document jusqu'au rechargement de la page.
+[W3, W20, D6]
 
 Acceptation :
 - Plugin copié dans le répertoire d'une instance en marche : il figure dans les
@@ -477,9 +482,9 @@ Acceptation :
 #### REQ-007-45 — Déconnexion
 Lors d'une déconnexion, le shell doit effacer brouillons, caches et préférences autres
 que la langue et le thème, dans tous ses onglets, puis appeler la déconnexion de l'API
-(005/REQ-005-8) ; aucune donnée du référentiel ne doit rester dans le stockage de
-l'origine, y compris celui qu'ont rempli les plugins. [W10, W17, Clear-Site-Data,
-IndexedDB]
+(005/REQ-005-8), dont la réponse doit porter `Clear-Site-Data: "storage"` ; aucune
+donnée du référentiel ne doit rester dans le stockage de l'origine, y compris celui
+qu'ont rempli les plugins. [W10, W17, W22, Clear-Site-Data, IndexedDB]
 
 Acceptation :
 - Deux onglets ouverts, déconnexion dans l'un : IndexedDB (bases du shell et des
@@ -606,11 +611,11 @@ par Vitest avec un `fetch` simulé typé par le contrat. [W15, W17]
 Le dépôt doit fournir un émetteur OIDC de développement (crate `kartenn-dev-idp`) :
 découverte, JWKS, autorisation avec choix de l'utilisateur, jeton ; utilisateurs et
 groupes en TOML ; processus devenv ; il ne doit écouter que la boucle locale et ne doit
-figurer dans aucun paquet livré. [W16, RFC 8252 §7.3]
+figurer dans aucun livrable. [W16, W25, RFC 8252 §7.3]
 
 Acceptation :
-- Le contenu des paquets OCI et Nix ne contient pas `kartenn-dev-idp` ; un test le
-  vérifie.
+- `kartenn-dev-idp` n'est une dépendance ni de `kartenn-server` ni d'aucune crate
+  livrée ; un test de l'arbre des dépendances le vérifie.
 
 ### L. Modules, livraison et licences
 
@@ -624,9 +629,10 @@ Acceptation :
 - Une importation d'un fichier de `web/shell` depuis `web/plugins/*` fait échouer le
   lint ; le build du shell ne contient aucun code d'un plugin.
 
-#### REQ-007-63 — Paquets
-Les paquets OCI et Nix doivent embarquer le build du shell et les plugins de première
-partie, et régler `[web] root` sur eux par défaut. [W2, W6, D35]
+#### REQ-007-63 — Répertoire de build
+Le build du web doit produire un répertoire autonome (gabarit `index.html`, fichiers à
+empreinte, plugins de première partie sous `plugins/`) que kartenn-server sert tel quel
+par `[web] root` ; les paquets de D35 l'embarqueront. [W2, W6, W25, D35 amendée]
 
 #### REQ-007-64 — Plugin d'exemple
 Le dépôt doit fournir un plugin d'exemple (`web/plugins/exemple/`) qui contribue aux
@@ -649,10 +655,12 @@ les autres réglages (REQ-012-31). [W2, W3, W17]
 
 #### REQ-007-67 — Ajouts additifs
 kartenn doit faire, sans rien retirer ni changer de `/v1` (REQ-006-33), les ajouts dont
-le shell a besoin : les champs de `ui_plugins` (REQ-007-9) ; dans `GET /v1/me`, les
-permissions accordées sur au moins un périmètre ; une liste publique des émetteurs
-proposés à la connexion (identifiant et libellé). Le contrat de référence doit être
-mis à jour avec eux. [W17, H12, REQ-006-34]
+le shell a besoin : les champs de `ui_plugins` (REQ-007-9) ; dans `GET /v1/me`,
+`permissions`, les entrées des rôles tenus sur au moins un périmètre ;
+`GET /v1/auth/issuers`, sans authentification, l'identifiant et le libellé de chaque
+émetteur (`label` facultatif de `[[auth.issuers]]`, défaut : `id`) ;
+`Clear-Site-Data: "storage"` sur la réponse de la déconnexion. Le contrat de référence
+doit être mis à jour avec eux. [W17, W18, W22, H12, REQ-006-34]
 
 ## Non-objectifs
 
@@ -672,45 +680,25 @@ mis à jour avec eux. [W17, H12, REQ-006-34]
 - Trusted Types imposés (`require-trusted-types-for 'script'`) : au plus en
   report-only tant que les plugins tiers n'y sont pas conformes.
 - Registres de Custom Elements à portée : absents de Firefox ESR en 2026-10.
+- Paquets OCI et module NixOS (D35) : spec à venir ; la 007 livre le répertoire de
+  build qu'ils embarqueront (W25).
 - Langues autres que le français et l'anglais ; documentation de l'interface en anglais
   (Q-ouv-6, reste ouverte pour la documentation).
 
 ## Questions ouvertes
 
-- [ ] Ajouts à l'API hors W17 (REQ-007-67) : permissions par union dans `GET /v1/me` et
-  liste publique des émetteurs, avec un libellé facultatif dans `[[auth.issuers]]`.
-  Contrat public, à arbitrer. (utilisateur)
-- [ ] CSP des styles (REQ-007-3) : (a) `style-src 'self'` strict, CSS extrait au build
-  et fichiers CSS des plugins, les violations mesurées en E2E ; (b) en repli
-  `style-src-attr 'unsafe-inline'` pour les seuls attributs `style` ; (c)
-  `'unsafe-inline'` pour tous les styles. Recommandation : (a), les plugins Vue de
-  première partie extrayant leur CSS. Sécurité, à arbitrer.
-  ([note](../../docs/reference/plateforme-web.md), point 5) (utilisateur)
-- [ ] Production de l'import map (REQ-007-11, 15) : `index.html` rendu par le serveur
-  avec la clé `integrity` de chaque module du shell et des plugins retenus, et
-  l'empreinte CSP de ses octets exacts (recommandé par la note, points 2 à 4) ; une
-  import map figée au build ne couvrirait pas les plugins déposés à chaud. (Claude,
-  design)
-- [ ] Effacement à la déconnexion (REQ-007-45) : effacement par le shell dans chaque
-  onglet (`versionchange`) et `Clear-Site-Data: "storage"` sur la réponse de
-  déconnexion, pris en charge par toute la cible mais qui efface aussi langue et thème
-  (à réécrire ensuite) ; `navigator.storage.persist()` pour le brouillon. (Claude,
-  design)
-- [ ] Mesure des budgets hors Chromium (ralentissement du CPU et tâches longues ne sont
-  mesurables que sur Chromium) : budgets mesurés sur Chromium seul. (Claude, design)
-- [ ] WebKit dans les E2E de l'intégrité (REQ-007-11) : W17 limite les E2E à Chromium et
-  Firefox, or Safari diverge sur l'intégrité des modules ; WebKit fourni par le
-  Playwright de Nix : non vérifié. (Claude, design)
-- [ ] Outil de comparaison de la surface publique du SDK (REQ-007-17) : dépendance de
-  développement, à arbitrer au design. (Claude, design ; utilisateur pour la
-  dépendance)
-- [ ] Choix tranchés par Claude en écrivant les exigences, à valider à la relecture :
-  `Referrer-Policy: same-origin` et `form-action 'self'` (REQ-007-3) ; fichiers des
-  plugins en `no-cache` avec ETag (REQ-007-4) ; plugin invalide écarté sans refuser le
-  démarrage, noms `k` et `kartenn` réservés, noms de Custom Elements déclarés au
-  manifeste (REQ-007-8) ; relecture du répertoire toutes les 30 s et sur `SIGHUP`
-  (REQ-007-10) ; sous-ensemble des plages node-semver (REQ-007-12) ; SDK publié d'emblée
-  en `1.0.0` (REQ-007-17) ; brouillon effacé après 7 jours sans modification
-  (REQ-007-32) ; résultats `incomplete` d'axe-core non bloquants (REQ-007-53) ; émetteur
-  de développement limité à la boucle locale (REQ-007-61) ; plugin d'exemple non livré
-  (REQ-007-64). (utilisateur, à la relecture)
+Toutes tranchées le 2026-10-19, par délégation de l'utilisateur, selon la recommandation
+([`decisions.md`](decisions.md), W18 à W27).
+
+- [x] Ajouts à l'API hors W17 (REQ-007-67). (utilisateur, délégué) — W18.
+- [x] CSP des styles (REQ-007-3). (utilisateur, délégué) — W19 : `style-src 'self'`
+  strict.
+- [x] Production de l'import map (REQ-007-11, 15). (Claude, design) — W20 :
+  `index.html` rendu par kartenn.
+- [x] Effacement à la déconnexion (REQ-007-45). (Claude, design) — W22.
+- [x] Mesure des budgets hors Chromium ; WebKit dans les E2E. (Claude, design) — W23.
+- [x] Outil de comparaison de la surface publique du SDK (REQ-007-17). (Claude, design ;
+  utilisateur, délégué) — W24 : api-extractor.
+- [x] Choix tranchés par Claude en écrivant les exigences. (utilisateur, délégué) — W27.
+- [ ] Amendement de D35 (image « web statique » remplacée par le build servi par
+  kartenn-server, W25). (utilisateur, à la relecture)

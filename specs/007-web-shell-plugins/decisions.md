@@ -27,6 +27,16 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - W16 émetteur de dev : crate `kartenn-dev-idp`, jamais livré.
 - W17 choix de conduite : API additive, `/v1/me` pour l'interface, session, état,
   navigateurs, licences par répertoire.
+- W18 API : `permissions` dans `/v1/me`, `GET /v1/auth/issuers` public, `label` des émetteurs.
+- W19 styles : `style-src 'self'` strict, CSS extrait au build.
+- W20 `index.html` rendu par kartenn : import map avec `integrity`, plugins du document, CSP.
+- W21 plugins réservés aux sessions authentifiées.
+- W22 déconnexion : effacement par le shell et `Clear-Site-Data: "storage"`.
+- W23 budgets sur Chromium ; WebKit pour l'intégrité et la CSP s'il est fourni.
+- W24 surface du SDK : api-extractor, rapport comparé.
+- W25 livraison : un répertoire de build ; paquets OCI et NixOS hors 007 ; D35 amendée.
+- W26 développement : Vite relaie à kartenn-server ; E2E sur le build servi en TLS.
+- W27 choix de rédaction des exigences, validés par délégation.
 
 ## W1 — Périmètre des vues
 - Décision : **noyau, changesets et administration**. Données du noyau (domaines, arbre
@@ -245,3 +255,114 @@ Peu coûteux à défaire, invisibles de l'extérieur ; à reprendre dans le desi
 - **Licences** : `web/sdk` et `web/plugins/*` en MPL-2.0 (en-tête par fichier), `web/shell`
   en AGPL-3.0.
 - Décidé par : Claude (délégation des choix réversibles)
+
+## Arbitrages des questions ouvertes des exigences
+
+Le 2026-10-19, l'utilisateur a délégué les questions ouvertes des exigences : « poursuis au
+maximum en fonction de tes recommandations ». W18 à W27 appliquent les recommandations de
+`requirements.md` et de la [note de référence](../../docs/reference/plateforme-web.md).
+
+## W18 — Ajouts à l'API pour le shell
+- Décision : en plus de W17, `GET /v1/me` gagne `permissions` (entrées des rôles tenus sur
+  au moins un périmètre, motifs compris) ; `GET /v1/auth/issuers`, sans authentification,
+  donne `id` et `label` des émetteurs ; `[[auth.issuers]]` gagne `label` (défaut : `id`).
+- Pourquoi : sans eux, le shell ne peut ni filtrer les extensions (REQ-007-19) ni
+  proposer la connexion par émetteur (REQ-007-44) ; ajouts seulement (006/H12).
+- Rejeté : liste des émetteurs injectée dans `index.html` (hors contrat, inutile au CLI) ;
+  actions permises par objet dans chaque représentation (touche toute la 006).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W19 — CSP des styles
+- Décision : **`style-src 'self'` strict** : le CSS du shell est extrait au build, les
+  plugins livrent des fichiers CSS (`<link>` dans leur racine d'ombre ou feuilles
+  construites), les plugins Vue de première partie extraient leur CSS. Le repli
+  `style-src-attr 'unsafe-inline'` n'est admis que si une bibliothèque du shell l'exige,
+  constaté par les violations relevées en E2E, et se consigne.
+- Pourquoi : pas d'injection CSS ; la contrainte pèse sur le build, pas sur l'usage.
+- Rejeté : `'unsafe-inline'` pour tous les styles (injection CSS possible).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W20 — `index.html` rendu par kartenn
+- Décision : kartenn produit `index.html` à partir du gabarit du build : une seule import
+  map (`@kartenn/sdk` et la clé `integrity` de chaque module du shell et des plugins
+  retenus), un bloc de données JSON des plugins retenus, et la CSP qui autorise l'import
+  map par l'empreinte SHA-256 de ses octets. Un document porte ainsi un ensemble de
+  plugins figé ; le shell ne charge que ceux de son document.
+- Pourquoi : `import()` n'est contrôlé que par l'import map, unique et figée avant le
+  premier import ; une import map figée au build ne couvrirait pas les plugins à chaud.
+- Rejeté : import map figée au build ; `modulepreload` seul (ne couvre pas les fragments) ;
+  nonce (unique par réponse, sans gain sur l'empreinte).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W21 — Plugins réservés aux sessions
+- Décision : sans session valide, `index.html` ne liste aucun plugin et `/plugins/…`
+  répond 404 ; les fichiers du shell restent publics (page de connexion).
+- Pourquoi : ne pas livrer l'inventaire, les versions ni le code des plugins à un
+  visiteur anonyme ; la connexion est une navigation complète, qui recharge le document.
+- Rejeté : plugins publics (révèlent ce qui est installé et ses versions).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W22 — Effacement à la déconnexion
+- Décision : le shell efface ses bases IndexedDB et celles des plugins (énumération de
+  l'origine), Cache Storage et `localStorage` dans chaque onglet (`versionchange`,
+  `BroadcastChannel`), puis appelle la déconnexion, dont la réponse porte
+  `Clear-Site-Data: "storage"` ; il réécrit ensuite langue et thème. Pas de
+  `navigator.storage.persist()` (Firefox le demande à l'utilisateur).
+- Pourquoi : deux couches, l'une couvrant les défauts de l'autre ; `"storage"` est pris
+  en charge par toute la cible (note, point 8).
+- Rejeté : `"cache"`, `"*"` (blocages de Chromium), `"executionContexts"` (plus pris en
+  charge).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W23 — Navigateurs des mesures et des parcours
+- Décision : budgets (W13) mesurés sur Chromium seul (ralentissement du CPU, tâches
+  longues) ; parcours fonctionnels sur Chromium et Firefox (W17) ; les parcours
+  d'intégrité et de CSP aussi sur WebKit si le Playwright de Nix le fournit, sinon le
+  manque est consigné comme risque.
+- Pourquoi : Safari diverge sur l'intégrité des modules ; les mesures de performance
+  n'existent que sur Chromium.
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W24 — Surface publique du SDK
+- Décision : `@microsoft/api-extractor` (dépendance de développement) produit le
+  rapport de la surface publique (`web/sdk/etc/sdk.api.md`) ; un script fait échouer la
+  CI si une ligne du rapport de référence est retirée ou modifiée sans version majeure.
+  Le branchement du shell sur le SDK est marqué `@internal`, hors surface.
+- Pourquoi : atteignabilité depuis le point d'entrée et retrait des déclarations
+  internes déjà résolus ; aucun outil ne classe une modification selon SemVer, le script
+  reste prudent.
+- Rejeté : comparaison des `.d.ts` émis par `tsc` (déclarations internes incluses).
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W25 — Livraison
+- Décision : la 007 livre le répertoire de build du web (`web/dist/` : gabarit, fichiers
+  à empreinte, plugins de première partie sous `plugins/`), que `[web] root` désigne.
+  Les paquets OCI et le module NixOS de D35 ne sont pas encore spécifiés : ils
+  l'embarqueront. **D35 est amendée** : l'image « web statique » disparaît, le build est
+  servi par kartenn-server (W2).
+- Pourquoi : W2 sert le shell par le serveur ; aucun paquet n'existe à ce jour.
+- Décidé par : Claude, par délégation de l'utilisateur ; amendement de D35 à confirmer
+  par l'utilisateur à la relecture.
+
+## W26 — Développement et parcours
+- Décision : en développement, Vite (http, `127.0.0.1:5173`) relaie `/v1` et `/plugins`
+  à kartenn-server en ajoutant `Forwarded: proto=https`, la boucle locale étant proxy de
+  confiance de la configuration de développement ; il sert son propre `index.html` avec
+  une import map de développement, sans intégrité. Les parcours E2E tournent sur le
+  build servi par kartenn-server en TLS (certificat de développement), seul chemin qui
+  éprouve CSP, intégrité et import map.
+- Pourquoi : HMR en développement ; la vérité de la sécurité dans les E2E (W15).
+- Risque : un navigateur qui refuserait un cookie `Secure` sur `http://127.0.0.1` ;
+  repli : Vite en https avec un certificat local.
+- Décidé par : Claude, par délégation de l'utilisateur
+
+## W27 — Choix de rédaction des exigences
+- Décision : validés tels qu'écrits dans `requirements.md` : `Referrer-Policy:
+  same-origin`, `form-action 'self'` ; fichiers des plugins en `no-cache` avec ETag ;
+  plugin invalide écarté sans refuser le démarrage ; noms `k` et `kartenn` réservés,
+  noms de Custom Elements déclarés au manifeste ; relecture toutes les 30 s et sur
+  `SIGHUP` ; sous-ensemble des plages node-semver ; SDK publié en `1.0.0` ; brouillon
+  effacé après 7 jours ; `incomplete` d'axe-core non bloquant ; émetteur de
+  développement sur la boucle locale ; plugin d'exemple non livré. S'y ajoutent des
+  bornes : fichier d'un plugin ≤ 8 Mio, plugin ≤ 32 Mio, ensemble ≤ 128 Mio.
+- Décidé par : Claude, par délégation de l'utilisateur
