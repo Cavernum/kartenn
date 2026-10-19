@@ -185,6 +185,44 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     `Location` et `Link` vers le nouveau changeset, plus `undoes` et `unsupported`
     (`[{kind, id}]`, ce qui n'est pas annulé) dans le corps ; `?simulate=true` → 200,
     la réponse de simulation plus les `operations` de l'inverse, rien d'écrit.
+- **Droits (arbitrage du 2026-10-19, 006-18)** :
+  - lecture : rôles, liaisons, rattachements, comptes de service et identités exigent
+    `core.rbac.read`, nouvelle permission du catalogue 005, globale uniquement
+    (accordée sur l'objet sentinelle `RBAC_OBJECT`) ; sans elle → 403 `forbidden` et
+    `authz.access.denied`, avant toute recherche ; chaque lecture est auditée
+    (`data.objects.read`, cible `rbac`). État courant seulement (`valid_at`, `as_of` →
+    400), collections paginées par curseur sur leur clé ;
+  - écritures comme les routes par ressource (006-16) : un changeset d'une opération
+    d'administration (005), membres réservés `motive`, `valid_from`, `valid_to`,
+    réponses 201/200, 202 sous une politique, 422 et `Link` vers le changeset ; les
+    contrôles sans escalade sont ceux du pipeline (REQ-005-25, 26). Pas d'`If-Match` :
+    la version d'objet (0037) ne couvre que les objets du noyau ;
+  - rôles : `{key, href, label, builtin, entries}` ; `GET /v1/roles`, `GET`/`PUT`/
+    `DELETE /v1/roles/{key}` ; `PUT {label, entries}` remplace le rôle (201 s'il est
+    créé, 200 sinon), `DELETE` le clôt avec ses liaisons ;
+  - liaisons : `{id, href, subject, role, scope, valid_from, valid_to}`, `subject` et
+    `scope` dans la forme de l'opération `bind` ; `POST /v1/bindings` → 201 et
+    `Location`, `GET`/`DELETE /v1/bindings/{id}` ;
+  - rattachements : `{issuer, entity}` (`entity` `null` : partout) ; `POST
+    /v1/issuer-attachments` → 201 ; `DELETE /v1/issuer-attachments?issuer=…[&entity=…]`
+    (un émetteur est une URL : la requête l'identifie, sans encodage dans le chemin) ;
+  - comptes de service : `{id, href, name, disabled, secrets: [{id, key_id,
+    created_at, expires_at, revoked}]}`, jamais le condensat ; `POST
+    /v1/service-accounts {name, expires_at}` → 201, `Location` ; `POST …/{id}/secrets
+    {expires_at}` → 201 ; `DELETE …/{id}/secrets/{secret}` révoque. Le serveur génère le
+    secret (`kartenn_auth::secrets::generate`), seul le condensat entre dans le
+    changeset ; la réponse de création ou d'ajout, appliquée (201) ou en attente (202),
+    porte `secret: {id, value, expires_at}` une seule fois, réponse `Secret` (`no-store`,
+    jamais compressée) ; un rejeu par `Idempotency-Key` ne le rend plus (l'empreinte
+    de la requête omet l'identifiant et le condensat du secret, tirés à chaque envoi) ;
+  - identités : `{id, href, kind, name, issuer, disabled, revoked_after}` ; `GET
+    /v1/identities`, `GET /v1/identities/{id}`, `PATCH` (Merge Patch) `{disabled,
+    revoke_sessions}` ;
+  - `GET /v1/me` (route de 005, sans permission ni audit) étendu par ajouts seulement
+    (REQ-006-33) : `name`, `bindings` (`[{role, scope}]`, les liaisons effectives,
+    directes, de groupe ou d'émetteur), `global_permissions` (celles des liaisons
+    globales) et `session.expires_at` (fin de session, par inactivité ou durée absolue ;
+    `session` reste `null` hors session cookie).
 
 ### Représentations et DTO (REQ-006-2, 3, 13)
 
