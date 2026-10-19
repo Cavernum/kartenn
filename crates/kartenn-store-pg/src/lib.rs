@@ -25,6 +25,7 @@ pub mod outbox;
 mod overrides;
 mod pending;
 mod properties;
+pub mod property_read;
 pub mod rbac;
 mod rbac_admin;
 pub mod read;

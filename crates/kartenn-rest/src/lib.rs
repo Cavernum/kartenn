@@ -14,6 +14,7 @@ pub mod filter;
 pub mod health;
 pub mod objects;
 pub mod problem;
+pub mod properties;
 pub mod quota;
 pub mod request_id;
 pub mod transport;
@@ -39,7 +40,8 @@ use crate::transport::Settings;
 pub fn v1(api: objects::Api) -> Router {
     objects::routes(api.clone())
         .merge(tree::routes(api.clone()))
-        .merge(anomalies::routes(api))
+        .merge(anomalies::routes(api.clone()))
+        .merge(properties::routes(api))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

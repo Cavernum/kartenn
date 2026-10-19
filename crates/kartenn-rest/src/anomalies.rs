@@ -100,9 +100,10 @@ async fn list(
         domain,
         entity,
     };
-    let found = anomalies::open_within(&api.pool, &wanted, &scope)
+    let mut found = anomalies::open_within(&api.pool, &wanted, &scope)
         .await
         .map_err(|e| store(&e))?;
+    crate::properties::mask_gaps(&api, &context, &mut found).await?;
     let items: Vec<Value> = found.iter().map(|(a, k)| represent(a, *k)).collect();
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
     let criteria = json!({ "anomalies": { "rule": rule, "domain": domain, "entity": entity } });

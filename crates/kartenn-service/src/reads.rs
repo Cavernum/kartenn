@@ -3,6 +3,8 @@
 //! audit journal itself, is kept longer. If the event cannot be recorded, the read fails
 //! (REQ-012-11).
 
+use std::collections::BTreeSet;
+
 use kartenn_core::audit::{
     AUDIT_READ, AUTHZ_DENIED, AuditEvent, OBJECTS_READ, SENSITIVE_READ, rfc3339,
 };
@@ -152,6 +154,45 @@ pub async fn read_object<R: Reader, A: Authorizer, J: AuditJournal>(
     }
     record_all(journal, &events).await?;
     Ok(read)
+}
+
+/// The objects among `objects` on which the subject of `context` may see the value of the
+/// sensitive property `key` (`prop.<key>.read`, REQ-005-21), each disclosure recorded as
+/// `data.sensitive.read` (REQ-012-18); all of them for a read without a subject.
+///
+/// # Errors
+///
+/// [`RequestError::Audit`] when a disclosure cannot be audited; [`RequestError::Store`]
+/// on infrastructure failure.
+pub async fn sensitive_disclosed<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    key: &str,
+    objects: &[Uuid],
+) -> Result<BTreeSet<Uuid>, RequestError> {
+    let mut disclosed: BTreeSet<Uuid> = objects.iter().copied().collect();
+    if let Some(subject) = context.subject() {
+        let denied = authorizer
+            .authorize_many(&subject, &format!("prop.{key}.read"), objects)
+            .await?;
+        for id in denied {
+            disclosed.remove(&id);
+        }
+    }
+    let mut events = Vec::with_capacity(disclosed.len());
+    for id in &disclosed {
+        events.push(
+            context
+                .event(&SENSITIVE_READ, Outcome::Success)
+                .map_err(audit_err)?
+                .target("object", [*id])
+                .detail("property", key)
+                .map_err(audit_err)?,
+        );
+    }
+    record_all(journal, &events).await?;
+    Ok(disclosed)
 }
 
 /// Audit events matching `query`, for an actor holding [`AUDIT_READ_PERMISSION`]; the

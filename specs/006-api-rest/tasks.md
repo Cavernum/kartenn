@@ -220,11 +220,23 @@ routeur complet, sauf mention « vrai TCP ».
   écrit dans `design.md` (Historique). `tests/objects.rs`
   (`history_keeps_the_versions_valid_at_and_known_as_of`). Planification au passé :
   à surveiller au `bench-core`, sans changement.
-- [ ] 13a. Lectures des propriétés : déclarations et listes de valeurs (tout authentifié),
+- [x] 13a. Lectures des propriétés : déclarations et listes de valeurs (tout authentifié),
   valeurs résolues, explication, suggestion (registre `Sources` dans l'`Api`), écarts ;
   lecture à un temps système passé ; message d'écart masqué pour une propriété sensible
   (aussi dans `/v1/anomalies`) — REQ-006-4 — verify : valeur sensible masquée sans
   droit ; explication au passé ; nœud invisible de la chaîne à `null`
+  — `properties.rs` (rest) : `property-declarations` et `…/{key}/values` paginés par
+  clé (404 clé inconnue, 409 hors `enum`) ; `…/{id}/properties` par `read_object`
+  (`masked`) ; `explanation` (objet du bon type à la date, `gate`, nœuds visibles sinon
+  `null`, valeur et valeur remplacée masquées) ; `suggestion` (`as_of` → 400, `Sources`
+  dans `objects::Api`, vide au serveur) ; `property-gaps` et `mask_gaps` (aussi dans
+  `anomalies.rs`). Service : `reads::sensitive_disclosed` (`data.sensitive.read` par
+  divulgation). Store : `property_read` (déclarations, valeurs, clés sensibles, natures
+  des objets à une date). `tests/objects.rs` (`properties_resolve_explain_and_mask`,
+  `a_deviation_of_a_sensitive_property_hides_its_value`). Écarts : une seule anomalie
+  ouverte par règle et objet (`anomaly_one_open`), donc un seul écart par objet, le
+  dernier message l'emportant (dette de la 003) ; propriété d'un écart lue dans le
+  préfixe du message ; listes des écarts non paginées (comme les anomalies)
 - [ ] 13b. Filtres `prop.<clé>` des listes de 12a par le moteur de la 003 : un seul
   `domain=` exigé, conditions intersectées, tri et curseur par UUID, 400 sans domaine,
   sur entités et sites ou au passé — REQ-006-9 — verify : `?domain=lab&prop.env=prod

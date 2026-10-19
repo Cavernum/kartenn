@@ -21,6 +21,7 @@ use kartenn_core::period::Instant;
 use kartenn_service::audit::{AuditJournal, Outcome, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
+use kartenn_service::expected::Sources;
 use kartenn_service::reads::{ReadAudit, objects_read, read_object};
 use kartenn_service::{RequestError, StoreError};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
@@ -54,6 +55,8 @@ pub struct Api {
     pub journal: PgAuditJournal,
     /// How much a read event records.
     pub audit: ReadAudit,
+    /// The sources of expected values, which the suggestions ask (spec 003, REQ-003-23).
+    pub sources: Sources,
 }
 
 /// The collection of each kind.

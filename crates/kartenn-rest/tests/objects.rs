@@ -97,6 +97,7 @@ fn app(pool: &PgPool, who: Principal) -> Router {
         bound: Duration::from_secs(60),
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
+        sources: kartenn_service::expected::Sources::none(),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),
@@ -733,4 +734,209 @@ async fn anomalies_follow_the_visibility_of_their_object(pool: PgPool) {
             .status(),
         StatusCode::FORBIDDEN
     );
+}
+
+/// Declares the heritable text property `key` on prefixes, sensitive or not.
+async fn declare(pool: &PgPool, key: &str, sensitive: bool) -> Uuid {
+    let sql = format!(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, inherit_tree, sensitive, valid_period,
+                                           changeset_id)
+         VALUES (gen_random_uuid(), $1, 'text', 'single', ARRAY['prefix'],
+                 '{{\"min_len\": 1, \"max_len\": 64}}', 'addressing', $2::boolean, {SINCE})
+         RETURNING id"
+    );
+    insert(pool, &sql, &[key, &sensitive.to_string()]).await
+}
+
+/// Assigns `value` to `property` on `holder`, the origin of itself and of `heirs`.
+async fn assign(pool: &PgPool, property: Uuid, holder: Uuid, value: &str, heirs: &[Uuid]) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO property_assignment (object_id, object_type, property_id, kind, v_text,
+                                          provenance, valid_period, changeset_id)
+         VALUES ($1, 'prefix', $2, 'value', $3, 'input', {SINCE})"
+    )))
+    .bind(holder)
+    .bind(property)
+    .bind(value)
+    .execute(pool)
+    .await
+    .unwrap();
+    for object in std::iter::once(&holder).chain(heirs) {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO property_origin (object_id, property_id, origin_object_id,
+                                          valid_period, changeset_id)
+             VALUES ($1, $2, $3, {SINCE})"
+        )))
+        .bind(object)
+        .bind(property)
+        .bind(holder)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+}
+
+fn query_date(at: time::OffsetDateTime) -> String {
+    at.format(&time::format_description::well_known::Rfc3339)
+        .unwrap()
+        .replace('+', "%2B")
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn properties_resolve_explain_and_mask(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let top = prefix_of(&pool, lab, "10.0.0.0/8", "container").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let secret = declare(&pool, "site.secret", true).await;
+    assign(&pool, zone, top, "red", &[block, net]).await;
+    assign(&pool, secret, top, "s3", &[block, net]).await;
+    // With the right to the sensitive value and to the whole tree.
+    let mut rights = READ_ALL.to_vec();
+    rights.push("prop.site.secret.read");
+    let everything = app(&pool, person(&pool, &rights, ("global", None)).await);
+    // Prefixes under the /16 only: the /8 that carries the values is invisible.
+    let app = app(
+        &pool,
+        person(&pool, &["core.prefix.read"], ("prefix", Some(block))).await,
+    );
+
+    let body = ok(&app, &format!("/v1/prefixes/{net}/properties")).await;
+    assert_eq!(
+        body["properties"],
+        json!({ "policy.zone": "red" }),
+        "{body}"
+    );
+    assert_eq!(body["masked"], json!(["site.secret"]));
+
+    let uri = format!("/v1/prefixes/{net}/properties/policy.zone/explanation");
+    let body = ok(&app, &uri).await;
+    assert_eq!(body["value"], "red", "{body}");
+    assert_eq!(body["masked"], false);
+    assert_eq!(body["provenance"], "input");
+    // The origin and its place in the chain are hidden, not removed.
+    assert_eq!(body["origin"], Value::Null);
+    let chain = body["chain"].as_array().unwrap();
+    assert_eq!(chain.len(), 3, "{body}");
+    assert_eq!(chain[0]["id"], net.to_string());
+    assert_eq!(chain[1]["href"], format!("/v1/prefixes/{block}"));
+    assert_eq!(chain[2], Value::Null);
+
+    let secret_uri = format!("/v1/prefixes/{net}/properties/site.secret/explanation");
+    let body = ok(&app, &secret_uri).await;
+    assert_eq!(body["value"], Value::Null, "{body}");
+    assert_eq!(body["masked"], true);
+
+    // The explanation as asserted before a change of the value.
+    let before: time::OffsetDateTime = sqlx::query_scalar("SELECT now()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE property_assignment SET v_text = 'blue', changeset_id = gen_random_uuid()
+         WHERE object_id = $1 AND property_id = $2",
+    )
+    .bind(top)
+    .bind(zone)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_eq!(ok(&app, &uri).await["value"], "blue");
+    let past = format!("{uri}?as_of={}", query_date(before));
+    assert_eq!(ok(&app, &past).await["value"], "red");
+
+    let body = ok(&everything, &secret_uri).await;
+    assert_eq!(body["value"], "s3", "{body}");
+    assert_eq!(body["origin"]["id"], top.to_string());
+    let disclosed: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit.event WHERE name = 'data.sensitive.read'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(disclosed, 1);
+
+    // The schema, for any caller.
+    let body = ok(&app, "/v1/property-declarations?page_size=1").await;
+    assert_eq!(body["items"][0]["key"], "policy.zone", "{body}");
+    assert_eq!(body["items"][0]["inherit"], "addressing");
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    assert_eq!(ok(&app, &next).await["items"][0]["key"], "site.secret");
+    let values = get(&app, "/v1/property-declarations/policy.zone/values").await;
+    assert_eq!(values.status(), StatusCode::CONFLICT);
+    let unknown = get(&app, "/v1/property-declarations/policy.none/values").await;
+    assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+
+    // No source expects a value; a suggestion is never computed in the past.
+    let suggestion = format!("/v1/prefixes/{net}/properties/policy.zone/suggestion");
+    assert_eq!(ok(&app, &suggestion).await["suggestion"], Value::Null);
+    let past = get(&app, &format!("{suggestion}?as_of={}", query_date(before))).await;
+    assert_eq!(past.status(), StatusCode::BAD_REQUEST);
+    // An invisible object, an object of another kind, an undeclared property: 404.
+    not_found(
+        &app,
+        &format!("/v1/prefixes/{top}/properties/policy.zone/explanation"),
+    )
+    .await;
+    not_found(
+        &app,
+        &format!("/v1/addresses/{net}/properties/policy.zone/explanation"),
+    )
+    .await;
+    not_found(
+        &app,
+        &format!("/v1/prefixes/{net}/properties/policy.none/explanation"),
+    )
+    .await;
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let other = prefix(&pool, lab, "10.1.3.0/24").await;
+    declare(&pool, "site.secret", true).await;
+    declare(&pool, "policy.zone", false).await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    // One open deviation per object (the rule and the object key an anomaly).
+    for (net, message) in [
+        (
+            net,
+            "site.secret: resolved s3, expected [Text(\"s4\")] by src@1 (rule)",
+        ),
+        (
+            other,
+            "policy.zone: resolved red, expected [Text(\"blue\")] by src@1 (rule)",
+        ),
+    ] {
+        let id = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+        sqlx::query("UPDATE anomaly SET message = $2 WHERE id = $1")
+            .bind(id)
+            .bind(message)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    let body = ok(&app, "/v1/property-gaps").await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "{body}");
+    let message = |key: &str| {
+        items
+            .iter()
+            .find(|i| i["property"] == key)
+            .map(|i| i["message"].as_str().unwrap().to_owned())
+            .unwrap()
+    };
+    assert!(!message("site.secret").contains("s3"), "{body}");
+    assert!(message("policy.zone").contains("red"), "{body}");
+    let body = ok(&app, "/v1/property-gaps?property=policy.zone").await;
+    assert_eq!(body["items"].as_array().unwrap().len(), 1, "{body}");
+    // The list of the anomalies masks it as well.
+    let body = ok(&app, "/v1/anomalies").await;
+    assert!(!body.to_string().contains("s3"), "{body}");
+    let unknown = get(&app, "/v1/property-gaps?rule=x").await;
+    assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
 }

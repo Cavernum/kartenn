@@ -687,6 +687,8 @@ impl Api {
             bound: write_transaction_timeout,
             journal: journal.clone(),
             audit: read_audit,
+            // No module provides a source of expected values yet.
+            sources: kartenn_service::expected::Sources::none(),
         };
         let app = kartenn_rest::router(
             kartenn_rest::v1(objects),
