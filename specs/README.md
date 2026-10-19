@@ -8,7 +8,7 @@
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (18/18) |
 | [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (26/26) |
-| [007-web-shell-plugins](007-web-shell-plugins/) | en relecture (journal W1–W17) | — | — |
+| [007-web-shell-plugins](007-web-shell-plugins/) | approuvées (W1–W28, délégation) | approuvée | [tasks](007-web-shell-plugins/tasks.md) (0/34) |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |

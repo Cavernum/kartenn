@@ -51,7 +51,7 @@ document, la CSP et la session.
 | `kartenn-rest` | module `web` (build en mémoire, rendu d'`index.html`, CSP, registre et scan des plugins, plages SemVer), ajouts de l'API (W18, W22, W28) | `base64` 0.22 (déjà dans l'espace de travail, en développement) passe en dépendance normale ; `sha2` déjà présent |
 | `kartenn-server` | `[web]`, `[[auth.issuers]] label`, minuterie de relecture des plugins, `SIGHUP` installé avec `[web] plugins_dir` | — |
 | `kartenn-service`, `kartenn-store-pg` | `Rights::permissions` (entrées des rôles tenus sur tout périmètre) | — |
-| `kartenn-dev-idp` (nouvelle, `publish = false`) | émetteur OIDC de développement | aucune hors espace de travail : `axum`, `tokio`, `serde`, `serde_json`, `figment` (TOML), `jsonwebtoken`, `p256`, `rand_core` |
+| `kartenn-dev-idp` (nouvelle, `publish = false`) | émetteur OIDC de développement | aucune hors espace de travail : `axum`, `tokio`, `serde`, `serde_json`, `figment` (TOML), `jsonwebtoken`, `p256`, `rand_core`, `rcgen` (certificat de développement) |
 | `kartenn-bench` | sous-commande `web` : charge le jeu de `bench-core` et la personne des budgets du navigateur | — |
 | `web/sdk` (`@kartenn/sdk`) | surface publique, client HTTP, contexte, extensions, i18n, brouillon, bac à sable | exécution : aucune ; développement : `openapi-typescript`, `@microsoft/api-extractor` |
 | `web/shell` | application | `vue`, `vue-router`, `vue-i18n`, `reka-ui`, `@tanstack/vue-virtual` |
@@ -523,7 +523,7 @@ de départ : l'émetteur de `crates/kartenn-rest/tests/sessions.rs`. Configurati
 développement `dev/dev-idp.toml` ; processus devenv `dev-idp`.
 
 **Serveur des parcours** : `dev/e2e.toml` : `[http]` en TLS (certificat de
-développement tiré par `rcgen` dans un script devenv au premier lancement),
+développement tiré par `kartenn-dev-idp cert <dossier>` au premier lancement),
 `public_origin = "https://127.0.0.1:8443"`, `[auth]` avec l'émetteur de développement,
 `[web] root = "web/dist"`, `plugins_dir = "target/e2e-plugins"` (plugin d'exemple
 construit, plugins d'essai : incompatible, en échec, lent, altéré, en conflit de noms,
