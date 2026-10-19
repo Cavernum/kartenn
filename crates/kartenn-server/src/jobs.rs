@@ -79,8 +79,38 @@ impl Runner for Tasks {
                     .map_err(|e| anyhow::anyhow!(e.0))?;
                 tracing::info!(name: "job.idempotency_purge", purged, "expired idempotency keys purged");
             }
-            other => anyhow::bail!("unknown task {other}"),
+            other => {
+                let Some(import) = kartenn_store_pg::imports::job_import(other) else {
+                    anyhow::bail!("unknown task {other}");
+                };
+                self.import(import).await?;
+            }
         }
+        Ok(())
+    }
+}
+
+impl Tasks {
+    /// Runs the batches left of `import` (REQ-006-18), each a changeset of its author, then
+    /// removes its task once the import is over, paused or cancelled; a failure keeps the
+    /// task, run again one period later.
+    async fn import(&self, import: Uuid) -> anyhow::Result<()> {
+        let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(self.store.pool().clone());
+        let status = kartenn_service::import::run_import(
+            &self.store,
+            &authorizer,
+            import,
+            kartenn_service::pipeline::MAX_OPERATIONS,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        let state = status.as_ref().map(|s| s.state.as_str());
+        if !matches!(state, Some("ready" | "running")) {
+            kartenn_store_pg::imports::unschedule(self.store.pool(), import)
+                .await
+                .map_err(|e| anyhow::anyhow!(e.0))?;
+        }
+        tracing::info!(name: "job.import", %import, state = state.unwrap_or("unknown"), "import run");
         Ok(())
     }
 }

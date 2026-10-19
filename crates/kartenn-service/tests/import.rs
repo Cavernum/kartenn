@@ -2,11 +2,13 @@
 //! 19).
 
 use kartenn_core::objects::{AddressUsage, Nature};
-use kartenn_service::authz::Unrestricted;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::import::{ImportError, create_import, import_status, run_import};
 use kartenn_service::pipeline::MAX_OPERATIONS;
-use kartenn_service::port::ImportItem;
-use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
+use kartenn_service::port::{ImportItem, Store};
+use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, StoreError, submit};
 use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -133,6 +135,18 @@ async fn an_import_pauses_on_a_faulty_batch_and_resumes(pool: PgPool) {
             .unwrap(),
         Outcome::Applied { .. }
     ));
+    // A paused import runs once resumed, not before (REQ-006-19).
+    let paused = run_import(&store, &Unrestricted, id, 60)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(paused, status);
+    assert!(
+        store
+            .set_import(id, &["paused"], "ready", &serde_json::json!({}))
+            .await
+            .unwrap()
+    );
     let status = run_import(&store, &Unrestricted, id, 60)
         .await
         .unwrap()
@@ -245,4 +259,64 @@ async fn an_import_needs_identifiers_and_known_references(pool: PgPool) {
         }
         other => panic!("{other:?}"),
     }
+}
+
+/// Grants everything, and cancels the import at its first question: during the first
+/// batch.
+struct Cancelling {
+    pool: PgPool,
+    import: Uuid,
+    asked: AtomicBool,
+}
+
+impl Authorizer for Cancelling {
+    async fn authorize_many(
+        &self,
+        _: &Subject,
+        _: &str,
+        _: &[Uuid],
+    ) -> Result<Vec<Uuid>, StoreError> {
+        if !self.asked.swap(true, Ordering::SeqCst) {
+            sqlx::query("UPDATE import SET state = 'cancelled' WHERE id = $1")
+                .bind(self.import)
+                .execute(&self.pool)
+                .await
+                .unwrap();
+        }
+        Ok(Vec::new())
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_cancelled_import_stops_after_the_batch_in_progress(pool: PgPool) {
+    let store = PgStore::new(pool.clone());
+    let author = author(&pool).await;
+    let id = create_import(&store, author, SOURCE, items(200), 60)
+        .await
+        .unwrap();
+    let cancelling = Cancelling {
+        pool: pool.clone(),
+        import: id,
+        asked: AtomicBool::new(false),
+    };
+    // REQ-006-19: the batch in progress ends, the batches applied stay.
+    let status = run_import(&store, &cancelling, id, 60)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(status.state, "cancelled");
+    assert_eq!(status.applied, 1, "{status:?}");
+    assert!(status.remaining > 0);
+    let applied: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM import_batch WHERE changeset_id IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(applied, 1);
+    // A cancelled import does not run again.
+    let again = run_import(&store, &Unrestricted, id, 60)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(again, status);
 }

@@ -122,3 +122,177 @@ async fn the_tasks_of_kartenn_run(pool: PgPool) {
     }
     assert!(tasks.run("unknown").await.is_err());
 }
+
+/// A person granted everything everywhere.
+async fn importer(pool: &PgPool) -> Uuid {
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'connector') RETURNING id",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let role = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO role (id, key, label, valid_period, changeset_id)
+         VALUES ($1, 'importer', 'r', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+         VALUES ($1, '*', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
+                              valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(identity)
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    identity
+}
+
+/// A domain, a network and `count` addresses of it, deposited in chunks of 5 000 and
+/// started: its task is due.
+async fn started_import(pool: &PgPool, count: u32) -> Uuid {
+    use kartenn_core::objects::{AddressUsage, Nature};
+    use kartenn_service::port::ImportItem;
+    use kartenn_service::{Operation, Ref};
+
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let author = importer(pool).await;
+    let import = kartenn_service::import::open_import(&store, author, "legacy")
+        .await
+        .unwrap();
+    let item = |external: String, operation| ImportItem {
+        external_id: Some(external),
+        operation,
+    };
+    let mut elements = vec![
+        item(
+            "lab".into(),
+            Operation::CreateDomain {
+                local: Some(0),
+                slug: "lab".into(),
+            },
+        ),
+        item(
+            "net".into(),
+            Operation::CreatePrefix {
+                local: Some(1),
+                domain: Ref::Local(0),
+                prefix: "10.0.0.0/16".into(),
+                nature: Nature::Network,
+                point_to_point: false,
+                anycast: false,
+            },
+        ),
+    ];
+    elements.extend((0..count).map(|i| {
+        item(
+            format!("addr-{i}"),
+            Operation::CreateAddress {
+                local: Some(2 + i),
+                domain: Ref::Local(0),
+                address: format!("10.0.{}.{}", i / 250, i % 250 + 1),
+                usage: AddressUsage::Host,
+            },
+        )
+    }));
+    for (n, chunk) in elements.chunks(5_000).enumerate() {
+        let digest = [u8::try_from(n).unwrap()];
+        let deposit = kartenn_store_pg::imports::deposit(
+            pool,
+            import,
+            i32::try_from(n).unwrap(),
+            &digest,
+            chunk,
+        )
+        .await
+        .unwrap();
+        assert_eq!(deposit, kartenn_store_pg::imports::Deposit::Created);
+    }
+    let start = kartenn_store_pg::imports::start(pool, import, |items| {
+        kartenn_service::import::batches(items, kartenn_service::pipeline::MAX_OPERATIONS)
+    })
+    .await
+    .unwrap();
+    assert!(matches!(start, kartenn_store_pg::imports::Start::Started));
+    import
+}
+
+async fn count(pool: &PgPool, table: &str) -> i64 {
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
+    // Only the import is due.
+    sqlx::query("UPDATE job SET due_at = now() + interval '1 day'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let addresses = 20_000;
+    let import = started_import(&pool, addresses).await;
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let progress = || async {
+        kartenn_service::import::import_status(&store, import)
+            .await
+            .unwrap()
+            .unwrap()
+    };
+    let batches = progress().await.remaining;
+    assert!(batches >= 4, "{batches}");
+
+    // REQ-006-18: the instance stops after its first batch, during the next.
+    let lease = Duration::from_secs(1);
+    let heartbeat = Duration::from_millis(200);
+    let holder = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
+    let tasks = Tasks {
+        store: store.clone(),
+        sources: kartenn_service::expected::Sources::none(),
+    };
+    let running = tokio::spawn(async move { holder.tick(&tasks).await });
+    while progress().await.applied == 0 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    running.abort();
+    let stopped = progress().await;
+    assert_eq!(stopped.state, "running");
+    assert!(stopped.remaining > 0, "{stopped:?}");
+
+    // Past the lease, another instance takes the import over at its first batch left.
+    tokio::time::sleep(lease + Duration::from_millis(200)).await;
+    let other = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
+    let tasks = Tasks {
+        store: store.clone(),
+        sources: kartenn_service::expected::Sources::none(),
+    };
+    let name = format!("import:{import}");
+    assert_eq!(other.tick(&tasks).await, Some(name.clone()));
+    let done = progress().await;
+    assert_eq!(done.state, "done", "{done:?}");
+    assert_eq!((done.applied, done.remaining), (batches, 0));
+    assert_eq!(count(&pool, "address").await, i64::from(addresses));
+    assert_eq!(count(&pool, "external_id").await, i64::from(addresses) + 2);
+    // Over: its task is gone.
+    let jobs: i64 = sqlx::query_scalar("SELECT count(*) FROM job WHERE name = $1")
+        .bind(&name)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(jobs, 0);
+}

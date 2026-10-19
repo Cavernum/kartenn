@@ -220,12 +220,25 @@ pub struct ImportRecord {
     pub author: Uuid,
     /// The source (connector).
     pub source: String,
-    /// `queued`, `running`, `paused`, `done` or `cancelled`.
+    /// `uploading`, `ready`, `running`, `paused`, `done` or `cancelled`.
     pub state: String,
     /// Report: the failure that paused it, if any.
     pub report: serde_json::Value,
     /// Its batches, in order.
     pub batches: Vec<ImportBatch>,
+}
+
+/// Where an import stands, without its elements.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportProgress {
+    /// State, as in [`ImportRecord`].
+    pub state: String,
+    /// Batches applied.
+    pub applied: usize,
+    /// All its batches.
+    pub batches: usize,
+    /// Report: the failure that paused it, if any.
+    pub report: serde_json::Value,
 }
 
 /// What the store knows of an applied changeset to undo it (REQ-004-34, 35).
@@ -501,13 +514,21 @@ pub trait Store: Send + Sync {
         changeset: Option<Uuid>,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
-    /// Records the state and report of an import.
+    /// Records the state and report of an import if its state is one of `from`; false
+    /// otherwise (cancelled meanwhile, say).
     fn set_import(
         &self,
         import: Uuid,
+        from: &[&str],
         state: &str,
         report: &serde_json::Value,
-    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Where an import stands, without reading its elements.
+    fn import_progress(
+        &self,
+        import: Uuid,
+    ) -> impl Future<Output = Result<Option<ImportProgress>, StoreError>> + Send;
 
     /// The objects known to `source` by some of `external_ids` (REQ-002-41), by
     /// identifier.

@@ -15,6 +15,7 @@ pub mod dated;
 pub mod error;
 pub mod filter;
 pub mod health;
+pub mod imports;
 pub mod objects;
 pub mod problem;
 pub mod properties;
@@ -49,6 +50,7 @@ pub fn v1(api: objects::Api) -> Router {
         .merge(changesets::routes(api.clone()))
         .merge(properties::routes(api.clone()))
         .merge(rights::routes(api.clone()))
+        .merge(imports::routes(api.clone()))
         .merge(audit::routes(api))
 }
 

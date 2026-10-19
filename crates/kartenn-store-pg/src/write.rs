@@ -8,7 +8,7 @@ use kartenn_core::properties::{Declaration, InheritTree, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::audit::Instance;
 use kartenn_service::port::{
-    ApprovalPolicy, Change, DiffCount, DiffItem, ImportRecord, Journal, ObjectView,
+    ApprovalPolicy, Change, DiffCount, DiffItem, ImportProgress, ImportRecord, Journal, ObjectView,
     PendingChangeset, PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
 };
 
@@ -341,10 +341,15 @@ impl Store for PgStore {
     async fn set_import(
         &self,
         import: Uuid,
+        from: &[&str],
         state: &str,
         report: &serde_json::Value,
-    ) -> Result<(), StoreError> {
-        crate::imports::set_import(&self.pool, import, state, report).await
+    ) -> Result<bool, StoreError> {
+        crate::imports::set_import(&self.pool, import, from, state, report).await
+    }
+
+    async fn import_progress(&self, import: Uuid) -> Result<Option<ImportProgress>, StoreError> {
+        crate::imports::progress(&self.pool, import).await
     }
 
     async fn external_objects(

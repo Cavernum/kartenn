@@ -38,7 +38,7 @@ pub enum ImportError {
 /// Where an import stands (REQ-004-30).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportStatus {
-    /// `queued`, `running`, `paused` or `done`.
+    /// `uploading`, `ready`, `running`, `paused`, `done` or `cancelled`.
     pub state: String,
     /// Batches applied.
     pub applied: usize,
@@ -154,6 +154,63 @@ pub async fn create_import<S: Store>(
     items: Vec<ImportItem>,
     batch_operations: usize,
 ) -> Result<Uuid, ImportError> {
+    let id = Uuid::now_v7();
+    let record = ImportRecord {
+        id,
+        author,
+        source: source.to_owned(),
+        state: "ready".into(),
+        report: serde_json::json!({}),
+        batches: batches(items, batch_operations)?
+            .into_iter()
+            .enumerate()
+            .map(|(i, items)| ImportBatch {
+                index: i32::try_from(i).unwrap_or(i32::MAX),
+                items,
+                state: "queued".into(),
+                changeset: None,
+            })
+            .collect(),
+    };
+    store.create_import(&record).await?;
+    Ok(id)
+}
+
+/// Opens an import from `source`, `uploading` its chunks (REQ-006-17); it has no batch
+/// until it starts.
+///
+/// # Errors
+///
+/// [`StoreError`] on infrastructure failure.
+pub async fn open_import<S: Store>(
+    store: &S,
+    author: Uuid,
+    source: &str,
+) -> Result<Uuid, StoreError> {
+    let id = Uuid::now_v7();
+    let record = ImportRecord {
+        id,
+        author,
+        source: source.to_owned(),
+        state: "uploading".into(),
+        report: serde_json::json!({}),
+        batches: Vec::new(),
+    };
+    store.create_import(&record).await?;
+    Ok(id)
+}
+
+/// `items` ordered by dependency and cut in batches of at most `batch_operations`
+/// operations, a creation counting two with its binding to its external identifier
+/// (REQ-004-28).
+///
+/// # Errors
+///
+/// [`ImportError`] for elements that cannot be ordered.
+pub fn batches(
+    items: Vec<ImportItem>,
+    batch_operations: usize,
+) -> Result<Vec<Vec<ImportItem>>, ImportError> {
     let sorted = order(items)?;
     let mut batches: Vec<Vec<ImportItem>> = Vec::new();
     let mut current = Vec::new();
@@ -174,26 +231,7 @@ pub async fn create_import<S: Store>(
     if !current.is_empty() {
         batches.push(current);
     }
-    let id = Uuid::now_v7();
-    let record = ImportRecord {
-        id,
-        author,
-        source: source.to_owned(),
-        state: "queued".into(),
-        report: serde_json::json!({}),
-        batches: batches
-            .into_iter()
-            .enumerate()
-            .map(|(i, items)| ImportBatch {
-                index: i32::try_from(i).unwrap_or(i32::MAX),
-                items,
-                state: "queued".into(),
-                changeset: None,
-            })
-            .collect(),
-    };
-    store.create_import(&record).await?;
-    Ok(id)
+    Ok(batches)
 }
 
 /// Replaces in `op` the local references found in `known` by identifiers.
@@ -259,6 +297,10 @@ async fn known<S: Store>(
 /// without duplicates), references to objects of other batches become their
 /// identifiers. A refused or held batch pauses the import with its report.
 ///
+/// Only a `ready` import runs, or a `running` one whose instance stopped (REQ-006-18);
+/// the state is read again before each batch, so a cancellation stops the import after
+/// the batch in progress, leaving the batches applied (REQ-006-19).
+///
 /// # Errors
 ///
 /// [`RequestError`] on infrastructure failure or a malformed batch.
@@ -268,9 +310,16 @@ pub async fn run_import<S: Store, A: Authorizer>(
     import: Uuid,
     max_operations: usize,
 ) -> Result<Option<ImportStatus>, RequestError> {
+    const RUNNABLE: [&str; 2] = ["ready", "running"];
     let Some(record) = store.import(import).await? else {
         return Ok(None);
     };
+    if !store
+        .set_import(import, &RUNNABLE, "running", &serde_json::json!({}))
+        .await?
+    {
+        return Ok(import_status(store, import).await?);
+    }
     // Every local defined by the import, with its identifier in the source.
     let externals: BTreeMap<u32, String> = record
         .batches
@@ -278,10 +327,11 @@ pub async fn run_import<S: Store, A: Authorizer>(
         .flat_map(|b| &b.items)
         .filter_map(|i| Some((i.operation.defines()?, i.external_id.clone()?)))
         .collect();
-    store
-        .set_import(import, "running", &serde_json::json!({}))
-        .await?;
     for batch in record.batches.iter().filter(|b| b.state != "applied") {
+        let progress = store.import_progress(import).await?;
+        if progress.is_none_or(|p| p.state != "running") {
+            return Ok(import_status(store, import).await?);
+        }
         let known = known(store, &record.source, &externals, &batch.items).await?;
         let mut operations = Vec::new();
         for item in &batch.items {
@@ -346,16 +396,18 @@ pub async fn run_import<S: Store, A: Authorizer>(
             Outcome::Simulated { .. } => serde_json::json!({ "batch": batch.index }),
         };
         store.set_batch(import, batch.index, "failed", None).await?;
-        store.set_import(import, "paused", &report).await?;
+        store
+            .set_import(import, &["running"], "paused", &report)
+            .await?;
         return Ok(import_status(store, import).await?);
     }
     store
-        .set_import(import, "done", &serde_json::json!({}))
+        .set_import(import, &["running"], "done", &serde_json::json!({}))
         .await?;
     Ok(import_status(store, import).await?)
 }
 
-/// Where an import stands (REQ-004-30).
+/// Where an import stands (REQ-004-30), without reading its elements.
 ///
 /// # Errors
 ///
@@ -364,17 +416,13 @@ pub async fn import_status<S: Store>(
     store: &S,
     import: Uuid,
 ) -> Result<Option<ImportStatus>, StoreError> {
-    Ok(store.import(import).await?.map(|record| {
-        let applied = record
-            .batches
-            .iter()
-            .filter(|b| b.state == "applied")
-            .count();
-        ImportStatus {
-            state: record.state,
-            applied,
-            remaining: record.batches.len() - applied,
-            report: record.report,
-        }
-    }))
+    Ok(store
+        .import_progress(import)
+        .await?
+        .map(|progress| ImportStatus {
+            state: progress.state,
+            applied: progress.applied,
+            remaining: progress.batches - progress.applied,
+            report: progress.report,
+        }))
 }

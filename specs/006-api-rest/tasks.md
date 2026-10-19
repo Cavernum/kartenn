@@ -391,7 +391,7 @@ routeur complet, sauf mention « vrai TCP ».
   cours abandonnée à l'arrêt (transaction annulée, bail laissé à expirer) ; lots de 1 000
   objets par changeset pour la réévaluation et les drapeaux ; un émetteur muet au
   rechargement garde ses clés et sa découverte (WARN `authn.issuer.reload_failed`)
-- [ ] 21. Imports : migration `import_chunk` et état `uploading`, `PUT` des morceaux
+- [x] 21. Imports : migration `import_chunk` et état `uploading`, `PUT` des morceaux
   (identique ignoré, différent → 409, > 10 000 → 413), `start` (202), `resume`,
   `cancel`, état et `Retry-After`, exécution comme tâche — REQ-006-17, 18, 19 — verify :
   10⁶ éléments en 100 morceaux dont un renvoyé ; arrêt d'une instance pendant
@@ -400,6 +400,24 @@ routeur complet, sauf mention « vrai TCP ».
   service `import.rs` (`create_import`, `run_import`, `import_status`) ; migration
   `import_chunk` après celle de la tâche 20 ; tâche `import` du planificateur de la tâche
   20
+  — Migration `0040_import_chunk.sql` (`queued` → `ready`, `uploading`, table
+  `import_chunk` avec `size`, droits de `kartenn_app` sur `import_chunk` et `job`).
+  Service : `import.rs` (`open_import`, `batches` extrait de `create_import`,
+  `run_import` limité à `ready`/`running` et relisant l'état avant chaque lot,
+  `import_status` par `Store::import_progress`) ; port `set_import` gardé par l'état de
+  départ. Store : `imports.rs` (`header`, `deposit`, `start` en une transaction sous
+  `FOR UPDATE`, `transition`, `unschedule`, tâche `import:<id>`). Rest : `imports.rs`
+  (six routes, auteur seul, poids du morceau au quota), `ProblemKind::InvalidImport`.
+  Server : `Tasks::import`. Tests `rest/tests/imports.rs`
+  (`a_million_elements_in_a_hundred_chunks`, `an_import_is_its_authors`,
+  `the_state_guards_the_actions`, `a_chunk_weighs_its_thousands_on_the_quota`),
+  `server/tests/jobs.rs` (`an_import_ends_on_another_instance_without_duplicates`),
+  `service/tests/import.rs` (`a_cancelled_import_stops_after_the_batch_in_progress`)
+  choix : colonne `size` du morceau (décompte sans relire le JSON) ; empreinte sur le
+  tableau `elements` resérialisé ; morceaux gardés après le démarrage ; tâche d'import
+  de période 10 s (rejouée ainsi après un échec d'infrastructure), retirée par le
+  planificateur quand l'import est fini, en pause ou annulé ; réponse d'un dépôt = la
+  représentation de l'import ; `source` vide → 400
 
 ## P6 — Contrat, bout en bout, budgets
 

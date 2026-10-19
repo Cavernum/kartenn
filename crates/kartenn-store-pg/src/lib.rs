@@ -17,7 +17,7 @@ pub mod filter;
 pub(crate) mod floor;
 pub mod idempotency;
 mod identities;
-mod imports;
+pub mod imports;
 pub mod jobs;
 pub mod keys;
 pub mod list;

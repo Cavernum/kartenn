@@ -75,7 +75,7 @@ impl From<ImportError> for Problem {
     fn from(error: ImportError) -> Self {
         match error {
             ImportError::Store(e) => unavailable(&e),
-            other => Self::new(ProblemKind::BadRequest).detail(other.to_string()),
+            other => Self::new(ProblemKind::InvalidImport).detail(other.to_string()),
         }
     }
 }
@@ -153,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             kind(ImportError::MissingExternalId(0)),
-            ProblemKind::BadRequest
+            ProblemKind::InvalidImport
         );
         assert_eq!(
             kind(ImportError::Store(StoreError("down".into()))),
