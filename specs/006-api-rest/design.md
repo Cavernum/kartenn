@@ -144,7 +144,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     propriété sensible valent `null` et l'opération porte `masked: true`, sauf
     `prop.<clé>.read` sur l'objet (propriété ou objet en référence locale : toujours
     masqué) ; dans le différentiel, `before` et `after` d'une propriété sensible sans ce
-    droit valent `null`, `masked: true` ; une valeur sensible rendue est auditée
+    droit valent `null`, `masked: true`, dans le détail comme dans le décompte (qui
+    porte aussi les valeurs) ; une entrée du décompte n'est rendue que si l'appelant a
+    le droit sur chacun des objets qu'elle compte ; une valeur sensible rendue est auditée
     (`data.sensitive.read`). Le condensat d'un secret de compte de service
     (`secret.digest`) n'est jamais rendu ; les messages de violation sont masqués comme
     dans la réponse d'une soumission ;
