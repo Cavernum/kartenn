@@ -483,11 +483,25 @@ routeur complet, sauf mention « vrai TCP ».
   dev-dépendance admis par cargo) pour servir par le vrai `serve` ; `hyper` client,
   `hyper-util`, `tokio-rustls`, `rcgen` en dépendances de développement (déjà dans
   l'espace de travail) ; le proxy de confiance des tests est le bouclage `127.0.0.0/8`
-- [ ] 25. Banc `bench-http` : scénarios de `bench-core` à travers HTTP, charge de
+- [x] 25. Banc `bench-http` : scénarios de `bench-core` à travers HTTP, charge de
   200 utilisateurs et 50 écritures/s — REQ-006-39 — verify : p95 sous INV-30 à 34 et
   INV-36, surcoût rapporté par rapport au banc du service
   où : design « Stratégie de test » (ligne 39) ; `kartenn-bench/src/core_budgets.rs`
   (scénarios à rejouer), `main.rs` (sous-commandes) ; agent `bench-runner`
+  `kartenn-bench/src/http.rs` (sous-commande `http`, script devenv `bench-http`) : routeur
+  servi par `kartenn_server::http::serve`, authentification réelle (jeton ES256 pour la
+  moitié des 200 personnes, cookie de session pour l'autre), personne de `bench-rbac`.
+  Référence (graine 42) : objet 9,5 ms (+2,3), passé 9,8 ms, page filtrée 52 ms (+9,5),
+  sous-arbre 39 ms (+24), au passé 49 ms (+24), changeset 18 ms ; charge : 51,5
+  écritures/s, aucun 5xx hors délestage (168 délestées sur 7 527). Le banc a révélé une
+  page filtrée à 3 s par HTTP : `kartenn-store-pg/src/filter.rs` (`filter_sql`) réunit
+  type, valeurs et portée en une sous-requête scalaire (52 ms)
+  choix : HTTP/1.1 en clair derrière le bouclage en proxy de confiance (`Forwarded`
+  `proto=https`) ; référence du surcoût = le service avec le contrôle d'accès de la
+  même personne, mesures alternées ; sous-arbre = deux requêtes (`children`, page de 100,
+  puis `occupancy`), d'où un surcoût au-dessus de la cible de 10 ms ; charge de 30 s,
+  lecteurs avec une pause de 0,5 à 1,5 s, 55 rédacteurs à 1/s pour en tenir 50 ;
+  reconnexion du client hors mesure quand hyper ferme une connexion inactive (30 s)
 - [ ] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (section API
   REST, Q-ouv-7 close), `invariants.md`, ADR 0022 et 0023 acceptés, `specs/README.md`
   — verify : `spec-keeper` sur `specs/006-api-rest`

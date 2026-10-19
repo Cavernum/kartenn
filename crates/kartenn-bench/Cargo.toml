@@ -27,3 +27,13 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
+# The budgets through HTTP (task 006-25): the router, a client, access tokens.
+kartenn-auth = { version = "0.0.0", path = "../kartenn-auth" }
+kartenn-rest = { version = "0.0.0", path = "../kartenn-rest" }
+hyper = { version = "1.12.0", features = ["client", "http1"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+http-body-util = "0.1.5"
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto", "use_pem"] }
+p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+time = { version = "0.3.55", features = ["formatting"] }

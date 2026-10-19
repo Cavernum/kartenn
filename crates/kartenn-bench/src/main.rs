@@ -12,6 +12,10 @@
 //! `kartenn-bench rbac <database-url> <seed> [small]`: those budgets with access control,
 //! for a person with 50 groups and 1 000 bindings, and its overhead (REQ-005-29).
 //!
+//! `kartenn-bench http <database-url> <seed> [small]`: those budgets through the router
+//! on a local port, with their overhead, then a load of 200 users and 50 writes per
+//! second (REQ-006-39).
+//!
 //! `kartenn-bench telemetry <database-url> <seed> [small]`: the overhead of the telemetry
 //! on those budgets, in three configurations (REQ-012-23), and the volume of the audit
 //! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
@@ -37,7 +41,7 @@ fn main() -> anyhow::Result<()> {
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, database, seed, rest @ ..]
-            if command == "props" || command == "core" || command == "rbac" =>
+            if ["props", "core", "rbac", "http"].contains(&command.as_str()) =>
         {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let data = generate(seed, scale(rest));
@@ -45,6 +49,7 @@ fn main() -> anyhow::Result<()> {
             let (report, ok) = match command.as_str() {
                 "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
                 "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed))?,
+                "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed))?,
                 _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
             };
             print!("{report}");
@@ -78,7 +83,7 @@ fn main() -> anyhow::Result<()> {
             ))
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|telemetry <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|telemetry <database-url> <seed> [small]"
         ),
     }
 }

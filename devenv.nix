@@ -253,6 +253,17 @@ in {
     '';
   };
 
+  # The budgets of the core through HTTP, then 200 users and 50 writes per second
+  # (REQ-006-39): `bench-http [seed] [small]`.
+  scripts.bench-http = {
+    description = "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- http "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
   scripts.bench-telemetry = {

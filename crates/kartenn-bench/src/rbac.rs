@@ -29,8 +29,8 @@ use crate::Dataset;
 use crate::core_budgets::{Prepared, new_address, prepare};
 use crate::props::{SINCE, p95, progress};
 
-const ISSUER: &str = "https://idp.bench.invalid";
-const GROUPS: usize = 50;
+pub(crate) const ISSUER: &str = "https://idp.bench.invalid";
+pub(crate) const GROUPS: usize = 50;
 const BINDINGS: usize = 1_000;
 /// Bindings on the identity itself, the others on its groups.
 const OWN: usize = 10;
@@ -57,7 +57,12 @@ impl Pair {
 }
 
 /// The role, the global attachment of the issuer and the bindings of `person`.
-async fn bind(pool: &PgPool, data: &Dataset, person: Uuid, seed: u64) -> anyhow::Result<()> {
+pub(crate) async fn bind(
+    pool: &PgPool,
+    data: &Dataset,
+    person: Uuid,
+    seed: u64,
+) -> anyhow::Result<()> {
     let role = Uuid::now_v7();
     let nil = Uuid::nil();
     sqlx::query(
