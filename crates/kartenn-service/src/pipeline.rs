@@ -74,6 +74,9 @@ pub enum RequestError {
     /// The idempotency key was already used with a different content (REQ-004-10).
     #[error("the idempotency key was already used for a different changeset")]
     IdempotencyConflict,
+    /// The idempotency key is held by a submission in progress (006/REQ-006-15).
+    #[error("a submission with this idempotency key is in progress")]
+    IdempotencyInProgress,
     /// A filter that does not parse, or a duration out of bounds (REQ-012-27).
     #[error("invalid filter or duration")]
     InvalidOverride,
@@ -1487,6 +1490,10 @@ async fn stages<S: Store, A: Authorizer>(
                     tx.rollback().await?;
                     return Err(RequestError::IdempotencyConflict);
                 }
+                Replay::InProgress => {
+                    tx.rollback().await?;
+                    return Err(RequestError::IdempotencyInProgress);
+                }
             }
         }
         Mode::Submission => {}
@@ -1711,6 +1718,7 @@ async fn stages<S: Store, A: Authorizer>(
         objects: &objects,
         reevaluated: &reevaluated,
         diff: &diff,
+        cascaded: &cascaded,
         audit: &[],
     };
     let events = crate::audit::changeset_events(context, &journal, &planned)?;
@@ -1811,6 +1819,7 @@ async fn hold<S: Store>(
         objects: &[],
         reevaluated: &[],
         diff: &diff,
+        cascaded: &[],
         audit: &[],
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;
@@ -1972,6 +1981,7 @@ async fn refuse<S: Store>(
         objects: &[],
         reevaluated: &[],
         diff: &[],
+        cascaded: &[],
         audit: &[],
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;

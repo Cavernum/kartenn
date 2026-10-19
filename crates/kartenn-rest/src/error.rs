@@ -35,6 +35,7 @@ impl From<RequestError> for Problem {
                 Self::new(ProblemKind::TooManyOperations).detail(error.to_string())
             }
             RequestError::IdempotencyConflict => Self::new(ProblemKind::IdempotencyKeyReused),
+            RequestError::IdempotencyInProgress => Self::new(ProblemKind::IdempotencyInProgress),
             RequestError::Review(_) => Self::new(ProblemKind::Conflict).detail(error.to_string()),
             RequestError::Forbidden(_) => {
                 Self::new(ProblemKind::Forbidden).detail(error.to_string())
@@ -105,6 +106,10 @@ mod tests {
             (
                 RequestError::IdempotencyConflict,
                 ProblemKind::IdempotencyKeyReused,
+            ),
+            (
+                RequestError::IdempotencyInProgress,
+                ProblemKind::IdempotencyInProgress,
             ),
             (RequestError::Review(violation), ProblemKind::Conflict),
             (

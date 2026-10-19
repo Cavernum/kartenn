@@ -410,6 +410,14 @@ fn violations_json(violations: &[Violation]) -> serde_json::Value {
     )
 }
 
+/// The closures of a cascade as journaled: `[{kind, id}]`, in the order of the expansion.
+fn cascaded_json(cascaded: &[(ObjectKind, Uuid)]) -> serde_json::Value {
+    cascaded
+        .iter()
+        .map(|(kind, id)| serde_json::json!({ "kind": kind, "id": id }))
+        .collect()
+}
+
 async fn write_journal(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
@@ -436,13 +444,14 @@ async fn write_journal(
     sqlx::query(
         "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at,
                                 violations, anomalies, diff_summary, validator_id, expires_at, policy_id,
-                                required_rights, request)
+                                required_rights, request, cascaded)
          VALUES ($1, $2, $3, $4, $10, tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
                  coalesce($16::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
-                 $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14)
+                 $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14, $17)
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
-             anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary",
+             anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary,
+             cascaded = EXCLUDED.cascaded",
     )
     .bind(journal.id)
     .bind(journal.request.author)
@@ -472,6 +481,7 @@ async fn write_journal(
     )
     .bind(crate::pending::PENDING_DAYS)
     .bind(earliest(journal.request)?)
+    .bind(cascaded_json(journal.cascaded))
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
@@ -639,12 +649,18 @@ impl WriteTx for PgTx {
         let Some(key) = &request.idempotency_key else {
             return Ok(Replay::Fresh);
         };
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || '/' || $2, 0))")
-            .bind(request.author)
-            .bind(key)
-            .execute(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
+        // 006/REQ-006-15: a key in progress elsewhere is a 409, not a wait.
+        let held: bool = sqlx::query_scalar(
+            "SELECT pg_try_advisory_xact_lock(hashtextextended($1::text || '/' || $2, 0))",
+        )
+        .bind(request.author)
+        .bind(key)
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        if !held {
+            return Ok(Replay::InProgress);
+        }
         let found: Option<(Uuid, Vec<u8>, String)> = sqlx::query_as(
             "SELECT k.changeset_id, k.request_hash, c.state FROM idempotency_key k
              JOIN changeset c ON c.id = k.changeset_id

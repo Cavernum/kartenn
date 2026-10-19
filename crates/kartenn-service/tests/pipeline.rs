@@ -519,22 +519,26 @@ async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
         submit(&store, &Unrestricted, &parallel, MAX_OPERATIONS),
         submit(&store, &Unrestricted, &parallel, MAX_OPERATIONS)
     );
-    let outcomes = [a.unwrap(), b.unwrap()];
-    assert_eq!(
-        outcomes
-            .iter()
-            .filter(|o| matches!(o, Outcome::Applied { .. }))
-            .count(),
-        1,
-        "parallel same key: one applies"
-    );
-    assert_eq!(
-        outcomes
-            .iter()
-            .filter(|o| matches!(o, Outcome::Replayed { .. }))
-            .count(),
-        1,
-        "the other waits and replays"
+    let (applied, other) = match (a, b) {
+        (Ok(o @ Outcome::Applied { .. }), other) | (other, Ok(o @ Outcome::Applied { .. })) => {
+            (o, other)
+        }
+        other => panic!("parallel same key: one applies, {other:?}"),
+    };
+    let Outcome::Applied { changeset, .. } = applied else {
+        unreachable!()
+    };
+    // 006/REQ-006-15: the other is refused while the key is in progress, or replays
+    // once the first has committed; never a wait.
+    assert!(
+        matches!(
+            other,
+            Ok(Outcome::Replayed { changeset: c, .. }) if c == changeset
+        ) || matches!(
+            other,
+            Err(kartenn_service::RequestError::IdempotencyInProgress)
+        ),
+        "{other:?}"
     );
 }
 

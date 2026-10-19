@@ -265,10 +265,18 @@ routeur complet, sauf mention « vrai TCP ».
   (`violations_json`). `PgAuditJournal::instance`. `tests/changesets.rs` (201 et
   simulation, 202 d'une proposition, 422 à deux règles, `valid_to` seul, ordre
   401/400/415/422) ; `planning_collects_every_local_violation` (indices)
-- [ ] 15. `Idempotency-Key` : verrou consultatif (409 en cours), rejeu reconstruit du
+- [x] 15. `Idempotency-Key` : verrou consultatif (409 en cours), rejeu reconstruit du
   journal, contenu différent → 422, purge par tâche (branchée en 20) — REQ-006-15 —
   verify : deux requêtes simultanées de même clé → une 201, une 409 ; rejeu égal octet
   pour octet ; autre identité → second objet
+  — Store : `replay` par `pg_try_advisory_xact_lock` (`Replay::InProgress`), migration
+  0036 `changeset.cascaded` (`Journal.cascaded`), `idempotency::journaled` et
+  `purge_expired`. Service : `RequestError::IdempotencyInProgress` → 409. Rest :
+  en-tête (1 à 255 caractères, une fois, sinon 400), réponses 201/202/422 partagées par
+  la soumission et le rejeu (`replayed`), 422 erreurs puis avertissements.
+  `tests/changesets.rs` (`a_replay_answers_the_first_response_byte_for_byte`,
+  `a_replay_of_a_refusal_answers_the_same_problem`, `a_replay_of_a_proposal_answers_202`,
+  `a_key_in_progress_answers_409`) ; `idempotency_keys_replay_or_conflict` (pipeline)
 - [ ] 16. Routes par ressource : `POST`, `PATCH` (Merge Patch, `{"clear": true}`),
   `DELETE` ; membres réservés `motive`, `valid_from`, `valid_to` ; `If-Match` → 428, 412 —
   REQ-006-12, 13, 14 — verify : mise à jour perdue empêchée ; JSON Patch → 415 ; retrait

@@ -14,6 +14,7 @@ mod expected;
 pub mod explain;
 pub mod filter;
 pub(crate) mod floor;
+pub mod idempotency;
 mod identities;
 mod imports;
 pub mod keys;

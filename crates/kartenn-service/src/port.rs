@@ -142,6 +142,8 @@ pub struct Journal<'a> {
     /// Differential of resolved values (REQ-003-19); its detail is the one recorded in
     /// the transaction by [`WriteTx::record_diff`].
     pub diff: &'a [DiffCount],
+    /// Closures added by a cascade (REQ-004-26), in the order of the expansion.
+    pub cascaded: &'a [(ObjectKind, Uuid)],
     /// Audit events written with the journal, in its transaction (REQ-012-8, 11).
     pub audit: &'a [kartenn_core::audit::AuditEvent],
 }
@@ -418,6 +420,8 @@ pub enum Replay {
     },
     /// Same key, different content.
     Conflict,
+    /// The same key is being processed by another transaction (006/REQ-006-15).
+    InProgress,
 }
 
 /// A store able to open write transactions.
@@ -568,8 +572,9 @@ pub trait WriteTx {
         public_space: bool,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
-    /// Serialises submissions of the same idempotency key (advisory lock held until the
-    /// end of the transaction) and looks up a live earlier submission.
+    /// Holds the idempotency key for the transaction (advisory lock held until its end)
+    /// without waiting: [`Replay::InProgress`] if another holds it; otherwise looks up a
+    /// live earlier submission.
     fn replay(
         &mut self,
         request: &ChangesetRequest,

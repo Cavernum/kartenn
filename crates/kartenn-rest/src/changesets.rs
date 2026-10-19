@@ -3,6 +3,9 @@
 //! with `?simulate=true`. Applied → 201, pending → 202, simulated → 200; refused by the
 //! rules → 422 with every violation, each with the index of its operation and a JSON
 //! Pointer into the request. The response links to the journaled changeset.
+//!
+//! `Idempotency-Key` (REQ-006-15, task 006-15): a key in progress → 409; a replay is
+//! answered from the journal of the first changeset, with the same status and body.
 
 use std::collections::BTreeSet;
 
@@ -17,7 +20,8 @@ use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::operations::PeriodSpec;
 use kartenn_service::pipeline::MAX_OPERATIONS;
-use kartenn_service::{ChangesetRequest, Operation, Outcome, submit_in};
+use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, submit_in};
+use kartenn_store_pg::idempotency;
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
@@ -76,6 +80,27 @@ fn simulate(query: Option<&str>) -> Result<bool, Problem> {
         }
     }
     Ok(simulate.unwrap_or(false))
+}
+
+/// Name of the header of an idempotent submission (draft-ietf-httpapi-idempotency-key).
+pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
+
+/// The idempotency key of the request: at most one, 1 to 255 printable characters
+/// (design « Écritures »), otherwise 400.
+fn idempotency_key(headers: &HeaderMap) -> Result<Option<String>, Problem> {
+    let mut values = headers.get_all(IDEMPOTENCY_KEY).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(bad("Idempotency-Key is given more than once"));
+    }
+    match value.to_str() {
+        Ok(key) if (1..=255).contains(&key.len()) => Ok(Some(key.to_owned())),
+        _ => Err(bad(
+            "Idempotency-Key must be 1 to 255 printable ASCII characters",
+        )),
+    }
 }
 
 /// The body as a submission: JSON only (another media type → 415), a changeset or 400.
@@ -171,11 +196,117 @@ fn linked(mut response: Response, id: Uuid, created: bool) -> Response {
     response
 }
 
-fn cascaded(closures: &[(kartenn_service::ObjectKind, Uuid)]) -> Value {
+fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Value {
     closures
         .iter()
         .map(|(kind, id)| json!({ "kind": kind, "id": id }))
         .collect()
+}
+
+/// 201: the changeset applied, its warnings, differential and closures by cascade.
+async fn applied(
+    api: &Api,
+    changeset: Uuid,
+    warnings: &[Violation],
+    diff: Value,
+    closures: &[(ObjectKind, Uuid)],
+) -> Result<Response, Problem> {
+    Ok(linked(
+        (
+            StatusCode::CREATED,
+            Json(json!({
+                "changeset": summary(changeset),
+                "state": "applied",
+                "warnings": violations(api, warnings).await?,
+                "diff": diff,
+                "cascaded": cascaded(closures),
+            })),
+        )
+            .into_response(),
+        changeset,
+        true,
+    ))
+}
+
+/// 202: the changeset held for a decision.
+fn pending(changeset: Uuid, kind: &str, policy: Option<Uuid>, diff: &Value) -> Response {
+    linked(
+        (
+            StatusCode::ACCEPTED,
+            Json(json!({
+                "changeset": summary(changeset),
+                "state": "pending",
+                "kind": kind,
+                "policy": policy,
+                "diff": diff,
+            })),
+        )
+            .into_response(),
+        changeset,
+        false,
+    )
+}
+
+/// 422: every violation of the refused changeset, errors then warnings as journaled.
+async fn refused(
+    api: &Api,
+    changeset: Uuid,
+    mut found: Vec<Violation>,
+) -> Result<Response, Problem> {
+    found.sort_by_key(|v| !v.is_error());
+    Ok(linked(
+        Problem::new(ProblemKind::ChangesetRefused)
+            .detail(format!(
+                "the changeset is refused by {} violation(s)",
+                found.iter().filter(|v| v.is_error()).count()
+            ))
+            .extension("violations", violations(api, &found).await?)
+            .extension("changeset", summary(changeset))
+            .into_response(),
+        changeset,
+        false,
+    ))
+}
+
+/// The first response to the key, rebuilt from the journal of its changeset
+/// (design « Idempotence »): 202 for a changeset held for a decision, even decided since.
+async fn replayed(api: &Api, changeset: Uuid) -> Result<Response, Problem> {
+    let journal = idempotency::journaled(&api.pool, changeset)
+        .await?
+        .ok_or_else(|| {
+            tracing::error!(name: "http.changeset.replay_lost", %changeset, "the changeset of an idempotency key is not journaled");
+            Problem::new(ProblemKind::Internal)
+        })?;
+    match (journal.kind.as_str(), journal.state.as_str()) {
+        ("approval" | "proposal", _) => Ok(pending(
+            changeset,
+            &journal.kind,
+            journal.policy,
+            &journal.diff,
+        )),
+        (_, "applied") => {
+            applied(
+                api,
+                changeset,
+                &journal.violations,
+                journal.diff,
+                &journal.cascaded,
+            )
+            .await
+        }
+        (_, "refused") => refused(api, changeset, journal.violations).await,
+        (kind, state) => {
+            tracing::error!(name: "http.changeset.replay_unexpected", %changeset, kind, state, "a replayed changeset has an unexpected state");
+            Err(Problem::new(ProblemKind::Internal))
+        }
+    }
+}
+
+fn counted(diff: &[kartenn_service::port::DiffCount]) -> Result<Value, Problem> {
+    serde_json::to_value(diff).map_err(|e| {
+        tracing::error!(name: "http.changeset.diff", error = %e, "a differential does not serialise");
+        Problem::new(ProblemKind::Internal)
+    })
 }
 
 /// `POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,
@@ -190,6 +321,7 @@ async fn submit(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let simulate = simulate(query.as_deref())?;
+    let idempotency_key = idempotency_key(&headers)?;
     let body = body(&headers, &raw)?;
     let request = ChangesetRequest {
         author: principal.identity,
@@ -197,7 +329,7 @@ async fn submit(
         period: period(&api, &body).await?,
         operations: body.operations,
         simulate,
-        idempotency_key: None,
+        idempotency_key,
     };
     let store = PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone());
     let outcome = submit_in(
@@ -215,56 +347,18 @@ async fn submit(
             warnings,
             diff,
             cascaded: closures,
-        } => linked(
-            (
-                StatusCode::CREATED,
-                Json(json!({
-                    "changeset": summary(changeset),
-                    "state": "applied",
-                    "warnings": violations(&api, &warnings).await?,
-                    "diff": diff,
-                    "cascaded": cascaded(&closures),
-                })),
-            )
-                .into_response(),
-            changeset,
-            true,
-        ),
+        } => applied(&api, changeset, &warnings, counted(&diff)?, &closures).await?,
         Outcome::Pending {
             changeset,
             kind,
             policy,
             diff,
-        } => linked(
-            (
-                StatusCode::ACCEPTED,
-                Json(json!({
-                    "changeset": summary(changeset),
-                    "state": "pending",
-                    "kind": kind.as_str(),
-                    "policy": policy,
-                    "diff": diff,
-                })),
-            )
-                .into_response(),
-            changeset,
-            false,
-        ),
+        } => pending(changeset, kind.as_str(), policy, &counted(&diff)?),
         Outcome::Refused {
             changeset,
             violations: found,
-        } => linked(
-            Problem::new(ProblemKind::ChangesetRefused)
-                .detail(format!(
-                    "the changeset is refused by {} violation(s)",
-                    found.iter().filter(|v| v.is_error()).count()
-                ))
-                .extension("violations", violations(&api, &found).await?)
-                .extension("changeset", summary(changeset))
-                .into_response(),
-            changeset,
-            false,
-        ),
+        } => refused(&api, changeset, found).await?,
+        Outcome::Replayed { changeset, .. } => replayed(&api, changeset).await?,
         // Nothing journaled: no changeset to link to (REQ-004-9).
         Outcome::Simulated {
             violations: found,
@@ -279,8 +373,7 @@ async fn submit(
             "cascaded": cascaded(&closures),
         }))
         .into_response(),
-        // A replay needs an idempotency key (006-15), a failed revalidation a pending
-        // changeset being validated (006-17): neither comes from this route yet.
+        // A failed revalidation needs a pending changeset being validated (006-17).
         other => {
             tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a submission had an unexpected outcome");
             Problem::new(ProblemKind::Internal).into_response()
