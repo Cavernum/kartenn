@@ -127,6 +127,10 @@ plus (`page_size`), sans total, le lien suivant dans `Link` (`rel="next"`) et da
 corps, et aucun lien suivant en fin de liste ; le curseur doit figer `as_of` à la
 première page. [H5, RFC 8288] Exception : la chaîne des ancêtres d'un préfixe, bornée
 par la profondeur de l'arbre (128 au plus), est rendue en entier sans curseur (006-12e).
+Exception : une liste filtrée par propriétés (`prop.<clé>`) relit l'état courant à
+chaque page ; son curseur porte l'UUID du dernier élément et ne fige que `valid_at`. Un
+objet dont la valeur change entre deux pages peut y entrer ou en sortir ; aucun n'est
+répété (arbitrage du 2026-10-19, 006-13b).
 
 Acceptation :
 - `page_size=1001` → 400.

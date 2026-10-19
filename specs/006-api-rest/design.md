@@ -226,7 +226,10 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   condition dans un domaine, au temps système courant, et pagine par UUID. Un filtre
   `prop.<clé>` exige donc un seul `domain=` ; plusieurs conditions sont intersectées ;
   la liste filtrée est triée par UUID (le curseur porte l'UUID) ; sans domaine, sur les
-  entités et les sites, ou à un `as_of` passé → 400 qui le nomme. Des sous-requêtes dans
+  entités et les sites, ou à un `as_of` passé → 400 qui le nomme. Les champs du noyau
+  (`value`, `first`) restreignent le moteur (`$12`, valeurs de `addressing_object`). Le
+  curseur ne fige pas `as_of` : chaque page relit l'état courant (exception de
+  REQ-006-7). Des sous-requêtes dans
   la liste triée par clé naturelle ne seraient envisagées que si le banc le demande.
 - `QUERY` : corps `application/json`
   `{ "valid_at", "as_of", "filters": [{ "field", "op", "value" }], "page_size" }` ; mêmes
