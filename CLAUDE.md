@@ -3,7 +3,13 @@
 - **Specs avant le code.** Toute nouvelle brique ou décision technique est d'abord
   discutée et écrite (`specs/NNN-slug/` pour une fonctionnalité, `docs/adr/` pour une
   décision d'architecture, `docs/spec/` pour la spec système). On n'implémente qu'à
-  partir d'une spec validée par l'utilisateur.
+  partir d'une spec validée par l'utilisateur. Dans une tâche, les choix peu coûteux à
+  défaire et invisibles de l'extérieur se tranchent sans demander et se notent à la
+  clôture ; seuls les choix structurants (contrat, schéma, sécurité, dépendance,
+  irréversible) attendent un arbitrage (voir `/tache`).
+- **Tâches ciblées.** Chaque tâche de `tasks.md` porte une ligne `où :` : fichiers et
+  symboles à toucher ou à imiter, sections du design (titre ou numéro de ligne), test
+  voisin à copier. Elle s'écrit avec la tâche et se corrige quand le code bouge.
 - **Décisions de référence** : `specs/001-cadrage/decisions.md` (D1…D37). Toute
   proposition qui contredit une décision le signale et demande un arbitrage.
 - **Sources primaires** : les notes de `docs/reference/` s'appuient sur les RFC
@@ -34,8 +40,11 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   seulement en échec) plutôt que `cargo test` brut ; côté web, `k-web-check [args vitest]`
   (prettier, eslint, vue-tsc, vitest) et `k-web-e2e [args playwright]`. Builds et commandes bavardes passent
   par `| tail`/`head` ou une redirection vers le scratchpad.
-- **Lire ciblé.** Pas de `cat` d'un fichier de plus de 150 lignes : `k-ctx <fichier>` (plan
-  avec numéros de ligne ; Rust, SQL, Markdown, Vue, TypeScript) ou `grep -n`, puis la plage utile. `git diff --stat` avant un diff
+- **Lire ciblé.** Pour trouver un symbole, l'outil `LSP` (rust-analyzer : `workspaceSymbol`,
+  `goToDefinition`, `findReferences`, `hover`) plutôt qu'une lecture. Pas de `cat` ni de
+  `sed -n` d'un fichier de plus de 150 lignes sans `k-ctx <fichier>` d'abord (plan avec
+  numéros de ligne ; Rust, SQL, Markdown, Vue, TypeScript) ou `grep -n`, puis des plages
+  de 80 lignes au plus. `git diff --stat` avant un diff
   complet. Les décisions se lisent d'abord dans la synthèse en tête de `decisions.md`.
 - **Regrouper** les commandes indépendantes dans un même appel ou des appels parallèles.
 - **Déléguer le travail bavard** à un sous-agent léger qui ne rend que la conclusion :
