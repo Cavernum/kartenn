@@ -115,9 +115,10 @@ async fn list(
     Ok(respond_page(&headers, &moment, &items, None))
 }
 
-/// The motive of an acknowledgement body: a JSON object with a non-blank `motive`. Another
-/// media type → 415, malformed JSON → 400, a missing or blank motive → 422.
-fn motive(headers: &HeaderMap, body: &[u8]) -> Result<String, Problem> {
+/// The motive of a body that needs one (an acknowledgement, a rejection): a JSON object
+/// with a non-blank `motive`. Another media type → 415, malformed JSON → 400, a missing or
+/// blank motive → 422 with `missing` as detail.
+pub(crate) fn motive(headers: &HeaderMap, body: &[u8], missing: &str) -> Result<String, Problem> {
     let json = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -133,10 +134,7 @@ fn motive(headers: &HeaderMap, body: &[u8]) -> Result<String, Problem> {
     };
     match value.get("motive").and_then(Value::as_str).map(str::trim) {
         Some(motive) if !motive.is_empty() => Ok(motive.to_owned()),
-        _ => {
-            Err(Problem::new(ProblemKind::MotiveRequired)
-                .detail("an acknowledgement needs a motive"))
-        }
+        _ => Err(Problem::new(ProblemKind::MotiveRequired).detail(missing)),
     }
 }
 
@@ -176,7 +174,7 @@ async fn acknowledge(
         return Err(Problem::new(ProblemKind::Forbidden));
     }
     // The body is read once the anomaly is known visible: its errors are no oracle.
-    let motive = motive(&headers, &body)?;
+    let motive = motive(&headers, &body, "an acknowledgement needs a motive")?;
     let done = anomalies::acknowledge(&api.pool, id, principal.identity, &motive)
         .await
         .map_err(|e| store(&e))?;
@@ -223,6 +221,7 @@ mod tests {
             h
         };
         let kind = |r: Result<String, Problem>| r.unwrap_err().kind();
+        let motive = |h: &HeaderMap, b: &[u8]| motive(h, b, "a motive");
         assert_eq!(motive(&json, br#"{"motive":" known "}"#).unwrap(), "known");
         assert_eq!(kind(motive(&json, b"{}")), ProblemKind::MotiveRequired);
         assert_eq!(

@@ -24,6 +24,13 @@ pub const AUDIT_READ_PERMISSION: &str = "core.audit.read";
 /// The object that stands for the audit journal in authorisations.
 pub const AUDIT_JOURNAL: Uuid = Uuid::nil();
 
+/// Permission to read the changesets, their operations and differential (006/REQ-006-16),
+/// on [`CHANGESETS`]; global only.
+pub const CHANGESET_READ_PERMISSION: &str = "core.changeset.read";
+
+/// The object that stands for the journal of the changesets in authorisations.
+pub const CHANGESETS: Uuid = Uuid::from_u128(3);
+
 /// Identifiers a read event records by default: a page of results.
 pub const DEFAULT_READ_IDS_MAX: usize = 100;
 
@@ -193,6 +200,38 @@ pub async fn sensitive_disclosed<A: Authorizer, J: AuditJournal>(
     }
     record_all(journal, &events).await?;
     Ok(disclosed)
+}
+
+/// Whether the actor of `context` may read the changesets ([`CHANGESET_READ_PERMISSION`]);
+/// a refusal is audited (`authz.access.denied`).
+///
+/// # Errors
+///
+/// [`RequestError::Forbidden`] without the permission; [`RequestError::Audit`] when the
+/// refusal cannot be audited; [`RequestError::Store`] on infrastructure failure.
+pub async fn changesets_readable<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
+    let Some(actor) = context.subject() else {
+        return Ok(());
+    };
+    let denied = authorizer
+        .authorize_many(&actor, CHANGESET_READ_PERMISSION, &[CHANGESETS])
+        .await?;
+    if denied.is_empty() {
+        return Ok(());
+    }
+    let event = context
+        .event(&AUTHZ_DENIED, Outcome::Denied)
+        .map_err(audit_err)?
+        .target("changeset", [CHANGESETS])
+        .reason(CHANGESET_READ_PERMISSION)
+        .detail("permission", CHANGESET_READ_PERMISSION)
+        .map_err(audit_err)?;
+    record_all(journal, &[event]).await?;
+    Err(RequestError::Forbidden(CHANGESET_READ_PERMISSION.into()))
 }
 
 /// Audit events matching `query`, for an actor holding [`AUDIT_READ_PERMISSION`]; the

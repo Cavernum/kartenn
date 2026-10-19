@@ -8,6 +8,7 @@ pub mod audit_relay;
 pub mod audit_seal;
 pub mod audit_verify;
 pub mod breakglass;
+pub mod changesets;
 pub mod clock;
 mod diff;
 mod expected;

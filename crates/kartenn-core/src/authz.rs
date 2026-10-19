@@ -54,7 +54,8 @@ permissions! {
     ADDRESS_WRITE = "core.address.write", false, "Créer, modifier ou clore une adresse.";
     ADDRESS_PROPOSE = "core.address.propose", false, "Proposer un changement d'adresse.";
     CHANGESET_APPROVE = "core.changeset.approve", false, "Valider un changeset en attente qui touche le périmètre.";
-    ANOMALY_ACKNOWLEDGE = "core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
+    CHANGESET_READ = "core.changeset.read", true, "Lire les changesets, leurs opérations et leur différentiel.";
+    ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
     APPROVAL_POLICY_ADMIN = "core.approval_policy.admin", false, "Créer, modifier ou désactiver une politique d'approbation.";
     RBAC_ADMIN = "core.rbac.admin", false, "Poser ou clore des liaisons dans le périmètre, pour des rôles dont on détient les permissions.";

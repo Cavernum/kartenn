@@ -13,7 +13,7 @@ use axum::body::Bytes;
 use axum::extract::{RawQuery, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use kartenn_core::rules::{CHANGESET_CONFLICT, PROP_EXPECTED_MISMATCH, Severity, Violation};
 use kartenn_service::audit::RequestContext;
@@ -31,6 +31,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use crate::cycle;
 use crate::dated;
 use crate::objects::{self, Api, bad, instant, store};
 use crate::problem::{Problem, ProblemKind};
@@ -43,7 +44,14 @@ pub const REL_CHANGESET: &str = "urn:kartenn:rel:changeset";
 /// The routes of the changesets.
 pub fn routes(api: Api) -> Router {
     Router::new()
-        .route("/changesets", post(submit))
+        .route("/changesets", post(submit).get(cycle::list))
+        .route("/changesets/{id}", get(cycle::show))
+        .route("/changesets/{id}/diff", get(cycle::diff))
+        .route("/changesets/{id}/validation", post(cycle::validation))
+        .route("/changesets/{id}/rejection", post(cycle::rejection))
+        .route("/changesets/{id}/withdrawal", post(cycle::withdrawal))
+        .route("/changesets/{id}/undo", post(cycle::undo))
+        .route("/proposals", get(cycle::proposals))
         .with_state(api)
 }
 
@@ -65,7 +73,7 @@ struct Body {
 }
 
 /// Whether to simulate: `simulate=true|false`, at most once; anything else → 400.
-fn simulate(query: Option<&str>) -> Result<bool, Problem> {
+pub(crate) fn simulate(query: Option<&str>) -> Result<bool, Problem> {
     let mut simulate = None;
     for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
         if name != "simulate" {
@@ -173,7 +181,7 @@ pub(crate) enum Location {
 
 impl Answer<'_> {
     /// The answer of `POST /v1/changesets`.
-    const SUBMISSION: Answer<'static> = Answer {
+    pub(crate) const SUBMISSION: Answer<'static> = Answer {
         pointers: Pointers::Operations,
         applied: StatusCode::CREATED,
         location: Some(Location::Changeset),
@@ -207,7 +215,7 @@ fn violation(v: &Violation, pointers: Pointers<'_>) -> Value {
 
 /// The violations as served, the message of a deviation of a sensitive property replaced:
 /// it cites the resolved value (REQ-005-21, design « Erreurs »).
-async fn violations(
+pub(crate) async fn violations(
     api: &Api,
     found: &[Violation],
     pointers: Pointers<'_>,
@@ -236,12 +244,12 @@ async fn violations(
     ))
 }
 
-fn summary(id: Uuid) -> Value {
+pub(crate) fn summary(id: Uuid) -> Value {
     json!({ "id": id, "href": href(id) })
 }
 
 /// `Link` to changeset `id`, and `Location` to `location` when given.
-fn linked(mut response: Response, id: Uuid, location: Option<String>) -> Response {
+pub(crate) fn linked(mut response: Response, id: Uuid, location: Option<String>) -> Response {
     if let Ok(link) = HeaderValue::try_from(format!("<{}>; rel=\"{REL_CHANGESET}\"", href(id))) {
         response.headers_mut().insert(header::LINK, link);
     }
@@ -253,7 +261,7 @@ fn linked(mut response: Response, id: Uuid, location: Option<String>) -> Respons
     response
 }
 
-fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Value {
+pub(crate) fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Value {
     closures
         .iter()
         .map(|(kind, id)| json!({ "kind": kind, "id": id }))
@@ -395,6 +403,11 @@ fn counted(diff: &[kartenn_service::port::DiffCount]) -> Result<Value, Problem> 
     })
 }
 
+/// The store of the writes of `api`.
+pub(crate) fn write_store(api: &Api) -> PgStore {
+    PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone())
+}
+
 /// Submits `request` in `context` and answers its outcome as `answer` says.
 pub(crate) async fn submit_answered(
     api: &Api,
@@ -402,9 +415,8 @@ pub(crate) async fn submit_answered(
     request: &ChangesetRequest,
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
-    let store = PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone());
     let outcome = submit_in(
-        &store,
+        &write_store(api),
         &PgAuthorizer::new(api.pool.clone()),
         &api.sources,
         context,
@@ -412,6 +424,15 @@ pub(crate) async fn submit_answered(
         MAX_OPERATIONS,
     )
     .await?;
+    answered(api, outcome, answer).await
+}
+
+/// The response to `outcome`, as `answer` says; a failed revalidation is refused (422).
+pub(crate) async fn answered(
+    api: &Api,
+    outcome: Outcome,
+    answer: &Answer<'_>,
+) -> Result<Response, Problem> {
     let response = match outcome {
         Outcome::Applied {
             changeset,
@@ -438,6 +459,10 @@ pub(crate) async fn submit_answered(
         Outcome::Refused {
             changeset,
             violations: found,
+        }
+        | Outcome::FailedRevalidation {
+            changeset,
+            violations: found,
         } => refused(api, changeset, found, answer).await?,
         Outcome::Replayed { changeset, .. } => replayed(api, changeset, answer).await?,
         // Nothing journaled: no changeset to link to (REQ-004-9).
@@ -454,9 +479,8 @@ pub(crate) async fn submit_answered(
             "cascaded": cascaded(&closures),
         }))
         .into_response(),
-        // A failed revalidation needs a pending changeset being validated (006-17).
         other => {
-            tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a submission had an unexpected outcome");
+            tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a changeset had an unexpected outcome");
             Problem::new(ProblemKind::Internal).into_response()
         }
     };

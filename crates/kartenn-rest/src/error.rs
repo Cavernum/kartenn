@@ -2,6 +2,7 @@
 //! messages and identifiers only; an infrastructure error goes to the log, never to the
 //! client.
 
+use kartenn_core::rules;
 use kartenn_service::import::ImportError;
 use kartenn_service::{RequestError, StoreError, WriteError};
 
@@ -36,7 +37,12 @@ impl From<RequestError> for Problem {
             }
             RequestError::IdempotencyConflict => Self::new(ProblemKind::IdempotencyKeyReused),
             RequestError::IdempotencyInProgress => Self::new(ProblemKind::IdempotencyInProgress),
-            RequestError::Review(_) => Self::new(ProblemKind::Conflict).detail(error.to_string()),
+            // A decision refused to its author or to whom lacks the rights → 403; a
+            // changeset no longer pending → 409 (design « Cycle d'un changeset »).
+            RequestError::Review(ref v) if v.rule.id == rules::CHANGESET_NOT_PENDING.id => {
+                Self::new(ProblemKind::Conflict).detail(error.to_string())
+            }
+            RequestError::Review(_) => Self::new(ProblemKind::Forbidden).detail(error.to_string()),
             RequestError::Forbidden(_) => {
                 Self::new(ProblemKind::Forbidden).detail(error.to_string())
             }
@@ -111,7 +117,11 @@ mod tests {
                 RequestError::IdempotencyInProgress,
                 ProblemKind::IdempotencyInProgress,
             ),
-            (RequestError::Review(violation), ProblemKind::Conflict),
+            (RequestError::Review(violation), ProblemKind::Forbidden),
+            (
+                RequestError::Review(Violation::new(&rules::CHANGESET_NOT_PENDING, "not pending")),
+                ProblemKind::Conflict,
+            ),
             (
                 RequestError::Forbidden("prefix.write".into()),
                 ProblemKind::Forbidden,

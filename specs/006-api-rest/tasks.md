@@ -292,10 +292,24 @@ routeur complet, sauf mention « vrai TCP ».
   `a_creation_links_to_its_changeset`, `a_creation_replays_its_first_response`,
   `a_deletion_closes_the_object`, `an_approval_policy_answers_202`,
   `a_patch_renames_and_moves`)
-- [ ] 17. Cycle d'un changeset : lecture, liste filtrée, différentiel paginé,
+- [x] 17. Cycle d'un changeset : lecture, liste filtrée, différentiel paginé,
   validation, rejet, retrait, annulation (409 et conflits), propositions ; `If-Match`
   sur les actions — REQ-006-16 — verify : auteur qui valide → 403 ; annulation en
   conflit → 409 avec la liste
+  — Core : permission globale `core.changeset.read` (`docs/spec/permissions.md`).
+  Service : `reads::changesets_readable` (objet `CHANGESETS`, refus audité). Store :
+  `changesets.rs` (`find`, `page` en keyset, `summaries`, `diff_objects`), migration
+  0038 `changeset_keyset`, `property_read::sensitive_ids`. Rest : `cycle.rs` (lecture,
+  liste, différentiel, propositions, actions sous `If-Match` = état, annulation qui
+  soumet l'inverse ou 409 `undo-conflict`), masquage des valeurs sensibles (opérations,
+  détail et décompte) et du condensat d'un secret ; `answered` partagé (revalidation
+  échouée → 422), `entity_tag`, `motive` partagé, refus de revue → 403 / 409.
+  `tests/cycle.rs` (`an_author_who_validates_gets_403`,
+  `an_undo_in_conflict_answers_409_with_the_list`, `reading_needs_core_changeset_read`,
+  `the_list_filters_by_state_and_author_by_pages`,
+  `rejection_and_withdrawal_close_a_pending_changeset`,
+  `the_proposals_are_those_the_caller_may_validate`,
+  `a_sensitive_value_is_masked_without_its_right`)
 - [ ] 18. Administration des droits : rôles, liaisons, rattachements, comptes de
   service et secrets (réponse `Secret`, `no-store`), état des identités — REQ-006-4,
   32 — verify : délégué sans escalade (005) par HTTP ; secret jamais compressé

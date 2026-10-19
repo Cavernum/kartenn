@@ -9,6 +9,7 @@ pub mod compression;
 pub mod cookies;
 pub mod csrf;
 pub mod cursor;
+mod cycle;
 pub mod dated;
 pub mod error;
 pub mod filter;

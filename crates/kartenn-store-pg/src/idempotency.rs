@@ -53,7 +53,7 @@ fn entries(stored: &serde_json::Value) -> Result<&Vec<serde_json::Value>, StoreE
 }
 
 /// The violations as journaled by the store (`rule`, `message`, `subjects`, `operation`).
-fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, StoreError> {
+pub(crate) fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, StoreError> {
     entries(stored)?
         .iter()
         .map(|entry| {
@@ -81,7 +81,7 @@ fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, StoreError> 
 }
 
 /// The closures of a cascade as journaled: `[{kind, id}]`.
-fn closures(stored: &serde_json::Value) -> Result<Vec<(ObjectKind, Uuid)>, StoreError> {
+pub(crate) fn closures(stored: &serde_json::Value) -> Result<Vec<(ObjectKind, Uuid)>, StoreError> {
     entries(stored)?
         .iter()
         .map(|entry| {

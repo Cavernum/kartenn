@@ -2,7 +2,7 @@
 //! the declarations and the values of closed lists at `(valid_at, as_of)`, by pages keyed
 //! by key; the kinds of the objects an explanation walks.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -184,6 +184,20 @@ pub async fn sensitive_keys(pool: &PgPool) -> sqlx::Result<BTreeSet<String>> {
     .fetch_all(pool)
     .await?;
     Ok(keys.into_iter().collect())
+}
+
+/// The properties declared sensitive now: key by identifier.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn sensitive_ids(pool: &PgPool) -> sqlx::Result<BTreeMap<Uuid, String>> {
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, key FROM property_declaration WHERE sensitive AND valid_period @> now()",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
 }
 
 /// The kind of each of `ids` that exists at `valid_at` as asserted at `as_of`.

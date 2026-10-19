@@ -214,13 +214,10 @@ fn creation(kind: Kind, members: Map<String, Value>) -> Result<Operation, Proble
     })
 }
 
-/// The version `If-Match` names (REQ-006-14, design « Routes par ressource »): absent or
-/// `*` → 428, several or malformed → 400, weak or not a version → 412.
-fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
-    let required = || {
-        Problem::new(ProblemKind::PreconditionRequired)
-            .detail("read the object, then send its ETag in If-Match to modify or close it")
-    };
+/// The opaque part of the one strong entity tag `If-Match` names (design « Écritures »):
+/// absent or `*` → 428 with `required` as detail, several or malformed → 400, weak → 412.
+pub(crate) fn entity_tag(headers: &HeaderMap, required: &str) -> Result<String, Problem> {
+    let required = || Problem::new(ProblemKind::PreconditionRequired).detail(required);
     let mut values = headers.get_all(header::IF_MATCH).iter();
     let Some(value) = values.next() else {
         return Err(required());
@@ -238,8 +235,6 @@ fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
     if value.contains(',') {
         return Err(bad("If-Match names one version"));
     }
-    let stale =
-        || Problem::new(ProblemKind::PreconditionFailed).detail("If-Match names no version");
     let (weak, quoted) = match value.strip_prefix("W/") {
         Some(rest) => (true, rest),
         None => (false, value),
@@ -252,7 +247,23 @@ fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
     if weak {
         return Err(stale());
     }
-    opaque.parse().map_err(|_| stale())
+    Ok(opaque.to_owned())
+}
+
+/// 412: `If-Match` names no current version.
+pub(crate) fn stale() -> Problem {
+    Problem::new(ProblemKind::PreconditionFailed).detail("If-Match names no version")
+}
+
+/// The version `If-Match` names (REQ-006-14, design « Routes par ressource »): absent or
+/// `*` → 428, several or malformed → 400, weak or not a version → 412.
+fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
+    entity_tag(
+        headers,
+        "read the object, then send its ETag in If-Match to modify or close it",
+    )?
+    .parse()
+    .map_err(|_| stale())
 }
 
 /// 422 `invalid-member` pointing at `pointer`.
