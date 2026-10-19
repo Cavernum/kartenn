@@ -31,6 +31,11 @@ pub const CHANGESET_READ_PERMISSION: &str = "core.changeset.read";
 /// The object that stands for the journal of the changesets in authorisations.
 pub const CHANGESETS: Uuid = Uuid::from_u128(3);
 
+/// Permission to read the administration of the rights (006/REQ-006-4; design « Droits »):
+/// roles, bindings, attachments, service accounts and identities, on
+/// [`crate::rbac::RBAC_OBJECT`]; global only.
+pub const RBAC_READ_PERMISSION: &str = "core.rbac.read";
+
 /// Identifiers a read event records by default: a page of results.
 pub const DEFAULT_READ_IDS_MAX: usize = 100;
 
@@ -202,6 +207,35 @@ pub async fn sensitive_disclosed<A: Authorizer, J: AuditJournal>(
     Ok(disclosed)
 }
 
+/// Whether the actor of `context` holds `permission` on the sentinel `object` (a global
+/// permission); a refusal is audited (`authz.access.denied`, target `target`).
+async fn globally<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    permission: &str,
+    (target, object): (&str, Uuid),
+) -> Result<(), RequestError> {
+    let Some(actor) = context.subject() else {
+        return Ok(());
+    };
+    let denied = authorizer
+        .authorize_many(&actor, permission, &[object])
+        .await?;
+    if denied.is_empty() {
+        return Ok(());
+    }
+    let event = context
+        .event(&AUTHZ_DENIED, Outcome::Denied)
+        .map_err(audit_err)?
+        .target(target, [object])
+        .reason(permission)
+        .detail("permission", permission)
+        .map_err(audit_err)?;
+    record_all(journal, &[event]).await?;
+    Err(RequestError::Forbidden(permission.into()))
+}
+
 /// Whether the actor of `context` may read the changesets ([`CHANGESET_READ_PERMISSION`]);
 /// a refusal is audited (`authz.access.denied`).
 ///
@@ -214,24 +248,35 @@ pub async fn changesets_readable<A: Authorizer, J: AuditJournal>(
     journal: &J,
     context: &RequestContext,
 ) -> Result<(), RequestError> {
-    let Some(actor) = context.subject() else {
-        return Ok(());
-    };
-    let denied = authorizer
-        .authorize_many(&actor, CHANGESET_READ_PERMISSION, &[CHANGESETS])
-        .await?;
-    if denied.is_empty() {
-        return Ok(());
-    }
-    let event = context
-        .event(&AUTHZ_DENIED, Outcome::Denied)
-        .map_err(audit_err)?
-        .target("changeset", [CHANGESETS])
-        .reason(CHANGESET_READ_PERMISSION)
-        .detail("permission", CHANGESET_READ_PERMISSION)
-        .map_err(audit_err)?;
-    record_all(journal, &[event]).await?;
-    Err(RequestError::Forbidden(CHANGESET_READ_PERMISSION.into()))
+    globally(
+        authorizer,
+        journal,
+        context,
+        CHANGESET_READ_PERMISSION,
+        ("changeset", CHANGESETS),
+    )
+    .await
+}
+
+/// Whether the actor of `context` may read the administration of the rights
+/// ([`RBAC_READ_PERMISSION`]); a refusal is audited (`authz.access.denied`).
+///
+/// # Errors
+///
+/// As [`changesets_readable`].
+pub async fn rbac_readable<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
+    globally(
+        authorizer,
+        journal,
+        context,
+        RBAC_READ_PERMISSION,
+        ("rbac", crate::rbac::RBAC_OBJECT),
+    )
+    .await
 }
 
 /// Audit events matching `query`, for an actor holding [`AUDIT_READ_PERMISSION`]; the

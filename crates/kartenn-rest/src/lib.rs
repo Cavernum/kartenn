@@ -20,6 +20,7 @@ pub mod properties;
 pub mod quota;
 pub mod request_id;
 pub mod resources;
+pub mod rights;
 pub mod transport;
 pub mod tree;
 
@@ -45,7 +46,8 @@ pub fn v1(api: objects::Api) -> Router {
         .merge(tree::routes(api.clone()))
         .merge(anomalies::routes(api.clone()))
         .merge(changesets::routes(api.clone()))
-        .merge(properties::routes(api))
+        .merge(properties::routes(api.clone()))
+        .merge(rights::routes(api))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

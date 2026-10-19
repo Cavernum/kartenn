@@ -214,11 +214,32 @@ pub trait Identities: Send + Sync {
         claimed: &str,
     ) -> impl Future<Output = Result<String, StoreError>> + Send;
 
-    /// The keys of the roles `subject` holds now, on any scope (`GET /v1/me`, 006).
-    fn roles(
-        &self,
-        subject: &Subject,
-    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
+    /// A summary of the rights of `subject` now (`GET /v1/me`, 006).
+    fn rights(&self, subject: &Subject) -> impl Future<Output = Result<Rights, StoreError>> + Send;
+}
+
+/// A summary of the rights of a subject now (`GET /v1/me`; 006, design « Droits »).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Rights {
+    /// Its display name.
+    pub name: Option<String>,
+    /// The keys of the roles it holds, on any scope.
+    pub roles: Vec<String>,
+    /// The bindings that serve it: its own, those of its groups and of its issuer.
+    pub bindings: Vec<HeldBinding>,
+    /// The entries of the roles of its global bindings.
+    pub global_permissions: Vec<String>,
+}
+
+/// A binding that serves a subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeldBinding {
+    /// Role key.
+    pub role: String,
+    /// `global`, `entity`, `site`, `domain` or `prefix`.
+    pub scope_kind: String,
+    /// The scope; `None` for global.
+    pub scope: Option<Uuid>,
 }
 
 /// Why an authentication fails.

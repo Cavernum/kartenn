@@ -29,7 +29,8 @@ use kartenn_core::period::Instant;
 use kartenn_service::aggregate::FailureAggregator;
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::{
-    self, AuthnError, Failure, Identities, IdentityKind, Method, Principal, SessionEnd, StateCache,
+    self, AuthnError, Failure, Identities, IdentityKind, Method, Principal, Rights, SessionEnd,
+    StateCache,
 };
 
 use crate::cookies;
@@ -123,6 +124,8 @@ pub struct Authenticated {
     pub session: Option<Session>,
     /// The chunks of the session cookie to send again, if due.
     pub cookie: Option<Vec<String>>,
+    /// When the session ends unless seen again (Unix seconds), for a session cookie.
+    pub ends_at: Option<i64>,
 }
 
 impl From<Principal> for Authenticated {
@@ -131,9 +134,15 @@ impl From<Principal> for Authenticated {
             principal,
             session: None,
             cookie: None,
+            ends_at: None,
         }
     }
 }
+
+/// When the session of the request ends unless seen again (Unix seconds); a request
+/// extension beside its [`Session`] (`GET /v1/me`).
+#[derive(Debug, Clone, Copy)]
+pub struct SessionEnds(pub i64);
 
 /// What the [`Authenticator`] answers, later.
 pub type Answer<'a, T> = Pin<Box<dyn Future<Output = Result<T, Refusal>> + Send + 'a>>;
@@ -192,10 +201,10 @@ pub trait Authenticator: Send + Sync {
         refused(Refusal::Unavailable)
     }
 
-    /// The keys of the roles `principal` holds now.
-    fn roles<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Vec<String>> {
+    /// A summary of the rights `principal` holds now.
+    fn rights<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Rights> {
         let _ = principal;
-        Box::pin(std::future::ready(Ok(Vec::new())))
+        Box::pin(std::future::ready(Ok(Rights::default())))
     }
 }
 
@@ -380,10 +389,12 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         } else {
             None
         };
+        let ends_at = Some(session.ends_at(seconds(self.idle), seconds(self.absolute)));
         Ok(Authenticated {
             principal,
             session: Some(session),
             cookie,
+            ends_at,
         })
     }
 
@@ -611,10 +622,10 @@ where
         Box::pin(self.closing(session, principal, source))
     }
 
-    fn roles<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Vec<String>> {
+    fn rights<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Rights> {
         Box::pin(async move {
             self.identities
-                .roles(&principal.subject())
+                .rights(&principal.subject())
                 .await
                 .map_err(|e| refusal(&AuthnError::Store(e), Refusal::Unavailable))
         })
@@ -703,6 +714,7 @@ pub async fn layer(
         principal,
         session,
         cookie,
+        ends_at,
     } = match authenticator.authenticate(proof, source.clone()).await {
         Ok(authenticated) => authenticated,
         Err(refusal) => {
@@ -721,6 +733,9 @@ pub async fn layer(
     request.extensions_mut().insert(principal);
     if let Some(session) = session {
         request.extensions_mut().insert(session);
+    }
+    if let Some(ends_at) = ends_at {
+        request.extensions_mut().insert(SessionEnds(ends_at));
     }
     let mut response = next.run(request).await;
     if let Some(cookie) = cookie

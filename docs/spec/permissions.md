@@ -32,6 +32,7 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `core.anomaly.acknowledge` | — | Acquitter, avec un motif, une anomalie d'un objet du périmètre. |
 | `core.property.admin` | oui | Déclarer une propriété, changer sa sensibilité. |
 | `core.approval_policy.admin` | — | Créer, modifier ou désactiver une politique d'approbation. |
+| `core.rbac.read` | oui | Lire les rôles, liaisons, rattachements, comptes de service et l'état des identités. |
 | `core.rbac.admin` | — | Poser ou clore des liaisons dans le périmètre, pour des rôles dont on détient les permissions. |
 | `core.role.admin` | oui | Définir, modifier ou clore un rôle. |
 | `core.issuer.admin` | oui | Rattacher un émetteur OIDC à des entités ou au périmètre global. |

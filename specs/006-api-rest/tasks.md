@@ -310,13 +310,30 @@ routeur complet, sauf mention « vrai TCP ».
   `rejection_and_withdrawal_close_a_pending_changeset`,
   `the_proposals_are_those_the_caller_may_validate`,
   `a_sensitive_value_is_masked_without_its_right`)
-- [ ] 18. Administration des droits : rôles, liaisons, rattachements, comptes de
+- [x] 18. Administration des droits : rôles, liaisons, rattachements, comptes de
   service et secrets (réponse `Secret`, `no-store`), état des identités — REQ-006-4,
   32 — verify : délégué sans escalade (005) par HTTP ; secret jamais compressé
   où : design « Ressources et routes » (ligne Droits) ; store `rbac_admin.rs` (`bind`,
   `add_secret`, `binding_scope`) ; réponse `compression::Secret` ; modèle de route
   `rest/src/resources.rs`, branchement `rest/src/lib.rs::v1` ; test à imiter
   `tests/resources.rs`
+  — Arbitrage au design (« Droits », 2026-10-19). Core : permission globale
+  `core.rbac.read` (`docs/spec/permissions.md`). Service : `reads::rbac_readable`
+  (contrôle global partagé avec `changesets_readable`), port `Identities::rights`
+  (`Rights`, `HeldBinding`) à la place de `roles`. Store : `rbac_read.rs` (rôles,
+  liaisons, rattachements, comptes et secrets sans condensat, identités, liaisons d'un
+  sujet, permissions globales), `request_hash` sans l'identifiant ni le condensat d'un
+  secret. Auth : `Session::ends_at`. Rest : `rights.rs` (lectures paginées et
+  auditées, écritures par changeset d'une opération, secret généré et montré une fois
+  sous `Secret`), `Answer.shown` et `Location::{Fixed, Binding, Account}` dans
+  `changesets.rs`, `SessionEnds` et `GET /v1/me` étendu (`auth.rs`). `tests/rights.rs`
+  (`a_delegate_binds_without_escalation`, `a_secret_is_never_compressed`,
+  `a_replay_does_not_show_the_secret_again`, `reading_the_rights_needs_core_rbac_read`,
+  `attachments_and_identities_are_administered`), `tests/sessions.rs` (liaisons et fin
+  de session dans `/v1/me`)
+  choix : pas de vérification d'existence avant une écriture (rôle, liaison ou secret
+  inconnu → 422 du pipeline, pas de 404) ; `PUT` d'un rôle → 201 ou 200 selon sa
+  présence lue avant ; `Location` d'un ajout de secret → le compte
 - [ ] 19. Audit et exploitation : recherche et export (`GET`, `QUERY`),
   pseudonymisation, filtres de log à chaud — REQ-006-4 — verify : consultation sans
   permission refusée et auditée ; filtre qui revient à la configuration

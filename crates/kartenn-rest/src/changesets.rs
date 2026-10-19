@@ -25,6 +25,7 @@ use kartenn_store_pg::idempotency;
 use kartenn_store_pg::list::{self, Kind};
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::rbac::PgAuthorizer;
+use kartenn_store_pg::rbac_read;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::Deserialize;
@@ -165,18 +166,27 @@ pub(crate) struct Answer<'a> {
     pub applied: StatusCode,
     /// The created object `Location` names instead of the changeset; `None` without
     /// creation.
-    pub location: Option<Location>,
+    pub location: Option<Location<'a>>,
     /// A conflict on `If-Match` answers 412 instead of 422 (REQ-006-14).
     pub precondition: bool,
+    /// A secret generated for the changeset, shown once as the member `secret` of the
+    /// response applied or pending, never on a replay (design « Droits »).
+    pub shown: Option<&'a Value>,
 }
 
 /// What `Location` names.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Location {
+pub(crate) enum Location<'a> {
     /// The changeset.
     Changeset,
     /// The object of this kind the changeset created.
     Created(Kind),
+    /// This path, known before the changeset.
+    Fixed(&'a str),
+    /// The binding the changeset created.
+    Binding,
+    /// The service account of this secret, which the changeset created.
+    Account(Uuid),
 }
 
 impl Answer<'_> {
@@ -186,6 +196,7 @@ impl Answer<'_> {
         applied: StatusCode::CREATED,
         location: Some(Location::Changeset),
         precondition: false,
+        shown: None,
     };
 }
 
@@ -281,6 +292,13 @@ async fn location(
             .await
             .map_err(|e| store(&e))?
             .map(|id| objects::href(kind, id)),
+        Some(Location::Fixed(path)) => Some((*path).to_owned()),
+        Some(Location::Binding) => rbac_read::created_binding(&api.pool, changeset)
+            .await?
+            .map(|id| format!("/v1/bindings/{id}")),
+        Some(Location::Account(secret)) => rbac_read::account_of_secret(&api.pool, secret)
+            .await?
+            .map(|id| format!("/v1/service-accounts/{id}")),
     })
 }
 
@@ -293,37 +311,46 @@ async fn applied(
     closures: &[(ObjectKind, Uuid)],
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
+    let mut body = json!({
+        "changeset": summary(changeset),
+        "state": "applied",
+        "warnings": violations(api, warnings, answer.pointers).await?,
+        "diff": diff,
+        "cascaded": cascaded(closures),
+    });
+    show(&mut body, answer.shown);
     Ok(linked(
-        (
-            answer.applied,
-            Json(json!({
-                "changeset": summary(changeset),
-                "state": "applied",
-                "warnings": violations(api, warnings, answer.pointers).await?,
-                "diff": diff,
-                "cascaded": cascaded(closures),
-            })),
-        )
-            .into_response(),
+        (answer.applied, Json(body)).into_response(),
         changeset,
         location(api, changeset, answer).await?,
     ))
 }
 
+/// Adds the secret `shown`, if any, to `body`.
+fn show(body: &mut Value, shown: Option<&Value>) {
+    if let (Some(members), Some(secret)) = (body.as_object_mut(), shown) {
+        members.insert("secret".to_owned(), secret.clone());
+    }
+}
+
 /// 202: the changeset held for a decision.
-fn pending(changeset: Uuid, kind: &str, policy: Option<Uuid>, diff: &Value) -> Response {
+fn pending(
+    changeset: Uuid,
+    kind: &str,
+    policy: Option<Uuid>,
+    diff: &Value,
+    shown: Option<&Value>,
+) -> Response {
+    let mut body = json!({
+        "changeset": summary(changeset),
+        "state": "pending",
+        "kind": kind,
+        "policy": policy,
+        "diff": diff,
+    });
+    show(&mut body, shown);
     linked(
-        (
-            StatusCode::ACCEPTED,
-            Json(json!({
-                "changeset": summary(changeset),
-                "state": "pending",
-                "kind": kind,
-                "policy": policy,
-                "diff": diff,
-            })),
-        )
-            .into_response(),
+        (StatusCode::ACCEPTED, Json(body)).into_response(),
         changeset,
         None,
     )
@@ -364,6 +391,10 @@ async fn refused(
 /// The first response to the key, rebuilt from the journal of its changeset
 /// (design « Idempotence »): 202 for a changeset held for a decision, even decided since.
 async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Response, Problem> {
+    let answer = &Answer {
+        shown: None,
+        ..*answer
+    };
     let journal = idempotency::journaled(&api.pool, changeset)
         .await?
         .ok_or_else(|| {
@@ -376,6 +407,7 @@ async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Res
             &journal.kind,
             journal.policy,
             &journal.diff,
+            None,
         )),
         (_, "applied") => {
             applied(
@@ -455,7 +487,13 @@ pub(crate) async fn answered(
             kind,
             policy,
             diff,
-        } => pending(changeset, kind.as_str(), policy, &counted(&diff)?),
+        } => pending(
+            changeset,
+            kind.as_str(),
+            policy,
+            &counted(&diff)?,
+            answer.shown,
+        ),
         Outcome::Refused {
             changeset,
             violations: found,

@@ -55,6 +55,7 @@ const VALIDATION: Answer<'static> = Answer {
     applied: axum::http::StatusCode::OK,
     location: None,
     precondition: false,
+    shown: None,
 };
 
 fn time(at: OffsetDateTime) -> String {

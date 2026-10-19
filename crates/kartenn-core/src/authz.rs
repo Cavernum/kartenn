@@ -58,6 +58,7 @@ permissions! {
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
     APPROVAL_POLICY_ADMIN = "core.approval_policy.admin", false, "Créer, modifier ou désactiver une politique d'approbation.";
+    RBAC_READ = "core.rbac.read", true, "Lire les rôles, liaisons, rattachements, comptes de service et l'état des identités.";
     RBAC_ADMIN = "core.rbac.admin", false, "Poser ou clore des liaisons dans le périmètre, pour des rôles dont on détient les permissions.";
     ROLE_ADMIN = "core.role.admin", true, "Définir, modifier ou clore un rôle.";
     ISSUER_ADMIN = "core.issuer.admin", true, "Rattacher un émetteur OIDC à des entités ou au périmètre global.";

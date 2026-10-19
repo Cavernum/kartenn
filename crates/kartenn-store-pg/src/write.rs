@@ -88,7 +88,23 @@ fn period_sql(a: u8, b: u8) -> String {
 
 /// Stable digest of a request, to recognise a resubmission under the same idempotency key.
 fn request_hash(request: &ChangesetRequest) -> Result<Vec<u8>, StoreError> {
-    let bytes = serde_json::to_vec(request).map_err(store_err)?;
+    let mut value = serde_json::to_value(request).map_err(store_err)?;
+    // A secret of a service account is generated for each request (006, design
+    // « Droits »): its identifier and digest are left out, so that a replay matches.
+    if let Some(operations) = value
+        .get_mut("operations")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        for secret in operations
+            .iter_mut()
+            .filter_map(|op| op.get_mut("secret"))
+            .filter_map(serde_json::Value::as_object_mut)
+        {
+            secret.remove("id");
+            secret.remove("digest");
+        }
+    }
+    let bytes = serde_json::to_vec(&value).map_err(store_err)?;
     Ok(Sha256::digest(&bytes).to_vec())
 }
 

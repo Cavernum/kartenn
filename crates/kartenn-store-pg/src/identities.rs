@@ -6,8 +6,8 @@ use hmac::{Hmac, KeyInit, Mac};
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
 use kartenn_service::authn::{
-    BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, Identities,
-    IdentityState, ServiceAccount, StoredSecret,
+    BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, HeldBinding,
+    Identities, IdentityState, Rights, ServiceAccount, StoredSecret,
 };
 use kartenn_service::authz::Subject;
 use sha2::Sha256;
@@ -203,8 +203,28 @@ impl Identities for PgStore {
         Ok(kartenn_core::audit::seal::hex(&mac.finalize().into_bytes()))
     }
 
-    async fn roles(&self, subject: &Subject) -> Result<Vec<String>, StoreError> {
+    async fn rights(&self, subject: &Subject) -> Result<Rights, StoreError> {
         let mut conn = self.pool().acquire().await.map_err(store_err)?;
-        crate::rbac::roles_of_on(&mut conn, subject).await
+        let roles = crate::rbac::roles_of_on(&mut conn, subject).await?;
+        drop(conn);
+        let name = crate::rbac_read::identity(self.pool(), subject.id)
+            .await?
+            .map(|i| i.name);
+        let bindings = crate::rbac_read::bindings_of(self.pool(), subject)
+            .await?
+            .into_iter()
+            .map(|b| HeldBinding {
+                role: b.role,
+                scope_kind: b.scope_kind,
+                scope: b.scope_id,
+            })
+            .collect();
+        let global_permissions = crate::rbac_read::global_entries(self.pool(), subject).await?;
+        Ok(Rights {
+            name,
+            roles,
+            bindings,
+            global_permissions,
+        })
     }
 }

@@ -543,11 +543,7 @@ impl Session {
     ///
     /// [`SessionError::Idle`], [`SessionError::Expired`].
     pub fn check(&mut self, at: i64, idle: i64, absolute: i64) -> Result<(), SessionError> {
-        let absolute = if self.breakglass {
-            absolute.min(BREAKGLASS_LIFETIME)
-        } else {
-            absolute
-        };
+        let absolute = self.lifetime(absolute);
         if at - self.started >= absolute {
             return Err(SessionError::Expired);
         }
@@ -556,6 +552,25 @@ impl Session {
         }
         self.seen = at;
         Ok(())
+    }
+
+    /// Its absolute lifetime under `absolute` seconds: at most [`BREAKGLASS_LIFETIME`]
+    /// for a break-glass session.
+    const fn lifetime(&self, absolute: i64) -> i64 {
+        if self.breakglass && BREAKGLASS_LIFETIME < absolute {
+            BREAKGLASS_LIFETIME
+        } else {
+            absolute
+        }
+    }
+
+    /// When it ends (Unix seconds) unless seen again: by inactivity after `idle`, or at
+    /// the end of its lifetime under `absolute`, whichever comes first.
+    #[must_use]
+    pub const fn ends_at(&self, idle: i64, absolute: i64) -> i64 {
+        let by_idle = self.seen.saturating_add(idle);
+        let by_age = self.started.saturating_add(self.lifetime(absolute));
+        if by_idle < by_age { by_idle } else { by_age }
     }
 
     /// Whether its groups are due for a refresh at `at`.

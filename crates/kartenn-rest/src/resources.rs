@@ -32,7 +32,7 @@ use crate::problem::{Problem, ProblemKind};
 pub const MERGE_PATCH: &str = "application/merge-patch+json";
 
 /// The pointer to the whole body (RFC 6901 §5).
-const WHOLE: &str = "";
+pub(crate) const WHOLE: &str = "";
 
 /// The kind of the pipeline of a kind of collection.
 const fn object_kind(kind: Kind) -> ObjectKind {
@@ -56,7 +56,11 @@ fn media_type(headers: &HeaderMap) -> Option<String> {
 }
 
 /// The body as a JSON object of media type `expected` (another → 415), or 400.
-fn members(headers: &HeaderMap, raw: &[u8], expected: &str) -> Result<Map<String, Value>, Problem> {
+pub(crate) fn members(
+    headers: &HeaderMap,
+    raw: &[u8],
+    expected: &str,
+) -> Result<Map<String, Value>, Problem> {
     if media_type(headers).as_deref() != Some(expected) {
         return Err(Problem::new(ProblemKind::UnsupportedMediaType)
             .detail(format!("the body must be {expected}")));
@@ -69,19 +73,19 @@ fn members(headers: &HeaderMap, raw: &[u8], expected: &str) -> Result<Map<String
 }
 
 /// A member as `T`, or 400 naming it.
-fn typed<T: DeserializeOwned>(name: &str, value: Value) -> Result<T, Problem> {
+pub(crate) fn typed<T: DeserializeOwned>(name: &str, value: Value) -> Result<T, Problem> {
     serde_json::from_value(value).map_err(|e| bad(format!("{name}: {e}")))
 }
 
 /// The reserved members of a write (design « Représentations »): `motive`, `valid_from`,
 /// `valid_to`, removed from `members`; `null` dates are absent.
-struct Reserved {
-    motive: String,
-    valid_from: Option<String>,
-    valid_to: Option<String>,
+pub(crate) struct Reserved {
+    pub(crate) motive: String,
+    pub(crate) valid_from: Option<String>,
+    pub(crate) valid_to: Option<String>,
 }
 
-fn reserved(members: &mut Map<String, Value>) -> Result<Reserved, Problem> {
+pub(crate) fn reserved(members: &mut Map<String, Value>) -> Result<Reserved, Problem> {
     let mut take = |name: &str| -> Result<Option<String>, Problem> {
         members
             .remove(name)
@@ -267,7 +271,7 @@ fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
 }
 
 /// 422 `invalid-member` pointing at `pointer`.
-fn invalid(pointer: &str, detail: impl Into<String>) -> Problem {
+pub(crate) fn invalid(pointer: &str, detail: impl Into<String>) -> Problem {
     Problem::new(ProblemKind::InvalidMember)
         .detail(detail)
         .extension("pointer", Value::String(pointer.to_owned()))
@@ -553,6 +557,7 @@ pub(crate) async fn create(
         applied: StatusCode::CREATED,
         location: Some(Location::Created(kind)),
         precondition: false,
+        shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await
 }
@@ -620,6 +625,7 @@ pub(crate) async fn modify(
         applied: StatusCode::OK,
         location: None,
         precondition: true,
+        shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await
 }
@@ -668,6 +674,7 @@ pub(crate) async fn close(
         applied: StatusCode::OK,
         location: None,
         precondition: true,
+        shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await
 }

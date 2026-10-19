@@ -13,10 +13,12 @@ use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use kartenn_auth::oidc::{Callback, LOGIN_COOKIE, LOGIN_WITHIN, SESSION_COOKIE, Session};
+use kartenn_core::audit::rfc3339;
+use kartenn_core::period::Instant;
 use kartenn_service::authn::{IdentityKind, Principal};
 use serde::Deserialize;
 
-use crate::authn::{self, Authenticator, Refusal};
+use crate::authn::{self, Authenticator, Refusal, SessionEnds};
 use crate::cookies;
 use crate::problem::{Problem, ProblemKind};
 
@@ -170,14 +172,29 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
     let Some(principal) = request.extensions().get::<Principal>() else {
         return Refusal::Unauthenticated.into_response();
     };
-    let roles = match authenticator.roles(principal).await {
-        Ok(roles) => roles,
+    let rights = match authenticator.rights(principal).await {
+        Ok(rights) => rights,
         Err(refusal) => return refusal.into_response(),
     };
+    let ends = request
+        .extensions()
+        .get::<SessionEnds>()
+        .map(|SessionEnds(at)| rfc3339(Instant(at.saturating_mul(1_000_000))));
     let session = request
         .extensions()
         .get::<Session>()
-        .map(|s| serde_json::json!({ "breakglass": s.breakglass }));
+        .map(|s| serde_json::json!({ "breakglass": s.breakglass, "expires_at": ends }));
+    let bindings: Vec<serde_json::Value> = rights
+        .bindings
+        .iter()
+        .map(|b| {
+            let scope = match b.scope {
+                Some(id) => serde_json::json!({ "kind": b.scope_kind, "id": id }),
+                None => serde_json::json!({ "kind": b.scope_kind }),
+            };
+            serde_json::json!({ "role": b.role, "scope": scope })
+        })
+        .collect();
     (
         [(header::CACHE_CONTROL, "no-store")],
         axum::Json(serde_json::json!({
@@ -186,7 +203,10 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
             "method": principal.method.as_str(),
             "issuer": principal.issuer,
             "groups": principal.groups,
-            "roles": roles,
+            "name": rights.name,
+            "roles": rights.roles,
+            "bindings": bindings,
+            "global_permissions": rights.global_permissions,
             "session": session,
         })),
     )

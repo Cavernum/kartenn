@@ -388,6 +388,39 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     );
     assert_eq!(f.events("authn.login.succeeded").await, 1);
 
+    // The group of the person reads everywhere (006-18: the rights in `GET /v1/me`).
+    let issuer = Session::unseal(&f.ring, &[&session]).unwrap().issuer;
+    let role = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO role (id, key, label, valid_period, changeset_id)
+         VALUES ($1, 'viewer', 'v', tstzrange(now() - interval '1 day', NULL), gen_random_uuid());
+         ",
+    )
+    .bind(role)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+         VALUES ($1, 'core.entity.read', tstzrange(now() - interval '1 day', NULL),
+                 gen_random_uuid())",
+    )
+    .bind(role)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO binding (id, subject_kind, issuer, group_name, role_id, scope_kind,
+                              valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'group', $1, 'netops', $2, 'global',
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(&issuer)
+    .bind(role)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+
     // Seen just now: not sent again.
     let cookie = format!("{SESSION}={session}");
     let me = f.call(request("GET", "/v1/me", Some(&cookie), true)).await;
@@ -397,8 +430,21 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     assert_eq!(body["method"], "oidc");
     assert_eq!(body["kind"], "person");
     assert_eq!(body["groups"], json!(["netops"]));
-    assert_eq!(body["roles"], json!([]));
+    assert_eq!(body["roles"], json!(["viewer"]));
+    assert_eq!(
+        body["bindings"],
+        json!([{"role": "viewer", "scope": {"kind": "global"}}])
+    );
+    assert_eq!(body["global_permissions"], json!(["core.entity.read"]));
     assert_eq!(body["session"]["breakglass"], false);
+    // Inactivity first: 30 minutes from now.
+    let ends = time::OffsetDateTime::parse(
+        body["session"]["expires_at"].as_str().unwrap(),
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap()
+    .unix_timestamp();
+    assert!((ends - unix_now() - 1800).abs() <= 2, "{ends}");
 
     // Seen two minutes ago: sent again, seen now.
     let older = f.forged(&session, |s| s.seen -= 120);
