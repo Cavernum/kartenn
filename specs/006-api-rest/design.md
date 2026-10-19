@@ -545,6 +545,18 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `PathItem`. Passer en 3.2 quand les générateurs suivront : changement additif.
 - Capacités : modules, versions, déclarations de propriétés, plugins UI, et les limites
   (page, changeset, morceau, corps, rétention d'idempotence).
+- **Schémas du contrat (arbitrage du 2026-10-19, 006-22)** :
+  - les opérations d'un changeset (corps de `POST /v1/changesets` et des morceaux
+    d'import) sont lues par un DTO miroir de `kartenn-rest` (`OperationDto`, 35
+    variantes, `From` exhaustif vers le service) : le DTO est le contrat, le service
+    reste libre d'évoluer ; un test lit un exemple de chaque variante par les deux types ;
+  - toute réponse est une structure typée `Serialize` + `ToSchema` servie telle quelle
+    (plus de `json!`) : le schéma est celui qui sert ;
+  - les énumérations du noyau (nature, usages, genre d'objet) ont un miroir de schéma
+    dans `kartenn-rest`, lié par un `match` exhaustif et un test de sérialisation ;
+  - les routes servies par un même handler pour les six collections (objets, valeurs de
+    propriétés) sont documentées à la main, opération par opération ; `QUERY` reprend
+    les réponses du `GET` voisin.
 
 ### Imports et tâches de fond (REQ-006-17 à 19, 38)
 
