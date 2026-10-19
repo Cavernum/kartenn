@@ -467,7 +467,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Corps trop gros | 413 | `payload-too-large` |
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
-| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override` |
+| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide, import qui ne se trie pas | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override`, `invalid-import` |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
@@ -562,6 +562,34 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   de la version et chaque jour), `idempotency-purge` (1 h).
 - Minuteries locales : purge de `StateCache`, du `FailureLimiter` et des limiteurs,
   rechargement des JWKS et de la découverte (5 min).
+- **Imports (arbitrage du 2026-10-19, 006-21)** :
+  - états : `uploading`, `ready` (renomme `queued` de la 004), `running`, `paused`,
+    `done`, `cancelled` ; les lots gardent `queued`, `applied`, `failed` ;
+  - droits : créer est ouvert à tout appelant authentifié ; déposer, démarrer,
+    reprendre, annuler et lire sont réservés à l'auteur (un autre appelant → 404, comme
+    un objet invisible). Aucune permission nouvelle : chaque lot est un changeset de
+    l'auteur, soumis à ses droits lot par lot ;
+  - `POST /v1/imports {source}` → 201, `Location`, corps = représentation ;
+  - `PUT /v1/imports/{id}/chunks/{n} {elements: [{external_id, operation}]}` (`n ≥ 0`,
+    trous admis, morceaux lus par `n` croissant au démarrage ; opérations sous la forme
+    du service, comme `POST /v1/changesets`) : nouveau → 201, renvoi identique (même
+    empreinte SHA-256 du tableau `elements` sérialisé) → 200 sans effet, contenu
+    différent → 409 `conflict`, plus de 10 000 éléments → 413 `payload-too-large`,
+    import hors `uploading` → 409 ; le morceau pèse `⌈éléments / 1 000⌉` au quota ;
+  - `POST …/start` → 202 et `Location` vers l'import (`uploading` → `ready`, sinon 409) ;
+    une erreur de tri (`ImportError` : identifiant externe manquant, référence locale
+    inconnue, cycle) → 422 `invalid-import`, l'import reste `uploading` ;
+  - `POST …/resume` → 202 (`paused` → `ready`, sinon 409) ; `POST …/cancel` → 200
+    (`uploading`, `ready`, `running`, `paused` → `cancelled`, sinon 409) : le lot en
+    cours se termine, les lots appliqués restent. Aucune action n'exige `If-Match` :
+    l'état fait garde ;
+  - `GET /v1/imports/{id}` → `{id, source, state, chunks, elements, batches: {applied,
+    remaining}, report, links: {self}}` ; `Retry-After: 5` en `ready` et `running` ;
+  - exécution : `start` et `resume` posent la tâche `import:<id>` (due aussitôt) ; une
+    exécution applique les lots restants l'un après l'autre sous le bail, relit l'état
+    avant chaque lot (arrêt sur `cancelled`), et retire la tâche quand l'import est
+    `done`, `paused` ou `cancelled`. Une instance arrêtée laisse le lot en cours annulé
+    (transaction) ; la suivante reprend au premier lot non appliqué.
 
 ### Sondes et corrélation (REQ-006-36, 37)
 
@@ -604,6 +632,7 @@ pas l'API (tâches de fond seules), utile à un job dédié.
 | Curseur d'une clé retirée du trousseau | 400 ; le client recommence | 8 |
 | `as_of` dans le futur | 400 (le temps système n'a pas d'avenir) | 5 |
 | Import `start` deux fois | 409 (état `ready` ou au-delà) | 17 |
+| Tri d'un import impossible au `start` | 422 `invalid-import`, import resté `uploading` | 17 |
 | Instance arrêtée pendant un lot | lot atomique, rejoué par une autre instance | 18 |
 | `QUERY` vers une route sans `QUERY` | 405 et `Allow` | 10 |
 | Journal d'audit indisponible pendant une lecture | 503 (échec fermé, REQ-012-11) | 20 |
