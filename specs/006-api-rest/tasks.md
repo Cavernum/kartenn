@@ -455,11 +455,20 @@ routeur complet, sauf mention « vrai TCP ».
   toujours 400, requis toujours 422) ; schémas nommés par `#[schema(as)]` (`Submission`,
   `TreeNode`, `CoreObject`…) ; réponse `default` `Problem` sur toute opération ;
   `OpenAPI` au vocabulaire de clippy
-- [ ] 23. Matrice des erreurs : un test par ligne du tableau du design — REQ-006-20 à
+- [x] 23. Matrice des erreurs : un test par ligne du tableau du design — REQ-006-20 à
   23 — verify : statut, `type`, `Request-Id`, aucune valeur sensible
   où : design « Erreurs » (tableau) et « Erreurs et cas limites » ;
   `rest/src/problem.rs`, `rest/src/error.rs` ; un test par ligne, à la manière de
   `tests/socle.rs`
+  Tests `rest/tests/errors.rs` : `line_400_a_malformed_request` à
+  `line_500_a_panic` (une par ligne du tableau, à travers le routeur complet, statut,
+  `type`, `title`, `Request-Id` en en-tête et en `instance`, ni valeur sensible, ni jeton,
+  ni requête, ni message de panique dans le corps),
+  `the_first_problem_in_the_order_of_http_wins` ; design « Erreurs » et REQ-006-23
+  amendés (arbitrage : un droit d'écriture manquant est la violation
+  `core.object.forbidden`, 422 ; 403 aux actions hors changeset)
+  choix : authentificateur de test par jeton fixe (`Who`) ; journal d'audit coupé par un
+  déclencheur sur `audit.event` ; valeur sensible posée en SQL comme dans `objects.rs`
 - [ ] 24. Vrai TCP et TLS : `QUERY` en HTTP/1.1 et h2, cookies et `Forwarded` de bout en
   bout — REQ-006-10, 27, 32 — verify : tests d'intégration sur un port local
   où : design « Transport » ; `rest/src/transport.rs`, `kartenn-server/src/http.rs` ;
