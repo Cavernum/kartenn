@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-18
+status: implemented
+updated: 2026-10-19
 ---
 
 # 006 — API REST : exigences
@@ -453,14 +453,14 @@ Acceptation :
 
 ## Questions ouvertes
 
-- [ ] Séparateur des opérateurs de filtre, les clés de propriétés contenant des points
+- [x] Séparateur des opérateurs de filtre, les clés de propriétés contenant des points
   (H6). (Claude, design)
-- [ ] Borne du passé figé : durée maximale d'une transaction d'écriture et son
+- [x] Borne du passé figé : durée maximale d'une transaction d'écriture et son
   application (H4). (Claude, design)
-- [ ] Champs où `null` et absent différeraient, incompatibles avec Merge Patch (H13a).
+- [x] Champs où `null` et absent différeraient, incompatibles avec Merge Patch (H13a).
   (Claude, design)
-- [ ] Prise en charge de `QUERY` par axum, hyper et les proxys inverses courants (H6).
+- [x] Prise en charge de `QUERY` par axum, hyper et les proxys inverses courants (H6).
   (Claude, design, `crate-scout`)
-- [ ] Crate de limitation GCRA (H11). (Claude, design, `crate-scout`)
+- [x] Crate de limitation GCRA (H11). (Claude, design, `crate-scout`)
 - [x] H16 (tâches de fond sous bail) décidé par délégation. (utilisateur, à la
   relecture) — approuvé avec les exigences le 2026-10-18.

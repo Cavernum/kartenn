@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-18
+status: implemented
+updated: 2026-10-19
 ---
 
 # 006 — API REST : conception
@@ -691,6 +691,6 @@ pas l'API (tâches de fond seules), utile à un job dédié.
 
 ## ADR
 
-- ADR 0022 (proposé) : contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge
+- ADR 0022 (accepté le 2026-10-19) : contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge
   Patch, `If-Match` obligatoire, URN de problèmes.
-- ADR 0023 (proposé) : tâches de fond sous bail dans PostgreSQL (H9, H16).
+- ADR 0023 (accepté le 2026-10-19) : tâches de fond sous bail dans PostgreSQL (H9, H16).

@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-18
+status: accepted
+date: 2026-10-19
 ---
 
 # 0023 — Tâches de fond sous bail dans PostgreSQL
@@ -37,3 +37,8 @@ locales ; la purge de l'audit garde sa sous-commande pour une minuterie externe 
   chaque tâche doit être idempotente (les lots d'import le sont, les autres aussi par
   construction).
 - Latence de reprise bornée par la durée du bail plus l'intervalle de scrutation (5 s).
+- Tâches livrées par la 006 : `expire-pending`, `reevaluate-expected`, `public-drift`,
+  `idempotency-purge` et `import:<id>` ; un import applique un lot par battement au plus
+  et relit son état avant chaque lot. Vérifié à trois planificateurs sur la même base
+  (une exécution par échéance) et par la reprise d'un import sur une autre instance,
+  sans doublon (`kartenn-server/tests/jobs.rs`).

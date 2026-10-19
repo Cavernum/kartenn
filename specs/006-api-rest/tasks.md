@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-18
+status: implemented
+updated: 2026-10-19
 ---
 
 # 006 — API REST : tâches
@@ -502,8 +502,19 @@ routeur complet, sauf mention « vrai TCP ».
   puis `occupancy`), d'où un surcoût au-dessus de la cible de 10 ms ; charge de 30 s,
   lecteurs avec une pause de 0,5 à 1,5 s, 55 rédacteurs à 1/s pour en tenir 50 ;
   reconnexion du client hors mesure quand hyper ferme une connexion inactive (30 s)
-- [ ] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (section API
+- [x] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (section API
   REST, Q-ouv-7 close), `invariants.md`, ADR 0022 et 0023 acceptés, `specs/README.md`
   — verify : `spec-keeper` sur `specs/006-api-rest`
   où : `docs/spec/interfaces.md`, `docs/spec/invariants.md`, `docs/adr/0022-*`,
   `docs/adr/0023-*`, `specs/README.md` ; agent `spec-keeper`
+  `docs/spec/interfaces.md` (API REST, couche HTTP de l'authentification, configuration
+  `[http]`, sondes, tâches de fond), `invariants.md` (INV-29 nouveau, tests d'INV-20,
+  25, 40, 41, banc `bench-http`), `architecture.md`, `README.md` ; ADR 0022 et 0023
+  acceptées ; Q-ouv-5 et Q-ouv-7 closes dans `001-cadrage/decisions.md` ; reports de la
+  002 (`public-drift`) et de la 004 (worker d'import) notés faits ; questions ouvertes
+  de la 006 cochées (tranchées dans le design). `spec-keeper` : chaque REQ-006 a son
+  code, aucun écart bloquant ; la `source` des CloudEvents reste `urn:kartenn:instance`
+  (noté dans `specs/README.md`)
+  choix : le report de la `source` CloudEvents (004 → 006) est noté comme rejoignant le
+  transport des événements sortants plutôt que tranché ici ; Q-ouv-5, déjà close par
+  005/K2, barrée en même temps que Q-ouv-7

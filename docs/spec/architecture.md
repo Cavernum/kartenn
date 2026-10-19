@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-18
+updated: 2026-10-19
 ---
 
 # Architecture
@@ -115,7 +115,7 @@ types de valeurs ; règles de validation (identifiant, sévérité) ; sources de
 attendues ; permissions ; ressources REST ; contribution au graphe de topologie ;
 plugin UI éventuel.
 
-Organisation du workspace (la crate `kartenn-rest` est la cible de la spec 006 ; voir
+Organisation du workspace (voir
 [`../practices/rust-build.md`](../practices/rust-build.md)) :
 
 ```
@@ -123,7 +123,8 @@ crates/
   kartenn-core/        familles d'adresses, objets du noyau, règles, propriétés
   kartenn-service/     cas d'usage, pipeline d'écriture, différentiel
   kartenn-store-pg/    adaptateur PostgreSQL (sqlx), migrations du noyau
-  kartenn-rest/        adaptateur REST (axum), OpenAPI (utoipa)
+  kartenn-rest/        adaptateur REST (axum) : routes, DTO, problèmes, curseurs,
+                       quotas, CSRF ; OpenAPI (utoipa, binaire `openapi`)
   kartenn-auth/        trousseau, OIDC, jetons, secrets, comptes de secours
   kartenn-server/      binaire : composition, configuration, observabilité
   kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26,
@@ -157,9 +158,12 @@ flowchart TB
 - Tâches de fond réparties par verrous en base : le relais d'outbox prend un verrou
   consultatif par consommateur, le scellement de l'audit et chaque relais d'audit le
   leur ; chacune lit à partir de son plancher (`pass_floor`) et vide son retard par lots
-  successifs à chaque tour ; l'ordonnanceur des autres tâches (expiration des
-  changesets en attente, pseudonymisation, partitions d'historique) est la cible de la
-  spec 006, avec `FOR UPDATE SKIP LOCKED`.
+  successifs à chaque tour ; les autres tâches (expiration des changesets en
+  attente, réévaluation des valeurs attendues, réécriture de l'indicateur `public`,
+  purge des clés d'idempotence, imports) sont des lignes de la table `job`, réclamées
+  sous bail par `FOR UPDATE SKIP LOCKED` (ADR 0023, spec 006).
+  Les partitions d'historique demandent le propriétaire du schéma : le job de migration
+  les crée trois mois à l'avance, et se relance au moins chaque mois (004-25).
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur
   le primaire après un changeset).
 - Livrables : images OCI (serveur, migration, web statique), module NixOS ;

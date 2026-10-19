@@ -265,7 +265,7 @@ détient ces droits (prédicat RBAC, 005). Volume attendu faible ; pagination st
   objets d'autres lots ou déjà importés deviennent leurs identifiants. Un lot refusé
   (ou mis en attente par une politique) met l'import en pause avec ses violations ; une
   relance reprend au premier lot non appliqué. `import_status` donne lots appliqués,
-  restants et l'échec éventuel. La planification du worker vient avec la 006.
+  restants et l'échec éventuel. La planification du worker est venue avec la 006 (tâche sous bail `import:<id>`, ADR 0023).
 
 ### Annulation (REQ-004-34, 35)
 

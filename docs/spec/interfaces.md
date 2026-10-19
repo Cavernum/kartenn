@@ -1,32 +1,45 @@
 ---
 status: approved
-updated: 2026-10-18
+updated: 2026-10-19
 ---
 
 # Interfaces
 
-Les détails normatifs viendront des specs 006 (conventions REST) et 007 (shell et
-plugins) ; l'authentification et le RBAC sont fixés par la spec 005. Ce document fixe les
-principes décidés.
+Les détails normatifs de l'API sont dans la spec 006 (conventions REST, contrat
+`specs/006-api-rest/openapi-v1.json`), ceux du shell et des plugins viendront de la 007 ;
+l'authentification et le RBAC sont fixés par la spec 005. Ce document fixe les principes
+décidés.
 
-## API REST (D7, ADR 0002)
+## API REST (D7, ADR 0002, ADR 0022 ; spec 006)
 
 Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par elle.
+Crate `kartenn-rest` (routeur axum, DTO distincts des types du noyau, problèmes,
+curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le service.
 
 | Sujet | Principe | Source |
 |---|---|---|
-| Transport | HTTPS uniquement ; JSON (RFC 8259) | D13, RFC 9110 |
-| Contrat | OpenAPI 3.1 généré depuis le code ; SDK clients générés (TypeScript, Rust) | D7 |
-| Ressources | Une ressource par type d'objet du noyau et des modules ; désignation par UUID ou clé naturelle (slug, (domaine, préfixe)…) | 002/A9 |
-| Écriture | Par **changeset** (opérations multiples, atomiques) ; raccourcis unitaires acceptables s'ils produisent un changeset | D11 |
-| Simulation | Soumettre un changeset sans l'appliquer → validation, anomalies, différentiel | 003/REQ-003-20 |
-| Temps | Paramètres `valid_at` (temps applicatif) et `as_of` (temps système), « maintenant » par défaut | D10 |
-| Concurrence | ETag / `If-Match` (RFC 9110 §13) sur les objets ; conflit → 412 | Cadrage (« Noyau ou module », point A.8) |
-| Erreurs | `application/problem+json` (RFC 9457) ; identifiants de règles stables ; objets en cause | 002/REQ-002-37 |
-| Pagination | Par curseur ; tri stable | Cadrage (« Noyau ou module », point A.10) |
-| Filtrage | Champs du noyau et valeurs résolues des propriétés | 003/REQ-003-25 |
-| Capacités | Endpoint listant les modules actifs, leurs versions, propriétés et plugins UI | D7, D17 |
-| Versionnement | À décider (Q-ouv-7) | — |
+| Transport | HTTPS (TLS terminé par kartenn ou par un proxy de confiance) ; HTTP/1.1 et HTTP/2 ; JSON (RFC 8259) ; compression `zstd`, `br`, `gzip` sauf réponses portant un secret | D13, RFC 9110, REQ-006-31, 32 |
+| Versionnement | Version majeure dans le chemin (`/v1`), évolution additive seulement ; retrait annoncé par `Deprecation` (RFC 9745) et `Sunset` (RFC 8594) | 006/H12, Q-ouv-7 close |
+| Contrat | OpenAPI 3.1 tiré du code (utoipa), servi à `GET /v1/openapi.json` ; contrat de référence versionné, comparé par un test (retrait ou changement de type → échec) ; `QUERY` en extension `x-query` jusqu'à OpenAPI 3.2 ; SDK clients générés (TypeScript, Rust) | D7, REQ-006-34 |
+| Ressources | Collections à plat (`entities`, `sites`, `domains`, `prefixes`, `ranges`, `addresses`…), un objet par UUID canonique ; clé naturelle en filtre ; objets complets avec un résumé des objets liés ; ni `fields=` ni `expand=` | 002/A9, REQ-006-1, 2 |
+| Écriture | `POST /v1/changesets` (opérations multiples, atomiques) ; routes de ressource (`POST`, `PATCH` en JSON Merge Patch RFC 7396, `DELETE`) qui enveloppent un changeset d'une opération ; réponses 201, 200 ou 202 (en attente d'approbation) | D11, REQ-006-11 à 13 |
+| Simulation | `POST /v1/changesets?simulate=true` → validation, anomalies, différentiel, sans écriture | 003/REQ-003-20 |
+| Cycle d'un changeset | Actions en sous-ressources `POST` (`validation`, `rejection`, `withdrawal`, `undo`) ; lecture sous `core.changeset.read` ; `GET /v1/proposals` | REQ-006-16 |
+| Temps | Paramètres `valid_at` (temps applicatif) et `as_of` (temps système), RFC 3339 avec décalage, « maintenant » par défaut ; passé figé `immutable`, le reste `no-cache` et ETag | D10, REQ-006-5, 6 |
+| Concurrence | ETag / `If-Match` (RFC 9110 §13) obligatoire sur `PATCH`, `DELETE` et les actions d'un changeset : absent → 428, périmé → 412 | REQ-006-14 |
+| Idempotence | `Idempotency-Key` sur les `POST` d'écriture : rejeu → même réponse ; contenu différent → 422 ; requête en cours → 409 | REQ-006-15 |
+| Erreurs | `application/problem+json` (RFC 9457), `type` en URN `urn:kartenn:problem:<slug>` ; changeset refusé → 422 avec toutes ses violations (`rule`, `severity`, `subjects`, `pointer` RFC 6901) ; objet invisible ou absent → même 404 | 002/REQ-002-37, REQ-006-20 à 23 |
+| Pagination | Curseur opaque signé (HMAC, clé du trousseau `Purpose::Cursor`), droits réévalués à chaque page, sans total ; tri stable | REQ-006-7, 8 |
+| Filtrage | Paramètres conjonctifs (`champ=…`, `prop.<clé>:<op>=…`), et méthode `QUERY` (RFC 10008) au corps JSON pour les filtres longs ; URL au-delà de 8 Kio → 414 | 003/REQ-003-25, REQ-006-9, 10 |
+| Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start`, `resume`, `cancel` ; exécution par une tâche de fond sous bail, reprise au premier lot non appliqué | 004/REQ-004-28 à 30, REQ-006-17 à 19 |
+| Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI, limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35 |
+| Protection | Quotas GCRA par identité (par adresse avant authentification) → 429, `Retry-After`, `RateLimit` ; délestage → 503 ; corps borné → 413 ; délai de requête → 503 | REQ-006-29 à 31 |
+| Corrélation | `Request-Id` (UUID v7 généré, jamais repris) en réponse, dans le problème, les logs et l'audit ; `traceparent` des proxys de confiance | REQ-006-37, REQ-012-7 |
+
+Ordre des couches (REQ-006-22) : identifiant, délestage, délai, transport (`Forwarded`
+des proxys de confiance seulement), limite de corps, authentification, quota, CSRF,
+route, compression. Une requête non authentifiée est refusée (401) avant la lecture de
+son corps.
 
 ## Authentification (D13, ADR 0009 amendée par 005/K8, ADR 0020 ; spec 005)
 
@@ -55,9 +68,15 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
 - **Refus** : une seule réponse à l'appelant ; la raison codée (`state`, `iss`, `nonce`,
   `signature`, `expired`, `audience`, `secret`, `totp`, `disabled`, `revoked`…) et
   l'émetteur vont à l'audit (`authn.login.failed`), l'identifiant revendiqué en empreinte.
-- Couche HTTP (006) : routes, attributs des cookies (`__Host-`, `Secure`, `HttpOnly`,
-  `SameSite`), refus hors TLS, limitation de débit des échecs Basic, réponse
-  `invalid_token`, appel de `authn::session_closed` à la fin d'une session.
+- Couche HTTP (spec 006) : `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`,
+  `POST /v1/auth/logout`, `POST /v1/auth/breakglass` (session de secours d'une heure
+  au plus) ; cookies `__Host-kartenn-N`, `Secure`, `HttpOnly`, `SameSite=Strict`,
+  `Path=/`, sans `Domain`, réémis après une minute d'activité ; `Authorization: Bearer`
+  (jeton d'accès, identité juste-à-temps sans événement) ou `Basic` (compte de
+  service) ; deux preuves à la fois → 400 ; sans TLS, Basic → 401 et aucun cookie émis ;
+  jeton refusé → 401 `WWW-Authenticate: Bearer error="invalid_token"` (RFC 6750 §3.1) ;
+  échecs limités par adresse ; CSRF sur les méthodes non sûres par cookie
+  (`Sec-Fetch-Site`, puis `Origin`) → 403 ; pas de CORS (BFF de même origine).
 
 ## Autorisation (D36, 003/P6–P7, ADR 0010, ADR 0021 ; spec 005)
 
@@ -102,21 +121,25 @@ Seule frontière publique : Web, CLI, TUI, MCP et connecteurs passent tous par e
 
 ## Opérations d'un changeset (interface du service)
 
-Avant l'API (006), le service expose `submit` et le type `Operation`
+Le service expose `submit` et le type `Operation`
 (`crates/kartenn-service/src/operations.rs`) : création, modification, clôture et
 restauration des objets du noyau ; déplacement et renommage (`Rename`, l'UUID est
 conservé) des entités, des sites et des domaines ; déclarations, valeurs de listes et
 affectations de propriétés ; liaison d'identifiants externes ; politiques d'approbation ;
 administration du RBAC (`SetRole`, `CloseRole`, `Bind`, `Unbind`, `AttachIssuer`,
 `DetachIssuer`, `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret`,
-`SetIdentityState`) ; `Within` pour donner sa propre période à une opération.
+`SetIdentityState`) ; `Within` pour donner sa propre période à une opération. L'API en
+lit un miroir (`OperationDto` de `kartenn-rest`, lié par une conversion exhaustive) :
+le DTO est le contrat public, le type du service reste libre d'évoluer.
 
 ## Événements sortants (D11, ADR 0018)
 
 CloudEvents 1.0 en JSON, relayés depuis l'outbox au moins une fois, dans l'ordre par
 domaine d'adressage : `org.kartenn.changeset.applied` (changeset, domaines, objets,
 auteur, valideur, résumé du différentiel) et `org.kartenn.changeset.<état>` pour les
-changesets en attente. Le transport (webhook, file de messages) est l'objet de la 006.
+changesets en attente. Le transport (webhook, file de messages) et une `source` propre
+à chaque déploiement (aujourd'hui `urn:kartenn:instance`) restent à spécifier : la 006
+les a exclus (événements sortants).
 
 ## Connecteurs (D1, D7)
 
@@ -130,7 +153,15 @@ changesets en attente. Le transport (webhook, file de messages) est l'objet de l
   `__`, par exemple `KARTENN_AUDIT__SEAL_INTERVAL_MS`). Une sortie inconnue, un champ
   manquant ou inconnu, un filtre invalide refusent le démarrage
   (`kartenn_server::config`, REQ-012-31).
-- Sondes : `/health/live`, `/health/ready` (avec l'API, 006).
+- Sondes (hors `/v1`, sans authentification) : `/health/live` (200 si l'instance
+  tourne), `/health/ready` (version des migrations lue, sorties d'audit saines ; sinon
+  503 sans détail).
+- Tâches de fond sous bail dans PostgreSQL (ADR 0023) : table `job`, réclamée par
+  `FOR UPDATE SKIP LOCKED`, bail de 30 s renouvelé toutes les 10 s, scrutation toutes
+  les 5 s ; tâches `expire-pending` (1 min), `reevaluate-expected` (5 min),
+  `public-drift` (au démarrage d'une version, puis chaque jour), `idempotency-purge`
+  (1 h), et une tâche `import:<id>` par import prêt. Minuteries locales à chaque
+  instance : purge des caches d'état et des limiteurs, rechargement des JWKS (5 min).
 - Binaire `kartenn-server` :
   - `migrate <url>` : job de migration (D9) ;
   - `run <url> [<config>]` : une instance, jusqu'à `SIGTERM` ou Ctrl-C ; à l'arrêt,
@@ -143,6 +174,24 @@ changesets en attente. Le transport (webhook, file de messages) est l'objet de l
   - `breakglass create <url> <nom> <heures> <fichier-de-clés>` : compte de secours valable
     de 1 à 24 h, avec la connexion du propriétaire du schéma ; affiche une fois la phrase
     de passe et l'URI `otpauth://` du second facteur (REQ-005-14).
+
+## Configuration de l'API (spec 006)
+
+**Réglages** (`[http]`, facultatif : sans lui, l'instance ne sert pas l'API et n'exécute
+que les tâches de fond) : `listen` (adresse et port), `public_origin` (origine
+`https`, ou `http` sur la boucle locale, sans chemin : CSRF, liens absolus,
+`redirect_uri` par défaut), `trusted_proxies` (adresses ou blocs CIDR dont `Forwarded`
+et `traceparent` sont crus), `max_body_bytes` (16 Mio), `request_timeout_ms` (30 000),
+`write_transaction_timeout_s` (60 : `transaction_timeout` du pool, sur lequel repose le
+passé figé des lectures), `max_in_flight` (0 = deux fois la taille du pool) ;
+`[http.tls]` `cert_file`, `key_file` (PEM, relus sur `SIGHUP` ; absent : HTTP clair
+derrière un proxy) ; `[http.rate]` `read`, `write`, `anonymous` en
+`{ per_second, burst }` (50/200, 10/20, 20/20).
+
+- Limites et délais nuls, quota nul ou origine invalide refusent le démarrage
+  (`kartenn_server::config`).
+- Les limites sont par instance : avec N instances, le plafond réel est N fois la
+  limite (006/H11).
 
 ## Configuration de l'authentification (spec 005)
 

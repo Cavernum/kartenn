@@ -1,12 +1,13 @@
 ---
 status: approved
-updated: 2026-10-18
+updated: 2026-10-19
 ---
 
 # kartenn — spécification système
 
-> État : **cible de la v0.1**, en cours d'implémentation. Les specs 002 à 004 sont en
-> grande partie livrées (noyau d'adressage, propriétés, changesets ; voir
+> État : **cible de la v0.1**, en cours d'implémentation. Les specs 002 à 006 et 012
+> sont livrées (noyau d'adressage, propriétés, changesets, authentification et RBAC,
+> API REST, journalisation et audit ; voir
 > [`../../specs/README.md`](../../specs/README.md)) ; les autres parties décrivent le
 > système tel qu'il est conçu. Le document est resynchronisé (mode *sync*) à chaque
 > livraison.
@@ -131,14 +132,16 @@ Non-objectifs :
 | [0019](../adr/0019-journal-audit-scelle-en-base.md) | Journal d'audit en base, en échec fermé, scellé par lots chaînés | accepted |
 | [0020](../adr/0020-session-bff-cookie-sans-etat.md) | Session du navigateur : BFF à cookie chiffré sans état | accepted |
 | [0021](../adr/0021-rbac-predicats-sql-confinement.md) | RBAC évalué en SQL : périmètres hérités et confinement des émetteurs | accepted |
-| [0022](../adr/0022-contrat-http-api.md) | Contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge Patch, `If-Match` | proposed |
-| [0023](../adr/0023-taches-de-fond-sous-bail.md) | Tâches de fond sous bail dans PostgreSQL | proposed |
+| [0022](../adr/0022-contrat-http-api.md) | Contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge Patch, `If-Match` | accepted |
+| [0023](../adr/0023-taches-de-fond-sous-bail.md) | Tâches de fond sous bail dans PostgreSQL | accepted |
 | [0024](../adr/0024-outillage-frontend.md) | Outillage du frontend : pnpm, Vite, ESLint, Vitest, Playwright | accepted |
 
 ## Questions ouvertes
 
-- Q-ouv-1 à Q-ouv-7 de [`001-cadrage`](../../specs/001-cadrage/decisions.md#questions-ouvertes)
-  (licence du SDK, volumétrie réelle, critères d'inférence, stockage IPv8, identités
-  multi-émetteurs, langue, versionnement d'API).
+- Q-ouv-1 à Q-ouv-4 et Q-ouv-6 de
+  [`001-cadrage`](../../specs/001-cadrage/decisions.md#questions-ouvertes) (licence du
+  SDK, volumétrie réelle, critères d'inférence, stockage IPv8, langue).
+- ~~Q-ouv-5~~ (identités multi-émetteurs) : close par 005/K2 ; ~~Q-ouv-7~~
+  (versionnement d'API) : close par 006/H12 et l'ADR 0022 (`/v1` dans le chemin).
 - ~~Implémentation du temps système~~ : tranchée par l'ADR 0017, accepté avec la
   spec 004.

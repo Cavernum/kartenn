@@ -7,7 +7,7 @@
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (18/18) |
-| [006-api-rest](006-api-rest/) | approuvées (H1–H16) | approuvée | [tasks](006-api-rest/tasks.md) (7/26) |
+| [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (26/26) |
 | 007-web-shell-plugins | à écrire | — | — |
 | 008-vlan, 009-machines-interfaces | à écrire | — | — |
 | 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
@@ -114,3 +114,19 @@ l'annulation muette des changesets d'administration, des événements d'audit ja
 émis. REQ-005-25 « annulable » tranché (K16, tâche 18) : l'annulation inverse rôles,
 liaisons et rattachements par des opérations ordinaires, sous les mêmes contrôles
 (380 tests). Ce qui revient à la couche HTTP est listé à la fin du design de la 005.
+
+## Point d'étape — 2026-10-19 : spec 006
+
+API REST implémentée (26/26) : `/v1` additive et contrat OpenAPI 3.1 comparé à un
+contrat de référence (ADR 0022 acceptée, Q-ouv-7 close) ; lectures datées et cache,
+curseurs signés, filtres et `QUERY` ; écritures par changeset, Merge Patch, `If-Match`
+obligatoire, `Idempotency-Key` ; imports par morceaux exécutés par des tâches de fond
+sous bail dans PostgreSQL (ADR 0023 acceptée) ; Problem Details ; cookies, Bearer,
+Basic, CSRF, quotas, délestage, HTTP/1.1 et HTTP/2 sur TLS ; 561 tests. Budgets tenus à
+travers HTTP (banc `bench-http`), 200 utilisateurs et 50 écritures/s ; le banc a révélé
+une page filtrée à 3 s, ramenée à 52 ms. `docs/spec/` synchronisée (spec-keeper du
+2026-10-19 : chaque REQ-006 a son code ; aucun écart bloquant).
+
+Reste hors de la 006 : la `source` des CloudEvents, encore `urn:kartenn:instance`, que
+la 004 renvoyait à la configuration de la 006 ; elle rejoint le transport des
+événements sortants, non-objectif de la 006.

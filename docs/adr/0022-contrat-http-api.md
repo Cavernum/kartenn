@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-18
+status: accepted
+date: 2026-10-19
 ---
 
 # 0022 — Contrat HTTP de l'API
@@ -42,6 +42,15 @@ en dépendent, et leurs SDK sont générés de son contrat. Les instances sont s
 ## Consequences
 
 - `QUERY` n'a pas de filtre de méthode dans axum ni de place dans OpenAPI 3.1 : route
-  par `any()` et extension `x-query`, jusqu'à OpenAPI 3.2.
+  par `any()` et extension `x-query`, jusqu'à OpenAPI 3.2. Son passage en HTTP/1.1 et
+  en HTTP/2, en clair et en TLS, est vérifié sur un vrai port (006-24).
 - Un proxy qui ne relaie pas `QUERY` laisse `GET` disponible jusqu'à 8 Kio d'URL.
-- Le contrat de référence est un fichier à régénérer à chaque ajout.
+- Le contrat de référence (`specs/006-api-rest/openapi-v1.json`) est un fichier à
+  régénérer à chaque ajout (`cargo run -p kartenn-rest --bin openapi --all-features`) ;
+  le comparateur est interne, faute de crate mûr.
+- Les opérations d'un changeset sont lues par un DTO miroir (`OperationDto`) lié au type
+  du service par une conversion exhaustive : le contrat ne suit pas le service à son
+  insu.
+- Le surcoût de HTTP sur les budgets du noyau est mesuré par le banc `bench-http`
+  (006-25) : quelques millisecondes par lecture, budgets de D14 tenus à travers le
+  routeur.

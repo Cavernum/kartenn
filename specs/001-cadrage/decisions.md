@@ -319,6 +319,6 @@ VLAN, machines et interfaces, passerelles et routes, NAT, détail physique des s
 - **Q-ouv-2** : volumétrie réelle de la source historique, pour confirmer D2. Bloque : le jeu de données des bancs d'essai.
 - **Q-ouv-3** : critères exacts des règles d'inférence (exemples anonymisés du TOML existant). Bloque : la spec 010.
 - **Q-ouv-4** : représentation de stockage des familles non natives (IPv8). Bloque : rien avant que le draft progresse ; à concevoir comme point d'extension dans la spec 002.
-- **Q-ouv-5** : une même personne authentifiée par deux émetteurs OIDC = deux identités ou une identité liée ? Bloque : la spec 005.
+- ~~**Q-ouv-5**~~ : une même personne authentifiée par deux émetteurs OIDC = deux identités ou une identité liée ? Bloque : la spec 005. Close par 005/K2 (deux identités).
 - **Q-ouv-6** : langue de l'interface et de la documentation (FR, EN, i18n). Bloque : la spec 007 et la convention de `docs/`.
-- **Q-ouv-7** : stratégie de versionnement de l'API (`/v1` dans l'URL ou par type de média). Bloque : la spec 006, à trancher après lecture des guides.
+- ~~**Q-ouv-7**~~ : stratégie de versionnement de l'API (`/v1` dans l'URL ou par type de média). Bloque : la spec 006, à trancher après lecture des guides. Close par 006/H12 et l'ADR 0022 : version majeure dans le chemin (`/v1`), évolution additive.

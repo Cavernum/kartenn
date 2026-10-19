@@ -294,8 +294,8 @@ découpage courant/historique relèvent de la 004.
   requêtes SQL.
 - Mettre à jour = remplacer les fichiers et publier une version ; `registry::public_drift`
   liste les préfixes, plages et adresses dont l'indicateur `public` change. La
-  réécriture de l'indicateur par un changeset système n'est pas faite : elle viendra
-  avec l'ordonnanceur des jobs (006).
+  réécriture de l'indicateur est la tâche de fond `public-drift` de la 006
+  (`registry::rewrite_public`, au démarrage d'une version puis chaque jour, ADR 0023).
 
 ### Anomalies (REQ-002-35, 36)
 
