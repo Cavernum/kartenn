@@ -22,6 +22,8 @@
     basic = "ZGV2QGthcnRlbm4uaW52YWxpZDpEZXYtb25seS0xIQ==";
   };
 in {
+  imports = [./nix/options.nix];
+
   # Backend (D16): Rust workspace under crates/.
   languages.rust = {
     enable = true;
@@ -396,7 +398,8 @@ in {
     };
     # The console's own MCP server (SQL over the logs, stream schemas, traces,
     # PromQL), available once `devenv up` runs OpenObserve. Development credentials.
-    mcpServers.openobserve = {
+    # Off locally with `kartenn.claude.openobserveMcp = false` (devenv.local.nix).
+    mcpServers.openobserve = lib.mkIf config.kartenn.claude.openobserveMcp {
       type = "http";
       url = "http://127.0.0.1:5080/api/default/mcp";
       headers.Authorization = "Basic ${openobserve.basic}";
