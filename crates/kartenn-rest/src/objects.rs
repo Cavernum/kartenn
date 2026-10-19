@@ -25,16 +25,17 @@ use kartenn_service::expected::Sources;
 use kartenn_service::reads::{ReadAudit, objects_read, read_object};
 use kartenn_service::{RequestError, StoreError};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
-use kartenn_store_pg::filter::Condition;
+use kartenn_store_pg::filter::{self as engine, Condition, FilterError};
 use kartenn_store_pg::list::{self, Criteria, Key, Kind, Version};
-use kartenn_store_pg::rbac::PgAuthorizer;
+use kartenn_store_pg::property_read;
+use kartenn_store_pg::rbac::{PgAuthorizer, ReadScope};
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use time::OffsetDateTime;
-use time::format_description::well_known::Rfc3339;
+use time::format_description::well_known::{Iso8601, Rfc3339};
 use uuid::Uuid;
 
 use crate::cursor::{Page, next_href, respond_page};
@@ -464,6 +465,10 @@ struct Wanted {
     slugs: Vec<String>,
     links: Vec<String>,
     values: Vec<String>,
+    /// The parameter of the values, if given (`value` or `first`).
+    value_name: Option<&'static str>,
+    /// Conditions on properties, by key.
+    properties: Vec<(String, Condition)>,
 }
 
 fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
@@ -472,9 +477,8 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
         let name = match found.field {
             Field::Core(name) => name,
             Field::Property(key) => {
-                return Err(bad(format!(
-                    "prop.{key}: properties do not filter this collection yet"
-                )));
+                wanted.properties.push((key, found.condition));
+                continue;
             }
         };
         let values = equals(name, found.condition)?;
@@ -482,20 +486,154 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
             "slug" => wanted.slugs.extend(canonical(name, values, slug)?),
             "parent" | "domain" => wanted.links.extend(canonical(name, values, slug)?),
             "value" if kind == Kind::Prefix => {
+                wanted.value_name = Some(name);
                 wanted.values.extend(canonical(name, values, |v| {
                     Prefix::parse_any(&ALL, v).ok().map(|p| p.to_string())
                 })?);
             }
-            _ => wanted.values.extend(canonical(name, values, |v| {
-                Addr::parse_any(&ALL, v).ok().map(|a| a.to_string())
-            })?),
+            _ => {
+                wanted.value_name = Some(name);
+                wanted.values.extend(canonical(name, values, |v| {
+                    Addr::parse_any(&ALL, v).ok().map(|a| a.to_string())
+                })?);
+            }
         }
     }
     Ok(wanted)
 }
 
+/// Checks the values of the condition `name` on a property of type `value_type` as the
+/// filter engine of spec 003 reads them, so that a refusal names the parameter.
+fn typed(name: &str, value_type: &str, condition: &Condition) -> Result<(), Problem> {
+    let fits = |v: &str| match value_type {
+        "int" => v.parse::<i64>().is_ok(),
+        "date" => time::Date::parse(v, &Iso8601::DATE).is_ok(),
+        "bool" => matches!(v, "true" | "false"),
+        "ref" => Uuid::parse_str(v).is_ok(),
+        _ => true,
+    };
+    if !matches!(
+        value_type,
+        "enum" | "ref" | "text" | "fqdn" | "int" | "date" | "bool"
+    ) {
+        return Err(bad(format!(
+            "{name}: a property of type {value_type} is not a filter"
+        )));
+    }
+    let values: Vec<&str> = match condition {
+        Condition::Equals(v) => vec![v],
+        Condition::OneOf(v) => v.iter().map(String::as_str).collect(),
+        Condition::Between(low, high) => {
+            if !matches!(value_type, "int" | "date" | "text" | "fqdn") {
+                return Err(bad(format!(
+                    "{name}: a property of type {value_type} has no bounds"
+                )));
+            }
+            low.iter().chain(high).map(String::as_str).collect()
+        }
+        Condition::Present | Condition::Absent => Vec::new(),
+    };
+    match values.into_iter().find(|v| !fits(v)) {
+        Some(v) => Err(bad(format!(
+            "{name}: {v:?} is not a value of type {value_type}"
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// The identifiers of the page of the objects of `kind` whose properties meet those of
+/// `wanted`, sorted by identifier (design « Filtres de propriétés »): the filter engine
+/// of spec 003 filters within one domain at the current system time. Its moment, and
+/// the identifiers of the page plus one when there is a next page.
+async fn filtered(
+    api: &Api,
+    kind: Kind,
+    page: &Page,
+    wanted: &Wanted,
+    scope: &ReadScope,
+    now: OffsetDateTime,
+) -> Result<(Moment, Vec<Uuid>), Problem> {
+    let first = wanted
+        .properties
+        .first()
+        .map(|(key, _)| format!("prop.{key}"))
+        .unwrap_or_default();
+    if !kind.in_domain() {
+        return Err(bad(format!(
+            "{first}: properties filter the prefixes, ranges and addresses of a domain"
+        )));
+    }
+    let [domain] = wanted.links.as_slice() else {
+        return Err(bad(format!("{first} requires one domain")));
+    };
+    if let Some(name) = wanted.value_name {
+        return Err(bad(format!("{name} does not go with {first}")));
+    }
+    // A next page holds the time of the first one; the engine reads the current state.
+    if page.after().is_none() && page.dates.as_of.is_some() {
+        return Err(bad(format!(
+            "as_of does not go with {first}: properties filter the current state"
+        )));
+    }
+    let after = page
+        .after()
+        .map(|key| serde_json::from_value::<Uuid>(key.clone()))
+        .transpose()
+        .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?;
+    let dates = Dates {
+        valid_at: page.dates.valid_at,
+        as_of: None,
+    };
+    let moment = dates.at(now, api.bound)?;
+    let mut conditions = Vec::with_capacity(wanted.properties.len());
+    for (key, condition) in &wanted.properties {
+        let name = format!("prop.{key}");
+        let declaration = property_read::declaration(&api.pool, key, moment.valid_at, None)
+            .await
+            .map_err(|e| store(&e))?
+            .ok_or_else(|| bad(format!("{name}: no such property at that date")))?;
+        typed(&name, &declaration.value_type, condition)?;
+        conditions.push((declaration.id, condition.clone()));
+    }
+    let domains = list::objects(
+        &api.pool,
+        Kind::Domain,
+        &Criteria {
+            slugs: std::slice::from_ref(domain),
+            ..Criteria::default()
+        },
+        moment.valid_at,
+        None,
+        None,
+        1,
+        &ReadScope::all(),
+    )
+    .await
+    .map_err(|e| store(&e))?;
+    let Some(domain) = domains.first().map(|row| row.key.id) else {
+        return Ok((moment, Vec::new()));
+    };
+    let ids = engine::filter_all_in(
+        &api.pool,
+        domain,
+        &conditions,
+        Some(kind.as_str()),
+        moment.valid_at,
+        after,
+        i64::from(page.size) + 1,
+        scope,
+    )
+    .await
+    .map_err(|e| match e {
+        FilterError::Database(e) => store(&e),
+        e => bad(format!("{first}: {e}")),
+    })?;
+    Ok((moment, ids))
+}
+
 /// `GET`/`QUERY /v1/<collection>`: a page of the objects of `kind` the caller may read,
-/// filtered by natural key, sorted by it.
+/// filtered by natural key, sorted by it; filtered by properties, sorted by identifier
+/// and read at the current system time, a next page included.
 async fn list(
     kind: Kind,
     State(api): State<Api>,
@@ -507,43 +645,72 @@ async fn list(
     let name = collection(kind);
     let page = Page::from_query(&query, &api.ring, name)?;
     let wanted = wanted(kind, &page.filters)?;
-    let after = page
-        .after()
-        .map(|key| serde_json::from_value::<(Option<Uuid>, String, Uuid)>(key.clone()))
-        .transpose()
-        .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?
-        .map(|(domain, value, id)| Key { domain, value, id });
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-    let moment = page.dates.at(now, api.bound)?;
     let scope = PgAuthorizer::new(api.pool.clone())
         .read_scope(&principal.subject(), now)
         .await?;
     let size = usize::from(page.size);
-    let mut rows = list::objects(
-        &api.pool,
-        kind,
-        &Criteria {
-            slugs: &wanted.slugs,
-            links: &wanted.links,
-            values: &wanted.values,
-        },
-        moment.valid_at,
-        Some(moment.as_of()),
-        after.as_ref(),
-        i64::from(page.size) + 1,
-        &scope,
-    )
-    .await
-    .map_err(|e| store(&e))?;
-    let next = (rows.len() > size).then(|| {
-        rows.truncate(size);
-        let last = &rows[size - 1].key;
-        let cursor = page.next(
-            &api.ring,
-            name,
-            &moment,
-            json!([last.domain, last.value, last.id]),
-        );
+    let (moment, rows, next) = if wanted.properties.is_empty() {
+        let after = page
+            .after()
+            .map(|key| serde_json::from_value::<(Option<Uuid>, String, Uuid)>(key.clone()))
+            .transpose()
+            .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?
+            .map(|(domain, value, id)| Key { domain, value, id });
+        let moment = page.dates.at(now, api.bound)?;
+        let mut rows = list::objects(
+            &api.pool,
+            kind,
+            &Criteria {
+                slugs: &wanted.slugs,
+                links: &wanted.links,
+                values: &wanted.values,
+                ids: &[],
+            },
+            moment.valid_at,
+            Some(moment.as_of()),
+            after.as_ref(),
+            i64::from(page.size) + 1,
+            &scope,
+        )
+        .await
+        .map_err(|e| store(&e))?;
+        let next = (rows.len() > size).then(|| {
+            rows.truncate(size);
+            let last = &rows[size - 1].key;
+            json!([last.domain, last.value, last.id])
+        });
+        (moment, rows, next)
+    } else {
+        let (moment, mut ids) = filtered(&api, kind, &page, &wanted, &scope, now).await?;
+        let next = (ids.len() > size).then(|| {
+            ids.truncate(size);
+            json!(ids[size - 1])
+        });
+        let mut rows = if ids.is_empty() {
+            Vec::new()
+        } else {
+            list::objects(
+                &api.pool,
+                kind,
+                &Criteria {
+                    ids: &ids,
+                    ..Criteria::default()
+                },
+                moment.valid_at,
+                None,
+                None,
+                i64::from(page.size),
+                &scope,
+            )
+            .await
+            .map_err(|e| store(&e))?
+        };
+        rows.sort_by_key(|row| row.key.id);
+        (moment, rows, next)
+    };
+    let next = next.map(|last| {
+        let cursor = page.next(&api.ring, name, &moment, last);
         next_href(&format!("/v1/{name}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|row| row.key.id).collect();

@@ -940,3 +940,94 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     let unknown = get(&app, "/v1/property-gaps?rule=x").await;
     assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
 }
+
+/// The identifiers of every page of the list at `uri`, following `next`.
+async fn walk(app: &Router, uri: &str) -> Vec<String> {
+    let (mut ids, mut uri) = (Vec::new(), uri.to_owned());
+    loop {
+        let body = ok(app, &uri).await;
+        assert!(body["items"].as_array().unwrap().len() <= 1, "{body}");
+        ids.extend(ids_of(&body));
+        match body["links"]["next"].as_str() {
+            Some(next) => next.clone_into(&mut uri),
+            None => return ids,
+        }
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let env = declare(&pool, "policy.env", false).await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let a = prefix(&pool, lab, "10.1.0.0/24").await;
+    let b = prefix(&pool, lab, "10.2.0.0/24").await;
+    let c = prefix(&pool, lab, "10.3.0.0/24").await;
+    let d = prefix(&pool, lab, "10.4.0.0/24").await;
+    let elsewhere = prefix(&pool, dmz, "10.1.0.0/24").await;
+    let gateway = address(&pool, lab, "10.1.0.1").await;
+    assign(&pool, env, a, "prod", &[gateway]).await;
+    assign(&pool, env, b, "test", &[]).await;
+    assign(&pool, env, c, "dev", &[]).await;
+    assign(&pool, env, d, "prod", &[]).await;
+    assign(&pool, env, elsewhere, "prod", &[]).await;
+    assign(&pool, zone, a, "red", &[]).await;
+    assign(&pool, zone, b, "red", &[]).await;
+    assign(&pool, zone, d, "blue", &[]).await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let sorted = |mut ids: Vec<Uuid>| {
+        ids.sort();
+        ids.iter().map(Uuid::to_string).collect::<Vec<_>>()
+    };
+
+    // One of the values, in one domain, of the kind of the collection, page after page by
+    // identifier.
+    let uri = "/v1/prefixes?domain=lab&prop.policy.env=prod&prop.policy.env=test&page_size=1";
+    assert_eq!(walk(&app, uri).await, sorted(vec![a, b, d]));
+    let body = ok(&app, "/v1/prefixes?domain=lab&prop.policy.env=dev").await;
+    assert_eq!(body["items"][0]["value"], "10.3.0.0/24", "{body}");
+    assert_eq!(body["items"][0]["domain"]["slug"], "lab", "{body}");
+    let body = ok(&app, "/v1/addresses?domain=lab&prop.policy.env=prod").await;
+    assert_eq!(ids_of(&body), vec![gateway.to_string()]);
+
+    // Conditions are intersected.
+    let uri = "/v1/prefixes?domain=lab&prop.policy.env=prod&prop.policy.env=test\
+               &prop.policy.zone=red&page_size=1";
+    assert_eq!(walk(&app, uri).await, sorted(vec![a, b]));
+    let uri = "/v1/prefixes?domain=lab&prop.policy.zone:exists=false";
+    assert_eq!(ids_of(&ok(&app, uri).await), vec![c.to_string()]);
+
+    // An unknown domain holds nothing.
+    let body = ok(&app, "/v1/prefixes?domain=core&prop.policy.env=prod").await;
+    assert_eq!(ids_of(&body), Vec::<String>::new());
+
+    // Without one domain, on entities, in the past, beside a value, undeclared, mistyped:
+    // 400 naming the parameter.
+    for (uri, named) in [
+        ("/v1/prefixes?prop.policy.env=prod", "domain"),
+        (
+            "/v1/prefixes?domain=lab&domain=dmz&prop.policy.env=prod",
+            "domain",
+        ),
+        ("/v1/entities?prop.policy.env=prod", "prop.policy.env"),
+        (
+            "/v1/prefixes?domain=lab&prop.policy.env=prod&as_of=2025-01-01T00:00:00Z",
+            "as_of",
+        ),
+        (
+            "/v1/prefixes?domain=lab&prop.policy.env=prod&value=10.1.0.0/24",
+            "value",
+        ),
+        ("/v1/prefixes?domain=lab&prop.dns.ttl=1", "prop.dns.ttl"),
+        (
+            "/v1/prefixes?domain=lab&prop.policy.env:exists=maybe",
+            "prop.policy.env",
+        ),
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
+}

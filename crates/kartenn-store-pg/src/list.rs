@@ -186,6 +186,8 @@ pub struct Criteria<'a> {
     pub links: &'a [String],
     /// Values (CIDR, address; first address of a range), for the objects of a domain.
     pub values: &'a [String],
+    /// Identifiers.
+    pub ids: &'a [Uuid],
 }
 
 fn sql_err(e: &TemporalError) -> sqlx::Error {
@@ -242,6 +244,7 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
            AND (cardinality($8::text[]) = 0 OR {slug_filter})
            AND (cardinality($9::text[]) = 0 OR {link} = ANY($9))
            AND (cardinality($10::text[]) = 0 OR {value_filter})
+           AND (cardinality($11::uuid[]) = 0 OR x.id = ANY($11))
            AND ($3::jsonb IS NULL OR {visible})
          ORDER BY {order}
          LIMIT $7"
@@ -292,6 +295,7 @@ pub async fn objects(
         .bind(criteria.slugs)
         .bind(criteria.links)
         .bind(criteria.values)
+        .bind(criteria.ids)
         .fetch_all(pool)
         .await?;
     Ok(rows

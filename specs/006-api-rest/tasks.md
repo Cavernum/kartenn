@@ -237,10 +237,18 @@ routeur complet, sauf mention « vrai TCP ».
   ouverte par règle et objet (`anomaly_one_open`), donc un seul écart par objet, le
   dernier message l'emportant (dette de la 003) ; propriété d'un écart lue dans le
   préfixe du message ; listes des écarts non paginées (comme les anomalies)
-- [ ] 13b. Filtres `prop.<clé>` des listes de 12a par le moteur de la 003 : un seul
+- [x] 13b. Filtres `prop.<clé>` des listes de 12a par le moteur de la 003 : un seul
   `domain=` exigé, conditions intersectées, tri et curseur par UUID, 400 sans domaine,
   sur entités et sites ou au passé — REQ-006-9 — verify : `?domain=lab&prop.env=prod
   &prop.env=test` ; page suivante par curseur ; 400 qui nomme le paramètre
+  — Store : `filter::filter_all_in` (conditions intersectées par `id IN`, sorte d'objet
+  `$11`, paramètres par condition), `filter_in` y délègue sans changer son SQL ;
+  `list::Criteria.ids`. Rest : `objects::filtered` (déclaration à `valid_at`, valeurs
+  vérifiées selon le type, domaine par slug, inconnu → page vide), objets relus par
+  identifiants et triés par UUID. `tests/objects.rs`
+  (`properties_filter_the_objects_of_one_domain`). Écarts : `value`/`first` avec un
+  `prop.<clé>` → 400 (non intersectés) ; la page suivante relit l'état courant, l'`as_of`
+  du curseur ignoré
 
 ## P4 — Écritures
 
