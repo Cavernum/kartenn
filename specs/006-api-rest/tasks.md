@@ -220,10 +220,15 @@ routeur complet, sauf mention « vrai TCP ».
   écrit dans `design.md` (Historique). `tests/objects.rs`
   (`history_keeps_the_versions_valid_at_and_known_as_of`). Planification au passé :
   à surveiller au `bench-core`, sans changement.
-- [ ] 13. Lectures des propriétés : déclarations, valeurs, valeurs résolues,
-  explication, suggestion, écarts ; lecture à un temps système passé ; filtres
-  `prop.<clé>` des listes de 12a — REQ-006-4, 9 —
-  verify : valeur sensible masquée sans droit ; explication au passé
+- [ ] 13a. Lectures des propriétés : déclarations et listes de valeurs (tout authentifié),
+  valeurs résolues, explication, suggestion (registre `Sources` dans l'`Api`), écarts ;
+  lecture à un temps système passé ; message d'écart masqué pour une propriété sensible
+  (aussi dans `/v1/anomalies`) — REQ-006-4 — verify : valeur sensible masquée sans
+  droit ; explication au passé ; nœud invisible de la chaîne à `null`
+- [ ] 13b. Filtres `prop.<clé>` des listes de 12a par le moteur de la 003 : un seul
+  `domain=` exigé, conditions intersectées, tri et curseur par UUID, 400 sans domaine,
+  sur entités et sites ou au passé — REQ-006-9 — verify : `?domain=lab&prop.env=prod
+  &prop.env=test` ; page suivante par curseur ; 400 qui nomme le paramètre
 
 ## P4 — Écritures
 

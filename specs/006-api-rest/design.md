@@ -108,6 +108,31 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `motive` (membre réservé, sinon 422 `motive-required`), et enregistre un événement
   d'audit ; il n'exige pas `If-Match`, l'acquittement étant lié à la version courante
   de l'objet (REQ-002-36). Une anomalie d'un objet invisible répond 404.
+- **Propriétés (arbitrage du 2026-10-19)** :
+  - déclarations et listes de valeurs : lisibles par tout appelant authentifié (un
+    schéma, pas une donnée ; lecture non auditée), datées, paginées par clé ; une
+    déclaration `{id, key, type, params, cardinality, carriers, inherit, sensitive,
+    expected}` (`expected` `{source, mode}` ou `null`), `links.values` ; les valeurs
+    d'une clé inconnue → 404, d'un type autre que `enum` → 409 ;
+  - valeurs résolues (`…/{id}/properties`) : celles de la lecture de l'objet, datées
+    (`valid_at`, `as_of`), `{properties: {clé: valeur | null}, masked: [clés]}` (`null` :
+    « sans valeur » explicite ; une valeur sensible sans `prop.<clé>.read` est absente et
+    sa clé dans `masked`, REQ-005-21) ; ETag faible du contenu ;
+  - explication : objet gardé comme ses sous-ressources (404), propriété non déclarée à
+    la date → 404 ; `{property, value, masked, origin, chain, provenance, replaces}`,
+    nœuds `{kind, id, href}` ; un nœud de la chaîne que l'appelant ne lit pas vaut
+    `null` (sa position reste, son existence n'est pas divulguée, REQ-005-19) ; valeur
+    sensible sans droit : `value` et `replaces.value` `null`, `masked: true` ; lecture
+    auditée (`data.objects.read`, plus `data.sensitive.read` si la valeur est rendue) ;
+  - suggestion : le registre des sources (`Sources`) est passé à l'`Api`, vide tant
+    qu'aucun module n'en fournit ; calculée sur l'état courant à `valid_at` (`as_of`
+    donné → 400) ; `{property, suggestion: {values, explanation} | null}`, masquée et
+    auditée comme l'explication ;
+  - écarts : `GET /v1/property-gaps?property=…&domain=…&entity=…`, les anomalies
+    ouvertes de la règle `prop.resolution.expected_mismatch` dont l'objet est lisible,
+    `{id, property, object, message, opened_at}`. Leur message cite la valeur résolue :
+    pour une propriété sensible sans `prop.<clé>.read`, il est remplacé par un texte
+    générique, ici comme dans `/v1/anomalies`.
 
 ### Représentations et DTO (REQ-006-2, 3, 13)
 
@@ -197,6 +222,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - Traduction vers le moteur de filtres de la 003 (`kartenn_store_pg::filter`), qui
   garde ses plans et ses budgets ; un paramètre inconnu, une clé non déclarée ou une
   valeur mal typée → 400 avec le nom du paramètre.
+- **Filtres de propriétés (arbitrage du 2026-10-19)** : le moteur de la 003 filtre une
+  condition dans un domaine, au temps système courant, et pagine par UUID. Un filtre
+  `prop.<clé>` exige donc un seul `domain=` ; plusieurs conditions sont intersectées ;
+  la liste filtrée est triée par UUID (le curseur porte l'UUID) ; sans domaine, sur les
+  entités et les sites, ou à un `as_of` passé → 400 qui le nomme. Des sous-requêtes dans
+  la liste triée par clé naturelle ne seraient envisagées que si le banc le demande.
 - `QUERY` : corps `application/json`
   `{ "valid_at", "as_of", "filters": [{ "field", "op", "value" }], "page_size" }` ; mêmes
   conditions, même traduction. `Accept-Query: "application/json"` sur les collections ;
