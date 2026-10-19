@@ -199,6 +199,10 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
   contrôle automatique bloquant évite la dérive.
 - Rejeté : bonnes pratiques sans cible (aucun engagement vérifiable).
 - Décidé par : recommandation acceptée
+- Correction (2026-10-19, [note de référence](../../docs/reference/plateforme-web.md)) :
+  l'EN 301 549 V3.2.1 et le RGAA 4.1.2, en vigueur, reposent sur WCAG 2.1 ; WCAG 2.2 AA
+  est une cible compatible avec eux, non leur base. axe-core ne couvre de WCAG 2.2 que
+  2.5.8, par une règle désactivée par défaut (REQ-007-53).
 
 ## W15 — Tests de bout en bout
 - Décision : **contre le vrai serveur et PostgreSQL** de devenv : parcours Playwright

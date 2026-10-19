@@ -55,11 +55,13 @@ conventions de l'API). Sources :
   [`002/requirements.md`](../002-noyau-adressage/requirements.md#conventions).
   « kartenn » désigne le serveur ; « le shell » l'application qui s'exécute dans le
   navigateur.
-- Les références entre crochets renvoient aux décisions (W*) et aux sources :
-  [CSP3 §x] Content Security Policy Level 3, [SRI §x] Subresource Integrity,
-  [HTML §x] WHATWG HTML (import maps, Custom Elements), [WCAG 2.2 x.y.z] critère de
-  succès, [APG] WAI-ARIA Authoring Practices, [SemVer] Semantic Versioning 2.0.0,
-  [Clear-Site-Data §x], et celles de la 006.
+- Les références entre crochets renvoient aux décisions (W*) et aux sources de la note
+  de référence, par l'ancre de leur brouillon d'éditeur ou le titre de leur section :
+  [CSP3 §ancre] Content Security Policy Level 3, [SRI §ancre] Subresource Integrity,
+  [HTML §section] WHATWG HTML (import maps, Custom Elements), [CSS Cascade 5 §ancre],
+  [WCAG 2.2 x.y.z] critère de succès, [APG] WAI-ARIA Authoring Practices, [SemVer §n]
+  Semantic Versioning 2.0.0, [node-semver] plages de versions, [Clear-Site-Data], et
+  celles de la 006.
 - Les budgets se mesurent par Playwright sur Chromium, CPU ralenti ×4, sur le jeu de
   données de `bench-core` (10⁶ objets) (W13).
 
@@ -90,13 +92,15 @@ Acceptation :
 - `GET /assets/..%2f..%2fetc/passwd` et un lien symbolique sortant du répertoire → 404.
 
 #### REQ-007-3 — En-têtes de sécurité
-kartenn doit poser sur `index.html` une CSP qui n'autorise que des scripts de la même
-origine (aucun `unsafe-eval`, aucun script en ligne hors ceux désignés par empreinte),
-des connexions vers la seule origine (`connect-src 'self'`), aucun objet ni cadre,
-aucun ancêtre (`frame-ancestors 'none'`) et `base-uri 'none'` ; et sur toute réponse du
-shell et des plugins `X-Content-Type-Options: nosniff` et `Referrer-Policy:
-same-origin`. Le shell ne doit charger aucune ressource d'une autre origine (scripts,
-styles, polices, images, mesures). [W2, W4, W17, CSP3, INV-23]
+kartenn doit poser sur `index.html`, en en-tête et non en `<meta>`, une CSP qui
+n'autorise que des scripts de la même origine (ni `unsafe-eval`, ni `'strict-dynamic'`,
+aucun script en ligne hors l'import map désignée par son empreinte), des connexions vers
+la seule origine (`connect-src 'self'`), aucun objet (`object-src 'none'`), aucun
+ancêtre (`frame-ancestors 'none'`), `base-uri 'none'` et `form-action 'self'` ; et sur
+toute réponse du shell et des plugins `X-Content-Type-Options: nosniff` et
+`Referrer-Policy: same-origin`. Le shell ne doit charger aucune ressource d'une autre
+origine (scripts, styles, polices, images, mesures). [W2, W4, W17, CSP3
+§directive-script-src, §directive-frame-ancestors, §should-block-inline, INV-23]
 
 Acceptation :
 - Parcours E2E : aucune requête vers une autre origine ; aucune violation de CSP
@@ -116,9 +120,10 @@ Acceptation :
 
 #### REQ-007-5 — Navigateurs pris en charge
 Le shell doit fonctionner sur les deux dernières versions majeures de Firefox, Chromium
-et Safari, et sur Firefox ESR, sans polyfill d'import maps ni de Custom Elements ; sur un
-navigateur qui ne les prend pas en charge, il doit afficher un message qui le dit, sans
-écran blanc. [W17, HTML]
+et Safari, et sur Firefox ESR, sans polyfill d'import maps ni de Custom Elements ; il
+suppose au moins les import maps avec la clé `integrity` (Chromium 127, Firefox 138,
+Safari 18). Sur un navigateur qui ne les prend pas en charge, il doit afficher un
+message qui le dit, sans écran blanc. [W17, HTML §import maps]
 
 #### REQ-007-6 — Nouvelle version du shell
 Si le chargement d'un fragment du shell échoue parce que la version servie a changé,
@@ -145,16 +150,19 @@ Acceptation :
 
 #### REQ-007-8 — Manifeste
 kartenn doit refuser un manifeste qui n'est pas conforme au schéma du manifeste publié
-avec le SDK : nom (`[a-z][a-z0-9-]*`), version SemVer, module d'entrée, plage de SDK,
-extensions, catalogues, module requis facultatif. Les Custom Elements d'un plugin
-doivent porter son nom en préfixe (`<nom>-…`) et ses clés de traduction son espace de
-noms. Deux plugins de même nom doivent être écartés tous les deux, sauf un plugin de
-première partie, qui garde son nom. [W3, W5, W6, W11, SemVer, HTML]
+avec le SDK : nom (`[a-z][a-z0-9-]*`, hors `k` et `kartenn`, réservés au shell),
+version SemVer, module d'entrée, plage de SDK (REQ-007-12), extensions, noms de tous
+ses Custom Elements, catalogues, module requis facultatif. Chaque nom de Custom Element
+doit commencer par le nom du plugin suivi d'un tiret, et ses clés de traduction par son
+espace de noms. Deux plugins de même nom, ou qui déclarent un même nom de Custom Element,
+doivent être écartés tous les deux, sauf un plugin de première partie, qui garde ses
+noms. [W3, W5, W6, W11, SemVer §2, HTML §custom elements]
 
 Acceptation :
 - Manifeste sans `sdk` → plugin écarté, log `error` qui nomme le fichier et le champ ;
   les autres plugins restent publiés.
 - Un plugin tiers nommé comme un plugin de première partie est écarté.
+- Plugins `foo` et `foo-bar` déclarant tous deux `foo-bar-vue` : les deux sont écartés.
 
 #### REQ-007-9 — Publication dans les capacités
 kartenn doit publier dans `ui_plugins` de `GET /v1/capabilities`, pour chaque plugin
@@ -175,11 +183,16 @@ Acceptation :
 - Plugin copié dans le répertoire d'une instance en marche : il figure dans les
   capacités 30 s après au plus, et le shell le charge au rechargement suivant.
 - Plugin retiré : il disparaît des capacités ; ses fichiers → 404.
+- Plugin remplacé sur une instance sur deux : un shell qui reçoit `index.html` de l'une
+  et les modules de l'autre marque le plugin en échec, sans autre effet ; tout rentre
+  dans l'ordre au rechargement une fois les instances alignées.
 
 #### REQ-007-11 — Intégrité des modules
-Le shell ne doit exécuter un module de plugin que si ses octets ont l'empreinte publiée
-(REQ-007-9) ; si l'empreinte diffère, alors le plugin doit être écarté. [W3, W4, SRI,
-HTML]
+kartenn doit publier une empreinte (SHA-384 au moins) pour chaque module servi, du
+shell comme des plugins, module d'entrée et fragments ; le shell ne doit exécuter un
+module de plugin que si ses octets ont l'empreinte publiée (REQ-007-9) ; si l'empreinte
+diffère ou manque, alors le plugin doit être écarté. [W3, W4, SRI §hash-functions,
+§agility, HTML §fetching scripts]
 
 Acceptation :
 - Un module altéré entre le serveur et le navigateur (proxy d'essai qui en change un
@@ -187,8 +200,10 @@ Acceptation :
 
 #### REQ-007-12 — Compatibilité du SDK
 Si la plage de SDK d'un plugin n'inclut pas la version du SDK servie, alors le shell ne
-doit pas le charger et doit le signaler dans la liste des plugins (REQ-007-13). [W7,
-SemVer]
+doit pas le charger et doit le signaler dans la liste des plugins (REQ-007-13). Une
+plage s'écrit selon node-semver, restreinte à une version exacte, `^`, `~` et aux
+comparateurs `>=` et `<` ; `||`, les tirets et les préversions sont refusés par le
+schéma du manifeste. [W7, SemVer §4, node-semver]
 
 Acceptation :
 - SDK servi `1.3.0` : plugin `^1.2` chargé ; `~1.2.0` et `^2.0` écartés avec la raison
@@ -198,8 +213,10 @@ Acceptation :
 Si le module d'entrée d'un plugin échoue, lève une exception ou n'a pas fini de se
 charger en 5 s, alors le shell doit l'écarter sans retarder son premier écran ; si une
 extension lève une exception au rendu, alors son emplacement doit afficher une erreur
-et le reste de la page fonctionner. Le shell doit montrer à chaque utilisateur l'état de
-chaque plugin publié : chargé, incompatible, en échec, expiré. [W13, W7]
+et le reste de la page fonctionner ; si un plugin définit un Custom Element que son
+manifeste ne déclare pas ou qui est déjà défini, alors le plugin doit être marqué en
+échec. Le shell doit montrer à chaque utilisateur l'état de chaque plugin publié :
+chargé, incompatible, en échec, expiré. [W13, W7, HTML §custom elements]
 
 Acceptation :
 - Plugin qui boucle 10 s à son chargement : premier écran dans son budget
@@ -221,9 +238,10 @@ Acceptation :
 ### C. SDK et client API
 
 #### REQ-007-15 — SDK partagé
-Le shell doit déclarer une import map où `@kartenn/sdk` désigne le module du SDK qu'il
-sert, avant tout chargement de module ; les plugins l'importent statiquement et
-partagent ainsi une seule instance du contexte. [W7, HTML]
+Le shell doit déclarer une seule import map, avant tout chargement de module, où
+`@kartenn/sdk` désigne le module du SDK qu'il sert ; aucune import map ne doit être
+ajoutée ensuite, par le shell ni par un plugin. Les plugins importent le SDK
+statiquement et partagent ainsi une seule instance du contexte. [W7, HTML §import maps]
 
 Acceptation :
 - Deux plugins lisent le même contexte (utilisateur, contexte temporel) et voient le
@@ -240,8 +258,9 @@ sable de test (REQ-007-22). [W7, D17, W11]
 Le SDK doit suivre SemVer : retirer ou changer de façon incompatible une déclaration
 publique (types, fonctions, jetons de design, schéma du manifeste) exige une version
 majeure. Un test doit comparer la surface publique du SDK à une référence du dépôt et
-échouer sur tout retrait ou changement incompatible sans version majeure. [W7, SemVer
-§8, REQ-006-34]
+échouer sur tout retrait ou changement incompatible sans version majeure. La première
+version publiée du SDK doit être `1.0.0`, pour que `^1.y` borne les ruptures. [W7,
+SemVer §4, §8, REQ-006-34]
 
 #### REQ-007-18 — Points d'extension
 Le SDK doit offrir quatre points d'extension, déclarés dans le manifeste : (1) route et
@@ -428,8 +447,8 @@ Acceptation :
 Le shell doit offrir l'administration des rôles, des liaisons, des rattachements
 d'émetteurs, des comptes de service et de leurs secrets, et de l'état des identités,
 chaque modification passant par un changeset (modification rapide ou brouillon). Un
-secret créé doit être montré une fois, jamais gardé par le navigateur. [W1, 005/REQ-005-11,
-25, 26]
+secret créé doit être montré une fois, jamais gardé par le navigateur. [W1,
+005/REQ-005-11, 25, 26]
 
 #### REQ-007-42 — Audit
 Le shell doit offrir la recherche dans le journal d'audit (acteur, objet, nom
@@ -457,13 +476,15 @@ Acceptation :
 
 #### REQ-007-45 — Déconnexion
 Lors d'une déconnexion, le shell doit effacer brouillons, caches et préférences autres
-que la langue et le thème, puis appeler la déconnexion de l'API (005/REQ-005-8) ; aucune
-donnée du référentiel ne doit rester dans le stockage de l'origine. [W10, W17,
-Clear-Site-Data]
+que la langue et le thème, dans tous ses onglets, puis appeler la déconnexion de l'API
+(005/REQ-005-8) ; aucune donnée du référentiel ne doit rester dans le stockage de
+l'origine, y compris celui qu'ont rempli les plugins. [W10, W17, Clear-Site-Data,
+IndexedDB]
 
 Acceptation :
-- Après déconnexion, IndexedDB, Cache Storage et `localStorage` de l'origine ne
-  contiennent que la langue et le thème.
+- Deux onglets ouverts, déconnexion dans l'un : IndexedDB (bases du shell et des
+  plugins), Cache Storage et `localStorage` de l'origine ne contiennent plus que la
+  langue et le thème.
 
 #### REQ-007-46 — Rien de secret dans le navigateur
 Le shell ne doit garder ni jeton, ni secret, ni phrase de passe, ni code TOTP dans le
@@ -513,27 +534,33 @@ Le shell doit définir couleurs, espacements, typographie et rayons comme jetons
 design, en modes clair et sombre (préférence du système, sinon choix de l'utilisateur) ;
 ces jetons doivent être hérités par les extensions rendues dans un Shadow DOM, quel que
 soit leur framework, et font partie de la surface du SDK (REQ-007-17). [W12, CSS Custom
-Properties, HTML]
+Properties 1 §defining-variables, CSS Cascade 5 §inheriting]
 
 Acceptation :
 - Un Custom Element sans Vue, en Shadow DOM, qui utilise `var(--k-color-text)`, prend la
   couleur du shell dans les deux modes.
 
 #### REQ-007-53 — WCAG 2.2 AA
-Le shell et les plugins de première partie doivent satisfaire WCAG 2.2 niveau AA ;
-chaque parcours E2E doit passer axe-core sur les règles WCAG 2.0 à 2.2 A et AA sans
-violation, et un test doit vérifier les contrastes de chaque paire de jetons texte/fond
-et des éléments non textuels dans les deux modes. Pour les plugins tiers, c'est une
-recommandation. [W14, WCAG 2.2 1.4.3, 1.4.11]
+Le shell et les plugins de première partie doivent satisfaire WCAG 2.2 niveau AA, cible
+compatible avec l'EN 301 549 et le RGAA en vigueur (fondés sur WCAG 2.1). Chaque
+parcours E2E doit passer axe-core sans violation, sur les tags `wcag2a`, `wcag2aa`,
+`wcag21a`, `wcag21aa` et `wcag22aa`, la règle `target-size` activée ; les critères de
+WCAG 2.2 sans règle axe-core (2.4.11, 2.5.7, 3.2.6, 3.3.7, 3.3.8) doivent avoir un test
+dédié ou une ligne de la grille de revue manuelle ; un test doit vérifier les contrastes
+de chaque paire de jetons texte/fond et des éléments non textuels dans les deux modes.
+Pour les plugins tiers, c'est une recommandation. [W14, WCAG 2.2 1.4.3, 1.4.11, 2.5.8]
 
 Acceptation :
-- Une violation axe-core dans un parcours le fait échouer en CI.
+- Une violation axe-core dans un parcours le fait échouer en CI ; les résultats
+  `incomplete` sont rapportés sans faire échouer.
 
 #### REQ-007-54 — Clavier
 Le shell doit être entièrement utilisable au clavier, arbre des préfixes et tables
-compris, selon les motifs « Tree View » et « Grid » des APG, avec un focus toujours
-visible et jamais masqué par le bandeau ou un panneau. [W14, WCAG 2.2 2.1.1, 2.4.7,
-2.4.11, APG]
+compris, selon les motifs « Tree View » et « Grid » des APG ; un nœud ou une ligne
+chargé à la demande ou virtualisé doit porter sa position (`aria-level`,
+`aria-setsize`, `aria-posinset` ; `aria-rowcount`, `aria-rowindex`), et l'élément qui a
+le focus doit rester rendu. Le focus doit être toujours visible et jamais masqué par le
+bandeau ou un panneau. [W14, WCAG 2.2 2.1.1, 2.4.7, 2.4.11, APG]
 
 Acceptation :
 - Parcours E2E sans souris : ouvrir un préfixe dans l'arbre, ajouter une modification au
@@ -639,7 +666,12 @@ mis à jour avec eux. [W17, H12, REQ-006-34]
 - Écrans VLAN et Machines : plugins de la 008 et de la 009.
 - Canal temps réel (WebSocket, SSE) : les listes se relisent à la navigation ou à la
   demande.
-- Télémétrie du navigateur vers le serveur.
+- Télémétrie du navigateur vers le serveur, point de rapport des violations de CSP
+  (`report-to`) : les violations sont relevées par les parcours E2E
+  (`securitypolicyviolation`).
+- Trusted Types imposés (`require-trusted-types-for 'script'`) : au plus en
+  report-only tant que les plugins tiers n'y sont pas conformes.
+- Registres de Custom Elements à portée : absents de Firefox ESR en 2026-10.
 - Langues autres que le français et l'anglais ; documentation de l'interface en anglais
   (Q-ouv-6, reste ouverte pour la documentation).
 
@@ -648,25 +680,37 @@ mis à jour avec eux. [W17, H12, REQ-006-34]
 - [ ] Ajouts à l'API hors W17 (REQ-007-67) : permissions par union dans `GET /v1/me` et
   liste publique des émetteurs, avec un libellé facultatif dans `[[auth.issuers]]`.
   Contrat public, à arbitrer. (utilisateur)
-- [ ] CSP des styles : `style-src 'self'` sans `'unsafe-inline'` (les plugins passent par
-  des fichiers CSS ou des feuilles construites), ou `'unsafe-inline'` pour les styles
-  seuls. Sécurité, à arbitrer après la note de référence. (utilisateur)
-- [ ] Mécanisme de l'intégrité des modules chargés par `import()` (REQ-007-11) : clé
-  `integrity` de l'import map, `modulepreload` avec `integrity`, et leur prise en
-  charge par les navigateurs de REQ-007-5. (Claude, design)
-- [ ] Insertion de l'import map et empreinte de la CSP : `index.html` rendu par le
-  serveur avec les plugins retenus, ou import map figée au build. (Claude, design)
-- [ ] Effacement à la déconnexion : `Clear-Site-Data` posé par la réponse de
-  déconnexion en plus de l'effacement par le shell, selon sa prise en charge. (Claude,
+- [ ] CSP des styles (REQ-007-3) : (a) `style-src 'self'` strict, CSS extrait au build
+  et fichiers CSS des plugins, les violations mesurées en E2E ; (b) en repli
+  `style-src-attr 'unsafe-inline'` pour les seuls attributs `style` ; (c)
+  `'unsafe-inline'` pour tous les styles. Recommandation : (a), les plugins Vue de
+  première partie extrayant leur CSS. Sécurité, à arbitrer.
+  ([note](../../docs/reference/plateforme-web.md), point 5) (utilisateur)
+- [ ] Production de l'import map (REQ-007-11, 15) : `index.html` rendu par le serveur
+  avec la clé `integrity` de chaque module du shell et des plugins retenus, et
+  l'empreinte CSP de ses octets exacts (recommandé par la note, points 2 à 4) ; une
+  import map figée au build ne couvrirait pas les plugins déposés à chaud. (Claude,
+  design)
+- [ ] Effacement à la déconnexion (REQ-007-45) : effacement par le shell dans chaque
+  onglet (`versionchange`) et `Clear-Site-Data: "storage"` sur la réponse de
+  déconnexion, pris en charge par toute la cible mais qui efface aussi langue et thème
+  (à réécrire ensuite) ; `navigator.storage.persist()` pour le brouillon. (Claude,
   design)
 - [ ] Mesure des budgets hors Chromium (ralentissement du CPU et tâches longues ne sont
   mesurables que sur Chromium) : budgets mesurés sur Chromium seul. (Claude, design)
+- [ ] WebKit dans les E2E de l'intégrité (REQ-007-11) : W17 limite les E2E à Chromium et
+  Firefox, or Safari diverge sur l'intégrité des modules ; WebKit fourni par le
+  Playwright de Nix : non vérifié. (Claude, design)
 - [ ] Outil de comparaison de la surface publique du SDK (REQ-007-17) : dépendance de
   développement, à arbitrer au design. (Claude, design ; utilisateur pour la
   dépendance)
 - [ ] Choix tranchés par Claude en écrivant les exigences, à valider à la relecture :
-  `Referrer-Policy: same-origin` (REQ-007-3) ; fichiers des plugins en `no-cache` avec
-  ETag (REQ-007-4) ; plugin invalide écarté
-  sans refuser le démarrage (REQ-007-8) ; relecture du répertoire toutes les 30 s et
-  sur `SIGHUP` (REQ-007-10) ; brouillon effacé après 7 jours sans modification
-  (REQ-007-32) ; plugin d'exemple non livré (REQ-007-64). (utilisateur, à la relecture)
+  `Referrer-Policy: same-origin` et `form-action 'self'` (REQ-007-3) ; fichiers des
+  plugins en `no-cache` avec ETag (REQ-007-4) ; plugin invalide écarté sans refuser le
+  démarrage, noms `k` et `kartenn` réservés, noms de Custom Elements déclarés au
+  manifeste (REQ-007-8) ; relecture du répertoire toutes les 30 s et sur `SIGHUP`
+  (REQ-007-10) ; sous-ensemble des plages node-semver (REQ-007-12) ; SDK publié d'emblée
+  en `1.0.0` (REQ-007-17) ; brouillon effacé après 7 jours sans modification
+  (REQ-007-32) ; résultats `incomplete` d'axe-core non bloquants (REQ-007-53) ; émetteur
+  de développement limité à la boucle locale (REQ-007-61) ; plugin d'exemple non livré
+  (REQ-007-64). (utilisateur, à la relecture)
