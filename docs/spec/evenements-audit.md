@@ -30,7 +30,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `account.breakglass.created` | WARN | high | Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma. | `valid_until` | REQ-005-14 | Account Change 3001 / Create | `iam` |
 | `policy.approval.changed` | INFO | high | Une politique d'approbation a été créée, modifiée ou désactivée. | `enabled` | REQ-012-8 | Entity Management 3004 / Update | `configuration` |
 | `property.declaration.changed` | INFO | normal | Une déclaration de propriété a été créée ou modifiée. | `key`, `sensitive` | REQ-012-8, REQ-003-27 | Entity Management 3004 / Update | `configuration` |
-| `person.identity.pseudonymised` | INFO | high | Les données d'identité d'une personne ont été pseudonymisées. | — | REQ-012-8 | Account Change 3001 / Other | `iam` |
+| `person.identity.pseudonymised` | INFO | high | Les données d'identité d'une personne ont été pseudonymisées. | `motive` | REQ-012-8 | Account Change 3001 / Other | `iam` |
 | `data.objects.read` | INFO | low | Une requête de lecture a renvoyé ces objets (jamais leurs valeurs). | `criteria`, `targets_omitted` | REQ-012-18 | API Activity 6003 / Read | `database` |
 | `data.sensitive.read` | INFO | high | La valeur d'une propriété sensible a été lue. | `property` | REQ-012-18 | API Activity 6003 / Read | `database` |
 | `data.objects.exported` | INFO | high | Un export en masse a été produit. | `criteria`, `count` | REQ-012-8 | API Activity 6003 / Read | `database` |

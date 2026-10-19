@@ -38,6 +38,7 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `core.issuer.admin` | oui | Rattacher un émetteur OIDC à des entités ou au périmètre global. |
 | `core.account.admin` | oui | Gérer les comptes de service, désactiver une identité, révoquer ses sessions. |
 | `core.audit.read` | — | Consulter ou exporter le journal d'audit. |
+| `core.identity.pseudonymise` | oui | Pseudonymiser sans délai les données d'identité d'une personne. |
 | `core.observability.admin` | oui | Changer à chaud le filtre d'une sortie technique. |
 
 ## Rôles livrés

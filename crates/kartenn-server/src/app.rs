@@ -481,6 +481,7 @@ pub async fn run(
                 auth.as_ref(),
                 &journal,
                 config.audit.read_audit(),
+                config.telemetry.names().into(),
             )
             .await?,
         ),
@@ -634,6 +635,7 @@ impl Api {
         auth: Option<&crate::auth::Loaded>,
         journal: &PgAuditJournal,
         read_audit: kartenn_service::reads::ReadAudit,
+        outputs: Arc<[String]>,
     ) -> anyhow::Result<Self> {
         let authn = auth
             .map(|auth| authn(auth, pool, journal).map(Arc::new))
@@ -689,6 +691,7 @@ impl Api {
             audit: read_audit,
             // No module provides a source of expected values yet.
             sources: kartenn_service::expected::Sources::none(),
+            outputs,
         };
         let app = kartenn_rest::router(
             kartenn_rest::v1(objects),

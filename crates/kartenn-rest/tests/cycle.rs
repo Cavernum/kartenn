@@ -79,6 +79,7 @@ fn app_as(pool: &PgPool, identity: Uuid) -> Router {
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
+        outputs: std::sync::Arc::from([]),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),
@@ -385,6 +386,83 @@ async fn the_list_filters_by_state_and_author_by_pages(pool: PgPool) {
         "/v1/changesets?state=applied&state=refused",
         "/v1/changesets?valid_at=2026-01-01T00:00:00Z",
         "/v1/changesets?other=1",
+    ] {
+        assert_eq!(
+            send(&app, get(bad)).await.status(),
+            StatusCode::BAD_REQUEST,
+            "{bad}"
+        );
+    }
+}
+
+/// The ids of the items of a list.
+async fn listed(app: &Router, uri: &str) -> Vec<String> {
+    let page = send(app, get(uri)).await;
+    assert_eq!(page.status(), StatusCode::OK, "{uri}");
+    json_of(page).await["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_list_searches_by_object_period_and_retroactivity(pool: PgPool) {
+    let app = app_as(&pool, person(&pool, &["*"]).await);
+    let (lab, created) = domain(&app, &pool, "lab").await;
+    let (_, other) = domain(&app, &pool, "other").await;
+    assert_eq!(rename(&app, &lab, "lab2").await.status(), StatusCode::OK);
+    let renamed: Uuid =
+        sqlx::query_scalar("SELECT id FROM changeset ORDER BY submitted_at DESC, id DESC LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let renamed = renamed.to_string();
+
+    // Current version and history alike.
+    let of_lab = listed(&app, &format!("/v1/changesets?object={lab}")).await;
+    assert_eq!(of_lab, [renamed.clone(), created.clone()]);
+
+    // `from` included, `to` excluded, on the submission time.
+    let at: String = sqlx::query_scalar(
+        "SELECT to_char(submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')
+         FROM changeset WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(&other).unwrap())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let at: String = form_urlencoded::byte_serialize(at.as_bytes()).collect();
+    let since = listed(&app, &format!("/v1/changesets?from={at}")).await;
+    assert_eq!(since, [renamed.clone(), other.clone()]);
+    let before = listed(&app, &format!("/v1/changesets?to={at}")).await;
+    assert_eq!(before, std::slice::from_ref(&created));
+
+    assert_eq!(
+        listed(&app, "/v1/changesets?retroactive=false").await.len(),
+        3
+    );
+    assert!(
+        listed(&app, "/v1/changesets?retroactive=true")
+            .await
+            .is_empty()
+    );
+    assert_eq!(
+        listed(
+            &app,
+            &format!("/v1/changesets?object={lab}&retroactive=false")
+        )
+        .await,
+        [renamed, created]
+    );
+
+    for bad in [
+        "/v1/changesets?object=lab",
+        "/v1/changesets?from=2026-01-01T00:00:00",
+        "/v1/changesets?to=yesterday",
+        "/v1/changesets?retroactive=maybe",
+        "/v1/changesets?retroactive=true&retroactive=false",
     ] {
         assert_eq!(
             send(&app, get(bad)).await.status(),

@@ -243,7 +243,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     condition de départ ni de délai (le traitement par lot de REQ-004-33 reste) ;
     `motive` obligatoire (422 `motive-required`). Personne inconnue → 404 ; compte de
     service → 409 `conflict` ; déjà pseudonymisée → 200 sans effet ni nouvel événement.
-    L'événement `person.pseudonymised` (acteur, motif) est écrit dans la transaction de
+    L'événement `person.identity.pseudonymised` (acteur, motif) est écrit dans la transaction de
     la pseudonymisation ; réponse 200, l'identité (forme de `GET /v1/identities/{id}`) ;
   - recherche de changesets (REQ-004-32) : `GET /v1/changesets` gagne, par ajout
     (REQ-006-33), `object` (UUID : changesets qui ont écrit l'objet, version courante
@@ -467,7 +467,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Corps trop gros | 413 | `payload-too-large` |
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
-| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member` |
+| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override` |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |

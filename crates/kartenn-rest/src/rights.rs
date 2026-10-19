@@ -855,7 +855,7 @@ fn identity_href(id: Uuid) -> String {
     format!("/v1/identities/{id}")
 }
 
-fn identity_item(identity: &IdentityRead) -> Value {
+pub(crate) fn identity_item(identity: &IdentityRead) -> Value {
     json!({
         "id": identity.id,
         "href": identity_href(identity.id),

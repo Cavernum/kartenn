@@ -1,5 +1,6 @@
 //! The cycle of a changeset (spec 006, REQ-006-16; task 006-17; design « Cycle d'un
-//! changeset »): its read, the list filtered by state and author, its differential by
+//! changeset »): its read, the list filtered by state, author, object, period and
+//! retroactivity (REQ-004-32), its differential by
 //! pages, the proposals the caller may validate, and the actions validate, reject,
 //! withdraw and undo.
 //!
@@ -129,29 +130,65 @@ fn key(found: &ChangesetSummary) -> Value {
     ])
 }
 
-/// The filter of the list: `state` (a state of the journal) and `author` (a UUID), each
-/// at most once (the cursor sorts them by name).
-fn filter(page: &Page) -> Result<(Option<String>, Option<Uuid>), Problem> {
-    let (mut state, mut author) = (None, None);
+/// The filter of the list, each criterion at most once (the cursor sorts them by name).
+#[derive(Debug, Default)]
+struct Criteria {
+    state: Option<String>,
+    author: Option<Uuid>,
+    object: Option<Uuid>,
+    from: Option<OffsetDateTime>,
+    to: Option<OffsetDateTime>,
+    retroactive: Option<bool>,
+}
+
+/// The filter of the list: `state` (a state of the journal), `author` and `object` (UUIDs),
+/// `from` and `to` (RFC 3339 with an offset) and `retroactive` (`true` or `false`).
+fn filter(page: &Page) -> Result<Criteria, Problem> {
+    fn once<T>(slot: &mut Option<T>, name: &str, value: Result<T, Problem>) -> Result<(), Problem> {
+        if slot.is_some() {
+            return Err(bad(format!("{name} is given more than once")));
+        }
+        *slot = Some(value?);
+        Ok(())
+    }
+    let uuid = |name: &str, value: &str| {
+        value
+            .parse::<Uuid>()
+            .map_err(|_| bad(format!("{name} must be a UUID")))
+    };
+    let date = |name: &str, value: &str| {
+        OffsetDateTime::parse(value, &Rfc3339)
+            .map_err(|_| bad(format!("{name} must be an RFC 3339 date with an offset")))
+    };
+    let mut c = Criteria::default();
     for (name, value) in &page.filters {
         match name.as_str() {
-            "state" if state.is_none() => {
-                if !STATES.contains(&value.as_str()) {
-                    return Err(bad(format!("state must be one of {}", STATES.join(", "))));
-                }
-                state = Some(value.clone());
+            "state" => {
+                let state = if STATES.contains(&value.as_str()) {
+                    Ok(value.clone())
+                } else {
+                    Err(bad(format!("state must be one of {}", STATES.join(", "))))
+                };
+                once(&mut c.state, name, state)?;
             }
-            "author" if author.is_none() => {
-                author = Some(value.parse().map_err(|_| bad("author must be a UUID"))?);
+            "author" => once(&mut c.author, name, uuid(name, value))?,
+            "object" => once(&mut c.object, name, uuid(name, value))?,
+            "from" => once(&mut c.from, name, date(name, value))?,
+            "to" => once(&mut c.to, name, date(name, value))?,
+            "retroactive" => {
+                let retroactive = value
+                    .parse::<bool>()
+                    .map_err(|_| bad("retroactive must be true or false"));
+                once(&mut c.retroactive, name, retroactive)?;
             }
-            "state" | "author" => return Err(bad(format!("{name} is given more than once"))),
             other => return Err(bad(format!("unknown parameter {other}"))),
         }
     }
-    Ok((state, author))
+    Ok(c)
 }
 
-/// `GET /v1/changesets?state=…&author=…`: the changesets, newest first.
+/// `GET /v1/changesets?state=…&author=…&object=…&from=…&to=…&retroactive=…`: the
+/// changesets, newest first (REQ-004-32).
 pub(crate) async fn list(
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
@@ -161,15 +198,19 @@ pub(crate) async fn list(
     readable(&api, &context).await?;
     let name = "changesets";
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, name)?;
-    let (state, author) = filter(&page)?;
+    let criteria = filter(&page)?;
     let after = after_key(&page)?;
     let moment = current(&api, &page).await?;
     let size = usize::from(page.size);
     let mut found = changesets::page(
         &api.pool,
         ChangesetFilter {
-            state: state.as_deref(),
-            author,
+            state: criteria.state.as_deref(),
+            author: criteria.author,
+            object: criteria.object,
+            from: criteria.from,
+            to: criteria.to,
+            retroactive: criteria.retroactive,
         },
         after,
         i64::from(page.size) + 1,
@@ -181,7 +222,14 @@ pub(crate) async fn list(
         next_href(&format!("/v1/{name}"), &cursor)
     });
     let ids: Vec<Uuid> = found.iter().map(|c| c.id).collect();
-    let criteria = json!({ "changesets": { "state": state, "author": author } });
+    let criteria = json!({ "changesets": {
+        "state": criteria.state,
+        "author": criteria.author,
+        "object": criteria.object,
+        "from": criteria.from.map(|at| rfc3339(instant(at))),
+        "to": criteria.to.map(|at| rfc3339(instant(at))),
+        "retroactive": criteria.retroactive,
+    } });
     audit_read(&api, &context, &ids, criteria).await?;
     let items: Vec<Value> = found.iter().map(listed).collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))

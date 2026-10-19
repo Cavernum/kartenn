@@ -27,9 +27,11 @@ impl From<RequestError> for Problem {
             | RequestError::InvalidPeriod
             | RequestError::UnknownReference { .. }
             | RequestError::DuplicateLocal(_)
-            | RequestError::WrongReferenceKind { .. }
-            | RequestError::InvalidOverride => {
+            | RequestError::WrongReferenceKind { .. } => {
                 Self::new(ProblemKind::BadRequest).detail(error.to_string())
+            }
+            RequestError::InvalidOverride => {
+                Self::new(ProblemKind::InvalidOverride).detail(error.to_string())
             }
             RequestError::MotiveRequired => Self::new(ProblemKind::MotiveRequired),
             RequestError::TooManyOperations { .. } => {
@@ -103,7 +105,7 @@ mod tests {
                 ProblemKind::BadRequest,
             ),
             (RequestError::DuplicateLocal(1), ProblemKind::BadRequest),
-            (RequestError::InvalidOverride, ProblemKind::BadRequest),
+            (RequestError::InvalidOverride, ProblemKind::InvalidOverride),
             (RequestError::MotiveRequired, ProblemKind::MotiveRequired),
             (
                 RequestError::TooManyOperations { count: 2, max: 1 },

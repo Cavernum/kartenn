@@ -52,6 +52,8 @@ pub enum ProblemKind {
     IdempotencyKeyReused,
     /// A member of a write the service does not change, or an undeclared property.
     InvalidMember,
+    /// A filter of an output that does not parse, or a duration out of bounds.
+    InvalidOverride,
     /// `If-Match` is missing.
     PreconditionRequired,
     /// The quota of the identity is spent.
@@ -64,7 +66,7 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -83,6 +85,7 @@ impl ProblemKind {
         Self::TooManyOperations,
         Self::IdempotencyKeyReused,
         Self::InvalidMember,
+        Self::InvalidOverride,
         Self::PreconditionRequired,
         Self::RateLimited,
         Self::Unavailable,
@@ -111,6 +114,7 @@ impl ProblemKind {
             Self::TooManyOperations => "too-many-operations",
             Self::IdempotencyKeyReused => "idempotency-key-reused",
             Self::InvalidMember => "invalid-member",
+            Self::InvalidOverride => "invalid-override",
             Self::PreconditionRequired => "precondition-required",
             Self::RateLimited => "rate-limited",
             Self::Unavailable => "unavailable",
@@ -137,7 +141,8 @@ impl ProblemKind {
             | Self::MotiveRequired
             | Self::TooManyOperations
             | Self::IdempotencyKeyReused
-            | Self::InvalidMember => StatusCode::UNPROCESSABLE_ENTITY,
+            | Self::InvalidMember
+            | Self::InvalidOverride => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -167,6 +172,7 @@ impl ProblemKind {
             Self::TooManyOperations => "The changeset has too many operations",
             Self::IdempotencyKeyReused => "The idempotency key was used for another request",
             Self::InvalidMember => "A member cannot be written",
+            Self::InvalidOverride => "The filter or its duration is invalid",
             Self::PreconditionRequired => "If-Match is required",
             Self::RateLimited => "Too many requests",
             Self::Unavailable => "The service is unavailable",

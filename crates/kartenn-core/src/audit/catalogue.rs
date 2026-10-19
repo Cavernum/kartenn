@@ -120,7 +120,7 @@ events! {
     DECLARATION_CHANGED = "property.declaration.changed", Info, Normal, ["key", "sensitive"], ["REQ-012-8", "REQ-003-27"],
         "Entity Management 3004 / Update", "configuration",
         "Une déclaration de propriété a été créée ou modifiée.";
-    PERSON_PSEUDONYMISED = "person.identity.pseudonymised", Info, High, [], ["REQ-012-8"],
+    PERSON_PSEUDONYMISED = "person.identity.pseudonymised", Info, High, ["motive"], ["REQ-012-8"],
         "Account Change 3001 / Other", "iam",
         "Les données d'identité d'une personne ont été pseudonymisées.";
     // Data.

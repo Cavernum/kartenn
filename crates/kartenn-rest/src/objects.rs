@@ -60,6 +60,9 @@ pub struct Api {
     pub audit: ReadAudit,
     /// The sources of expected values, which the suggestions ask (spec 003, REQ-003-23).
     pub sources: Sources,
+    /// The names of the technical outputs configured, whose filter may change at run time
+    /// (012/REQ-012-27).
+    pub outputs: std::sync::Arc<[String]>,
 }
 
 /// The collection of each kind.

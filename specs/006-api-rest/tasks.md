@@ -334,7 +334,7 @@ routeur complet, sauf mention « vrai TCP ».
   choix : pas de vérification d'existence avant une écriture (rôle, liaison ou secret
   inconnu → 422 du pipeline, pas de 404) ; `PUT` d'un rôle → 201 ou 200 selon sa
   présence lue avant ; `Location` d'un ajout de secret → le compte
-- [ ] 19. Audit et exploitation : recherche et export (`GET`, `QUERY`),
+- [x] 19. Audit et exploitation : recherche et export (`GET`, `QUERY`),
   pseudonymisation, filtres de log à chaud — REQ-006-4 — verify : consultation sans
   permission refusée et auditée ; filtre qui revient à la configuration
   où : design « Ressources et routes » (ligne Audit, Exploitation) ; service
@@ -343,7 +343,24 @@ routeur complet, sauf mention « vrai TCP ».
   — Arbitrage au design (« Audit et exploitation », 2026-10-19) : curseur sur `seq`,
   export NDJSON par `Accept`, pseudonymisation immédiate sous
   `core.identity.pseudonymise`, filtres `object`, `from`, `to`, `retroactive` sur
-  `GET /v1/changesets` (REQ-004-32)
+  `GET /v1/changesets` (REQ-004-32). Core : permission `core.identity.pseudonymise`,
+  détail `motive` de `person.identity.pseudonymised` (catalogues régénérés). Service :
+  `AuditQuery.before`, `Reader::audit_extent`, `read_audit` (page et suite),
+  `export_audit` (audité une fois, borné à la sélection), `reads::pseudonymisable`.
+  Store : `read.rs::audit_criteria`, `audit.rs` (`pseudonymise_identity`, `written_by`
+  partagé avec `changesets::page`). Telemetry : `capture::valid_filter`. Rest :
+  `audit.rs` (journal par pages ou `QUERY`, export NDJSON en flux, pseudonymisation,
+  `PUT /v1/log-filters/{output}`), `Api.outputs`, problème 422 `invalid-override`,
+  critères de `cycle.rs::filter`. `tests/audit.rs`
+  (`a_consultation_without_permission_is_refused_and_audited`,
+  `the_journal_reads_by_pages_and_by_query`, `an_export_is_whole_and_audited_once`,
+  `a_person_is_pseudonymised_at_once`, `a_log_filter_returns_to_the_configuration`),
+  `tests/cycle.rs` (`the_list_searches_by_object_period_and_retroactivity`)
+  choix : sortie inconnue → 404 avant le contrôle de permission (les noms de sortie ne
+  sont pas sensibles) ; compte de secours et identité système → 409 comme un compte de
+  service ; refus de l'export audité sur la même cible que la consultation ; export en
+  `Cache-Control: no-store`, lots internes de 1 000 ; `futures-util` passe des
+  dépendances de test aux dépendances (déjà dans l'arbre)
 
 ## P5 — Tâches de fond et imports
 

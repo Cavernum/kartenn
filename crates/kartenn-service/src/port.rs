@@ -93,6 +93,8 @@ pub struct AuditQuery {
     pub actor: Option<Uuid>,
     /// About this object.
     pub object: Option<Uuid>,
+    /// Recorded before the event of this sequence number (the cursor of a page).
+    pub before: Option<i64>,
     /// At most this many events, the most recent first.
     pub limit: u32,
 }
@@ -112,6 +114,13 @@ pub trait Reader: Send + Sync {
         &self,
         query: &AuditQuery,
     ) -> impl Future<Output = Result<Vec<serde_json::Value>, StoreError>> + Send;
+
+    /// How many events match `query` (its `limit` aside), and the sequence number of the
+    /// most recent of them.
+    fn audit_extent(
+        &self,
+        query: &AuditQuery,
+    ) -> impl Future<Output = Result<(u64, Option<i64>), StoreError>> + Send;
 }
 
 /// What is written to the audit for a changeset (REQ-004-31).

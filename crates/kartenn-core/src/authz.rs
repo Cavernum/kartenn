@@ -64,6 +64,7 @@ permissions! {
     ISSUER_ADMIN = "core.issuer.admin", true, "Rattacher un émetteur OIDC à des entités ou au périmètre global.";
     ACCOUNT_ADMIN = "core.account.admin", true, "Gérer les comptes de service, désactiver une identité, révoquer ses sessions.";
     AUDIT_READ = "core.audit.read", false, "Consulter ou exporter le journal d'audit.";
+    IDENTITY_PSEUDONYMISE = "core.identity.pseudonymise", true, "Pseudonymiser sans délai les données d'identité d'une personne.";
     OBSERVABILITY_ADMIN = "core.observability.admin", true, "Changer à chaud le filtre d'une sortie technique.";
 }
 

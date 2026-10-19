@@ -481,7 +481,9 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "motive": {}
+          },
           "type": "object"
         },
         "name": {

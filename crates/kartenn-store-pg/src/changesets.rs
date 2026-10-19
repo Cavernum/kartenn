@@ -81,6 +81,14 @@ pub struct ChangesetFilter<'a> {
     pub state: Option<&'a str>,
     /// Author.
     pub author: Option<Uuid>,
+    /// Changesets that wrote this object (any version, current or history; REQ-004-32).
+    pub object: Option<Uuid>,
+    /// Submitted at or after.
+    pub from: Option<OffsetDateTime>,
+    /// Submitted before.
+    pub to: Option<OffsetDateTime>,
+    /// Retroactive or not.
+    pub retroactive: Option<bool>,
 }
 
 type SummaryRow = (Uuid, String, String, Uuid, String, OffsetDateTime);
@@ -175,20 +183,39 @@ pub async fn page(
     after: Option<(OffsetDateTime, Uuid)>,
     limit: i64,
 ) -> Result<Vec<ChangesetSummary>, StoreError> {
-    let rows: Vec<SummaryRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT {SUMMARY} FROM changeset
-         WHERE ($1::text IS NULL OR state = $1) AND ($2::uuid IS NULL OR author_id = $2)
-           AND ($3::timestamptz IS NULL OR (submitted_at, id) < ($3, $4))
-         ORDER BY submitted_at DESC, id DESC LIMIT $5"
-    )))
-    .bind(filter.state)
-    .bind(filter.author)
-    .bind(after.map(|(at, _)| at))
-    .bind(after.map(|(_, id)| id))
-    .bind(limit)
-    .fetch_all(pool)
-    .await
-    .map_err(store_err)?;
+    let mut q = sqlx::QueryBuilder::new(format!("SELECT {SUMMARY} FROM changeset c WHERE true"));
+    if let Some(state) = filter.state {
+        q.push(" AND c.state = ").push_bind(state.to_owned());
+    }
+    if let Some(author) = filter.author {
+        q.push(" AND c.author_id = ").push_bind(author);
+    }
+    if let Some(retroactive) = filter.retroactive {
+        q.push(" AND c.retroactive = ").push_bind(retroactive);
+    }
+    if let Some(from) = filter.from {
+        q.push(" AND c.submitted_at >= ").push_bind(from);
+    }
+    if let Some(to) = filter.to {
+        q.push(" AND c.submitted_at < ").push_bind(to);
+    }
+    if let Some(object) = filter.object {
+        crate::audit::written_by(&mut q, object);
+    }
+    if let Some((at, id)) = after {
+        q.push(" AND (c.submitted_at, c.id) < (")
+            .push_bind(at)
+            .push(", ")
+            .push_bind(id)
+            .push(")");
+    }
+    q.push(" ORDER BY c.submitted_at DESC, c.id DESC LIMIT ")
+        .push_bind(limit);
+    let rows: Vec<SummaryRow> = q
+        .build_query_as()
+        .fetch_all(pool)
+        .await
+        .map_err(store_err)?;
     Ok(rows.into_iter().map(summary).collect())
 }
 

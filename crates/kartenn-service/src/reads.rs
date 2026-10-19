@@ -36,6 +36,10 @@ pub const CHANGESETS: Uuid = Uuid::from_u128(3);
 /// [`crate::rbac::RBAC_OBJECT`]; global only.
 pub const RBAC_READ_PERMISSION: &str = "core.rbac.read";
 
+/// Permission to pseudonymise an identity at once, global (design « Audit et
+/// exploitation »).
+pub const PSEUDONYMISE_PERMISSION: &str = "core.identity.pseudonymise";
+
 /// Identifiers a read event records by default: a page of results.
 pub const DEFAULT_READ_IDS_MAX: usize = 100;
 
@@ -279,41 +283,15 @@ pub async fn rbac_readable<A: Authorizer, J: AuditJournal>(
     .await
 }
 
-/// Audit events matching `query`, for an actor holding [`AUDIT_READ_PERMISSION`]; the
-/// consultation is itself audited (`audit.events.read`), and so is a refusal.
-///
-/// # Errors
-///
-/// [`RequestError::Forbidden`] without the permission; [`RequestError::Audit`] when the
-/// consultation cannot be audited; [`RequestError::Store`] on infrastructure failure.
-pub async fn read_audit<R: Reader, A: Authorizer, J: AuditJournal>(
-    reader: &R,
-    authorizer: &A,
-    journal: &J,
+/// The event of a consultation of the audit (`audit.events.read`): its criteria and the
+/// number of events found.
+fn consultation(
     context: &RequestContext,
     query: &AuditQuery,
-) -> Result<Vec<serde_json::Value>, RequestError> {
-    let allowed = match context.subject() {
-        // kartenn itself (an export job) reads its own journal.
-        None => true,
-        Some(actor) => authorizer
-            .authorize_many(&actor, AUDIT_READ_PERMISSION, &[AUDIT_JOURNAL])
-            .await?
-            .is_empty(),
-    };
-    if !allowed {
-        let denied = context
-            .event(&AUTHZ_DENIED, Outcome::Denied)
-            .map_err(audit_err)?
-            .target("audit", [AUDIT_JOURNAL])
-            .reason(AUDIT_READ_PERMISSION)
-            .detail("permission", AUDIT_READ_PERMISSION)
-            .map_err(audit_err)?;
-        record_all(journal, &[denied]).await?;
-        return Err(RequestError::Forbidden(AUDIT_READ_PERMISSION.into()));
-    }
-    let events = reader.audit_events(query).await?;
-    let read = context
+    export: bool,
+    count: u64,
+) -> Result<AuditEvent, RequestError> {
+    context
         .event(&AUDIT_READ, Outcome::Success)
         .map_err(audit_err)?
         .target("audit", [AUDIT_JOURNAL])
@@ -325,14 +303,105 @@ pub async fn read_audit<R: Reader, A: Authorizer, J: AuditJournal>(
                 "name": query.name,
                 "actor": query.actor,
                 "object": query.object,
-                "limit": query.limit,
+                "before": query.before,
+                "limit": (!export).then_some(query.limit),
+                "export": export,
             }),
         )
         .map_err(audit_err)?
-        .detail("count", events.len())
-        .map_err(audit_err)?;
+        .detail("count", count)
+        .map_err(audit_err)
+}
+
+/// Whether the actor of `context` may pseudonymise an identity at once
+/// ([`PSEUDONYMISE_PERMISSION`]); a refusal is audited (`authz.access.denied`).
+///
+/// # Errors
+///
+/// As [`changesets_readable`].
+pub async fn pseudonymisable<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
+    globally(
+        authorizer,
+        journal,
+        context,
+        PSEUDONYMISE_PERMISSION,
+        ("rbac", crate::rbac::RBAC_OBJECT),
+    )
+    .await
+}
+
+/// At most `query.limit` audit events matching `query`, the most recent first, and whether
+/// more follow, for an actor holding [`AUDIT_READ_PERMISSION`]; the consultation is itself
+/// audited (`audit.events.read`, with the number of events returned), and so is a refusal.
+/// kartenn itself (an export job) reads its own journal.
+///
+/// # Errors
+///
+/// [`RequestError::Forbidden`] without the permission; [`RequestError::Audit`] when the
+/// consultation cannot be audited; [`RequestError::Store`] on infrastructure failure.
+pub async fn read_audit<R: Reader, A: Authorizer, J: AuditJournal>(
+    reader: &R,
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    query: &AuditQuery,
+) -> Result<(Vec<serde_json::Value>, bool), RequestError> {
+    globally(
+        authorizer,
+        journal,
+        context,
+        AUDIT_READ_PERMISSION,
+        ("audit", AUDIT_JOURNAL),
+    )
+    .await?;
+    let mut events = reader
+        .audit_events(&AuditQuery {
+            limit: query.limit.saturating_add(1),
+            ..query.clone()
+        })
+        .await?;
+    let more = events.len() > query.limit as usize;
+    events.truncate(query.limit as usize);
+    let read = consultation(context, query, false, events.len() as u64)?;
     record_all(journal, &[read]).await?;
-    Ok(events)
+    Ok((events, more))
+}
+
+/// Opens the export of the events matching `query` (design « Audit et exploitation »),
+/// under the same permission as [`read_audit`]: the export is audited once, before any
+/// event is read, with the number of events selected. Returns the selection bounded to the
+/// events recorded so far (its own audit left out), for the caller to read page by page.
+///
+/// # Errors
+///
+/// As [`read_audit`].
+pub async fn export_audit<R: Reader, A: Authorizer, J: AuditJournal>(
+    reader: &R,
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    query: &AuditQuery,
+) -> Result<AuditQuery, RequestError> {
+    globally(
+        authorizer,
+        journal,
+        context,
+        AUDIT_READ_PERMISSION,
+        ("audit", AUDIT_JOURNAL),
+    )
+    .await?;
+    let (count, last) = reader.audit_extent(query).await?;
+    let read = consultation(context, query, true, count)?;
+    record_all(journal, &[read]).await?;
+    Ok(AuditQuery {
+        // Nothing selected: an empty bound.
+        before: Some(last.map_or(i64::MIN, |seq| seq + 1)),
+        ..query.clone()
+    })
 }
 
 #[cfg(test)]

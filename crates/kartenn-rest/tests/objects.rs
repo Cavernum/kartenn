@@ -98,6 +98,7 @@ fn app(pool: &PgPool, who: Principal) -> Router {
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
+        outputs: std::sync::Arc::from([]),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),

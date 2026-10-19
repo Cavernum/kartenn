@@ -223,6 +223,35 @@ fn instant_time(at: kartenn_core::period::Instant) -> Result<OffsetDateTime, Sto
         .map_err(|e| StoreError(e.to_string()))
 }
 
+/// The `WHERE` clause of an audit consultation, on `audit.event e`.
+fn audit_criteria(
+    q: &mut sqlx::QueryBuilder<sqlx::Postgres>,
+    query: &AuditQuery,
+) -> Result<(), StoreError> {
+    q.push(" WHERE true");
+    if let Some(from) = query.from.map(instant_time).transpose()? {
+        q.push(" AND e.recorded_at >= ").push_bind(from);
+    }
+    if let Some(to) = query.to.map(instant_time).transpose()? {
+        q.push(" AND e.recorded_at < ").push_bind(to);
+    }
+    if let Some(name) = &query.name {
+        q.push(" AND e.name = ").push_bind(name.clone());
+    }
+    if let Some(actor) = query.actor {
+        q.push(" AND e.actor_id = ").push_bind(actor);
+    }
+    if let Some(object) = query.object {
+        q.push(" AND e.target_ids @> ARRAY[")
+            .push_bind(object)
+            .push("]");
+    }
+    if let Some(before) = query.before {
+        q.push(" AND e.seq < ").push_bind(before);
+    }
+    Ok(())
+}
+
 impl Reader for crate::write::PgStore {
     async fn object(
         &self,
@@ -237,25 +266,26 @@ impl Reader for crate::write::PgStore {
     }
 
     async fn audit_events(&self, query: &AuditQuery) -> Result<Vec<serde_json::Value>, StoreError> {
-        let from = query.from.map(instant_time).transpose()?;
-        let to = query.to.map(instant_time).transpose()?;
-        sqlx::query_scalar(
-            "SELECT to_jsonb(e) - 'seq' || jsonb_build_object('seq', e.seq) FROM audit.event e
-             WHERE ($1::timestamptz IS NULL OR e.recorded_at >= $1)
-               AND ($2::timestamptz IS NULL OR e.recorded_at < $2)
-               AND ($3::text IS NULL OR e.name = $3)
-               AND ($4::uuid IS NULL OR e.actor_id = $4)
-               AND ($5::uuid IS NULL OR e.target_ids @> ARRAY[$5])
-             ORDER BY e.seq DESC LIMIT $6",
-        )
-        .bind(from)
-        .bind(to)
-        .bind(query.name.as_deref())
-        .bind(query.actor)
-        .bind(query.object)
-        .bind(i64::from(query.limit))
-        .fetch_all(self.pool())
-        .await
-        .map_err(|e| StoreError(e.to_string()))
+        let mut q = sqlx::QueryBuilder::new(
+            "SELECT to_jsonb(e) - 'seq' || jsonb_build_object('seq', e.seq) FROM audit.event e",
+        );
+        audit_criteria(&mut q, query)?;
+        q.push(" ORDER BY e.seq DESC LIMIT ")
+            .push_bind(i64::from(query.limit));
+        q.build_query_scalar()
+            .fetch_all(self.pool())
+            .await
+            .map_err(|e| StoreError(e.to_string()))
+    }
+
+    async fn audit_extent(&self, query: &AuditQuery) -> Result<(u64, Option<i64>), StoreError> {
+        let mut q = sqlx::QueryBuilder::new("SELECT count(*), max(e.seq) FROM audit.event e");
+        audit_criteria(&mut q, query)?;
+        let (count, last): (i64, Option<i64>) = q
+            .build_query_as()
+            .fetch_one(self.pool())
+            .await
+            .map_err(|e| StoreError(e.to_string()))?;
+        Ok((u64::try_from(count).unwrap_or_default(), last))
     }
 }

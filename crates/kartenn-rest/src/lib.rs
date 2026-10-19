@@ -2,6 +2,7 @@
 //! route calls the service, or the store after a rights check.
 
 pub mod anomalies;
+pub mod audit;
 pub mod auth;
 pub mod authn;
 pub mod changesets;
@@ -47,7 +48,8 @@ pub fn v1(api: objects::Api) -> Router {
         .merge(anomalies::routes(api.clone()))
         .merge(changesets::routes(api.clone()))
         .merge(properties::routes(api.clone()))
-        .merge(rights::routes(api))
+        .merge(rights::routes(api.clone()))
+        .merge(audit::routes(api))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the

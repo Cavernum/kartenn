@@ -1,6 +1,7 @@
 //! Audit search and pseudonymisation (REQ-004-27, 31 to 33).
 
 use kartenn_core::audit::PERSON_PSEUDONYMISED;
+use kartenn_service::StoreError;
 use kartenn_service::audit::{Instance, Outcome, RequestContext};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -43,6 +44,25 @@ pub struct AuditEntry {
 /// Versioned tables whose rows carry the changeset that wrote them.
 const VERSIONED: [&str; 4] = ["addressing_domain", "prefix", "address", "entity"];
 
+/// Narrows a query on `changeset c` to the changesets that wrote `object` (any version,
+/// current or history).
+pub(crate) fn written_by(q: &mut QueryBuilder<sqlx::Postgres>, object: Uuid) {
+    q.push(" AND c.id IN (");
+    for (i, table) in VERSIONED.iter().enumerate() {
+        if i > 0 {
+            q.push(" UNION ");
+        }
+        // Table names are constants of this module, values are bound.
+        q.push(format!("SELECT changeset_id FROM {table} WHERE id = "))
+            .push_bind(object);
+        q.push(format!(
+            " UNION SELECT changeset_id FROM {table}_history WHERE id = "
+        ))
+        .push_bind(object);
+    }
+    q.push(")");
+}
+
 /// Changesets matching `filter`, most recent first, at most `limit` (REQ-004-32).
 ///
 /// # Errors
@@ -73,20 +93,7 @@ pub async fn search(
         q.push(" AND c.submitted_at < ").push_bind(to);
     }
     if let Some(object) = filter.object {
-        q.push(" AND c.id IN (");
-        for (i, table) in VERSIONED.iter().enumerate() {
-            if i > 0 {
-                q.push(" UNION ");
-            }
-            // Table names are constants of this module, values are bound.
-            q.push(format!("SELECT changeset_id FROM {table} WHERE id = "))
-                .push_bind(object);
-            q.push(format!(
-                " UNION SELECT changeset_id FROM {table}_history WHERE id = "
-            ))
-            .push_bind(object);
-        }
-        q.push(")");
+        written_by(&mut q, object);
     }
     q.push(" ORDER BY c.submitted_at DESC, c.id DESC LIMIT ")
         .push_bind(limit);
@@ -129,6 +136,70 @@ pub async fn pseudonymise(
     }
     tx.commit().await?;
     Ok(people.len() as u64)
+}
+
+/// What became of an identity asked to be pseudonymised.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pseudonymisation {
+    /// No such identity.
+    Unknown,
+    /// Not a person (service account, break-glass or system identity).
+    NotAPerson,
+    /// Pseudonymised before: nothing done.
+    Already,
+    /// Pseudonymised now, with its audit.
+    Done,
+}
+
+/// Pseudonymises the person `id` at once (design « Audit et exploitation »), as
+/// [`pseudonymise`] does by batch, on behalf of the actor of `context` for `motive`: the
+/// event `person.identity.pseudonymised` is written in the same transaction.
+///
+/// # Errors
+///
+/// Database errors; an event the catalogue refuses.
+pub async fn pseudonymise_identity(
+    pool: &PgPool,
+    id: Uuid,
+    context: &RequestContext,
+    motive: &str,
+    instance: &Instance,
+) -> Result<Pseudonymisation, StoreError> {
+    let mut tx = pool.begin().await.map_err(store_err)?;
+    let found: Option<(String, bool)> = sqlx::query_as(
+        "SELECT kind, pseudonymized_at IS NOT NULL FROM person WHERE id = $1 FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(store_err)?;
+    match found {
+        None => return Ok(Pseudonymisation::Unknown),
+        Some((kind, _)) if kind != "person" => return Ok(Pseudonymisation::NotAPerson),
+        Some((_, true)) => return Ok(Pseudonymisation::Already),
+        Some(_) => {}
+    }
+    sqlx::query(
+        "UPDATE person
+         SET display_name = 'personne #' || left(id::text, 8), email = NULL, issuer = NULL, subject = NULL,
+             pseudonymized_at = now()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?;
+    let event = context
+        .event(&PERSON_PSEUDONYMISED, Outcome::Success)
+        .and_then(|e| e.target("person", [id]).detail("motive", motive))
+        .map_err(store_err)?;
+    crate::audit_journal::insert(&mut *tx, &event, instance).await?;
+    tx.commit().await.map_err(store_err)?;
+    Ok(Pseudonymisation::Done)
+}
+
+fn store_err(e: impl std::fmt::Display) -> StoreError {
+    StoreError(e.to_string())
 }
 
 /// Row of `changeset_diff`: order, property key, object, value before, value after.

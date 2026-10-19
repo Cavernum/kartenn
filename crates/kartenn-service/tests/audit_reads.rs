@@ -238,9 +238,10 @@ async fn consulting_the_audit_needs_its_permission_and_is_audited(pool: PgPool) 
         Err(RequestError::Forbidden(p)) if p == AUDIT_READ_PERMISSION
     ));
     let auditor = Grants::new().everywhere(f.author, AUDIT_READ_PERMISSION);
-    let found = read_audit(&f.store, &auditor, &journal, &reader, &query)
+    let (found, more) = read_audit(&f.store, &auditor, &journal, &reader, &query)
         .await
         .unwrap();
+    assert!(!more);
     assert_eq!(found.len(), 1);
     assert_eq!(found[0]["name"], "changeset.state.applied");
     let names: Vec<String> = sqlx::query_scalar("SELECT name FROM audit.event ORDER BY seq")

@@ -192,6 +192,12 @@ pub struct Output {
     dropped: Arc<AtomicU64>,
 }
 
+/// Whether `filter` parses in the syntax of an output filter (`EnvFilter`).
+#[must_use]
+pub fn valid_filter(filter: &str) -> bool {
+    EnvFilter::try_new(filter).is_ok()
+}
+
 impl Output {
     /// An output `name` taking what `filter` lets through (`EnvFilter` syntax: `info`,
     /// `warn,kartenn_service=debug`…), with a queue of `capacity` records; the receiving
