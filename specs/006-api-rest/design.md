@@ -259,7 +259,13 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     unique puis rejouerait : correct, mais contraire à REQ-006-15.
   - Rejeu : `Outcome::Replayed` donne le changeset ; la route reconstruit la réponse du
     journal du changeset (même statut, même corps). La réponse est fonction du journal,
-    lui-même immuable : « inchangée » sans stocker de réponse.
+    lui-même immuable : « inchangée » sans stocker de réponse. Arbitrage du 2026-10-19
+    (006-15) : le journal garde aussi les fermetures ajoutées par cascade
+    (`changeset.cascaded`, `[{kind, id}]` dans l'ordre de l'expansion), et le 422 sert
+    les erreurs puis les avertissements, dans l'ordre des colonnes `violations` et
+    `anomalies` du journal. Statut rejoué : 202 pour un changeset d'approbation ou de
+    proposition (même décidé depuis), sinon 201 (`applied`) ou 422 (`refused`) ; seul
+    l'`instance` d'un problème, propre à chaque requête, diffère.
   - Contenu différent : `RequestError::IdempotencyConflict` → 422.
   - Purge des clés expirées : tâche de fond (REQ-006-38).
 - **`POST /v1/changesets` (arbitrage du 2026-10-19, 006-14)** :
