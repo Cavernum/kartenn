@@ -680,23 +680,27 @@ impl WriteTx for PgTx {
         })
     }
 
-    async fn current_changeset(
-        &mut self,
-        kind: ObjectKind,
-        id: Uuid,
-        period: Option<Period>,
-    ) -> Result<Option<Uuid>, StoreError> {
-        let (at, _) = bounds(period)?;
-        let sql = format!(
-            "SELECT changeset_id FROM {} WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
-            table(kind)
-        );
-        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-            .bind(id)
-            .bind(at)
-            .fetch_optional(&mut *self.tx)
-            .await
-            .map_err(store_err)
+    async fn version(&mut self, id: Uuid) -> Result<Option<Uuid>, StoreError> {
+        sqlx::query_scalar(
+            "SELECT changeset_id FROM object_version WHERE object_id = $1 FOR UPDATE",
+        )
+        .bind(id)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn touch(&mut self, id: Uuid, changeset: Uuid) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO object_version (object_id, changeset_id) VALUES ($1, $2)
+             ON CONFLICT (object_id) DO UPDATE SET changeset_id = excluded.changeset_id",
+        )
+        .bind(id)
+        .bind(changeset)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
     }
 
     async fn domain_of(&mut self, kind: ObjectKind, id: Uuid) -> Result<Option<Uuid>, StoreError> {

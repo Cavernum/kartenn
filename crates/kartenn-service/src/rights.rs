@@ -58,6 +58,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
             );
         }
     }
+    check_guards(tx, authorizer, subject, planned, violations).await?;
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         let assigned = match p {
@@ -134,6 +135,38 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         missing.clear();
     }
     Ok(missing)
+}
+
+/// A guard reveals the version of an object: it needs the right to read it (006-16).
+async fn check_guards<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    subject: &Subject,
+    planned: &[Planned],
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let mut guarded: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+    for p in planned {
+        if let Planned::Expect { kind, id, .. } = p
+            && !matches!(kind, ObjectKind::Property | ObjectKind::EnumValue)
+        {
+            guarded
+                .entry(format!("core.{}.read", kind.name()))
+                .or_default()
+                .push(*id);
+        }
+    }
+    for (permission, ids) in guarded {
+        let denied = authorizer
+            .authorize_in(tx, subject, &permission, &ids)
+            .await?;
+        if !denied.is_empty() {
+            let message = format!("{} object(s) need {permission}", denied.len());
+            violations
+                .push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(denied));
+        }
+    }
+    Ok(())
 }
 
 /// The permission to write an object of `kind` (005, K12).

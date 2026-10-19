@@ -277,10 +277,21 @@ routeur complet, sauf mention « vrai TCP ».
   `tests/changesets.rs` (`a_replay_answers_the_first_response_byte_for_byte`,
   `a_replay_of_a_refusal_answers_the_same_problem`, `a_replay_of_a_proposal_answers_202`,
   `a_key_in_progress_answers_409`) ; `idempotency_keys_replay_or_conflict` (pipeline)
-- [ ] 16. Routes par ressource : `POST`, `PATCH` (Merge Patch, `{"clear": true}`),
+- [x] 16. Routes par ressource : `POST`, `PATCH` (Merge Patch, `{"clear": true}`),
   `DELETE` ; membres réservés `motive`, `valid_from`, `valid_to` ; `If-Match` → 428, 412 —
   REQ-006-12, 13, 14 — verify : mise à jour perdue empêchée ; JSON Patch → 415 ; retrait
   et effacement de propriété distincts
+  — Store : migration 0037 `object_version` (`WriteTx::version` sous `FOR UPDATE`,
+  `touch`), ETag des lectures sans `as_of`, `list::created`. Service :
+  `Operation::Expect` (garde, `core.<kind>.read`), `conflict()` sur la version, `touch`
+  après chaque écriture d'`apply`. Rest : `resources.rs` (corps du DTO, références
+  `{id}`, `If-Match`, garde puis champs puis propriétés, `invalid-member`), réponses de
+  `changesets.rs` partagées (`Answer`, pointeurs de membre, 412 sur conflit,
+  `Location` de l'objet créé, rejeu). `tests/resources.rs` (`a_lost_update_is_prevented`,
+  `a_patch_is_a_merge_patch`, `removing_and_clearing_a_property_differ`,
+  `a_creation_links_to_its_changeset`, `a_creation_replays_its_first_response`,
+  `a_deletion_closes_the_object`, `an_approval_policy_answers_202`,
+  `a_patch_renames_and_moves`)
 - [ ] 17. Cycle d'un changeset : lecture, liste filtrée, différentiel paginé,
   validation, rejet, retrait, annulation (409 et conflits), propositions ; `If-Match`
   sur les actions — REQ-006-16 — verify : auteur qui valide → 403 ; annulation en

@@ -580,14 +580,20 @@ pub trait WriteTx {
         request: &ChangesetRequest,
     ) -> impl Future<Output = Result<Replay, StoreError>> + Send;
 
-    /// Changeset that wrote the version of an object valid at the start of `period`
-    /// (transaction time if `None`).
-    fn current_changeset(
+    /// Version of an object: the last changeset that wrote it or its property
+    /// assignments, whatever the period (006/design « Version d'un objet »); its row
+    /// stays locked until the end of the transaction, so the comparison holds at commit.
+    fn version(
         &mut self,
-        kind: ObjectKind,
         id: Uuid,
-        period: Option<Period>,
     ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
+    /// Records that `changeset` wrote the object `id` or its assignments.
+    fn touch(
+        &mut self,
+        id: Uuid,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Domain of an existing addressing object.
     fn domain_of(

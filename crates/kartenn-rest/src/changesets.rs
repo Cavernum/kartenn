@@ -15,13 +15,14 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Extension, Json, Router};
-use kartenn_core::rules::{PROP_EXPECTED_MISMATCH, Severity, Violation};
+use kartenn_core::rules::{CHANGESET_CONFLICT, PROP_EXPECTED_MISMATCH, Severity, Violation};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::operations::PeriodSpec;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, submit_in};
 use kartenn_store_pg::idempotency;
+use kartenn_store_pg::list::{self, Kind};
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
@@ -31,7 +32,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::dated;
-use crate::objects::{Api, bad, instant, store};
+use crate::objects::{self, Api, bad, instant, store};
 use crate::problem::{Problem, ProblemKind};
 use crate::properties::masked_gap;
 
@@ -87,7 +88,7 @@ pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
 
 /// The idempotency key of the request: at most one, 1 to 255 printable characters
 /// (design « Écritures »), otherwise 400.
-fn idempotency_key(headers: &HeaderMap) -> Result<Option<String>, Problem> {
+pub(crate) fn idempotency_key(headers: &HeaderMap) -> Result<Option<String>, Problem> {
     let mut values = headers.get_all(IDEMPOTENCY_KEY).iter();
     let Some(value) = values.next() else {
         return Ok(None);
@@ -119,16 +120,16 @@ fn body(headers: &HeaderMap, body: &[u8]) -> Result<Body, Problem> {
 /// The period of the changeset: `valid_to` absent or `null` is unbounded, `valid_from`
 /// absent is the time of the database (REQ-004-3); both absent, the service takes the
 /// time of its transaction.
-async fn period(api: &Api, body: &Body) -> Result<Option<PeriodSpec>, Problem> {
-    let date = |name: &str, text: &Option<String>| {
-        text.as_deref()
-            .map(|t| dated::instant(name, t).map(|at| instant(at).0))
+pub(crate) async fn period(
+    api: &Api,
+    valid_from: Option<&str>,
+    valid_to: Option<&str>,
+) -> Result<Option<PeriodSpec>, Problem> {
+    let date = |name: &str, text: Option<&str>| {
+        text.map(|t| dated::instant(name, t).map(|at| instant(at).0))
             .transpose()
     };
-    let (from, to) = (
-        date("valid_from", &body.valid_from)?,
-        date("valid_to", &body.valid_to)?,
-    );
+    let (from, to) = (date("valid_from", valid_from)?, date("valid_to", valid_to)?);
     let start = match (from, to) {
         (None, None) => return Ok(None),
         (Some(start), _) => start,
@@ -137,10 +138,53 @@ async fn period(api: &Api, body: &Body) -> Result<Option<PeriodSpec>, Problem> {
     Ok(Some(PeriodSpec { start, end: to }))
 }
 
+/// Where a violation points in the request (RFC 6901).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Pointers<'a> {
+    /// `POST /v1/changesets`: the operation, by its index.
+    Operations,
+    /// A route by resource: the member each operation comes from, the index omitted
+    /// (design « Erreurs »).
+    Members(&'a [String]),
+}
+
+/// How the outcome of a changeset is answered.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Answer<'a> {
+    /// Where the violations point.
+    pub pointers: Pointers<'a>,
+    /// The status of an applied changeset: 201, or 200 for a modification or a closure.
+    pub applied: StatusCode,
+    /// The created object `Location` names instead of the changeset; `None` without
+    /// creation.
+    pub location: Option<Location>,
+    /// A conflict on `If-Match` answers 412 instead of 422 (REQ-006-14).
+    pub precondition: bool,
+}
+
+/// What `Location` names.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Location {
+    /// The changeset.
+    Changeset,
+    /// The object of this kind the changeset created.
+    Created(Kind),
+}
+
+impl Answer<'_> {
+    /// The answer of `POST /v1/changesets`.
+    const SUBMISSION: Answer<'static> = Answer {
+        pointers: Pointers::Operations,
+        applied: StatusCode::CREATED,
+        location: Some(Location::Changeset),
+        precondition: false,
+    };
+}
+
 /// A violation as served: its operation and a pointer to it in the request
 /// (RFC 6901), `null` for a rule of the final state (REQ-004-7).
-fn violation(v: &Violation) -> Value {
-    json!({
+fn violation(v: &Violation, pointers: Pointers<'_>) -> Value {
+    let mut served = json!({
         "rule": v.rule.id,
         "severity": match v.rule.severity {
             Severity::Error => "error",
@@ -148,14 +192,26 @@ fn violation(v: &Violation) -> Value {
         },
         "detail": v.message,
         "subjects": v.subjects,
-        "operation": v.operation,
-        "pointer": v.operation.map(|i| format!("/operations/{i}")),
-    })
+    });
+    match pointers {
+        Pointers::Operations => {
+            served["operation"] = json!(v.operation);
+            served["pointer"] = json!(v.operation.map(|i| format!("/operations/{i}")));
+        }
+        Pointers::Members(members) => {
+            served["pointer"] = json!(v.operation.and_then(|i| members.get(i)));
+        }
+    }
+    served
 }
 
 /// The violations as served, the message of a deviation of a sensitive property replaced:
 /// it cites the resolved value (REQ-005-21, design « Erreurs »).
-async fn violations(api: &Api, found: &[Violation]) -> Result<Value, Problem> {
+async fn violations(
+    api: &Api,
+    found: &[Violation],
+    pointers: Pointers<'_>,
+) -> Result<Value, Problem> {
     let sensitive = if found.iter().any(|v| v.rule.id == PROP_EXPECTED_MISMATCH.id) {
         property_read::sensitive_keys(&api.pool)
             .await
@@ -167,7 +223,7 @@ async fn violations(api: &Api, found: &[Violation]) -> Result<Value, Problem> {
         found
             .iter()
             .map(|v| {
-                let mut served = violation(v);
+                let mut served = violation(v, pointers);
                 if v.rule.id == PROP_EXPECTED_MISMATCH.id
                     && let Some((key, _)) = v.message.split_once(':')
                     && sensitive.contains(key)
@@ -184,13 +240,14 @@ fn summary(id: Uuid) -> Value {
     json!({ "id": id, "href": href(id) })
 }
 
-/// `Link` to changeset `id`, and `Location` too for a created one.
-fn linked(mut response: Response, id: Uuid, created: bool) -> Response {
-    let path = href(id);
-    if let Ok(link) = HeaderValue::try_from(format!("<{path}>; rel=\"{REL_CHANGESET}\"")) {
+/// `Link` to changeset `id`, and `Location` to `location` when given.
+fn linked(mut response: Response, id: Uuid, location: Option<String>) -> Response {
+    if let Ok(link) = HeaderValue::try_from(format!("<{}>; rel=\"{REL_CHANGESET}\"", href(id))) {
         response.headers_mut().insert(header::LINK, link);
     }
-    if created && let Ok(location) = HeaderValue::try_from(path) {
+    if let Some(location) = location
+        && let Ok(location) = HeaderValue::try_from(location)
+    {
         response.headers_mut().insert(header::LOCATION, location);
     }
     response
@@ -203,28 +260,45 @@ fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Value {
         .collect()
 }
 
-/// 201: the changeset applied, its warnings, differential and closures by cascade.
+/// What `Location` names for the changeset `changeset` applied.
+async fn location(
+    api: &Api,
+    changeset: Uuid,
+    answer: &Answer<'_>,
+) -> Result<Option<String>, Problem> {
+    Ok(match answer.location {
+        None => None,
+        Some(Location::Changeset) => Some(href(changeset)),
+        Some(Location::Created(kind)) => list::created(&api.pool, kind, changeset)
+            .await
+            .map_err(|e| store(&e))?
+            .map(|id| objects::href(kind, id)),
+    })
+}
+
+/// 201 (or 200): the changeset applied, its warnings, differential and closures by cascade.
 async fn applied(
     api: &Api,
     changeset: Uuid,
     warnings: &[Violation],
     diff: Value,
     closures: &[(ObjectKind, Uuid)],
+    answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
     Ok(linked(
         (
-            StatusCode::CREATED,
+            answer.applied,
             Json(json!({
                 "changeset": summary(changeset),
                 "state": "applied",
-                "warnings": violations(api, warnings).await?,
+                "warnings": violations(api, warnings, answer.pointers).await?,
                 "diff": diff,
                 "cascaded": cascaded(closures),
             })),
         )
             .into_response(),
         changeset,
-        true,
+        location(api, changeset, answer).await?,
     ))
 }
 
@@ -243,34 +317,45 @@ fn pending(changeset: Uuid, kind: &str, policy: Option<Uuid>, diff: &Value) -> R
         )
             .into_response(),
         changeset,
-        false,
+        None,
     )
 }
 
-/// 422: every violation of the refused changeset, errors then warnings as journaled.
+/// 422: every violation of the refused changeset, errors then warnings as journaled; 412
+/// when a precondition is answered and a version conflicts (REQ-006-14).
 async fn refused(
     api: &Api,
     changeset: Uuid,
     mut found: Vec<Violation>,
+    answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
     found.sort_by_key(|v| !v.is_error());
+    let conflict = answer.precondition && found.iter().any(|v| v.rule.id == CHANGESET_CONFLICT.id);
+    let problem = if conflict {
+        Problem::new(ProblemKind::PreconditionFailed)
+            .detail("the object was modified since the version of If-Match")
+    } else {
+        Problem::new(ProblemKind::ChangesetRefused).detail(format!(
+            "the changeset is refused by {} violation(s)",
+            found.iter().filter(|v| v.is_error()).count()
+        ))
+    };
     Ok(linked(
-        Problem::new(ProblemKind::ChangesetRefused)
-            .detail(format!(
-                "the changeset is refused by {} violation(s)",
-                found.iter().filter(|v| v.is_error()).count()
-            ))
-            .extension("violations", violations(api, &found).await?)
+        problem
+            .extension(
+                "violations",
+                violations(api, &found, answer.pointers).await?,
+            )
             .extension("changeset", summary(changeset))
             .into_response(),
         changeset,
-        false,
+        None,
     ))
 }
 
 /// The first response to the key, rebuilt from the journal of its changeset
 /// (design « Idempotence »): 202 for a changeset held for a decision, even decided since.
-async fn replayed(api: &Api, changeset: Uuid) -> Result<Response, Problem> {
+async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Response, Problem> {
     let journal = idempotency::journaled(&api.pool, changeset)
         .await?
         .ok_or_else(|| {
@@ -291,10 +376,11 @@ async fn replayed(api: &Api, changeset: Uuid) -> Result<Response, Problem> {
                 &journal.violations,
                 journal.diff,
                 &journal.cascaded,
+                answer,
             )
             .await
         }
-        (_, "refused") => refused(api, changeset, journal.violations).await,
+        (_, "refused") => refused(api, changeset, journal.violations, answer).await,
         (kind, state) => {
             tracing::error!(name: "http.changeset.replay_unexpected", %changeset, kind, state, "a replayed changeset has an unexpected state");
             Err(Problem::new(ProblemKind::Internal))
@@ -307,6 +393,74 @@ fn counted(diff: &[kartenn_service::port::DiffCount]) -> Result<Value, Problem> 
         tracing::error!(name: "http.changeset.diff", error = %e, "a differential does not serialise");
         Problem::new(ProblemKind::Internal)
     })
+}
+
+/// Submits `request` in `context` and answers its outcome as `answer` says.
+pub(crate) async fn submit_answered(
+    api: &Api,
+    context: &RequestContext,
+    request: &ChangesetRequest,
+    answer: &Answer<'_>,
+) -> Result<Response, Problem> {
+    let store = PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone());
+    let outcome = submit_in(
+        &store,
+        &PgAuthorizer::new(api.pool.clone()),
+        &api.sources,
+        context,
+        request,
+        MAX_OPERATIONS,
+    )
+    .await?;
+    let response = match outcome {
+        Outcome::Applied {
+            changeset,
+            warnings,
+            diff,
+            cascaded: closures,
+        } => {
+            applied(
+                api,
+                changeset,
+                &warnings,
+                counted(&diff)?,
+                &closures,
+                answer,
+            )
+            .await?
+        }
+        Outcome::Pending {
+            changeset,
+            kind,
+            policy,
+            diff,
+        } => pending(changeset, kind.as_str(), policy, &counted(&diff)?),
+        Outcome::Refused {
+            changeset,
+            violations: found,
+        } => refused(api, changeset, found, answer).await?,
+        Outcome::Replayed { changeset, .. } => replayed(api, changeset, answer).await?,
+        // Nothing journaled: no changeset to link to (REQ-004-9).
+        Outcome::Simulated {
+            violations: found,
+            diff,
+            sample,
+            cascaded: closures,
+        } => Json(json!({
+            "valid": !found.iter().any(Violation::is_error),
+            "violations": violations(api, &found, answer.pointers).await?,
+            "diff": diff,
+            "sample": sample,
+            "cascaded": cascaded(&closures),
+        }))
+        .into_response(),
+        // A failed revalidation needs a pending changeset being validated (006-17).
+        other => {
+            tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a submission had an unexpected outcome");
+            Problem::new(ProblemKind::Internal).into_response()
+        }
+    };
+    Ok(response)
 }
 
 /// `POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,
@@ -326,60 +480,12 @@ async fn submit(
     let request = ChangesetRequest {
         author: principal.identity,
         motive: body.motive.clone(),
-        period: period(&api, &body).await?,
+        period: period(&api, body.valid_from.as_deref(), body.valid_to.as_deref()).await?,
         operations: body.operations,
         simulate,
         idempotency_key,
     };
-    let store = PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone());
-    let outcome = submit_in(
-        &store,
-        &PgAuthorizer::new(api.pool.clone()),
-        &api.sources,
-        &context,
-        &request,
-        MAX_OPERATIONS,
-    )
-    .await?;
-    let response = match outcome {
-        Outcome::Applied {
-            changeset,
-            warnings,
-            diff,
-            cascaded: closures,
-        } => applied(&api, changeset, &warnings, counted(&diff)?, &closures).await?,
-        Outcome::Pending {
-            changeset,
-            kind,
-            policy,
-            diff,
-        } => pending(changeset, kind.as_str(), policy, &counted(&diff)?),
-        Outcome::Refused {
-            changeset,
-            violations: found,
-        } => refused(&api, changeset, found).await?,
-        Outcome::Replayed { changeset, .. } => replayed(&api, changeset).await?,
-        // Nothing journaled: no changeset to link to (REQ-004-9).
-        Outcome::Simulated {
-            violations: found,
-            diff,
-            sample,
-            cascaded: closures,
-        } => Json(json!({
-            "valid": !found.iter().any(Violation::is_error),
-            "violations": violations(&api, &found).await?,
-            "diff": diff,
-            "sample": sample,
-            "cascaded": cascaded(&closures),
-        }))
-        .into_response(),
-        // A failed revalidation needs a pending changeset being validated (006-17).
-        other => {
-            tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a submission had an unexpected outcome");
-            Problem::new(ProblemKind::Internal).into_response()
-        }
-    };
-    Ok(response)
+    submit_answered(&api, &context, &request, &Answer::SUBMISSION).await
 }
 
 #[cfg(test)]
@@ -431,11 +537,14 @@ mod tests {
     #[test]
     fn a_violation_points_to_its_operation() {
         let v = Violation::new(&rules::PREFIX_DUPLICATE, "dup").at(2);
-        let served = violation(&v);
+        let served = violation(&v, Pointers::Operations);
         assert_eq!(served["operation"], 2);
         assert_eq!(served["pointer"], "/operations/2");
         assert_eq!(served["severity"], "error");
-        let final_state = violation(&Violation::new(&rules::PREFIX_DUPLICATE, "dup"));
+        let final_state = violation(
+            &Violation::new(&rules::PREFIX_DUPLICATE, "dup"),
+            Pointers::Operations,
+        );
         assert_eq!(final_state["pointer"], Value::Null);
     }
 }

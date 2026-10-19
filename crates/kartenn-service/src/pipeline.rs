@@ -222,6 +222,12 @@ pub(crate) enum Planned {
         expected: Option<Uuid>,
         cascade: bool,
     },
+    /// A guard on the version of an object: no write.
+    Expect {
+        kind: ObjectKind,
+        id: Uuid,
+        expected: Uuid,
+    },
     Modify {
         kind: ObjectKind,
         id: Uuid,
@@ -264,6 +270,7 @@ impl Planned {
             | Self::Restore { id, .. }
             | Self::Modify { id, .. }
             | Self::Close { id, .. }
+            | Self::Expect { id, .. }
             | Self::Declare { id, .. }
             | Self::UpdateDeclaration { id, .. }
             | Self::EnumValue { id, .. } => *id,
@@ -288,7 +295,9 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             vec![(*domain, ObjectKind::Domain)]
         }
         Operation::BindExternal { object, kind, .. } => vec![(*object, *kind)],
-        Operation::Close { kind, id, .. } | Operation::Restore { kind, id, .. } => {
+        Operation::Close { kind, id, .. }
+        | Operation::Expect { kind, id, .. }
+        | Operation::Restore { kind, id, .. } => {
             vec![(*id, *kind)]
         }
         Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
@@ -813,6 +822,15 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
                     cascade: *cascade,
                 });
             }
+            Operation::Expect {
+                kind,
+                id: target,
+                expected,
+            } => planned.push(Planned::Expect {
+                kind: *kind,
+                id: resolve(*target, &ids),
+                expected: *expected,
+            }),
             Operation::DeclareProperty { .. }
             | Operation::UpdateProperty { .. }
             | Operation::AddEnumValue { .. } => {
@@ -964,7 +982,9 @@ async fn lock_targets<T: WriteTx>(
             | Planned::EnumValue { .. }
             | Planned::BindExternal { .. }
             | Planned::Rbac(_)
-            | Planned::Policy(_) => {}
+            | Planned::Policy(_)
+            // A guard locks the version row of its object instead (`WriteTx::version`).
+            | Planned::Expect { .. } => {}
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
                 if let Some(d) = tx.domain_of(*kind, *id).await? {
@@ -988,15 +1008,13 @@ async fn lock_targets<T: WriteTx>(
 /// `expected` (REQ-004-11).
 async fn conflict<T: WriteTx>(
     tx: &mut T,
-    kind: ObjectKind,
     id: Uuid,
     expected: Option<Uuid>,
-    period: Option<Period>,
 ) -> Result<Option<Violation>, StoreError> {
     let Some(expected) = expected else {
         return Ok(None);
     };
-    let current = tx.current_changeset(kind, id, period).await?;
+    let current = tx.version(id).await?;
     if current == Some(expected) {
         return Ok(None);
     }
@@ -1183,7 +1201,7 @@ async fn apply<T: WriteTx>(
                 change,
                 expected,
             } => {
-                if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
+                if let Some(v) = conflict(tx, *id, *expected).await? {
                     violations.push(v.at(origin));
                     continue;
                 }
@@ -1192,7 +1210,7 @@ async fn apply<T: WriteTx>(
             Planned::Close {
                 kind, id, expected, ..
             } => {
-                if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
+                if let Some(v) = conflict(tx, *id, *expected).await? {
                     violations.push(v.at(origin));
                     continue;
                 }
@@ -1209,10 +1227,25 @@ async fn apply<T: WriteTx>(
                 crate::declarations::add_enum_value(tx, *id, *property, key, period, changeset)
                     .await
             }
+            Planned::Expect { id, expected, .. } => {
+                if let Some(v) = conflict(tx, *id, Some(*expected)).await? {
+                    violations.push(v.at(origin));
+                }
+                continue;
+            }
             Planned::Assign { .. } | Planned::Unassign { .. } => {
                 assignment(tx, p, period, changeset).await
             }
         };
+        // The version of what is written, its properties included (006-16).
+        if written.is_ok()
+            && !matches!(
+                p,
+                Planned::Policy(_) | Planned::Rbac(_) | Planned::BindExternal { .. }
+            )
+        {
+            tx.touch(p.object(), changeset).await?;
+        }
         record(written, violations)?;
         ascribe(&mut violations[found..], origin);
     }

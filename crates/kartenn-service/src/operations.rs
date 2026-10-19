@@ -541,6 +541,17 @@ pub enum Operation {
         /// Property.
         property: Ref,
     },
+    /// Guards the changeset on the version of an object (REQ-004-11; 006/design « Routes
+    /// par ressource »): writes nothing, refuses with a conflict if the current version
+    /// differs. Needs the right to read the object.
+    Expect {
+        /// Kind of the object.
+        kind: ObjectKind,
+        /// Object.
+        id: Ref,
+        /// Changeset that last wrote the object or its properties, as the caller saw it.
+        expected: Uuid,
+    },
     /// Closes an object (D33), a property or a closed-list value (REQ-003-6).
     Close {
         /// Kind of the object.
@@ -651,6 +662,7 @@ impl Operation {
             | Self::DetachIssuer { .. }
             | Self::SetIdentityState { .. }
             | Self::Close { .. }
+            | Self::Expect { .. }
             | Self::UpdatePrefix { .. }
             | Self::UpdateAddress { .. }
             | Self::UpdateRange { .. }

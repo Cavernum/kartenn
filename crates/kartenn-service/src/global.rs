@@ -75,6 +75,7 @@ pub(crate) async fn validate<T: WriteTx>(
             } => check_anchor_closure(tx, *kind, *id, period, violations).await?,
             Planned::Domain { .. }
             | Planned::Close { .. }
+            | Planned::Expect { .. }
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }

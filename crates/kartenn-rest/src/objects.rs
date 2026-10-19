@@ -7,6 +7,7 @@
 
 use std::time::Duration;
 
+use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
@@ -42,6 +43,7 @@ use crate::cursor::{Page, next_href, respond_page};
 use crate::dated::{Dates, ETag, Moment, respond};
 use crate::filter::{self, Field, ListQuery};
 use crate::problem::{Problem, ProblemKind};
+use crate::resources;
 
 /// What the routes of the objects read with.
 #[derive(Debug, Clone)]
@@ -115,6 +117,15 @@ pub fn routes(api: Api) -> Router {
                           headers: HeaderMap| {
                         list(kind, state, principal, context, query, headers)
                     },
+                )
+                .post(
+                    move |state: State<Api>,
+                          principal: Extension<Principal>,
+                          context: Extension<RequestContext>,
+                          headers: HeaderMap,
+                          raw: Bytes| {
+                        resources::create(kind, state, principal, context, headers, raw)
+                    },
                 ),
             )
             .route(
@@ -126,6 +137,26 @@ pub fn routes(api: Api) -> Router {
                           dates: Dates,
                           headers: HeaderMap| {
                         object(kind, state, context, id, dates, headers)
+                    },
+                )
+                .patch(
+                    move |state: State<Api>,
+                          principal: Extension<Principal>,
+                          context: Extension<RequestContext>,
+                          id: Path<Uuid>,
+                          headers: HeaderMap,
+                          raw: Bytes| {
+                        resources::modify(kind, state, principal, context, id, headers, raw)
+                    },
+                )
+                .delete(
+                    move |state: State<Api>,
+                          principal: Extension<Principal>,
+                          context: Extension<RequestContext>,
+                          id: Path<Uuid>,
+                          headers: HeaderMap,
+                          raw: Bytes| {
+                        resources::close(kind, state, principal, context, id, headers, raw)
                     },
                 ),
             )

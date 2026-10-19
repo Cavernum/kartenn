@@ -164,9 +164,10 @@ const OBJECT_TABLES: [&str; 6] = [
 ];
 
 /// The version of the object `id` valid at `valid_at`, as asserted at `as_of` (now when
-/// `None`): the changeset that wrote it, the strong `ETag` of its representation
-/// (REQ-006-6) and the version a write expects (REQ-004-11). `None` if it does not exist
-/// then.
+/// `None`), the strong `ETag` of its representation (REQ-006-6): without `as_of`, the
+/// version a write expects (REQ-004-11), the last changeset that wrote the object or its
+/// properties (`object_version`, 006-16); at a past `as_of`, the changeset of the version
+/// read. `None` if it does not exist then.
 ///
 /// # Errors
 ///
@@ -189,7 +190,18 @@ pub async fn version(
             "SELECT x.changeset_id FROM {relation} x WHERE x.id = $3"
         ));
     }
-    sqlx::query_scalar(AssertSqlSafe(parts.join(" UNION ALL ")))
+    let current = if as_of.is_none() {
+        "(SELECT changeset_id FROM object_version WHERE object_id = $3)"
+    } else {
+        "NULL::uuid"
+    };
+    let sql = format!(
+        "SELECT coalesce(v.version, r.changeset_id) FROM ({}) r(changeset_id) \
+         CROSS JOIN (SELECT {}) v(version)",
+        parts.join(" UNION ALL "),
+        current,
+    );
+    sqlx::query_scalar(AssertSqlSafe(sql))
         .bind(valid_at)
         .bind(as_of)
         .bind(id)

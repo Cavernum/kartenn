@@ -402,6 +402,29 @@ pub struct Version {
     pub changeset: Uuid,
 }
 
+/// The object of `kind` that `changeset` created: the one whose rows, current or past,
+/// it wrote (a route by resource creates one object, 006-16). `None` if it wrote none.
+///
+/// # Errors
+///
+/// Database errors.
+#[tracing::instrument(name = "SELECT created", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT created",
+    kartenn.kind = kind.as_str(),
+))]
+pub async fn created(pool: &PgPool, kind: Kind, changeset: Uuid) -> sqlx::Result<Option<Uuid>> {
+    let table = kind.shape().table;
+    sqlx::query_scalar(AssertSqlSafe(format!(
+        "SELECT id FROM {table} WHERE changeset_id = $1
+         UNION ALL SELECT id FROM {table}_history WHERE changeset_id = $1 LIMIT 1"
+    )))
+    .bind(changeset)
+    .fetch_optional(pool)
+    .await
+}
+
 /// Every version of the object `id` of `kind`, ordered by start of validity then of
 /// assertion; empty if it never existed.
 ///

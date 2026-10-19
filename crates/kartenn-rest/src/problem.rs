@@ -50,6 +50,8 @@ pub enum ProblemKind {
     TooManyOperations,
     /// The idempotency key was used for another content.
     IdempotencyKeyReused,
+    /// A member of a write the service does not change, or an undeclared property.
+    InvalidMember,
     /// `If-Match` is missing.
     PreconditionRequired,
     /// The quota of the identity is spent.
@@ -62,7 +64,7 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -80,6 +82,7 @@ impl ProblemKind {
         Self::MotiveRequired,
         Self::TooManyOperations,
         Self::IdempotencyKeyReused,
+        Self::InvalidMember,
         Self::PreconditionRequired,
         Self::RateLimited,
         Self::Unavailable,
@@ -107,6 +110,7 @@ impl ProblemKind {
             Self::MotiveRequired => "motive-required",
             Self::TooManyOperations => "too-many-operations",
             Self::IdempotencyKeyReused => "idempotency-key-reused",
+            Self::InvalidMember => "invalid-member",
             Self::PreconditionRequired => "precondition-required",
             Self::RateLimited => "rate-limited",
             Self::Unavailable => "unavailable",
@@ -132,7 +136,8 @@ impl ProblemKind {
             Self::ChangesetRefused
             | Self::MotiveRequired
             | Self::TooManyOperations
-            | Self::IdempotencyKeyReused => StatusCode::UNPROCESSABLE_ENTITY,
+            | Self::IdempotencyKeyReused
+            | Self::InvalidMember => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -161,6 +166,7 @@ impl ProblemKind {
             Self::MotiveRequired => "A motive is required",
             Self::TooManyOperations => "The changeset has too many operations",
             Self::IdempotencyKeyReused => "The idempotency key was used for another request",
+            Self::InvalidMember => "A member cannot be written",
             Self::PreconditionRequired => "If-Match is required",
             Self::RateLimited => "Too many requests",
             Self::Unavailable => "The service is unavailable",

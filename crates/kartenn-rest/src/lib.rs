@@ -18,6 +18,7 @@ pub mod problem;
 pub mod properties;
 pub mod quota;
 pub mod request_id;
+pub mod resources;
 pub mod transport;
 pub mod tree;
 
