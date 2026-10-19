@@ -3,7 +3,7 @@
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::{ALL, IPV4, IPV6};
 use kartenn_core::registry::special_registry;
-use kartenn_store_pg::registry::{load, public_drift};
+use kartenn_store_pg::registry::{load, public_drift, rewrite_public};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
@@ -88,6 +88,57 @@ async fn drift_reports_objects_whose_flag_is_stale(pool: PgPool) -> sqlx::Result
             .map(|d| (d.table, d.id, d.public))
             .collect::<Vec<_>>(),
         vec![("address", stale, true), ("ip_range", range, true)]
+    );
+    Ok(())
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn drifting_flags_are_rewritten_by_system_changesets(pool: PgPool) -> sqlx::Result<()> {
+    for family in [IPV4, IPV6] {
+        load(&pool, special_registry(family).unwrap()).await?;
+    }
+    let (stale, range) = (Uuid::now_v7(), Uuid::now_v7());
+    sqlx::query(
+        "INSERT INTO address (id, domain_id, address, usage, public, registry_version, valid_period, changeset_id)
+         VALUES ($1, gen_random_uuid(), '8.8.8.8', 'host', false, 'old', tstzrange(now(), NULL), gen_random_uuid())",
+    )
+    .bind(stale)
+    .execute(&pool)
+    .await?;
+    sqlx::query(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version, valid_period, changeset_id)
+         VALUES ($1, gen_random_uuid(), '[8.8.8.1,8.8.8.9]', 'static', false, 'old', tstzrange(now(), NULL), gen_random_uuid())",
+    )
+    .bind(range)
+    .execute(&pool)
+    .await?;
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let version = kartenn_core::registry::UPDATED;
+    // One object by changeset: two changesets.
+    assert_eq!(rewrite_public(&store, version, 1).await.unwrap(), 2);
+    assert!(public_drift(&pool, version).await?.is_empty());
+    let flags: Vec<(bool, String)> = sqlx::query_as(
+        "SELECT public, registry_version FROM address WHERE id = $1 AND upper_inf(valid_period)
+         UNION ALL
+         SELECT public, registry_version FROM ip_range WHERE id = $2 AND upper_inf(valid_period)",
+    )
+    .bind(stale)
+    .bind(range)
+    .fetch_all(&pool)
+    .await?;
+    assert_eq!(flags, vec![(true, version.to_owned()); 2]);
+    let journaled: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM changeset WHERE author_id = $1 AND state = 'applied'
+            AND motive LIKE 'public flags%'",
+    )
+    .bind(kartenn_service::declarations::SYSTEM_AUTHOR)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(journaled, 2);
+    assert_eq!(
+        rewrite_public(&store, version, 1).await.unwrap(),
+        0,
+        "nothing left to rewrite"
     );
     Ok(())
 }

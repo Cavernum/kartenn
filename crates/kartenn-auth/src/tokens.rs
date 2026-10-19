@@ -159,6 +159,17 @@ impl<S> std::fmt::Debug for TokenVerifier<S> {
     }
 }
 
+/// The decoding keys of `set` by `kid`; a key without `kid` or unusable is left out.
+fn by_kid(set: &JwkSet) -> HashMap<String, DecodingKey> {
+    set.keys
+        .iter()
+        .filter_map(|jwk| {
+            let kid = jwk.common.key_id.clone()?;
+            DecodingKey::from_jwk(jwk).ok().map(|key| (kid, key))
+        })
+        .collect()
+}
+
 fn is_access_token(typ: Option<&str>) -> bool {
     typ.is_some_and(|t| {
         t.eq_ignore_ascii_case("at+jwt") || t.eq_ignore_ascii_case("application/at+jwt")
@@ -199,15 +210,34 @@ impl<S: KeySource> TokenVerifier<S> {
         }
         let set = self.source.keys(issuer).await?;
         entry.loaded = true;
-        entry.by_kid = set
-            .keys
-            .iter()
-            .filter_map(|jwk| {
-                let kid = jwk.common.key_id.clone()?;
-                DecodingKey::from_jwk(jwk).ok().map(|key| (kid, key))
-            })
-            .collect();
+        entry.by_kid = by_kid(&set);
         entry.by_kid.get(kid).cloned().ok_or(TokenError::UnknownKey)
+    }
+
+    /// Reloads the keys of every issuer loaded so far (the local timer of REQ-006-38, every
+    /// 5 min), outside the lock; an issuer that does not answer keeps its keys. Returns the
+    /// failures, by issuer.
+    pub async fn reload(&self) -> Vec<(String, TokenError)> {
+        let loaded: Vec<String> = self
+            .keys
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, keys)| keys.loaded)
+            .map(|(issuer, _)| issuer.clone())
+            .collect();
+        let mut failures = Vec::new();
+        for issuer in self.issuers.iter().filter(|i| loaded.contains(&i.issuer)) {
+            match self.source.keys(issuer).await {
+                Ok(set) => {
+                    if let Some(entry) = self.keys.lock().await.get_mut(&issuer.issuer) {
+                        entry.by_kid = by_kid(&set);
+                    }
+                }
+                Err(e) => failures.push((issuer.issuer.clone(), e)),
+            }
+        }
+        failures
     }
 
     /// Validates `token`.

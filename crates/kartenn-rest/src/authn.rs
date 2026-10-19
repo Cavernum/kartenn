@@ -291,6 +291,21 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         self.aggregator.flush(at, all)
     }
 
+    /// Forgets the identity states past their time to live and the sources whose window of
+    /// failures is over (the local timers of REQ-006-38).
+    pub fn purge(&self) {
+        self.states.purge();
+        self.limiter.purge(std::time::Instant::now());
+    }
+
+    /// Reads again the discoveries and the keys of the issuers (every 5 min, REQ-006-38);
+    /// an issuer that does not answer keeps what was read, with a warning.
+    pub async fn reload(&self) {
+        for (issuer, error) in self.oidc.reload().await {
+            tracing::warn!(name: "authn.issuer.reload_failed", %issuer, %error, "the issuer could not be read again, its last keys stay");
+        }
+    }
+
     /// Audits a failure: [`Refusal::Unauthenticated`], or why it cannot be audited.
     async fn failed(&self, method: Method, reason: &str, source: Source) -> Refusal {
         let failure = Failure {

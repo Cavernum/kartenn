@@ -364,7 +364,7 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P5 — Tâches de fond et imports
 
-- [ ] 20. Migration `job`, planificateur sous bail (scrutation 5 s, bail 30 s, battement
+- [x] 20. Migration `job`, planificateur sous bail (scrutation 5 s, bail 30 s, battement
   10 s), tâches `expire-pending`, `reevaluate-expected`, `public-drift`,
   `idempotency-purge` ; minuteries locales (caches, limiteurs, JWKS) — REQ-006-38 —
   verify : trois planificateurs sur une base, une exécution par échéance ; détenteur
@@ -372,6 +372,25 @@ routeur complet, sauf mention « vrai TCP ».
   où : design « Imports et tâches de fond » ; `review::expire_pending`,
   `expected::reevaluate_outdated`, store `registry::public_drift` ; migration suivante
   `0039_job.sql` ; boucle lancée depuis `kartenn-server/src/app.rs`
+  — Migration `0039_job.sql` (table et quatre tâches semées). Store : `jobs.rs` (`claim`
+  par `FOR UPDATE SKIP LOCKED`, `heartbeat`, `finish`, `due_now`), `registry.rs`
+  (`rewrite_public` par changesets système sous les verrous des domaines et de l'espace
+  public ; `public_drift` borné aux versions valides maintenant ou plus tard, une ligne
+  par objet, `PublicDrift.domain`). Server : `jobs.rs` (`Scheduler`, `Runner`, `Tasks`),
+  `app.rs` (planificateur en tâche à part, arrêté avant l'API ; purge des états et des
+  échecs d'authentification à la minute ; rechargement des émetteurs toutes les 5 min).
+  Auth : `TokenVerifier::reload`, `Oidc::reload`, `FailureLimiter::purge` ; service
+  `StateCache::purge` ; rest `Authn::purge`, `Authn::reload`. Tests `tests/jobs.rs`
+  (`three_schedulers_run_each_due_task_once`, `a_stopped_holder_is_relieved_after_its_lease`,
+  `the_tasks_of_kartenn_run`), `special_registry.rs`
+  (`drifting_flags_are_rewritten_by_system_changesets`), `secrets.rs`
+  (`the_purge_forgets_the_windows_over`)
+  choix : `public-drift` rendu dû à chaque démarrage d'instance (donc à celui d'une
+  version ; sans écart, aucun changeset) ; tâche en échec replanifiée une période plus
+  tard (journalisée) ; bail perdu → tâche abandonnée, sans replanification ; tâche en
+  cours abandonnée à l'arrêt (transaction annulée, bail laissé à expirer) ; lots de 1 000
+  objets par changeset pour la réévaluation et les drapeaux ; un émetteur muet au
+  rechargement garde ses clés et sa découverte (WARN `authn.issuer.reload_failed`)
 - [ ] 21. Imports : migration `import_chunk` et état `uploading`, `PUT` des morceaux
   (identique ignoré, différent → 409, > 10 000 → 413), `start` (202), `resume`,
   `cancel`, état et `Retry-After`, exécution comme tâche — REQ-006-17, 18, 19 — verify :

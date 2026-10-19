@@ -225,6 +225,45 @@ impl<S: KeySource> Oidc<S> {
         Ok(found)
     }
 
+    /// Reads again the discovery of every issuer read so far, then the keys of the tokens
+    /// (the local timer of REQ-006-38, every 5 min); an issuer that does not answer keeps
+    /// what was read. Returns the failures, by issuer.
+    pub async fn reload(&self) -> Vec<(String, String)> {
+        let read: Vec<String> = self.discoveries.lock().await.keys().cloned().collect();
+        let mut failures = Vec::new();
+        for id in read {
+            let Some(issuer) = self.tokens.issuer(&id) else {
+                continue;
+            };
+            let found = self
+                .http
+                .get_json::<Discovery>(&issuer.discovery_url())
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|found| {
+                    if found.issuer == issuer.issuer {
+                        Ok(found)
+                    } else {
+                        Err("the discovery names another issuer".to_owned())
+                    }
+                });
+            match found {
+                Ok(found) => {
+                    self.discoveries.lock().await.insert(id, found);
+                }
+                Err(e) => failures.push((issuer.issuer.clone(), e)),
+            }
+        }
+        failures.extend(
+            self.tokens
+                .reload()
+                .await
+                .into_iter()
+                .map(|(issuer, e)| (issuer, e.to_string())),
+        );
+        failures
+    }
+
     /// Starts a login at the issuer `issuer_id`.
     ///
     /// # Errors

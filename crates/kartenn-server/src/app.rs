@@ -48,6 +48,9 @@ const STOP_WITHIN: Duration = Duration::from_secs(10);
 /// (REQ-012-26).
 const WARN_EVERY: Duration = Duration::from_mins(1);
 
+/// The discoveries and keys of the issuers read again in this period (REQ-006-38).
+const ISSUERS_EVERY: Duration = Duration::from_mins(5);
+
 /// Allows one WARN per key and [`WARN_EVERY`].
 #[derive(Default)]
 struct Throttle(std::collections::HashMap<String, std::time::Instant>);
@@ -496,6 +499,22 @@ pub async fn run(
     let mut quotas = tokio::time::interval(Duration::from_mins(1));
     let mut seal = tokio::time::interval(Duration::from_millis(config.audit.seal_interval_ms));
     let mut relay = tokio::time::interval(Duration::from_millis(config.audit.relay_interval_ms));
+    // The background tasks (REQ-006-38); the public flags checked again at each start, so
+    // at the start of a version whose registries changed.
+    if let Err(e) = kartenn_store_pg::jobs::due_now(&pool, "public-drift").await {
+        tracing::warn!(name: "job.claim_failed", error = %e.0, "the check of the public flags could not be scheduled");
+    }
+    let (jobs_stop, jobs_stopped) = watch::channel(false);
+    let jobs = tokio::spawn(crate::jobs::Scheduler::new(pool.clone(), id).run(
+        crate::jobs::Tasks {
+            store: store.clone(),
+            // No module provides a source of expected values yet.
+            sources: kartenn_service::expected::Sources::none(),
+        },
+        jobs_stopped,
+    ));
+    let mut issuers =
+        tokio::time::interval_at(tokio::time::Instant::now() + ISSUERS_EVERY, ISSUERS_EVERY);
     let mut drops = tokio::time::interval(WARN_EVERY);
     let mut dropped_seen = std::collections::HashMap::new();
     let mut throttle = Throttle::default();
@@ -515,6 +534,7 @@ pub async fn run(
             _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
             _ = quotas.tick() => Api::record_refusals(api.as_ref(), &journal).await,
+            _ = issuers.tick() => Api::reload_issuers(api.as_ref()),
             _ = reread.tick() => {
                 if let Ok(list) = kartenn_service::observability::Overrides::overrides(&store).await {
                     let pairs: Vec<(String, String)> =
@@ -527,7 +547,9 @@ pub async fn run(
         }
     }
 
-    // The API first: no request starts while the journal is closed.
+    // The background tasks and the API first: nothing writes while the journal is closed.
+    let _ = jobs_stop.send(true);
+    let _ = jobs.await;
     if let Some(api) = api {
         api.stop(&journal).await;
     }
@@ -741,10 +763,22 @@ impl Api {
         }
     }
 
-    /// Records the refusals of the windows over, if the API is served.
+    /// Records the refusals of the windows over, and purges the states and failures of the
+    /// authentication past their time (REQ-006-38), if the API is served.
     async fn record_refusals(api: Option<&Self>, journal: &PgAuditJournal) {
         if let Some(api) = api {
             record_refusals(journal, &api.quotas, api.authn.as_deref(), false).await;
+            if let Some(authn) = &api.authn {
+                authn.purge();
+            }
+        }
+    }
+
+    /// Reads again the discoveries and keys of the issuers in the background, so that the
+    /// main loop does not wait on them (REQ-006-38).
+    fn reload_issuers(api: Option<&Self>) {
+        if let Some(authn) = api.and_then(|api| api.authn.clone()) {
+            tokio::spawn(async move { authn.reload().await });
         }
     }
 

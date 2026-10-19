@@ -505,6 +505,14 @@ impl StateCache {
             .remove(&identity);
     }
 
+    /// Forgets the entries past their time to live (the local timer of REQ-006-38).
+    pub fn purge(&self) {
+        self.entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(|_, (_, at)| at.elapsed() < self.ttl);
+    }
+
     async fn state<I: Identities>(
         &self,
         identities: &I,

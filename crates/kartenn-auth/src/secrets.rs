@@ -111,6 +111,14 @@ impl FailureLimiter {
         }
     }
 
+    /// Forgets the sources whose window is over at `now` (the local timer of REQ-006-38).
+    pub fn purge(&self, now: Instant) {
+        self.sources
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|_, (start, _)| now.duration_since(*start) < self.window);
+    }
+
     /// Counts a failure of `source` at `now`.
     pub fn failed(&self, source: IpAddr, now: Instant) {
         let mut sources = self.sources.lock().unwrap_or_else(PoisonError::into_inner);
@@ -182,6 +190,20 @@ mod tests {
         assert!(
             limiter.allows(ip, t0 + Duration::from_secs(61)),
             "window over"
+        );
+    }
+
+    #[test]
+    fn the_purge_forgets_the_windows_over() {
+        let limiter = FailureLimiter::new(3, Duration::from_mins(1));
+        let t0 = Instant::now();
+        limiter.failed("192.0.2.7".parse().unwrap(), t0);
+        limiter.failed("192.0.2.8".parse().unwrap(), t0 + Duration::from_secs(30));
+        limiter.purge(t0 + Duration::from_secs(61));
+        let sources = limiter.sources.lock().unwrap();
+        assert_eq!(
+            sources.keys().copied().collect::<Vec<IpAddr>>(),
+            vec!["192.0.2.8".parse::<IpAddr>().unwrap()]
         );
     }
 }
