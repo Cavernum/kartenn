@@ -297,7 +297,8 @@ Acceptation :
 
 #### REQ-006-23 — Pas d'oracle
 Si l'appelant n'a pas le droit de lire un objet, alors kartenn doit répondre 404, comme
-pour un objet inexistant ; 403 est réservé à une action refusée sur un objet visible.
+pour un objet inexistant ; 403 est réservé à une action refusée sur un objet visible
+hors changeset (un droit d'écriture manquant est une violation du changeset, 422).
 [H7, 005/REQ-005-19]
 
 Acceptation :

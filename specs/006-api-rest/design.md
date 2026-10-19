@@ -460,14 +460,14 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 |---|---|---|
 | JSON invalide, paramètre inconnu, date sans décalage, curseur invalide | 400 | `bad-request`, `invalid-cursor` |
 | Sans authentification, jeton invalide | 401 | `unauthenticated` |
-| Droit manquant sur un objet visible, CSRF | 403 | `forbidden`, `cross-site-request` |
+| Droit manquant pour une action hors changeset sur un objet visible (lecture d'administration, action sur un changeset, filtre de sortie), CSRF | 403 | `forbidden`, `cross-site-request` |
 | Objet absent ou invisible | 404 | `not-found` |
 | Annulation en conflit, état d'un changeset incompatible, idempotence en cours, morceau différent | 409 | `conflict`, `undo-conflict`, `idempotency-in-progress` |
 | ETag périmé | 412 | `precondition-failed` |
 | Corps trop gros | 413 | `payload-too-large` |
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
-| Changeset refusé (`Outcome::Refused`), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide, import qui ne se trie pas | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override`, `invalid-import` |
+| Changeset refusé (`Outcome::Refused`), droit d'écriture manquant (règle `core.object.forbidden`, REQ-005-22), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide, import qui ne se trie pas | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override`, `invalid-import` |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
@@ -476,6 +476,10 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - `violations[]` : `{ rule, severity, detail, subjects[], operation, pointer }`, où
   `pointer` est un JSON Pointer (RFC 6901) dans le corps de la requête
   (`/operations/2/value`) ; pour une route par ressource, l'indice est omis.
+- Le droit d'écriture d'un objet est une règle du catalogue (REQ-005-22) : son absence
+  est une violation du changeset, listée avec les autres dans la même réponse 422
+  (REQ-006-21), et peut faire du changeset une proposition ; 403 reste aux actions que
+  ne porte pas un changeset (arbitrage de la tâche 006-23).
 - Un 404 pour un objet invisible est produit par le prédicat de lecture (ADR 0021) : la
   requête ne distingue pas « absent » d'« invisible », il n'y a rien à masquer après coup.
 - Les détails ne contiennent que des identifiants et des messages de règles ; une
