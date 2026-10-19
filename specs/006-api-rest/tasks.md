@@ -251,10 +251,20 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## P4 — Écritures
 
-- [ ] 14. `POST /v1/changesets` : simulation, 201/202/200, lien `rel` du changeset,
+- [x] 14. `POST /v1/changesets` : simulation, 201/202/200, lien `rel` du changeset,
   422 et `violations` avec pointeurs JSON, priorité des problèmes — REQ-006-11, 21, 22
   — verify : changeset à deux violations de règles différentes → une réponse avec les
   deux ; non authentifié et malformé → 401
+  — `changesets.rs` (rest) : corps `{motive, valid_from, valid_to, operations}` (JSON
+  seul → 415, sinon 400), `valid_from` absent → heure de la base, `?simulate=` ; 201
+  `Location` et `Link` `urn:kartenn:rel:changeset`, 202, 200 sans lien, 422
+  `violations` `{rule, severity, detail, subjects, operation, pointer}` et `changeset` ;
+  message d'écart d'une propriété sensible masqué (`properties::masked_gap`). Noyau :
+  `Violation.operation` et `at`. Service : `plan` rend l'opération de chaque écriture,
+  `apply`, `cascade::expand` et `check_declared_sources` l'attribuent ; journalisée
+  (`violations_json`). `PgAuditJournal::instance`. `tests/changesets.rs` (201 et
+  simulation, 202 d'une proposition, 422 à deux règles, `valid_to` seul, ordre
+  401/400/415/422) ; `planning_collects_every_local_violation` (indices)
 - [ ] 15. `Idempotency-Key` : verrou consultatif (409 en cours), rejeu reconstruit du
   journal, contenu différent → 422, purge par tâche (branchée en 20) — REQ-006-15 —
   verify : deux requêtes simultanées de même clé → une 201, une 409 ; rejeu égal octet

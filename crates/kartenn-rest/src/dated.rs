@@ -47,7 +47,7 @@ fn bad(detail: impl Into<String>) -> Problem {
 
 /// An RFC 3339 date with its offset (`Z` or `±hh:mm`, §5.6): a local date, without one,
 /// is refused (REQ-006-5).
-fn instant(name: &str, text: &str) -> Result<OffsetDateTime, Problem> {
+pub(crate) fn instant(name: &str, text: &str) -> Result<OffsetDateTime, Problem> {
     OffsetDateTime::parse(text, &Rfc3339).map_err(|_| {
         let hint = if text.contains(' ') {
             " (a `+` in a query is written `%2B`)"

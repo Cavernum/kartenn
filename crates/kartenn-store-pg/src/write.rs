@@ -403,6 +403,7 @@ fn violations_json(violations: &[Violation]) -> serde_json::Value {
                     "severity": v.rule.severity.to_string(),
                     "message": v.message,
                     "subjects": v.subjects,
+                    "operation": v.operation,
                 })
             })
             .collect(),

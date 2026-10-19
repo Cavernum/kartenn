@@ -76,6 +76,12 @@ impl PgAuditJournal {
     pub const fn new(pool: PgPool, instance: Instance) -> Self {
         Self { pool, instance }
     }
+
+    /// The instance it records as.
+    #[must_use]
+    pub const fn instance(&self) -> &Instance {
+        &self.instance
+    }
 }
 
 impl AuditJournal for PgAuditJournal {

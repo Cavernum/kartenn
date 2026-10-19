@@ -13,21 +13,28 @@ use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
 use crate::port::{StoreError, WriteTx};
 
-/// Operations with their periods (REQ-004-2), and the closures a cascade added.
-type Expanded = (Vec<Planned>, Vec<Option<Period>>, Vec<(ObjectKind, Uuid)>);
+/// Operations with the index of the operation each comes from, their periods
+/// (REQ-004-2), and the closures a cascade added.
+type Expanded = (
+    Vec<Planned>,
+    Vec<usize>,
+    Vec<Option<Period>>,
+    Vec<(ObjectKind, Uuid)>,
+);
 
 /// The planned operations with every cascade expanded, each added operation on the period
-/// of the closure that brings it, and the closures added.
+/// of the closure that brings it and ascribed to its operation, and the closures added.
 pub(crate) async fn expand<T: WriteTx>(
     tx: &mut T,
     planned: Vec<Planned>,
+    origins: Vec<usize>,
     periods: Vec<Option<Period>>,
 ) -> Result<Expanded, StoreError> {
     if !planned
         .iter()
         .any(|p| matches!(p, Planned::Close { cascade: true, .. }))
     {
-        return Ok((planned, periods, Vec::new()));
+        return Ok((planned, origins, periods, Vec::new()));
     }
     // Objects the changeset closes already, then those the cascade adds.
     let mut closed: BTreeSet<Uuid> = planned
@@ -38,9 +45,10 @@ pub(crate) async fn expand<T: WriteTx>(
         })
         .collect();
     let mut out = Vec::with_capacity(planned.len());
+    let mut out_origins = Vec::with_capacity(planned.len());
     let mut out_periods = Vec::with_capacity(planned.len());
     let mut added = Vec::new();
-    for (p, period) in planned.into_iter().zip(periods) {
+    for ((p, origin), period) in planned.into_iter().zip(origins).zip(periods) {
         if let Planned::Close {
             kind,
             id,
@@ -59,6 +67,7 @@ pub(crate) async fn expand<T: WriteTx>(
                             kind: object_kind,
                             property,
                         });
+                        out_origins.push(origin);
                         out_periods.push(period);
                     }
                 }
@@ -69,15 +78,17 @@ pub(crate) async fn expand<T: WriteTx>(
                         expected: None,
                         cascade: false,
                     });
+                    out_origins.push(origin);
                     out_periods.push(period);
                     added.push((k, i));
                 }
             }
         }
         out.push(p);
+        out_origins.push(origin);
         out_periods.push(period);
     }
-    Ok((out, out_periods, added))
+    Ok((out, out_origins, out_periods, added))
 }
 
 /// The dependents of `(kind, id)`, deepest first, skipping those already closed.

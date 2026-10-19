@@ -495,12 +495,16 @@ pub(crate) async fn mask_gaps(
             if gap_property(anomaly) == Some(key.as_str())
                 && !disclosed.contains(&anomaly.object_id)
             {
-                anomaly.message =
-                    format!("{key}: the resolved value differs from the expected one");
+                anomaly.message = masked_gap(&key);
             }
         }
     }
     Ok(())
+}
+
+/// The message of a deviation of sensitive property `key`, without its values.
+pub(crate) fn masked_gap(key: &str) -> String {
+    format!("{key}: the resolved value differs from the expected one")
 }
 
 /// The filter of the deviations: property, domain, entity.

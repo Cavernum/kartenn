@@ -736,16 +736,21 @@ fn plan_policy(
     Ok(Planned::Policy(policy))
 }
 
-/// Parses every operation and runs the local rules (no database).
-fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
+/// Parses every operation and runs the local rules (no database): the planned writes, the
+/// index of the operation each comes from, and the violations found, each ascribed to its
+/// operation.
+#[allow(clippy::too_many_lines)] // one arm per kind of operation
+fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
     let resolve = |r: Ref, ids: &HashMap<u32, Uuid>| match r {
         Ref::Id(id) => id,
         Ref::Local(n) => ids[&n],
     };
     let mut planned = Vec::with_capacity(req.operations.len());
+    let mut origins = Vec::with_capacity(req.operations.len());
     let mut violations = Vec::new();
-    for op in &req.operations {
+    for (index, op) in req.operations.iter().enumerate() {
+        let found = violations.len();
         let id = Uuid::now_v7();
         if let Some(local) = op.defines() {
             ids.insert(local, id);
@@ -837,8 +842,17 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<Violation>) {
                 planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
             }
         }
+        origins.resize(planned.len(), index);
+        ascribe(&mut violations[found..], index);
     }
-    (planned, violations)
+    (planned, origins, violations)
+}
+
+/// Ascribes `violations` to operation `index`, those not ascribed already.
+fn ascribe(violations: &mut [Violation], index: usize) {
+    for v in violations {
+        v.operation.get_or_insert(index);
+    }
 }
 
 fn has_errors(violations: &[Violation]) -> bool {
@@ -1112,12 +1126,14 @@ async fn close<T: WriteTx>(
 async fn apply<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
+    origins: &[usize],
     periods: &[Option<Period>],
     changeset: Uuid,
     violations: &mut Vec<Violation>,
 ) -> Result<Vec<(Uuid, Prefix)>, StoreError> {
     let mut former = Vec::new();
-    for (p, &period) in planned.iter().zip(periods) {
+    for ((p, &period), &origin) in planned.iter().zip(periods).zip(origins) {
+        let found = violations.len();
         let written = match p {
             Planned::Domain { id, slug } => {
                 tx.insert_domain(*id, slug.as_str(), period, changeset)
@@ -1165,7 +1181,7 @@ async fn apply<T: WriteTx>(
                 expected,
             } => {
                 if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
-                    violations.push(v);
+                    violations.push(v.at(origin));
                     continue;
                 }
                 modify(tx, *kind, *id, change, period, changeset, &mut former).await
@@ -1174,7 +1190,7 @@ async fn apply<T: WriteTx>(
                 kind, id, expected, ..
             } => {
                 if let Some(v) = conflict(tx, *kind, *id, *expected, period).await? {
-                    violations.push(v);
+                    violations.push(v.at(origin));
                     continue;
                 }
                 close(tx, *kind, *id, period, changeset).await
@@ -1195,6 +1211,7 @@ async fn apply<T: WriteTx>(
             }
         };
         record(written, violations)?;
+        ascribe(&mut violations[found..], origin);
     }
     Ok(former)
 }
@@ -1481,8 +1498,8 @@ async fn stages<S: Store, A: Authorizer>(
             }
         }
     }
-    let (planned, mut violations) = plan(req);
-    crate::expected::check_declared_sources(&planned, sources, &mut violations);
+    let (planned, origins, mut violations) = plan(req);
+    crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
@@ -1496,7 +1513,8 @@ async fn stages<S: Store, A: Authorizer>(
         .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
         .collect::<Result<_, _>>()?;
     let window = window(period, &periods);
-    let (planned, periods, cascaded) = crate::cascade::expand(&mut tx, planned, periods).await?;
+    let (planned, origins, periods, cascaded) =
+        crate::cascade::expand(&mut tx, planned, origins, periods).await?;
     let (domains, public) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     // The policies in force at submission, before the changeset changes them.
@@ -1536,7 +1554,16 @@ async fn stages<S: Store, A: Authorizer>(
             return Err(e.into());
         }
     };
-    let former = match apply(&mut tx, &planned, &periods, changeset, &mut violations).await {
+    let former = match apply(
+        &mut tx,
+        &planned,
+        &origins,
+        &periods,
+        changeset,
+        &mut violations,
+    )
+    .await
+    {
         Ok(former) => former,
         Err(e) => {
             tx.rollback().await?;
@@ -2103,7 +2130,7 @@ mod tests {
     fn planning_collects_every_local_violation() {
         // REQ-004-7: all violations, not only the first.
         let d = Ref::Id(Uuid::now_v7());
-        let (planned, violations) = plan(&req(vec![
+        let (planned, origins, violations) = plan(&req(vec![
             prefix(d, "10.1.2.5/24"),
             prefix(d, "fe80::%2/64"),
             Operation::CreateAddress {
@@ -2133,12 +2160,16 @@ mod tests {
             2,
             "the valid prefix and the parsed address are planned"
         );
+        // Each violation and each planned write keeps the index of its operation.
+        let at: Vec<Option<usize>> = violations.iter().map(|v| v.operation).collect();
+        assert_eq!(at, vec![Some(0), Some(1), Some(2), Some(3)]);
+        assert_eq!(origins, vec![2, 4]);
     }
 
     #[test]
     fn public_flag_comes_from_the_registry() {
         let d = Ref::Id(Uuid::now_v7());
-        let (planned, _) = plan(&req(vec![
+        let (planned, _, _) = plan(&req(vec![
             prefix(d, "20.0.0.0/24"),
             prefix(d, "10.0.0.0/24"),
         ]));

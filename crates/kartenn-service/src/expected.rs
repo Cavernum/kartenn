@@ -74,22 +74,26 @@ impl Sources {
 /// Declarations naming a source the registry does not hold are refused (local check).
 pub(crate) fn check_declared_sources(
     planned: &[Planned],
+    origins: &[usize],
     sources: &Sources,
     violations: &mut Vec<Violation>,
 ) {
-    for p in planned {
+    for (p, &origin) in planned.iter().zip(origins) {
         if let Planned::Declare { declaration, .. } | Planned::UpdateDeclaration { declaration, .. } =
             p
             && let Some(expected) = &declaration.expected
             && sources.get(&expected.source).is_none()
         {
-            violations.push(Violation::new(
-                &rules::PROP_INVALID_DECLARATION,
-                format!(
-                    "{}: no source of expected values {}",
-                    declaration.key, expected.source
-                ),
-            ));
+            violations.push(
+                Violation::new(
+                    &rules::PROP_INVALID_DECLARATION,
+                    format!(
+                        "{}: no source of expected values {}",
+                        declaration.key, expected.source
+                    ),
+                )
+                .at(origin),
+            );
         }
     }
 }

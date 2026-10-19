@@ -4,6 +4,7 @@
 pub mod anomalies;
 pub mod auth;
 pub mod authn;
+pub mod changesets;
 pub mod compression;
 pub mod cookies;
 pub mod csrf;
@@ -41,6 +42,7 @@ pub fn v1(api: objects::Api) -> Router {
     objects::routes(api.clone())
         .merge(tree::routes(api.clone()))
         .merge(anomalies::routes(api.clone()))
+        .merge(changesets::routes(api.clone()))
         .merge(properties::routes(api))
 }
 

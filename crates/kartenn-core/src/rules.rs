@@ -50,6 +50,9 @@ pub struct Violation {
     pub subjects: Vec<Uuid>,
     /// Human-readable explanation, citing the values involved.
     pub message: String,
+    /// Index of the operation of the changeset it comes from; `None` for a rule of the
+    /// final state, which no single operation causes (REQ-004-7).
+    pub operation: Option<usize>,
 }
 
 impl Violation {
@@ -60,7 +63,15 @@ impl Violation {
             rule,
             subjects: Vec::new(),
             message: message.into(),
+            operation: None,
         }
+    }
+
+    /// Ascribes the violation to operation `index`, unless it is ascribed already.
+    #[must_use]
+    pub fn at(mut self, index: usize) -> Self {
+        self.operation.get_or_insert(index);
+        self
     }
 
     /// Adds objects in cause.
