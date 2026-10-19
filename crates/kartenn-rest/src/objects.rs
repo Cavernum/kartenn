@@ -465,8 +465,6 @@ struct Wanted {
     slugs: Vec<String>,
     links: Vec<String>,
     values: Vec<String>,
-    /// The parameter of the values, if given (`value` or `first`).
-    value_name: Option<&'static str>,
     /// Conditions on properties, by key.
     properties: Vec<(String, Condition)>,
 }
@@ -486,13 +484,11 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
             "slug" => wanted.slugs.extend(canonical(name, values, slug)?),
             "parent" | "domain" => wanted.links.extend(canonical(name, values, slug)?),
             "value" if kind == Kind::Prefix => {
-                wanted.value_name = Some(name);
                 wanted.values.extend(canonical(name, values, |v| {
                     Prefix::parse_any(&ALL, v).ok().map(|p| p.to_string())
                 })?);
             }
             _ => {
-                wanted.value_name = Some(name);
                 wanted.values.extend(canonical(name, values, |v| {
                     Addr::parse_any(&ALL, v).ok().map(|a| a.to_string())
                 })?);
@@ -566,11 +562,8 @@ async fn filtered(
     let [domain] = wanted.links.as_slice() else {
         return Err(bad(format!("{first} requires one domain")));
     };
-    if let Some(name) = wanted.value_name {
-        return Err(bad(format!("{name} does not go with {first}")));
-    }
-    // A next page holds the time of the first one; the engine reads the current state.
-    if page.after().is_none() && page.dates.as_of.is_some() {
+    // The engine reads the current state; a next page holds no `as_of` (REQ-006-7).
+    if page.dates.as_of.is_some() {
         return Err(bad(format!(
             "as_of does not go with {first}: properties filter the current state"
         )));
@@ -580,11 +573,7 @@ async fn filtered(
         .map(|key| serde_json::from_value::<Uuid>(key.clone()))
         .transpose()
         .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?;
-    let dates = Dates {
-        valid_at: page.dates.valid_at,
-        as_of: None,
-    };
-    let moment = dates.at(now, api.bound)?;
+    let moment = page.dates.at(now, api.bound)?;
     let mut conditions = Vec::with_capacity(wanted.properties.len());
     for (key, condition) in &wanted.properties {
         let name = format!("prop.{key}");
@@ -618,6 +607,7 @@ async fn filtered(
         domain,
         &conditions,
         Some(kind.as_str()),
+        &wanted.values,
         moment.valid_at,
         after,
         i64::from(page.size) + 1,
@@ -678,14 +668,19 @@ async fn list(
         let next = (rows.len() > size).then(|| {
             rows.truncate(size);
             let last = &rows[size - 1].key;
-            json!([last.domain, last.value, last.id])
+            page.next(
+                &api.ring,
+                name,
+                &moment,
+                json!([last.domain, last.value, last.id]),
+            )
         });
         (moment, rows, next)
     } else {
         let (moment, mut ids) = filtered(&api, kind, &page, &wanted, &scope, now).await?;
         let next = (ids.len() > size).then(|| {
             ids.truncate(size);
-            json!(ids[size - 1])
+            page.next_current(&api.ring, name, &moment, json!(ids[size - 1]))
         });
         let mut rows = if ids.is_empty() {
             Vec::new()
@@ -709,10 +704,7 @@ async fn list(
         rows.sort_by_key(|row| row.key.id);
         (moment, rows, next)
     };
-    let next = next.map(|last| {
-        let cursor = page.next(&api.ring, name, &moment, last);
-        next_href(&format!("/v1/{name}"), &cursor)
-    });
+    let next = next.map(|cursor| next_href(&format!("/v1/{name}"), &cursor));
     let ids: Vec<Uuid> = rows.iter().map(|row| row.key.id).collect();
     let items = rows
         .into_iter()

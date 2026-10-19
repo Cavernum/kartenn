@@ -242,13 +242,12 @@ routeur complet, sauf mention « vrai TCP ».
   sur entités et sites ou au passé — REQ-006-9 — verify : `?domain=lab&prop.env=prod
   &prop.env=test` ; page suivante par curseur ; 400 qui nomme le paramètre
   — Store : `filter::filter_all_in` (conditions intersectées par `id IN`, sorte d'objet
-  `$11`, paramètres par condition), `filter_in` y délègue sans changer son SQL ;
+  `$11`, valeurs de clé naturelle `$12`, paramètres par condition), `filter_in` y délègue ;
   `list::Criteria.ids`. Rest : `objects::filtered` (déclaration à `valid_at`, valeurs
-  vérifiées selon le type, domaine par slug, inconnu → page vide), objets relus par
-  identifiants et triés par UUID. `tests/objects.rs`
-  (`properties_filter_the_objects_of_one_domain`). Écarts : `value`/`first` avec un
-  `prop.<clé>` → 400 (non intersectés) ; la page suivante relit l'état courant, l'`as_of`
-  du curseur ignoré
+  vérifiées selon le type, domaine par slug, inconnu → page vide, `value`/`first`
+  intersectés), objets relus par identifiants et triés par UUID ; curseur sans `as_of`
+  (`Page::next_current`, exception de REQ-006-7). `tests/objects.rs`
+  (`properties_filter_the_objects_of_one_domain`)
 
 ## P4 — Écritures
 

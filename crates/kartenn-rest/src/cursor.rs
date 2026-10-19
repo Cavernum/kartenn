@@ -35,7 +35,9 @@ struct Content {
     v: u8,
     collection: String,
     valid_at: String,
-    as_of: String,
+    /// Absent for a list read at the current state on each page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    as_of: Option<String>,
     filters: Vec<(String, String)>,
     size: u16,
     after: Value,
@@ -132,7 +134,7 @@ impl Page {
             size: size.unwrap_or(content.size),
             dates: Dates {
                 valid_at: Some(instant(&content.valid_at)?),
-                as_of: Some(instant(&content.as_of)?),
+                as_of: content.as_of.as_deref().map(instant).transpose()?,
             },
             filters: content.filters,
             after: Some(content.after),
@@ -166,11 +168,39 @@ impl Page {
     /// Never: a cursor is made of strings, integers and a JSON value.
     #[must_use]
     pub fn next(&self, ring: &KeyRing, collection: &str, moment: &Moment, after: Value) -> String {
+        self.cursor(ring, collection, moment, Some(moment.as_of()), after)
+    }
+
+    /// As [`Page::next`] for a list read at the current state on each page: only
+    /// `valid_at` is frozen (006-13b, exception of REQ-006-7).
+    ///
+    /// # Panics
+    ///
+    /// Never, as [`Page::next`].
+    #[must_use]
+    pub fn next_current(
+        &self,
+        ring: &KeyRing,
+        collection: &str,
+        moment: &Moment,
+        after: Value,
+    ) -> String {
+        self.cursor(ring, collection, moment, None, after)
+    }
+
+    fn cursor(
+        &self,
+        ring: &KeyRing,
+        collection: &str,
+        moment: &Moment,
+        as_of: Option<OffsetDateTime>,
+        after: Value,
+    ) -> String {
         let content = Content {
             v: VERSION,
             collection: collection.to_owned(),
             valid_at: rfc3339(moment.valid_at),
-            as_of: rfc3339(moment.as_of()),
+            as_of: as_of.map(rfc3339),
             filters: self.filters.clone(),
             size: self.size,
             after,

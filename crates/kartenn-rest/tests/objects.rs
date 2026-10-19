@@ -998,11 +998,37 @@ async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
     let uri = "/v1/prefixes?domain=lab&prop.policy.zone:exists=false";
     assert_eq!(ids_of(&ok(&app, uri).await), vec![c.to_string()]);
 
+    // The values of the natural key are intersected as well.
+    let uri = "/v1/prefixes?domain=lab&prop.policy.env=prod&prop.policy.env=test\
+               &value=10.1.0.0/24&value=10.3.0.0/24&value=10.4.0.0/24&page_size=1";
+    assert_eq!(walk(&app, uri).await, sorted(vec![a, d]));
+    let uri = "/v1/addresses?domain=lab&prop.policy.env=prod&value=10.1.0.1";
+    assert_eq!(ids_of(&ok(&app, uri).await), vec![gateway.to_string()]);
+    let uri = "/v1/addresses?domain=lab&prop.policy.env=prod&value=10.1.0.2";
+    assert_eq!(ids_of(&ok(&app, uri).await), Vec::<String>::new());
+
+    // A next page reads the current state: an object assigned between two pages is in it
+    // when its identifier comes after the cursor (REQ-006-7, exception).
+    let body = ok(
+        &app,
+        "/v1/prefixes?domain=lab&prop.policy.env=prod&page_size=1",
+    )
+    .await;
+    let first = ids_of(&body);
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    let e = prefix(&pool, lab, "10.5.0.0/24").await;
+    assign(&pool, env, e, "prod", &[]).await;
+    let rest: Vec<String> = sorted(vec![a, d, e])
+        .into_iter()
+        .filter(|id| id > &first[0])
+        .collect();
+    assert_eq!(walk(&app, &next).await, rest);
+
     // An unknown domain holds nothing.
     let body = ok(&app, "/v1/prefixes?domain=core&prop.policy.env=prod").await;
     assert_eq!(ids_of(&body), Vec::<String>::new());
 
-    // Without one domain, on entities, in the past, beside a value, undeclared, mistyped:
+    // Without one domain, on entities, in the past, undeclared, mistyped:
     // 400 naming the parameter.
     for (uri, named) in [
         ("/v1/prefixes?prop.policy.env=prod", "domain"),
@@ -1014,10 +1040,6 @@ async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
         (
             "/v1/prefixes?domain=lab&prop.policy.env=prod&as_of=2025-01-01T00:00:00Z",
             "as_of",
-        ),
-        (
-            "/v1/prefixes?domain=lab&prop.policy.env=prod&value=10.1.0.0/24",
-            "value",
         ),
         ("/v1/prefixes?domain=lab&prop.dns.ttl=1", "prop.dns.ttl"),
         (

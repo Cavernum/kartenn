@@ -44,7 +44,7 @@ pub enum FilterError {
 
 /// The parameters of one condition: the property, the carrier kinds, the values, the
 /// bounds. The first condition takes `$1`, `$6` to `$9`, as the single filter always did;
-/// a further one five slots from `$12`.
+/// a further one five slots from `$13`.
 struct Slots {
     property: String,
     carriers: String,
@@ -65,7 +65,7 @@ impl Slots {
                 high: slot(9),
             };
         }
-        let base = 12 + 5 * (index - 1);
+        let base = 13 + 5 * (index - 1);
         Self {
             property: slot(base),
             carriers: slot(base + 1),
@@ -171,8 +171,9 @@ fn wanted_sql(heritable: bool, predicate: Option<&str>, absent: bool, s: &Slots)
 
 /// The SQL of a filter on the objects `first` of a condition, intersected with those of
 /// the `others`: `$2` domain, `$3` date, `$4` cursor, `$5` page size, `$10` read scope
-/// (005, REQ-005-24; null: everything), `$11` kind of the objects (null: any); the rest
-/// in [`Slots`].
+/// (005, REQ-005-24; null: everything), `$11` kind of the objects (null: any), `$12`
+/// values that place them in the tree (text of `inet`; empty: any); the rest in
+/// [`Slots`].
 fn filter_sql<'a>(first: &str, others: impl Iterator<Item = &'a str>) -> String {
     let others: String = others.fold(String::new(), |mut sql, w| {
         sql.push_str("\n           AND id IN (");
@@ -185,9 +186,11 @@ fn filter_sql<'a>(first: &str, others: impl Iterator<Item = &'a str>) -> String 
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($10))
          SELECT DISTINCT id FROM ({first}) w
          WHERE ($4::uuid IS NULL OR id > $4){others}
-           AND ($11::text IS NULL OR EXISTS (
+           AND (($11::text IS NULL AND cardinality($12::text[]) = 0) OR EXISTS (
                 SELECT 1 FROM addressing_object k
-                WHERE k.id = w.id AND k.kind = $11 AND k.valid_period @> $3))
+                WHERE k.id = w.id AND k.valid_period @> $3
+                  AND ($11::text IS NULL OR k.kind = $11)
+                  AND (cardinality($12::text[]) = 0 OR k.value = ANY($12::text[]::inet[]))))
            AND ($10::jsonb IS NULL OR coalesce((
                 SELECT {visible} FROM addressing_object v
                 WHERE v.id = w.id AND v.valid_period @> $3), false))
@@ -246,6 +249,7 @@ pub async fn filter_in(
         domain,
         &[(property, condition.clone())],
         None,
+        &[],
         at,
         after,
         limit,
@@ -255,7 +259,8 @@ pub async fn filter_in(
 }
 
 /// One page of the objects of `domain`, of `kind` when given (`prefix`, `range`,
-/// `address`), whose resolved values meet all the `conditions` (a property and a
+/// `address`), placed in the tree by one of `values` when given (text of `inet`: the
+/// prefix, the first address of the range, the address), whose resolved values meet all the `conditions` (a property and a
 /// condition on it, at least one) at `at`, sorted by identifier, after `after`, at most
 /// `limit`, within what `scope` lets read (spec 006, REQ-006-9).
 ///
@@ -273,6 +278,7 @@ pub async fn filter_all_in(
     domain: Uuid,
     conditions: &[(Uuid, Condition)],
     kind: Option<&str>,
+    values: &[String],
     at: OffsetDateTime,
     after: Option<Uuid>,
     limit: i64,
@@ -281,7 +287,7 @@ pub async fn filter_all_in(
     let Some(((first_property, first_condition), others)) = conditions.split_first() else {
         return Err(FilterError::Unsupported("no condition".to_owned()));
     };
-    let (first, values, low, high, carriers) =
+    let (first, wanted, low, high, carriers) =
         prepare(pool, *first_property, first_condition, at, &Slots::of(0)).await?;
     let mut prepared = Vec::with_capacity(others.len());
     for (index, (property, condition)) in others.iter().enumerate() {
@@ -298,11 +304,12 @@ pub async fn filter_all_in(
         .bind(after)
         .bind(limit)
         .bind(carriers)
-        .bind(values)
+        .bind(wanted)
         .bind(low)
         .bind(high)
         .bind(scope.to_json())
-        .bind(kind);
+        .bind(kind)
+        .bind(values);
     for ((property, _), (_, values, low, high, carriers)) in others.iter().zip(prepared) {
         query = query
             .bind(*property)
@@ -401,6 +408,7 @@ pub async fn filter_plan(
         .bind(high)
         .bind(None::<serde_json::Value>)
         .bind(None::<String>)
+        .bind(Vec::<String>::new())
         .fetch_all(&mut *tx)
         .await?;
     tx.rollback().await?;
