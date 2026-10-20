@@ -1,0 +1,16 @@
+[package]
+name = "kartenn-vlan"
+version = "0.0.0"
+description = "VLAN module of kartenn: IEEE 802.1Q VLANs in VLAN groups"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-core = { path = "../kartenn-core" }
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+unicode-normalization = "0.1.25"
