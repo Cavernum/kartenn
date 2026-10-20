@@ -485,6 +485,7 @@ pub async fn run(
                 &journal,
                 config.audit.read_audit(),
                 config.telemetry.names().into(),
+                config.web.as_ref(),
             )
             .await?,
         ),
@@ -634,6 +635,35 @@ fn authn(
     })
 }
 
+/// What `[web]` serves (spec 007): the shell, the plugins and the task that reads them
+/// again.
+type Served = (
+    Option<Arc<kartenn_rest::web::Web>>,
+    Option<Arc<kartenn_rest::web::Plugins>>,
+    Option<JoinHandle<()>>,
+);
+
+/// Opens the shell and the plugins of `[web]`, and reads the plugins again every 10 s.
+fn serve_web(web: Option<&crate::config::Web>) -> anyhow::Result<Served> {
+    let shell = web
+        .and_then(|web| web.root.as_deref())
+        .map(kartenn_rest::web::Shell::open)
+        .transpose()?;
+    let plugins = web
+        .and_then(|web| web.plugins_dir.as_deref())
+        .map(|dir| {
+            kartenn_rest::web::Plugins::open(dir, kartenn_rest::capabilities::module_names())
+                .map(Arc::new)
+                .with_context(|| format!("web.plugins_dir: {}", dir.display()))
+        })
+        .transpose()?;
+    let watcher = plugins
+        .as_ref()
+        .map(|plugins| plugins.watch(kartenn_rest::web::plugins::RELOAD_EVERY));
+    let web = web.map(|_| Arc::new(kartenn_rest::web::Web::new(shell, plugins.clone())));
+    Ok((web, plugins, watcher))
+}
+
 /// The API being served.
 struct Api {
     stop: tokio::sync::oneshot::Sender<()>,
@@ -644,12 +674,16 @@ struct Api {
     /// The authentication, whose aggregated failures the main loop records; none without
     /// `[auth]`.
     authn: Option<Arc<ServerAuthn>>,
+    /// The plugins of the shell, read again on `SIGHUP` and by `watcher` (spec 007).
+    plugins: Option<Arc<kartenn_rest::web::Plugins>>,
+    watcher: Option<JoinHandle<()>>,
     #[cfg(unix)]
     hangup: Option<tokio::signal::unix::Signal>,
 }
 
 impl Api {
     /// Binds the address, reads the certificate, and serves in the background.
+    #[allow(clippy::too_many_arguments)] // the sections of the configuration it serves
     async fn start(
         http: &crate::config::Http,
         pool: &PgPool,
@@ -658,7 +692,9 @@ impl Api {
         journal: &PgAuditJournal,
         read_audit: kartenn_service::reads::ReadAudit,
         outputs: Arc<[String]>,
+        web: Option<&crate::config::Web>,
     ) -> anyhow::Result<Self> {
+        let (web, plugins, watcher) = serve_web(web)?;
         let authn = auth
             .map(|auth| authn(auth, pool, journal).map(Arc::new))
             .transpose()?;
@@ -676,12 +712,12 @@ impl Api {
             .map(crate::http::Certificates::acceptor)
             .transpose()?;
         #[cfg(unix)]
-        let hangup = match certificates {
-            Some(_) => Some(
+        let hangup = match (&certificates, &plugins) {
+            (None, None) => None,
+            _ => Some(
                 tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
                     .context("installing the SIGHUP handler")?,
             ),
-            None => None,
         };
         let rate = |r: crate::config::Rate| {
             kartenn_rest::quota::Rate::new(r.per_second, r.burst)
@@ -715,7 +751,7 @@ impl Api {
             sources: kartenn_service::expected::Sources::none(),
             outputs,
         };
-        let app = kartenn_rest::router(
+        let app = kartenn_rest::router_with_web(
             kartenn_rest::v1(objects),
             Arc::new(kartenn_rest::health::PgReadiness::new(
                 pool.clone(),
@@ -734,6 +770,7 @@ impl Api {
             },
             quotas.clone(),
             authenticator,
+            web,
         );
         tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
         let (stop, stopped) = tokio::sync::oneshot::channel();
@@ -746,13 +783,19 @@ impl Api {
             certificates,
             quotas,
             authn,
+            plugins,
+            watcher,
             #[cfg(unix)]
             hangup,
         })
     }
 
-    /// Reads the certificate again; a faulty one leaves the current one in place.
+    /// Reads the certificate again, a faulty one leaving the current one in place; reads
+    /// the plugins again in the background.
     fn reload(&self) {
+        if let Some(plugins) = self.plugins.clone() {
+            tokio::task::spawn_blocking(move || plugins.reload());
+        }
         if let Some(certificates) = &self.certificates {
             match certificates.reload() {
                 Ok(()) => tracing::info!(name: "http.tls.reloaded", "certificate read again"),
@@ -786,6 +829,9 @@ impl Api {
     /// [`crate::http::DRAIN_WITHIN`]), and records the refusals of the quotas still
     /// counted.
     async fn stop(self, journal: &PgAuditJournal) {
+        if let Some(watcher) = &self.watcher {
+            watcher.abort();
+        }
         let _ = self.stop.send(());
         let _ = self.server.await;
         record_refusals(journal, &self.quotas, self.authn.as_deref(), true).await;

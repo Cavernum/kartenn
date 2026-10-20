@@ -271,6 +271,15 @@ async fn a_retired_route_announces_its_successor() {
 }
 
 fn app(pool: &PgPool, identity: Uuid, settings: Settings) -> axum::Router {
+    app_with(pool, identity, settings, None)
+}
+
+fn app_with(
+    pool: &PgPool,
+    identity: Uuid,
+    settings: Settings,
+    web: Option<Arc<kartenn_rest::web::Web>>,
+) -> axum::Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
@@ -280,7 +289,7 @@ fn app(pool: &PgPool, identity: Uuid, settings: Settings) -> axum::Router {
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from([]),
     };
-    kartenn_rest::router(
+    kartenn_rest::router_with_web(
         kartenn_rest::v1(api),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
         settings,
@@ -292,7 +301,57 @@ fn app(pool: &PgPool, identity: Uuid, settings: Settings) -> axum::Router {
             groups: Vec::new(),
             method: Method::Bearer,
         })),
+        web,
     )
+}
+
+/// `ui_plugins` publishes, for each plugin of the directory, what the shell needs to load
+/// it (spec 007, REQ-007-7; task 007-5).
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
+    let dir = std::env::temp_dir().join(format!("kartenn-capabilities-{}", Uuid::now_v7()));
+    let version = dir.join("example/1.1.0");
+    std::fs::create_dir_all(version.join("i18n")).unwrap();
+    let manifest = serde_json::json!({
+        "name": "example", "version": "1.1.0", "sdk": "^1.0", "entry": "index.js",
+        "catalogs": { "en": "i18n/en.json", "fr": "i18n/fr.json" },
+        "extensions": [{ "point": "tab", "id": "notes", "element": "example-notes",
+                         "object_types": ["prefix"], "label": "tab.notes",
+                         "permission": "core.prefix.read" }]
+    });
+    std::fs::write(version.join("manifest.json"), manifest.to_string()).unwrap();
+    std::fs::write(version.join("index.js"), "export {};").unwrap();
+    std::fs::write(version.join("i18n/en.json"), r#"{"tab":{"notes":"Notes"}}"#).unwrap();
+    std::fs::write(version.join("i18n/fr.json"), r#"{"tab":{"notes":"Notes"}}"#).unwrap();
+    let plugins =
+        kartenn_rest::web::Plugins::open(&dir, kartenn_rest::capabilities::module_names()).unwrap();
+    let web = Arc::new(kartenn_rest::web::Web::new(None, Some(Arc::new(plugins))));
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let app = app_with(&pool, identity, Settings::default(), Some(web));
+    let (status, capabilities) = read(&app, "/v1/capabilities").await;
+    assert_eq!(status, StatusCode::OK, "{capabilities}");
+    let plugin = &capabilities["ui_plugins"][0];
+    assert_eq!(plugin["name"], "example");
+    assert_eq!(plugin["version"], "1.1.0");
+    assert_eq!(plugin["sdk"], "^1.0");
+    assert_eq!(plugin["base"], "/plugins/example/1.1.0/");
+    assert_eq!(plugin["entry"], "/plugins/example/1.1.0/index.js");
+    for file in ["index.js", "manifest.json", "i18n/en.json", "i18n/fr.json"] {
+        assert!(
+            plugin["integrity"][file]
+                .as_str()
+                .is_some_and(|sri| sri.starts_with("sha384-")),
+            "{file}: {plugin}"
+        );
+    }
+    assert_eq!(plugin["catalogs"]["fr"], "i18n/fr.json");
+    assert_eq!(plugin["extensions"], manifest["extensions"]);
+    assert_eq!(capabilities["ui_plugins"].as_array().unwrap().len(), 1);
 }
 
 async fn read(app: &axum::Router, path: &str) -> (StatusCode, Value) {

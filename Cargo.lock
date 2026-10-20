@@ -1827,6 +1827,7 @@ dependencies = [
 name = "kartenn-rest"
 version = "0.0.0"
 dependencies = [
+ "arc-swap",
  "axum",
  "base64 0.22.1",
  "form_urlencoded",
@@ -1844,8 +1845,10 @@ dependencies = [
  "kartenn-telemetry",
  "kartenn-workspace-hack",
  "p256",
+ "percent-encoding",
  "rand_core 0.6.4",
  "rcgen",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",

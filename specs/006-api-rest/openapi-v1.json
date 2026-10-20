@@ -6001,11 +6001,113 @@
           }
         ]
       },
-      "UiPlugin": {
-        "description": "A plugin of the interface (D17).",
+      "UiExtension": {
+        "additionalProperties": false,
+        "description": "A point of extension a plugin fills.",
         "properties": {
+          "element": {
+            "description": "The Custom Element, prefixed by the name of the plugin.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique in the plugin.",
+            "type": "string"
+          },
+          "label": {
+            "description": "The key of its label in the catalogues.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nav": {
+            "description": "The key of its entry of navigation in the catalogues (a view).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object_types": {
+            "description": "The types of objects it applies to; empty for a view.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "permission": {
+            "description": "The permission without which the shell hides it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "point": {
+            "$ref": "#/components/schemas/UiExtensionPoint",
+            "description": "The point."
+          }
+        },
+        "required": [
+          "point",
+          "id",
+          "element"
+        ],
+        "type": "object"
+      },
+      "UiExtensionPoint": {
+        "description": "The points of extension of the SDK (W5).",
+        "enum": [
+          "view",
+          "tab",
+          "panel",
+          "column",
+          "action"
+        ],
+        "type": "string"
+      },
+      "UiPlugin": {
+        "description": "A plugin of the interface (D17; spec 007, REQ-007-7): what the shell needs to load it\nwith the integrity of each file.",
+        "properties": {
+          "base": {
+            "description": "The URL of its directory, `/plugins/<name>/<version>/`.",
+            "type": "string"
+          },
+          "catalogs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Its catalogues of messages by language, by path relative to `base`.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "entry": {
+            "description": "The URL of its entry module.",
+            "type": "string"
+          },
+          "extensions": {
+            "description": "The points of extension it fills.",
+            "items": {
+              "$ref": "#/components/schemas/UiExtension"
+            },
+            "type": "array"
+          },
+          "integrity": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The SRI digest (`sha384-…`) of each module, style sheet and catalogue, by path\nrelative to `base`.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "name": {
             "description": "Its name.",
+            "type": "string"
+          },
+          "sdk": {
+            "description": "The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`).",
             "type": "string"
           },
           "version": {
@@ -6015,7 +6117,13 @@
         },
         "required": [
           "name",
-          "version"
+          "version",
+          "sdk",
+          "base",
+          "entry",
+          "integrity",
+          "catalogs",
+          "extensions"
         ],
         "type": "object"
       },

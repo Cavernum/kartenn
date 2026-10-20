@@ -37,6 +37,22 @@ pub struct Config {
     /// The HTTP API (spec 006); without it, the instance runs the background work alone.
     #[serde(default)]
     pub http: Option<Http>,
+    /// The web shell and its plugins (spec 007); without it, nothing is served outside
+    /// `/v1` and `/health`.
+    #[serde(default)]
+    pub web: Option<Web>,
+}
+
+/// The web shell and its plugins (spec 007, design « Configuration »).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Web {
+    /// The build of the shell; without it, only the plugins are served (development
+    /// behind Vite).
+    pub root: Option<PathBuf>,
+    /// The plugins, one directory `<name>/<version>/` each; without it, `ui_plugins` is
+    /// empty.
+    pub plugins_dir: Option<PathBuf>,
 }
 
 /// The HTTP API (spec 006, design « Configuration »).
@@ -704,6 +720,14 @@ fn check(config: &Config) -> Result<(), ConfigError> {
     if let Some(http) = &config.http {
         check_http(http).map_err(ConfigError::Invalid)?;
     }
+    if let Some(root) = config.web.as_ref().and_then(|web| web.root.as_ref()) {
+        kartenn_rest::web::Shell::open(root).map_err(|e| ConfigError::Invalid(e.to_string()))?;
+    }
+    if let Some(dir) = config.web.as_ref().and_then(|web| web.plugins_dir.as_ref())
+        && let Err(e) = std::fs::read_dir(dir)
+    {
+        return invalid(format!("web.plugins_dir: {}: {e}", dir.display()));
+    }
     Ok(())
 }
 
@@ -994,5 +1018,28 @@ mod tests {
             let error = from_toml(&text).unwrap_err().to_string();
             assert!(error.contains(reason), "{reason}: {error}");
         }
+    }
+
+    #[test]
+    fn a_faulty_web_section_stops_the_start_with_its_reason() {
+        let root = std::env::temp_dir().join(format!("kartenn-web-config-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let section = format!("[web]\nroot = \"{}\"", root.display());
+        let error = from_toml(&section).unwrap_err().to_string();
+        assert!(error.contains("index.html"), "{error}");
+        std::fs::write(root.join("index.html"), "<html><script>x</script></html>").unwrap();
+        let error = from_toml(&section).unwrap_err().to_string();
+        assert!(error.contains("importmap"), "{error}");
+        std::fs::write(
+            root.join("index.html"),
+            "<script type=\"importmap\">{\"imports\":{}}</script>",
+        )
+        .unwrap();
+        let config = from_toml(&section).unwrap();
+        assert_eq!(config.web.unwrap().root.as_deref(), Some(root.as_path()));
+        let error = from_toml(&section.replace("root", "rooot"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("rooot"), "{error}");
     }
 }

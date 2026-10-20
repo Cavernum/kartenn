@@ -63,7 +63,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P1 — Service par kartenn-server
 
-- [ ] 3. Section `[web]` et service du shell : module `kartenn-rest::web` (résolution des
+- [x] 3. Section `[web]` et service du shell : module `kartenn-rest::web` (résolution des
   chemins, types, cache et 304, en-têtes, empreinte de l'import map relue au changement
   d'`index.html`), `fallback` du routeur, quotas limités à `/v1`, câblage dans `app::run`
   — REQ-007-1, 2, 3 — verify : `rest/tests/web.rs` (repli sur `index.html`, 404 sous
@@ -79,7 +79,17 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `rest/tests/socle.rs` ; `dev/kartenn.toml` (ajouter `[web] plugins_dir`, reporté de
   la tâche 9 ; test `the_development_configuration_is_valid` de
   `kartenn-server/tests/dev_idp.rs`)
-- [ ] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
+  — `kartenn-rest/src/web.rs` (`Web`, `Shell`, `serve`), `router_with_web` dans
+  `lib.rs`, `quota::layer` limité à `/v1` ; `[web]` dans `kartenn-server/src/config.rs`
+  (`Web`, refus au chargement par `Shell::open`) et `app.rs` (`Api::start`) ; tests
+  `rest/tests/web.rs` (9), `config::tests::a_faulty_web_section_…`, routes de
+  `rest/tests/quota.rs` passées sous `/v1`
+  choix : `router` garde sa signature et délègue à `router_with_web` (appelants de test
+  inchangés) ; 404 du shell en `text/plain`, 404 problème sous `/v1` et `/health` ;
+  `index.html` relu au changement de taille ou de date à chaque requête, l'ancien gardé
+  si le nouveau n'a pas d'import map ; dépendances `arc-swap`, `base64`,
+  `percent-encoding` (déjà dans l'arbre) ajoutées à `kartenn-rest`
+- [x] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
   empreintes `sha384` (rehachées au seul changement de taille ou de date), version
   publiée, filtre par module, service sous `/plugins/`, relecture toutes les 10 s et sur
   `SIGHUP`, journaux `web.plugin.*` — REQ-007-4, 5, 6, 8, 11 — verify : unitaires du
@@ -91,13 +101,32 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « Plugins côté serveur » ; `kartenn-rest/src/web.rs` (tâche 3) ;
   `kartenn-server/src/app.rs` (`hangup`, lignes 648 à 682) et `http.rs` (certificat relu
   sur `SIGHUP`) à imiter ; `arc-swap`, `sha2`, `base64` de l'espace de travail
-- [ ] 5. `ui_plugins` enrichi dans les capacités et contrat de référence mis à jour —
+  — `kartenn-rest/src/web/plugins.rs` (`Plugins` : `open`, `reload`, `watch`,
+  `published`, `RELOAD_EVERY`, `MAX_FILES`, `MAX_BYTES`), service sous `/plugins/` dans
+  `web.rs` (`ETag` = empreinte SRI, 304) ; `capabilities::module_names` ; serveur :
+  `serve_web` et relecture sur `SIGHUP` (signal installé avec TLS ou plugins) dans
+  `app.rs`, `plugins_dir` illisible refusé au chargement de la configuration ; tests
+  `rest/tests/plugins.rs` (9), unitaires du module (formes de `sdk`, noms, clés) et
+  `server/tests/http.rs` (`a_plugin_deposited_is_served_at_the_next_sighup`)
+  choix : dépendance `semver` (déjà dans l'arbre) pour l'ordre des versions ; clés des
+  catalogues plates (`"tab.notes"`) ou imbriquées ; `label` et `nav` facultatifs,
+  vérifiés s'ils sont présents ; plugin d'un module absent journalisé comme
+  `web.plugin.rejected` ; empreinte de « `abc` » tirée de FIPS 180-2 (pas d'`openssl`
+  dans devenv) ; le délai de 10 s éprouvé par `watch` à 100 ms et la constante
+- [x] 5. `ui_plugins` enrichi dans les capacités et contrat de référence mis à jour —
   REQ-007-7 — verify : comparateur du contrat vert (membres ajoutés seulement) ;
   `GET /v1/capabilities` sur un répertoire de test publie base, entrée, empreintes,
   plage, extensions et catalogues
   où : `kartenn-rest/src/capabilities.rs` (`UiPlugin`, `capabilities`), `contract.rs`
   (`breaches`), `specs/006-api-rest/openapi-v1.json`, binaire `openapi` ;
   `rest/tests/contract.rs` (`the_contract_keeps_its_reference`)
+  — `UiPlugin` (`sdk`, `base`, `entry`, `integrity`, `catalogs`, `extensions`) rempli
+  depuis `Plugins::published` (le registre passe aux routes en `Extension<Arc<Web>>`) ;
+  schémas `UiExtension` et `UiExtensionPoint` ; `openapi-v1.json` réécrit (membres
+  ajoutés seulement) ; test `contract.rs`
+  (`the_capabilities_publish_the_plugins_of_the_directory`)
+  choix : noms de schéma préfixés `Ui` (`Extension` seul aurait été ambigu dans le
+  contrat)
 
 ## P2 — Ajouts à l'API
 
