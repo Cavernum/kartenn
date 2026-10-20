@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # 011 — Registre de flux : conception
@@ -9,91 +9,120 @@ updated: 2026-10-20
 
 Crate `kartenn-flow` (espace `flow`), dépendante de `kartenn-policy` (010) et,
 facultativement, de `kartenn-machines` (009). Elle réutilise l'évaluation de la 010
-(`PolicySnapshot`, `evaluate`) et ajoute un **index incrémental** : les verdicts de
-chaque flux, matérialisés, et l'index inverse adresse → flux, qui permettent de trouver
-en une jointure les flux touchés par un différentiel.
+(`PolicySnapshot`, `evaluate`, dossier) et ajoute un **index incrémental** : les
+évaluations de chaque flux, matérialisées, et l'index inverse adresse → flux, qui
+permettent de trouver en une jointure les flux touchés par un différentiel.
 
-> Décision centrale : les verdicts des flux sont matérialisés (`flow_verdict`) et
-> recalculés **dans la transaction du changeset**, par une contribution au différentiel
-> qui s'exécute **après** celles de la 003 (propriétés), de la 009 (rattachements) et de
-> la 010 (politique), et qui lit leurs résultats.
+> Décision centrale : les évaluations des flux (verdict, issue, conditions, score) sont
+> matérialisées (`flow_evaluation`) et recalculées **dans la transaction du changeset**,
+> par une contribution au différentiel qui s'exécute **après** celles de la 003
+> (propriétés), de la 009 (rattachements) et de la 010 (politique), et qui lit leurs
+> sections (ADR 0026, clause 13). L'état d'un flux (actif, non conforme, sous
+> dérogation…) se **dérive** de cette évaluation, du changeset et du temps : un flux
+> conforme n'a pas de date de fin (D30 amendée).
 
 ```mermaid
 flowchart TD
-  W[Écritures du changeset] --> P3[Différentiel des propriétés 003]
+  D[Demande POST /v1/flows] --> E[Évaluation 010 avec dossier]
+  E -->|allowed + automatic| A[Changeset appliqué : flux enregistré]
+  E -->|sinon| P[Proposition à instruire 004]
+  P -->|instructeur approuve, date de fin, dérogation si refusé| A
+  P -->|instructeur rejette, motif| NC[Non-conformité]
+  W[Écritures d'un changeset] --> P3[Différentiel des propriétés 003]
   W --> M9[Rattachements changés 009]
   W --> P10[Différentiel de politique 010]
-  P3 --> T[Flux touchés : index adresse → flux, triplets → flux]
+  P3 --> T[Flux touchés]
   M9 --> T
   P10 --> T
-  W --> T
-  T --> R[Recalcul des verdicts sur la fenêtre du changeset]
-  R --> D[Différentiel des flux + anomalies + déclencheur flow.breaks]
+  T --> R[Recalcul des évaluations sur la fenêtre]
+  R --> S[Différentiel des flux + anomalies + déclencheur flow.breaks + événements]
 ```
 
 ## Changements
 
-### Données (REQ-011-1 à 4, 16)
+### Données (REQ-011-1 à 4, 16, 20, 23, 25)
 
-Tables versionnées (ADR 0017) :
+Tables versionnées (ADR 0017), types de module inscrits dans `module_object` (ADR 0026,
+clause 4), ancrés sur l'entité du flux :
 
 | Table | Contenu |
 |---|---|
-| `flow` | `id`, `source_kind`, `source_id`, `destination_kind`, `destination_id`, `service_id`, `justification`, `requester_id` (identité), `on_behalf_of`, `entity_id`, `external_ref`, `waiver_reason`, `waiver_until`, période |
-| `flow_endpoint_address` | `flow_id`, `side` (`source`, `destination`), `address_id` : adresses développées des extrémités, par segment de période (maintenue avec les rattachements 009) ; index `(address_id)` |
-| `flow_verdict` | `flow_id`, `source_address_id`, `destination_address_id`, `verdict`, `reason`, `decisive_id`, `pair` ; segments de période |
-| `flow_summary` | `flow_id`, `summary` (`allowed`, `partial`, `denied`), décomptes ; segments de période ; index `(summary)` |
+| `flow` | `id`, `kind` (`requested` ; `observed` réservé), `source_kind`, `source_id`, `destination_kind`, `destination_id`, `service_id`, `external_refs jsonb` (≥ 1 : système, identifiant), `justification` (facultative), `requester_id` (identité), `on_behalf_of jsonb` (référence externe typée, N26, ou texte), `responsibles jsonb`, `data_nature uuid[]` (valeurs de l'axe de sensibilité), `personal_data bool`, `entity_id`, `reviewed_by`, période (fin facultative) |
+| `flow_waiver` | `flow_id`, `reason`, `accepted_risk`, `granted_by`, période (fin obligatoire) ; une dérogation par flux et par période |
+| `flow_endpoint_address` | `flow_id`, `side`, `address_id` : adresses développées des extrémités, par segment de période (maintenue avec les rattachements 009) ; index `(address_id)` |
+| `flow_evaluation` | `flow_id`, `source_address_id`, `destination_address_id`, `verdict`, `pending` (sous réserve), `outcome`, `reason`, `decisive_id`, `combination`, `unmet_conditions uuid[]`, `score`, `policy_revision` ; segments de période |
+| `flow_summary` | `flow_id`, `summary`, `outcome`, décomptes ; segments de période ; index `(summary)`, `(outcome)` |
+| `flow_registration` | `flow_id`, évaluation de l'enregistrement figée (synthèse, issue, élément décisif, révision, instructeur) |
+| `flow_rejection` | `changeset_id` (proposition rejetée), demande normalisée, évaluation, `reason`, `rule_id`, `reviewed_by`, `requester_id`, `entity_id` : non-conformité d'une demande rejetée |
+| `flow_notice` | `flow_id`, `kind`, `period_end` : échéances déjà notifiées |
 
 Un préfixe en extrémité est une « adresse » au sens de ces tables (le nœud lui-même,
-REQ-010-13). Les tables de verdicts sont, comme `property_origin` (ADR 0016), un état
+REQ-010-13). Les tables d'évaluation sont, comme `property_origin` (ADR 0016), un état
 dérivé versionné en temps système : `as_of` passé se lit dans l'historique.
 
-### Opérations et règles (REQ-011-1 à 4, 8 à 10)
+### Opérations et règles (REQ-011-1 à 4, 8 à 10, 21, 22)
 
-Opérations `flow.flow.create | update | close` (contrat de module, N2), sous le verrou
-`flow` (F13). Règles :
+Opérations `flow.flow.request | update | close | waive | approve_review` (enveloppe de
+module, ADR 0026 clause 6), sous le verrou `flow` (F13). `request` évalue la demande ;
+la route `POST /v1/flows` soumet un changeset d'application si la synthèse est
+`allowed` et l'issue `automatic`, sinon une **proposition** (REQ-004-41).
+`approve_review` est ajoutée par l'instructeur à la proposition avant de l'approuver
+(fin de période, dérogation éventuelle) ; le rejet d'une proposition (004) avec un motif
+alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 
 | Règle | Sévérité | Cas |
 |---|---|---|
 | `flow.endpoint.invalid` | erreur | plage, objet absent ou invalide sur une partie de la période |
 | `flow.service.closed` | erreur | service non actif sur toute la période |
-| `flow.verdict.denied` | erreur à l'écriture d'un flux sans dérogation ; avertissement (anomalie) quand un autre changement le casse | REQ-011-8, 12 |
+| `flow.reference.missing` | erreur | aucune référence externe |
+| `flow.kind.reserved` | erreur | sorte `observed` en v0.2 |
+| `flow.review.required` | erreur | application d'un flux dont l'issue n'est pas automatique sans `approve_review` |
+| `flow.review.end_required` | erreur | flux instruit sans fin, ou au-delà de `review_max_months` |
+| `flow.verdict.denied` | erreur à l'enregistrement sans dérogation ; avertissement (anomalie) quand un autre changement le casse | REQ-011-8, 12 |
 | `flow.verdict.partial` | avertissement | REQ-011-10 |
-| `flow.waiver.invalid` | erreur | motif vide, fin absente ou après celle du flux |
-| `flow.referenced` | erreur | clôture d'une extrémité citée (REQ-011-3), via `dependents()` |
+| `flow.waiver.invalid` | erreur | motif ou risque vide, fin absente ou au-delà du plafond, auteur = demandeur |
+| `flow.separation` | erreur | instructeur = demandeur |
+| `flow.referenced` | erreur | clôture d'une extrémité citée (REQ-011-3), via les références déclarées (clause 12) |
 
 `update` refuse le changement d'extrémité ou de service (REQ-011-4) : le client crée un
 nouveau flux et clôt l'ancien dans le même changeset.
 
-### État dérivé (REQ-011-5)
+### État dérivé (REQ-011-5, 24)
 
-Fonction de lecture : changeset de création (état 004 : en attente, rejeté, appliqué)
-puis position de `valid_at` dans la période ; `withdrawn` si la dernière version a été
-raccourcie par une clôture (opération `close`) plutôt qu'arrivée à son terme
-(distinguées par l'opération enregistrée dans le changeset). Les flux `requested`
-viennent des propositions et changesets en attente (lecture de leurs opérations).
+Fonction de lecture, dans l'ordre : changeset de création en attente → `requested` ;
+rejeté, retiré ou expiré → `rejected` ; appliqué et `valid_at` avant le début →
+`scheduled` ; `valid_at` après la fin → `expired`, ou `withdrawn` si la dernière
+version a été raccourcie par `close` ; sinon synthèse courante `denied` → `waived` si
+une dérogation couvre `valid_at`, `noncompliant` sinon ; sinon `active`. Un flux sans
+fin ne passe jamais `expired` (validité dérivée). Les flux `requested` viennent des
+propositions en attente (lecture de leurs opérations, N24).
 
 ### Réévaluation (REQ-011-11 à 13)
 
-Contribution au différentiel du module (N4, ordre du DAG : après 003, 009, 010) :
+Contribution au différentiel du module (section `flow.flows`, ordre du DAG : après
+003, 009, 010) :
 
 1. **Flux touchés** :
    - flux écrits par le changeset ;
-   - adresses du différentiel des propriétés pour `policy.environment` (003) →
+   - adresses du différentiel des propriétés pour un axe cité par l'instantané (003) →
      `flow_endpoint_address` → flux ;
-   - interfaces ou machines dont les rattachements changent (009) → recalcul de
-     `flow_endpoint_address` pour les flux qui les citent → flux ;
-   - triplets du différentiel de politique (010) → flux dont le service figure dans un
-     triplet (index `flow(service_id)`), filtrés en mémoire par paire d'environnements.
+   - interfaces ou machines dont les rattachements changent (section
+     `machines.attachments`, M7) → recalcul de `flow_endpoint_address` pour les flux qui
+     les citent → flux ; et machines dont un axe porté par la machine change (M8, M10) ;
+   - combinaisons de la section `policy.combinations` (010) → flux dont le service
+     figure dans une combinaison (index `flow(service_id)`), filtrés en mémoire par
+     valeurs d'axes ; un changement de condition ou de signal touche tous les flux du
+     sélecteur de la condition (index par type de flux).
 2. **Recalcul** pour chaque flux touché, sur la fenêtre du changeset, segmentée aux
-   bornes de la période du flux, des versions des rattachements, des origines
-   d'environnement des adresses et de la politique ; une lecture groupée des
-   environnements (N9) par lot de 512 adresses ; évaluation en mémoire (010).
+   bornes de la période du flux, des versions des rattachements, des origines des axes
+   et de la politique ; lecture groupée des valeurs (N9) par lot de 512 adresses ;
+   évaluation en mémoire (010) avec le dossier du flux.
 3. **Écriture** des seuls segments qui changent (verrous de ligne dans l'ordre des
    `flow_id`, F13), fusion des segments contigus égaux.
-4. **Différentiel** : flux dont la synthèse ou un verdict change, stocké
-   (`flow_changeset_diff`), décompte `breaks` / `heals` / `changes` ; anomalies ouvertes
-   ou fermées (N11) ; déclencheur `flow.breaks` évalué sur le décompte (N5).
+4. **Différentiel** : flux dont la synthèse, un verdict ou l'issue change, décompte
+   `breaks` / `heals` / `outcome` ; anomalies ouvertes ou fermées (clause 7) ;
+   déclencheur `flow.breaks` évalué sur le décompte (N5) ; événements
+   `outcome_changed` (N15, N35) émis à l'application.
 
 Simulation : même chemin, transaction annulée.
 
@@ -102,75 +131,107 @@ décompte et le changeset suit le budget exceptionnel de la 003 (REQ-003-26, < 6
 
 ### Échéances (REQ-011-7)
 
-Tâche de fond quotidienne `flow.expiry` (ADR 0023) : flux dont la fin de période tombe à
-J-30 ou J-7 (réglable, `[flow] expiry_notice_days`) → événements ; un enregistrement
-`flow_notice (flow_id, kind, period_end)` évite les doublons et suit une prolongation.
+Tâche de fond quotidienne `flow.expiry` (genre de module, N14) : flux datés et
+dérogations dont la fin tombe à J-30 ou J-7 (réglable, `[flow] expiry_notice_days`) →
+événements ; `flow_notice` évite les doublons et suit une prolongation. Un flux sans fin
+n'a pas d'échéance.
+
+### Non-conformités (REQ-011-25)
+
+Vue de lecture : union de `flow_rejection` (demandes rejetées), des flux dont l'état
+dérivé est `noncompliant` (avec l'anomalie `flow.verdict.denied`, acquittable) et des
+flux `waived` ; chaque ligne porte le motif ou l'élément décisif, la règle et son texte
+pédagogique (lus dans l'instantané à la date). Droits : lecture de l'entité, ou
+demandeur de la ligne avec `flow.flow.request`.
 
 ### Lecture et filtres (REQ-011-14 à 16)
 
-Filtres SQL : extrémité exacte (`source_id`/`destination_id`) ; sous-arbre d'un préfixe
-(`flow_endpoint_address` jointe aux adresses contenues, opérateur `<<=`) ; machine
-(adresses de la machine) ; service, type (jointure), état (prédicat sur période et
-changeset), synthèse (`flow_summary`), dérogation, entité, demandeur, échéance. Droits :
-prédicat RBAC de la 005 sur `entity_id` (ADR 0021).
+Filtres SQL : extrémité exacte ; sous-arbre d'un préfixe (`flow_endpoint_address`
+jointe aux adresses contenues, opérateur `<<=`) ; machine ; service, type ; sorte ; état
+(prédicat sur période, changeset, `flow_summary`, `flow_waiver`) ; synthèse, issue,
+règle décisive (`flow_evaluation.decisive_id`) ; dérogation, échéance ; entité,
+demandeur, référence externe (`external_refs @>`) ; valeur d'axe d'une extrémité
+(jointure de `flow_endpoint_address` et des valeurs résolues). Droits : prédicat RBAC
+de la 005 sur `entity_id` (ADR 0021).
 
 ### API (REQ-011-18)
 
 | Route | Rôle |
 |---|---|
 | `GET /v1/flows`, `QUERY /v1/flows` | liste filtrée, datée |
-| `GET /v1/flows/{id}`, `POST /v1/flows`, `PATCH`, `DELETE` | ressource (changeset d'une opération) |
-| `GET /v1/flows/{id}/verdicts` | verdicts par paire, datés, avec explications |
+| `GET /v1/flows/{id}`, `POST /v1/flows`, `PATCH`, `DELETE` | ressource ; `POST` trie (REQ-011-21) et rend l'évaluation |
+| `GET /v1/flows/{id}/evaluations` | évaluations par paire, datées, avec explications (réduites selon REQ-010-25) |
+| `GET /v1/flow-nonconformities` | non-conformités filtrées |
 | `GET /v1/{collection}/{id}/flows` | flux d'un objet (REQ-011-15), pour adresses, préfixes, interfaces, machines |
+| `POST /v1/changesets/{id}/approve`, `…/reject` | instruction (004), avec `approve_review` ajouté par l'instructeur |
 
 ## Exigences envers le noyau, le contrat de module et la 009
 
-Celles de la 010 (design 010, § Exigences : N1 à N16, M1 à M6) s'appliquent, plus :
+Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent, plus :
 
 | # | Exigence | État |
 |---|---|---|
-| N21 | Les contributions au différentiel s'exécutent dans l'ordre du DAG des modules et chacune lit les résultats des précédentes (différentiel 003, rattachements 009, différentiel 010) | à prévoir (ADR 0026) |
-| N22 | `dependents()` des objets du noyau (adresses, préfixes) extensible par un module (flux qui les citent) | à prévoir (ADR 0026 ; 004 liste aujourd'hui les seuls dépendants du noyau) |
-| N23 | Un objet de module peut référencer une **identité** par son identifiant, sans copie de donnée personnelle, et la pseudonymisation (REQ-004-33) s'y applique | à vérifier (005) |
+| N21 | Les contributions au différentiel s'exécutent dans l'ordre du DAG des modules et chacune lit les résultats des précédentes (différentiel 003, rattachements 009, différentiel 010) | fourni (ADR 0026, clause 13) |
+| N22 | Dépendants des objets du noyau (adresses, préfixes) extensibles par un module (flux qui les citent) | fourni (ADR 0026, clause 12) |
+| N23 | Un objet de module peut référencer une **identité** par son identifiant, sans copie de donnée personnelle, et la pseudonymisation (REQ-004-33) s'y applique | fourni (ADR 0026, clause 15, règle de conception) |
 | N24 | Une lecture peut connaître l'état d'un changeset (en attente, rejeté, appliqué) et ses opérations, pour dériver un état de module | tenu (004, lecture des changesets) |
-| M7 | La 009 publie, dans le changeset, la liste des interfaces et machines dont les rattachements changent, avec la période (pour N21) | à prévoir |
+| N38 | Un module est appelé au **rejet** d'une proposition qui contient ses opérations (motif du rejet, auteur), pour enregistrer un objet dérivé (non-conformité) dans la transaction du rejet | à prévoir : crochet additif du contrat de module, livré par la tâche 011-6 (méthode à implémentation par défaut) |
+| N39 | Un module peut **exiger** qu'un changeset contenant ses opérations soit enregistré comme proposition, même si l'auteur détient l'écriture (issue non automatique), désigner la permission qui le valide (`flow.flow.review`, en plus de REQ-004-42), et l'approbateur peut y ajouter une opération (`approve_review`) validée avec le reste | à prévoir : aujourd'hui une proposition naît seulement de l'absence du droit d'écriture (REQ-004-41) ; amendement additif de la 004 et du contrat (tâche 011-3) |
+| M7 | La 009 publie, dans le changeset, la liste des interfaces et machines dont les rattachements changent, avec la période (pour N21) | fourni (REQ-009-23) |
 
 ## Erreurs et cas limites
 
 | Cas | Comportement |
 |---|---|
-| Machine sans adresse sur une partie de la période | verdict vide sur ce segment, synthèse `denied` motif `no_address` |
+| Machine sans adresse sur une partie de la période | évaluation vide sur ce segment, synthèse `denied` motif `no_address` |
 | Adresse d'extrémité close (cascade) | flux clos dans la même cascade |
-| Flux déjà expiré dont la politique change | pas de réévaluation hors de sa période (la fenêtre du changeset ne le couvre pas) |
-| Dérogation échue, flux toujours non conforme | anomalie `flow.verdict.denied` ouverte à la date de fin de la dérogation (tâche `flow.expiry`) |
-| Prolongation d'un flux | réévaluée sur la nouvelle portion seulement |
+| Flux expiré dont la politique change | pas de réévaluation hors de sa période |
+| Flux conforme sans fin dont la politique change | réévalué ; `noncompliant` s'il bascule, sans écriture d'état |
+| Dérogation échue, flux toujours refusé | `noncompliant` à la date de fin ; anomalie ouverte par la tâche `flow.expiry` |
+| Prolongation d'un flux daté ou d'une dérogation | réévaluée sur la nouvelle portion contre la politique du jour |
+| Demande sans dossier complet | issue `review` (condition « dossier ») : instruction |
+| Port sans service | refusé, issue `review` (REQ-010-14) : instruction ; l'instructeur fait ajouter le service ou rejette |
 
 ## Alternatives considérées
 
-- **Calcul des verdicts à la lecture** : simple, mais aucun différentiel sans tout
+- **Calcul des évaluations à la lecture** : simple, mais aucun différentiel sans tout
   recalculer (D30).
-- **Verrou `flow` pris par tout changeset qui touche un environnement** : sérialise
-  l'instance entière ; remplacé par des verrous de ligne (F13).
+- **Date de fin et prolongation automatique pour tous les flux** : écartée par Q16
+  (écriture périodique sans humain) ; validité dérivée à la place.
+- **Refus à l'enregistrement d'un flux à instruire** : écarté (Q2) ; la demande est
+  gardée comme proposition, ce qui trace l'instruction.
+- **Verrou `flow` pris par tout changeset qui touche une classification** : sérialise
+  l'instance ; remplacé par des verrous de ligne (F13).
 - **État stocké** (`status`) : écarté (F4).
 
 ## Risques et migration
 
-- La réévaluation dans la transaction alourdit les changesets de structure (insertion
-  d'un conteneur au-dessus de nombreux flux) : budget REQ-011-19 à confirmer au banc.
-- Dépend de N4, N21, N22 et M7 : sans eux, la réévaluation devrait passer par l'outbox,
-  donc hors de la transaction, ce qui interdit le différentiel avant application (D30).
+- La réévaluation dans la transaction alourdit les changesets de structure et de
+  politique : budget REQ-011-19 à confirmer au banc.
+- Dépend de N4, N21, N22, M7 (fournis) et de N5, N14, N15, N38 (points différés ou à
+  ajouter) : sans eux, la réévaluation et les événements devraient passer par l'outbox,
+  hors de la transaction.
+- La sorte `observed` (v0.3) ajoutera des flux sans demandeur ni instruction ; les
+  colonnes du demandeur restent donc facultatives au niveau du schéma, obligatoires par
+  règle pour `requested`.
 
 ## Stratégie de test
 
-- **Oracle** : verdicts matérialisés égaux, après toute suite aléatoire de changesets
-  (environnements, cellules, garde-fous, rattachements, flux), au recalcul complet.
-- **Cycle de vie** : un test par état de REQ-011-5.
-- **Conformité** : REQ-011-8 à 12, dérogations et anomalies (ouverture, fermeture).
+- **Oracle** : évaluations matérialisées égales, après toute suite aléatoire de
+  changesets (classifications, règles, conditions, rattachements, flux), au recalcul
+  complet.
+- **Triage et instruction** : un test par branche de REQ-011-21 et REQ-011-22,
+  séparation des tâches.
+- **Cycle de vie** : un test par état de REQ-011-5 ; validité dérivée (aucune écriture).
+- **Conformité** : REQ-011-8 à 12, dérogations (plafond, recertification, échéance) et
+  anomalies.
+- **Non-conformités** : les trois sources, droits du demandeur.
 - **Différentiel** : cas de REQ-011-13 en simulation.
 - **Banc** `bench-flow` (10⁵ flux) : REQ-011-19 bloquant en CI.
 
 ## ADR
 
-- ADR proposée (numéro à attribuer à la fusion) : **verdicts de flux matérialisés,
-  maintenus dans la transaction par une contribution au différentiel ordonnée par le
-  DAG des modules**.
+- ADR proposée (numéro à attribuer) : **évaluations de flux matérialisées, maintenues
+  dans la transaction par une contribution au différentiel ordonnée par le DAG des
+  modules ; état et validité dérivés**.
+- Amendement de l'ADR 0026 : crochet de rejet (N38).

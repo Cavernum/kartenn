@@ -239,6 +239,22 @@ la 010 : `policy.declared_environment` sur une machine).
 Acceptation :
 - Un module factice déclare une propriété non héritable portée par `machines.machine` ;
   elle s'affecte, s'explique et se filtre comme sur un préfixe.
+- Une machine porte en même temps plusieurs propriétés déclarées par d'autres modules
+  ou par un administrateur (sensibilité, criticité, application, rôle de conduit) :
+  chacune s'affecte et s'explique indépendamment (besoin M8 de la 010).
+
+#### REQ-009-25 — Valeurs des machines d'un lot d'adresses
+kartenn doit offrir aux modules qui dépendent de `machines`, dans la transaction d'un
+changeset comme en lecture, à (`valid_at`, `as_of`), pour un lot d'adresses et une liste
+de clés de propriétés : pour chaque adresse, les machines rattachées (avec l'interface
+qui porte l'adresse) et, pour chacune, les valeurs résolues de ces propriétés avec leur
+explication, ou l'absence de valeur ; la composition avec la valeur héritée de l'arbre
+d'adressage revient au module lecteur (besoins M8, M10 de la 010 ; 010/S27).
+
+Acceptation :
+- Lot de 512 adresses dont une VIP rattachée à deux machines aux sensibilités
+  différentes et une adresse sans machine : la VIP rend les deux machines et leurs
+  valeurs, l'adresse sans machine rend une liste vide, en une lecture.
 
 #### REQ-009-17 — Arêtes du graphe
 kartenn doit déclarer les arêtes `machines.has_address` (interface → adresse),
@@ -289,8 +305,10 @@ Acceptation :
 
 ## Couverture des besoins de la 010 et de la 011
 
-Besoins M1 à M7 (`specs/010-politique-flux/design.md`, `specs/011-registre-flux/design.md`,
-§ « Exigences envers le noyau, le contrat de module et la 009 »).
+Besoins M1 à M10 (`specs/010-politique-flux/design.md`, `specs/011-registre-flux/design.md`,
+§ « Exigences envers le noyau, le contrat de module et la 009 ») ; M8 à M10 viennent de
+l'entretien sécurité de la 010 (2026-10-21, `besoin/ecarts.md`, où ils portaient les
+numéros M7 à M9).
 
 | # | Besoin | Exigences |
 |---|---|---|
@@ -301,6 +319,9 @@ Besoins M1 à M7 (`specs/010-politique-flux/design.md`, `specs/011-registre-flux
 | M5 | rattachements par opérations typées, visibles des contributions et règles des dépendants | REQ-009-9, 23 |
 | M6 | dépendants des machines et interfaces extensibles | REQ-009-14 |
 | M7 | section des interfaces et machines dont les rattachements changent, avec la période | REQ-009-23 |
+| M8 | machines porteuses de plusieurs propriétés d'autres modules ou de l'administrateur, lues par l'adresse à la date | REQ-009-24, 25 |
+| M9 | rôle de conduit lisible par clé | tenu par M8 : la 010 en fait un axe porté par la machine (010/S26), distinct du rôle d'interface (REQ-009-8) |
+| M10 | défaut hérité pour un axe porté par la machine, explicable | REQ-009-25 (valeurs des machines d'une adresse, avec la source) ; composition par la 010 (010/S27) |
 
 ## Non-objectifs
 
