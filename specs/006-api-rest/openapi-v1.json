@@ -2477,6 +2477,75 @@
         ],
         "type": "object"
       },
+      "Listing_ImportDto": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "An import, as followed by its author.",
+              "properties": {
+                "batches": {
+                  "$ref": "#/components/schemas/Batches",
+                  "description": "The batches."
+                },
+                "chunks": {
+                  "description": "The chunks received.",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "elements": {
+                  "description": "The elements received.",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "id": {
+                  "description": "Identifier.",
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "links": {
+                  "$ref": "#/components/schemas/ImportLinks",
+                  "description": "Links."
+                },
+                "report": {
+                  "description": "The report of the batches run.",
+                  "type": "object"
+                },
+                "source": {
+                  "description": "The source of the elements.",
+                  "type": "string"
+                },
+                "state": {
+                  "description": "`uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "source",
+                "state",
+                "chunks",
+                "elements",
+                "batches",
+                "report",
+                "links"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_Node": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -9812,6 +9881,57 @@
       }
     },
     "/v1/imports": {
+      "get": {
+        "operationId": "list_imports",
+        "parameters": [
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_ImportDto"
+                }
+              }
+            },
+            "description": "The imports of the caller."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/imports`: the imports of the caller, the most recent first, by pages\n(REQ-007-40); those of anyone else are not listed. The list is read at the current\nstate on each page and takes neither filter nor date.",
+        "tags": [
+          "imports"
+        ]
+      },
       "post": {
         "operationId": "create_import",
         "requestBody": {

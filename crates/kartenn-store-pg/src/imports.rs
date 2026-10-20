@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use kartenn_service::import::ImportError;
 use kartenn_service::port::{ImportBatch, ImportItem, ImportProgress, ImportRecord, StoreError};
 use sqlx::types::Uuid;
+use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgConnection, PgPool};
 
 fn store_err(e: impl std::fmt::Display) -> StoreError {
@@ -222,6 +223,34 @@ pub async fn header(pool: &PgPool, import: Uuid) -> Result<Option<ImportHeader>,
             elements,
         }),
     )
+}
+
+/// The imports of `author`, the most recent first, after the key `after` (opening date,
+/// identifier), at most `limit` of them (REQ-007-40).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn of_author(
+    pool: &PgPool,
+    author: Uuid,
+    after: Option<(OffsetDateTime, Uuid)>,
+    limit: i64,
+) -> Result<Vec<(OffsetDateTime, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT created_at, id FROM import
+          WHERE author_id = $1
+            AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::uuid))
+          ORDER BY created_at DESC, id DESC
+          LIMIT $4",
+    )
+    .bind(author)
+    .bind(after.map(|(at, _)| at))
+    .bind(after.map(|(_, id)| id))
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)
 }
 
 /// What became of a deposited chunk (REQ-006-17).

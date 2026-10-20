@@ -108,11 +108,18 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   datée dans le passé correcte mais sans budget (l'instantané d'historique n'a pas
   d'ordre d'index) ; mesure faite à la main (le banc complet, ~50 min, n'a été relancé
   qu'avant la correction)
-- [ ] 7. Imports de l'appelant, `GET /v1/imports` (W18) — REQ-007-40 — verify : du
+- [x] 7. Imports de l'appelant, `GET /v1/imports` (W18) — REQ-007-40 — verify : du
   plus récent au plus ancien, paginé ; ceux d'un autre absents
   où : design « Ajouts à l'API » ; `kartenn-store-pg/src/imports.rs` (`header`),
   `kartenn-rest/src/imports.rs` (contrôle de l'auteur, vers la ligne 114) ;
   `rest/tests/imports.rs` (`an_import_is_its_authors`) ; contrat de référence
+  — Store : `imports.rs` (`of_author`, clé `(created_at, id)` décroissante). Rest :
+  `imports.rs` (`list` : liste à l'état courant, ni filtre ni date, curseur
+  `next_current` ; chaque élément est la représentation de `GET /v1/imports/{id}`).
+  Test `the_imports_of_the_caller_list_the_most_recent_first`. Contrat de référence
+  choix : élément de liste identique à la fiche d'un import (état, lots, rapport), lu
+  import par import ; pas d'index sur `import.author_id` (table de quelques imports par
+  auteur) ; lecture non auditée, comme `GET /v1/imports/{id}`
 - [ ] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
   REQ-007-41 — verify : 200 sans session, `[{id}]` dans l'ordre de la configuration,
   ni URL ni client ; route dans `PUBLIC`

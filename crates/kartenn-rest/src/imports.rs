@@ -7,7 +7,7 @@
 
 use axum::Extension;
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use kartenn_service::authn::Principal;
@@ -15,16 +15,22 @@ use kartenn_service::import::{ImportStatus, batches, import_status, open_import}
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ImportItem;
 use kartenn_store_pg::imports::{self, Deposit, ImportHeader, Start};
+use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_json::json;
 use sha2::{Digest, Sha256};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::objects::{Api, bad};
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
+use crate::dated::Dates;
+use crate::objects::{Api, bad, store};
 use crate::operation::ImportItemDto;
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{Charge, chunk_weight};
@@ -39,7 +45,7 @@ const RETRY_AFTER: u32 = 5;
 /// The routes of the imports.
 pub fn routes() -> OpenApiRouter<Api> {
     OpenApiRouter::new()
-        .routes(routes!(create))
+        .routes(routes!(create, list))
         .routes(routes!(show))
         .routes(routes!(deposit))
         .routes(routes!(start))
@@ -189,6 +195,67 @@ async fn create(
         represented(&api, id, StatusCode::CREATED).await?,
         id,
     ))
+}
+
+/// `GET /v1/imports`: the imports of the caller, the most recent first, by pages
+/// (REQ-007-40); those of anyone else are not listed. The list is read at the current
+/// state on each page and takes neither filter nor date.
+#[utoipa::path(
+    get,
+    path = "/imports",
+    operation_id = "list_imports",
+    tag = "imports",
+    params(PageParams),
+    responses((status = 200, description = "The imports of the caller.", body = Listing<ImportDto>))
+)]
+async fn list(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    const NAME: &str = "imports";
+    let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, NAME)?;
+    page.unfiltered()?;
+    if page.after().is_none() && page.dates != Dates::default() {
+        return Err(bad("the imports take neither valid_at nor as_of"));
+    }
+    let after = page
+        .after()
+        .map(|key| {
+            let invalid = || Problem::new(ProblemKind::InvalidCursor);
+            let (at, id) =
+                serde_json::from_value::<(String, Uuid)>(key.clone()).map_err(|_| invalid())?;
+            let at = OffsetDateTime::parse(&at, &Rfc3339).map_err(|_| invalid())?;
+            Ok::<_, Problem>((at, id))
+        })
+        .transpose()?;
+    let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
+    let moment = Dates::default().at(now, api.bound)?;
+    let size = usize::from(page.size);
+    let mut found = imports::of_author(
+        &api.pool,
+        principal.identity,
+        after,
+        i64::from(page.size) + 1,
+    )
+    .await?;
+    let next = (found.len() > size).then(|| {
+        found.truncate(size);
+        let (at, id) = found[size - 1];
+        let at = at.format(&Rfc3339).expect("a date of the database formats");
+        let cursor = page.next_current(&api.ring, NAME, &moment, json!([at, id]));
+        next_href(&format!("/v1/{NAME}"), &cursor)
+    });
+    let mut items = Vec::with_capacity(found.len());
+    for (_, id) in found {
+        let header = imports::header(&api.pool, id).await?;
+        let progress = import_status(&PgStore::new(api.pool.clone()), id).await?;
+        if let (Some(header), Some(progress)) = (header, progress) {
+            items.push(representation(id, header, progress));
+        }
+    }
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// `GET /v1/imports/{id}`.
