@@ -184,7 +184,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `If-Match` obligatoire ; `pages` suit `next` tel quel (le curseur porte filtres et dates) ;
   `put` ajouté pour les morceaux d'import ; dépendances de développement `openapi-typescript`
   (TypeScript 6 admis par `peerDependencyRules`) et `happy-dom` (tâche 12)
-- [ ] 12. Contexte, `definePlugin`, semver, i18n de plugin, `styles()`, brouillon (surface),
+- [x] 12. Contexte, `definePlugin`, semver, i18n de plugin, `styles()`, brouillon (surface),
   jetons, `@kartenn/sdk/host`, bac à sable `@kartenn/sdk/testing` — REQ-007-12, 13, 14,
   16 — verify : Vitest : notification du contexte, élément non déclaré ou déjà défini
   refusé, matrice semver (`^`, `~`, exact, prépublications), `t` préfixé, bac à sable qui
@@ -192,6 +192,23 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   contexte
   où : design « SDK », « Chargement des plugins par le shell » (étape 4) ;
   `web/sdk/src/` (tâche 2)
+  — `web/sdk/src/` : `context.ts` (`context`, `setContext`), `extensions.ts`
+  (`definePlugin`, `expectPlugin`, `abandonPlugin`, `PluginHandle` avec `t`, `format`,
+  `styles`), `semver.ts` (`satisfies`, `compare`), `i18n.ts` (traducteur du shell ou
+  catalogues), `draft.ts` (`draft`, `draftHost`), `tokens.ts`, `host.ts` (branchements),
+  `testing/index.ts` (`mount`, `fakeFetch` typé par les routes du contrat,
+  `announcePlugin`) ; troisième entrée `@kartenn/sdk/testing` (package et build). Tests :
+  `sdk/test/semver.test.ts` (matrice `^`, `~`, exact, prépublications, ordre §11),
+  `sdk/test/plugins.test.ts` (happy-dom : contexte notifié et partagé, permissions,
+  élément non déclaré, déjà défini, plugin non annoncé ou abandonné, `t` préfixé et
+  traducteur du shell, bac à sable avec `valid_at` du contexte, brouillon, jetons).
+  choix : prépublications à la manière des plages npm (une prépublication ne satisfait
+  qu'une plage qui nomme une prépublication du même `x.y.z`) ; `definePlugin` définit tous
+  les éléments ou aucun ; le traducteur par défaut (catalogues ajoutés, `{param}`) sert au
+  bac à sable, le shell branche vue-i18n par `setTranslator` ; le brouillon du SDK est une
+  liste en mémoire que le shell synchronise (`draftHost`) ; `User.has` est fourni par le
+  shell ; `fetch` du client branché par `host.setFetch` ; jetons `--k-*` nommés ici,
+  définis par `tokens.css` à la tâche 13
 
 ## P5 — Shell
 

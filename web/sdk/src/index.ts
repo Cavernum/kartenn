@@ -10,6 +10,7 @@
  */
 
 import { createClient } from "./api/client.ts";
+import { context } from "./context.ts";
 import { hooks } from "./hooks.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
@@ -31,9 +32,18 @@ export type {
 export { ApiProblem } from "./api/problem.ts";
 export type { Violation } from "./api/problem.ts";
 export type { components, paths, queries } from "./api/schema";
+export { context } from "./context.ts";
+export type { Context, Locale, ObjectRef, ObjectType, TimeContext, User } from "./context.ts";
+export { definePlugin } from "./extensions.ts";
+export type { Extension, ExtensionPoint, PluginDefinition, PluginHandle } from "./extensions.ts";
+export { draft } from "./draft.ts";
+export type { Operation } from "./draft.ts";
+export { tokens } from "./tokens.ts";
+export type { Token } from "./tokens.ts";
 
 /** The client of the API, on the same origin, with the dated context of the shell. */
 export const api = createClient({
-  time: () => hooks.time(),
+  fetch: (input, init) => (hooks.fetch ?? globalThis.fetch)(input, init),
+  time: () => context.get().time,
   onUnauthorized: () => hooks.onUnauthorized?.(),
 });
