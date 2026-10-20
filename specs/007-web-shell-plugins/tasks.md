@@ -163,7 +163,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P4 — SDK
 
-- [ ] 11. Client de l'API : `scripts/gen.mjs` (`schema.d.ts`, `dated.ts`) et test de
+- [x] 11. Client de l'API : `scripts/gen.mjs` (`schema.d.ts`, `dated.ts`) et test de
   fraîcheur ; `api.get`, `query`, `pages`, `post`, `patch`, `delete`, `ApiProblem`,
   branchement du 401, paramètres datés du contexte — REQ-007-15, 24 — verify : Vitest
   avec `fetch` simulé : méthode `QUERY` et son corps, `If-Match` exigé par le type
@@ -172,6 +172,18 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   seulement ; contrat modifié sans régénération → test en échec
   où : design « SDK » (Client) ; `specs/006-api-rest/openapi-v1.json` ; 006 design
   « Curseurs », « Écritures », « Erreurs » ; `web/sdk/src/api/`
+  — `web/sdk/scripts/gen.mjs` (+ `gen.d.mts`) ; `src/api/schema.d.ts`, `dated.ts`
+  (générés), `client.ts` (`createClient`, types d'options tirés de `paths`), `problem.ts`
+  (`ApiProblem.from`) ; `src/hooks.ts` (temps et 401 branchés par le shell),
+  `host.ts` (`onUnauthorized`), `index.ts` (`api`). Tests : `sdk/test/client.test.ts`
+  (QUERY, If-Match et ETag, `@ts-expect-error` sur `ifMatch` absent, clé d'idempotence,
+  412 et 422, 401, pages, `valid_at` daté seulement, fraîcheur et contrat modifié).
+  choix : routes `QUERY` (extension `x-query` du contrat, ignorée par openapi-typescript)
+  ajoutées à `schema.d.ts` en interface `queries` ; fichiers générés formatés par Prettier ;
+  `PATCH` en `application/merge-patch+json` ; `ifMatch` exigé là où le contrat déclare
+  `If-Match` obligatoire ; `pages` suit `next` tel quel (le curseur porte filtres et dates) ;
+  `put` ajouté pour les morceaux d'import ; dépendances de développement `openapi-typescript`
+  (TypeScript 6 admis par `peerDependencyRules`) et `happy-dom` (tâche 12)
 - [ ] 12. Contexte, `definePlugin`, semver, i18n de plugin, `styles()`, brouillon (surface),
   jetons, `@kartenn/sdk/host`, bac à sable `@kartenn/sdk/testing` — REQ-007-12, 13, 14,
   16 — verify : Vitest : notification du contexte, élément non déclaré ou déjà défini

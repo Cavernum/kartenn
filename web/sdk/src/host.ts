@@ -7,4 +7,11 @@
  * contract: plugins never import it.
  */
 
+import { hooks } from "./hooks.ts";
+
 export { SDK_VERSION } from "./index.ts";
+
+/** What a 401 of the client does before it throws: the shell offers to log in again. */
+export function onUnauthorized(handler: (() => void | Promise<void>) | null): void {
+  hooks.onUnauthorized = handler;
+}

@@ -18,5 +18,9 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.3",
+    "openapi-typescript": "^7.13.0"
   }
 }
