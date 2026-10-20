@@ -271,7 +271,8 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      # Exclusive: the journeys own the kartenn_e2e database and fixed loopback ports.
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
