@@ -27,6 +27,8 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - W16 émetteur de dev : crate `kartenn-dev-idp`, jamais livré.
 - W17 choix de conduite : API additive, `/v1/me` pour l'interface, session, état,
   navigateurs, licences par répertoire.
+- W18 arbitrages de la spec : racines d'un domaine, liste des imports, émetteurs publics,
+  quotas sur `/v1` seulement.
 
 ## W1 — Périmètre des vues
 - Décision : **noyau, changesets et administration**. Données du noyau (domaines, arbre
@@ -241,3 +243,21 @@ Peu coûteux à défaire, invisibles de l'extérieur ; à reprendre dans le desi
 - **Licences** : `web/sdk` et `web/plugins/*` en MPL-2.0 (en-tête par fichier), `web/shell`
   en AGPL-3.0.
 - Décidé par : Claude (délégation des choix réversibles)
+
+## W18 — Ajouts à l'API et quotas
+Écarts relevés en rédigeant la spec (Q-007-1 à 4), arbitrés le 2026-10-20.
+- Décision :
+  - **`GET /v1/domains/{id}/roots`** : nœuds sans parent déduit d'un domaine, datés,
+    paginés et filtrés comme les enfants d'un préfixe (REQ-007-39) ;
+  - **`GET /v1/imports`** : imports de l'appelant seulement, du plus récent (REQ-007-40) ;
+  - **`GET /v1/auth/issuers`**, publique : identifiants locaux des émetteurs, ni URL ni
+    client (REQ-007-41) ;
+  - **quotas sur `/v1` seulement** ; délestage, délai, corps borné et identifiant de
+    requête sur tout.
+- Pourquoi : un arbre à 10⁵ se charge à la demande depuis ses racines (W13) ; le suivi
+  des imports (W1) survit au navigateur ; la page de connexion ne double pas
+  `[[auth.issuers]]` ; un shell charge des dizaines de fichiers anonymes, au-delà du
+  quota anonyme par adresse (20/s).
+- Rejeté : lecture de `GET /v1/prefixes?domain=…` en entier ; suivi des seuls imports
+  ouverts dans ce navigateur ; liste `[web] issuers` ; quota propre aux fichiers.
+- Décidé par : recommandation acceptée
