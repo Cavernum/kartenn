@@ -3703,10 +3703,54 @@ export interface components {
           /** @description Canonical address. */
           value: string;
         };
-    /** @description A plugin of the interface (D17). */
+    /** @description A point of extension a plugin fills. */
+    UiExtension: {
+      /** @description The Custom Element, prefixed by the name of the plugin. */
+      element: string;
+      /** @description Unique in the plugin. */
+      id: string;
+      /** @description The key of its label in the catalogues. */
+      label?: string | null;
+      /** @description The key of its entry of navigation in the catalogues (a view). */
+      nav?: string | null;
+      /** @description The types of objects it applies to; empty for a view. */
+      object_types?: string[];
+      /** @description The permission without which the shell hides it. */
+      permission?: string | null;
+      /** @description The point. */
+      point: components["schemas"]["UiExtensionPoint"];
+    };
+    /**
+     * @description The points of extension of the SDK (W5).
+     * @enum {string}
+     */
+    UiExtensionPoint: "view" | "tab" | "panel" | "column" | "action";
+    /**
+     * @description A plugin of the interface (D17; spec 007, REQ-007-7): what the shell needs to load it
+     *     with the integrity of each file.
+     */
     UiPlugin: {
+      /** @description The URL of its directory, `/plugins/<name>/<version>/`. */
+      base: string;
+      /** @description Its catalogues of messages by language, by path relative to `base`. */
+      catalogs: {
+        [key: string]: string;
+      };
+      /** @description The URL of its entry module. */
+      entry: string;
+      /** @description The points of extension it fills. */
+      extensions: components["schemas"]["UiExtension"][];
+      /**
+       * @description The SRI digest (`sha384-…`) of each module, style sheet and catalogue, by path
+       *     relative to `base`.
+       */
+      integrity: {
+        [key: string]: string;
+      };
       /** @description Its name. */
       name: string;
+      /** @description The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`). */
+      sdk: string;
       /** @description Its version. */
       version: string;
     };
