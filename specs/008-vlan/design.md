@@ -81,13 +81,21 @@ la désérialisation (le service n'a pas le registre à cet instant).
 
 | Étape du pipeline (`pipeline.rs`) | Appel |
 |---|---|
-| `plan` (local) | `plan(&ModuleOperation) -> Result<ModulePlan, Violation>` : décode `body` en type du module, valide localement (VID, nom), rend le `local` défini, les `Ref` utilisées, le type et l'objet cible |
-| `lock_targets` | `domains(&mut dyn ModuleTx, &ModulePlan)` : domaines à verrouiller (ancrage de domaine) |
+| `plan` (local) | `plan(&ModuleOperation) -> Result<ModulePlan, Violation>` : décode `body` en type du module, valide localement (VID, nom), rend le `local` défini, les `Ref` utilisées, le type et l'objet cible, et les **opérations du noyau** qu'il ajoute au changeset (`ModulePlan::core`, planifiées à leur tour comme des opérations ordinaires, ADR 0026 clause 6) |
+| `lock_targets` | `locks(&mut dyn ModuleTx, &ModulePlan) -> Locks` : domaines (ancrage de domaine) et **clés nommées** (`vlan.group:<uuid>`) ; le pipeline prend les domaines puis les clés triées, en verrous consultatifs de transaction sur un hachage de la clé (REQ-008-27) |
 | `apply` | `apply(&mut dyn ModuleTx, &ModulePlan, ids résolus, période, changeset) -> Touched` |
-| validation globale | `check(&mut dyn ModuleTx, &[Touched]) -> Vec<Violation>` |
+| différentiel | `Module::diff(&mut dyn ModuleTx, &DiffContext) -> Option<DiffSection>` après le différentiel des propriétés, dans l'ordre du registre ; `DiffContext` porte le différentiel des propriétés, les objets touchés (noyau et modules, typés) et les sections déjà produites (REQ-008-26) |
+| validation globale | `check(&mut dyn ModuleTx, &CheckContext) -> Vec<Violation>` : objets touchés de tous types et sections, pour des règles sur l'état final |
 | droits | permission de chaque objet touché : `<type>.write` (ou `propose`) par `WriteTx::rbac_outside`, comme le noyau |
-| différentiel, journal, outbox | inchangés : objets touchés |
+| journal, outbox | inchangés : objets touchés ; sections stockées dans `changeset_diff_section` |
 | annulation | `Restore` générique sur `module_object` + `restore(&mut dyn ModuleTx, kind, id, before)` du module |
+
+Sections de différentiel : table du noyau `changeset_diff_section (changeset_id,
+section, seq, object_id, kind, before jsonb, after jsonb, period tstzrange)`, écrite
+avec le différentiel des propriétés (`changeset_diff`, migration 0003) ; la simulation
+les rend dans sa réponse ; `GET /v1/changesets/{id}/diff?section=<nom>` les pagine
+(curseur sur `seq`), sous `core.changeset.read` comme le différentiel actuel. Un module
+sans contribution n'a rien à implémenter (méthode par défaut).
 
 `ModuleTx` (objet dynamique) : `fn connection(&mut self) -> &mut dyn Any` (l'adaptateur
 du module le convertit en `sqlx::PgConnection`), `fn register(&mut self, row:
@@ -289,10 +297,14 @@ Aucune clé nouvelle : un module est présent s'il est compilé (feature `vlan` 
 
 - Opération de module inconnue : 400 `changeset-structure` avant tout verrou.
 - Concurrence : deux créations du même VID dans le même groupe → le verrou de domaine
-  ne couvre pas un groupe ancré sur une entité ou un site ; le gestionnaire prend un
-  verrou consultatif par groupe (`pg_advisory_xact_lock` sur l'UUID du groupe) avant de
-  contrôler les unicités ; la contrainte d'exclusion reste la défense finale (23P01 →
+  ne couvre pas un groupe ancré sur une entité ou un site ; toute opération sur un VLAN
+  ou un groupe déclare la clé `vlan.group:<uuid>` (REQ-008-27), prise avant les
+  contrôles d'unicité ; la contrainte d'exclusion reste la défense finale (23P01 →
   violation `vlan.vid.duplicate`).
+- Obligations d'administrateur (REQ-008-28) : `property_obligation` gagne une colonne
+  `origin` (`module` ou `admin`) ; `sync_operations` ne compare que les obligations
+  d'origine `module` ; une opération d'administrateur
+  (`AddObligation`/`RemoveObligation`, sous `core.property.admin`) écrit les autres.
 - Groupe dont l'ancre est close dans le futur : la règle `vlan.group.anchor` s'évalue
   sur la période de l'opération.
 - Module retiré d'une build : ses tables restent ; `module_object` garde ses lignes ;

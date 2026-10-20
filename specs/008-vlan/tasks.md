@@ -13,8 +13,10 @@ tests HTTP passent par `tower::ServiceExt::oneshot` comme
 `kartenn-rest/tests/resources.rs`.
 
 Parallélisme : P1 (contrat, dans le noyau) et la tâche 9 (domaine pur du VLAN)
-démarrent ensemble ; dans P1, 4, 5 et 6 avancent en parallèle après 3 ; P2 suit P1 ;
-la tâche 17 attend en plus la 007 (SDK et chargement des plugins).
+démarrent ensemble ; dans P1, 6 et 20 ne dépendent que de 1 ; 4, 5 et 19 avancent en
+parallèle après 3 ; P2 suit P1 ; la tâche 17 attend en plus la 007 (SDK et chargement
+des plugins). Les tâches 19 et 20 (besoins N4, N8, N21 de la 010 et de la 011) sont
+numérotées après coup.
 
 ## P1 — Contrat de module (ADR 0026)
 
@@ -41,12 +43,15 @@ la tâche 17 attend en plus la 007 (SDK et chargement des plugins).
   dépend de : 1
 - [ ] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
   qualifiée, `ObjectKind::Module` ; pipeline (`plan`, `lock_targets`, `apply`,
-  validation globale, droits `<type>.write|propose`) ; `ModuleTx` pour la transaction
-  de `kartenn-store-pg` (connexion, `register` dans `module_object`) ; module factice
-  de test (`kartenn-service/tests/support/dummy_module.rs`, une table, une opération) —
-  REQ-008-4 — verify : `a_mixed_changeset_is_atomic`,
+  validation globale, droits `<type>.write|propose`), opérations du noyau planifiées
+  par une opération de module, clés de verrou nommées après les domaines (amendement de
+  l'ADR 0015) ; `ModuleTx` pour la transaction de `kartenn-store-pg` (connexion,
+  `register` dans `module_object`) ; module factice de test
+  (`kartenn-service/tests/support/dummy_module.rs`, une table, une opération) —
+  REQ-008-4, 27 — verify : `a_mixed_changeset_is_atomic`,
   `an_unknown_module_operation_is_refused_before_locks`,
-  `approval_policy_counts_module_operations`, `module_write_needs_its_permission`
+  `approval_policy_counts_module_operations`, `module_write_needs_its_permission`,
+  `a_module_operation_plans_core_operations`, `named_lock_keys_do_not_deadlock`
   où : design « Enveloppe d'opération » ; `operations.rs::Operation`,
   `pipeline.rs::{plan, lock_targets, apply, stages}`, `port.rs::WriteTx` ; test voisin
   `kartenn-service/tests/` (pipeline)
@@ -95,6 +100,26 @@ la tâche 17 attend en plus la 007 (SDK et chargement des plugins).
   où : design « Lectures et routes » ; `kartenn-rest/src/lib.rs` (`router`, `v1`),
   `resources.rs`, `properties.rs`, `versions.rs`, `contract.rs`, `openapi.rs`
   dépend de : 4, 5
+- [ ] 19. Contributions au différentiel : `Module::diff`, `DiffContext` (différentiel des
+  propriétés, objets touchés typés, sections précédentes), ordre du registre, table
+  `changeset_diff_section` (migration), sections dans la réponse de simulation et
+  `GET /v1/changesets/{id}/diff?section=`, `CheckContext` des règles — REQ-008-26 —
+  verify (deux modules factices A et B) : `b_reads_the_section_of_a`,
+  `sections_in_simulation_and_after_application`, `a_rule_of_b_reads_a_section`,
+  `sections_are_paginated`
+  où : design « Enveloppe d'opération » (sections) ; `pipeline.rs::stages` (étape du
+  différentiel des propriétés), store `diff.rs`, migration `0003` (`changeset_diff`),
+  `0015` ; rest `cycle.rs::diff`
+  dépend de : 3
+- [ ] 20. Obligations d'administrateur sur une propriété de module : colonne `origin` de
+  `property_obligation`, opérations `AddObligation`/`RemoveObligation` (sous
+  `core.property.admin`, contrôle de REQ-003-6), `sync_operations` limité aux
+  obligations du code — REQ-008-28 — verify :
+  `admin_obligation_survives_module_sync`, `incompatible_obligation_refused`
+  où : design « Erreurs et cas limites » ; `declarations.rs::{sync_operations,
+  sync_modules}`, migration `0011` (`property_obligation`) ; test voisin des
+  déclarations dans `kartenn-service/tests/`
+  dépend de : 1
 
 ## P2 — Module VLAN
 
@@ -169,4 +194,4 @@ la tâche 17 attend en plus la 007 (SDK et chargement des plugins).
   ADR 0026 acceptée, matrice CI serveur sans module et avec, spec passée à
   `implemented` — verify : rapport `spec-keeper` sans écart bloquant
   où : skill `tech-specs` (mode sync)
-  dépend de : 1 à 17
+  dépend de : 1 à 17, 19, 20

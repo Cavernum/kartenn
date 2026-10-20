@@ -36,7 +36,8 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
 #### REQ-008-1 — Registre des modules
 kartenn doit construire au démarrage un registre des modules compilés, et refuser de
 démarrer si deux modules portent le même nom, si un module porte le nom `core`, si une
-dépendance déclarée est absente ou si les dépendances forment un cycle.
+dépendance déclarée est absente, si les dépendances forment un cycle, ou si deux modules
+(ou un module et le noyau) déclarent la même collection REST.
 
 Acceptation :
 - Un module de test qui dépend d'un module absent : le serveur s'arrête avec un message
@@ -113,8 +114,8 @@ Acceptation :
 - Une référence vers un VLAN clos à la date de la période est refusée.
 
 #### REQ-008-8 — Catalogues fusionnés
-kartenn doit fusionner les permissions et les règles déclarées par chaque module avec
-celles du noyau : validation des rôles, catalogue des règles (violations et anomalies) et
+kartenn doit fusionner les permissions (globales comprises) et les règles déclarées par
+chaque module avec celles du noyau : validation des rôles, catalogue des règles (violations et anomalies) et
 `docs/spec/permissions.md` généré.
 
 Acceptation :
@@ -152,6 +153,39 @@ cible, type, période), filtrées par les droits de lecture des deux extrémité
 Acceptation :
 - `GET /v1/graph/edges?object=<réseau>` rend l'arête `vlan.carries` entre le VLAN et le
   réseau.
+
+#### REQ-008-26 — Contributions au différentiel
+Où un module déclare une contribution au différentiel, kartenn doit l'appeler après le
+différentiel des propriétés, dans l'ordre du DAG des modules, en lui donnant le
+différentiel des propriétés, les objets touchés et les sections des modules précédents,
+puis stocker la section produite avec le changeset, la rendre visible des règles des
+modules, et la servir paginée en simulation comme après application (ADR 0026, clause
+13 ; besoins N4, N21 de la 010 et de la 011).
+
+Acceptation :
+- Deux modules factices A puis B (B dépend de A) : B lit la section de A ; les deux
+  sections figurent dans la réponse de simulation et dans
+  `GET /v1/changesets/{id}/diff?section=a.objets` après application, par pages.
+- Une règle de B qui lit la section de A refuse le changeset.
+
+#### REQ-008-27 — Clés de verrou hors domaine
+kartenn doit prendre les clés de verrou nommées déclarées par les opérations de module
+après les verrous de domaine, dans un ordre canonique, pour la durée de la transaction
+(ADR 0026, clause 14 ; amendement de l'ADR 0015).
+
+Acceptation :
+- Deux changesets qui déclarent les clés `x` et `y` dans des ordres opposés ne
+  s'interbloquent pas ; un changeset qui ne touche aucun domaine sérialise sur ses clés.
+
+#### REQ-008-28 — Obligations d'administrateur sur une propriété de module
+kartenn doit permettre à un administrateur d'ajouter ou de retirer par changeset une
+obligation (portée domaine, entité ou type d'objet) sur une propriété déclarée par un
+module, sous le contrôle de compatibilité de REQ-003-6, et la synchronisation des
+déclarations du module (003/P12) ne doit ni l'écraser ni la retirer (besoin N8).
+
+Acceptation :
+- Un administrateur rend `vlan.vlan` obligatoire sur les réseaux du domaine D ; un
+  redémarrage (synchronisation) laisse l'obligation en place.
 
 ### B. Groupes de VLAN
 
