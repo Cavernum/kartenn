@@ -188,7 +188,7 @@ période) : `machine`, `interface`, `address`, `before` (rattaché ou non, princ
 `after`, `period`. Les clôtures en cascade d'interfaces et de machines passent par la
 clôture des rattachements, donc par la section.
 
-### Port de lecture (REQ-009-16, 22)
+### Port de lecture (REQ-009-16, 22, 25)
 
 `kartenn_machines::pg::read` (fonctions publiques, `&mut PgConnection`, donc utilisables
 via `ModuleTx` dans la transaction ou sur une connexion de lecture) :
@@ -200,6 +200,7 @@ via `ModuleTx` dans la transaction ou sur une connexion de lecture) :
 | `attachments_of_address(address, valid_at, as_of)` | `(interface, machine, rôle résolu)` |
 | `machines_in_network(prefix, valid_at, as_of, page)` | machines dont une adresse rattachée est dans le réseau |
 | `hosted_by(machine_or_cluster, …)`, `members_of(cluster, …)` | machines |
+| `machine_values_of_addresses(addresses, keys, valid_at, as_of)` | par adresse : `(machine, interface, clé, valeurs résolues, explication)` ; une requête pour le lot (jointure des rattachements et de la résolution matérialisée des machines) ; la 010 compose avec la valeur de l'arbre (010/S27) |
 
 `as_of` passé : lecture sur `table ∪ historique` comme les lectures datées du noyau
 (`kartenn-store-pg/src/temporal.rs`). Le rôle se lit par la résolution de propriété du

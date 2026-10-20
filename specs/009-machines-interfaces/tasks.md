@@ -86,10 +86,14 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   `dependent_module_reads_the_section`
   où : design « Références », « Section » ; 008 tâches 7, 13, 19
   dépend de : 5 ; 008 : 7, 19
-- [ ] 9. Port de lecture daté et lectures croisées — REQ-009-16, 22 — verify :
+- [ ] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
+  d'un lot d'adresses — REQ-009-16, 22, 25 — verify :
   `addresses_of_machine_with_roles`, `attachments_of_address_as_of`,
-  `machines_in_network_paginated`, `dependent_module_reads_in_transaction`
-  où : design « Port de lecture » ; `kartenn-store-pg/src/temporal.rs`, `read.rs`
+  `machines_in_network_paginated`, `dependent_module_reads_in_transaction`,
+  `machine_values_of_addresses_batch` (VIP à deux machines, adresse sans machine)
+  où : design « Port de lecture » ; `kartenn-store-pg/src/temporal.rs`, `read.rs` ;
+  lecture groupée des valeurs résolues (tâche 010-2, N9) si elle existe, sinon lecture
+  par machine
   dépend de : 6, 8
 - [ ] 10. Routes REST : clusters, machines, interfaces, rattachements, lectures
   croisées, arêtes, filtres et `QUERY` — REQ-009-15, 16, 17, 18 — verify :
