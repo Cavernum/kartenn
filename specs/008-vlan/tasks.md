@@ -20,7 +20,7 @@ numérotées après coup.
 
 ## P1 — Contrat de module (ADR 0026)
 
-- [ ] 1. Registre de modules : `kartenn-service/src/module.rs` (traits `Module`,
+- [x] 1. Registre de modules : `kartenn-service/src/module.rs` (traits `Module`,
   `ModuleHandler`, `ModuleTx`, types `ObjectType`, `Reference`, `EdgeType`,
   `ModuleMigration`, `ModuleRegistry::new` avec tri topologique) ; refus au démarrage
   dans `kartenn-server::app` ; `modules` des capacités tiré du registre — REQ-008-1 —
@@ -31,6 +31,16 @@ numérotées après coup.
   déclarations), `capabilities.rs::Module` ; composition dans
   `kartenn-server/src/app.rs`
   dépend de : —
+  — Service : `module.rs` (`Module` aux méthodes par défaut, `ObjectType`, `OnClose`,
+  `Reference`, `EdgeType`, `ModuleMigration`, `RegistryError`, `ModuleRegistry::new` :
+  noms, `core` réservé, dépendances, Kahn stable, types hors espace de noms, collections
+  en double ou du noyau `CORE_COLLECTIONS`). Rest : `Api::modules`, `modules` des
+  capacités = étiquettes du contrat ∪ modules du registre (version de la crate).
+  Server : `modules.rs::registry()` construit avant tout enregistrement, erreur =
+  arrêt. Tests : `registry_*` (service), `capabilities_list_registered_modules`,
+  `core_collections_are_those_of_the_contract` (rest).
+  choix : `ModuleHandler` vide ici, ses méthodes et `ModuleTx` arrivent avec la tâche 3
+  qui les branche ; `CORE_COLLECTIONS` vérifiée contre le contrat par un test.
 - [ ] 2. Migrations : migration du noyau `0041_module_object.sql` (`module_object`
   versionnée, `module_migration`, index par parent), migrateur de modules dans
   `kartenn-store-pg` (schéma par module, somme SHA-256, `search_path` local) appelé par

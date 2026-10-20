@@ -80,6 +80,7 @@ fn app_as(pool: &PgPool, identity: Uuid) -> Router {
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
         outputs: std::sync::Arc::from([]),
+        modules: std::sync::Arc::default(),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),

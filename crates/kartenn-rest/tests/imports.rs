@@ -48,6 +48,7 @@ fn app_as(pool: &PgPool, identity: Uuid, rates: Rates) -> Router {
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from(["stdout".to_owned()]),
+        modules: Arc::default(),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),
