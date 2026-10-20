@@ -73,7 +73,8 @@ contrat de module (ADR 0026, en cours).
 - Décision : un flux suit les mécanismes de la 004 : droit de proposer
   (`flow.flow.propose`, REQ-004-41) et politiques d'approbation de l'administrateur. Le
   module ajoute les déclencheurs `flow.created` (création ou extension d'un flux) et
-  `flow.breaks` (F8). Aucune approbation n'est imposée par défaut (REQ-004-39).
+  `flow.breaks` (F8). Seul `flow.breaks` est actif par défaut, par une politique créée à
+  l'installation du module (F8) ; le noyau n'impose toujours rien (REQ-004-39).
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
 
 ## F6 — Flux non conforme à l'enregistrement
@@ -102,13 +103,14 @@ contrat de module (ADR 0026, en cours).
 - Décision : un changeset (environnement, politique, rattachement) qui fait passer des
   flux enregistrés à `denied` est **accepté** ; le différentiel les nomme ; chaque flux
   touché reçoit l'anomalie `flow.verdict.denied` (avertissement), close quand il
-  redevient conforme ; le déclencheur `flow.breaks` permet à l'administrateur d'exiger
-  une approbation.
+  redevient conforme ; une approbation est exigée par défaut : le module installe une
+  politique active `flow.breaks ≥ 1`, que l'administrateur peut désactiver.
 - Pourquoi : bloquer rendrait la politique otage des flux existants (fermer une cellule
   exigerait de clore d'abord tous les flux) ; le différentiel et l'approbation donnent la
   maîtrise (D25).
-- Rejeté : refus (otage) ; dérogation automatique (écart masqué).
-- Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+- Rejeté : refus (otage) ; dérogation automatique (écart masqué) ; anomalie sans
+  approbation.
+- Décidé par : l'utilisateur (2026-10-20), approbation par défaut comprise
 
 ## F9 — Différentiel des flux
 - Décision : section du différentiel du changeset : flux dont la synthèse ou un verdict

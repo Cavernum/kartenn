@@ -175,3 +175,14 @@ du module. Pour (b) de I4, I6 et I11, il faudra :
 - une évaluation par lot (tâche de fond, contrôle de 10⁴ objets).
 - Recommandation : amender la 003 (contrat additif) au moment de la session, pas avant ;
   aucun autre élément de la 010 n'en dépend.
+
+## Questions renvoyées à cette session par l'utilisateur (2026-10-20)
+
+- **S21 (tension D23 / D30)** : D30 fait réévaluer les flux à chaque changement de
+  « règle », alors que D23 dit qu'une règle d'inférence ne change aucun verdict. Lecture
+  proposée : dans D30, « règle » désigne la matrice et les garde-fous. À confirmer ou à
+  reformuler (voir `decisions.md`, S21).
+- **S7 et S8 (rigueur par défaut)** : matrice sans joker ; un élément non classé est
+  refusé ; un port sans service connu est refusé. À confirmer, ou à assouplir (jokers,
+  traitement des non-classés), au regard de l'objectif d'une politique applicable à toute
+  organisation.

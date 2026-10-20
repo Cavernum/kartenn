@@ -75,8 +75,9 @@ Acceptation :
 #### REQ-011-6 — Approbation
 Le module doit fournir aux politiques d'approbation (REQ-004-40) les déclencheurs
 `flow.created` (création ou prolongation d'un flux) et `flow.breaks` (au moins N flux qui
-passent de `allowed` ou `partial` à `denied`), sans qu'aucun ne s'applique par défaut
-(F5, REQ-004-39).
+passent de `allowed` ou `partial` à `denied`). `flow.created` ne s'applique pas par
+défaut (F5, REQ-004-39) ; à son installation, le module doit créer une politique
+d'approbation active `flow.breaks ≥ 1`, que l'administrateur peut désactiver (F8).
 
 #### REQ-011-7 — Échéances
 Le module doit émettre l'événement `kartenn.flow.expiring` 30 jours et 7 jours (réglable)
