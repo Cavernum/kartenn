@@ -494,7 +494,9 @@ pub async fn run(
         None => None,
     };
 
-    let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone())
+        .with_instance(instance.clone())
+        .with_modules(modules.clone());
     let mut filters = filters(config);
     let mut reread =
         tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));

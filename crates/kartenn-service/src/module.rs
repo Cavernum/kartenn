@@ -2,14 +2,20 @@
 //! declares to the core, and the registry that checks the modules of a build at startup
 //! and orders them along their dependencies.
 
+use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::pin::Pin;
 use std::sync::{Arc, LazyLock};
 
 use kartenn_core::authz::Permission;
-use kartenn_core::rules::Rule;
+use kartenn_core::period::Period;
+use kartenn_core::rules::{Rule, Violation};
+use uuid::Uuid;
 
 use crate::declarations::ModuleDeclarations;
+use crate::operations::{ModuleKind, ModuleOperation, Operation, Ref};
+use crate::port::{StoreError, WriteError};
 
 /// The name reserved for the core (ADR 0026, clause 1).
 pub const CORE: &str = "core";
@@ -103,9 +109,104 @@ pub struct ModuleMigration {
     pub sql: &'static str,
 }
 
-/// The behaviour of a module inside the write pipeline. Its methods are wired step by
-/// step (task 008-3); a module without operations keeps the defaults.
-pub trait ModuleHandler: Send + Sync + fmt::Debug {}
+/// A future of a module, boxed so that its traits stay object-safe.
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// An operation a module accepts in a changeset (REQ-008-4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperationType {
+    /// Its name within the module (`create_vlan`, tagged `vlan.create_vlan`).
+    pub name: &'static str,
+    /// The qualified type of the object it creates under its `local`, if it creates one.
+    pub defines: Option<&'static str>,
+}
+
+/// An operation of a module, planned: decoded, checked locally, its references resolved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModulePlan {
+    /// The type of the object it writes.
+    pub kind: ModuleKind,
+    /// The object it writes: the identifier given by the pipeline when it creates one.
+    pub object: Uuid,
+    /// Whether it creates the object (its right is checked once written) or changes an
+    /// existing one (checked before).
+    pub creates: bool,
+    /// The domains to lock, when the object is anchored in a domain (ADR 0015).
+    pub domains: Vec<Uuid>,
+    /// Named lock keys, taken after the domains in canonical order (REQ-008-27).
+    pub keys: Vec<String>,
+    /// Operations of the core it adds to the changeset, planned after it like ordinary
+    /// operations (ADR 0026, clause 6).
+    pub core: Vec<Operation>,
+    /// What [`ModuleHandler::apply`] needs, in the module's own form.
+    pub data: serde_json::Value,
+}
+
+/// A version of an object of a module, registered in `module_object` (REQ-008-3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModuleObjectRow {
+    /// The object.
+    pub id: Uuid,
+    /// Its qualified type.
+    pub kind: ModuleKind,
+    /// Its parent in the tree of the module.
+    pub parent: Option<Uuid>,
+    /// Its domain, when anchored in one.
+    pub domain: Option<Uuid>,
+}
+
+/// The transaction of a changeset, as a module writes in it (ADR 0026, clause 6).
+pub trait ModuleTx: Send {
+    /// The connection of the adapter: a module's own adapter downcasts it
+    /// (`sqlx::PgConnection` for `kartenn-store-pg`).
+    fn connection(&mut self) -> &mut (dyn Any + Send);
+
+    /// Registers a version of an object of the module over `period` (the changeset's when
+    /// `None`), written by `changeset`.
+    fn register(
+        &mut self,
+        row: ModuleObjectRow,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'_, Result<(), WriteError>>;
+}
+
+/// The behaviour of a module inside the write pipeline (ADR 0026, clause 6).
+pub trait ModuleHandler: Send + Sync + fmt::Debug {
+    /// Decodes and checks `operation` locally; `object` is the identifier of the object it
+    /// creates, if any; `resolve` gives the object of a reference (`None` for a local name
+    /// no earlier operation defines).
+    ///
+    /// # Errors
+    ///
+    /// A violation refuses the changeset before any lock.
+    fn plan(
+        &self,
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation>;
+
+    /// Writes a planned operation over `period` (the changeset's when `None`).
+    fn apply<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        plan: &'a ModulePlan,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>>;
+
+    /// The rules of the module on the final state, once every operation is written:
+    /// `touched` lists the objects of the module the changeset wrote.
+    fn check<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        touched: &'a [(ModuleKind, Uuid)],
+    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+        let _ = (tx, touched);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+}
 
 /// A business module compiled in the build (ADR 0026).
 pub trait Module: Send + Sync + fmt::Debug + 'static {
@@ -143,6 +244,10 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     }
     /// Its migrations, in version order.
     fn migrations(&self) -> &'static [ModuleMigration] {
+        &[]
+    }
+    /// The operations it accepts in a changeset.
+    fn operations(&self) -> &'static [OperationType] {
         &[]
     }
     /// Its handler in the write pipeline.
@@ -301,6 +406,18 @@ impl ModuleRegistry {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.modules.is_empty()
+    }
+
+    /// The operation `name` of `module`, with its handler, if the build has both.
+    #[must_use]
+    pub fn operation(
+        &self,
+        module: &str,
+        name: &str,
+    ) -> Option<(&'static OperationType, Arc<dyn ModuleHandler>)> {
+        let found = self.get(module)?;
+        let operation = found.operations().iter().find(|o| o.name == name)?;
+        Some((operation, found.handler()?))
     }
 }
 

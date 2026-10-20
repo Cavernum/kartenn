@@ -1,6 +1,7 @@
 //! The changeset pipeline (004/design, § Pipeline d'un changeset).
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use kartenn_core::addr::{Addr, AddrError, Prefix};
 use kartenn_core::family::ALL;
@@ -16,7 +17,8 @@ use uuid::Uuid;
 use crate::audit::RequestContext;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
-use crate::operations::{ChangesetRequest, ObjectKind, Operation, PeriodSpec, Ref};
+use crate::module::{ModuleHandler, ModulePlan, ModuleRegistry};
+use crate::operations::{ChangesetRequest, ModuleKind, ObjectKind, Operation, PeriodSpec, Ref};
 use crate::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, Journal, Pending, Replay, Store, StoreError,
     WriteError, WriteTx,
@@ -57,6 +59,15 @@ pub enum RequestError {
     /// A local name is defined twice.
     #[error("${0} is defined twice")]
     DuplicateLocal(u32),
+    /// An operation of a module the build lacks, or that its module does not have
+    /// (REQ-008-4).
+    #[error("operation {operation}: `{op}` is not an operation of this build")]
+    UnknownOperation {
+        /// Index of the operation.
+        operation: usize,
+        /// Its tag.
+        op: String,
+    },
     /// A local reference designates an object of another kind.
     #[error("operation {operation} expects a {expected:?} for ${local}")]
     WrongReferenceKind {
@@ -259,12 +270,18 @@ pub(crate) enum Planned {
         kind: ObjectKind,
         property: Uuid,
     },
+    /// An operation of a module, planned by its handler (REQ-008-4).
+    Module {
+        handler: Arc<dyn ModuleHandler>,
+        plan: Arc<ModulePlan>,
+    },
 }
 
 impl Planned {
     /// The object the operation creates or modifies.
-    pub(crate) const fn object(&self) -> Uuid {
+    pub(crate) fn object(&self) -> Uuid {
         match self {
+            Self::Module { plan, .. } => plan.object,
             Self::Domain { id, .. }
             | Self::Anchor { id, .. }
             | Self::Restore { id, .. }
@@ -358,11 +375,18 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
         | Operation::CreateServiceAccount { .. }
         | Operation::AddServiceSecret { .. }
         | Operation::RevokeServiceSecret { .. }
+        // A module resolves its own references when it plans (`ModuleHandler::plan`).
+        | Operation::Module(_)
         | Operation::Within { .. } => vec![],
     }
 }
-/// Checks the shape of the request (REQ-004-1 to 5): size, motive, period, references.
-fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, RequestError> {
+/// Checks the shape of the request (REQ-004-1 to 5): size, motive, period, references,
+/// and that each operation of a module is one of the build (REQ-008-4).
+fn check_request(
+    req: &ChangesetRequest,
+    max: usize,
+    modules: &ModuleRegistry,
+) -> Result<Option<Period>, RequestError> {
     if req.operations.is_empty() {
         return Err(RequestError::Empty);
     }
@@ -401,8 +425,23 @@ fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, R
                 }
             }
         }
+        let defined_module = match op {
+            Operation::Module(m) => {
+                let Some((operation, _)) = modules.operation(&m.module, &m.name) else {
+                    return Err(RequestError::UnknownOperation {
+                        operation: i,
+                        op: m.tag(),
+                    });
+                };
+                operation.defines.and_then(ModuleKind::parse)
+            }
+            _ => None,
+        };
         if let Some(local) = op.defines() {
             let kind = match op {
+                Operation::Module(_) => {
+                    defined_module.map_or(ObjectKind::Address, ObjectKind::Module)
+                }
                 Operation::CreateDomain { .. } => ObjectKind::Domain,
                 Operation::CreatePrefix { .. } => ObjectKind::Prefix,
                 Operation::CreateRange { .. } => ObjectKind::Range,
@@ -752,7 +791,10 @@ fn plan_policy(
 /// index of the operation each comes from, and the violations found, each ascribed to its
 /// operation.
 #[allow(clippy::too_many_lines)] // one arm per kind of operation
-fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
+fn plan(
+    req: &ChangesetRequest,
+    modules: &ModuleRegistry,
+) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
     let resolve = |r: Ref, ids: &HashMap<u32, Uuid>| match r {
         Ref::Id(id) => id,
@@ -761,106 +803,135 @@ fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
     let mut planned = Vec::with_capacity(req.operations.len());
     let mut origins = Vec::with_capacity(req.operations.len());
     let mut violations = Vec::new();
-    for (index, op) in req.operations.iter().enumerate() {
+    for (index, requested) in req.operations.iter().enumerate() {
         let found = violations.len();
-        let id = Uuid::now_v7();
-        if let Some(local) = op.defines() {
-            ids.insert(local, id);
-        }
-        let op = op.inner();
-        match op {
-            Operation::CreateDomain { slug, .. } => match Slug::parse(slug) {
-                Ok(slug) => planned.push(Planned::Domain { id, slug }),
-                Err(v) => violations.push(v),
-            },
-            Operation::CreatePrefix { domain, .. } | Operation::CreateAddress { domain, .. } => {
-                match plan_prefix(op, id, resolve(*domain, &ids)) {
-                    Ok((p, found)) => {
-                        planned.extend(p);
-                        violations.extend(found);
+        // The operation, then the core operations a module operation adds (ADR 0026,
+        // clause 6), planned in turn under the same index.
+        let mut queue = std::collections::VecDeque::from([requested.clone()]);
+        while let Some(owned) = queue.pop_front() {
+            let id = Uuid::now_v7();
+            if let Some(local) = owned.defines() {
+                ids.insert(local, id);
+            }
+            let op = owned.inner();
+            match op {
+                Operation::Module(operation) => {
+                    let Some((_, handler)) = modules.operation(&operation.module, &operation.name)
+                    else {
+                        // Refused by `check_request` already.
+                        continue;
+                    };
+                    let found = handler.plan(operation, id, &|r| match r {
+                        Ref::Id(id) => Some(id),
+                        Ref::Local(n) => ids.get(&n).copied(),
+                    });
+                    match found {
+                        Ok(module_plan) => {
+                            queue.extend(module_plan.core.iter().cloned());
+                            planned.push(Planned::Module {
+                                handler,
+                                plan: Arc::new(module_plan),
+                            });
+                        }
+                        Err(v) => violations.push(v),
                     }
-                    Err(v) => violations.push(v),
                 }
-            }
-            Operation::CreateRange {
-                domain,
-                first,
-                last,
-                usage,
-                ..
-            } => {
-                let domain = resolve(*domain, &ids);
-                let (range, found) = plan_range(id, domain, first, last, *usage);
-                planned.extend(range);
-                violations.extend(found);
-            }
-            Operation::CreateEntity { .. }
-            | Operation::CreateSite { .. }
-            | Operation::MoveEntity { .. }
-            | Operation::MoveSite { .. }
-            | Operation::Rename { .. }
-            | Operation::SetSensitivity { .. }
-            | Operation::SetApprovalPolicy { .. }
-            | Operation::Restore { .. }
-            | Operation::BindExternal { .. }
-            | Operation::UpdatePrefix { .. }
-            | Operation::UpdateAddress { .. }
-            | Operation::UpdateRange { .. } => match plan_anchor(op, id, |r| resolve(r, &ids)) {
-                Ok(p) => planned.extend(p),
-                Err(v) => violations.push(v),
-            },
-            Operation::Close {
-                kind,
-                id: target,
-                expected,
-                cascade,
-            } => {
-                planned.push(Planned::Close {
+                Operation::CreateDomain { slug, .. } => match Slug::parse(slug) {
+                    Ok(slug) => planned.push(Planned::Domain { id, slug }),
+                    Err(v) => violations.push(v),
+                },
+                Operation::CreatePrefix { domain, .. }
+                | Operation::CreateAddress { domain, .. } => {
+                    match plan_prefix(op, id, resolve(*domain, &ids)) {
+                        Ok((p, found)) => {
+                            planned.extend(p);
+                            violations.extend(found);
+                        }
+                        Err(v) => violations.push(v),
+                    }
+                }
+                Operation::CreateRange {
+                    domain,
+                    first,
+                    last,
+                    usage,
+                    ..
+                } => {
+                    let domain = resolve(*domain, &ids);
+                    let (range, found) = plan_range(id, domain, first, last, *usage);
+                    planned.extend(range);
+                    violations.extend(found);
+                }
+                Operation::CreateEntity { .. }
+                | Operation::CreateSite { .. }
+                | Operation::MoveEntity { .. }
+                | Operation::MoveSite { .. }
+                | Operation::Rename { .. }
+                | Operation::SetSensitivity { .. }
+                | Operation::SetApprovalPolicy { .. }
+                | Operation::Restore { .. }
+                | Operation::BindExternal { .. }
+                | Operation::UpdatePrefix { .. }
+                | Operation::UpdateAddress { .. }
+                | Operation::UpdateRange { .. } => {
+                    match plan_anchor(op, id, |r| resolve(r, &ids)) {
+                        Ok(p) => planned.extend(p),
+                        Err(v) => violations.push(v),
+                    }
+                }
+                Operation::Close {
+                    kind,
+                    id: target,
+                    expected,
+                    cascade,
+                } => {
+                    planned.push(Planned::Close {
+                        kind: *kind,
+                        id: resolve(*target, &ids),
+                        expected: *expected,
+                        cascade: *cascade,
+                    });
+                }
+                Operation::Expect {
+                    kind,
+                    id: target,
+                    expected,
+                } => planned.push(Planned::Expect {
                     kind: *kind,
                     id: resolve(*target, &ids),
                     expected: *expected,
-                    cascade: *cascade,
-                });
-            }
-            Operation::Expect {
-                kind,
-                id: target,
-                expected,
-            } => planned.push(Planned::Expect {
-                kind: *kind,
-                id: resolve(*target, &ids),
-                expected: *expected,
-            }),
-            Operation::DeclareProperty { .. }
-            | Operation::UpdateProperty { .. }
-            | Operation::AddEnumValue { .. } => {
-                match crate::declarations::plan(op, id, |r| resolve(r, &ids)) {
-                    Ok(p) => planned.push(p),
-                    Err(v) => violations.push(v),
+                }),
+                Operation::DeclareProperty { .. }
+                | Operation::UpdateProperty { .. }
+                | Operation::AddEnumValue { .. } => {
+                    match crate::declarations::plan(op, id, |r| resolve(r, &ids)) {
+                        Ok(p) => planned.push(p),
+                        Err(v) => violations.push(v),
+                    }
                 }
-            }
-            Operation::SetRole { .. }
-            | Operation::CloseRole { .. }
-            | Operation::Bind { .. }
-            | Operation::Unbind { .. }
-            | Operation::AttachIssuer { .. }
-            | Operation::DetachIssuer { .. }
-            | Operation::SetIdentityState { .. }
-            | Operation::CreateServiceAccount { .. }
-            | Operation::AddServiceSecret { .. }
-            | Operation::RevokeServiceSecret { .. } => {
-                match crate::rbac::plan(op, id, |r| resolve(r, &ids)) {
-                    Some(Ok(p)) => planned.push(p),
-                    Some(Err(v)) => violations.push(v),
-                    None => {}
+                Operation::SetRole { .. }
+                | Operation::CloseRole { .. }
+                | Operation::Bind { .. }
+                | Operation::Unbind { .. }
+                | Operation::AttachIssuer { .. }
+                | Operation::DetachIssuer { .. }
+                | Operation::SetIdentityState { .. }
+                | Operation::CreateServiceAccount { .. }
+                | Operation::AddServiceSecret { .. }
+                | Operation::RevokeServiceSecret { .. } => {
+                    match crate::rbac::plan(op, id, |r| resolve(r, &ids)) {
+                        Some(Ok(p)) => planned.push(p),
+                        Some(Err(v)) => violations.push(v),
+                        None => {}
+                    }
                 }
-            }
-            // Unwrapped above.
-            Operation::Within { .. } => {}
-            Operation::AssignProperty { .. }
-            | Operation::ClearProperty { .. }
-            | Operation::UnassignProperty { .. } => {
-                planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
+                // Unwrapped above.
+                Operation::Within { .. } => {}
+                Operation::AssignProperty { .. }
+                | Operation::ClearProperty { .. }
+                | Operation::UnassignProperty { .. } => {
+                    planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
+                }
             }
         }
         origins.resize(planned.len(), index);
@@ -893,10 +964,16 @@ fn tree_lock(kind: ObjectKind) -> Uuid {
 async fn lock_targets<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
-) -> Result<(Vec<Uuid>, bool), StoreError> {
+) -> Result<(Vec<Uuid>, bool, Vec<String>), StoreError> {
     let mut domains = BTreeSet::new();
     let mut public = false;
+    let mut keys = BTreeSet::new();
     for p in planned {
+        if let Planned::Module { plan, .. } = p {
+            domains.extend(plan.domains.iter().copied());
+            keys.extend(plan.keys.iter().cloned());
+            continue;
+        }
         match p {
             Planned::Prefix {
                 object,
@@ -920,7 +997,11 @@ async fn lock_targets<T: WriteTx>(
                 public |= is_public;
             }
             Planned::Close {
-                kind: kind @ (ObjectKind::Prefix | ObjectKind::Range | ObjectKind::Address),
+                kind:
+                    kind @ (ObjectKind::Prefix
+                    | ObjectKind::Range
+                    | ObjectKind::Address
+                    | ObjectKind::Module(_)),
                 id,
                 ..
             } => {
@@ -984,7 +1065,8 @@ async fn lock_targets<T: WriteTx>(
             | Planned::Rbac(_)
             | Planned::Policy(_)
             // A guard locks the version row of its object instead (`WriteTx::version`).
-            | Planned::Expect { .. } => {}
+            // A module operation: taken above.
+            | Planned::Expect { .. } | Planned::Module { .. } => {}
             // A modified prefix or address may enter or leave public space.
             Planned::Modify { kind, id, .. } => {
                 if let Some(d) = tx.domain_of(*kind, *id).await? {
@@ -1000,7 +1082,11 @@ async fn lock_targets<T: WriteTx>(
             }
         }
     }
-    Ok((domains.into_iter().collect(), public))
+    Ok((
+        domains.into_iter().collect(),
+        public,
+        keys.into_iter().collect(),
+    ))
 }
 
 /// Writes the planned operations in order, collecting every violation (REQ-004-7).
@@ -1066,6 +1152,30 @@ async fn assignment<T: WriteTx>(
         } => crate::resolution::unassign(tx, *object, *kind, *property, period, changeset).await,
         _ => Ok(()),
     }
+}
+
+/// The rules of each module on the final state, with the objects of the module the
+/// changeset wrote (ADR 0026, clause 7).
+async fn check_modules<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    /// A module and the objects of it the changeset wrote.
+    type Touched = (Arc<dyn ModuleHandler>, Vec<(ModuleKind, Uuid)>);
+    let mut touched: Vec<Touched> = Vec::new();
+    for p in planned {
+        if let Planned::Module { handler, plan } = p {
+            match touched.iter_mut().find(|(h, _)| Arc::ptr_eq(h, handler)) {
+                Some((_, objects)) => objects.push((plan.kind, plan.object)),
+                None => touched.push((Arc::clone(handler), vec![(plan.kind, plan.object)])),
+            }
+        }
+    }
+    for (handler, objects) in touched {
+        violations.extend(handler.check(tx.module_tx(), &objects).await?);
+    }
+    Ok(())
 }
 
 /// A write's refusal becomes a violation; an infrastructure failure stops everything.
@@ -1144,6 +1254,7 @@ async fn close<T: WriteTx>(
 
 /// Applies the planned writes; returns the former domain and value of each prefix whose
 /// value it changes, whose content must be checked again (REQ-002-18).
+#[allow(clippy::too_many_lines)] // one arm per kind of planned operation
 async fn apply<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
@@ -1235,6 +1346,9 @@ async fn apply<T: WriteTx>(
             }
             Planned::Assign { .. } | Planned::Unassign { .. } => {
                 assignment(tx, p, period, changeset).await
+            }
+            Planned::Module { handler, plan } => {
+                handler.apply(tx.module_tx(), plan, period, changeset).await
             }
         };
         // The version of what is written, its properties included (006-16).
@@ -1505,7 +1619,8 @@ async fn stages<S: Store, A: Authorizer>(
     context: &RequestContext,
     author: &crate::authz::Subject,
 ) -> Result<Outcome, RequestError> {
-    let period = check_request(req, max_operations)?;
+    let modules = store.modules();
+    let period = check_request(req, max_operations, modules)?;
     let changeset = match mode {
         Mode::Submission => Uuid::now_v7(),
         Mode::Validation { id, .. } => id,
@@ -1538,7 +1653,7 @@ async fn stages<S: Store, A: Authorizer>(
             }
         }
     }
-    let (planned, origins, mut violations) = plan(req);
+    let (planned, origins, mut violations) = plan(req, modules);
     crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
@@ -1553,10 +1668,13 @@ async fn stages<S: Store, A: Authorizer>(
         .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
         .collect::<Result<_, _>>()?;
     let window = window(period, &periods);
+    // One period per planned operation: that of the operation it comes from.
+    let periods: Vec<Option<Period>> = origins.iter().map(|&o| periods[o]).collect();
     let (planned, origins, periods, cascaded) =
         crate::cascade::expand(&mut tx, planned, origins, periods).await?;
-    let (domains, public) = lock_targets(&mut tx, &planned).await?;
+    let (domains, public, keys) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
+    tx.lock_keys(&keys).await?;
     // The policies in force at submission, before the changeset changes them.
     let policies = match mode {
         Mode::Submission => tx.approval_policies().await?,
@@ -1613,6 +1731,12 @@ async fn stages<S: Store, A: Authorizer>(
     if !has_errors(&violations)
         && let Err(e) =
             crate::global::validate(&mut tx, &planned, &periods, &former, &mut violations).await
+    {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    if !has_errors(&violations)
+        && let Err(e) = check_modules(&mut tx, &planned, &mut violations).await
     {
         tx.rollback().await?;
         return Err(e.into());
@@ -2092,6 +2216,42 @@ mod tests {
             point_to_point: false,
             anycast: false,
         }
+    }
+
+    /// The checks of a build without modules.
+    fn check_request(req: &ChangesetRequest, max: usize) -> Result<Option<Period>, RequestError> {
+        super::check_request(req, max, ModuleRegistry::empty())
+    }
+
+    /// The planning of a build without modules.
+    fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
+        super::plan(req, ModuleRegistry::empty())
+    }
+
+    #[test]
+    fn module_operations_round_trip_through_json() {
+        let json = serde_json::json!({"op": "vlan.create_vlan", "local": 3, "vid": 10});
+        let op: Operation = serde_json::from_value(json.clone()).unwrap();
+        let Operation::Module(m) = &op else {
+            panic!("{op:?}")
+        };
+        assert_eq!(
+            (m.module.as_str(), m.name.as_str()),
+            ("vlan", "create_vlan")
+        );
+        assert_eq!(op.defines(), Some(3));
+        assert_eq!(serde_json::to_value(&op).unwrap(), json);
+        let core = serde_json::json!({"op": "create_domain", "local": 1, "slug": "lab"});
+        let op: Operation = serde_json::from_value(core.clone()).unwrap();
+        assert!(matches!(op, Operation::CreateDomain { .. }));
+        assert_eq!(serde_json::to_value(&op).unwrap()["op"], "create_domain");
+        let kind: ObjectKind = serde_json::from_value(serde_json::json!("vlan.vlan")).unwrap();
+        assert_eq!(kind.name(), "vlan.vlan");
+        assert!(serde_json::from_value::<ObjectKind>(serde_json::json!("vlan")).is_err());
+        assert_eq!(
+            serde_json::to_value(ObjectKind::Prefix).unwrap(),
+            serde_json::json!("prefix")
+        );
     }
 
     #[test]

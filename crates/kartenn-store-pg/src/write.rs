@@ -7,6 +7,7 @@ use kartenn_core::period::Period;
 use kartenn_core::properties::{Declaration, InheritTree, ObligationScope};
 use kartenn_core::rules::{self, Rule, Violation};
 use kartenn_service::audit::Instance;
+use kartenn_service::module::ModuleRegistry;
 use kartenn_service::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, ImportProgress, ImportRecord, Journal, ObjectView,
     PendingChangeset, PropertyFacts, Replay, Store, StoreError, UndoFacts, WriteError, WriteTx,
@@ -30,7 +31,46 @@ use std::collections::HashMap;
 pub(crate) const EVENT_SOURCE: &str = "urn:kartenn:instance";
 
 /// Advisory lock key of public space (ADR 0015).
-const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennP"
+const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennN"
+
+/// First key of the two-key advisory locks named by module operations (REQ-008-27),
+/// whose second key is the hash of the name.
+const NAMED_LOCK_CLASS: i32 = 0x6b61_726b; // "kark"
+
+impl kartenn_service::module::ModuleTx for PgTx {
+    fn connection(&mut self) -> &mut (dyn std::any::Any + Send) {
+        &mut *self.tx
+    }
+
+    fn register(
+        &mut self,
+        row: kartenn_service::module::ModuleObjectRow,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'_, Result<(), WriteError>> {
+        Box::pin(async move {
+            let (a, b) = bounds(period)?;
+            let sql = format!(
+                "INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
+                 VALUES ($1, $2, $3, $4, $5, {}, $8)",
+                period_sql(6, 7)
+            );
+            let binds = vec![
+                Bind::Uuid(row.id),
+                Bind::Text(row.kind.module().to_owned()),
+                Bind::Text(row.kind.as_str().to_owned()),
+                Bind::OptUuid(row.parent),
+                Bind::OptUuid(row.domain),
+                Bind::Time(a),
+                Bind::Time(b),
+                Bind::Uuid(changeset),
+            ];
+            self.guarded(sqlx::AssertSqlSafe(sql), binds, row.id)
+                .await
+                .map(|_| ())
+        })
+    }
+}
 
 fn store_err(e: impl std::fmt::Display) -> StoreError {
     StoreError(e.to_string())
@@ -114,18 +154,28 @@ pub struct PgStore {
     pool: PgPool,
     down_from: usize,
     instance: Instance,
+    modules: std::sync::Arc<ModuleRegistry>,
 }
 
 impl PgStore {
     /// A store on a pool; its audit events name this crate's version and a fresh
-    /// instance identifier until [`PgStore::with_instance`] sets the server's.
+    /// instance identifier until [`PgStore::with_instance`] sets the server's. Without
+    /// [`PgStore::with_modules`], its changesets accept the core's operations only.
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self {
             pool,
             down_from: crate::origins::DOWN_FROM,
             instance: Instance::new(env!("CARGO_PKG_VERSION")),
+            modules: std::sync::Arc::default(),
         }
+    }
+
+    /// The modules of the build, whose operations its changesets accept (ADR 0026).
+    #[must_use]
+    pub fn with_modules(mut self, modules: std::sync::Arc<ModuleRegistry>) -> Self {
+        self.modules = modules;
+        self
     }
 
     /// The pool.
@@ -270,6 +320,10 @@ type Binds = Vec<Bind>;
 impl Store for PgStore {
     type Tx = PgTx;
 
+    fn modules(&self) -> &ModuleRegistry {
+        &self.modules
+    }
+
     #[tracing::instrument(name = "BEGIN", skip_all, fields(
         db.system.name = "postgresql",
         db.operation.name = "BEGIN",
@@ -371,6 +425,8 @@ fn table(kind: ObjectKind) -> &'static str {
         ObjectKind::EnumValue => "property_enum_value",
         ObjectKind::Entity => "entity",
         ObjectKind::Site => "site",
+        // The core's record of an object of a module (ADR 0026, clause 4).
+        ObjectKind::Module(_) => "module_object",
     }
 }
 
@@ -670,6 +726,26 @@ impl WriteTx for PgTx {
         Ok(())
     }
 
+    async fn lock_keys(&mut self, keys: &[String]) -> Result<(), StoreError> {
+        let mut keys = keys.to_vec();
+        keys.sort_unstable();
+        keys.dedup();
+        for key in keys {
+            // The two-key form, in its own class: never the lock of a domain.
+            sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2))")
+                .bind(NAMED_LOCK_CLASS)
+                .bind(key)
+                .execute(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        }
+        Ok(())
+    }
+
+    fn module_tx(&mut self) -> &mut dyn kartenn_service::module::ModuleTx {
+        self
+    }
+
     async fn replay(&mut self, request: &ChangesetRequest) -> Result<Replay, StoreError> {
         let Some(key) = &request.idempotency_key else {
             return Ok(Replay::Fresh);
@@ -734,6 +810,9 @@ impl WriteTx for PgTx {
             ObjectKind::Prefix => "SELECT domain_id FROM prefix WHERE id = $1 LIMIT 1",
             ObjectKind::Range => "SELECT domain_id FROM ip_range WHERE id = $1 LIMIT 1",
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
+            ObjectKind::Module(_) => {
+                "SELECT domain_id FROM module_object WHERE id = $1 AND domain_id IS NOT NULL LIMIT 1"
+            }
             ObjectKind::Property
             | ObjectKind::EnumValue
             | ObjectKind::Entity
@@ -1030,7 +1109,8 @@ impl WriteTx for PgTx {
             ObjectKind::Range
             | ObjectKind::Address
             | ObjectKind::Property
-            | ObjectKind::EnumValue => return Ok(Vec::new()),
+            | ObjectKind::EnumValue
+            | ObjectKind::Module(_) => return Ok(Vec::new()),
         };
         let rows: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
             .bind(id)

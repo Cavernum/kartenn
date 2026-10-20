@@ -45,3 +45,15 @@ site (absence de cycle). Une modification de préfixe ou d'adresse prend le verr
 - Un import massif dans un domaine bloque les autres écritures de ce domaine pendant
   sa transaction : les imports doivent être découpés en changesets de taille bornée
   (spec 004).
+
+## Amendement (2026-10-21) — clés de verrou nommées des modules
+
+Une opération de module (ADR 0026) qui n'est ancrée dans aucun domaine déclare des
+**clés de verrou nommées** (`vlan.group:<uuid>`, spec 008, REQ-008-27). Le pipeline les
+prend après les verrous de domaine et de l'espace public, triées et dédupliquées, pour la
+durée de la transaction : verrous consultatifs à deux clés (une classe propre aux clés
+nommées, puis le hachage du nom), qui ne se confondent jamais avec ceux des domaines.
+L'ordre canonique (domaines, puis clés triées) exclut l'interblocage entre changesets
+qui nomment les mêmes clés dans des ordres différents ; un changeset qui ne touche aucun
+domaine se sérialise sur ses seules clés. Deux noms de même hachage partagent un verrou :
+sérialisation de trop, jamais de trop peu.

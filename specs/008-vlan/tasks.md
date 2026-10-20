@@ -58,7 +58,7 @@ numérotées après coup.
   croissantes), `maintenance::deploy(pool, modules)` l'appelle après `MIGRATOR`. Server :
   `migrate` passe le registre. Tests `module_migrations.rs` (les trois du verify et
   `module_object_is_versioned`).
-- [ ] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
+- [x] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
   qualifiée, `ObjectKind::Module` ; pipeline (`plan`, `lock_targets`, `apply`,
   validation globale, droits `<type>.write|propose`), opérations du noyau planifiées
   par une opération de module, clés de verrou nommées après les domaines (amendement de
@@ -73,6 +73,25 @@ numérotées après coup.
   `pipeline.rs::{plan, lock_targets, apply, stages}`, `port.rs::WriteTx` ; test voisin
   `kartenn-service/tests/` (pipeline)
   dépend de : 1, 2
+  — Service : `operations.rs` (`ModuleKind` en ligne, `Copy` ; `ObjectKind::Module`,
+  (dé)sérialisé par son nom ; `ModuleOperation` et `Operation::Module`, étiquette
+  qualifiée routée avant la désérialisation dérivée `remote = "Self"`), `module.rs`
+  (`OperationType`, `ModulePlan`, `ModuleObjectRow`, `ModuleTx`, `ModuleHandler::{plan,
+  apply, check}`, `Module::operations`, `ModuleRegistry::operation`), `port.rs`
+  (`Store::modules`, `WriteTx::{lock_keys, module_tx}`), `pipeline.rs`
+  (`RequestError::UnknownOperation` dans `check_request`, `Planned::Module`, file des
+  opérations du noyau ajoutées par un module dans `plan`, périodes par opération planifiée,
+  domaines et clés dans `lock_targets`, `apply`, `check_modules` après la validation
+  globale), `rights.rs` (`<type>.write|propose`). Store : `PgStore::with_modules`,
+  `ModuleTx` pour `PgTx` (`register` dans `module_object`), `lock_keys` (verrous à deux
+  clés), `domain_of` d'un objet de module. Rest : `write_store` avec le registre,
+  `UnknownOperation` → 400. Server : store des tâches de fond avec le registre. ADR 0015
+  amendée (clés nommées). Tests : `module_pipeline.rs` (les six du verify), module
+  factice `tests/support/dummy_module.rs`, `module_operations_round_trip_through_json`.
+  choix : `ModuleKind` en tampon fixe de 64 octets pour garder `ObjectKind` `Copy` ;
+  verrous et domaines portés par le `ModulePlan` (pas de lecture en base pour les
+  calculer) ; l'enveloppe REST (`OperationDto`) reste à la tâche 8 ; `Close` et les
+  opérations génériques sur objets de module à la tâche 4.
 - [ ] 4. Opérations génériques et mécanismes transverses sur objets de module : `Close`,
   `Expect` et `object_version`, `BindExternal`, `Within`, historique, `Restore` et
   annulation — REQ-008-3, 5 — verify : `module_object_has_etag_and_history`,

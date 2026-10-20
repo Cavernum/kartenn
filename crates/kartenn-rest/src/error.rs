@@ -26,6 +26,7 @@ impl From<RequestError> for Problem {
             RequestError::Empty
             | RequestError::InvalidPeriod
             | RequestError::UnknownReference { .. }
+            | RequestError::UnknownOperation { .. }
             | RequestError::DuplicateLocal(_)
             | RequestError::WrongReferenceKind { .. } => {
                 Self::new(ProblemKind::BadRequest).detail(error.to_string())

@@ -85,7 +85,9 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Restore { .. }
             | Planned::BindExternal { .. }
             | Planned::Rbac(_)
-            | Planned::Policy(_) => {}
+            | Planned::Policy(_)
+            // Checked by its module, once the core's rules pass.
+            | Planned::Module { .. } => {}
         }
     }
     check_sites(tx, planned, periods, violations).await?;
@@ -623,6 +625,10 @@ async fn check_restored<T: WriteTx>(
         ObjectKind::Entity | ObjectKind::Site => {
             check_anchor(tx, kind, id, period, violations).await
         }
-        ObjectKind::Domain | ObjectKind::Property | ObjectKind::EnumValue => Ok(()),
+        // An object of a module is checked by its module (`ModuleHandler::check`).
+        ObjectKind::Domain
+        | ObjectKind::Property
+        | ObjectKind::EnumValue
+        | ObjectKind::Module(_) => Ok(()),
     }
 }

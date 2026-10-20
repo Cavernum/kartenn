@@ -448,6 +448,11 @@ pub enum Replay {
 
 /// A store able to open write transactions.
 pub trait Store: Send + Sync {
+    /// The modules of the build, whose operations its changesets accept (ADR 0026).
+    fn modules(&self) -> &crate::module::ModuleRegistry {
+        crate::module::ModuleRegistry::empty()
+    }
+
     /// Transaction type.
     type Tx: WriteTx + Send;
 
@@ -601,6 +606,14 @@ pub trait WriteTx {
         domains: &[Uuid],
         public_space: bool,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Takes the named lock keys of module operations, after the domains, in canonical
+    /// order, until the end of the transaction (REQ-008-27; amendment of ADR 0015).
+    fn lock_keys(&mut self, keys: &[String])
+    -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The transaction as a module writes in it (ADR 0026, clause 6).
+    fn module_tx(&mut self) -> &mut dyn crate::module::ModuleTx;
 
     /// Holds the idempotency key for the transaction (advisory lock held until its end)
     /// without waiting: [`Replay::InProgress`] if another holds it; otherwise looks up a

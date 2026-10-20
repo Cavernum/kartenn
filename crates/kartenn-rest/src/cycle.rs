@@ -25,7 +25,7 @@ use kartenn_service::port::{DiffItem, RbacRow};
 use kartenn_service::reads::{changesets_readable, objects_read, sensitive_disclosed};
 use kartenn_service::review::{proposals_for, reject, validate_pending, withdraw};
 use kartenn_service::undo::inverse;
-use kartenn_service::{ObjectKind, Operation, Ref, RequestError};
+use kartenn_service::{Operation, Ref, RequestError};
 use kartenn_store_pg::audit::diff_page;
 use kartenn_store_pg::changesets::{
     self, ChangesetFilter, ChangesetRead, ChangesetSummary, STATES,
@@ -50,7 +50,7 @@ use crate::changesets::{
 use crate::cursor::{Listing, ListingLinks, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, instant, store};
-use crate::operation::{OperationDto, TargetKindDto};
+use crate::operation::OperationDto;
 use crate::problem::{Problem, ProblemKind};
 use crate::resources::{entity_tag, stale};
 
@@ -1038,18 +1038,4 @@ pub(crate) async fn undo(
         return Err(internal("the members of an undo are no object"));
     };
     with_members(response, members).await
-}
-
-#[allow(dead_code)]
-const fn kinds(kind: ObjectKind) -> TargetKindDto {
-    match kind {
-        ObjectKind::Domain => TargetKindDto::Domain,
-        ObjectKind::Prefix => TargetKindDto::Prefix,
-        ObjectKind::Range => TargetKindDto::Range,
-        ObjectKind::Address => TargetKindDto::Address,
-        ObjectKind::Property => TargetKindDto::Property,
-        ObjectKind::EnumValue => TargetKindDto::EnumValue,
-        ObjectKind::Entity => TargetKindDto::Entity,
-        ObjectKind::Site => TargetKindDto::Site,
-    }
 }
