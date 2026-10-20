@@ -179,7 +179,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `key_file` dans la configuration de l'émetteur ; jeton d'accès opaque ; jeton de
   rafraîchissement renouvelé à chaque usage ; test de bout en bout dans kartenn-server
   (binaire lancé en sous-processus, seul moyen de lui passer `SSL_CERT_FILE` sans `unsafe`)
-- [ ] 10. Harnais de bout en bout `web/e2e` : projets `chromium` et `firefox`, `webServer`
+- [x] 10. Harnais de bout en bout `web/e2e` : projets `chromium` et `firefox`, `webServer`
   (émetteur, kartenn-server sur `web/e2e/kartenn.toml`), `global-setup.ts` (base
   `kartenn_e2e`, `migrate`, compte de secours, liaisons des groupes, jeu de données par
   changesets), fixtures de connexion, `expectAccessible`, échec sur violation CSP ;
@@ -189,6 +189,22 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « Bout en bout et développement », « Thème, composants, arbre »
   (accessibilité) ; `devenv.nix` (`scripts.k-web-e2e`) ; `kartenn-server/src/main.rs`
   (`migrate`, `breakglass create`)
+  — `web/e2e/` : `playwright.config.ts` (deux `webServer` sur `serve.sh idp` puis
+  `serve.sh kartenn`, ports 9444 et 9443), `serve.sh`, `global-setup.ts`, `users.toml`,
+  `kartenn.toml`, `fixtures/` (`env`, `data`, `totp`, `index` : `login`,
+  `expectAccessible`, garde CSP, exceptions et erreurs de console), `plugins/` (vide),
+  `journeys/smoke.spec.ts` ; `@axe-core/playwright` ; build du shell vers `web/dist/shell`
+  et import map vide dans `index.html` ; `k-web-e2e` lancé depuis le paquet `e2e`.
+  Tests : `k-web-e2e` vert, 6 parcours (connexion, lecture de `/v1/me` et `/v1/domains`
+  depuis la page, déconnexion jusqu'à l'émetteur puis 401 ; une image sans `alt` et un
+  script en ligne injectés, attendus en échec, échouent bien par axe-core et par la garde
+  CSP)
+  choix : préparation (certificats, base `kartenn_e2e`, `migrate`, compte de secours) dans
+  `serve.sh`, car Playwright lance les `webServer` avant `global-setup.ts` ; la liaison
+  `administrator` du compte de secours écrite en SQL par `serve.sh`, aucune opération de
+  l'API ne liant le premier administrateur, tout le reste (rattachement de l'émetteur,
+  liaisons des groupes, jeu de données) par l'API ; erreurs de console relevées sur les
+  pages de kartenn seulement (la page de l'émetteur n'est pas sous test)
 
 ## P4 — SDK
 

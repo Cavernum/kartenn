@@ -1,0 +1,29 @@
+# kartenn-server of the end-to-end journeys (spec 007, REQ-007-34): TLS on the loopback,
+# the built shell and the test plugins, the issuer of web/e2e/users.toml. Started by
+# web/e2e/serve.sh on the kartenn_e2e database; paths are relative to the repository.
+[telemetry]
+outputs = [{ kind = "stdout", filter = "warn" }]
+
+[http]
+listen = "127.0.0.1:9443"
+public_origin = "https://127.0.0.1:9443"
+
+[http.tls]
+cert_file = "web/e2e/.state/cert.pem"
+key_file = "web/e2e/.state/key.pem"
+
+[web]
+root = "web/dist/shell"
+plugins_dir = "web/e2e/plugins"
+
+[auth]
+key_file = "web/e2e/.state/kartenn-keys"
+redirect_uri = "https://127.0.0.1:9443/v1/auth/callback"
+
+[[auth.issuers]]
+id = "dev"
+issuer = "https://127.0.0.1:9444"
+client_id = "kartenn"
+client_secret_file = "web/e2e/.state/idp-secret"
+audience = "kartenn"
+algorithms = ["ES256"]

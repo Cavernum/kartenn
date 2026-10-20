@@ -276,7 +276,8 @@ in {
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
       log=$(mktemp -d -t k-web-e2e.XXXXXX)
-      if ! pnpm exec playwright test --reporter=line "$@" >"$log/e2e" 2>&1; then
+      # The journeys and their configuration live in the e2e package (spec 007, task 10).
+      if ! pnpm -C e2e exec playwright test --reporter=line "$@" >"$log/e2e" 2>&1; then
         echo "KO playwright ($log/e2e)"
         re='^ *[0-9]+\) |Error:|Expected|Received|^ *at .*:[0-9]+:[0-9]+'
         if grep -qE "$re" "$log/e2e"; then grep -E "$re" "$log/e2e" | head -30 | sed "s#$PWD/##"; else tail -15 "$log/e2e"; fi

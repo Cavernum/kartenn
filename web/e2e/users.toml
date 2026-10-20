@@ -1,0 +1,27 @@
+# Development OIDC issuer of the end-to-end journeys (spec 007, REQ-007-34, 35), started
+# by web/e2e/serve.sh; its material is written under web/e2e/.state by
+# `kartenn-dev-idp certs`. Paths are relative to the repository.
+issuer = "https://127.0.0.1:9444"
+listen = "127.0.0.1:9444"
+client_id = "kartenn"
+client_secret_file = "web/e2e/.state/idp-secret"
+redirect_uris = ["https://127.0.0.1:9443/v1/auth/callback"]
+cert_file = "web/e2e/.state/cert.pem"
+key_file = "web/e2e/.state/key.pem"
+
+[[users]]
+sub = "alice"
+name = "Alice Exemple"
+email = "alice@kartenn.invalid"
+groups = ["kartenn-admins"]
+
+[[users]]
+sub = "bob"
+name = "Bob Exemple"
+email = "bob@kartenn.invalid"
+groups = ["lecteurs"]
+
+[[users]]
+sub = "refuse"
+name = "Refus d'accès"
+error = "access_denied"
