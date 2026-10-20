@@ -123,7 +123,7 @@ numérotées après coup.
 
 ## P2 — Module VLAN
 
-- [ ] 9. Crate `kartenn-vlan` et domaine pur : VID (1–4094), nom (NFC, 1–64, sans
+- [x] 9. Crate `kartenn-vlan` et domaine pur : VID (1–4094), nom (NFC, 1–64, sans
   contrôle), plage d'un groupe, occupation en tranches et prochain libre, règles
   (`Rule` statiques) ; `workspace-hack` à jour — REQ-008-14, 20 (calcul) — verify :
   tests unitaires `vid_bounds`, `name_rules`, `occupancy_slices`,
@@ -131,6 +131,12 @@ numérotées après coup.
   où : design « Données du module », « Règles » ; modèle `kartenn-core/src/occupancy.rs`,
   `rules.rs` ; `docs/practices/rust-build.md`
   dépend de : —
+  — `vlan.rs` (`Vid`, `VlanName`, `VlanStatus`), `group.rs` (`VidRange` et `excluded`
+  pour REQ-008-13, `occupancy`, `next_free`), `rules.rs` (`VLAN_RULES`, les neuf règles
+  du design) ; tests unitaires dans chaque module, cas d'acceptation de REQ-008-20
+  compris.
+  choix : `deprecated` compte comme utilisé dans l'occupation ; le nom est normalisé
+  NFC avant d'être compté ; macro `rules!` recopiée (privée dans `kartenn-core`).
 - [ ] 10. Groupes : migration `0001_vlan.sql` (schéma `vlan`, `group`), adaptateur `pg`,
   gestionnaire `vlan.create_group`/`vlan.update_group` (ancres, `core.owner` et
   `core.site` ajoutés au plan, déplacement d'ancre), feature `vlan` de

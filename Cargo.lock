@@ -1926,6 +1926,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-vlan"
+version = "0.0.0"
+dependencies = [
+ "kartenn-core",
+ "kartenn-workspace-hack",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "kartenn-workspace-hack"
 version = "0.1.0"
 dependencies = [
