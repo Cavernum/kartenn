@@ -1836,6 +1836,19 @@
         ],
         "type": "object"
       },
+      "IssuerDto": {
+        "description": "An issuer a browser logs in at, as the login page names it.",
+        "properties": {
+          "id": {
+            "description": "Its local identifier, the `issuer` of `/v1/auth/login`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Limits": {
         "description": "The limits a client must respect.",
         "properties": {
@@ -2461,6 +2474,75 @@
                 "kind",
                 "name",
                 "disabled"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_ImportDto": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "An import, as followed by its author.",
+              "properties": {
+                "batches": {
+                  "$ref": "#/components/schemas/Batches",
+                  "description": "The batches."
+                },
+                "chunks": {
+                  "description": "The chunks received.",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "elements": {
+                  "description": "The elements received.",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "id": {
+                  "description": "Identifier.",
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "links": {
+                  "$ref": "#/components/schemas/ImportLinks",
+                  "description": "Links."
+                },
+                "report": {
+                  "description": "The report of the batches run.",
+                  "type": "object"
+                },
+                "source": {
+                  "description": "The source of the elements.",
+                  "type": "string"
+                },
+                "state": {
+                  "description": "`uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "source",
+                "state",
+                "chunks",
+                "elements",
+                "batches",
+                "report",
+                "links"
               ],
               "type": "object"
             },
@@ -7424,6 +7506,41 @@
         ]
       }
     },
+    "/v1/auth/issuers": {
+      "get": {
+        "operationId": "login_issuers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IssuerDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The issuers of the login."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "security": [],
+        "summary": "`GET /v1/auth/issuers`, public: the issuers of the login page, in the order of the\nconfiguration, by their local identifier alone (REQ-007-41): neither URL nor client.",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
     "/v1/auth/login": {
       "get": {
         "operationId": "login",
@@ -8957,6 +9074,87 @@
         ]
       }
     },
+    "/v1/domains/{id}/roots": {
+      "get": {
+        "operationId": "domain_roots",
+        "parameters": [
+          {
+            "description": "The addressing domain.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_TreeNode"
+                }
+              }
+            },
+            "description": "The roots of the tree of the domain."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/domains/{id}/roots`: the nodes of the domain that no prefix of the domain\ncontains, those the caller may read, in the order and by the pages of the children of a\nprefix (REQ-007-39). A domain the caller may not read answers 404, as an absent one.",
+        "tags": [
+          "core"
+        ]
+      }
+    },
     "/v1/entities": {
       "get": {
         "operationId": "list_entities",
@@ -9839,6 +10037,57 @@
       }
     },
     "/v1/imports": {
+      "get": {
+        "operationId": "list_imports",
+        "parameters": [
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_ImportDto"
+                }
+              }
+            },
+            "description": "The imports of the caller."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/imports`: the imports of the caller, the most recent first, by pages\n(REQ-007-40); those of anyone else are not listed. The list is read at the current\nstate on each page and takes neither filter nor date.",
+        "tags": [
+          "imports"
+        ]
+      },
       "post": {
         "operationId": "create_import",
         "requestBody": {

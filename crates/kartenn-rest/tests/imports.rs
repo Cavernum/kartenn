@@ -226,6 +226,49 @@ async fn an_import_is_its_authors(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_imports_of_the_caller_list_the_most_recent_first(pool: PgPool) {
+    let app = app_as(&pool, person(&pool).await, generous());
+    let outsider = app_as(&pool, person(&pool).await, generous());
+    let theirs = open(&outsider).await;
+    let mut mine = Vec::new();
+    for _ in 0..3 {
+        mine.push(open(&app).await);
+    }
+    let selves = |body: &Value| -> Vec<String> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["links"]["self"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // The most recent first, by pages; the import of another is absent.
+    let body = json_of(send(&app, get("/v1/imports?page_size=2")).await).await;
+    assert_eq!(selves(&body), [mine[2].clone(), mine[1].clone()]);
+    assert_eq!(body["items"][0]["state"], "uploading");
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    assert!(next.starts_with("/v1/imports?cursor="));
+    let body = json_of(send(&app, get(&next)).await).await;
+    assert_eq!(selves(&body), [mine[0].clone()]);
+    assert_eq!(body["links"]["next"], Value::Null);
+    let body = json_of(send(&outsider, get("/v1/imports")).await).await;
+    assert_eq!(selves(&body), [theirs]);
+
+    // Neither a filter nor a date.
+    for uri in [
+        "/v1/imports?state=done",
+        "/v1/imports?valid_at=2020-01-01T00:00:00Z",
+    ] {
+        assert_eq!(
+            send(&app, get(uri)).await.status(),
+            StatusCode::BAD_REQUEST,
+            "{uri}"
+        );
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn the_state_guards_the_actions(pool: PgPool) {
     let author = person(&pool).await;
     let app = app_as(&pool, author, generous());

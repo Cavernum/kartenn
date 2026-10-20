@@ -200,15 +200,23 @@ impl Fixture {
     }
 
     fn with(pool: &PgPool, idp: &Shared, settings: Settings) -> Self {
-        let issuer = IssuerConfig {
-            id: "main".into(),
-            issuer: idp.lock().unwrap().base.clone(),
-            client_id: CLIENT.into(),
-            client_secret: "s".into(),
-            audience: CLIENT.into(),
-            groups_claim: "groups".into(),
-            algorithms: vec![Algorithm::ES256],
-        };
+        Self::of_issuers(pool, idp, settings, &["main"])
+    }
+
+    /// With the issuers `ids`, in this order, all at `idp`.
+    fn of_issuers(pool: &PgPool, idp: &Shared, settings: Settings, ids: &[&str]) -> Self {
+        let issuers = ids
+            .iter()
+            .map(|&id| IssuerConfig {
+                id: id.into(),
+                issuer: idp.lock().unwrap().base.clone(),
+                client_id: CLIENT.into(),
+                client_secret: "s".into(),
+                audience: CLIENT.into(),
+                groups_claim: "groups".into(),
+                algorithms: vec![Algorithm::ES256],
+            })
+            .collect();
         let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
         let http = HttpClient::new().unwrap();
         let authn = Authn {
@@ -216,7 +224,7 @@ impl Fixture {
             journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
             ring: ring.clone(),
             oidc: Oidc::new(
-                TokenVerifier::new(vec![issuer], HttpKeys(http.clone())),
+                TokenVerifier::new(issuers, HttpKeys(http.clone())),
                 http,
                 ring.clone(),
                 REDIRECT.into(),
@@ -673,6 +681,22 @@ async fn no_cookie_is_set_without_tls(pool: PgPool) {
         .await;
     assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
     assert!(set_cookies(&unknown).is_empty());
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_issuers_of_the_login_are_public(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::of_issuers(&pool, &idp, Settings::default(), &["main", "backup"]);
+    // Without session nor TLS: their identifiers alone, in the order of the
+    // configuration, neither URL nor client.
+    let response = f
+        .call(request("GET", "/v1/auth/issuers", None, false))
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json(response).await,
+        serde_json::json!([{"id": "main"}, {"id": "backup"}])
+    );
 }
 
 /// A login through the issuer over `client`, as a browser on the page of kartenn sends

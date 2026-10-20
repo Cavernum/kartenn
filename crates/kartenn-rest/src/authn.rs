@@ -39,7 +39,12 @@ use crate::transport::Client;
 
 /// The routes under `/v1` that answer without authentication: the login routes (design
 /// « Ressources et routes »; `logout` needs the session).
-pub const PUBLIC: [&str; 3] = ["/v1/auth/login", "/v1/auth/callback", "/v1/auth/breakglass"];
+pub const PUBLIC: [&str; 4] = [
+    "/v1/auth/login",
+    "/v1/auth/callback",
+    "/v1/auth/breakglass",
+    "/v1/auth/issuers",
+];
 
 /// The challenge of every 401 (RFC 6750 §3). No `Basic` challenge: a browser would open
 /// its own login dialog over the application.
@@ -199,6 +204,12 @@ pub trait Authenticator: Send + Sync {
     ) -> Answer<'_, Option<String>> {
         let _ = (session, principal, source);
         refused(Refusal::Unavailable)
+    }
+
+    /// The local identifiers of the issuers a browser logs in at, in the order of the
+    /// configuration (REQ-007-41).
+    fn issuers(&self) -> Vec<String> {
+        Vec::new()
     }
 
     /// A summary of the rights `principal` holds now.
@@ -586,6 +597,10 @@ where
 {
     fn authenticate(&self, proof: Proof, source: Source) -> Answer<'_, Authenticated> {
         Box::pin(self.run(proof, source))
+    }
+
+    fn issuers(&self) -> Vec<String> {
+        self.oidc.tokens().issuer_ids().map(str::to_owned).collect()
     }
 
     fn begin(&self, issuer: String) -> Answer<'_, LoginStart> {

@@ -296,6 +296,11 @@ impl<S: KeySource> TokenVerifier<S> {
         self.issuers.iter().find(|i| i.id == id)
     }
 
+    /// The local identifiers of the issuers, in the order of the configuration.
+    pub fn issuer_ids(&self) -> impl Iterator<Item = &str> {
+        self.issuers.iter().map(|i| i.id.as_str())
+    }
+
     /// Validates the ID token of a login at `issuer` (OIDC Core §3.1.3.7): exact `iss`,
     /// `aud` holding the client and no audience else, `azp` the client if present, a key of
     /// the issuer and an algorithm of its list, unexpired, and the `nonce` of the login

@@ -38,6 +38,7 @@ use crate::problem::{Problem, ProblemKind};
 pub fn routes() -> OpenApiRouter<Api> {
     OpenApiRouter::new()
         .routes(routes!(children))
+        .routes(routes!(roots))
         .routes(routes!(ancestors))
         .routes(routes!(occupancy))
         .routes(routes!(next_free))
@@ -286,6 +287,79 @@ async fn children(
     });
     let (items, ids) = listed(&nodes);
     record(&api, &context, &moment, "children", id, &ids).await?;
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
+}
+
+/// `GET /v1/domains/{id}/roots`: the nodes of the domain that no prefix of the domain
+/// contains, those the caller may read, in the order and by the pages of the children of a
+/// prefix (REQ-007-39). A domain the caller may not read answers 404, as an absent one.
+#[utoipa::path(
+    get,
+    path = "/domains/{id}/roots",
+    operation_id = "domain_roots",
+    tag = "core",
+    params(("id" = Uuid, Path, description = "The addressing domain."), DatesParams, PageParams),
+    responses((status = 200, description = "The roots of the tree of the domain.", body = Listing<NodeDto>))
+)]
+async fn roots(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    let name = format!("domains/{id}/roots");
+    let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
+    page.unfiltered()?;
+    let after = page.after().map(child_key).transpose()?;
+    let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
+    let moment = page.dates.at(now, api.bound)?;
+    gate(&api, &context, Kind::Domain, id).await?;
+    if !tree::domain_exists(&api.pool, id, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?
+    {
+        return Err(Problem::new(ProblemKind::NotFound));
+    }
+    let scope = PgAuthorizer::new(api.pool.clone())
+        .read_scope(&principal.subject(), moment.now)
+        .await?;
+    let size = usize::from(page.size);
+    let mut nodes = tree::roots_of(
+        &api.pool,
+        id,
+        moment.valid_at,
+        moment.as_of,
+        &scope,
+        after.as_ref(),
+        Some(i64::from(page.size) + 1),
+    )
+    .await
+    .map_err(|e| store(&e))?;
+    let next = (nodes.len() > size).then(|| {
+        nodes.truncate(size);
+        let last = nodes[size - 1].key();
+        let cursor = page.next(
+            &api.ring,
+            &name,
+            &moment,
+            json!([last.start.to_string(), last.rank, last.id]),
+        );
+        next_href(&format!("/v1/{name}"), &cursor)
+    });
+    let (items, ids) = listed(&nodes);
+    let criteria = json!({
+        "domain": id,
+        "tree": "roots",
+        "valid_at": rfc3339(instant(moment.valid_at)),
+        "as_of": rfc3339(instant(moment.as_of())),
+    });
+    let event = objects_read(&context, "object", &ids, criteria, api.audit).map_err(audited)?;
+    api.journal
+        .record(&event)
+        .await
+        .map_err(RequestError::Audit)?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

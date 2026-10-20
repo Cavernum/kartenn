@@ -130,7 +130,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P2 — Ajouts à l'API
 
-- [ ] 6. Racines de l'arbre d'un domaine, `GET /v1/domains/{id}/roots` (W18) —
+- [x] 6. Racines de l'arbre d'un domaine, `GET /v1/domains/{id}/roots` (W18) —
   REQ-007-39 — verify : mêmes éléments, ordre et curseurs que les enfants d'un préfixe ;
   lecture datée ; nœuds illisibles absents ; page de 100 sous 150 ms au p95 sur le jeu de
   `bench-core` (agent `bench-runner`)
@@ -138,17 +138,46 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `ChildKey`, `ReadScope`), `kartenn-rest/src/tree.rs` (`children`, `listed`) ;
   `rest/tests/objects.rs` (`children_and_history_page_by_cursor`,
   `the_tree_shows_only_what_the_caller_may_read`) à imiter ; contrat de référence
-- [ ] 7. Imports de l'appelant, `GET /v1/imports` (W18) — REQ-007-40 — verify : du
+  — Store : `tree.rs` (`roots_of` : préfixes racines parcourus d'une sonde d'index à
+  l'autre dans l'ordre de `cidr`, arrêt à une racine lisible de plus que la page ; plages
+  et adresses lues dans les intervalles entre deux racines, bornes comparables pour
+  l'index `keyset` ; `domain_exists`, `node_of` partagé avec `children_of`). Rest :
+  `tree.rs` (`roots`, domaine illisible ou absent à la date → 404). Banc `bench-core` :
+  « roots of a domain, page of 100, p95 » (150 ms). Test
+  `the_roots_of_a_domain_list_as_the_children_of_a_prefix` (pages, curseur figé, parcours
+  un par un, dates, droits partiels, racines illisibles qui bornent les intervalles).
+  Contrat de référence. Mesure sur le jeu de `bench-core` (10⁶ objets, `psql`) : 1 à 6 ms
+  la première page de 100 ; une première version par anti-jointure prenait 25 s
+  choix : parcours des racines plutôt qu'anti-jointure sur tout le domaine ; lecture
+  datée dans le passé correcte mais sans budget (l'instantané d'historique n'a pas
+  d'ordre d'index) ; mesure faite à la main (le banc complet, ~50 min, n'a été relancé
+  qu'avant la correction)
+- [x] 7. Imports de l'appelant, `GET /v1/imports` (W18) — REQ-007-40 — verify : du
   plus récent au plus ancien, paginé ; ceux d'un autre absents
   où : design « Ajouts à l'API » ; `kartenn-store-pg/src/imports.rs` (`header`),
   `kartenn-rest/src/imports.rs` (contrôle de l'auteur, vers la ligne 114) ;
   `rest/tests/imports.rs` (`an_import_is_its_authors`) ; contrat de référence
-- [ ] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
+  — Store : `imports.rs` (`of_author`, clé `(created_at, id)` décroissante). Rest :
+  `imports.rs` (`list` : liste à l'état courant, ni filtre ni date, curseur
+  `next_current` ; chaque élément est la représentation de `GET /v1/imports/{id}`).
+  Test `the_imports_of_the_caller_list_the_most_recent_first`. Contrat de référence
+  choix : élément de liste identique à la fiche d'un import (état, lots, rapport), lu
+  import par import ; pas d'index sur `import.author_id` (table de quelques imports par
+  auteur) ; lecture non auditée, comme `GET /v1/imports/{id}`
+- [x] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
   REQ-007-41 — verify : 200 sans session, `[{id}]` dans l'ordre de la configuration,
   ni URL ni client ; route dans `PUBLIC`
   où : design « Ajouts à l'API » ; `kartenn-rest/src/auth.rs` (`routes`), `openapi.rs`
   (`PUBLIC`), `authn.rs` (`public`, trait `Authenticator`) ; `kartenn-server/src/config.rs`
   (`Issuer::id`) ; `rest/tests/sessions.rs` ; contrat de référence
+  — Auth : `tokens.rs` (`TokenVerifier::issuer_ids`). Rest : `authn.rs` (méthode
+  `Authenticator::issuers`, vide par défaut ; `PUBLIC`), `auth.rs` (`issuers`,
+  `IssuerDto`), `openapi.rs` (`PUBLIC`). Test `the_issuers_of_the_login_are_public`
+  (deux émetteurs, sans session ni TLS ; fixture `Fixture::of_issuers`). Contrat de
+  référence
+  choix : identifiants lus dans le vérificateur de jetons (même liste que la connexion)
+  plutôt que dans la configuration du serveur ; route servie aussi sans TLS (aucun cookie
+  posé)
 
 ## P3 — Émetteur de développement et bout en bout
 
