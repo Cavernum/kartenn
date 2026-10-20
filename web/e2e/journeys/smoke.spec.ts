@@ -6,7 +6,7 @@ import { expect, expectAccessible, expectNoCspViolation, test } from "../fixture
 // development issuer, a read of the data set by the page, logout.
 test("login, read and logout through the development issuer", async ({ page, login }) => {
   await login("alice");
-  await expect(page.getByRole("heading", { level: 1, name: "kartenn" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Arbre des préfixes" })).toBeVisible();
   await expectAccessible(page);
 
   // Reads from the page itself: same origin, CSP `connect-src 'self'`, session cookie.

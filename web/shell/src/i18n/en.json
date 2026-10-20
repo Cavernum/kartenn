@@ -1,0 +1,91 @@
+{
+  "app": {
+    "name": "kartenn",
+    "skip": "Skip to content",
+    "navigation": "Main navigation",
+    "loading": "Loading…"
+  },
+  "nav": {
+    "tree": "Tree",
+    "entities": "Entities",
+    "sites": "Sites",
+    "domains": "Domains",
+    "prefixes": "Prefixes",
+    "ranges": "Ranges",
+    "addresses": "Addresses",
+    "anomalies": "Anomalies",
+    "properties": "Properties",
+    "changesets": "Changesets",
+    "imports": "Imports",
+    "admin": "Administration",
+    "about": "About"
+  },
+  "menu": {
+    "user": "{name}, user menu",
+    "anonymous": "Not signed in",
+    "language": "Language",
+    "theme": "Theme",
+    "logout": "Sign out"
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "English"
+  },
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "home": {
+    "title": "Prefix tree",
+    "intro": "Choose a domain to browse its prefixes."
+  },
+  "admin": {
+    "title": "Administration",
+    "roles": "Roles",
+    "bindings": "Bindings",
+    "issuers": "Issuers",
+    "serviceAccounts": "Service accounts",
+    "identities": "Identities",
+    "audit": "Audit"
+  },
+  "about": {
+    "title": "About",
+    "version": "Shell version",
+    "sdk": "SDK version",
+    "server": "Server version",
+    "plugins": "Plugins",
+    "noPlugins": "No plugin declared.",
+    "timeZone": "Time zone shown: {zone}"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "back": "Back to the home page"
+  },
+  "problem": {
+    "bad-request": "The request is malformed.",
+    "invalid-cursor": "This page has expired; the list starts again.",
+    "unauthenticated": "Your session has expired. Sign in again.",
+    "forbidden": "You are not allowed to do this.",
+    "cross-site-request": "Request refused: it does not come from kartenn.",
+    "not-found": "This object does not exist, or no longer.",
+    "method-not-allowed": "This action is not possible here.",
+    "conflict": "Conflict with the current state.",
+    "undo-conflict": "This changeset can no longer be undone: a later change covers it.",
+    "idempotency-in-progress": "The same request is already in progress.",
+    "precondition-failed": "The object changed since you read it. Reload it before trying again.",
+    "payload-too-large": "The request is too large.",
+    "unsupported-media-type": "Unsupported request format.",
+    "changeset-refused": "The change is refused by the consistency rules.",
+    "motive-required": "A motive is required.",
+    "too-many-operations": "Too many operations in one changeset.",
+    "idempotency-key-reused": "This idempotency key was already used for another request.",
+    "invalid-member": "A field is invalid.",
+    "invalid-override": "The requested override is invalid.",
+    "invalid-import": "The import is invalid.",
+    "precondition-required": "The version read must accompany the change.",
+    "rate-limited": "Too many requests: wait a moment.",
+    "unavailable": "The service is temporarily unavailable.",
+    "internal": "Internal server error."
+  }
+}

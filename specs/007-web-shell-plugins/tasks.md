@@ -257,7 +257,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P5 — Shell
 
-- [ ] 13. Cadre du shell : mise en page, navigation, `vue-router`, jetons de design
+- [x] 13. Cadre du shell : mise en page, navigation, `vue-router`, jetons de design
   clair et sombre, Reka UI, vue-i18n FR et EN, choix de la langue, traduction des
   problèmes, droits par `/v1/me`, page `/about` — REQ-007-20, 29, 30 — verify : Vitest :
   parité des clés, ordre du choix de langue, problème sans traduction → `detail`,
@@ -266,6 +266,29 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « i18n », « Thème, composants, arbre », « Écrans et routes du client »
   (droits) ; 006 design « Erreurs » (URN des problèmes) ; `kartenn-rest/src/auth.rs`
   (`GET /v1/me`)
+  — `web/shell/src/` : `app/AppShell.vue` (lien d'évitement, en-tête, navigation,
+  `main`), `app/UserMenu.vue` (menu Reka UI : langue, thème, déconnexion par formulaire
+  `POST`), `navigation.ts` (entrées filtrées par droits), `rights/` (`covers`, `Rights`,
+  `rightsOf`, `loadSession` qui pousse l'utilisateur au contexte du SDK), `i18n/`
+  (`fr.json`, `en.json`, `chooseLocale`, `problemText`, `createShellI18n` branché sur
+  `setTranslator`), `theme.ts`, `styles/{tokens,base}.css`, vues `AdminView`,
+  `AboutView`, `NotFoundView` ; dépendances `vue-i18n` 11, `reka-ui`, `@kartenn/sdk`.
+  Tests : Vitest `i18n.test.ts` (parité du shell et des plugins, messages compilés, ordre
+  de la langue, problème par `type` puis `detail` puis `title`), `tokens.test.ts`
+  (contrastes des deux modes, mode sombre du système identique au choisi, jetons du SDK
+  définis), `permissions.test.ts` (`*`, entrée exacte, `prop.*.<action>` sur clés à
+  points, permissions de la navigation présentes dans `docs/spec/permissions.md`, rôles
+  des liaisons portées lus) ; E2E `journeys/shell.spec.ts` (un lecteur ne voit pas
+  « Administration », un administrateur l'atteint, langue et thème choisis et gardés au
+  rechargement, page « À propos »), axe-core à chaque étape
+  choix : vue-i18n sans `@intlify/unplugin-vue-i18n`, drapeaux définis dans
+  `vite.config.ts` (compilation JIT gardée, sans `eval`, éprouvée par la garde CSP des
+  parcours) ; navigation limitée aux écrans existants, chaque tâche d'écran ajoute son
+  entrée ; « Administration » visible avec `core.rbac.read`, `core.rbac.admin` ou
+  `core.audit.read` ; entrées des rôles à portée lues par `GET /v1/roles/{key}`, cachées
+  si ce droit manque ; menu de l'utilisateur non modal (un menu modal masque la page par
+  `aria-hidden` en y laissant des liens focalisables) et nom accessible qui commence par
+  le texte visible (WCAG 2.5.3)
 - [ ] 14. Session : page `/login` (émetteurs, secours), URL de retour, reconnexion sur
   401, déconnexion par formulaire — REQ-007-28 — verify : E2E : session expirée sur une
   fiche → reconnexion → même fiche et même contexte temporel ; déconnexion → retour à

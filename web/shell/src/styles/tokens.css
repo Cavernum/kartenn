@@ -1,0 +1,56 @@
+/*
+ * Design tokens of kartenn (REQ-007-30): custom properties, inherited through shadow roots,
+ * so that a plugin writes var(--k-color-bg) whatever its framework. Light by default; dark
+ * by the system (prefers-color-scheme) unless data-theme says otherwise, or by
+ * data-theme="dark". The pairs of text and background are checked against WCAG 2.2
+ * (tokens.test.ts): 4.5:1 for text, 3:1 for borders and the focus ring.
+ */
+:root {
+  color-scheme: light;
+  --k-color-bg: #ffffff;
+  --k-color-surface: #f4f5f7;
+  --k-color-text: #1b1f24;
+  --k-color-muted: #4f5763;
+  --k-color-accent: #0b5cad;
+  --k-color-danger: #b3261e;
+  --k-color-warning: #8a4b00;
+  --k-color-border: #767d88;
+  --k-color-focus: #0b5cad;
+  --k-space-1: 0.25rem;
+  --k-space-2: 0.5rem;
+  --k-space-3: 1rem;
+  --k-space-4: 2rem;
+  --k-radius: 4px;
+  --k-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --k-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --k-font-size: 0.9375rem;
+  --k-row-height: 2rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --k-color-bg: #12151a;
+    --k-color-surface: #1b2027;
+    --k-color-text: #e8eaed;
+    --k-color-muted: #aab1bb;
+    --k-color-accent: #7ab7ff;
+    --k-color-danger: #ff8a80;
+    --k-color-warning: #f0b44c;
+    --k-color-border: #7d8590;
+    --k-color-focus: #7ab7ff;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --k-color-bg: #12151a;
+  --k-color-surface: #1b2027;
+  --k-color-text: #e8eaed;
+  --k-color-muted: #aab1bb;
+  --k-color-accent: #7ab7ff;
+  --k-color-danger: #ff8a80;
+  --k-color-warning: #f0b44c;
+  --k-color-border: #7d8590;
+  --k-color-focus: #7ab7ff;
+}
