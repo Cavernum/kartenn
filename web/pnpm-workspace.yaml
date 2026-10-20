@@ -3,3 +3,8 @@ packages:
   - shell
   - plugins/*
   - e2e
+
+# openapi-typescript 7 declares TypeScript ^5 and generates the same types under 6.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: "6"

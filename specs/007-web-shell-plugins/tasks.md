@@ -192,7 +192,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P4 — SDK
 
-- [ ] 11. Client de l'API : `scripts/gen.mjs` (`schema.d.ts`, `dated.ts`) et test de
+- [x] 11. Client de l'API : `scripts/gen.mjs` (`schema.d.ts`, `dated.ts`) et test de
   fraîcheur ; `api.get`, `query`, `pages`, `post`, `patch`, `delete`, `ApiProblem`,
   branchement du 401, paramètres datés du contexte — REQ-007-15, 24 — verify : Vitest
   avec `fetch` simulé : méthode `QUERY` et son corps, `If-Match` exigé par le type
@@ -201,7 +201,19 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   seulement ; contrat modifié sans régénération → test en échec
   où : design « SDK » (Client) ; `specs/006-api-rest/openapi-v1.json` ; 006 design
   « Curseurs », « Écritures », « Erreurs » ; `web/sdk/src/api/`
-- [ ] 12. Contexte, `definePlugin`, semver, i18n de plugin, `styles()`, brouillon (surface),
+  — `web/sdk/scripts/gen.mjs` (+ `gen.d.mts`) ; `src/api/schema.d.ts`, `dated.ts`
+  (générés), `client.ts` (`createClient`, types d'options tirés de `paths`), `problem.ts`
+  (`ApiProblem.from`) ; `src/hooks.ts` (temps et 401 branchés par le shell),
+  `host.ts` (`onUnauthorized`), `index.ts` (`api`). Tests : `sdk/test/client.test.ts`
+  (QUERY, If-Match et ETag, `@ts-expect-error` sur `ifMatch` absent, clé d'idempotence,
+  412 et 422, 401, pages, `valid_at` daté seulement, fraîcheur et contrat modifié).
+  choix : routes `QUERY` (extension `x-query` du contrat, ignorée par openapi-typescript)
+  ajoutées à `schema.d.ts` en interface `queries` ; fichiers générés formatés par Prettier ;
+  `PATCH` en `application/merge-patch+json` ; `ifMatch` exigé là où le contrat déclare
+  `If-Match` obligatoire ; `pages` suit `next` tel quel (le curseur porte filtres et dates) ;
+  `put` ajouté pour les morceaux d'import ; dépendances de développement `openapi-typescript`
+  (TypeScript 6 admis par `peerDependencyRules`) et `happy-dom` (tâche 12)
+- [x] 12. Contexte, `definePlugin`, semver, i18n de plugin, `styles()`, brouillon (surface),
   jetons, `@kartenn/sdk/host`, bac à sable `@kartenn/sdk/testing` — REQ-007-12, 13, 14,
   16 — verify : Vitest : notification du contexte, élément non déclaré ou déjà défini
   refusé, matrice semver (`^`, `~`, exact, prépublications), `t` préfixé, bac à sable qui
@@ -209,6 +221,23 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   contexte
   où : design « SDK », « Chargement des plugins par le shell » (étape 4) ;
   `web/sdk/src/` (tâche 2)
+  — `web/sdk/src/` : `context.ts` (`context`, `setContext`), `extensions.ts`
+  (`definePlugin`, `expectPlugin`, `abandonPlugin`, `PluginHandle` avec `t`, `format`,
+  `styles`), `semver.ts` (`satisfies`, `compare`), `i18n.ts` (traducteur du shell ou
+  catalogues), `draft.ts` (`draft`, `draftHost`), `tokens.ts`, `host.ts` (branchements),
+  `testing/index.ts` (`mount`, `fakeFetch` typé par les routes du contrat,
+  `announcePlugin`) ; troisième entrée `@kartenn/sdk/testing` (package et build). Tests :
+  `sdk/test/semver.test.ts` (matrice `^`, `~`, exact, prépublications, ordre §11),
+  `sdk/test/plugins.test.ts` (happy-dom : contexte notifié et partagé, permissions,
+  élément non déclaré, déjà défini, plugin non annoncé ou abandonné, `t` préfixé et
+  traducteur du shell, bac à sable avec `valid_at` du contexte, brouillon, jetons).
+  choix : prépublications à la manière des plages npm (une prépublication ne satisfait
+  qu'une plage qui nomme une prépublication du même `x.y.z`) ; `definePlugin` définit tous
+  les éléments ou aucun ; le traducteur par défaut (catalogues ajoutés, `{param}`) sert au
+  bac à sable, le shell branche vue-i18n par `setTranslator` ; le brouillon du SDK est une
+  liste en mémoire que le shell synchronise (`draftHost`) ; `User.has` est fourni par le
+  shell ; `fetch` du client branché par `host.setFetch` ; jetons `--k-*` nommés ici,
+  définis par `tokens.css` à la tâche 13
 
 ## P5 — Shell
 

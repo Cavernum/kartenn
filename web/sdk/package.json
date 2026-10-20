@@ -13,10 +13,18 @@
     "./host": {
       "types": "./src/host.ts",
       "import": "./src/host.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "import": "./src/testing/index.ts"
     }
   },
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.3",
+    "openapi-typescript": "^7.13.0"
   }
 }

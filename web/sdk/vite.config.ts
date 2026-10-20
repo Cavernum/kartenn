@@ -13,6 +13,7 @@ export default defineConfig({
       entry: {
         index: fileURLToPath(new URL("src/index.ts", import.meta.url)),
         host: fileURLToPath(new URL("src/host.ts", import.meta.url)),
+        testing: fileURLToPath(new URL("src/testing/index.ts", import.meta.url)),
       },
       formats: ["es"],
     },
