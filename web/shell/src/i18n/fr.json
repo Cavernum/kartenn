@@ -1,0 +1,91 @@
+{
+  "app": {
+    "name": "kartenn",
+    "skip": "Aller au contenu",
+    "navigation": "Navigation principale",
+    "loading": "Chargement…"
+  },
+  "nav": {
+    "tree": "Arbre",
+    "entities": "Entités",
+    "sites": "Sites",
+    "domains": "Domaines",
+    "prefixes": "Préfixes",
+    "ranges": "Plages",
+    "addresses": "Adresses",
+    "anomalies": "Anomalies",
+    "properties": "Propriétés",
+    "changesets": "Changesets",
+    "imports": "Imports",
+    "admin": "Administration",
+    "about": "À propos"
+  },
+  "menu": {
+    "user": "{name}, menu de l'utilisateur",
+    "anonymous": "Non connecté",
+    "language": "Langue",
+    "theme": "Thème",
+    "logout": "Se déconnecter"
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "English"
+  },
+  "theme": {
+    "system": "Celui du système",
+    "light": "Clair",
+    "dark": "Sombre"
+  },
+  "home": {
+    "title": "Arbre des préfixes",
+    "intro": "Choisissez un domaine pour parcourir ses préfixes."
+  },
+  "admin": {
+    "title": "Administration",
+    "roles": "Rôles",
+    "bindings": "Liaisons",
+    "issuers": "Émetteurs",
+    "serviceAccounts": "Comptes de service",
+    "identities": "Identités",
+    "audit": "Audit"
+  },
+  "about": {
+    "title": "À propos",
+    "version": "Version du shell",
+    "sdk": "Version du SDK",
+    "server": "Version du serveur",
+    "plugins": "Plugins",
+    "noPlugins": "Aucun plugin déclaré.",
+    "timeZone": "Fuseau horaire affiché : {zone}"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "back": "Revenir à l'accueil"
+  },
+  "problem": {
+    "bad-request": "La requête est mal formée.",
+    "invalid-cursor": "Cette page a expiré ; la liste repart du début.",
+    "unauthenticated": "Votre session a expiré. Reconnectez-vous.",
+    "forbidden": "Vous n'avez pas le droit de faire cela.",
+    "cross-site-request": "Requête refusée : elle ne vient pas de kartenn.",
+    "not-found": "Cet objet n'existe pas, ou plus.",
+    "method-not-allowed": "Cette action n'est pas possible ici.",
+    "conflict": "Conflit avec l'état actuel.",
+    "undo-conflict": "Ce changeset ne peut plus être annulé : un changement plus récent le recouvre.",
+    "idempotency-in-progress": "La même demande est déjà en cours.",
+    "precondition-failed": "L'objet a changé depuis votre lecture. Rechargez-le avant de recommencer.",
+    "payload-too-large": "La demande est trop volumineuse.",
+    "unsupported-media-type": "Format de la demande non pris en charge.",
+    "changeset-refused": "Le changement est refusé par les règles de cohérence.",
+    "motive-required": "Un motif est obligatoire.",
+    "too-many-operations": "Trop d'opérations dans un seul changeset.",
+    "idempotency-key-reused": "Cette clé d'idempotence a déjà servi pour une autre demande.",
+    "invalid-member": "Un champ est invalide.",
+    "invalid-override": "La surcharge demandée est invalide.",
+    "invalid-import": "L'import est invalide.",
+    "precondition-required": "La version lue de l'objet doit accompagner la modification.",
+    "rate-limited": "Trop de requêtes : patientez un instant.",
+    "unavailable": "Le service est momentanément indisponible.",
+    "internal": "Erreur interne du serveur."
+  }
+}

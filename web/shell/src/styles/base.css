@@ -1,0 +1,147 @@
+/* Layout and base elements of the shell, on the design tokens. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--k-color-bg);
+  color: var(--k-color-text);
+  font-family: var(--k-font-family);
+  font-size: var(--k-font-size);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--k-color-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--k-color-focus);
+  outline-offset: 2px;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--k-color-surface);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+  padding: var(--k-space-1) var(--k-space-2);
+  cursor: pointer;
+}
+
+.k-skip {
+  position: absolute;
+  left: var(--k-space-2);
+  top: -3rem;
+  padding: var(--k-space-2);
+  background: var(--k-color-bg);
+  z-index: 10;
+}
+
+.k-skip:focus {
+  top: var(--k-space-2);
+}
+
+.k-layout {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+.k-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-space-3);
+  padding: var(--k-space-2) var(--k-space-3);
+  border-bottom: 1px solid var(--k-color-border);
+  background: var(--k-color-surface);
+}
+
+.k-brand {
+  font-weight: 600;
+  color: var(--k-color-text);
+  text-decoration: none;
+}
+
+.k-nav {
+  border-right: 1px solid var(--k-color-border);
+  background: var(--k-color-surface);
+  padding: var(--k-space-3) var(--k-space-2);
+}
+
+.k-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.k-nav a {
+  display: block;
+  padding: var(--k-space-1) var(--k-space-2);
+  border-radius: var(--k-radius);
+  color: var(--k-color-text);
+  text-decoration: none;
+}
+
+.k-nav a.router-link-active {
+  background: var(--k-color-bg);
+  color: var(--k-color-accent);
+  font-weight: 600;
+}
+
+.k-main {
+  padding: var(--k-space-3) var(--k-space-4);
+  min-width: 0;
+}
+
+.k-muted {
+  color: var(--k-color-muted);
+}
+
+.k-menu {
+  min-width: 12rem;
+  padding: var(--k-space-1);
+  background: var(--k-color-bg);
+  color: var(--k-color-text);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+}
+
+.k-menu-label {
+  padding: var(--k-space-1) var(--k-space-2);
+  color: var(--k-color-muted);
+  font-size: 0.85em;
+}
+
+.k-menu-item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--k-space-1) var(--k-space-2);
+  border-radius: var(--k-radius);
+  cursor: pointer;
+  outline: none;
+}
+
+.k-menu-item[data-highlighted] {
+  background: var(--k-color-surface);
+  outline: 2px solid var(--k-color-focus);
+}
+
+.k-menu-separator {
+  height: 1px;
+  margin: var(--k-space-1) 0;
+  background: var(--k-color-border);
+}
