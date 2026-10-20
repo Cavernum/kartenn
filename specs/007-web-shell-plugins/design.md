@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # 007 — Shell Web et plugins : conception
@@ -137,7 +137,7 @@ Referrer-Policy: same-origin
   depuis du HTML, pas le CSSOM (liaisons `:style` de Vue, positionnement de Reka UI).
   Règle ESLint `vue/no-static-inline-styles` (Vue sérialise en `innerHTML` les longs
   blocs statiques) ; les plugins chargent leurs feuilles par `<link>` (SDK `styles()`).
-- **Quotas** (Q-007-4) : `quota::layer` ne compte que `/v1` ; un shell charge plusieurs
+- **Quotas** (W18) : `quota::layer` ne compte que `/v1` ; un shell charge plusieurs
   dizaines de fichiers sans authentification, au-delà du quota anonyme par adresse
   (20/s). Délestage, délai, corps borné et identifiant de requête restent sur tout.
   L'authentification ignore déjà ce qui est hors `/v1` (`authn::public`).
@@ -379,7 +379,7 @@ Brouillon (`shell/src/draft/`) :
 
 ### Session (REQ-007-28)
 
-- `/login` : boutons des émetteurs (`GET /v1/auth/issuers`, Q-007-3), formulaire de
+- `/login` : boutons des émetteurs (`GET /v1/auth/issuers`, W18), formulaire de
   secours (`POST /v1/auth/breakglass`). Avant de partir vers l'émetteur, l'URL courante
   va en `sessionStorage` (`kartenn.return`, chemin interne seulement) et l'émetteur en
   `localStorage` (`kartenn.issuer`).
@@ -518,8 +518,7 @@ Bout en bout (`k-web-e2e`) :
 
 ### Ajouts à l'API (REQ-007-39 à 41)
 
-Sous réserve de Q-007-1 à 3 ; additifs (006/H12), au contrat de référence et au
-comparateur.
+Arbitrés par W18 ; additifs (006/H12), au contrat de référence et au comparateur.
 
 | Route | Réponse | Store |
 |---|---|---|

@@ -1,6 +1,6 @@
 ---
 status: draft
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # 007 — Shell Web et plugins : exigences
@@ -19,7 +19,7 @@ budgets de navigateur (W13) et l'accessibilité WCAG 2.2 AA (W14) sont vérifié
 bloquant ; les parcours de bout en bout tournent contre le vrai serveur (W15) avec un
 émetteur OIDC de développement (W16).
 
-Décisions : [`decisions.md`](decisions.md) (W1–W17) ; D6, D7, D14, D17, D31, D37
+Décisions : [`decisions.md`](decisions.md) (W1–W18) ; D6, D7, D14, D17, D31, D37
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; Q-ouv-1 (SDK et
 plugins en MPL-2.0), Q-ouv-6 (i18n de l'interface) ; ADR 0011, 0020, 0022, 0024.
 Contrat de l'API : [`../006-api-rest/openapi-v1.json`](../006-api-rest/openapi-v1.json).
@@ -475,8 +475,8 @@ Acceptation :
 
 ### M. Ajouts à l'API
 
-Ajouts que les écrans de W1 demandent et que W17 n'énumère pas ; à arbitrer avec la spec
-(questions ouvertes Q-007-1 à 3). Additifs (006/H12), sous `/v1`.
+Ajouts que les écrans de W1 demandent et que W17 n'énumère pas, arbitrés par W18
+(Q-007-1 à 3). Additifs (006/H12), sous `/v1`.
 
 #### REQ-007-39 — Racines de l'arbre d'un domaine
 kartenn doit restituer les nœuds sans parent déduit d'un domaine (préfixes, plages et
@@ -515,17 +515,17 @@ Acceptation :
 
 ## Questions ouvertes
 
-- [ ] Q-007-1 — Racines de l'arbre (REQ-007-39) : route additive
-  `GET /v1/domains/{id}/roots` (recommandé) ; sinon le shell lit
-  `GET /v1/prefixes?domain=…` en entier, incompatible avec un arbre à 10⁵ chargé à la
-  demande (W13). (utilisateur)
-- [ ] Q-007-2 — Suivi des imports (REQ-007-40) : route additive `GET /v1/imports`
-  (recommandé) ; sinon le shell ne suit que les imports ouverts dans ce navigateur, dont
-  il garde l'identifiant. (utilisateur)
-- [ ] Q-007-3 — Émetteurs de la page de connexion (REQ-007-41) : route publique additive
-  `GET /v1/auth/issuers` (recommandé) ; sinon une liste `[web] issuers` qui double
-  `[[auth.issuers]]`. (utilisateur)
-- [ ] Q-007-4 — Fichiers servis hors quota par identité (design « Service du shell ») :
+- [x] Q-007-1 — Racines de l'arbre (REQ-007-39) : route additive
+  `GET /v1/domains/{id}/roots`, ou lecture de `GET /v1/prefixes?domain=…` en entier,
+  incompatible avec un arbre à 10⁵ chargé à la demande (W13). (utilisateur) — la route,
+  le 2026-10-20 (W18).
+- [x] Q-007-2 — Suivi des imports (REQ-007-40) : route additive `GET /v1/imports`, ou
+  suivi des seuls imports ouverts dans ce navigateur. (utilisateur) — la route, limitée à
+  l'appelant, le 2026-10-20 (W18).
+- [x] Q-007-3 — Émetteurs de la page de connexion (REQ-007-41) : route publique additive
+  `GET /v1/auth/issuers`, ou liste `[web] issuers` qui double `[[auth.issuers]]`.
+  (utilisateur) — la route publique, identifiants seuls, le 2026-10-20 (W18).
+- [x] Q-007-4 — Fichiers servis hors quota par identité (design « Service du shell ») :
   le chargement d'un shell (plusieurs dizaines de fichiers, anonymes) dépasserait le
-  quota anonyme par adresse (20/s) ; recommandé : quotas sur `/v1` seulement, délestage
-  sur tout. (utilisateur)
+  quota anonyme par adresse (20/s). (utilisateur) — quotas sur `/v1` seulement,
+  délestage sur tout, le 2026-10-20 (W18).

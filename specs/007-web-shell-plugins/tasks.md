@@ -1,15 +1,14 @@
 ---
 status: draft
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # 007 — Shell Web et plugins : tâches
 
 Chaque tâche est un commit, laisse le build vert (`devenv test`) et nomme ce qu'elle
 implémente. Côté Rust, `k-check` ; côté web, `k-web-check` (prettier, eslint, vue-tsc,
-Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les tâches 6 à 8
-attendent l'arbitrage de Q-007-1 à 3 (`requirements.md`, « Questions ouvertes ») ; la
-tâche 3 celui de Q-007-4.
+Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les ajouts à l'API
+(tâches 6 à 8) et les quotas de la tâche 3 suivent W18.
 
 ## P0 — Sources et socle
 
@@ -76,7 +75,7 @@ tâche 3 celui de Q-007-4.
 
 ## P2 — Ajouts à l'API
 
-- [ ] 6. Racines de l'arbre d'un domaine, `GET /v1/domains/{id}/roots` (Q-007-1) —
+- [ ] 6. Racines de l'arbre d'un domaine, `GET /v1/domains/{id}/roots` (W18) —
   REQ-007-39 — verify : mêmes éléments, ordre et curseurs que les enfants d'un préfixe ;
   lecture datée ; nœuds illisibles absents ; page de 100 sous 150 ms au p95 sur le jeu de
   `bench-core` (agent `bench-runner`)
@@ -84,12 +83,12 @@ tâche 3 celui de Q-007-4.
   `ChildKey`, `ReadScope`), `kartenn-rest/src/tree.rs` (`children`, `listed`) ;
   `rest/tests/objects.rs` (`children_and_history_page_by_cursor`,
   `the_tree_shows_only_what_the_caller_may_read`) à imiter ; contrat de référence
-- [ ] 7. Imports de l'appelant, `GET /v1/imports` (Q-007-2) — REQ-007-40 — verify : du
+- [ ] 7. Imports de l'appelant, `GET /v1/imports` (W18) — REQ-007-40 — verify : du
   plus récent au plus ancien, paginé ; ceux d'un autre absents
   où : design « Ajouts à l'API » ; `kartenn-store-pg/src/imports.rs` (`header`),
   `kartenn-rest/src/imports.rs` (contrôle de l'auteur, vers la ligne 114) ;
   `rest/tests/imports.rs` (`an_import_is_its_authors`) ; contrat de référence
-- [ ] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (Q-007-3) —
+- [ ] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
   REQ-007-41 — verify : 200 sans session, `[{id}]` dans l'ordre de la configuration,
   ni URL ni client ; route dans `PUBLIC`
   où : design « Ajouts à l'API » ; `kartenn-rest/src/auth.rs` (`routes`), `openapi.rs`
