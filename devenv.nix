@@ -13,6 +13,40 @@
       [ -f web/package.json ] || exit 0
       exec pnpm -C web exec ${tool} "''${@#web/}"
     '';
+  # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
+  # sessions and worktrees share one machine, and each cargo would otherwise take every
+  # core. At most KARTENN_HEAVY_SLOTS (default 2) commands run at once, niced, each with
+  # its share of the cores (KARTENN_HEAVY_JOBS to override); the others wait their turn.
+  # Re-entrant: a heavy command run under a slot does not take a second one.
+  kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
+    set -uo pipefail
+    [ $# -gt 0 ] || { echo "usage: k-heavy <command> [args…]" >&2; exit 2; }
+    slots=''${KARTENN_HEAVY_SLOTS:-2}
+    jobs=''${KARTENN_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
+    [ "$jobs" -ge 1 ] || jobs=1
+    run() {
+      export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
+      exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
+    }
+    [ -z "''${KARTENN_HEAVY_HELD:-}" ] || run "$@"
+    dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
+    mkdir -p "$dir"
+    waited=0
+    while :; do
+      for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
+        exec 9>"$dir/slot.$i"
+        # The lock stays held by the command (and its children) through the inherited fd.
+        if ${pkgs.util-linux}/bin/flock -n 9; then
+          [ "$waited" -eq 0 ] || echo "k-heavy: créneau $i obtenu" >&2
+          export KARTENN_HEAVY_HELD=$i
+          run "$@"
+        fi
+        exec 9>&-
+      done
+      [ "$waited" -eq 1 ] || { echo "k-heavy: $slots créneau(x) occupé(s), attente…" >&2; waited=1; }
+      sleep 5
+    done
+  '';
   # Development console (D35, spec 012/L17): OpenObserve shows logs, traces and metrics
   # in one UI (http://127.0.0.1:5080). Development-only credentials, bound to loopback;
   # the header is the Basic encoding of the same pair.
@@ -38,6 +72,8 @@ in {
     pkgs.cargo-hakari
     pkgs.sqlx-cli
     pkgs.cargo-nextest
+    kHeavy
+    pkgs.sccache
     # Frontend: language servers for Claude Code's LSP tool and the editor, and the
     # browser of Claude Code (claude.code.mcpServers.playwright).
     pkgs.vue-language-server
@@ -104,10 +140,18 @@ in {
   # (docs/practices/rust-build.md §2.3). Refresh it with `db-prepare`.
   env.SQLX_OFFLINE = "true";
 
+  # Load guards (see kHeavy): a cargo run outside k-heavy (rust-analyzer, an ad hoc
+  # command) takes 6 jobs, not every core; and one compilation cache shared by every
+  # worktree, so a new worktree does not rebuild all dependencies.
+  env.CARGO_BUILD_JOBS = "6";
+  env.RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+  env.SCCACHE_CACHE_SIZE = "40G";
+
   scripts.db-prepare = {
     description = "Migrate the development database and refresh the sqlx offline metadata";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace -- --all-targets
     '';
@@ -120,6 +164,7 @@ in {
     description = "fmt, clippy and tests, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       log=$(mktemp -d -t k-check.XXXXXX)
       if ! cargo fmt --all --check >"$log/fmt" 2>&1; then
         echo "KO fmt ($log/fmt) — cargo fmt --all"; grep '^Diff in' "$log/fmt" | head -20; exit 1
@@ -151,6 +196,7 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -186,6 +232,7 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -226,6 +273,7 @@ in {
     description = "Check the budgets of the properties on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- props "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -237,6 +285,7 @@ in {
     description = "Check the budgets of the core on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -248,6 +297,7 @@ in {
     description = "Measure the cost of access control on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- rbac "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -259,6 +309,7 @@ in {
     description = "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- http "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -270,6 +321,7 @@ in {
     description = "Measure the cost of the telemetry on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
+      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- telemetry "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -368,7 +420,11 @@ in {
     };
     trim-trailing-whitespace.enable = true;
     rustfmt.enable = true;
-    clippy.enable = true;
+    # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
+    clippy = {
+      enable = true;
+      entry = lib.mkForce "${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features";
+    };
     # Frontend, with web/'s own tool versions; no-ops until web/ exists.
     web-prettier = {
       enable = true;
