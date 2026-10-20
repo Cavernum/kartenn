@@ -18,19 +18,32 @@
   # core. At most KARTENN_HEAVY_SLOTS (default 2) commands run at once, niced, each with
   # its share of the cores (KARTENN_HEAVY_JOBS to override); the others wait their turn.
   # Re-entrant: a heavy command run under a slot does not take a second one.
+  # `k-heavy --pg <command>` also takes the exclusive lock of the shared PostgreSQL: the
+  # #[sqlx::test] runs of two worktrees would drop each other's test databases, and the
+  # benches recreate kartenn_bench. The lock is always taken after the slot (no cycle).
   kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
     set -uo pipefail
-    [ $# -gt 0 ] || { echo "usage: k-heavy <command> [args…]" >&2; exit 2; }
+    pg=0
+    [ "''${1:-}" != --pg ] || { pg=1; shift; }
+    [ $# -gt 0 ] || { echo "usage: k-heavy [--pg] <command> [args…]" >&2; exit 2; }
     slots=''${KARTENN_HEAVY_SLOTS:-2}
     jobs=''${KARTENN_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
     [ "$jobs" -ge 1 ] || jobs=1
+    dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
+    mkdir -p "$dir"
     run() {
       export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
+      if [ "$pg" -eq 1 ] && [ -z "''${KARTENN_PG_HELD:-}" ]; then
+        exec 8>"$dir/pg"
+        ${pkgs.util-linux}/bin/flock -n 8 || {
+          echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
+          ${pkgs.util-linux}/bin/flock 8
+        }
+        export KARTENN_PG_HELD=1
+      fi
       exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
     }
     [ -z "''${KARTENN_HEAVY_HELD:-}" ] || run "$@"
-    dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
-    mkdir -p "$dir"
     waited=0
     while :; do
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
@@ -151,7 +164,7 @@ in {
     description = "Migrate the development database and refresh the sqlx offline metadata";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace -- --all-targets
     '';
@@ -174,14 +187,14 @@ in {
       fi
       warnings=$(grep -c '^warning' "$log/clippy" || true)
       [ "$warnings" -gt 0 ] && warnings=", clippy : $warnings avertissement(s)" || warnings=""
-      if ! cargo nextest run --workspace --all-features --hide-progress-bar \
+      if ! k-heavy --pg cargo nextest run --workspace --all-features --hide-progress-bar \
           --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
         echo "KO tests ($log/test)"
         grep -E '^ +(FAIL|SIGSEGV|TIMEOUT|LEAK)|^error' "$log/test" | sort -u | head -20
         echo "---"; grep -E 'panicked at|assertion|left:|right:|^error(\[|:)| --> ' "$log/test" | head -40
         exit 1
       fi
-      if [ $# -eq 0 ] && ! cargo test -q --workspace --doc --all-features >"$log/doc" 2>&1; then
+      if [ $# -eq 0 ] && ! k-heavy --pg cargo test -q --workspace --doc --all-features >"$log/doc" 2>&1; then
         echo "KO doctests ($log/doc)"; grep -E 'FAILED|panicked|error' "$log/doc" | head -30; exit 1
       fi
       echo "OK — $(grep -E '^ +Summary' "$log/test" | tail -1 | sed 's/^ *//')$warnings"
@@ -273,7 +286,7 @@ in {
     description = "Check the budgets of the properties on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- props "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -285,7 +298,7 @@ in {
     description = "Check the budgets of the core on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -297,7 +310,7 @@ in {
     description = "Measure the cost of access control on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- rbac "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -309,7 +322,7 @@ in {
     description = "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- http "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -321,7 +334,7 @@ in {
     description = "Measure the cost of the telemetry on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- telemetry "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -423,7 +436,12 @@ in {
     # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
     clippy = {
       enable = true;
-      entry = lib.mkForce "${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features";
+      # Absolute toolchain: pre-commit also runs outside the devenv shell.
+      entry = lib.mkForce "${pkgs.writeShellScript "clippy-heavy" ''
+        export PATH=${lib.makeBinPath [pkgs.cargo pkgs.clippy pkgs.rustc pkgs.stdenv.cc pkgs.pkg-config pkgs.coreutils]}:$PATH
+        export SQLX_OFFLINE=true RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
+        exec ${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features
+      ''}";
     };
     # Frontend, with web/'s own tool versions; no-ops until web/ exists.
     web-prettier = {
