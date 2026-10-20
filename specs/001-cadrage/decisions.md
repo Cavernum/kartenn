@@ -232,7 +232,6 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Décidé par : recommandation acceptée
 - Précision (spec 012, 2026-10-17) : OpenTelemetry est une sortie parmi d'autres, toutes actives à la fois : stdout (texte ou JSON), fichier, journald, syslog RFC 5424 (local, UDP, TCP, TLS) et OTLP/gRPC, chacune avec son filtre et sa file bornée. Le journal d'audit, distinct des logs techniques, est en base, scellé et exporté (ADR 0019). Configuration : fichier TOML et variables `KARTENN_*`. Console de développement : collecteur OpenTelemetry et OpenObserve dans devenv.
 - Décidé par : délégué (2026-10-17), spec 012 approuvée
-- Amendement (spec 007, W2 et W25, 2026-10-19) : plus d'image « web statique » ; le build du shell et des plugins de première partie est un répertoire servi par kartenn-server (`[web] root`, même origine que l'API), embarqué dans l'image du serveur et le module NixOS. À confirmer par l'utilisateur à la relecture de la 007.
 
 ## D36 — RBAC
 - Décision : chaque module déclare un **catalogue de permissions** ; un **rôle** est un ensemble nommé de permissions (rôles livrés : lecteur, éditeur, approbateur, admin ; rôles personnalisés possibles) ; une **liaison** associe un sujet (utilisateur, groupe OIDC, compte de service) à un rôle sur un **périmètre** (entité, site, domaine, sous-arbre de préfixes), hérité vers le bas. Les politiques d'approbation (D11) s'expriment dans le même modèle. Le filtrage des listes par droits est traduit en prédicats SQL pour tenir les budgets de D14.

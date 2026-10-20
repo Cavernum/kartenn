@@ -31,4 +31,3 @@ Chaque note contient :
 | [journalisation-audit.md](journalisation-audit.md) | Syslog, journald, OpenTelemetry, Trace Context, référentiels d'audit (OWASP, ASVS, NIST, ANSSI) | 012 |
 | [authentification-autorisation.md](authentification-autorisation.md) | OAuth 2.0 (RFC 9700), BFF (RFC 10017), OIDC, jetons JWT (RFC 8725, 9068), TOTP, Argon2, NIST SP 800-63B | 005 |
 | [api-http.md](api-http.md) | Sémantique HTTP, cache, Problem Details, pagination, idempotence, débit, CSRF, montée en charge des API REST | 006 |
-| [plateforme-web.md](plateforme-web.md) | CSP, SRI et intégrité des modules, import maps, Custom Elements, jetons CSS et Shadow DOM, Clear-Site-Data, WCAG 2.2, SemVer | 007 |
