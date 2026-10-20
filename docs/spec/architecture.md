@@ -109,7 +109,7 @@ Règles :
 | Frontend | Plugins ES modules enregistrant des Custom Elements, découverts via l'endpoint de capacités | À chaud |
 | Connecteurs | Processus externes, clients REST | À chaud |
 
-Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), proposée ; implémenté
+Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée ; implémenté
 par la 008) : identifiant et version ;
 dépendances ; migrations ; types d'objets et leurs ancres de périmètre ; propriétés et
 types de valeurs ; règles de validation (identifiant, sévérité) ; sources de valeurs
