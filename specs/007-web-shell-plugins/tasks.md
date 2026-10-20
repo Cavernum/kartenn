@@ -50,7 +50,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P1 — Service par kartenn-server
 
-- [ ] 3. Section `[web]` et service du shell : module `kartenn-rest::web` (résolution des
+- [x] 3. Section `[web]` et service du shell : module `kartenn-rest::web` (résolution des
   chemins, types, cache et 304, en-têtes, empreinte de l'import map relue au changement
   d'`index.html`), `fallback` du routeur, quotas limités à `/v1`, câblage dans `app::run`
   — REQ-007-1, 2, 3 — verify : `rest/tests/web.rs` (repli sur `index.html`, 404 sous
@@ -64,6 +64,16 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `kartenn-server/src/config.rs` (`Config`, `Http`, tests en fin de fichier),
   `app.rs` (`kartenn_rest::router`, vers la ligne 718) ; tests à la manière de
   `rest/tests/socle.rs`
+  — `kartenn-rest/src/web.rs` (`Web`, `Shell`, `serve`), `router_with_web` dans
+  `lib.rs`, `quota::layer` limité à `/v1` ; `[web]` dans `kartenn-server/src/config.rs`
+  (`Web`, refus au chargement par `Shell::open`) et `app.rs` (`Api::start`) ; tests
+  `rest/tests/web.rs` (9), `config::tests::a_faulty_web_section_…`, routes de
+  `rest/tests/quota.rs` passées sous `/v1`
+  choix : `router` garde sa signature et délègue à `router_with_web` (appelants de test
+  inchangés) ; 404 du shell en `text/plain`, 404 problème sous `/v1` et `/health` ;
+  `index.html` relu au changement de taille ou de date à chaque requête, l'ancien gardé
+  si le nouveau n'a pas d'import map ; dépendances `arc-swap`, `base64`,
+  `percent-encoding` (déjà dans l'arbre) ajoutées à `kartenn-rest`
 - [ ] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
   empreintes `sha384` (rehachées au seul changement de taille ou de date), version
   publiée, filtre par module, service sous `/plugins/`, relecture toutes les 10 s et sur

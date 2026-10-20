@@ -57,7 +57,7 @@ fn behind(identity: Uuid, quotas: Arc<Quotas>) -> Router {
         next.run(request).await
     };
     Router::new()
-        .route("/w", post(|| async { "ok" }).get(|| async { "ok" }))
+        .route("/v1/w", post(|| async { "ok" }).get(|| async { "ok" }))
         .layer(from_fn_with_state(quotas, kartenn_rest::quota::layer))
         .layer(from_fn(authenticated))
 }
@@ -70,10 +70,10 @@ async fn status(app: &Router, request: Request) -> Response {
 async fn the_21st_write_of_a_burst_is_refused_with_its_headers() {
     let app = behind(Uuid::now_v7(), Arc::new(Quotas::new(Rates::default())));
     for n in 1..=20 {
-        let response = status(&app, from("192.0.2.1", Method::POST, "/w")).await;
+        let response = status(&app, from("192.0.2.1", Method::POST, "/v1/w")).await;
         assert_eq!(response.status(), StatusCode::OK, "write {n}");
     }
-    let response = status(&app, from("192.0.2.1", Method::POST, "/w")).await;
+    let response = status(&app, from("192.0.2.1", Method::POST, "/v1/w")).await;
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     let headers = response.headers();
     assert_eq!(
@@ -85,7 +85,7 @@ async fn the_21st_write_of_a_burst_is_refused_with_its_headers() {
     assert_eq!(headers["ratelimit"], "\"w\";r=0;t=1");
     assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
     assert_eq!(
-        status(&app, from("192.0.2.1", Method::GET, "/w"))
+        status(&app, from("192.0.2.1", Method::GET, "/v1/w"))
             .await
             .status(),
         StatusCode::OK,

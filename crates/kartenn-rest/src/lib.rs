@@ -30,6 +30,7 @@ pub mod rights;
 pub mod transport;
 pub mod tree;
 pub mod versions;
+pub mod web;
 
 use std::any::Any;
 use std::sync::Arc;
@@ -91,9 +92,22 @@ pub fn router(
     quotas: Arc<Quotas>,
     authenticator: Arc<dyn Authenticator>,
 ) -> Router {
+    router_with_web(api, readiness, transport, quotas, authenticator, None)
+}
+
+/// [`router`], with the shell and its plugins outside `/v1` and `/health` when `web` is
+/// given (spec 007, REQ-007-1).
+pub fn router_with_web(
+    api: Router,
+    readiness: Arc<dyn Readiness>,
+    transport: Settings,
+    quotas: Arc<Quotas>,
+    authenticator: Arc<dyn Authenticator>,
+    web: Option<Arc<web::Web>>,
+) -> Router {
     let transport = Arc::new(transport);
     let in_flight = Arc::new(InFlight::new(transport.max_in_flight));
-    Router::new()
+    let routes = Router::new()
         .nest(
             "/v1",
             api.merge(
@@ -103,8 +117,12 @@ pub fn router(
                     .0,
             ),
         )
-        .merge(health::routes().with_state(readiness).split_for_parts().0)
-        .fallback(not_found)
+        .merge(health::routes().with_state(readiness).split_for_parts().0);
+    let routes = match web {
+        Some(web) => routes.fallback_service(Router::new().fallback(web::serve).with_state(web)),
+        None => routes.fallback(not_found),
+    };
+    routes
         // What `GET /v1/capabilities` tells of layer 5.
         .layer(Extension(BodyLimit(transport.max_body_bytes)))
         // Layer 10, on the way back.

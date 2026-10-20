@@ -408,12 +408,17 @@ pub(crate) fn reads(method: &Method) -> bool {
 
 /// Layer 7: one token of the identity of the request (its [`RequestContext`]), or of its
 /// client address without one; refused → 429. A [`Charge`] in the extensions for the
-/// routes that weigh more.
+/// routes that weigh more. Only `/v1` is counted: the files of the shell and of its
+/// plugins, loaded by dozens before any login, are not (spec 007, W18).
 pub async fn layer(
     State(quotas): State<Arc<Quotas>>,
     mut request: Request,
     next: Next,
 ) -> Response {
+    let path = request.uri().path();
+    if !(path == "/v1" || path.starts_with("/v1/")) {
+        return next.run(request).await;
+    }
     let context = request
         .extensions()
         .get::<RequestContext>()

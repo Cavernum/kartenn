@@ -485,6 +485,7 @@ pub async fn run(
                 &journal,
                 config.audit.read_audit(),
                 config.telemetry.names().into(),
+                config.web.as_ref(),
             )
             .await?,
         ),
@@ -650,6 +651,7 @@ struct Api {
 
 impl Api {
     /// Binds the address, reads the certificate, and serves in the background.
+    #[allow(clippy::too_many_arguments)] // the sections of the configuration it serves
     async fn start(
         http: &crate::config::Http,
         pool: &PgPool,
@@ -658,7 +660,13 @@ impl Api {
         journal: &PgAuditJournal,
         read_audit: kartenn_service::reads::ReadAudit,
         outputs: Arc<[String]>,
+        web: Option<&crate::config::Web>,
     ) -> anyhow::Result<Self> {
+        let shell = web
+            .and_then(|web| web.root.as_deref())
+            .map(kartenn_rest::web::Shell::open)
+            .transpose()?;
+        let web = web.map(|_| Arc::new(kartenn_rest::web::Web::new(shell)));
         let authn = auth
             .map(|auth| authn(auth, pool, journal).map(Arc::new))
             .transpose()?;
@@ -715,7 +723,7 @@ impl Api {
             sources: kartenn_service::expected::Sources::none(),
             outputs,
         };
-        let app = kartenn_rest::router(
+        let app = kartenn_rest::router_with_web(
             kartenn_rest::v1(objects),
             Arc::new(kartenn_rest::health::PgReadiness::new(
                 pool.clone(),
@@ -734,6 +742,7 @@ impl Api {
             },
             quotas.clone(),
             authenticator,
+            web,
         );
         tracing::info!(name: "http.listening", address = %http.listen, tls = acceptor.is_some(), "serving the API");
         let (stop, stopped) = tokio::sync::oneshot::channel();
