@@ -608,6 +608,116 @@ async fn the_tree_shows_only_what_the_caller_may_read(pool: PgPool) {
     .await;
 }
 
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let stray = address(&pool, lab, "10.0.0.1").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    prefix(&pool, lab, "10.1.2.0/24").await;
+    address(&pool, lab, "10.1.2.1").await;
+    let range = format!(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version,
+                               valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1::uuid, inetrange('10.2.0.10', '10.2.0.20', '[]'),
+                 'dhcp', false, 'test', {SINCE}) RETURNING id"
+    );
+    let range = insert(&pool, &range, &[&lab.to_string()]).await;
+    let v6 = prefix_of(&pool, lab, "2001:db8::/32", "container").await;
+    prefix(&pool, dmz, "10.9.0.0/24").await;
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    // Nodes without a parent of the domain, in the order of the children of a prefix, by
+    // pages; those of another domain or under a prefix are absent.
+    let body = ok(&reader, &format!("/v1/domains/{lab}/roots?page_size=2")).await;
+    assert_eq!(ids_of(&body), [stray.to_string(), block.to_string()]);
+    assert_eq!(body["items"][1]["kind"], "prefix");
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    assert!(next.starts_with(&format!("/v1/domains/{lab}/roots?cursor=")));
+    // A root created between two pages appears in neither: the cursor froze `as_of`.
+    address(&pool, lab, "10.3.0.1").await;
+    let body = ok(&reader, &next).await;
+    assert_eq!(ids_of(&body), [range.to_string(), v6.to_string()]);
+    assert_eq!(body["links"]["next"], Value::Null);
+    // A cursor of the children of a prefix is refused here.
+    let (_, cursor) = next.split_once("cursor=").unwrap();
+    let elsewhere = format!("/v1/prefixes/{block}/children?cursor={cursor}");
+    assert_eq!(
+        get(&reader, &elsewhere).await.status(),
+        StatusCode::BAD_REQUEST
+    );
+
+    // One by one, from root to root and through the gaps between them, the same list.
+    let tail = prefix(&pool, lab, "10.4.0.0/24").await;
+    let late = address(&pool, lab, "2001:db9::1").await;
+    let uri = format!("/v1/domains/{lab}/roots");
+    let all = ids_of(&ok(&reader, &uri).await);
+    assert_eq!(all.len(), 7, "{all:?}");
+    assert_eq!(
+        all[4..],
+        [tail.to_string(), v6.to_string(), late.to_string()]
+    );
+    assert_eq!(walk(&reader, &format!("{uri}?page_size=1")).await, all);
+
+    // Dated: before its validity, or before kartenn asserted it, the domain is absent.
+    for dates in [
+        "valid_at=2019-01-01T00:00:00Z",
+        "as_of=2020-01-01T00:00:00Z",
+    ] {
+        not_found(&reader, &format!("/v1/domains/{lab}/roots?{dates}")).await;
+    }
+
+    // Unreadable nodes are absent; an unreadable domain answers as an absent one.
+    let partial = app(
+        &pool,
+        person(
+            &pool,
+            &["core.domain.read", "core.prefix.read", "core.range.read"],
+            ("domain", Some(lab)),
+        )
+        .await,
+    );
+    assert_eq!(
+        ids_of(&ok(&partial, &format!("/v1/domains/{lab}/roots")).await),
+        [
+            block.to_string(),
+            range.to_string(),
+            tail.to_string(),
+            v6.to_string()
+        ]
+    );
+    assert_eq!(
+        walk(&partial, &format!("{uri}?page_size=1")).await,
+        [
+            block.to_string(),
+            range.to_string(),
+            tail.to_string(),
+            v6.to_string()
+        ]
+    );
+    // Unreadable root prefixes still bound the gaps: the addresses they hold stay out.
+    let addresses = app(
+        &pool,
+        person(
+            &pool,
+            &["core.domain.read", "core.address.read"],
+            ("domain", Some(lab)),
+        )
+        .await,
+    );
+    let outside = ids_of(&ok(&addresses, &uri).await);
+    assert_eq!(outside, [&*all[0], &*all[3], &*all[6]]);
+    assert_eq!(
+        walk(&addresses, &format!("{uri}?page_size=1")).await,
+        outside
+    );
+    let absent = not_found(&partial, &format!("/v1/domains/{}/roots", Uuid::now_v7())).await;
+    assert_eq!(
+        not_found(&partial, &format!("/v1/domains/{dmz}/roots")).await,
+        absent
+    );
+}
+
 async fn acknowledge(app: &Router, id: Uuid, body: &str) -> Response {
     app.clone()
         .oneshot(common::bearer(

@@ -368,26 +368,209 @@ pub async fn children_of(
     .bind(limit)
     .fetch_all(pool)
     .await?;
-    rows.into_iter()
-        .map(|(kind, id, a, b, c)| match (kind.as_str(), b, c) {
-            ("p", Some(n), _) => Ok(Node::Prefix {
-                id,
-                value: Prefix::parse_any(&ALL, &a).map_err(decode_err)?,
-                nature: nature(&n)?,
-            }),
-            ("r", Some(last), Some(usage)) => Ok(Node::Range {
-                id,
-                first: addr(&a)?,
-                last: addr(&last)?,
-                usage: range_usage(&usage)?,
-            }),
-            ("a", _, _) => Ok(Node::Address {
-                id,
-                value: addr(&a)?,
-            }),
-            _ => Err(decode_err(format!("malformed child row of kind {kind}"))),
-        })
-        .collect()
+    rows.into_iter().map(node_of).collect()
+}
+
+/// The node of a row read by [`children_of`] or [`roots_of`].
+fn node_of((kind, id, a, b, c): ChildRow) -> sqlx::Result<Node> {
+    match (kind.as_str(), b, c) {
+        ("p", Some(n), _) => Ok(Node::Prefix {
+            id,
+            value: Prefix::parse_any(&ALL, &a).map_err(decode_err)?,
+            nature: nature(&n)?,
+        }),
+        ("r", Some(last), Some(usage)) => Ok(Node::Range {
+            id,
+            first: addr(&a)?,
+            last: addr(&last)?,
+            usage: range_usage(&usage)?,
+        }),
+        ("a", _, _) => Ok(Node::Address {
+            id,
+            value: addr(&a)?,
+        }),
+        _ => Err(decode_err(format!("malformed child row of kind {kind}"))),
+    }
+}
+
+/// An `inet` below every address of every family, the lower bound of an open gap.
+const LOWEST: &str = "'0.0.0.0/0'::inet";
+
+/// The scan of a gap `p` of [`roots_of`]: past `p.after` and the cursor, before `p.before`
+/// if the gap is bounded, in order. Each bound is a plain comparison so that the keyset
+/// index of the table serves it: one branch for a bounded gap, one for the last one.
+/// `select` reads the table as `t`, ordered by `t.{value}`; `bound(x)` is the address `x`
+/// as a value of that column; `exact` what the index leaves to check, readability included.
+fn gap(select: &str, value: &str, bound: &dyn Fn(&str) -> String, exact: &str) -> String {
+    let common = format!(
+        "{select} WHERE t.domain_id = $3 AND t.{value} > {after} AND t.{value} >= {from} {exact}",
+        after = bound("p.after"),
+        from = bound(&format!("coalesce($5::inet, {LOWEST})")),
+    );
+    let order = format!("ORDER BY t.{value}, t.id LIMIT $8 + 1");
+    format!(
+        "({common} AND p.before IS NOT NULL AND t.{value} < {before} {order})
+         UNION ALL
+         ({common} AND p.before IS NULL {order})",
+        before = bound("p.before"),
+    )
+}
+
+/// The roots of the tree of the domain `domain`: its prefixes, ranges and addresses that
+/// no prefix of the domain contains, valid at `valid_at` as asserted at `as_of`, within
+/// what `scope` lets read: at most `limit` of them (all when `None`) after the key `after`,
+/// in [`ChildKey`] order (REQ-007-39).
+///
+/// The roots are disjoint and the order of `cidr` is that of a depth-first walk, so the
+/// root prefixes are walked one index probe each, from the first prefix at or after
+/// `after` (or the outermost one holding it) to the first prefix past the last address of
+/// the previous one; the walk stops once it holds one readable root more than `limit`,
+/// enough to fill the page. The ranges and addresses that are roots lie in the gaps
+/// between two root prefixes, each read in address order on its own.
+///
+/// # Errors
+///
+/// As [`children`].
+#[tracing::instrument(name = "SELECT roots", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT roots",
+))]
+pub async fn roots_of(
+    pool: &PgPool,
+    domain: Uuid,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+    scope: &ReadScope,
+    after: Option<&ChildKey>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Node>> {
+    let max = |x: &str| format!("CASE family({x}) WHEN 4 THEN 32 ELSE 128 END");
+    let (first, next, root) = (
+        readable("f.id", "'prefix'", "$3", "f.prefix", "$1"),
+        readable("x.id", "'prefix'", "$3", "x.prefix", "$1"),
+        readable("r.id", "'prefix'", "$3", "r.prefix", "$1"),
+    );
+    let (max_w, max_p) = (max("w.prefix"), max("prefix"));
+    let ranges = gap(
+        "SELECT t.id, t.range, t.usage FROM rg t",
+        "range",
+        &|x| format!("inetrange({x}, {x}, '[]')"),
+        &format!(
+            "AND lower(t.range) > p.after AND ($4::jsonb IS NULL OR {})",
+            readable("t.id", "'range'", "t.domain_id", "lower(t.range)", "$1")
+        ),
+    );
+    let addresses = gap(
+        "SELECT t.id, t.address FROM ad t",
+        "address",
+        &|x| x.to_owned(),
+        &format!(
+            "AND ($4::jsonb IS NULL OR {})",
+            readable("t.id", "'address'", "t.domain_id", "t.address", "$1")
+        ),
+    );
+    // walk: the root prefixes in order, `n` the readable ones so far; gaps: the open
+    // intervals of addresses between two of them (`after`, `before`), the last one only if
+    // the walk reached the end of the domain.
+    let sql = format!(
+        "WITH RECURSIVE {},
+              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
+              walk (id, prefix, nature, n) AS (
+                (SELECT f.id, f.prefix, f.nature,
+                        CASE WHEN $4::jsonb IS NULL OR {first} THEN 1 ELSE 0 END
+                 FROM ((SELECT c.id, c.prefix, c.nature, 0 AS o FROM pf c
+                        WHERE $5::inet IS NOT NULL AND c.domain_id = $3
+                          AND c.prefix >>= $5::inet
+                        ORDER BY masklen(c.prefix) LIMIT 1)
+                       UNION ALL
+                       (SELECT q.id, q.prefix, q.nature, 1 FROM pf q
+                        WHERE q.domain_id = $3 AND ($5::inet IS NULL OR q.prefix >= $5::cidr)
+                        ORDER BY q.prefix LIMIT 1)) f
+                 ORDER BY f.o LIMIT 1)
+                UNION ALL
+                SELECT x.id, x.prefix, x.nature,
+                       w.n + CASE WHEN $4::jsonb IS NULL OR {next} THEN 1 ELSE 0 END
+                FROM walk w CROSS JOIN LATERAL (
+                  SELECT q.id, q.prefix, q.nature FROM pf q
+                  WHERE q.domain_id = $3
+                    AND q.prefix > set_masklen(broadcast(w.prefix), {max_w})::cidr
+                  ORDER BY q.prefix LIMIT 1) x
+                WHERE $8::bigint IS NULL OR w.n <= $8
+              ),
+              roots AS MATERIALIZED (
+                SELECT id, prefix, nature, n, host(prefix)::inet AS lo,
+                       set_masklen(broadcast(prefix), {max_p})::inet AS hi
+                FROM walk
+              ),
+              gaps AS (
+                SELECT coalesce(lag(r.hi) OVER (ORDER BY r.prefix), {LOWEST}) AS after,
+                       r.lo AS before
+                FROM roots r
+                UNION ALL
+                SELECT coalesce((SELECT r.hi FROM roots r ORDER BY r.prefix DESC LIMIT 1),
+                                {LOWEST}),
+                       NULL
+                WHERE $8::bigint IS NULL OR coalesce((SELECT max(n) FROM roots), 0) <= $8
+              )
+         SELECT kind, id, a, b, c FROM (
+           SELECT 'p' AS kind, r.id, r.prefix::text AS a, r.nature AS b, NULL AS c,
+                  r.lo AS start, 0 AS rank
+           FROM roots r WHERE $4::jsonb IS NULL OR {root}
+           UNION ALL
+           SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage,
+                  host(lower(g.range))::inet, 1
+           FROM gaps p CROSS JOIN LATERAL ({ranges}) g
+           UNION ALL
+           SELECT 'a', a.id, host(a.address), NULL, NULL, a.address, 2
+           FROM gaps p CROSS JOIN LATERAL ({addresses}) a
+         ) c
+         WHERE $5::inet IS NULL OR (c.start, c.rank, c.id) > ($5::inet, $6::int, $7::uuid)
+         ORDER BY c.start, c.rank, c.id
+         LIMIT $8",
+        relations(as_of)?
+    );
+    let rows: Vec<ChildRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(valid_at)
+        .bind(as_of)
+        .bind(domain)
+        .bind(scope.to_json())
+        .bind(after.map(|k| k.start.to_string()))
+        .bind(after.map(|k| i32::from(k.rank)))
+        .bind(after.map(|k| k.id))
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+    rows.into_iter().map(node_of).collect()
+}
+
+/// Whether the addressing domain `id` exists at `valid_at` as asserted at `as_of` (now
+/// when `None`).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn domain_exists(
+    pool: &PgPool,
+    id: Uuid,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<bool> {
+    let relation = match as_of {
+        Some(_) => snapshot("addressing_domain", &["id"])
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?,
+        None => "(SELECT id FROM addressing_domain WHERE valid_period @> $1::timestamptz \
+                  AND $2::timestamptz IS NULL)"
+            .to_owned(),
+    };
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "WITH d AS NOT MATERIALIZED {relation} SELECT EXISTS (SELECT 1 FROM d WHERE id = $3)"
+    )))
+    .bind(valid_at)
+    .bind(as_of)
+    .bind(id)
+    .fetch_one(pool)
+    .await
 }
 
 /// The prefix `id` valid at `valid_at` as asserted at `as_of` (now when `None`); `None`

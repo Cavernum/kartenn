@@ -23,7 +23,7 @@ use kartenn_store_pg::filter::{Condition, filter};
 use kartenn_store_pg::rbac::ReadScope;
 use kartenn_store_pg::read::object;
 use kartenn_store_pg::tree::{
-    children, children_as_of, next_free_address, occupancy, occupancy_as_of,
+    children, children_as_of, next_free_address, occupancy, occupancy_as_of, roots_of,
 };
 use kartenn_store_pg::write::PgStore;
 use rand::{RngExt, SeedableRng};
@@ -415,6 +415,21 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         limit: Duration::from_millis(200),
         measured: p95(samples),
         note: "200 draws, containers and networks".into(),
+    });
+
+    // The first page of 100 roots of a domain (spec 007, REQ-007-39).
+    let mut samples = Vec::new();
+    for _ in 0..100 {
+        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+        let t = Instant::now();
+        roots_of(&pool, domain, now, None, &ReadScope::all(), None, Some(101)).await?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "roots of a domain, page of 100, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: "100 draws".into(),
     });
 
     // The same as known in the past (task 006-12d): the prefix read first, its domain and

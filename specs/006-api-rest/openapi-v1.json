@@ -8849,6 +8849,87 @@
         ]
       }
     },
+    "/v1/domains/{id}/roots": {
+      "get": {
+        "operationId": "domain_roots",
+        "parameters": [
+          {
+            "description": "The addressing domain.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_TreeNode"
+                }
+              }
+            },
+            "description": "The roots of the tree of the domain."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/domains/{id}/roots`: the nodes of the domain that no prefix of the domain\ncontains, those the caller may read, in the order and by the pages of the children of a\nprefix (REQ-007-39). A domain the caller may not read answers 404, as an absent one.",
+        "tags": [
+          "core"
+        ]
+      }
+    },
     "/v1/entities": {
       "get": {
         "operationId": "list_entities",
