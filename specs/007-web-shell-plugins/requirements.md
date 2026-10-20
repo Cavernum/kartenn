@@ -58,7 +58,22 @@ Sources : `docs/reference/web-navigateur.md` (à écrire, tâche 1).
   [CSP3] Content Security Policy Level 3, [SRI] Subresource Integrity, [HTML] HTML
   Living Standard (import maps, `modulepreload`, Custom Elements), [DOM] Shadow DOM,
   [WCAG 2.2], [APG] ARIA Authoring Practices, [RFC 6265bis] cookies, [Fetch Metadata].
-  Les sections précises sont fixées par la note de référence (tâche 1).
+  Sections et ancres, d'après la note
+  [`web-navigateur.md`](../../docs/reference/web-navigateur.md) :
+  - [CSP3] `#should-block-inline`, `#match-element-to-source-list` (empreinte d'un script
+    en ligne, import map comprise), `#directive-fallback-list`, `#directive-style-src`,
+    `#directive-form-action`, `#report-violation`, `#can-compile-strings` ;
+  - [SRI] `#the-integrity-attribute`, `#hash-functions`, `#handling-integrity-violations` ;
+  - [HTML] `#prepare-the-script-element`, `#import-maps`, `#link-type-modulepreload`,
+    `#valid-custom-element-name`, `#dom-customelementregistry-define`,
+    `#broadcasting-to-other-browsing-contexts` ;
+  - [DOM] `#dom-element-attachshadow`, interface `ShadowRoot` (événements `composed`) ;
+  - [WCAG 2.2] critères 1.4.3, 1.4.11, 2.1.1, 2.1.2, 2.4.3, 2.4.7, 2.4.11, 2.5.7, 2.5.8,
+    4.1.2, 4.1.3 ; [APG] motifs Tree View et Grid ;
+  - [RFC 6265bis] (draft -22) `#storage-model` (étapes 13 et 21 : `Secure`, `__Host-`),
+    `#retrieval-algorithm`, `#same-site-requests` ; [Secure Contexts]
+    `#is-origin-trustworthy` ;
+  - [Fetch Metadata] « append the Fetch metadata headers for a request ».
 - Les REQ-006-* citées sont celles de [`../006-api-rest/requirements.md`](../006-api-rest/requirements.md).
 
 ## Exigences

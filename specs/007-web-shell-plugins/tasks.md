@@ -12,7 +12,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P0 — Sources et socle
 
-- [ ] 1. Note de référence `docs/reference/web-navigateur.md` : CSP Level 3 (`script-src`
+- [x] 1. Note de référence `docs/reference/web-navigateur.md` : CSP Level 3 (`script-src`
   et empreinte d'une import map, `style-src` face au CSSOM et aux attributs `style`,
   `form-action` et redirections), SRI (`integrity` de `<script type=module>`, de
   `modulepreload`, de `fetch`), import maps (HTML), Custom Elements et Shadow DOM,
@@ -26,6 +26,17 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : `docs/reference/README.md` (conventions, index), modèle
   `docs/reference/api-http.md` ; agent `ref-researcher` ; requirements « Conventions »,
   design « Service du shell », « Chargement des plugins par le shell », « Risques »
+  — Note `docs/reference/web-navigateur.md`, indexée dans `docs/reference/README.md` :
+  pages rendues des normes injoignables, textes lus dans les sources de leurs dépôts,
+  renvois par ancres recoupées dans ces sources (HTML, DOM, CSP3, SRI, Storage,
+  IndexedDB, 6265bis, Secure Contexts) ; 27 propositions [N]/[T]. Requirements
+  « Conventions » : ancres par source. Design « Risques » : cookie sur le bouclage levé
+  (Secure Contexts, code de Chromium et Firefox), vue-i18n levé sous condition (build
+  avec le compilateur de messages), `modulepreload` reformulé (whatwg/html#10327) ;
+  « Alternatives » : rejet de l'`integrity` d'import map motivé par Firefox
+  choix : étapes 3 et 4 du chargement ordonnées (script d'entrée après le `load` de tous
+  les `modulepreload`, parade du risque reformulé) ; propositions [T] de la note laissées
+  aux tâches qui touchent leur sujet
 - [ ] 2. Espace pnpm `web/` : `package.json`, `pnpm-workspace.yaml`, paquets `shell`
   (Vue, vue-router, page d'accueil vide), `sdk` (bibliothèque à deux points d'entrée,
   `SDK_VERSION`), `plugins/example` (vide), `e2e` (`@playwright/test` épinglé sur

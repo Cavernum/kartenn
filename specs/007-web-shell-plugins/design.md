@@ -222,9 +222,11 @@ remplissent à mesure. Pour chaque élément de `ui_plugins`, en parallèle :
    `incompatible`.
 2. Catalogues de la langue courante et de `en` : `fetch(url, { integrity })`, fusionnés
    sous l'espace de noms `<name>`.
-3. Un `<link rel="modulepreload" integrity>` par module de `integrity` : le navigateur
-   vérifie chaque module avant qu'un `import` ne le résolve depuis la carte des modules.
-4. `<script type="module" src=entry integrity>` ; le module appelle
+3. Un `<link rel="modulepreload" integrity>` par module de `integrity`, tous insérés
+   d'un coup : le navigateur vérifie chaque module avant qu'un `import` ne le résolve
+   depuis la carte des modules.
+4. Après le `load` de tous ces `<link>`, `<script type="module" src=entry integrity>` ;
+   un `error` sur l'un d'eux écarte le plugin sans insérer le script. Le module appelle
    `definePlugin({ name, elements })`, qui définit chaque élément déclaré
    (`customElements.define`) et refuse un élément non déclaré ou déjà défini.
 5. Écarté si `error` sur un `<link>` ou le `<script>` (`load-failed` : réseau ou
@@ -562,9 +564,11 @@ illisible ensuite → instantané précédent gardé.
   rehache que ce qui a changé de taille ou de date.
 - Surveillance du répertoire par `inotify` (`notify`) : nouvelle dépendance pour un délai
   de 10 s acceptable.
-- Section `integrity` de l'import map : ne couvre que les modules nommés par l'import map
-  du document, figée avant le premier module ; `modulepreload` avec empreinte couvre les
-  modules chargés à chaud.
+- Section `integrity` de l'import map : couvrirait aussi les modules récupérés hors
+  préchargement, mais l'import map du document est fixée par son empreinte CSP et Firefox
+  n'accepte pas encore de seconde import map (derrière un drapeau, note
+  [web-navigateur](../../docs/reference/web-navigateur.md)) ; `modulepreload` avec
+  empreinte couvre les modules chargés à chaud.
 - Plugin en un seul fichier : limite les plugins (pas de découpage) sans gain de sécurité.
 - `form-action 'self'` : casse la déconnexion par l'émetteur (voir « Service du shell »).
 - Émetteur en HTTP sur le bouclage : demanderait d'assouplir la règle `https` de la
@@ -572,15 +576,26 @@ illisible ensuite → instantané précédent gardé.
 
 ## Risques
 
-- **Cookie `Secure` sur `http://127.0.0.1`** en développement : Chromium et Firefox
-  traitent le bouclage comme origine sûre ; à confirmer par la note de référence
-  (tâche 1). Repli : Vite en HTTPS avec le certificat de développement et le MCP
-  `playwright` avec `--ignore-https-errors`.
-- **vue-i18n et CSP** : seule la compilation JIT évite `new Function` ; vérifié par les
-  parcours (violation CSP = échec).
-- **`modulepreload` avec empreinte** : sur un navigateur qui l'ignorerait, un module
-  secondaire se chargerait sans contrôle d'intégrité ; vérifié sur Chromium et Firefox,
-  Safari supposé (non éprouvé en CI).
+- **Cookie `Secure` sur `http://127.0.0.1`** en développement (levé, note de
+  référence) : `127.0.0.0/8` est une origine potentiellement fiable (Secure Contexts) et
+  le code de Chromium et de Firefox y pose et renvoie un cookie `Secure` et `__Host-` ;
+  RFC 6265bis laisse la notion à l'agent utilisateur. Vite écoute sur `127.0.0.1` seul
+  (`localhost` est une autre origine). Garde : l'acceptation de REQ-007-36. Repli : Vite
+  en HTTPS avec le certificat de développement et le MCP `playwright` avec
+  `--ignore-https-errors`.
+- **vue-i18n et CSP** (levé, note de référence) : la compilation JIT, par défaut depuis
+  la 10, n'emploie ni `eval` ni `new Function`, à condition que le build de production
+  garde le compilateur de messages (`@intlify/unplugin-vue-i18n` : `runtimeOnly: false`,
+  `dropMessageCompiler: false`) ; sinon les catalogues des plugins s'affichent bruts,
+  sans erreur. Vérifié par les parcours (violation CSP = échec) et par un message de
+  plugin à paramètre affiché dans le build de production.
+- **`modulepreload` avec empreinte** (reformulé, note de référence) : l'`integrity` du
+  `<script>` ne couvre que le module d'entrée ; un autre module n'est vérifié que si son
+  `modulepreload` entre le premier dans la carte des modules. Depuis whatwg/html#10327
+  (2026-07), un préchargement en échec n'y reste plus : un `import` ultérieur referait la
+  requête sans empreinte, d'où l'ordre des étapes 3 et 4 du chargement. Vérifié sur
+  Chromium et Firefox par un plugin de test à module réécrit ; Safari supposé (non
+  éprouvé en CI).
 - **Colonnes de plugins dans les listes virtualisées** : un élément coûteux ralentit le
   défilement ; le budget de la page de 100 lignes est mesuré avec la colonne du plugin
   d'exemple active.
