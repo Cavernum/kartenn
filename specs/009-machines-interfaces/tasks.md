@@ -15,7 +15,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
 
 ## P1 — Domaine pur
 
-- [ ] 1. Crate `kartenn-machines` et domaine pur : nom d'hôte (RFC 1123 §2.1, minuscules),
+- [x] 1. Crate `kartenn-machines` et domaine pur : nom d'hôte (RFC 1123 §2.1, minuscules),
   MAC EUI-48 (entrées `-`, `:`, `.` ; restitution RFC 9542 §1.1 ; bit de groupe), table
   d'hébergement M5 et détection de cycle, modes VLAN 802.1Q, règles (`Rule` statiques) ;
   `workspace-hack` à jour — REQ-009-4, 5, 6, 12 (contrôles locaux) — verify : tests
@@ -24,6 +24,16 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   où : design « Règles » ; `docs/reference/vlan-mac-ieee-802.md`,
   `docs/reference/noms-dates-texte.md` (noms d'hôte) ; modèle `kartenn-vlan` (008, tâche 9)
   dépend de : —
+  — `name.rs` (`HostName`), `mac.rs` (`Mac`, `is_local` pour `machines.mac.duplicate`),
+  `hosting.rs` (`MachineKind`, `Host`, `check_host`, `check_membership`,
+  `check_no_cycle` sur une fonction « hébergeur de »), `vlan_mode.rs` (`VlanMode::from_parts`,
+  `vlans`), `rules.rs` (`MACHINES_RULES`, 13 règles du design, plus le test
+  `rule_ids_unique_and_namespaced`) ; hakari : aucun changement ;
+  choix : un nom fait de seules étiquettes numériques (`10.1.2.3`, `42`) est refusé, car il
+  se lit comme une adresse (RFC 1123 §2.1) ; la MAC refuse les séparateurs mêlés et les
+  groupes `.` de deux chiffres ; le parcours de cycle s'arrête à 8 niveaux (refus) pour
+  ne jamais boucler sur un état corrompu ; le contrôle « VLAN vivants » reste au
+  gestionnaire (tâche 4), le nom d'interface à la tâche 3.
 
 ## P2 — Module
 
