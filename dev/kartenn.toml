@@ -1,0 +1,25 @@
+# kartenn-server for development (spec 007, design « Bout en bout et développement »):
+# TLS on the loopback, reached by the browser through Vite (http://127.0.0.1:5173), which
+# relays /v1 and /plugins. Files under dev/state come from `kartenn-dev-idp certs`.
+[telemetry]
+outputs = [{ kind = "stdout", filter = "info" }]
+
+[http]
+listen = "127.0.0.1:8443"
+public_origin = "http://127.0.0.1:5173"
+
+[http.tls]
+cert_file = "dev/state/cert.pem"
+key_file = "dev/state/key.pem"
+
+[auth]
+key_file = "dev/state/kartenn-keys"
+redirect_uri = "http://127.0.0.1:5173/v1/auth/callback"
+
+[[auth.issuers]]
+id = "dev"
+issuer = "https://127.0.0.1:8444"
+client_id = "kartenn"
+client_secret_file = "dev/state/idp-secret"
+audience = "kartenn"
+algorithms = ["ES256"]

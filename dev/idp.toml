@@ -1,0 +1,31 @@
+# Development OIDC issuer (spec 007, REQ-007-35): `devenv up` serves it on the loopback.
+# Its material (authority, certificate, client secret) is written once under dev/state by
+# `kartenn-dev-idp certs dev/state`. Never in production.
+issuer = "https://127.0.0.1:8444"
+listen = "127.0.0.1:8444"
+client_id = "kartenn"
+client_secret_file = "dev/state/idp-secret"
+# Through Vite in development; directly to the end-to-end instance.
+redirect_uris = [
+  "http://127.0.0.1:5173/v1/auth/callback",
+  "https://127.0.0.1:9443/v1/auth/callback",
+]
+cert_file = "dev/state/cert.pem"
+key_file = "dev/state/key.pem"
+
+[[users]]
+sub = "alice"
+name = "Alice Exemple"
+email = "alice@kartenn.invalid"
+groups = ["kartenn-admins"]
+
+[[users]]
+sub = "bob"
+name = "Bob Exemple"
+email = "bob@kartenn.invalid"
+groups = ["lecteurs"]
+
+[[users]]
+sub = "refuse"
+name = "Refus d'accès"
+error = "access_denied"

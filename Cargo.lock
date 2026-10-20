@@ -214,6 +214,7 @@ checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
@@ -229,6 +230,7 @@ dependencies = [
  "serde_core",
  "serde_json",
  "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -1790,6 +1792,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-dev-idp"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "form_urlencoded",
+ "hyper",
+ "hyper-util",
+ "jsonwebtoken",
+ "kartenn-workspace-hack",
+ "p256",
+ "rand_core 0.6.4",
+ "rcgen",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tokio",
+ "tokio-rustls",
+ "toml",
+]
+
+[[package]]
 name = "kartenn-machines"
 version = "0.0.0"
 dependencies = [
@@ -1847,11 +1872,13 @@ dependencies = [
  "arc-swap",
  "axum",
  "figment",
+ "form_urlencoded",
  "http-body-util",
  "hyper",
  "hyper-util",
  "kartenn-auth",
  "kartenn-core",
+ "kartenn-dev-idp",
  "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
@@ -2002,6 +2029,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-stream",
  "tonic",
+ "tower",
  "tracing",
  "tracing-core",
  "uuid",
@@ -3033,6 +3061,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
 name = "schannel"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3150,6 +3184,18 @@ version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
 dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde_urlencoded"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
+dependencies = [
+ "form_urlencoded",
+ "itoa",
+ "ryu",
  "serde",
 ]
 
