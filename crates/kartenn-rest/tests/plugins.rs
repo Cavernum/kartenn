@@ -211,11 +211,13 @@ fn the_digest_is_that_of_sri() {
     );
 }
 
+/// A change that makes a manifest faulty.
+type Fault = Box<dyn Fn(&mut Value)>;
+
 #[test]
 fn each_faulty_manifest_is_rejected_and_the_others_published() {
     let root = dir();
     deposit(&root, &manifest("example", "1.0.0"));
-    type Fault = Box<dyn Fn(&mut Value)>;
     let faults: Vec<(&str, Fault)> = vec![
         ("name", Box::new(|m| m["name"] = json!("autre"))),
         ("version", Box::new(|m| m["version"] = json!("1.0.1"))),

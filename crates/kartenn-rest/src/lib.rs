@@ -119,7 +119,10 @@ pub fn router_with_web(
         )
         .merge(health::routes().with_state(readiness).split_for_parts().0);
     let routes = match web {
-        Some(web) => routes.fallback_service(Router::new().fallback(web::serve).with_state(web)),
+        // `GET /v1/capabilities` publishes the plugins of the registry (REQ-007-7).
+        Some(web) => routes
+            .fallback_service(Router::new().fallback(web::serve).with_state(web.clone()))
+            .layer(Extension(web)),
         None => routes.fallback(not_found),
     };
     routes

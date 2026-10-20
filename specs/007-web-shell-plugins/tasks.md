@@ -98,13 +98,20 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   vérifiés s'ils sont présents ; plugin d'un module absent journalisé comme
   `web.plugin.rejected` ; empreinte de « `abc` » tirée de FIPS 180-2 (pas d'`openssl`
   dans devenv) ; le délai de 10 s éprouvé par `watch` à 100 ms et la constante
-- [ ] 5. `ui_plugins` enrichi dans les capacités et contrat de référence mis à jour —
+- [x] 5. `ui_plugins` enrichi dans les capacités et contrat de référence mis à jour —
   REQ-007-7 — verify : comparateur du contrat vert (membres ajoutés seulement) ;
   `GET /v1/capabilities` sur un répertoire de test publie base, entrée, empreintes,
   plage, extensions et catalogues
   où : `kartenn-rest/src/capabilities.rs` (`UiPlugin`, `capabilities`), `contract.rs`
   (`breaches`), `specs/006-api-rest/openapi-v1.json`, binaire `openapi` ;
   `rest/tests/contract.rs` (`the_contract_keeps_its_reference`)
+  — `UiPlugin` (`sdk`, `base`, `entry`, `integrity`, `catalogs`, `extensions`) rempli
+  depuis `Plugins::published` (le registre passe aux routes en `Extension<Arc<Web>>`) ;
+  schémas `UiExtension` et `UiExtensionPoint` ; `openapi-v1.json` réécrit (membres
+  ajoutés seulement) ; test `contract.rs`
+  (`the_capabilities_publish_the_plugins_of_the_directory`)
+  choix : noms de schéma préfixés `Ui` (`Extension` seul aurait été ambigu dans le
+  contrat)
 
 ## P2 — Ajouts à l'API
 

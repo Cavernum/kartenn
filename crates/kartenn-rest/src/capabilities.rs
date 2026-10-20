@@ -2,6 +2,9 @@
 //! modules and versions, the properties declared, the plugins of the interface and the
 //! limits a client must respect, at `GET /v1/capabilities`.
 
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
 use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
@@ -19,6 +22,8 @@ use crate::imports::MAX_CHUNK;
 use crate::objects::{Api, store};
 use crate::problem::Problem;
 use crate::transport::Settings;
+use crate::web::Web;
+use crate::web::plugins::{Extension as UiExtension, Published};
 
 /// The major versions of the API this build serves (REQ-006-33).
 pub const API_VERSIONS: [&str; 1] = ["v1"];
@@ -47,13 +52,42 @@ struct DeclaredProperty {
     value_type: String,
 }
 
-/// A plugin of the interface (D17).
+/// A plugin of the interface (D17; spec 007, REQ-007-7): what the shell needs to load it
+/// with the integrity of each file.
 #[derive(Debug, Serialize, ToSchema)]
 struct UiPlugin {
     /// Its name.
     name: String,
     /// Its version.
     version: String,
+    /// The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`).
+    sdk: String,
+    /// The URL of its directory, `/plugins/<name>/<version>/`.
+    base: String,
+    /// The URL of its entry module.
+    entry: String,
+    /// The SRI digest (`sha384-…`) of each module, style sheet and catalogue, by path
+    /// relative to `base`.
+    integrity: BTreeMap<String, String>,
+    /// Its catalogues of messages by language, by path relative to `base`.
+    catalogs: BTreeMap<String, String>,
+    /// The points of extension it fills.
+    extensions: Vec<UiExtension>,
+}
+
+impl From<Published> for UiPlugin {
+    fn from(p: Published) -> Self {
+        Self {
+            name: p.name,
+            version: p.version,
+            sdk: p.sdk,
+            base: p.base,
+            entry: p.entry,
+            integrity: p.integrity,
+            catalogs: p.catalogs,
+            extensions: p.extensions,
+        }
+    }
 }
 
 /// The limits a client must respect.
@@ -137,6 +171,7 @@ fn modules() -> Vec<Module> {
 async fn capabilities(
     State(api): State<Api>,
     limit: Option<Extension<BodyLimit>>,
+    web: Option<Extension<Arc<Web>>>,
 ) -> Result<Response, Problem> {
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let declared = property_read::declarations(&api.pool, now, None, None, i64::MAX)
@@ -157,8 +192,17 @@ async fn capabilities(
                 value_type: d.value_type,
             })
             .collect(),
-        // No plugin is loaded yet (D17).
-        ui_plugins: Vec::new(),
+        ui_plugins: web
+            .as_ref()
+            .and_then(|Extension(web)| web.plugins())
+            .map(|plugins| {
+                plugins
+                    .published()
+                    .into_iter()
+                    .map(UiPlugin::from)
+                    .collect()
+            })
+            .unwrap_or_default(),
         limits: Limits {
             page_size_default: DEFAULT_SIZE,
             page_size_max: MAX_SIZE,

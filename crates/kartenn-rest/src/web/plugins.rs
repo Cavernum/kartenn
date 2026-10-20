@@ -24,6 +24,7 @@ pub const MAX_BYTES: u64 = 20 * 1024 * 1024;
 /// The points of extension of the SDK (W5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[schema(as = UiExtensionPoint)]
 pub enum Point {
     /// A route and its page, with an entry in the navigation.
     View,
@@ -40,6 +41,7 @@ pub enum Point {
 /// A point of extension a plugin fills.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
+#[schema(as = UiExtension)]
 pub struct Extension {
     /// The point.
     pub point: Point,
