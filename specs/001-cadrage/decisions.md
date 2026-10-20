@@ -10,7 +10,7 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - **Architecture** : hexagonale. Modules métier compilés (crates), plugins UI à chaud (Web Components), connecteurs hors processus (D6) ; **REST, seule frontière publique** (D7) ; N instances sans état, PostgreSQL ≥ 18 en primaire unique pour les écritures (D9, D15) ; Rust (D16) ; Vue 3 + TS (D17).
 - **Sécurité d'accès** : OIDC multi-émetteurs (humains) et Basic sur TLS (machines, secours) (D13) ; RBAC composable avec liaisons portées (D36).
 - **Qualité** : budgets p95 chiffrés et bancs d'essai en CI (D14) ; OCI, module NixOS, OpenTelemetry (D35) ; AGPL-3.0 (D37).
-- **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; garde-fous de refus puis matrice d'autorisations (D28) ; catalogue de services nommés (D29) ; registre de flux (D30).
+- **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
 - **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, CLI, TUI.
 
 ## D1 — Source de vérité et sens de « contrôler »
@@ -193,6 +193,20 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Décision : **niveau 1, garde-fous absolus** : protocoles interdits du catalogue, éventuellement limités à des paires d'environnements (« jamais d'administratif dev → prod »). Ils l'emportent toujours. **Niveau 2, matrice d'autorisations seulement** (type de flux × env source × env destination), combinée en union (D25), avec refus par défaut. Évaluation : garde-fous, puis matrice ; le verdict cite l'élément décisif.
 - Rejeté : matrice tri-état (incompatible avec D25), matrice seule (pas de garde-fou).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-21 par la 010 (entretien sécurité, Q2, Q7, Q9, Q11) — décidé par :
+  l'utilisateur. Les deux niveaux et l'ordre d'évaluation tiennent (l'interdiction
+  l'emporte, union des autorisations, refus par défaut). La **forme** change : la
+  politique est un ensemble de **règles par attributs**, sans ordre entre elles ; une
+  règle a un sélecteur source, un sélecteur destination (valeurs d'un ou plusieurs axes
+  de classification, contrainte « même valeur » entre les deux extrémités), un sélecteur
+  de flux (types de flux ou services) et un effet **autoriser** ou **interdire**. Les
+  garde-fous sont les règles d'effet interdire ; la matrice devient une **vue** des règles
+  qui ne citent que l'environnement. S'y ajoutent l'autorisation **conditionnelle sous
+  motif** (sans motif correspondant, le flux part « à instruire » au lieu d'être refusé),
+  les **motifs** d'architecture nommés, les **conditions d'admissibilité** (évaluées hors
+  verdict, elles décident de l'issue : automatique, à instruire, non conforme) et un
+  **texte pédagogique** par interdiction et par motif. La matrice à trois états de
+  l'existant s'importe sans troisième effet (« partiel » = autorisation conditionnelle).
 
 ## D29 — Catalogue de services nommés
 - Décision : une entrée du catalogue est un **service nommé** : transport (tcp, udp, sctp, icmp…), ports ou plages (registre IANA comme référence) et **un seul** type de flux. Un même port peut figurer dans plusieurs services. Une requête par service n'est pas ambiguë ; une requête par port brut renvoie un verdict par service correspondant, avec une synthèse sur le plus restrictif. Plus tard, une machine pourra déclarer les services qu'elle expose.
@@ -204,6 +218,18 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Conséquence de performance : la résolution des environnements doit être **matérialisée et maintenue de façon incrémentale** (index environnement → nœuds, et inversement), pour calculer les différentiels sur 10⁶ nœuds dans les budgets de D14. À traiter dans la spec du module.
 - Rejeté : questions ponctuelles seules (on ne sait pas ce qu'un changement casse), import des pare-feux dès maintenant (relève de l'étape 2).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-21 par la 010 et la 011 (entretien sécurité, Q3, Q12, Q13, Q16,
+  Q18) — décidé par : l'utilisateur. Un flux **conforme** n'a plus de période de validité
+  obligatoire : sa validité est **dérivée en continu** de la politique (il reste actif
+  tant que la politique du jour l'autorise et que ses extrémités existent) ; s'il
+  bascule, il devient une non-conformité à instruire. Seuls les flux **instruits** par un
+  humain et les **dérogations** portent une date de fin obligatoire et une
+  recertification humaine ; rien ne se prolonge seul. La référence externe du dossier
+  devient obligatoire, la justification en texte libre facultative. « Tout changement de
+  règle réévalue les flux » vaut pour la politique (règles, motifs, conditions, services)
+  et les classifications ; une règle d'inférence ne change aucun verdict et ne réévalue
+  que les anomalies (D23). Le registre réserve une **sorte** « constaté » (flux déjà
+  ouvert, audité a posteriori) pour la v0.3.
 
 ## D31 — Feuille de route
 - Décision : **v0.1 (MVP), orientée réseau** : noyau (dont le mécanisme de **propriétés héritables**, construit et testé dès v0.1 même sans le module Politique), VLAN, Machines et interfaces, REST et Web. **v0.2, sécurité** : Politique (environnements, règles, matrice, garde-fous, services, conformité, anomalies) et Flux. **v0.3** : passerelles, routes, NAT. **Ensuite** : atteignabilité effective, connecteur de la source historique, MCP, CLI, TUI.
@@ -317,7 +343,7 @@ VLAN, machines et interfaces, passerelles et routes, NAT, détail physique des s
 ## Questions ouvertes
 - ~~**Q-ouv-1**~~ : licence du SDK de plugins et des clients générés (AGPL, ou MPL-2.0 ou Apache-2.0 pour permettre des plugins et connecteurs propriétaires). Bloque : la spec 007 (web shell et plugins). Close le 2026-10-19 (utilisateur) : **MPL-2.0** pour le SDK de plugins et les clients générés ; le shell reste en AGPL-3.0 (D37).
 - **Q-ouv-2** : volumétrie réelle de la source historique, pour confirmer D2. Bloque : le jeu de données des bancs d'essai.
-- **Q-ouv-3** : critères exacts des règles d'inférence (exemples anonymisés du TOML existant). Bloque : la spec 010.
+- ~~**Q-ouv-3**~~ : critères exacts des règles d'inférence (exemples anonymisés du TOML existant). Bloque : la spec 010. Close le 2026-10-21 (utilisateur, entretien sécurité de la 010, Q10 à Q13) : exemples anonymisés consignés dans `specs/010-politique-flux/besoin/journal.md` (Q10) ; moteur générique de règles d'inférence (critères en liste fermée extensible, ET entre critères, exceptions imbriquées, priorité explicite puis nœud le plus profond, égalité non bloquante) ; import de l'existant par convertisseur hors ligne.
 - **Q-ouv-4** : représentation de stockage des familles non natives (IPv8). Bloque : rien avant que le draft progresse ; à concevoir comme point d'extension dans la spec 002.
 - ~~**Q-ouv-5**~~ : une même personne authentifiée par deux émetteurs OIDC = deux identités ou une identité liée ? Bloque : la spec 005. Close par 005/K2 (deux identités).
 - **Q-ouv-6** : langue de l'interface et de la documentation (FR, EN, i18n). Bloque : la spec 007 et la convention de `docs/`. Interface tranchée le 2026-10-19 (utilisateur) : **i18n dès le départ**, textes par clés, catalogues français et anglais livrés, catalogues propres à chaque plugin. Reste ouverte pour la documentation (en français pour l'instant).
