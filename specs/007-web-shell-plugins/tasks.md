@@ -74,7 +74,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `index.html` relu au changement de taille ou de date à chaque requête, l'ancien gardé
   si le nouveau n'a pas d'import map ; dépendances `arc-swap`, `base64`,
   `percent-encoding` (déjà dans l'arbre) ajoutées à `kartenn-rest`
-- [ ] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
+- [x] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
   empreintes `sha384` (rehachées au seul changement de taille ou de date), version
   publiée, filtre par module, service sous `/plugins/`, relecture toutes les 10 s et sur
   `SIGHUP`, journaux `web.plugin.*` — REQ-007-4, 5, 6, 8, 11 — verify : unitaires du
@@ -86,6 +86,18 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « Plugins côté serveur » ; `kartenn-rest/src/web.rs` (tâche 3) ;
   `kartenn-server/src/app.rs` (`hangup`, lignes 648 à 682) et `http.rs` (certificat relu
   sur `SIGHUP`) à imiter ; `arc-swap`, `sha2`, `base64` de l'espace de travail
+  — `kartenn-rest/src/web/plugins.rs` (`Plugins` : `open`, `reload`, `watch`,
+  `published`, `RELOAD_EVERY`, `MAX_FILES`, `MAX_BYTES`), service sous `/plugins/` dans
+  `web.rs` (`ETag` = empreinte SRI, 304) ; `capabilities::module_names` ; serveur :
+  `serve_web` et relecture sur `SIGHUP` (signal installé avec TLS ou plugins) dans
+  `app.rs`, `plugins_dir` illisible refusé au chargement de la configuration ; tests
+  `rest/tests/plugins.rs` (9), unitaires du module (formes de `sdk`, noms, clés) et
+  `server/tests/http.rs` (`a_plugin_deposited_is_served_at_the_next_sighup`)
+  choix : dépendance `semver` (déjà dans l'arbre) pour l'ordre des versions ; clés des
+  catalogues plates (`"tab.notes"`) ou imbriquées ; `label` et `nav` facultatifs,
+  vérifiés s'ils sont présents ; plugin d'un module absent journalisé comme
+  `web.plugin.rejected` ; empreinte de « `abc` » tirée de FIPS 180-2 (pas d'`openssl`
+  dans devenv) ; le délai de 10 s éprouvé par `watch` à 100 ms et la constante
 - [ ] 5. `ui_plugins` enrichi dans les capacités et contrat de référence mis à jour —
   REQ-007-7 — verify : comparateur du contrat vert (membres ajoutés seulement) ;
   `GET /v1/capabilities` sur un répertoire de test publie base, entrée, empreintes,

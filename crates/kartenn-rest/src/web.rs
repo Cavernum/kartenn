@@ -18,6 +18,10 @@ use sha2::{Digest, Sha256};
 
 use crate::problem::{Problem, ProblemKind};
 
+pub mod plugins;
+
+pub use plugins::Plugins;
+
 /// Why `[web]` is refused at the start.
 #[derive(Debug, thiserror::Error)]
 pub enum WebError {
@@ -33,13 +37,20 @@ pub enum WebError {
 #[derive(Debug)]
 pub struct Web {
     shell: Option<Shell>,
+    plugins: Option<Arc<Plugins>>,
 }
 
 impl Web {
-    /// The shell of `root`, if any.
+    /// The shell of `root` and the plugins of `plugins_dir`, if any.
     #[must_use]
-    pub const fn new(shell: Option<Shell>) -> Self {
-        Self { shell }
+    pub const fn new(shell: Option<Shell>, plugins: Option<Arc<Plugins>>) -> Self {
+        Self { shell, plugins }
+    }
+
+    /// The registry of the plugins, if any.
+    #[must_use]
+    pub const fn plugins(&self) -> Option<&Arc<Plugins>> {
+        self.plugins.as_ref()
     }
 }
 
@@ -269,7 +280,34 @@ fn secure(headers: &mut HeaderMap, index: Option<&Index>) {
 }
 
 fn answer(web: &Web, index: Option<&Index>, path: &str, headers: &HeaderMap) -> Response {
-    let (Some(shell), Some(index), Some(segments)) = (&web.shell, index, segments(path)) else {
+    let Some(segments) = segments(path) else {
+        return not_found();
+    };
+    if let [first, name, version, rest @ ..] = segments.as_slice()
+        && first == "plugins"
+    {
+        let file = web
+            .plugins
+            .as_ref()
+            .and_then(|plugins| plugins.file(name, version, &rest.join("/")));
+        let Some(file) = file else {
+            return not_found();
+        };
+        let Ok(body) = std::fs::read(&file.disk) else {
+            return not_found();
+        };
+        let tag = format!("\"{}\"", file.sri);
+        return revalidated(
+            body,
+            media_type(&file.disk.to_string_lossy()),
+            &tag,
+            headers,
+        );
+    }
+    if segments.first().is_some_and(|s| s == "plugins") {
+        return not_found();
+    }
+    let (Some(shell), Some(index)) = (&web.shell, index) else {
         return not_found();
     };
     if let Some(file) = shell.file(&segments) {

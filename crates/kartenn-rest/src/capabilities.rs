@@ -95,6 +95,13 @@ pub(crate) fn routes() -> OpenApiRouter<Api> {
     OpenApiRouter::new().routes(routes!(capabilities))
 }
 
+/// The names of the modules of the build: a plugin of another module is not published
+/// (REQ-007-11).
+#[must_use]
+pub fn module_names() -> std::collections::BTreeSet<String> {
+    modules().into_iter().map(|module| module.name).collect()
+}
+
 /// The modules of the build: the tags of its contract.
 fn modules() -> Vec<Module> {
     let document = crate::openapi::json();

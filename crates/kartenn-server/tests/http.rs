@@ -361,3 +361,75 @@ async fn an_instance_serves_the_api_reloads_on_sighup_and_stops_within_ten_secon
         "the idle connection was closed"
     );
 }
+
+/// A plugin deposited while the instance runs is served as soon as `SIGHUP` arrives,
+/// without waiting for the reading every 10 s (spec 007, REQ-007-8; task 007-4).
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn a_plugin_deposited_is_served_at_the_next_sighup(pool: PgPool) {
+    let dir = dir();
+    let plugins = dir.join("plugins");
+    std::fs::create_dir_all(&plugins).unwrap();
+    let address = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap()
+    };
+    let config = kartenn_server::config::from_toml(&format!(
+        r#"
+        [telemetry]
+        outputs = [{{ kind = "file", path = "{}", filter = "info" }}]
+        [http]
+        listen = "{address}"
+        [web]
+        plugins_dir = "{}"
+        "#,
+        dir.join("technical.jsonl").display(),
+        plugins.display(),
+    ))
+    .unwrap();
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let run = tokio::spawn(async move {
+        kartenn_server::app::run(pool, &config, async {
+            let _ = stopped.await;
+        })
+        .await
+    });
+    let status = |path: &'static str| async move {
+        let stream = TcpStream::connect(address).await.ok()?;
+        let response = h1(stream).await.send_request(get_h1(path)).await.ok()?;
+        Some(response.status())
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while status("/health/live").await != Some(StatusCode::OK) {
+        assert!(Instant::now() < deadline, "the API never answered");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let version = plugins.join("example/1.0.0");
+    std::fs::create_dir_all(version.join("i18n")).unwrap();
+    std::fs::write(
+        version.join("manifest.json"),
+        r#"{"name":"example","version":"1.0.0","sdk":"^1.0","entry":"index.js",
+            "catalogs":{"en":"i18n/en.json"},"extensions":[]}"#,
+    )
+    .unwrap();
+    std::fs::write(version.join("index.js"), "export {};").unwrap();
+    std::fs::write(version.join("i18n/en.json"), "{}").unwrap();
+    assert_eq!(
+        status("/plugins/example/1.0.0/index.js").await,
+        Some(StatusCode::NOT_FOUND)
+    );
+    let hup = std::process::Command::new("kill")
+        .args(["-HUP", &std::process::id().to_string()])
+        .status()
+        .unwrap();
+    assert!(hup.success());
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while status("/plugins/example/1.0.0/index.js").await != Some(StatusCode::OK) {
+        assert!(
+            Instant::now() < deadline,
+            "SIGHUP did not read the plugins again"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    stop.send(()).unwrap();
+    run.await.unwrap().unwrap();
+}

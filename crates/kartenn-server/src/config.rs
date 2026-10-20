@@ -723,6 +723,11 @@ fn check(config: &Config) -> Result<(), ConfigError> {
     if let Some(root) = config.web.as_ref().and_then(|web| web.root.as_ref()) {
         kartenn_rest::web::Shell::open(root).map_err(|e| ConfigError::Invalid(e.to_string()))?;
     }
+    if let Some(dir) = config.web.as_ref().and_then(|web| web.plugins_dir.as_ref())
+        && let Err(e) = std::fs::read_dir(dir)
+    {
+        return invalid(format!("web.plugins_dir: {}: {e}", dir.display()));
+    }
     Ok(())
 }
 

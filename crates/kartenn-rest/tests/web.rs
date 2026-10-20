@@ -50,7 +50,7 @@ fn shell() -> PathBuf {
 }
 
 fn app(root: Option<&Path>) -> Router {
-    let web = root.map(|root| Arc::new(Web::new(Some(Shell::open(root).unwrap()))));
+    let web = root.map(|root| Arc::new(Web::new(Some(Shell::open(root).unwrap()), None)));
     kartenn_rest::router_with_web(
         Router::new(),
         Arc::new(Ready),
