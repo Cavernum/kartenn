@@ -1,9 +1,17 @@
 ---
-status: draft
-updated: 2026-10-20
+status: closed
+updated: 2026-10-21
 ---
 
 # 010 — Règles d'inférence d'environnement : questions à arbitrer
+
+> **Tranchées le 2026-10-21** par l'entretien sécurité ([`besoin/journal.md`](besoin/journal.md),
+> Q10 à Q13, Q19) : I1 à I15 acceptés tels que recommandés, sauf **I6 adouci** (une
+> égalité restante ne bloque pas l'écriture : candidats multiples, ni valeur par défaut
+> ni anomalie d'écart, anomalie « règles en conflit » sur le jeu). S21 close, S7 et S8
+> amendées. Report : [`decisions.md`](decisions.md) (S18, S7, S8, S21) et
+> [`requirements.md`](requirements.md) (section G, REQ-010-40 à 54). Le texte ci-dessous
+> est conservé comme trace des options.
 
 Point d'entrée autonome de la session dédiée aux règles d'inférence (Q-ouv-3, D24),
 réservée par l'utilisateur le 2026-10-20. Ce document ne décide rien : il pose les

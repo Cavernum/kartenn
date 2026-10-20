@@ -84,6 +84,11 @@ dérivée des flux conformes).
 Les points N1 à N20 et M1 à M6 du `design.md` de la 010 restent valables. S'y ajoutent,
 numérotés à la suite :
 
+> **Renumérotation (2026-10-21).** Le design de la 011 utilisait déjà N21 à N24 et M7 ;
+> les points ci-dessous sont reportés dans le design de la 010 sous les numéros
+> **N25 à N37** (N21 → N25 … N33 → N37) et **M8 à M10** (M7 → M8, M8 → M9, M9 → M10).
+> Les identifiants de ce document restent ceux de l'entretien.
+
 ### Noyau (002 à 004)
 
 | # | Attente | Source |
