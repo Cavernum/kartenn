@@ -28,6 +28,12 @@
   rendu avec le MCP `playwright` (headless, limité à `127.0.0.1:5173`) : `browser_snapshot`
   (arbre d'accessibilité, compact) plutôt que `browser_take_screenshot`, sauf question
   visuelle.
+- **Charge de la machine.** Plusieurs sessions et worktrees partagent une machine. Les
+  commandes lourdes passent par le sémaphore `k-heavy` (2 créneaux, `nice`, cœurs
+  partagés) : `k-check`, `k-web-check`, `k-web-e2e`, `db-prepare`, les bancs et le hook
+  clippy le prennent d'eux-mêmes ; toute autre commande lourde se lance en
+  `k-heavy cargo …`. Pas plus de trois sous-agents d'implémentation en parallèle ;
+  `sccache` partage les dépendances compilées entre worktrees.
 
 ## Économie de contexte
 
