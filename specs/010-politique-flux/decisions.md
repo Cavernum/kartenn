@@ -9,7 +9,7 @@ l'implémentation (v0.2, D31).
 Cadre : D19 à D30, § « Approche — module Politique de flux » et § « Noyau ou module » de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; propriétés héritables
 (spec 003, ADR 0016) ; changesets, bitemporel, approbations (004) ; RBAC (005) ; API
-(006) ; contrat de module (ADR 0025, en cours d'écriture : on suppose le contrat esquissé
+(006) ; contrat de module (ADR 0026, en cours d'écriture : on suppose le contrat esquissé
 dans [`docs/spec/architecture.md`](../../docs/spec/architecture.md) § Modularité) ;
 Machines et interfaces (009, en cours). Note de référence :
 [`services-transports.md`](../../docs/reference/services-transports.md).
