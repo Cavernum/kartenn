@@ -333,7 +333,38 @@ fn kind_of(name: &str) -> Result<ObjectKind, StoreError> {
         .iter()
         .find(|(k, _)| k.name() == name)
         .map(|(k, _)| *k)
+        // An object of a module (spec 008, REQ-008-3).
+        .or_else(|| ObjectKind::from_name(name).filter(|k| matches!(k, ObjectKind::Module(_))))
         .ok_or_else(|| store_err(format!("unknown object kind {name}")))
+}
+
+/// The objects of the modules the changeset `args.0` (applied at `args.1`) wrote, by their
+/// record in the core (spec 008, REQ-008-3): a module writes its own rows beside, and
+/// gives them back at the restore.
+async fn module_objects(
+    pool: &PgPool,
+    (id, at, from): (Uuid, OffsetDateTime, OffsetDateTime),
+) -> Result<Vec<Touched>, StoreError> {
+    let rows: Vec<(Uuid, String, bool, Option<Uuid>)> = sqlx::query_as(sqlx::AssertSqlSafe(
+        touched_sql("module_object", "id", ", kind"),
+    ))
+    .bind(id)
+    .bind(at)
+    .bind(from)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)?;
+    rows.into_iter()
+        .map(|(object, kind, created, later)| {
+            Ok(Touched {
+                kind: kind_of(&kind)?,
+                id: object,
+                property: None,
+                created,
+                later,
+            })
+        })
+        .collect()
 }
 
 /// What the applied changeset `id` wrote; `None` if it is not applied.
@@ -383,6 +414,7 @@ pub(crate) async fn facts(pool: &PgPool, id: Uuid) -> Result<Option<UndoFacts>, 
             later,
         }));
     }
+    touched.extend(module_objects(pool, (id, at, from)).await?);
     let rows: Vec<(Uuid, Uuid, String, bool, Option<Uuid>)> =
         sqlx::query_as(sqlx::AssertSqlSafe(touched_sql(
             "property_assignment",
