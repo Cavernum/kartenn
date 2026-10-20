@@ -340,26 +340,60 @@ Le besoin consolidé est dans [`expression-besoin.md`](expression-besoin.md).
   fourre-tout (affaiblit la classification).
 - Décidé par : recommandation acceptée
 
+### Q20 — O-1, signaux du score informatif
+- Question : quels signaux retenir pour le score informatif de la v0.2 ?
+- Réponse : la recommandation. Trois groupes en v0.2 : **portée des extrémités**
+  (largeur de la plage par paliers /24, /20, /16 ; nombre d'adresses couvertes ;
+  extrémité « tout un domaine » ; préfixe sans machine rattachée) ; **nature du flux**
+  (type administratif ou base de données ; service en clair ; plage de ports ; port brut
+  résolu vers plusieurs services ; service récemment ajouté au catalogue) ; **croisement
+  des axes** (environnements différents ; destination plus sensible que la source ;
+  extrémité exposée à internet ; autorisation qui ne tient qu'à une valeur transverse ;
+  criticité haute de la destination). Le groupe **dossier et historique** (champs
+  facultatifs vides, responsable absent du référentiel annexe, demandeur avec des
+  non-conformités récentes, flux semblable refusé ou sous dérogation) attend les données
+  de la 009 et des référentiels annexes. Chaque signal : prédicat nommé, poids réglable ;
+  score = somme des poids déclenchés, affiché avec la liste.
+- Décidé par : recommandation acceptée
+
+### Q21 — O-2, références vers les référentiels annexes
+- Question : quelle forme pour les références application et propriétaire ?
+- Réponse : **référence externe typée, libellé en cache, sans synchronisation en v0.2**.
+  Une valeur = système source (liste fermée administrable), identifiant dans ce système,
+  libellé copié à la saisie. kartenn ne vérifie pas l'existence ; un connecteur pourra
+  rafraîchir les libellés et signaler en anomalie les identifiants disparus. L'opérateur
+  « même valeur » compare système et identifiant.
+- Rejeté : objets locaux importés (un référentiel de plus) ; texte libre contraint (pas de
+  libellé, pas d'évolution).
+- Décidé par : recommandation acceptée
+
+### Q22 — O-3, vocabulaires d'exemple
+- Réponse : exposition = internet, partenaires, interne, administration ; sensibilité =
+  public, interne, confidentiel, restreint, plus un indicateur « données personnelles » ;
+  criticité = standard, importante, vitale. Livrés en exemple, non imposés, cités par la
+  documentation et les bancs ; l'administrateur les remplace.
+- Décidé par : recommandation acceptée
+
+### Q23 — O-4, campagnes de revue
+- Réponse : **objet propre, réservé pour la v0.3** : sélection de flux à une date,
+  responsable, échéance, décision par flux (maintenu, à fermer, à corriger), traçable. La
+  v0.2 ne livre que les filtres.
+- Rejeté : filtres enregistrés seuls (revue non traçable).
+- Décidé par : recommandation acceptée
+
+### Q24 — O-5, contrat minimal pour les connecteurs
+- Réponse : la v0.2 expose l'**API de verdict** en pré-vérification, l'**enregistrement
+  pour le compte d'un demandeur**, et des **événements sortants** (issue changée, flux
+  fermé, dérogation à échéance) consommables par webhook. Les connecteurs vers le
+  ticketing et la plateforme de revue de code viennent en v0.3, comme processus hors
+  kartenn.
+- Rejeté : API seule sans événements (le demandeur ne serait pas prévenu).
+- Décidé par : recommandation acceptée
+
 ## Clôture
 
-Aucune question ouverte ne changerait les exigences ou le modèle de la v0.2. Les points
-laissés ouverts, et ce qu'ils bloquent :
+Toutes les questions ouvertes O-1 à O-5 sont closes (Q20 à Q24). Aucune question
+restante ne changerait les exigences ou le modèle de la v0.2.
 
-- **O-1 — Critères du score informatif** (Q4) : liste et pondération des signaux
-  (largeur de plage, type de flux, paire d'axes, sensibilité des données, dossier). Bloque
-  la section correspondante de `requirements.md`, pas le modèle (le score est un
-  attribut de l'évaluation, sans effet sur l'issue).
-- **O-2 — Référentiels annexes** (Q5) : forme de la référence vers une application ou un
-  propriétaire (identifiant externe, système source, rafraîchissement). Bloque le type de
-  la propriété « application » dans la 009 ou la 010.
-- **O-3 — Vocabulaires d'exemple** des axes exposition, sensibilité et criticité livrés
-  en configuration. Bloque le jeu de données des bancs et les exemples de la
-  documentation, pas le modèle.
-- **O-4 — Campagnes de revue** (Q16) : objet propre ou simple jeu de filtres enregistré ?
-  Bloque la 011 au-delà de la v0.2.
-- **O-5 — Connecteurs** ticketing et plateforme de dépôt de code (Q3) : événements
-  sortants nécessaires (changement d'issue d'un flux) et format. Bloque la v0.3.
-
-Synthèse des décisions, une ligne chacune, et le besoin consolidé dans
-[`expression-besoin.md`](expression-besoin.md) ; écarts et attentes envers le noyau dans
-[`ecarts.md`](ecarts.md).
+Synthèse des décisions dans [`expression-besoin.md`](expression-besoin.md) § 9 ; écarts
+et attentes envers le noyau dans [`ecarts.md`](ecarts.md).

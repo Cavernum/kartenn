@@ -132,7 +132,8 @@ v0.2 mais que le modèle doit déjà accueillir.
   simulation, liste les différences de résultat avec l'outil actuel.
 - **UC-12 — Revue par campagnes** (v0.3). L'équipe sécurité sélectionne un ensemble de
   flux (une application, un environnement, un responsable parti) et les passe en revue
-  comme un lot ; la v0.2 fournit seulement les filtres de UC-9 et UC-10.
+  comme un lot : objet propre avec responsable, échéance et décision par flux (maintenu,
+  à fermer, à corriger) ; la v0.2 fournit seulement les filtres de UC-9 et UC-10 (Q23).
 - **UC-13 — Auditer les flux constatés** (v0.3). Des flux déjà ouverts, lus dans des
   exports de pare-feux ou d'infrastructure as code, entrent au registre comme flux
   **constatés** et reçoivent une évaluation ; la v0.2 réserve la place de ce type de
@@ -256,8 +257,11 @@ détaillées dans `requirements.md`.
   valeur peut être marquée **transverse** (par exemple « global ») pour l'audit des
   autorisations qui ne tiennent qu'à elle. L'environnement (D21) est l'axe livré par le
   module ; exposition, sensibilité des données, criticité sont livrés en configuration
-  d'exemple ; application et propriétaire sont des **références** vers des référentiels
-  annexes.
+  d'exemple (exposition : internet, partenaires, interne, administration ; sensibilité :
+  public, interne, confidentiel, restreint, indicateur données personnelles ; criticité :
+  standard, importante, vitale ; Q22) ; application et propriétaire sont des
+  **références externes typées** : système source, identifiant, libellé en cache, sans
+  synchronisation en v0.2 (Q21).
 - **Classification.** Affectation d'un **ensemble** de valeurs d'un axe à un nœud ou à
   une machine, à une période applicative ; remplace l'ensemble hérité (D26) ; peut
   valoir « aucune valeur » (P4). Résolue par héritage avec origine et chaîne.
@@ -279,8 +283,10 @@ détaillées dans `requirements.md`.
   résolues (largeur de plage, présence d'un champ du dossier, nature des données face à
   la destination, service nommé plutôt que port brut…), texte pédagogique. Toutes les
   conditions doivent être remplies pour l'issue automatique.
-- **Signal de risque.** Nom, prédicat, poids ; la somme des signaux déclenchés donne le
-  score informatif ; chaque signal déclenché est un avertissement.
+- **Signal de risque.** Nom, prédicat, poids réglable ; la somme des signaux déclenchés
+  donne le score informatif ; chaque signal déclenché est un avertissement. Trois groupes
+  en v0.2 : portée des extrémités, nature du flux, croisement des axes ; le groupe
+  dossier et historique attend la 009 et les référentiels annexes (Q20).
 - **Règle d'inférence.** Axe visé, critères (ET), valeurs attendues, priorité,
   exceptions imbriquées, période applicative ; appartient à un **jeu de règles** dont la
   révision sert de provenance.
@@ -421,7 +427,9 @@ existante, permission « demander un flux », événements sortants de changemen
 **Hors v0.2, place réservée dans le modèle** :
 - flux **constatés** et audit a posteriori des flux déjà ouverts (UC-13, v0.3) ;
 - lecture des exports de pare-feux et d'infrastructure as code, connecteurs vers le
-  ticketing et la plateforme de revue de code (v0.3) ;
+  ticketing et la plateforme de revue de code (v0.3) ; la v0.2 pose leur contrat :
+  verdict en pré-vérification, enregistrement pour le compte d'un demandeur, événements
+  sortants d'issue changée, flux fermé et dérogation à échéance (Q24) ;
 - **atteignabilité effective**, NAT, routes, passerelles (D20 étape 2, v0.3 et suite) ;
 - observation du trafic réel, flux sans trafic ;
 - services exposés déclarés par une machine (D29) ;
@@ -464,3 +472,11 @@ existante, permission « demander un flux », événements sortants de changemen
 - Q18 : flux constatés hors v0.2, place réservée.
 - Q19 : port sans service connu refusé mais « à instruire » ; jokers réservés aux
   sélecteurs d'extrémité ; lecture de S21 confirmée.
+- Q20 : signaux du score en trois groupes (portée, nature du flux, croisement des axes) ;
+  dossier et historique plus tard.
+- Q21 : références externes typées (système, identifiant, libellé en cache), sans
+  synchronisation en v0.2.
+- Q22 : vocabulaires d'exemple pour exposition, sensibilité, criticité.
+- Q23 : campagnes de revue = objet propre, v0.3.
+- Q24 : contrat des connecteurs posé en v0.2 (API de verdict, enregistrement pour le
+  compte de, événements sortants).

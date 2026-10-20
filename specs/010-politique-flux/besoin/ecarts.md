@@ -89,7 +89,7 @@ numérotés à la suite :
 | # | Attente | Source |
 |---|---|---|
 | N21 | Une propriété de liste fermée **déclarée par un administrateur** (P1) doit pouvoir être désignée comme axe lu par la politique, avec les mêmes garanties qu'une propriété de module : héritage, remplacement, explication, obligation par domaine, lecture groupée (N9). | Q5, Q6 |
-| N22 | Un type de valeur **référence externe** (système source, identifiant, libellé en cache) pour application et propriétaire, ou l'usage des identifiants externes du noyau (A.1) sur un objet de module ; à trancher avec O-2. | Q5 |
+| N22 | Un type de valeur **référence externe** (système source en liste fermée administrable, identifiant, libellé en cache), comparable par l'opérateur « même valeur » sur système et identifiant, sans vérification d'existence en v0.2 ; un connecteur pourra plus tard rafraîchir les libellés et signaler les identifiants disparus. | Q5, Q21 |
 | N23 | Un attribut par **valeur** de liste fermée (ici « transverse »), administrable, lisible par le module ; aujourd'hui les attributs de valeur sont ceux du module (S2). | Q5 |
 | N24 | Le contrat de source de valeurs attendues (N20) doit permettre **plusieurs candidats** sans valeur par défaut, et un mode « suggestion seule » quand le jeu de règles est en conflit. | Q12 |
 | N25 | **Simulation à blanc** d'un changeset non soumis (différentiel complet, contributions de module comprises) pour instruire un changement de politique avant de le proposer ; à vérifier avec la simulation de la 004. | Q15 |
@@ -111,7 +111,7 @@ numérotés à la suite :
 | # | Attente | Source |
 |---|---|---|
 | N30 | Un module expose une **évaluation sans écriture** (la pré-vérification de UC-1) qui lit les mêmes règles que l'enregistrement et rend le même résultat, pour qu'un outil externe l'appelle avant de soumettre. | Q1, Q2 |
-| N31 | Un module publie des **événements de changement d'état dérivé** (issue d'un flux) et pas seulement d'écriture, calculés par une tâche de fond ou à la réévaluation (N14, N15). | Q3, Q16 |
+| N31 | Un module publie des **événements de changement d'état dérivé** (issue changée, flux fermé, dérogation à échéance) et pas seulement d'écriture, calculés par une tâche de fond ou à la réévaluation (N14, N15), consommables par webhook (contrat des connecteurs v0.3). | Q3, Q16, Q24 |
 | N32 | Un module peut exposer une **vue de saisie** alternative d'un même ensemble d'objets (la matrice comme vue des règles mono-axe) sans dupliquer les objets ; concerne surtout la 007 (plugin Web). | Q7 |
 | N33 | Un module peut déclarer un objet de type « **non-conformité** » consultable, filtrable et acquittable, distinct des anomalies de contrôle (N11) : porté par une évaluation, visible par le demandeur concerné. | Q9 (complément) |
 
