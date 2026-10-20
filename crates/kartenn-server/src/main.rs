@@ -114,7 +114,8 @@ async fn main() -> anyhow::Result<ExitCode> {
     match args.as_slice() {
         [command, database] if command == "migrate" => {
             let pool = connect(database).await?;
-            kartenn_store_pg::maintenance::deploy(&pool).await?;
+            let modules = kartenn_server::modules::registry()?;
+            kartenn_store_pg::maintenance::deploy(&pool, &modules).await?;
             println!("kartenn {}: deployed", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }

@@ -296,7 +296,9 @@ async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn the_migration_job_and_module_sync_are_the_system(pool: PgPool) {
-    kartenn_store_pg::maintenance::deploy(&pool).await.unwrap();
+    kartenn_store_pg::maintenance::deploy(&pool, kartenn_service::module::ModuleRegistry::empty())
+        .await
+        .unwrap();
     let rows: Vec<(String, String)> =
         sqlx::query_as("SELECT name, actor_kind FROM audit.event ORDER BY seq")
             .fetch_all(&pool)

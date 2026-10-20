@@ -41,7 +41,7 @@ numérotées après coup.
   `core_collections_are_those_of_the_contract` (rest).
   choix : `ModuleHandler` vide ici, ses méthodes et `ModuleTx` arrivent avec la tâche 3
   qui les branche ; `CORE_COLLECTIONS` vérifiée contre le contrat par un test.
-- [ ] 2. Migrations : migration du noyau `0041_module_object.sql` (`module_object`
+- [x] 2. Migrations : migration du noyau `0041_module_object.sql` (`module_object`
   versionnée, `module_migration`, index par parent), migrateur de modules dans
   `kartenn-store-pg` (schéma par module, somme SHA-256, `search_path` local) appelé par
   le job de migration après `MIGRATOR` — REQ-008-2, 3 (table) — verify :
@@ -51,6 +51,13 @@ numérotées après coup.
   migrations `0002`, `0019` (`kartenn_make_versioned`), `0037` (`object_version`) ;
   job de migration dans `kartenn-server`
   dépend de : 1
+  — Migration `0041_module_object.sql` (`module_object` versionnée, nom et type
+  qualifiés contrôlés, `module_object_by_parent`, `module_migration`). Store :
+  `modules.rs::migrate` (une transaction par migration, verrou consultatif, `CREATE
+  SCHEMA`, `GRANT USAGE` à `kartenn_app`, `SET LOCAL search_path`, SHA-256, versions
+  croissantes), `maintenance::deploy(pool, modules)` l'appelle après `MIGRATOR`. Server :
+  `migrate` passe le registre. Tests `module_migrations.rs` (les trois du verify et
+  `module_object_is_versioned`).
 - [ ] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
   qualifiée, `ObjectKind::Module` ; pipeline (`plan`, `lock_targets`, `apply`,
   validation globale, droits `<type>.write|propose`), opérations du noyau planifiées

@@ -153,13 +153,18 @@ async fn the_migration_job_loads_the_embedded_registries(pool: PgPool) -> sqlx::
         .fetch_one(&pool)
         .await
     };
-    kartenn_store_pg::maintenance::deploy(&pool).await.unwrap();
+    let modules = kartenn_service::module::ModuleRegistry::empty();
+    kartenn_store_pg::maintenance::deploy(&pool, modules)
+        .await
+        .unwrap();
     let expected: usize = [IPV4, IPV6]
         .iter()
         .map(|f| special_registry(*f).unwrap().entries().len())
         .sum();
     assert_eq!(count(pool.clone()).await?, i64::try_from(expected).unwrap());
-    kartenn_store_pg::maintenance::deploy(&pool).await.unwrap();
+    kartenn_store_pg::maintenance::deploy(&pool, modules)
+        .await
+        .unwrap();
     assert_eq!(
         count(pool.clone()).await?,
         i64::try_from(expected).unwrap(),
