@@ -120,12 +120,20 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   choix : élément de liste identique à la fiche d'un import (état, lots, rapport), lu
   import par import ; pas d'index sur `import.author_id` (table de quelques imports par
   auteur) ; lecture non auditée, comme `GET /v1/imports/{id}`
-- [ ] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
+- [x] 8. Émetteurs de connexion, `GET /v1/auth/issuers` publique (W18) —
   REQ-007-41 — verify : 200 sans session, `[{id}]` dans l'ordre de la configuration,
   ni URL ni client ; route dans `PUBLIC`
   où : design « Ajouts à l'API » ; `kartenn-rest/src/auth.rs` (`routes`), `openapi.rs`
   (`PUBLIC`), `authn.rs` (`public`, trait `Authenticator`) ; `kartenn-server/src/config.rs`
   (`Issuer::id`) ; `rest/tests/sessions.rs` ; contrat de référence
+  — Auth : `tokens.rs` (`TokenVerifier::issuer_ids`). Rest : `authn.rs` (méthode
+  `Authenticator::issuers`, vide par défaut ; `PUBLIC`), `auth.rs` (`issuers`,
+  `IssuerDto`), `openapi.rs` (`PUBLIC`). Test `the_issuers_of_the_login_are_public`
+  (deux émetteurs, sans session ni TLS ; fixture `Fixture::of_issuers`). Contrat de
+  référence
+  choix : identifiants lus dans le vérificateur de jetons (même liste que la connexion)
+  plutôt que dans la configuration du serveur ; route servie aussi sans TLS (aucun cookie
+  posé)
 
 ## P3 — Émetteur de développement et bout en bout
 

@@ -1836,6 +1836,19 @@
         ],
         "type": "object"
       },
+      "IssuerDto": {
+        "description": "An issuer a browser logs in at, as the login page names it.",
+        "properties": {
+          "id": {
+            "description": "Its local identifier, the `issuer` of `/v1/auth/login`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Limits": {
         "description": "The limits a client must respect.",
         "properties": {
@@ -7380,6 +7393,41 @@
         },
         "security": [],
         "summary": "The return of a login from its issuer: a redirection to `/` with the session cookie.",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/v1/auth/issuers": {
+      "get": {
+        "operationId": "login_issuers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IssuerDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The issuers of the login."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "security": [],
+        "summary": "`GET /v1/auth/issuers`, public: the issuers of the login page, in the order of the\nconfiguration, by their local identifier alone (REQ-007-41): neither URL nor client.",
         "tags": [
           "authentication"
         ]

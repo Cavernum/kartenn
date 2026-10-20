@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Request, State};
 use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -27,6 +28,7 @@ use crate::problem::{Problem, ProblemKind};
 /// The routes, under `/v1`.
 pub fn routes() -> OpenApiRouter<Arc<dyn Authenticator>> {
     OpenApiRouter::new()
+        .routes(routes!(issuers))
         .routes(routes!(login))
         .routes(routes!(callback))
         .routes(routes!(breakglass))
@@ -39,6 +41,32 @@ fn param(uri: &Uri, name: &str) -> Option<String> {
     form_urlencoded::parse(uri.query()?.as_bytes())
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.into_owned())
+}
+
+/// An issuer a browser logs in at, as the login page names it.
+#[derive(Debug, Serialize, ToSchema)]
+struct IssuerDto {
+    /// Its local identifier, the `issuer` of `/v1/auth/login`.
+    id: String,
+}
+
+/// `GET /v1/auth/issuers`, public: the issuers of the login page, in the order of the
+/// configuration, by their local identifier alone (REQ-007-41): neither URL nor client.
+#[utoipa::path(
+    get,
+    path = "/auth/issuers",
+    operation_id = "login_issuers",
+    tag = "authentication",
+    responses((status = 200, description = "The issuers of the login.", body = Vec<IssuerDto>))
+)]
+async fn issuers(State(authenticator): State<Arc<dyn Authenticator>>) -> Json<Vec<IssuerDto>> {
+    Json(
+        authenticator
+            .issuers()
+            .into_iter()
+            .map(|id| IssuerDto { id })
+            .collect(),
+    )
 }
 
 /// Starts a login at the issuer `issuer` (OIDC, REQ-006-24): a redirection with the
