@@ -240,6 +240,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/auth/issuers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/auth/issuers`, public: the issuers of the login page, in the order of the
+     *     configuration, by their local identifier alone (REQ-007-41): neither URL nor client.
+     */
+    get: operations["login_issuers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/auth/login": {
     parameters: {
       query?: never;
@@ -573,6 +593,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/domains/{id}/roots": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/domains/{id}/roots`: the nodes of the domain that no prefix of the domain
+     *     contains, those the caller may read, in the order and by the pages of the children of a
+     *     prefix (REQ-007-39). A domain the caller may not read answers 404, as an absent one.
+     */
+    get: operations["domain_roots"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/entities": {
     parameters: {
       query?: never;
@@ -742,7 +783,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * `GET /v1/imports`: the imports of the caller, the most recent first, by pages
+     *     (REQ-007-40); those of anyone else are not listed. The list is read at the current
+     *     state on each page and takes neither filter nor date.
+     */
+    get: operations["list_imports"];
     put?: never;
     /** `POST /v1/imports {source}` → 201. */
     post: operations["create_import"];
@@ -2193,6 +2239,11 @@ export interface components {
       /** @description The import. */
       self: string;
     };
+    /** @description An issuer a browser logs in at, as the login page names it. */
+    IssuerDto: {
+      /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
+      id: string;
+    };
     /** @description The limits a client must respect. */
     Limits: {
       /** @description The most bytes of a request body. */
@@ -2437,6 +2488,39 @@ export interface components {
         name: string;
         /** @description The sessions opened before this instant are revoked, RFC 3339. */
         revoked_after?: string | null;
+      }[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_ImportDto: {
+      /** @description The elements of the page. */
+      items: {
+        /** @description The batches. */
+        batches: components["schemas"]["Batches"];
+        /**
+         * Format: int64
+         * @description The chunks received.
+         */
+        chunks: number;
+        /**
+         * Format: int64
+         * @description The elements received.
+         */
+        elements: number;
+        /**
+         * Format: uuid
+         * @description Identifier.
+         */
+        id: string;
+        /** @description Links. */
+        links: components["schemas"]["ImportLinks"];
+        /** @description The report of the batches run. */
+        report: Record<string, never>;
+        /** @description The source of the elements. */
+        source: string;
+        /** @description `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`. */
+        state: string;
       }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
@@ -4456,6 +4540,35 @@ export interface operations {
       };
     };
   };
+  login_issuers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The issuers of the login. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssuerDto"][];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   login: {
     parameters: {
       query: {
@@ -5412,6 +5525,47 @@ export interface operations {
       };
     };
   };
+  domain_roots: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The addressing domain. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The roots of the tree of the domain. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_TreeNode"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_entities: {
     parameters: {
       query?: {
@@ -5922,6 +6076,40 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IdentityItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_imports: {
+    parameters: {
+      query?: {
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The imports of the caller. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ImportDto"];
         };
       };
       /** @description A problem (RFC 9457). */
