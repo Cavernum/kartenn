@@ -15,9 +15,10 @@
     '';
   # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
   # sessions and worktrees share one machine, and each cargo would otherwise take every
-  # core. At most KARTENN_HEAVY_SLOTS (default 2) commands run at once, niced, each with
-  # its share of the cores (KARTENN_HEAVY_JOBS to override); the others wait their turn.
-  # Re-entrant: a heavy command run under a slot does not take a second one.
+  # core. At most K_HEAVY_SLOTS (default 2) commands run at once, niced, each with
+  # its share of the cores (K_HEAVY_JOBS to override); the others wait their turn.
+  # Re-entrant: a heavy command run under a slot does not take a second one. Variables
+  # stay out of the KARTENN_ prefix, which the server reads as its configuration.
   # `k-heavy --pg <command>` also takes the exclusive lock of the shared PostgreSQL: the
   # #[sqlx::test] runs of two worktrees would drop each other's test databases, and the
   # benches recreate kartenn_bench. The lock is always taken after the slot (no cycle).
@@ -26,24 +27,24 @@
     pg=0
     [ "''${1:-}" != --pg ] || { pg=1; shift; }
     [ $# -gt 0 ] || { echo "usage: k-heavy [--pg] <command> [args…]" >&2; exit 2; }
-    slots=''${KARTENN_HEAVY_SLOTS:-2}
-    jobs=''${KARTENN_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
+    slots=''${K_HEAVY_SLOTS:-2}
+    jobs=''${K_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
     [ "$jobs" -ge 1 ] || jobs=1
     dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
     mkdir -p "$dir"
     run() {
       export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
-      if [ "$pg" -eq 1 ] && [ -z "''${KARTENN_PG_HELD:-}" ]; then
+      if [ "$pg" -eq 1 ] && [ -z "''${K_PG_HELD:-}" ]; then
         exec 8>"$dir/pg"
         ${pkgs.util-linux}/bin/flock -n 8 || {
           echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
           ${pkgs.util-linux}/bin/flock 8
         }
-        export KARTENN_PG_HELD=1
+        export K_PG_HELD=1
       fi
       exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
     }
-    [ -z "''${KARTENN_HEAVY_HELD:-}" ] || run "$@"
+    [ -z "''${K_HEAVY_HELD:-}" ] || run "$@"
     waited=0
     while :; do
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
@@ -51,7 +52,7 @@
         # The lock stays held by the command (and its children) through the inherited fd.
         if ${pkgs.util-linux}/bin/flock -n 9; then
           [ "$waited" -eq 0 ] || echo "k-heavy: créneau $i obtenu" >&2
-          export KARTENN_HEAVY_HELD=$i
+          export K_HEAVY_HELD=$i
           run "$@"
         fi
         exec 9>&-
@@ -184,7 +185,7 @@ in {
     description = "Migrate the development database and refresh the sqlx offline metadata";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace -- --all-targets
     '';
@@ -197,7 +198,7 @@ in {
     description = "fmt, clippy and tests, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       log=$(mktemp -d -t k-check.XXXXXX)
       if ! cargo fmt --all --check >"$log/fmt" 2>&1; then
         echo "KO fmt ($log/fmt) — cargo fmt --all"; grep '^Diff in' "$log/fmt" | head -20; exit 1
@@ -207,7 +208,10 @@ in {
       fi
       warnings=$(grep -c '^warning' "$log/clippy" || true)
       [ "$warnings" -gt 0 ] && warnings=", clippy : $warnings avertissement(s)" || warnings=""
-      if ! k-heavy --pg cargo nextest run --workspace --all-features --hide-progress-bar \
+      # `-p <crate>` narrows the run: --workspace would add every other crate back.
+      ws=--workspace
+      for a in "$@"; do case $a in -p | -p* | --package | --package=*) ws= ;; esac; done
+      if ! k-heavy --pg cargo nextest run $ws --all-features --hide-progress-bar \
           --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
         echo "KO tests ($log/test)"
         grep -E '^ +(FAIL|SIGSEGV|TIMEOUT|LEAK)|^error' "$log/test" | sort -u | head -20
@@ -229,7 +233,7 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -265,7 +269,7 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      [ -n "''${KARTENN_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -306,7 +310,7 @@ in {
     description = "Check the budgets of the properties on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- props "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -318,7 +322,7 @@ in {
     description = "Check the budgets of the core on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -330,7 +334,7 @@ in {
     description = "Measure the cost of access control on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- rbac "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -342,7 +346,7 @@ in {
     description = "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- http "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
@@ -354,7 +358,7 @@ in {
     description = "Measure the cost of the telemetry on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${KARTENN_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
       psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
       cargo run --release -q -p kartenn-bench -- telemetry "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
     '';
