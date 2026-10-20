@@ -1,0 +1,16 @@
+[package]
+name = "kartenn-machines"
+version = "0.0.0"
+description = "Machines and interfaces module of kartenn: host names, EUI-48 addresses, hosting, 802.1Q modes"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+uuid = { version = "1.28.0", features = ["v7"] }

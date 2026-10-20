@@ -1790,6 +1790,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-machines"
+version = "0.0.0"
+dependencies = [
+ "kartenn-core",
+ "kartenn-workspace-hack",
+ "uuid",
+]
+
+[[package]]
 name = "kartenn-rest"
 version = "0.0.0"
 dependencies = [
