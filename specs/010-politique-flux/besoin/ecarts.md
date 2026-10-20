@@ -48,7 +48,7 @@ dérivée des flux conformes).
 | S4, S5 (types de flux, services) | inchangées | | Q10 |
 | S6 (garde-fou = sélecteur × paire d'environnements facultative) | amende | Le garde-fou devient une règle d'effet interdire à sélecteurs multi-axes ; « service interdit » reste une interdiction sans sélecteur d'extrémité. | Q7 |
 | S7 (cellules d'autorisation orientées, sans joker) | amende | La cellule devient une règle d'autorisation à sélecteurs ; un sélecteur vide vaut « toute extrémité » (joker explicite, nécessaire aux motifs) ; l'autorisation peut être conditionnelle. | Q7, Q11 |
-| S8 (non classifié, garde-fous, matrice ; refus par défaut) | complète | Ordre conservé ; s'insèrent l'autorisation conditionnelle (sous motif, sinon à instruire) puis l'admissibilité et les signaux. Le résultat porte un verdict **et** une issue. | Q2, Q11 |
+| S8 (non classifié, garde-fous, matrice ; refus par défaut) | complète | Ordre conservé ; s'insèrent l'autorisation conditionnelle (sous motif, sinon à instruire) puis l'admissibilité et les signaux. Le résultat porte un verdict **et** une issue. Rigueur confirmée : non classifié refusé, port sans service connu refusé (issue « à instruire », pas de type fourre-tout). | Q2, Q6, Q11, Q19 |
 | S9 (requête : extrémités et formes de flux) | complète | La requête accepte le dossier (références, responsables, nature des données) pour évaluer l'admissibilité ; sans dossier, seul le verdict est rendu. | Q3 |
 | S10 (cohérence des machines) | inchangée | | |
 | S11 (différentiel : autorisations (env, env, service) qui basculent) | amende | Le différentiel abstrait porte sur des combinaisons de valeurs d'axes, pas seulement d'environnements ; il nomme aussi les flux déclarés dont l'**issue** bascule. | Q15 |
@@ -59,7 +59,7 @@ dérivée des flux conformes).
 | S16, S17 (bitemporel, file d'écriture) | inchangées | Les nouveaux objets (motifs, conditions, signaux, textes) suivent S16. | |
 | S18 (inférence non tranchée) | close | Tranchée par Q10 à Q13 : I1 à I15 acceptés, I6 adouci (égalité non bloquante). | Q12, Q13 |
 | S19, S20 (API, budgets) | à réviser | Les budgets doivent couvrir l'évaluation des conditions et des motifs ; la réponse de verdict porte issue, conditions, score. | Q2, Q4 |
-| S21 (tension D23/D30) | close | Lecture confirmée : une règle d'inférence ne réévalue que les anomalies. | Q12 |
+| S21 (tension D23/D30) | close | Lecture confirmée : une règle d'inférence ne réévalue que les anomalies. | Q12, Q19 |
 
 ## 3. Décisions F1 à F15 (spec 011)
 
@@ -72,7 +72,7 @@ dérivée des flux conformes).
 | F5 (approbation par la 004) | complète | Un flux « à instruire » est une proposition ; la revue humaine est une approbation ou un rejet documenté (non-conformité). | Q2, Q3 |
 | F6 (flux non conforme refusé sauf dérogation) | complète | La dérogation porte date de fin obligatoire, motif, risque accepté, approbateur distinct du demandeur, recertification. Un flux « autorisé sous réserve » (conditionnel non satisfait) n'est **pas** refusé : il est enregistré en attente d'instruction. | Q8, Q11 |
 | F7 (verdicts matérialisés par segment) | complète | L'évaluation matérialisée porte aussi l'issue, les conditions non remplies, le score ; elle est **figée** à l'enregistrement et recalculée à chaque changement pertinent, avec historique. | Q2, Q16 |
-| F8 (changement qui casse des flux accepté et montré) | inchangée | Un flux conforme qui bascule devient une non-conformité à instruire, pas un flux expiré. | Q16 |
+| F8 (changement qui casse des flux accepté et montré ; approbation par défaut, amendée par l'utilisateur le 2026-10-20) | complète | Un flux conforme qui bascule devient une non-conformité à instruire, pas un flux expiré. La politique d'approbation par défaut « un flux se ferme », installée par le module et désactivable, est la seule exception au principe « le module n'impose rien » (EB-25). | Q15, Q16 |
 | F9 (différentiel des flux) | complète | Basculements d'issue en plus des basculements de verdict. | Q15 |
 | F10 (échéances à J-30 et J-7) | amende | Ne concerne que les flux datés (à instruire, dérogations) ; ajout d'un événement de **changement d'issue** pour les outils externes. | Q16, Q3 |
 | F11 (requêtes) | complète | Filtres par application, demandeur, règle en cause, issue ; vue des non-conformités. | Q9 (complément) |

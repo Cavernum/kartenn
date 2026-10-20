@@ -234,7 +234,9 @@ détaillées dans `requirements.md`.
   combinaisons abstraites ouvertes ou fermées, nœuds reclassés et héritiers (Q15).
 - **EB-25** Le système doit fournir des **déclencheurs d'approbation** (écriture de
   politique, flux qui se ferme, dérogation) qu'un administrateur pose dans une politique
-  d'approbation ; aucune approbation n'est imposée par le module (C6, Q15).
+  d'approbation ; le module n'impose rien, à l'exception de la politique par défaut
+  « un flux se ferme » installée avec le registre et désactivable (C6, Q15, 011/F8
+  amendée par l'utilisateur le 2026-10-20).
 - **EB-26** Le système doit offrir une permission **« demander un flux »** portée par
   entité, qui autorise le verdict sur toute paire d'extrémités sans lecture de l'arbre,
   et accepter l'identité du demandeur transmise par un compte de service (Q17).
@@ -324,7 +326,10 @@ Pour une demande (S, D, F) à une date applicative t et un instant système τ :
    donne un verdict par paire et une synthèse sur le plus restrictif (D22, S9).
 2. **Résolution du flux.** F devient un ensemble de services (un service nommé ; les
    services qui contiennent le port donné ; tous les services du type donné). Le verdict
-   est rendu par service, la synthèse sur le plus restrictif (D29).
+   est rendu par service, la synthèse sur le plus restrictif (D29). Un port qu'aucun
+   service ne contient donne un verdict **refusé**, élément décisif « service inconnu »,
+   et l'issue « à instruire » avec l'invitation à nommer ou faire ajouter le service
+   (Q19).
 3. **Non classifié.** Si une extrémité n'a aucune valeur sur un axe que cite au moins une
    règle candidate, le verdict de la paire est **refusé**, élément décisif « non
    classifié sur l'axe X », et une anomalie est levée.
@@ -457,3 +462,5 @@ existante, permission « demander un flux », événements sortants de changemen
   dérogations datés et recertifiés ; revue par campagnes.
 - Q17 : permission « demander un flux », explication réduite aux classifications.
 - Q18 : flux constatés hors v0.2, place réservée.
+- Q19 : port sans service connu refusé mais « à instruire » ; jokers réservés aux
+  sélecteurs d'extrémité ; lecture de S21 confirmée.

@@ -326,6 +326,20 @@ Le besoin consolidé est dans [`expression-besoin.md`](expression-besoin.md).
   limites proposées sont retenues.
 - Décidé par : l'utilisateur
 
+### Q19 — Rigueur par défaut (S7, S8) et S21, renvoyés par la session parallèle
+- Question : pas de joker dans la matrice, non classé refusé, port sans service connu
+  refusé : que retenir ? S21 : « règle » dans D30 désigne-t-il la matrice et les
+  garde-fous, pas les règles d'inférence ?
+- Réponse : **port inconnu refusé, issue « à instruire »**. Un port sans service du
+  catalogue ne peut pas être classé en type de flux : verdict refusé par défaut, mais
+  issue « à instruire » avec l'invitation à nommer le service ou à demander son ajout au
+  catalogue. Les jokers restent réservés aux sélecteurs d'extrémité (Q7), jamais aux
+  services. Le refus du non classé est confirmé (Q6). S21 : lecture confirmée par Q12 et
+  Q13, une règle d'inférence ne change aucun verdict et ne réévalue que les anomalies.
+- Rejeté : port inconnu non conforme (moins pédagogique) ; service « inconnu » d'un type
+  fourre-tout (affaiblit la classification).
+- Décidé par : recommandation acceptée
+
 ## Clôture
 
 Aucune question ouverte ne changerait les exigences ou le modèle de la v0.2. Les points
