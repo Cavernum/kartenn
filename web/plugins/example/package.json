@@ -1,0 +1,11 @@
+{
+  "name": "@kartenn/plugin-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Example plugin of kartenn, Custom Elements without a framework",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
