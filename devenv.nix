@@ -7,10 +7,12 @@
   # Frontend (ADR 0024): pnpm workspace under web/; the tooling stays inert until it exists.
   hasWeb = builtins.pathExists ./web/package.json;
   # Pre-commit hands paths relative to the repository; tools run from web/.
+  # The toolchain is absolute: pre-commit also runs outside the devenv shell.
   webHook = tool:
     pkgs.writeShellScript "web-${tool}" ''
       set -euo pipefail
       [ -f web/package.json ] || exit 0
+      export PATH=${lib.makeBinPath [config.languages.javascript.package config.languages.javascript.pnpm.package]}:$PATH
       exec pnpm -C web exec ${tool} "''${@#web/}"
     '';
   # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
