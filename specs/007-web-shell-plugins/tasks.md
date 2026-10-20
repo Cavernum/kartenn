@@ -37,7 +37,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   choix : étapes 3 et 4 du chargement ordonnées (script d'entrée après le `load` de tous
   les `modulepreload`, parade du risque reformulé) ; propositions [T] de la note laissées
   aux tâches qui touchent leur sujet
-- [ ] 2. Espace pnpm `web/` : `package.json`, `pnpm-workspace.yaml`, paquets `shell`
+- [x] 2. Espace pnpm `web/` : `package.json`, `pnpm-workspace.yaml`, paquets `shell`
   (Vue, vue-router, page d'accueil vide), `sdk` (bibliothèque à deux points d'entrée,
   `SDK_VERSION`), `plugins/example` (vide), `e2e` (`@playwright/test` épinglé sur
   `playwright-driver`) ; ESLint (dont `vue/no-static-inline-styles`), Prettier, Vitest,
@@ -47,6 +47,17 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « Arborescence de `web/` », « Dépendances du frontend », « Licences » ;
   `devenv.nix` (`hasWeb`, `languages.javascript`, `processes.web`, `scripts.k-web-check`,
   `k-web-e2e`) ; ADR 0024 ; avis MPL de `crates/syslog-sender/src/lib.rs`
+  — `web/` : `package.json` (pnpm 12.9, Node ≥ 24), `pnpm-workspace.yaml`,
+  `tsconfig.base.json` (`es2022`, strict), `eslint.config.js`, `prettier.config.js`,
+  `vitest.config.ts` ; `sdk` (`src/index.ts` avec `SDK_VERSION`, `src/host.ts`, build en
+  bibliothèque à deux entrées), `shell` (`createShellRouter`, `HomeView`), `plugins/example`
+  (vide), `e2e` (`@playwright/test` 1.63.0 = `playwright-driver`, projets `chromium` et
+  `firefox`). Tests : `sdk/test/licenses.test.ts` (avis exigé dans `sdk` et `plugins`,
+  fichier nu détecté, avis altéré refusé), `shell/src/router.test.ts` ; page vue par
+  `browser_snapshot` sur `127.0.0.1:5173`.
+  choix : TypeScript 6.0 (typescript-eslint n'accepte pas encore 7) ; projets Vitest déclarés
+  dans `vitest.config.ts` plutôt que `vitest.workspace.ts` (déprécié) ; `eslint-config-prettier`
+  et `@types/node` en dépendances de développement ; test des avis dans le paquet `sdk`
 
 ## P1 — Service par kartenn-server
 
