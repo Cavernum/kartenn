@@ -41,9 +41,11 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   (Vue, vue-router, page d'accueil vide), `sdk` (bibliothèque à deux points d'entrée,
   `SDK_VERSION`), `plugins/example` (vide), `e2e` (`@playwright/test` épinglé sur
   `playwright-driver`) ; ESLint (dont `vue/no-static-inline-styles`), Prettier, Vitest,
-  cible `es2022` ; avis de licence et leur test — REQ-007-37, 38 — verify :
+  cible `es2022` ; avis de licence et leur test ; relais Vite de `/v1` et `/plugins` vers
+  `https://127.0.0.1:8443` (reporté de la tâche 9) — REQ-007-36, 37, 38 — verify :
   `k-web-check` vert ; un fichier de `web/sdk` sans avis fait échouer le test ;
-  `devenv up` démarre `web` et `browser_snapshot` montre la page
+  `devenv up` démarre `web` et `browser_snapshot` montre la page ; connexion par
+  l'émetteur de développement à travers Vite
   où : design « Arborescence de `web/` », « Dépendances du frontend », « Licences » ;
   `devenv.nix` (`hasWeb`, `languages.javascript`, `processes.web`, `scripts.k-web-check`,
   `k-web-e2e`) ; ADR 0024 ; avis MPL de `crates/syslog-sender/src/lib.rs`
@@ -63,7 +65,9 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   (`router`, `.fallback(not_found)`), `authn.rs` (`public`), `quota.rs` (`layer`) ;
   `kartenn-server/src/config.rs` (`Config`, `Http`, tests en fin de fichier),
   `app.rs` (`kartenn_rest::router`, vers la ligne 718) ; tests à la manière de
-  `rest/tests/socle.rs`
+  `rest/tests/socle.rs` ; `dev/kartenn.toml` (ajouter `[web] plugins_dir`, reporté de
+  la tâche 9 ; test `the_development_configuration_is_valid` de
+  `kartenn-server/tests/dev_idp.rs`)
 - [ ] 4. Registre des plugins : lecture de `plugins_dir`, validation du manifeste,
   empreintes `sha384` (rehachées au seul changement de taille ou de date), version
   publiée, filtre par module, service sous `/plugins/`, relecture toutes les 10 s et sur
@@ -108,7 +112,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P3 — Émetteur de développement et bout en bout
 
-- [ ] 9. Crate `kartenn-dev-idp` (`publish = false`) : `certs` (autorité et certificats
+- [x] 9. Crate `kartenn-dev-idp` (`publish = false`) : `certs` (autorité et certificats
   de développement), `serve` (découverte, JWKS, `authorize` avec page de choix, PKCE,
   `token`, `end-session`, utilisateurs, groupes et erreurs en TOML, bouclage seul) ;
   processus devenv `dev-idp` et `kartenn` (`dev/kartenn.toml`), relais Vite de `/v1` et
@@ -121,6 +125,20 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   (`allowed`, racines natives) ; `kartenn-server/src/config.rs` (`Issuer`) ;
   `devenv.nix` (`processes.openobserve` et `processes.web` à imiter, commentaire `/api`) ;
   `kartenn-workspace-hack`
+  — `crates/kartenn-dev-idp` (`certs`, `config`, `server`, binaire) ; `dev/idp.toml`,
+  `dev/kartenn.toml`, `dev/state/` ignoré ; processus devenv `dev-idp` et `kartenn`.
+  Tests : `crates/kartenn-server/tests/dev_idp.rs` (instance lancée par son binaire,
+  `SSL_CERT_FILE` sur l'autorité de développement, page de choix et formulaire joués,
+  groupes du TOML dans `/v1/me`, `refuse` → `authn.login.failed` ; configurations de
+  `dev/` valides), tests unitaires du crate (écoute hors bouclage refusée, codes d'erreur,
+  matériel écrit une fois). Le relais Vite de `/v1` et `/plugins` et la vérification
+  `devenv up` à travers Vite passent à la tâche 2 (`web/` absent) ; `[web] plugins_dir`
+  de `dev/kartenn.toml` à la tâche 3 (section encore refusée)
+  choix : `certs` écrit aussi le secret du client et le trousseau de kartenn-server ; un
+  seul certificat du bouclage partagé par l'émetteur et kartenn-server ; `cert_file` et
+  `key_file` dans la configuration de l'émetteur ; jeton d'accès opaque ; jeton de
+  rafraîchissement renouvelé à chaque usage ; test de bout en bout dans kartenn-server
+  (binaire lancé en sous-processus, seul moyen de lui passer `SSL_CERT_FILE` sans `unsafe`)
 - [ ] 10. Harnais de bout en bout `web/e2e` : projets `chromium` et `firefox`, `webServer`
   (émetteur, kartenn-server sur `web/e2e/kartenn.toml`), `global-setup.ts` (base
   `kartenn_e2e`, `migrate`, compte de secours, liaisons des groupes, jeu de données par

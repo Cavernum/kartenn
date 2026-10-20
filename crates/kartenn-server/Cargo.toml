@@ -43,3 +43,6 @@ tonic = { version = "0.14.1", default-features = false, features = ["server", "r
 rcgen = "0.14.10"
 http-body-util = "0.1.5"
 hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }
+# The development issuer, for the login of an instance end to end (task 007-9).
+kartenn-dev-idp = { version = "0.0.0", path = "../kartenn-dev-idp" }
+form_urlencoded = "1.2.2"

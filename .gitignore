@@ -13,6 +13,9 @@ devenv.local.yaml
 # cargo
 /target
 
+# development material written by `kartenn-dev-idp certs` (spec 007)
+/dev/state/
+
 # node
 node_modules/
 dist/

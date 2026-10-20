@@ -101,8 +101,8 @@ in {
   env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
 
   # Vite dev server, driven through the devenv MCP server (start_process,
-  # get_process_logs) rather than a foreground `pnpm dev`. The /api proxy to
-  # kartenn-server belongs to the Vite configuration (spec 007).
+  # get_process_logs) rather than a foreground `pnpm dev`. Vite relays /v1 and /plugins
+  # to the `kartenn` process (spec 007, REQ-007-36): the browser sees one origin.
   processes.web = lib.mkIf hasWeb {
     exec = "exec pnpm -C web --filter shell dev --host 127.0.0.1 --port 5173 --strictPort";
     ready.http.get = {
@@ -110,6 +110,26 @@ in {
       port = 5173;
       path = "/";
     };
+  };
+
+  # Development OIDC issuer (spec 007, REQ-007-35), https://127.0.0.1:8444: users and
+  # groups in dev/idp.toml; authority, certificate and secrets written once under
+  # dev/state. Never shipped.
+  processes.dev-idp.exec = ''
+    cargo run -q -p kartenn-dev-idp -- certs dev/state
+    exec cargo run -q -p kartenn-dev-idp -- serve dev/idp.toml
+  '';
+
+  # An instance for development, https://127.0.0.1:8443 (dev/kartenn.toml), trusting the
+  # development authority for its calls to the issuer only through SSL_CERT_FILE.
+  processes.kartenn = {
+    exec = ''
+      cargo run -q -p kartenn-dev-idp -- certs dev/state
+      cargo run -q -p kartenn-server -- migrate "$DATABASE_URL"
+      exec env SSL_CERT_FILE=dev/state/ca.pem \
+        cargo run -q -p kartenn-server -- run "$DATABASE_URL" dev/kartenn.toml
+    '';
+    process-compose.depends_on.postgres.condition = "process_healthy";
   };
 
   # Storage adapter (D15): PostgreSQL >= 18 for local development.
