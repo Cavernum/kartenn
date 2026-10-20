@@ -169,16 +169,18 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     Ok(())
 }
 
-/// The permission to write an object of `kind` (005, K12).
-const fn write_permission(kind: ObjectKind) -> &'static str {
+/// The permission to write an object of `kind` (005, K12); `<type>.write` for an object of
+/// a module (ADR 0026, clause 5).
+fn write_permission(kind: ObjectKind) -> String {
     match kind {
-        ObjectKind::Domain => "core.domain.write",
-        ObjectKind::Prefix => "core.prefix.write",
-        ObjectKind::Range => "core.range.write",
-        ObjectKind::Address => "core.address.write",
-        ObjectKind::Entity => "core.entity.write",
-        ObjectKind::Site => "core.site.write",
-        ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin",
+        ObjectKind::Domain => "core.domain.write".into(),
+        ObjectKind::Prefix => "core.prefix.write".into(),
+        ObjectKind::Range => "core.range.write".into(),
+        ObjectKind::Address => "core.address.write".into(),
+        ObjectKind::Entity => "core.entity.write".into(),
+        ObjectKind::Site => "core.site.write".into(),
+        ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin".into(),
+        ObjectKind::Module(kind) => format!("{kind}.write"),
     }
 }
 
@@ -192,10 +194,13 @@ pub(crate) enum Phase {
 }
 
 /// The objects `planned` writes in `phase`, by write permission.
-fn written(planned: &[Planned], phase: Phase) -> BTreeMap<&'static str, BTreeSet<Uuid>> {
-    let mut out: BTreeMap<&'static str, BTreeSet<Uuid>> = BTreeMap::new();
+fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>> {
+    let mut out: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         let target = match (phase, p) {
+            (_, Planned::Module { plan, .. }) if plan.creates == (phase == Phase::After) => {
+                Some((ObjectKind::Module(plan.kind), plan.object))
+            }
             (
                 Phase::Before,
                 Planned::Close { kind, id, .. }
@@ -250,7 +255,7 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
     for (permission, objects) in written(planned, phase) {
         let objects: Vec<Uuid> = objects.into_iter().collect();
         let denied = authorizer
-            .authorize_in(tx, subject, permission, &objects)
+            .authorize_in(tx, subject, &permission, &objects)
             .await?;
         if denied.is_empty() {
             continue;
@@ -265,7 +270,7 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
                 .await?
                 .is_empty()
         {
-            missing.push((permission.to_owned(), denied));
+            missing.push((permission.clone(), denied));
             continue;
         }
         let message = format!("{} object(s) need {permission}", denied.len());

@@ -1158,6 +1158,8 @@ mod tests {
     const fn name(operation: &Operation) -> &'static str {
         match operation {
             Operation::Within { .. } => "within",
+            // The envelope of the module operations comes with the routes of the modules.
+            Operation::Module(_) => "module",
             Operation::CreateDomain { .. } => "create_domain",
             Operation::CreatePrefix { .. } => "create_prefix",
             Operation::CreateRange { .. } => "create_range",

@@ -150,6 +150,7 @@ fn app_with(
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from(["stdout".to_owned()]),
+        modules: Arc::default(),
     };
     kartenn_rest::router(
         kartenn_rest::v1(api).merge(extra),

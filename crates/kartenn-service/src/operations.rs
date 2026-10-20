@@ -41,9 +41,67 @@ impl Named {
     }
 }
 
+/// The qualified type of an object of a module, `<module>.<type>` (`vlan.vlan`; ADR 0026,
+/// clause 4), held inline so that an [`ObjectKind`] stays `Copy`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ModuleKind {
+    len: u8,
+    bytes: [u8; Self::MAX],
+}
+
+/// Whether `part` is `[a-z][a-z0-9_]*`.
+fn identifier(part: &str) -> bool {
+    let mut chars = part.chars();
+    chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+impl ModuleKind {
+    /// The longest qualified type, in bytes.
+    pub const MAX: usize = 64;
+
+    /// `<module>.<type>`, each part `[a-z][a-z0-9_]*`, at most [`Self::MAX`] bytes.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        let (module, ty) = name.split_once('.')?;
+        if name.len() > Self::MAX || !identifier(module) || !identifier(ty) {
+            return None;
+        }
+        let mut bytes = [0; Self::MAX];
+        bytes[..name.len()].copy_from_slice(name.as_bytes());
+        Some(Self {
+            len: u8::try_from(name.len()).ok()?,
+            bytes,
+        })
+    }
+
+    /// The qualified name.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..usize::from(self.len)]).unwrap_or_default()
+    }
+
+    /// The module that declares the type.
+    #[must_use]
+    pub fn module(&self) -> &str {
+        self.as_str().split_once('.').map_or("", |(m, _)| m)
+    }
+}
+
+impl std::fmt::Debug for ModuleKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+
+impl std::fmt::Display for ModuleKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Kind of an object targeted by a generic operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ObjectKind {
     /// Addressing domain.
     Domain,
@@ -61,6 +119,22 @@ pub enum ObjectKind {
     Entity,
     /// Site, in a tree (REQ-002-9).
     Site,
+    /// An object of a module (ADR 0026), by its qualified type.
+    Module(ModuleKind),
+}
+
+impl Serialize for ObjectKind {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for ObjectKind {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Self::from_name(&name)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown kind of object `{name}`")))
+    }
 }
 
 /// Type of a declared property and its parameters, as received (003/design).
@@ -132,9 +206,9 @@ impl RawInput {
 }
 
 impl ObjectKind {
-    /// Name of the kind, as carriers and references name it.
+    /// Name of the kind, as carriers and references name it; qualified for a module.
     #[must_use]
-    pub const fn name(self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Domain => "domain",
             Self::Prefix => "prefix",
@@ -144,7 +218,24 @@ impl ObjectKind {
             Self::EnumValue => "enum_value",
             Self::Entity => "entity",
             Self::Site => "site",
+            Self::Module(kind) => kind.as_str(),
         }
+    }
+
+    /// The kind of this name: a core kind, or a qualified module type.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "domain" => Self::Domain,
+            "prefix" => Self::Prefix,
+            "range" => Self::Range,
+            "address" => Self::Address,
+            "property" => Self::Property,
+            "enum_value" => Self::EnumValue,
+            "entity" => Self::Entity,
+            "site" => Self::Site,
+            qualified => Self::Module(ModuleKind::parse(qualified)?),
+        })
     }
 
     /// Whether objects of this kind belong to the addressing tree.
@@ -215,10 +306,46 @@ pub struct PeriodSpec {
     pub end: Option<i64>,
 }
 
+/// An operation of a module, by its qualified tag `<module>.<name>` (ADR 0026, clause 6;
+/// REQ-008-4): the rest of the object is decoded by the module when it plans it, since
+/// the operations of the build are only known to the registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModuleOperation {
+    /// The module.
+    pub module: String,
+    /// The operation, within the module.
+    pub name: String,
+    /// The fields of the operation, without `op`.
+    pub body: serde_json::Map<String, serde_json::Value>,
+}
+
+impl ModuleOperation {
+    /// The qualified tag, `<module>.<name>`.
+    #[must_use]
+    pub fn tag(&self) -> String {
+        format!("{}.{}", self.module, self.name)
+    }
+
+    /// The local name it defines, by the convention of the core: a `local` field.
+    #[must_use]
+    pub fn local(&self) -> Option<u32> {
+        self.body
+            .get("local")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|l| u32::try_from(l).ok())
+    }
+}
+
 /// One operation of a changeset.
+// The derived (de)serialisation is that of the core operations; `Operation`'s own impls
+// below route a qualified tag to [`Operation::Module`] first.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(remote = "Self")]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
+    /// An operation of a module (REQ-008-4), its tag qualified by the module.
+    #[serde(skip)]
+    Module(ModuleOperation),
     /// An operation on its own period instead of the changeset's (REQ-004-2).
     Within {
         /// Period of the operation.
@@ -619,6 +746,38 @@ pub enum Operation {
     },
 }
 
+impl Serialize for Operation {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Module(operation) => {
+                let mut object = serde_json::Map::with_capacity(operation.body.len() + 1);
+                object.insert("op".into(), serde_json::Value::String(operation.tag()));
+                object.extend(operation.body.clone());
+                object.serialize(serializer)
+            }
+            core => Self::serialize(core, serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Operation {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let qualified = value
+            .get("op")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|tag| tag.split_once('.'))
+            .map(|(module, name)| (module.to_owned(), name.to_owned()));
+        match (qualified, value) {
+            (Some((module, name)), serde_json::Value::Object(mut body)) => {
+                body.remove("op");
+                Ok(Self::Module(ModuleOperation { module, name, body }))
+            }
+            (_, value) => Self::deserialize(value).map_err(serde::de::Error::custom),
+        }
+    }
+}
+
 impl Operation {
     /// The operation itself, without the period that wraps it.
     #[must_use]
@@ -643,6 +802,7 @@ impl Operation {
     pub fn defines(&self) -> Option<u32> {
         match self {
             Self::Within { operation, .. } => operation.defines(),
+            Self::Module(operation) => operation.local(),
             Self::CreateDomain { local, .. }
             | Self::CreatePrefix { local, .. }
             | Self::CreateRange { local, .. }

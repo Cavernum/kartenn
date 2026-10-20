@@ -20,7 +20,7 @@ numérotées après coup.
 
 ## P1 — Contrat de module (ADR 0026)
 
-- [ ] 1. Registre de modules : `kartenn-service/src/module.rs` (traits `Module`,
+- [x] 1. Registre de modules : `kartenn-service/src/module.rs` (traits `Module`,
   `ModuleHandler`, `ModuleTx`, types `ObjectType`, `Reference`, `EdgeType`,
   `ModuleMigration`, `ModuleRegistry::new` avec tri topologique) ; refus au démarrage
   dans `kartenn-server::app` ; `modules` des capacités tiré du registre — REQ-008-1 —
@@ -31,7 +31,17 @@ numérotées après coup.
   déclarations), `capabilities.rs::Module` ; composition dans
   `kartenn-server/src/app.rs`
   dépend de : —
-- [ ] 2. Migrations : migration du noyau `0041_module_object.sql` (`module_object`
+  — Service : `module.rs` (`Module` aux méthodes par défaut, `ObjectType`, `OnClose`,
+  `Reference`, `EdgeType`, `ModuleMigration`, `RegistryError`, `ModuleRegistry::new` :
+  noms, `core` réservé, dépendances, Kahn stable, types hors espace de noms, collections
+  en double ou du noyau `CORE_COLLECTIONS`). Rest : `Api::modules`, `modules` des
+  capacités = étiquettes du contrat ∪ modules du registre (version de la crate).
+  Server : `modules.rs::registry()` construit avant tout enregistrement, erreur =
+  arrêt. Tests : `registry_*` (service), `capabilities_list_registered_modules`,
+  `core_collections_are_those_of_the_contract` (rest).
+  choix : `ModuleHandler` vide ici, ses méthodes et `ModuleTx` arrivent avec la tâche 3
+  qui les branche ; `CORE_COLLECTIONS` vérifiée contre le contrat par un test.
+- [x] 2. Migrations : migration du noyau `0041_module_object.sql` (`module_object`
   versionnée, `module_migration`, index par parent), migrateur de modules dans
   `kartenn-store-pg` (schéma par module, somme SHA-256, `search_path` local) appelé par
   le job de migration après `MIGRATOR` — REQ-008-2, 3 (table) — verify :
@@ -41,7 +51,14 @@ numérotées après coup.
   migrations `0002`, `0019` (`kartenn_make_versioned`), `0037` (`object_version`) ;
   job de migration dans `kartenn-server`
   dépend de : 1
-- [ ] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
+  — Migration `0041_module_object.sql` (`module_object` versionnée, nom et type
+  qualifiés contrôlés, `module_object_by_parent`, `module_migration`). Store :
+  `modules.rs::migrate` (une transaction par migration, verrou consultatif, `CREATE
+  SCHEMA`, `GRANT USAGE` à `kartenn_app`, `SET LOCAL search_path`, SHA-256, versions
+  croissantes), `maintenance::deploy(pool, modules)` l'appelle après `MIGRATOR`. Server :
+  `migrate` passe le registre. Tests `module_migrations.rs` (les trois du verify et
+  `module_object_is_versioned`).
+- [x] 3. Enveloppe d'opération : `Operation::Module`, désérialisation par étiquette
   qualifiée, `ObjectKind::Module` ; pipeline (`plan`, `lock_targets`, `apply`,
   validation globale, droits `<type>.write|propose`), opérations du noyau planifiées
   par une opération de module, clés de verrou nommées après les domaines (amendement de
@@ -56,6 +73,25 @@ numérotées après coup.
   `pipeline.rs::{plan, lock_targets, apply, stages}`, `port.rs::WriteTx` ; test voisin
   `kartenn-service/tests/` (pipeline)
   dépend de : 1, 2
+  — Service : `operations.rs` (`ModuleKind` en ligne, `Copy` ; `ObjectKind::Module`,
+  (dé)sérialisé par son nom ; `ModuleOperation` et `Operation::Module`, étiquette
+  qualifiée routée avant la désérialisation dérivée `remote = "Self"`), `module.rs`
+  (`OperationType`, `ModulePlan`, `ModuleObjectRow`, `ModuleTx`, `ModuleHandler::{plan,
+  apply, check}`, `Module::operations`, `ModuleRegistry::operation`), `port.rs`
+  (`Store::modules`, `WriteTx::{lock_keys, module_tx}`), `pipeline.rs`
+  (`RequestError::UnknownOperation` dans `check_request`, `Planned::Module`, file des
+  opérations du noyau ajoutées par un module dans `plan`, périodes par opération planifiée,
+  domaines et clés dans `lock_targets`, `apply`, `check_modules` après la validation
+  globale), `rights.rs` (`<type>.write|propose`). Store : `PgStore::with_modules`,
+  `ModuleTx` pour `PgTx` (`register` dans `module_object`), `lock_keys` (verrous à deux
+  clés), `domain_of` d'un objet de module. Rest : `write_store` avec le registre,
+  `UnknownOperation` → 400. Server : store des tâches de fond avec le registre. ADR 0015
+  amendée (clés nommées). Tests : `module_pipeline.rs` (les six du verify), module
+  factice `tests/support/dummy_module.rs`, `module_operations_round_trip_through_json`.
+  choix : `ModuleKind` en tampon fixe de 64 octets pour garder `ObjectKind` `Copy` ;
+  verrous et domaines portés par le `ModulePlan` (pas de lecture en base pour les
+  calculer) ; l'enveloppe REST (`OperationDto`) reste à la tâche 8 ; `Close` et les
+  opérations génériques sur objets de module à la tâche 4.
 - [ ] 4. Opérations génériques et mécanismes transverses sur objets de module : `Close`,
   `Expect` et `object_version`, `BindExternal`, `Within`, historique, `Restore` et
   annulation — REQ-008-3, 5 — verify : `module_object_has_etag_and_history`,

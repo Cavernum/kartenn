@@ -8,6 +8,7 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
+use kartenn_service::module::ModuleRegistry;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::read;
@@ -132,12 +133,16 @@ pub(crate) fn routes() -> OpenApiRouter<Api> {
 /// The names of the modules of the build: a plugin of another module is not published
 /// (REQ-007-11).
 #[must_use]
-pub fn module_names() -> std::collections::BTreeSet<String> {
-    modules().into_iter().map(|module| module.name).collect()
+pub fn module_names(registry: &ModuleRegistry) -> std::collections::BTreeSet<String> {
+    modules(registry)
+        .into_iter()
+        .map(|module| module.name)
+        .collect()
 }
 
-/// The modules of the build: the tags of its contract.
-fn modules() -> Vec<Module> {
+/// The modules of the build: the tags of its contract and the business modules of the
+/// registry (ADR 0026, clause 1), each once.
+fn modules(registry: &ModuleRegistry) -> Vec<Module> {
     let document = crate::openapi::json();
     let mut names: Vec<String> = document["paths"]
         .as_object()
@@ -148,16 +153,23 @@ fn modules() -> Vec<Module> {
         .filter_map(|operation| operation.get("tags").and_then(|t| t.as_array()))
         .flatten()
         .filter_map(|tag| tag.as_str().map(str::to_owned))
+        .filter(|name| registry.get(name).is_none())
         .collect();
     names.sort();
     names.dedup();
-    names
+    let mut modules: Vec<Module> = names
         .into_iter()
         .map(|name| Module {
             name,
             version: env!("CARGO_PKG_VERSION"),
         })
-        .collect()
+        .chain(registry.modules().map(|m| Module {
+            name: m.name().to_owned(),
+            version: m.version(),
+        }))
+        .collect();
+    modules.sort_by(|a, b| a.name.cmp(&b.name));
+    modules
 }
 
 /// `GET /v1/capabilities`: what this build serves and the limits it sets (REQ-006-35).
@@ -184,7 +196,7 @@ async fn capabilities(
     Ok(Json(Capabilities {
         version: env!("CARGO_PKG_VERSION"),
         api_versions: API_VERSIONS.to_vec(),
-        modules: modules(),
+        modules: modules(&api.modules),
         properties: declared
             .into_iter()
             .map(|d| DeclaredProperty {

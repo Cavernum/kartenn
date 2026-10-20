@@ -21,6 +21,7 @@ use kartenn_rest::transport::Settings;
 use kartenn_rest::versions::{Retirement, retire};
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
+use kartenn_service::module::{CORE_COLLECTIONS, Module, ModuleRegistry};
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use serde_json::Value;
@@ -271,7 +272,7 @@ async fn a_retired_route_announces_its_successor() {
 }
 
 fn app(pool: &PgPool, identity: Uuid, settings: Settings) -> axum::Router {
-    app_with(pool, identity, settings, None)
+    app_with(pool, identity, settings, None, Arc::default())
 }
 
 fn app_with(
@@ -279,6 +280,7 @@ fn app_with(
     identity: Uuid,
     settings: Settings,
     web: Option<Arc<kartenn_rest::web::Web>>,
+    modules: Arc<ModuleRegistry>,
 ) -> axum::Router {
     let api = Api {
         pool: pool.clone(),
@@ -288,6 +290,7 @@ fn app_with(
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from([]),
+        modules,
     };
     kartenn_rest::router_with_web(
         kartenn_rest::v1(api),
@@ -323,8 +326,11 @@ async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
     std::fs::write(version.join("index.js"), "export {};").unwrap();
     std::fs::write(version.join("i18n/en.json"), r#"{"tab":{"notes":"Notes"}}"#).unwrap();
     std::fs::write(version.join("i18n/fr.json"), r#"{"tab":{"notes":"Notes"}}"#).unwrap();
-    let plugins =
-        kartenn_rest::web::Plugins::open(&dir, kartenn_rest::capabilities::module_names()).unwrap();
+    let plugins = kartenn_rest::web::Plugins::open(
+        &dir,
+        kartenn_rest::capabilities::module_names(&ModuleRegistry::default()),
+    )
+    .unwrap();
     let web = Arc::new(kartenn_rest::web::Web::new(None, Some(Arc::new(plugins))));
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
@@ -332,7 +338,13 @@ async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    let app = app_with(&pool, identity, Settings::default(), Some(web));
+    let app = app_with(
+        &pool,
+        identity,
+        Settings::default(),
+        Some(web),
+        Arc::default(),
+    );
     let (status, capabilities) = read(&app, "/v1/capabilities").await;
     assert_eq!(status, StatusCode::OK, "{capabilities}");
     let plugin = &capabilities["ui_plugins"][0];
@@ -365,6 +377,74 @@ async fn read(app: &axum::Router, path: &str) -> (StatusCode, Value) {
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+/// A business module of the build, without routes.
+#[derive(Debug)]
+struct Inventory;
+
+impl Module for Inventory {
+    fn name(&self) -> &'static str {
+        "inventory"
+    }
+    fn version(&self) -> &'static str {
+        "1.2.3"
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn capabilities_list_registered_modules(pool: PgPool) {
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let module = |name: &str, capabilities: &Value| {
+        capabilities["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["name"] == name)
+            .cloned()
+    };
+    let without = app(&pool, identity, Settings::default());
+    let (_, capabilities) = read(&without, "/v1/capabilities").await;
+    assert_eq!(module("inventory", &capabilities), None);
+    let registry = ModuleRegistry::new(vec![Arc::new(Inventory)]).unwrap();
+    let with = app_with(
+        &pool,
+        identity,
+        Settings::default(),
+        None,
+        Arc::new(registry),
+    );
+    let (status, capabilities) = read(&with, "/v1/capabilities").await;
+    assert_eq!(status, StatusCode::OK, "{capabilities}");
+    assert_eq!(
+        module("inventory", &capabilities),
+        Some(serde_json::json!({"name": "inventory", "version": "1.2.3"}))
+    );
+    assert!(module("core", &capabilities).is_some(), "{capabilities}");
+}
+
+/// The collections the registry reserves for the core are those of the contract: a module
+/// can take none of them (REQ-008-1).
+#[test]
+fn core_collections_are_those_of_the_contract() {
+    let document = produced();
+    let mut served: Vec<&str> = document["paths"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter_map(|path| path.strip_prefix("/v1/"))
+        .map(|rest| rest.split('/').next().unwrap())
+        .collect();
+    served.sort_unstable();
+    served.dedup();
+    let mut reserved = CORE_COLLECTIONS.to_vec();
+    reserved.sort_unstable();
+    assert_eq!(served, reserved);
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]

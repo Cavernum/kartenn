@@ -70,6 +70,8 @@ pub struct Api {
     /// The names of the technical outputs configured, whose filter may change at run time
     /// (012/REQ-012-27).
     pub outputs: std::sync::Arc<[String]>,
+    /// The modules of the build (ADR 0026, REQ-008-1).
+    pub modules: std::sync::Arc<kartenn_service::module::ModuleRegistry>,
 }
 
 /// The collection of each kind.

@@ -454,6 +454,8 @@ pub async fn run(
     };
     let telemetry = telemetry(config, &identity)?;
     kartenn_telemetry::panic::install();
+    // The modules of the build, before anything is recorded: a conflict stops the start.
+    let modules = crate::modules::registry()?;
     let instruments = telemetry.instruments.clone();
     let key = seal_key(config)?;
     // The files of `[auth]`, before anything is recorded: a missing one stops the start.
@@ -486,13 +488,16 @@ pub async fn run(
                 config.audit.read_audit(),
                 config.telemetry.names().into(),
                 config.web.as_ref(),
+                modules.clone(),
             )
             .await?,
         ),
         None => None,
     };
 
-    let store = kartenn_store_pg::write::PgStore::new(pool.clone()).with_instance(instance.clone());
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone())
+        .with_instance(instance.clone())
+        .with_modules(modules.clone());
     let mut filters = filters(config);
     let mut reread =
         tokio::time::interval(Duration::from_millis(config.telemetry.override_poll_ms));
@@ -644,7 +649,10 @@ type Served = (
 );
 
 /// Opens the shell and the plugins of `[web]`, and reads the plugins again every 10 s.
-fn serve_web(web: Option<&crate::config::Web>) -> anyhow::Result<Served> {
+fn serve_web(
+    web: Option<&crate::config::Web>,
+    modules: &kartenn_service::module::ModuleRegistry,
+) -> anyhow::Result<Served> {
     let shell = web
         .and_then(|web| web.root.as_deref())
         .map(kartenn_rest::web::Shell::open)
@@ -652,7 +660,7 @@ fn serve_web(web: Option<&crate::config::Web>) -> anyhow::Result<Served> {
     let plugins = web
         .and_then(|web| web.plugins_dir.as_deref())
         .map(|dir| {
-            kartenn_rest::web::Plugins::open(dir, kartenn_rest::capabilities::module_names())
+            kartenn_rest::web::Plugins::open(dir, kartenn_rest::capabilities::module_names(modules))
                 .map(Arc::new)
                 .with_context(|| format!("web.plugins_dir: {}", dir.display()))
         })
@@ -683,7 +691,7 @@ struct Api {
 
 impl Api {
     /// Binds the address, reads the certificate, and serves in the background.
-    #[allow(clippy::too_many_arguments)] // the sections of the configuration it serves
+    #[allow(clippy::too_many_arguments)] // the parts of the instance, built by `run`
     async fn start(
         http: &crate::config::Http,
         pool: &PgPool,
@@ -693,8 +701,9 @@ impl Api {
         read_audit: kartenn_service::reads::ReadAudit,
         outputs: Arc<[String]>,
         web: Option<&crate::config::Web>,
+        modules: Arc<kartenn_service::module::ModuleRegistry>,
     ) -> anyhow::Result<Self> {
-        let (web, plugins, watcher) = serve_web(web)?;
+        let (web, plugins, watcher) = serve_web(web, &modules)?;
         let authn = auth
             .map(|auth| authn(auth, pool, journal).map(Arc::new))
             .transpose()?;
@@ -750,6 +759,7 @@ impl Api {
             // No module provides a source of expected values yet.
             sources: kartenn_service::expected::Sources::none(),
             outputs,
+            modules,
         };
         let app = kartenn_rest::router_with_web(
             kartenn_rest::v1(objects),

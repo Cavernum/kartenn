@@ -31,6 +31,9 @@ pub enum DeployError {
     /// Database failure.
     #[error(transparent)]
     Database(#[from] sqlx::Error),
+    /// The migrations of a module (REQ-008-2).
+    #[error(transparent)]
+    Module(#[from] crate::modules::ModuleMigrationError),
     /// The synchronisation of the declarations could not run.
     #[error("synchronising the declarations: {0}")]
     Sync(#[from] kartenn_service::RequestError),
@@ -44,16 +47,22 @@ pub enum DeployError {
     },
 }
 
-/// The migration job (D9): migrations, history partitions ahead of time, the IANA
-/// special-purpose registries embedded in the code, then the declarations of the core
-/// synchronised from the code (003/P12, ADR 0014). Run once per
-/// deployment, before the instances, with the owner of the schema.
+/// The migration job (D9): migrations of the core, then of the modules of `modules` in
+/// their order (REQ-008-2), history partitions ahead of time, the IANA special-purpose
+/// registries embedded in the code, then the declarations of the core synchronised from
+/// the code (003/P12, ADR 0014). Run once per deployment, before the instances, with the
+/// owner of the schema.
 ///
 /// # Errors
 ///
-/// [`DeployError`]; a refused synchronisation fails the deployment.
-pub async fn deploy(pool: &PgPool) -> Result<(), DeployError> {
+/// [`DeployError`]; a refused synchronisation or a changed module migration fails the
+/// deployment.
+pub async fn deploy(
+    pool: &PgPool,
+    modules: &kartenn_service::module::ModuleRegistry,
+) -> Result<(), DeployError> {
     crate::MIGRATOR.run(pool).await?;
+    crate::modules::migrate(pool, modules).await?;
     history_partitions(pool, MONTHS_AHEAD).await?;
     // REQ-012-8: the migration job is audited, by the system.
     let event = kartenn_service::audit::RequestContext::system()

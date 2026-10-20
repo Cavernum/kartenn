@@ -594,7 +594,9 @@ fn counted(diff: &[DiffCount]) -> Result<Value, Problem> {
 
 /// The store of the writes of `api`.
 pub(crate) fn write_store(api: &Api) -> PgStore {
-    PgStore::new(api.pool.clone()).with_instance(api.journal.instance().clone())
+    PgStore::new(api.pool.clone())
+        .with_instance(api.journal.instance().clone())
+        .with_modules(api.modules.clone())
 }
 
 /// Submits `request` in `context` and answers its outcome as `answer` says.

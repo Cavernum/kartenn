@@ -22,6 +22,7 @@ pub mod jobs;
 pub mod keys;
 pub mod list;
 pub mod maintenance;
+pub mod modules;
 mod obligations;
 mod origins;
 pub mod outbox;

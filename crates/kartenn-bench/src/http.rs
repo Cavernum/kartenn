@@ -256,6 +256,7 @@ async fn serve(database: &str) -> anyhow::Result<Served> {
         audit: ReadAudit::default(),
         sources: Sources::none(),
         outputs: Arc::from(Vec::new()),
+        modules: Arc::default(),
     };
     let app = kartenn_rest::router(
         kartenn_rest::v1(api),
