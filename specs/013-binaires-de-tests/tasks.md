@@ -61,11 +61,14 @@ même crate.
   dépend de : 1
   — 50 tests avant et après (mêmes noms hors préfixe), 13 binaires → 2 ; aucun helper
   partagé, aucune ligne `où :` de tâche ouverte à corriger.
-- [ ] 5. kartenn-telemetry : cible `telemetry_it`, `tests/*.rs` → `tests/it/` ; `panic.rs`
+- [x] 5. kartenn-telemetry : cible `telemetry_it`, `tests/*.rs` → `tests/it/` ; `panic.rs`
   relance son enfant par `--exact panic::panicking_child` — verify : nombre de tests
   identique ; le test de panique trouve toujours son enfant
   où : `crates/kartenn-telemetry/Cargo.toml`, `crates/kartenn-telemetry/tests/`
   dépend de : 1
+  — 20 tests avant et après (mêmes noms hors préfixe), 10 binaires → 2 ; `panic.rs` relance
+  `--exact panic::panicking_child` et attend `tests/it/panic.rs` dans le lieu de la
+  panique ; `architecture.rs` inchangé.
 - [ ] 6. kartenn-server : cible `server_it` pour tous les fichiers sauf `http.rs`, gardé en
   cible `http` avec un commentaire (il envoie SIGHUP à son propre processus) — ADR 0027
   point 3 — verify : nombre de tests identique
