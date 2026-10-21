@@ -137,6 +137,7 @@ Non-objectifs :
 | [0024](../adr/0024-outillage-frontend.md) | Outillage du frontend : pnpm, Vite, ESLint, Vitest, Playwright | accepted |
 | [0025](../adr/0025-plugins-web.md) | Plugins Web : répertoire servi, code de confiance, SDK partagé | accepted |
 | [0026](../adr/0026-contrat-de-module.md) | Contrat de module : registre, schéma et migrations par module, `module_object`, opérations en enveloppe, ancres `core.owner`/`core.site` | accepted |
+| [0027](../adr/0027-un-binaire-de-tests-par-crate.md) | Un binaire de tests d'intégration par crate (`tests/it/`), `kartenn-server::http` à part | proposed |
 
 ## Questions ouvertes
 
