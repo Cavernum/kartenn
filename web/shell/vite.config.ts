@@ -72,6 +72,18 @@ export default defineConfig({
     __INTLIFY_JIT_COMPILATION__: true,
     __INTLIFY_DROP_MESSAGE_COMPILER__: false,
   },
+  server: {
+    // One origin in development (REQ-007-36): Vite relays the API and the plugins to the
+    // `kartenn` process of devenv (dev/kartenn.toml). Its certificate comes from the
+    // development authority of kartenn-dev-idp, unknown to Node: not checked, on the
+    // loopback only.
+    proxy: Object.fromEntries(
+      ["/v1", "/plugins"].map((path) => [
+        path,
+        { target: "https://127.0.0.1:8443", secure: false },
+      ]),
+    ),
+  },
   build: {
     target: "es2022",
     // Served by kartenn-server from `[web] root` (design « Arborescence de web/ »).

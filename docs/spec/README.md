@@ -135,7 +135,7 @@ Non-objectifs :
 | [0022](../adr/0022-contrat-http-api.md) | Contrat HTTP de l'API : `/v1`, curseurs signés, `QUERY`, Merge Patch, `If-Match` | accepted |
 | [0023](../adr/0023-taches-de-fond-sous-bail.md) | Tâches de fond sous bail dans PostgreSQL | accepted |
 | [0024](../adr/0024-outillage-frontend.md) | Outillage du frontend : pnpm, Vite, ESLint, Vitest, Playwright | accepted |
-| [0025](../adr/0025-plugins-web.md) | Plugins Web : répertoire servi, code de confiance, SDK partagé | proposed |
+| [0025](../adr/0025-plugins-web.md) | Plugins Web : répertoire servi, code de confiance, SDK partagé | accepted |
 | [0026](../adr/0026-contrat-de-module.md) | Contrat de module : registre, schéma et migrations par module, `module_object`, opérations en enveloppe, ancres `core.owner`/`core.site` | accepted |
 
 ## Questions ouvertes
