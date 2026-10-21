@@ -11,7 +11,7 @@
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | implémentées, sauf REQ-009-21 (banc complet à relancer) | implémentée | [tasks](009-machines-interfaces/tasks.md) (13/14, reste 12 : banc complet) |
-| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | rédigées, révisées par l'expression du besoin (D28, D30 amendées) ; v0.2 | rédigée | [010](010-politique-flux/tasks.md), [011](011-registre-flux/tasks.md) (0) |
+| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée sauf REQ-010-28, 54 (budgets) | 010 en cours (ADR 0030) ; 011 rédigée | [010](010-politique-flux/tasks.md) (17/20, restent les bancs 1, 19 et la synchronisation 20), [011](011-registre-flux/tasks.md) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
@@ -272,3 +272,32 @@ avant l'index partiel 0047, à remesurer au calme ; clore une liste fermée dont
 emprunte les valeurs n'est pas refusé ; la simulation n'expose pas la politique qui
 retiendrait le changeset. Relecture spec ↔ code faite à la main (pas d'audit
 `spec-keeper` lancé depuis la tâche).
+
+## Point d'étape — 2026-10-22 : spec 010
+
+Politique de flux implémentée (17/20 tâches ; restent le prototype des budgets 010-1, le
+banc `bench-policy` 010-19 et la clôture de la synchronisation 010-20) : crate
+`kartenn-policy` (domaine pur : instantané, évaluation en deux étapes, différentiel de
+politique, moteur d'inférence) ; migrations du module 0001 à 0003 ; axes, environnements,
+types de flux, services, motifs, règles par attributs, conditions, signaux, rôles
+exemptés et règles d'inférence comme opérations de changeset ; lectures datées et cache
+de l'instantané ; section de différentiel `policy.combinations` et mesures d'approbation ;
+obligation par domaine et par axe ; vue matricielle ; requête de conformité (`QUERY`/`GET
+/v1/verdicts`) ; anomalies de cohérence des machines et d'écart d'inférence (tâche de
+fond) ; source de valeurs attendues `policy.inference` ; rapport d'audit ; convertisseur
+hors ligne ; routes REST. [ADR 0030](../docs/adr/0030-evaluation-sur-instantane.md)
+acceptée ; ADR 0026 amendée (`type_permissions`, amendements 3 et 4) ; INV-62 et INV-63.
+
+Écarts au design retenus, le code faisant foi (design corrigé) : tables filles repliées
+en `jsonb` dans la ligne de l'objet (entrées de service, termes et textes des règles,
+textes des motifs et conditions) ; axes et valeurs cités par clé ; pas de `text.set` ni
+de `text.remove` ; règle `policy.service.flow_type` ; `policy.read` devenue
+`policy.catalogue.read` (trois segments exigés) ; administrer un environnement exige
+`policy.axis.admin` et `policy.environment.admin` ; entité d'une demande prise du seul
+champ `entity` ; explication réduite sans aucun objet nommé ; objets REST rendus par un
+schéma générique `PolicyObject`, filtres `transport` et `port` non servis ; rapport sous
+`policy.rule.admin`, 409 si un rapport tourne. Corrigé en route : une obligation ajoutée
+est contrôlée sur l'état final du changeset (noyau, 010-10).
+
+Reste : budgets REQ-010-28 et 54 à mesurer (010-1, 010-19), à reporter dans l'ADR 0030 et
+`docs/spec/invariants.md` § Performance ; audit `spec-keeper` (relecture faite à la main).

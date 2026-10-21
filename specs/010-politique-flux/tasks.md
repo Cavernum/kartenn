@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
 
 # 010 — Politique de flux : tâches
@@ -458,3 +458,9 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 - [ ] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées
   - où : skill `tech-specs`, mode sync
   - dépend de : 17, 18, 19
+  - en cours (2026-10-22) : synchronisation faite pour les tâches 2 à 18 — `docs/spec/`
+    (architecture, data, interfaces, invariants INV-24, 62, 63 ; permissions et règles
+    régénérées), ADR 0030 écrite et acceptée, design corrigé là où le code fait foi,
+    point d'étape dans `specs/README.md`. Reste : les budgets (010-1, 010-19), à reporter
+    dans `docs/spec/invariants.md` § Performance et dans l'ADR 0030, puis l'audit
+    spec-keeper.

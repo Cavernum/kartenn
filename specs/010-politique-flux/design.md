@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
 
 # 010 — Politique de flux : conception
@@ -71,6 +71,19 @@ qui citent un domaine.
 | `policy_inference_rule` | `id`, `key`, `axis_key`, `parent_id` (exception), `priority`, `criteria jsonb`, `value_ids uuid[]`, `domain_id` (facultatif, porté pour le RBAC) | profondeur ≤ 4 ; `criteria` validés par genre |
 | `policy_revision` | compteurs de révision : `policy`, `inference` | une ligne ; incrémentée dans la transaction du changeset |
 
+**Écart à l'implémentation (le code fait foi, synchronisation 010-20).** Les tables
+filles prévues ci-dessus sont repliées dans la ligne de l'objet :
+`policy_service.entries jsonb` (pas de `policy_service_entry` ; l'index GiST des ports est
+remplacé par l'index transport → intervalles de l'instantané) ; `policy_rule.source` et
+`.destination jsonb` (termes par axe), `same text[]`, `texts jsonb` (pas de
+`policy_rule_term`, `policy_rule_same`, `policy_text`) ; `texts jsonb` aussi sur
+`policy_pattern` et `policy_condition`. Axes et valeurs sont cités par clé
+(`property_key`, `value_key`, `value_keys text[]` des règles d'inférence) et non par
+identifiant de valeur. Tables ajoutées : `policy_inference_check` (curseur de la tâche
+d'écart d'inférence, migration 0002), `policy_report` et `policy_report_item` (0003).
+Migrations du module : `0001_policy.sql` à `0003_report.sql`
+(`crates/kartenn-policy/migrations/`).
+
 Déclarations de propriétés (descripteurs du module, 003) :
 
 | Clé | Type | Héritage | Porteurs |
@@ -98,12 +111,24 @@ la création de la valeur de liste (opération du noyau) et ses attributs. L'obl
 par domaine et par axe (REQ-010-21) est l'opération du noyau `AddObligation` sur la
 déclaration (N8, ADR 0026 : tâche 008-20).
 
+**Opérations livrées** (`crates/kartenn-policy/src/module.rs`, le code fait foi) :
+`axis.designate | update`, `value.describe`, `environment.create | close`,
+`examples.install`, `{flow_type, service, pattern, rule, condition, signal}.create |
+update`, `matrix.set`, `exempt_role.create`, `inference_rule.create | update`. La
+clôture d'un objet passe par la clôture générique du noyau (`DELETE` des routes) ; il
+n'y a pas de `text.set | remove` : les textes pédagogiques (langue par défaut `fr`,
+constante) sont écrits par `create` et `update`. Règles livrées en plus du tableau :
+`policy.axis.invalid`, `policy.key.duplicate`, `policy.key.syntax`,
+`policy.label.invalid`, `policy.operation.invalid`, `policy.rule.term_empty`,
+`policy.service.entries_empty`, `policy.text.invalid`, `policy.value.unknown`,
+`policy.inference.criterion_invalid` ([catalogue](../../docs/spec/regles-modules.md)).
+
 Validation sur l'état final (règles du module, identifiants stables REQ-002-37) :
 
 | Règle | Sévérité | Cas |
 |---|---|---|
 | `policy.service.entry_invalid` | erreur | transport, port, type ICMP hors domaine |
-| `policy.service.flow_type_missing` | erreur | type de flux clos ou absent sur la période |
+| `policy.service.flow_type` | erreur | type de flux clos ou absent sur la période |
 | `policy.service.wide_ports` | avertissement | > 1 024 ports d'un transport |
 | `policy.rule.flow_selector_empty` | erreur | ni type ni service |
 | `policy.rule.unknown_axis` | erreur | terme ou « même valeur » sur une propriété non désignée |
@@ -263,8 +288,10 @@ Catalogue de permissions du module (ADR 0026 clause 8). Rôles livrés : lecteur
 `policy.catalogue.read`, `policy.verdict.read` ; demandeur + `policy.flow.request` ; éditeur +
 écriture des axes ; administrateur de politique + `policy.*.admin`. La requête de
 conformité vérifie `policy.verdict.read` et la lecture des objets désignés (prédicat
-SQL de la 005), sinon `policy.flow.request` sur l'entité de la demande (champ du dossier,
-ou entité de rattachement de l'appelant), sinon 404 ; dans le premier cas, les adresses
+SQL de la 005), sinon `policy.flow.request` sur l'entité de la demande (champ `entity` du
+dossier seulement : pas de repli sur l'entité de rattachement de l'appelant, choix de
+010-13), sinon 404 ; l'explication réduite ne nomme aucun objet du référentiel (points
+repérés par leur rang) ; dans le premier cas, les adresses
 développées d'une machine lisible mais non lisibles une à une sont omises et comptées
 (`hidden`). Un compte de service transmet « pour le compte de » (N31).
 
@@ -282,6 +309,17 @@ développées d'une machine lisible mais non lisibles une à une sont omises et 
 
 Problèmes : `urn:kartenn:problem:policy-query-too-large` (422) ; les violations de
 changeset suivent REQ-006-21.
+
+**Livré par 010-18** (`crates/kartenn-policy/src/rest.rs`, le code fait foi) : les
+collections ci-dessus plus `policy-values` et `policy-exempt-roles` ; les objets sont
+rendus par un schéma générique `PolicyObject` (champs de leur table, période en
+`valid_from`/`valid_to`), pas par un schéma par type ; les filtres `transport` et `port`
+des services ne sont pas servis ; la clôture d'un environnement passe par
+`policy.environment.close`. Le rapport d'audit est demandé et lu sous
+`policy.rule.admin` (404 sinon) ; une demande pendant qu'un autre rapport tourne répond
+409 avec son `Location`. Une interdiction posée dans la matrice exige un texte
+pédagogique (`texts.fr`). Tâches de fond : `policy.inference_check` (60 s, écart
+d'inférence, amendement 4 de l'ADR 0026) et `policy.report` (5 s).
 
 ## Exigences envers le noyau, le contrat de module et la 009
 
@@ -418,8 +456,14 @@ M7 (section des rattachements changés) est un besoin de la 011.
 
 ## ADR
 
-- ADR proposée (numéro à attribuer) : **évaluation en mémoire sur un instantané
-  versionné de la politique, en deux étapes (verdict, puis issue)** (S8, S30).
+- [ADR 0030](../../docs/adr/0030-evaluation-sur-instantane.md) (acceptée à la
+  synchronisation, budgets à mesurer par 010-1 et 010-19) : **évaluation en mémoire sur
+  un instantané versionné de la politique, en deux étapes (verdict, puis issue)** (S8,
+  S30).
+- Amendements de l'ADR 0026 livrés pendant la 010 : `type_permissions` (S15),
+  amendement 3 (`operation_permissions`, `ModuleTx::actors`), amendement 4
+  (`run_job_findings`, constats d'une tâche de fond journalisés dans un changeset
+  système).
 - Amendements à prévoir : 003 (référence externe N26, source attendue N20 et N28,
   lecture groupée N9) ; 004 et 012 (auteur d'intention N31) ; ADR 0018 (clés d'ordre de
   l'outbox, second volet de N6).
