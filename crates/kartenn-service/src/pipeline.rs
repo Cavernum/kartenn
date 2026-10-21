@@ -1229,6 +1229,7 @@ async fn check_modules<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
     planned: &[Planned],
+    touched: &[(ObjectKind, Uuid)],
     sections: &[crate::module::DiffSection],
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
@@ -1262,6 +1263,7 @@ async fn check_modules<T: WriteTx>(
         }
         let context = crate::module::CheckContext {
             touched: &objects,
+            objects: touched,
             sections,
         };
         violations.extend(handler.check(tx.module_tx(), &context).await?);
@@ -1932,7 +1934,16 @@ async fn stages<S: Store, A: Authorizer>(
                 return Err(e.into());
             }
         };
-    if let Err(e) = check_modules(&mut tx, modules, &planned, &sections, &mut violations).await {
+    if let Err(e) = check_modules(
+        &mut tx,
+        modules,
+        &planned,
+        &touched,
+        &sections,
+        &mut violations,
+    )
+    .await
+    {
         tx.rollback().await?;
         return Err(e.into());
     }

@@ -321,20 +321,46 @@ numérotées après coup.
   changeset ; quitter un site retire `core.site` ; le différentiel des VLAN reclassés
   par un déplacement d'ancre se vérifiera avec leurs opérations (tâche 11), le
   différentiel du groupe nomme son `core.owner`.
-- [ ] 11. VLAN : table `vlan.vlan`, `vlan.create_vlan`/`vlan.update_vlan`, unicités
+- [x] 11. VLAN : table `vlan.vlan`, `vlan.create_vlan`/`vlan.update_vlan`, unicités
   (verrou consultatif par groupe, exclusion en dernier recours), clôture — REQ-008-14,
   15, 16 — verify : `concurrent_same_vid_one_wins`, `same_vid_two_groups`,
   `vid_reused_after_closure`, `move_to_group_with_taken_vid_refused`,
   `name_duplicate_refused`
   où : design « Opérations », « Erreurs et cas limites »
   dépend de : 10
-- [ ] 12. Lien aux réseaux : déclaration `vlan.vlan`, règle `vlan.prefix.not_network`,
+  — `kartenn-vlan` : `module.rs` (opérations `create_vlan`, `update_vlan`), `handler.rs`
+  (`prepare` complète le groupe courant et les domaines des groupes ; `plan` valide VID,
+  nom NFC et statut, et nomme les clés `vlan.group:<uuid>` du groupe quitté et du groupe
+  rejoint ; `apply` écrit puis inscrit le VLAN dans `module_object`, parent = groupe,
+  domaine = celui du groupe ; `close`/`restore` choisissent la table selon le type),
+  `pg.rs` (`insert_vlan`, `patch_vlan` par `kartenn_portion`, `admissible_vlan` : VID et
+  nom pris, VID hors de la plage d'un groupe qui vit sur la période, version par version
+  avant d'écrire ; contraintes `vlan_vid_unique`/`vlan_name_unique` traduites en
+  `vlan.vid.duplicate`/`vlan.name.duplicate`). Tests : `tests/vlans.rs` (les cinq du
+  verify), environnement commun `tests/support/env.rs` (repris de `groups.rs`).
+  choix : un VLAN dont le groupe ne vit pas sur sa période est refusé par
+  `vlan.vid.out_of_range` (pas de règle nouvelle) ; un statut inconnu est une erreur de
+  décodage de l'opération, comme les autres champs.
+- [x] 12. Lien aux réseaux : déclaration `vlan.vlan`, règle `vlan.prefix.not_network`,
   avertissements `vlan.site.mismatch`/`vlan.domain.mismatch` (anomalies) — REQ-008-17,
   18 — verify : `vlan_on_container_refused`, `network_to_container_with_vlan_refused`,
   `site_mismatch_is_an_anomaly`, `v4_and_v6_networks_on_one_vlan`
   où : design « Données du module » (propriété), « Règles » ; `declarations.rs`
   (`sync_modules`) ; anomalies `kartenn-store-pg/src/anomalies.rs`
   dépend de : 11
+  — Service : `CheckContext::objects` (les objets que le changeset écrit, de tout type,
+  ceux du différentiel), passé par `check_modules`. `kartenn-vlan` : `module.rs`
+  (`declarations` : `vlan.vlan`, référence simple vers `vlan.vlan`, portée par `prefix`,
+  non héritée), `handler.rs` (`check` : `vlan.prefix.not_network` sur les préfixes
+  écrits ; V9 sur ces préfixes et sur les réseaux qui portent un VLAN écrit ou un VLAN
+  d'un groupe écrit), `pg.rs` (`vlan_off_network`, `networks_of`, `mismatches` : site du
+  réseau par `kartenn_site`, ancêtres du site du groupe par une requête récursive).
+  Tests : `tests/networks.rs` (les quatre du verify) ; l'environnement de test synchronise
+  aussi les déclarations du module, comme le déploiement.
+  choix : V9 se lit au début de chaque affectation de `vlan.vlan`, ou maintenant si elle
+  a commencé avant (pas de découpe de la période) ; une anomalie V9 ne se ferme pas
+  d'elle-même quand l'écart disparaît, le pipeline ne réévaluant que les règles `core.`
+  (à reprendre avec N11, anomalies de module).
 - [ ] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,

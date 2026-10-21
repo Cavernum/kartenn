@@ -222,6 +222,9 @@ impl DiffContext<'_> {
 pub struct CheckContext<'a> {
     /// The objects of the module the changeset wrote.
     pub touched: &'a [(ModuleKind, Uuid)],
+    /// The objects the changeset writes, of every type (core and modules): the rules of a
+    /// module on the objects of the core (`vlan.prefix.not_network`…).
+    pub objects: &'a [(ObjectKind, Uuid)],
     /// Every section of the differential.
     pub sections: &'a [DiffSection],
 }
