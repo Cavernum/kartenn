@@ -324,7 +324,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   l'émetteur, préférences sensibles effacées
   où : design « Session » ; 006 design « Authentification et sessions » ;
   `kartenn-rest/src/auth.rs` (`callback` vers `/`, `logout`)
-- [ ] 15. Chargement des plugins par le shell et hôtes des quatre points d'extension,
+- [x] 15. Chargement des plugins par le shell et hôtes des quatre points d'extension,
   filtres par type et permission — REQ-007-9, 10, 13 — verify : E2E avec les plugins de
   test de `web/e2e/plugins/` : compatible actif ; `sdk: "^9"`, empreinte fausse,
   exception au chargement, `definePlugin` absent → écartés avec leur motif sur `/about`,
@@ -332,12 +332,52 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   absente sans la permission
   où : design « Chargement des plugins par le shell » ; `web/shell/src/plugins/` ; SDK
   `definePlugin` et `host` (tâche 12)
-- [ ] 16. Contexte temporel : `useTime`, garde de navigation, bandeau, écritures
+  — `web/shell/vite.config.ts` (`sharedSdk` : `@kartenn/sdk` et `/host` externes, SDK
+  construit une fois sous `dist/shell/sdk/`, import map de `index.html` réécrite ; sous
+  Vite, la carte nomme les modules servis au shell) ; `web/shell/src/plugins/` :
+  `loader.ts` (`readPlugins`, `loadPlugins` : plage du SDK, catalogues par `fetch` avec
+  empreinte fusionnés sous le nom du plugin, `modulepreload` avec empreinte, entrée,
+  exception venue de `base`, délai de 5 s), `registry.ts` (`usePlugins`,
+  `extensionsOf` par point, type et permission), `ExtensionElement.vue` (hôte : crée
+  l'élément, `object` et `row`, encart d'erreur, `kartenn-close`), `PluginView.vue`
+  (`/x/<plugin>/<id>/*`) ; `views/ObjectView.vue` (fiche `/:collection/:id` : onglets
+  Reka UI, panneaux latéraux, menu d'actions ouvert en dialogue), « Extensions » dans la
+  navigation, plugins et motifs sur `/about` ; plugins de test `web/e2e/plugins/`
+  (`notes`, `incompatible`, `throws`, `silent`, `forged`). Tests : Vitest
+  `registry.test.ts`, `router.test.ts` ; E2E `journeys/plugins.spec.ts` (motifs sur
+  `/about` et shell utilisable, empreinte forgée dans les capacités, vue de plugin et
+  `connect-src` bloqué, onglet et panneau selon le type, action absente sans
+  `core.address.write`, action en dialogue fermée par son élément), axe-core
+  choix : fiche minimale (attributs scalaires de la ressource) en attendant la tâche 17,
+  qui placera aussi l'hôte de colonne (`ExtensionElement` avec `row`) dans les listes ;
+  catalogues chargés pour les deux langues du shell (changer de langue sans recharger) ;
+  `router.onError` en avertissement (une vue paresseuse coupée par le départ de la page
+  n'est plus une erreur non rattrapée) ; lectures du shell tolérantes aux requêtes
+  coupées par une navigation ; parcours : erreurs du plugin `throws` et modules coupés
+  par le départ de la page (empreinte du contenu vide sous Firefox) tolérés, tolérances
+  propres à un parcours par `test.use`
+- [x] 16. Contexte temporel : `useTime`, garde de navigation, bandeau, écritures
   désactivées, contexte poussé au SDK — REQ-007-22, 23, 24 — verify : Vitest : `useTime`
   et la garde ; E2E : lien avec `valid_at` et `as_of` ouvert dans un second contexte de
   navigateur → mêmes valeurs ; bandeau → présent ; sous `as_of`, boutons d'écriture
   désactivés
   où : design « Contexte temporel » ; 006 design « Lectures datées et cache »
+  — `web/shell/src/time/` : `index.ts` (`timeOf` : instants RFC 3339 UTC, une date
+  malformée vaut absente ; `useTime`, `useSetTime`, `datedSearch`, `carryTime` : garde
+  qui recopie les dates sur une navigation qui n'en nomme pas, sauf retour explicite par
+  `toPresent` ; `installTime` : garde et `setContext` du SDK après chaque navigation ;
+  `writesOf`/`useWrites` : rien sous `as_of`, brouillon seul sous `valid_at`),
+  `TimeBanner.vue` (`role="status"`, dates en `<time datetime>`, fuseau, « Revenir au
+  présent ») au-dessus de chaque page ; `installTime` dans `createShellRouter` ; fiche
+  lue aux dates du contexte, actions des plugins désactivées sous `as_of`. Tests :
+  Vitest `time/time.test.ts` (lecture et dates refusées, paramètres de lecture, garde,
+  lien qui nomme ses dates, retour au présent, contexte poussé au SDK, écritures) ; E2E
+  `journeys/time.spec.ts` (bandeau, dates gardées à la navigation, même lien dans un
+  second contexte de navigateur avec une autre session, retour au présent ; actions
+  désactivées sous `as_of`, permises sous `valid_at`), axe-core
+  choix : les actions des plugins comptent comme écritures (seul bouton d'écriture
+  existant avant la modification rapide de la tâche 19) ; dates affichées par `Intl` dans
+  la langue du shell
 - [ ] 17. Listes et fiches du noyau : collections filtrées et virtualisées, recherche
   globale, fiche (attributs, propriétés résolues et explication, historique, anomalies et
   acquittement), occupation et prochain libre, déclarations et écarts de propriétés —

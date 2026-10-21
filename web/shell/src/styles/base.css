@@ -145,3 +145,104 @@ button {
   margin: var(--k-space-1) 0;
   background: var(--k-color-border);
 }
+
+/* Off the present (REQ-007-22): a banner that stays above every page. */
+.k-time-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-space-2);
+  margin: 0 0 var(--k-space-3);
+  padding: var(--k-space-2) var(--k-space-3);
+  border: 2px solid var(--k-color-warning);
+  border-radius: var(--k-radius);
+  background: var(--k-color-surface);
+}
+
+.k-time-banner p {
+  margin: 0;
+}
+
+.k-nav-heading {
+  margin: var(--k-space-3) 0 var(--k-space-1);
+  padding: 0 var(--k-space-2);
+  color: var(--k-color-muted);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.k-error {
+  color: var(--k-color-danger);
+}
+
+/* Record of an object: main column, side panels of plugins. */
+.k-object {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--k-space-3);
+}
+
+.k-object-side {
+  min-width: 14rem;
+  max-width: 22rem;
+}
+
+.k-toolbar {
+  display: flex;
+  gap: var(--k-space-2);
+  margin-bottom: var(--k-space-2);
+}
+
+.k-tabs {
+  display: flex;
+  gap: var(--k-space-1);
+  border-bottom: 1px solid var(--k-color-border);
+  margin-bottom: var(--k-space-3);
+}
+
+.k-tab {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+}
+
+.k-tab[data-state="active"] {
+  border-bottom-color: var(--k-color-accent);
+  color: var(--k-color-accent);
+  font-weight: 600;
+}
+
+.k-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--k-space-1) var(--k-space-3);
+}
+
+.k-fields dt {
+  color: var(--k-color-muted);
+}
+
+.k-fields dd {
+  margin: 0;
+  font-family: var(--k-font-mono);
+}
+
+.k-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 40%);
+}
+
+.k-dialog {
+  position: fixed;
+  top: 20vh;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 24rem;
+  padding: var(--k-space-3);
+  background: var(--k-color-bg);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+}

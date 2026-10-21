@@ -1,0 +1,13 @@
+{
+  "nav": { "overview": "Notes" },
+  "view": {
+    "title": "Overview of the notes",
+    "trying": "Calling a third party…",
+    "reached": "Third party reached",
+    "blocked": "Call to a third party blocked"
+  },
+  "tab": { "notes": "Notes", "body": "Notes of {type} {id}" },
+  "panel": { "title": "Summary of the notes" },
+  "column": { "flag": "Mark" },
+  "action": { "reserve": "Reserve", "body": "Reserve in {id}", "close": "Close" }
+}

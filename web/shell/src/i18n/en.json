@@ -18,7 +18,8 @@
     "changesets": "Changesets",
     "imports": "Imports",
     "admin": "Administration",
-    "about": "About"
+    "about": "About",
+    "extensions": "Extensions"
   },
   "menu": {
     "user": "{name}, user menu",
@@ -56,7 +57,8 @@
     "server": "Server version",
     "plugins": "Plugins",
     "noPlugins": "No plugin declared.",
-    "timeZone": "Time zone shown: {zone}"
+    "timeZone": "Time zone shown: {zone}",
+    "rejected": "set aside: {reason}"
   },
   "notFound": {
     "title": "Page not found",
@@ -87,5 +89,37 @@
     "rate-limited": "Too many requests: wait a moment.",
     "unavailable": "The service is temporarily unavailable.",
     "internal": "Internal server error."
+  },
+  "plugins": {
+    "loading": "loading",
+    "loaded": "loaded",
+    "failed": "The extension {tag} could not be shown.",
+    "reason": {
+      "incompatible": "incompatible version of the SDK",
+      "load-failed": "file missing or invalid digest",
+      "exception": "error while loading",
+      "timeout": "no extension defined in time"
+    }
+  },
+  "object": {
+    "title": "{type} {id}",
+    "missing": "This object does not exist, or you may not read it.",
+    "actions": "Actions",
+    "tabs": "Sections of the record",
+    "attributes": "Attributes",
+    "panels": "Panels",
+    "types": {
+      "entity": "Entity",
+      "site": "Site",
+      "domain": "Domain",
+      "prefix": "Prefix",
+      "range": "Range",
+      "address": "Address"
+    }
+  },
+  "time": {
+    "validAt": "Data valid at",
+    "asOf": "as known at",
+    "present": "Back to the present"
   }
 }

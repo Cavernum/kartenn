@@ -18,7 +18,8 @@
     "changesets": "Changesets",
     "imports": "Imports",
     "admin": "Administration",
-    "about": "À propos"
+    "about": "À propos",
+    "extensions": "Extensions"
   },
   "menu": {
     "user": "{name}, menu de l'utilisateur",
@@ -56,7 +57,8 @@
     "server": "Version du serveur",
     "plugins": "Plugins",
     "noPlugins": "Aucun plugin déclaré.",
-    "timeZone": "Fuseau horaire affiché : {zone}"
+    "timeZone": "Fuseau horaire affiché : {zone}",
+    "rejected": "écarté : {reason}"
   },
   "notFound": {
     "title": "Page introuvable",
@@ -87,5 +89,37 @@
     "rate-limited": "Trop de requêtes : patientez un instant.",
     "unavailable": "Le service est momentanément indisponible.",
     "internal": "Erreur interne du serveur."
+  },
+  "plugins": {
+    "loading": "en cours de chargement",
+    "loaded": "chargé",
+    "failed": "L'extension {tag} n'a pas pu s'afficher.",
+    "reason": {
+      "incompatible": "version du SDK incompatible",
+      "load-failed": "fichier introuvable ou empreinte invalide",
+      "exception": "erreur pendant le chargement",
+      "timeout": "aucune extension définie dans le délai"
+    }
+  },
+  "object": {
+    "title": "{type} {id}",
+    "missing": "Cet objet n'existe pas, ou vous ne pouvez pas le lire.",
+    "actions": "Actions",
+    "tabs": "Sections de la fiche",
+    "attributes": "Attributs",
+    "panels": "Panneaux",
+    "types": {
+      "entity": "Entité",
+      "site": "Site",
+      "domain": "Domaine",
+      "prefix": "Préfixe",
+      "range": "Plage",
+      "address": "Adresse"
+    }
+  },
+  "time": {
+    "validAt": "Données valides au",
+    "asOf": "telles que connues au",
+    "present": "Revenir au présent"
   }
 }
