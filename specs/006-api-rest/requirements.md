@@ -372,7 +372,9 @@ Acceptation :
 Tant que le nombre de requêtes en cours d'une instance atteint son plafond (2 × la
 taille du pool par défaut), kartenn doit répondre aussitôt 503 avec `Retry-After`, sans
 solliciter la base ; aucune file d'attente dans kartenn (amendé le 2026-10-18 : la
-file d'attente bornée est retirée, voir H11). [H11, D14]
+file d'attente bornée est retirée, voir H11). Seules les requêtes sous `/v1` comptent :
+les fichiers du shell et de ses plugins ne sollicitent pas la base (précisé le
+2026-10-21, comme les quotas de 007/W18). [H11, D14]
 
 #### REQ-006-31 — Corps bornés
 Si un corps de requête dépasse la limite configurée (16 Mio par défaut) ou porte un

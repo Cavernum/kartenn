@@ -462,12 +462,19 @@ impl InFlight {
 /// Layer 2: at the ceiling of requests in flight → 503 `Retry-After: 1` at once, without
 /// waiting nor reaching the route (no queue in kartenn). A permit taken without waiting,
 /// as `LoadShed` around `ConcurrencyLimit` would, but one for all the routes: axum
-/// layers each route on its own.
+/// layers each route on its own. Only `/v1` is counted, as by the quotas: the ceiling
+/// protects the pool, and the files of the shell and of its plugins, loaded by dozens at
+/// once, never reach the base; shed, a module would come back as a problem the browser
+/// refuses to run.
 pub async fn shed(
     State(in_flight): State<Arc<InFlight>>,
     request: Request,
     next: Next,
 ) -> Response {
+    let path = request.uri().path();
+    if !(path == "/v1" || path.starts_with("/v1/")) {
+        return next.run(request).await;
+    }
     let Ok(_permit) = in_flight.0.clone().try_acquire_owned() else {
         return (
             [(header::RETRY_AFTER, HeaderValue::from_static("1"))],

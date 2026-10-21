@@ -156,6 +156,13 @@ async fn at_the_ceiling_the_request_is_shed_without_reaching_the_route() {
         1,
         "the route (and its SQL) not reached"
     );
+    // Outside the API (the shell, the modules of the plugins), nothing is shed.
+    let outside = status(
+        &app,
+        from("192.0.2.2", Method::GET, "/plugins/notes/1.0.0/index.js"),
+    )
+    .await;
+    assert_ne!(outside.status(), StatusCode::SERVICE_UNAVAILABLE);
 
     release.notify_one();
     assert_eq!(first.await.unwrap().unwrap().status(), StatusCode::OK);
