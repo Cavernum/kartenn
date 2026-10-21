@@ -9,3 +9,4 @@ mod pool;
 mod run;
 mod secrets;
 mod trace;
+mod version;

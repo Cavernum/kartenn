@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-machines"
-version = "0.0.0"
+version.workspace = true
 description = "Machines and interfaces module of kartenn: host names, EUI-48 addresses, hosting, 802.1Q modes"
 edition.workspace = true
 rust-version.workspace = true
@@ -20,10 +20,10 @@ rest = ["pg", "dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:time"
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }
-kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
-kartenn-rest = { version = "0.0.0", path = "../kartenn-rest", optional = true }
-kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
-kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg", optional = true }
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-rest = { version = "0.1.0", path = "../kartenn-rest", optional = true }
+kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg", optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
@@ -40,7 +40,7 @@ required-features = ["rest"]
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
-kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
+kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
 http-body-util = "0.1"
 kartenn-auth = { path = "../kartenn-auth" }
 tower = { version = "0.5", features = ["util"] }

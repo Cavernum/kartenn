@@ -321,17 +321,49 @@ pub fn catalogue_markdown() -> String {
          |---|---|---|---|---|\n",
     );
     for r in all_rules() {
-        let _ = writeln!(
-            out,
-            "| `{}` | {} | {} | {} | {} |",
-            r.id,
-            r.severity,
-            r.summary,
-            r.requirements.join(", "),
-            r.source
-        );
+        row(&mut out, r);
     }
     out
+}
+
+/// The rules of the modules of a build as Markdown, one table per module in the order
+/// given (spec 008, REQ-008-8; spec 009, REQ-009-13): `docs/spec/regles-modules.md`.
+#[must_use]
+pub fn modules_catalogue_markdown<'a>(
+    modules: impl IntoIterator<Item = (&'a str, &'a [&'static Rule])>,
+) -> String {
+    let mut out = String::from(
+        "<!-- Généré par kartenn-server (modules::tests) : ne pas modifier à la main. -->\n\n\
+         # Catalogue des règles des modules\n\n\
+         Règles déclarées par les modules livrés (ADR 0026, clause 7), au même format que le\n\
+         [catalogue du noyau](regles-noyau.md) : identifiants stables, sévérités fixées par la\n\
+         spécification du module.\n",
+    );
+    for (module, rules) in modules {
+        let _ = write!(
+            out,
+            "\n## `{module}`\n\n\
+             | Identifiant | Sévérité | Règle | Exigences | Source |\n\
+             |---|---|---|---|---|\n"
+        );
+        for r in rules {
+            row(&mut out, r);
+        }
+    }
+    out
+}
+
+/// One line of a catalogue table.
+fn row(out: &mut String, r: &Rule) {
+    let _ = writeln!(
+        out,
+        "| `{}` | {} | {} | {} | {} |",
+        r.id,
+        r.severity,
+        r.summary,
+        r.requirements.join(", "),
+        r.source
+    );
 }
 
 #[cfg(test)]

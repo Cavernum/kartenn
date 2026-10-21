@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-testing"
-version = "0.0.0"
+version.workspace = true
 description = "Test databases cloned from a migrated template (ADR 0028), development only"
 edition.workspace = true
 rust-version.workspace = true
@@ -17,7 +17,7 @@ name = "testing_it"
 path = "tests/it/main.rs"
 
 [dependencies]
-kartenn-testing-macros = { version = "0.0.0", path = "../kartenn-testing-macros" }
+kartenn-testing-macros = { version = "0.1.0", path = "../kartenn-testing-macros" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 sha2 = "0.11.1"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "migrate"] }

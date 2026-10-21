@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-testing-macros"
-version = "0.0.0"
+version.workspace = true
 description = "The #[pg_test] attribute of kartenn's tests (ADR 0028), development only"
 edition.workspace = true
 rust-version.workspace = true

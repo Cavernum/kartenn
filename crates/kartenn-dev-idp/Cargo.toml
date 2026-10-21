@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-dev-idp"
-version = "0.0.0"
+version.workspace = true
 description = "OIDC issuer for development and end-to-end tests, never shipped (spec 007, REQ-007-35)"
 edition.workspace = true
 rust-version.workspace = true

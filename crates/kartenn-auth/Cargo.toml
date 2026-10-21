@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-auth"
-version = "0.0.0"
+version.workspace = true
 description = "Authentication adapters of kartenn (spec 005): key ring, session cookies, secrets, OIDC"
 edition.workspace = true
 rust-version.workspace = true
@@ -17,8 +17,8 @@ path = "tests/it/main.rs"
 workspace = true
 
 [dependencies]
-kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
-kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
 aes-gcm = "0.10"
 base64 = "0.22"
 getrandom = "0.3"
@@ -43,7 +43,7 @@ sha1 = "0.10"
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
-kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
+kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
 hyper = { version = "1.12.0", features = ["server", "http1"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }

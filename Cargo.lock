@@ -1712,7 +1712,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-auth"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-bench"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1781,7 +1781,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "ed25519-dalek 3.0.0",
  "idna",
@@ -1798,7 +1798,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-dev-idp"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1821,7 +1821,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-machines"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "axum",
  "http-body-util",
@@ -1845,7 +1845,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-rest"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "arc-swap",
  "axum",
@@ -1890,7 +1890,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-server"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1929,7 +1929,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-service"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "jsonschema",
  "kartenn-core",
@@ -1947,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-store-pg"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "hmac 0.13.0",
  "kartenn-core",
@@ -1964,7 +1964,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-telemetry"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "kartenn-core",
  "kartenn-service",
@@ -1993,7 +1993,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-testing"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "kartenn-testing-macros",
  "kartenn-workspace-hack",
@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-testing-macros"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "kartenn-workspace-hack",
  "proc-macro2",
@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "kartenn-vlan"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "axum",
  "http-body-util",

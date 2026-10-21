@@ -10,7 +10,7 @@
 | [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (26/26) |
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
-| [009-machines-interfaces](009-machines-interfaces/) | en cours | en cours | [tasks](009-machines-interfaces/tasks.md) |
+| [009-machines-interfaces](009-machines-interfaces/) | implémentées, sauf REQ-009-21 (banc complet à relancer) | implémentée | [tasks](009-machines-interfaces/tasks.md) (13/14, reste 12 : banc complet) |
 | [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | rédigées, révisées par l'expression du besoin (D28, D30 amendées) ; v0.2 | rédigée | [010](010-politique-flux/tasks.md), [011](011-registre-flux/tasks.md) (0) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
@@ -202,3 +202,25 @@ bornée aux objets touchés) ; le délestage comptait les fichiers du shell et d
 - le dépôt n'a pas de CI : la matrice « serveur sans module et avec » est une
   vérification locale (`cargo check -p kartenn-server --no-default-features`, sans
   module puis avec `vlan`), à porter dans la CI quand elle existera.
+
+## Point d'étape — 2026-10-21 : spec 009
+
+Machines et interfaces implémentées (13/14) : crate `kartenn-machines`, deuxième module
+du contrat (ADR 0026), éprouvé sans refonte. Clusters, machines (nom d'hôte RFC 1123
+unique par propriétaire, hébergement par une machine ou un cluster, sans cycle),
+interfaces (MAC EUI-48, modes 802.1Q `none`/`access`/`trunk` sur des VLAN vivants),
+rattachements datés d'adresses (M16 : écriture de l'interface, lecture de l'adresse),
+propriétés `machines.interface_role` et `machines.fqdn`, anomalies de cohérence (MAC en
+double, VLAN d'adresse, site de l'hôte) refermées une fois corrigées et réévaluées sur
+les seuls objets touchés, références et cascades, section `machines.attachments`, port
+de lecture daté pour la 010 (`kartenn_machines::read`), routes REST et lectures
+croisées, imports, plugin `web/plugins/machines`. Règles des modules publiées dans
+`docs/spec/regles-modules.md`, généré depuis le code.
+
+Corrigés en route : la reprise d'un import fait seulement de rattachements (rejoué puis
+refusé) ; la fiche d'une machine (91 ms → 7 ms, adresses lues par ses interfaces).
+
+Reste : la tâche 12, banc complet des machines (10⁵ machines) ; la variante réduite tient
+tous les budgets (fiche 7,2 ms, page filtrée 35 ms, machines d'un /24 24 ms, création
+39 ms). Le banc complet tient le verrou PostgreSQL près d'une heure : à lancer quand rien
+d'autre ne tourne.

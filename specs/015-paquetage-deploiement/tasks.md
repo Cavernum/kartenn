@@ -78,6 +78,17 @@ après l'autre.
   `version.rs` compare Cargo, `web/*/package.json` et la version du flake
   où : design « Versionnement » ; `Cargo.toml`, `crates/*/Cargo.toml`, `web/*/package.json`
   dépend de : —
+  — `[workspace.package] version = "0.1.0"` ; les crates `kartenn-*` en
+  `version.workspace = true`, leurs dépendances de chemin entre elles en `"0.1.0"` ;
+  `Cargo.lock` ; contrat de référence régénéré (`info.version`) ; `web/sdk`, `web/shell`,
+  `web/e2e` déjà en `0.1.0` ; `CHANGELOG.md` (entrée `[0.1.0] — à publier`) ; test
+  `kartenn-server/tests/it/version.rs` (crates, paquets web, journal des changements).
+  **Reste** : la comparaison avec la version du flake, à ajouter à `version.rs` par la
+  tâche 1 (`flake.nix` absent de cette base).
+  choix : `syslog-sender` (bibliothèque à part, MPL-2.0, 012/L24) et
+  `kartenn-workspace-hack` (géré par hakari) gardent leur propre version ; les plugins de
+  `web/plugins/*` gardent la leur (version publiée dans leur manifeste, servie sous
+  `/plugins/<nom>/<version>/`).
 
 ## P2 — Livrables
 
