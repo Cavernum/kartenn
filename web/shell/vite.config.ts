@@ -77,6 +77,8 @@ export default defineConfig({
     // Served by kartenn-server from `[web] root` (design « Arborescence de web/ »).
     outDir: "../dist/shell",
     emptyOutDir: true,
+    // Read by scripts/size.mjs (REQ-007-32); `.vite/` is a hidden directory, never served.
+    manifest: true,
   },
   test: {
     name: "shell",

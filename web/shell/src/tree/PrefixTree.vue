@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { computed, ref, useId, watch } from "vue";
+import { computed, nextTick, ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { PAGE_SIZE, Pager, withQuery } from "../data/api.ts";
@@ -110,6 +110,9 @@ watch(
     started.value = false;
     await change(tree.loadMore(ROOT));
     started.value = true;
+    // The roots drawn: the first useful screen of the browser bench (REQ-007-32).
+    await nextTick();
+    performance.mark("k:ready");
   },
   { immediate: true },
 );

@@ -356,6 +356,22 @@ in {
     '';
   };
 
+  # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
+  # the Playwright project `budgets` against kartenn-server in release on the dataset of
+  # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`.
+  scripts.bench-web = lib.mkIf hasWeb {
+    description = "Check the budgets of the browser on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
+      [ "''${2:-}" != small ] || export BENCH_SMALL=1
+      pnpm -C web --filter @kartenn/shell build >/dev/null
+      node web/shell/scripts/size.mjs
+      pnpm -C web/e2e exec playwright test -c budgets.config.ts --reporter=line
+    '';
+  };
+
   # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
   scripts.bench-telemetry = {
