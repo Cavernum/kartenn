@@ -243,14 +243,6 @@ in {
               User = cfg.database.ownerUser;
               LoadCredential = credentials migrationDatabaseUrlFile;
               ExecStart = "${exe} migrate --config ${configFile "kartenn-migrate" ownerSettingsFor}";
-              # Readiness compares the applied migration with the binary's (REQ-015-11),
-              # but sqlx creates _sqlx_migrations for the owner alone: the instance role
-              # (kartenn_app) could not read it and /health/ready stayed at 503.
-              ExecStartPost = pkgs.writeShellScript "kartenn-migrate-grant" ''
-                exec ${pkgs.postgresql_18}/bin/psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet \
-                  "$(< "$CREDENTIALS_DIRECTORY/database-url")" \
-                  -c 'GRANT SELECT ON _sqlx_migrations TO kartenn_app'
-              '';
             };
         };
 
