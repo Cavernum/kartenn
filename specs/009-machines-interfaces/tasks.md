@@ -37,7 +37,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
 
 ## P2 — Module
 
-- [ ] 2. Clusters et machines : migration `0001_machines.sql` (`cluster`, `machine`),
+- [x] 2. Clusters et machines : migration `0001_machines.sql` (`cluster`, `machine`),
   adaptateur `pg`, gestionnaire `create/update_cluster`, `create/update_machine`
   (affectations `core.owner`/`core.site` planifiées, clés de verrou), unicité du nom par
   propriétaire résolu, hébergement ; module au registre (dépendance `vlan`), feature
@@ -48,6 +48,21 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   où : design « Données », « Opérations » ; gestionnaire VLAN `kartenn-vlan/src/handler.rs`
   (008, tâches 10, 11) comme modèle
   dépend de : 1 ; 008 : 3, 5, 6
+  — `kartenn-machines` : `module.rs` (`Machines`, types `machines.cluster` et
+  `machines.machine`, permissions, dépendance `vlan`), `handler.rs` (`prepare` : propriétés
+  du noyau et propriétaire résolu ; `plan` des quatre opérations, affectations
+  `core.owner`/`core.site` planifiées, clés `machines.name:<owner>` et `machines.hosting` ;
+  `check` : nom par propriétaire résolu, sorte de l'hébergeur, hébergeur vivant, cycle),
+  `pg.rs` (écritures refusées avant d'écrire ce que les contraintes refuseraient),
+  migration `0001_machines.sql`, feature `pg` ; serveur : feature `machines` (par défaut,
+  active `vlan`), registre ; contrat de référence, types du SDK et `permissions.md`
+  régénérés. Tests : `kartenn-machines/tests/machines.rs` (les sept du verify).
+  choix : règle `machines.operation.invalid` ajoutée pour une opération mal formée (champ
+  inconnu, sorte inconnue, objet introuvable), un corps de module n'ayant pas de refus
+  structurel (400) ; un changement de propriétaire par affectation du noyau est relu dans
+  le détail du différentiel (`pg_temp.diff_detail`) ; propriétaires comparés maintenant si
+  le chevauchement le couvre, sinon à son début ; cycle cherché à l'instant présent ;
+  `update_machine` ne porte pas `owner`/`site` (opérations du noyau), `update_cluster` oui.
 - [ ] 3. Interfaces : table `interface`, `create/update_interface`, unicité du nom par
   machine, MAC, état, héritage des ancres — REQ-009-6, 7 — verify :
   `interface_name_unique_per_machine`, `mac_stored_as_macaddr`,

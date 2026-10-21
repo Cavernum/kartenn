@@ -489,6 +489,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/clusters/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the machines.cluster, on both axes (REQ-004-18). */
+    get: operations["machines_cluster_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/clusters/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["machines_cluster_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/clusters/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["machines_cluster_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/clusters/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["machines_cluster_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/domains": {
     parameters: {
       query?: never;
@@ -948,6 +1016,74 @@ export interface paths {
      *     filter that does not parse or a duration out of bounds → 422 `invalid-override`.
      */
     put: operations["set_log_filter"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the machines.machine, on both axes (REQ-004-18). */
+    get: operations["machines_machine_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["machines_machine_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["machines_machine_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["machines_machine_property_suggestion"];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -4065,7 +4201,9 @@ export interface components {
       | "entity"
       | "site"
       | "vlan.group"
-      | "vlan.vlan";
+      | "vlan.vlan"
+      | "machines.cluster"
+      | "machines.machine";
     /** @description A node of the tree, as listed. */
     TreeNode:
       | {
@@ -5479,6 +5617,162 @@ export interface operations {
       };
     };
   };
+  machines_cluster_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_cluster_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_cluster_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.cluster. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_cluster_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.cluster. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_domains: {
     parameters: {
       query?: {
@@ -6845,6 +7139,162 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["LogFilterSet"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_machine_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_machine_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_machine_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.machine. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_machine_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machines.machine. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
         };
       };
       /** @description A problem (RFC 9457). */

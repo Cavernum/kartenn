@@ -1819,7 +1819,14 @@ name = "kartenn-machines"
 version = "0.0.0"
 dependencies = [
  "kartenn-core",
+ "kartenn-service",
+ "kartenn-store-pg",
+ "kartenn-vlan",
  "kartenn-workspace-hack",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
  "uuid",
 ]
 
@@ -1882,6 +1889,7 @@ dependencies = [
  "kartenn-auth",
  "kartenn-core",
  "kartenn-dev-idp",
+ "kartenn-machines",
  "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",

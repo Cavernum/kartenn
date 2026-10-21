@@ -46,12 +46,18 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `vlan.vlan.read` | — | Lire les VLAN. |
 | `vlan.vlan.write` | — | Créer, modifier ou clore un VLAN. |
 | `vlan.vlan.propose` | — | Proposer un changement d'un VLAN. |
+| `machines.cluster.read` | — | Lire les clusters. |
+| `machines.cluster.write` | — | Créer, modifier ou clore un cluster. |
+| `machines.cluster.propose` | — | Proposer un changement d'un cluster. |
+| `machines.machine.read` | — | Lire les machines. |
+| `machines.machine.write` | — | Créer, modifier ou clore une machine. |
+| `machines.machine.propose` | — | Proposer un changement d'une machine. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read` |
 | Administrateur | `administrator` | `*` |
