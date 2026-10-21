@@ -39,9 +39,11 @@ après l'autre.
   où : design « Configuration de la base » ; `crates/kartenn-server/src/config.rs`
   (`Config`, tests en fin de fichier), `src/main.rs` (dispatch des sous-commandes)
   dépend de : —
-- [ ] 4. Premier administrateur : `breakglass create` lie `administrator` global
-  jusqu'à `valid_until`, par changeset `system`, mention dans l'audit ; amendement de
-  REQ-005-14 et K9 — REQ-015-10 — verify : test `kartenn-server/tests/it/` : base neuve,
+- [ ] 4. Premier administrateur : réalisé par la tâche **005-19** (même travail, une seule
+  implémentation ; cette ligne se coche avec elle). `breakglass create` lie `administrator`
+  global jusqu'à `valid_until`, mention dans l'audit ; le mode d'écriture de la liaison
+  (adaptateur direct ou changeset sous identité système) est celui du design de la 005
+  (K17) — REQ-015-10 — verify : test `kartenn-server/tests/it/` : base neuve,
   `migrate`, `breakglass create`, connexion du compte, `POST /v1/bindings` accepté ;
   après `valid_until`, refusé ; `web/e2e/serve.sh` cesse de poser le rôle en SQL
   où : design « Premier administrateur » ; `crates/kartenn-server/src/main.rs`

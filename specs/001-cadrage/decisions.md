@@ -258,6 +258,13 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Décidé par : recommandation acceptée
 - Précision (spec 012, 2026-10-17) : OpenTelemetry est une sortie parmi d'autres, toutes actives à la fois : stdout (texte ou JSON), fichier, journald, syslog RFC 5424 (local, UDP, TCP, TLS) et OTLP/gRPC, chacune avec son filtre et sa file bornée. Le journal d'audit, distinct des logs techniques, est en base, scellé et exporté (ADR 0019). Configuration : fichier TOML et variables `KARTENN_*`. Console de développement : collecteur OpenTelemetry et OpenObserve dans devenv.
 - Décidé par : délégué (2026-10-17), spec 012 approuvée
+- Amendement (spec 015, ADR 0029, 2026-10-21) : **une seule image OCI** non root et sans
+  shell (serveur et shell web), qui sert aussi de job de migration (`migrate`), au lieu
+  de trois ; construite par un `flake.nix` qui suit le nixpkgs de devenv ; module NixOS
+  `services.kartenn` (migration en unité oneshot, `DynamicUser`, secrets par
+  `LoadCredential`) ; URL de la base lue d'un fichier (`[database] url_file`), jamais sur
+  la ligne de commande. Registre et signature de l'image : question ouverte (015/E13).
+- Décidé par : l'utilisateur (2026-10-21)
 
 ## D36 — RBAC
 - Décision : chaque module déclare un **catalogue de permissions** ; un **rôle** est un ensemble nommé de permissions (rôles livrés : lecteur, éditeur, approbateur, admin ; rôles personnalisés possibles) ; une **liaison** associe un sujet (utilisateur, groupe OIDC, compte de service) à un rôle sur un **périmètre** (entité, site, domaine, sous-arbre de préfixes), hérité vers le bas. Les politiques d'approbation (D11) s'expriment dans le même modèle. Le filtrage des listes par droits est traduit en prédicats SQL pour tenir les budgets de D14.
