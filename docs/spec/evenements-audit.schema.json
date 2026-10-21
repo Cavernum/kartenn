@@ -421,6 +421,8 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "role": {},
+            "scope": {},
             "valid_until": {}
           },
           "type": "object"

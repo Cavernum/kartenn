@@ -157,7 +157,7 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   (`kartenn-store-pg/src/undo.rs`, lignes supprimées retrouvées par la fin de leur
   historique à l'instant d'application), `undo::rbac_inverse` (`tests/undo.rs`,
   `tests/rbac.rs::an_undo_cannot_escalate`)
-- [ ] 19. Amorçage d'une instance neuve (K17) : `breakglass create` lie l'identité du
+- [x] 19. Amorçage d'une instance neuve (K17) : `breakglass create` lie l'identité du
   compte au rôle `administrator`, portée globale, jusqu'à `valid_until`, dans la même
   transaction, avec trace d'historique ; `account.breakglass.created` nomme rôle et
   portée — REQ-005-14 — verify : instance neuve, `breakglass create`, connexion de
@@ -168,3 +168,18 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   (`create_breakglass`), table `binding` (design « Modèle ») ; tests à la manière de
   `kartenn-server/tests/it/` et `kartenn-store-pg/tests/it/` ; `web/e2e/serve.sh`
   dépend de : —
+  — `kartenn-store-pg/src/breakglass.rs` (`create`, `bind_administrator`, `ROLE`) : dans la
+  transaction du compte, un changeset `applied` de l'auteur système et une liaison
+  `identity` × `administrator` × `global` sur `[création, valid_until)` ; refus sans rôle
+  livré (« lancer `migrate` d'abord ») ; détails `role` et `scope` de
+  `account.breakglass.created` (catalogue, `docs/spec/evenements-audit.md` et son schéma
+  régénérés) ; `web/e2e/serve.sh` n'écrit plus en SQL. Tests (`kartenn-auth`,
+  `tests/it/breakglass.rs`) : `a_new_instance_is_bootstrapped_by_a_break_glass_account`
+  (rôle et portée audités, connexion de secours, liaison d'un groupe OIDC appliquée),
+  `the_bootstrap_binding_ends_with_the_account` (fin de liaison = `valid_until`, refus
+  passé ce terme), `without_the_delivered_roles_no_account_is_created` ; les tests qui
+  créent un compte synchronisent d'abord les rôles livrés, comme `migrate`.
+  choix : la liaison porte un changeset de l'auteur système (la colonne `changeset_id`
+  l'exige, et l'historique dit qui l'a posée) plutôt qu'un identifiant fictif ; un compte
+  créé déjà expiré n'a pas de liaison ; tests dans `kartenn-auth` (connexion de secours et
+  pipeline sous RBAC à portée de main) plutôt que `kartenn-server`.

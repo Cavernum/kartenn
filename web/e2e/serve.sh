@@ -5,10 +5,10 @@
 #   loopback certificate, client secret, key ring), then serves the issuer on 9444;
 # - `serve.sh kartenn`: builds the shell and the plugins of web/plugins, gathers them under
 #   web/e2e/.state/plugins, recreates the kartenn_e2e database, migrates it,
-#   creates the break-glass account `e2e` (its proofs in web/e2e/.state/breakglass.txt)
-#   and binds it to `administrator`, then serves kartenn-server on 9443.
-# The break-glass binding is the only write outside the API: no operation of the API binds
-# the first administrator (REQ-005-14). Everything else goes through global-setup.ts.
+#   creates the break-glass account `e2e` (its proofs in web/e2e/.state/breakglass.txt),
+#   which the subcommand binds to `administrator` (K17), then serves kartenn-server on 9443.
+# The break-glass account is the only write outside the API, as for an operator bootstrapping
+# an instance (REQ-005-14). Everything else goes through global-setup.ts.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 state=web/e2e/.state
@@ -37,14 +37,6 @@ kartenn)
   "$bin/kartenn-server" migrate "$database" >/dev/null
   "$bin/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
     >"$state/breakglass.txt"
-  psql "$database" -q -c "
-    INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, valid_period,
-                         changeset_id)
-    SELECT DISTINCT gen_random_uuid(), 'identity', p.id, r.id, 'global',
-           tstzrange(now(), NULL), gen_random_uuid()
-      FROM person p, role r
-     WHERE p.kind = 'breakglass' AND p.display_name = 'e2e'
-       AND r.key = 'administrator' AND upper_inf(r.valid_period)"
   exec env SSL_CERT_FILE="$state/ca.pem" \
     "$bin/kartenn-server" run "$database" web/e2e/kartenn.toml
   ;;
@@ -68,14 +60,6 @@ budgets)
     >"$state/budgets.env"
   "$release/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
     >"$state/breakglass.txt"
-  psql "$database" -q -c "
-    INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, valid_period,
-                         changeset_id)
-    SELECT DISTINCT gen_random_uuid(), 'identity', p.id, r.id, 'global',
-           tstzrange(now(), NULL), gen_random_uuid()
-      FROM person p, role r
-     WHERE p.kind = 'breakglass' AND p.display_name = 'e2e'
-       AND r.key = 'administrator' AND upper_inf(r.valid_period)"
   exec env SSL_CERT_FILE="$state/ca.pem" \
     "$release/kartenn-server" run "$database" web/e2e/kartenn.toml
   ;;

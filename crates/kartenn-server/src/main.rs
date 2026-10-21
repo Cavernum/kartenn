@@ -16,7 +16,8 @@
 //!   REQ-006-34; spec 008, REQ-008-9).
 //! - `kartenn-server breakglass create <database-url> <name> <hours> <key-file>`: a
 //!   break-glass account valid `hours` (24 at most), with the owner of the schema (spec
-//!   005, REQ-005-14); prints its passphrase and TOTP URI once.
+//!   005, REQ-005-14), bound to the delivered role `administrator` until its end (K17: the
+//!   bootstrap of a new instance, after `migrate`); prints its passphrase and TOTP URI once.
 
 use std::path::Path;
 use std::process::ExitCode;

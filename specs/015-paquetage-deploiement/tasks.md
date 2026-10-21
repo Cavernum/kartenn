@@ -39,7 +39,7 @@ après l'autre.
   où : design « Configuration de la base » ; `crates/kartenn-server/src/config.rs`
   (`Config`, tests en fin de fichier), `src/main.rs` (dispatch des sous-commandes)
   dépend de : —
-- [ ] 4. Premier administrateur : réalisé par la tâche **005-19** (même travail, une seule
+- [x] 4. Premier administrateur : réalisé par la tâche **005-19** (même travail, une seule
   implémentation ; cette ligne se coche avec elle). `breakglass create` lie `administrator`
   global jusqu'à `valid_until`, mention dans l'audit ; le mode d'écriture de la liaison
   (adaptateur direct ou changeset sous identité système) est celui du design de la 005

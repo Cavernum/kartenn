@@ -111,9 +111,9 @@ events! {
     SERVICE_ACCOUNT_CHANGED = "account.service.changed", Info, High, ["change"], ["REQ-012-8"],
         "Account Change 3001 / Create", "iam",
         "Un compte de service a été créé, renouvelé ou révoqué.";
-    BREAKGLASS_CREATED = "account.breakglass.created", Warn, High, ["valid_until"], ["REQ-005-14"],
+    BREAKGLASS_CREATED = "account.breakglass.created", Warn, High, ["valid_until", "role", "scope"], ["REQ-005-14"],
         "Account Change 3001 / Create", "iam",
-        "Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma.";
+        "Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma, avec le rôle d'administration global jusqu'à sa fin de validité (K17).";
     APPROVAL_POLICY_CHANGED = "policy.approval.changed", Info, High, ["enabled"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "configuration",
         "Une politique d'approbation a été créée, modifiée ou désactivée.";

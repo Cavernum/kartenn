@@ -598,6 +598,13 @@ async fn a_breakglass_session_is_refused_after_one_hour(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
     let account = create(&f.ring, "rescue");
+    // The delivered roles first, as the migration job does (the account binds one, K17).
+    kartenn_service::rbac::sync_roles(
+        &kartenn_store_pg::write::PgStore::new(pool.clone()),
+        kartenn_service::pipeline::MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
     kartenn_store_pg::breakglass::create(
         &pool,
         &Stored {
