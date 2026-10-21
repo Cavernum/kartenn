@@ -10,7 +10,9 @@ use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
-use kartenn_service::module::{BoxFuture, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx};
+use kartenn_service::module::{
+    BoxFuture, CheckContext, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+};
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
 use serde::{Deserialize, Serialize};
@@ -411,10 +413,11 @@ impl ModuleHandler for Handler {
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
-        touched: &'a [(ModuleKind, Uuid)],
+        context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
         Box::pin(async move {
-            let groups: Vec<Uuid> = touched
+            let groups: Vec<Uuid> = context
+                .touched
                 .iter()
                 .filter(|(kind, _)| *kind == group_kind())
                 .map(|(_, id)| *id)
