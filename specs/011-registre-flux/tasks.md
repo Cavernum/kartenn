@@ -29,7 +29,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     autorisant dans la synthèse (l'issue porte la réserve) ; deux règles ajoutées au
     tableau du design : `flow.field.invalid` (justification, identifiant externe) et
     `flow.update.identity` (REQ-011-4).
-- [ ] 2. Migrations du module : `flow`, `flow_waiver`, `flow_endpoint_address`,
+- [x] 2. Migrations du module : `flow`, `flow_waiver`, `flow_endpoint_address`,
   `flow_evaluation`, `flow_summary`, `flow_registration`, `flow_rejection`,
   `flow_notice` versionnées — REQ-011-16, 23 — verify : tests de contraintes ; lecture
   `as_of` passé
@@ -154,26 +154,73 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     les flux qui passent à `denied` (synthèse absente comprise), `heals` l'inverse ;
     héritiers d'une valeur à venir absents du différentiel des propriétés (fenêtre
     future) : rattrapés par l'index des origines ; anomalies et déclencheurs en tâche 6.
-- [ ] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
+- [x] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
   l'installation), `flow.waiver` ; anomalies `flow.verdict.denied` ouvertes et fermées ;
   crochet de rejet (N38) et `flow_rejection` — REQ-011-6, 12, 25 — verify : politique
   `flow.breaks ≥ 1` installée et active ; rejet motivé enregistré
   - où : déclencheurs de module (tâche 010-9), anomalies (ADR 0026 clause 7)
   - dépend de : 5
+  - fait : `src/approval.rs` (mesures `created`, `breaks`, `waiver` ; politique par défaut
+    `flow.breaks` = `breaks ≥ 1` ; anomalies des flux qui basculent, lues dans la section
+    `flow.flows`), `Handler::measure`, `Handler::check`, `Module::{measures,
+    default_policies}`, `pg::written_counts` ; crochet de rejet déjà en 011-3 ; tests
+    `tests/it/approval.rs` (politique installée, active, changeset cassant en attente
+    d'approbation ; anomalie ouverte, laissée par un changeset sans rapport, fermée à la
+    guérison), `requests.rs::a_rejected_request_is_a_nonconformity`.
+  - choix : `flow.verdict.denied` devient l'avertissement (anomalie) ; le refus à
+    l'enregistrement sans dérogation prend la règle d'erreur `flow.waiver.required` (une
+    règle n'a qu'une sévérité) ; seuls les flux dont l'évaluation bascule sont réévalués
+    sous cette règle (pas de parcours des anomalies ouvertes) ; la dérogation est lue à
+    l'instant du changeset.
 
 ## P3 — Lectures, échéances, événements, API
 
-- [ ] 7. Filtres, flux d'un objet, évaluations datées, non-conformités — REQ-011-14, 15,
+- [x] 7. Filtres, flux d'un objet, évaluations datées, non-conformités — REQ-011-14, 15,
   16, 25 — verify : un test par filtre ; sous-arbre d'un préfixe ; un demandeur voit ses
   non-conformités et pas celles d'un autre
   - où : `crates/kartenn-store-pg/src/filter.rs`
   - dépend de : 5, 6
-- [ ] 8. Tâche `flow.expiry` (flux datés, dérogations) et événements `expiring`,
+  - fait : `src/read.rs` — `flows` (tous les filtres de REQ-011-14, état dérivé par
+    `state::state_at`, datée `valid_at`/`as_of` sur les tables courantes et leur
+    historique), `of_object` (adresse, préfixe et sous-arbre, interface, machine par ses
+    interfaces et rattachements), `evaluations` (relues, jamais recalculées),
+    `nonconformities` (rejets, flux `noncompliant` et `waived`, règle, libellé et textes à
+    la date, filtres de REQ-011-25) ; tests `tests/it/reads.rs` (filtres par extrémité,
+    service, type, sorte, entité, demandeur, référence, état, synthèse, issue, règle
+    décisive, dérogation, échéance, sous-arbre, axe, machine ; évaluations à un `as_of`
+    passé ; non-conformités d'un demandeur et pas d'un autre).
+  - choix : lectures sans droits (le prédicat RBAC sur `entity_id` revient aux routes,
+    tâche 9) sauf le filtre `requester` des non-conformités ; les jointures du noyau
+    (adresses, préfixes, origines des valeurs, machines) sont lues à l'assertion courante,
+    seules les tables du module suivent `as_of` ; filtre d'état en mémoire après la
+    requête (la page est coupée après lui) ; `closed_early` = une version antérieure du
+    flux finissait plus tard ; les demandes en attente (`requested`) ne sont pas listées
+    ici (elles ne sont pas dans `flow.flow`).
+- [x] 8. Tâche `flow.expiry` (flux datés, dérogations) et événements `expiring`,
   `expired`, `outcome_changed`, `closed` — REQ-011-7 — verify : J-30, J-7, terme ;
   prolongation sans doublon ; flux sans fin jamais notifié ; événement d'issue émis à la
   bascule
   - où : tâches de fond et événements de module (tâches 010-8, 010-14)
   - dépend de : 5
+  - fait : `src/expiry.rs` — tâche `flow.expiry` quotidienne (`Module::jobs`), avis
+    inscrits dans `flow_notice` (un par flux, sorte et fin : sans doublon, une nouvelle fin
+    est annoncée à nouveau), événements `org.kartenn.flow.expiring` (`days` 30 ou 7, la
+    fenêtre la plus étroite) et `expired`, pour le flux (`of: flow`) et sa dérogation
+    (`of: waiver`) ; l'échéance d'une dérogation d'un flux encore refusé ouvre l'anomalie
+    `flow.verdict.denied` (constats de la tâche, ADR 0026 amendement 4, REQ-011-9) ;
+    `outcome_changed` émis par `check` pour chaque ligne de `flow.flows` dont la synthèse
+    ou l'issue bascule ; `closed` émis par `Handler::close` ; tests
+    `tests/it/expiry.rs` (J-30, J-7 seul, pas de doublon à la relance, flux sans fin
+    jamais annoncé, terme une fois ; `outcome_changed` et `closed`).
+  - choix : fenêtres 30 et 7 jours en constantes (le réglage `[flow]
+    expiry_notice_days` demande une configuration de module, absente du contrat) ; un
+    flux clos avant sa fin n'est pas annoncé `expired` (il a eu `closed`) ; au premier
+    passage, une fin déjà passée est annoncée une fois.
+  - constat hors périmètre : une demande datée (`end`) soumise dans un changeset à période
+    ouverte est refusée (`changeset.operation.no_version`) : l'ancre `core.owner` et les
+    valeurs par défaut (`expected::defaults`) sont posées sur la période ouverte du
+    changeset, au-delà de la fin du flux ; les tests soumettent les flux datés dans un
+    changeset dont la période finit avec eux.
 - [ ] 9. Routes `/v1/flows`, `/v1/flows/{id}/evaluations`, `/v1/flow-nonconformities`,
   `/v1/{collection}/{id}/flows`, contrat OpenAPI — REQ-011-18 — verify : contrat
   comparé ; tests de routes ; `POST /v1/flows` rend l'évaluation et l'état

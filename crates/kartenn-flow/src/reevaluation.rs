@@ -27,9 +27,9 @@ use crate::pg::{self, store};
 /// The section of the module in the differential (REQ-011-13).
 pub const SECTION: &str = "flow.flows";
 /// The kind of a row of a flow whose summary, a verdict or the outcome flips.
-const FLOW_ROW: &str = "flow.flow";
+pub(crate) const FLOW_ROW: &str = "flow.flow";
 /// The kind of the counted row, first in the section.
-const SUMMARY_ROW: &str = "flow.summary";
+pub(crate) const SUMMARY_ROW: &str = "flow.summary";
 
 /// The versioned tables of the policy a verdict reads: the inference rules are left out.
 const POLICY_TABLES: &[&str] = &[

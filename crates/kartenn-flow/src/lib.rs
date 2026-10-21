@@ -6,11 +6,14 @@
 //! its migrations and its handler in the write pipeline (the references of the endpoints;
 //! the operations come with task 011-3).
 
+pub mod approval;
 pub mod evaluation;
+pub mod expiry;
 pub mod handler;
 pub mod model;
 pub mod module;
 mod pg;
+pub mod read;
 pub mod reevaluation;
 pub mod rules;
 pub mod state;

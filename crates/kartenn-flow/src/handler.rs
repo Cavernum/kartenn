@@ -38,7 +38,7 @@ use crate::module::FLOW;
 use crate::pg;
 use crate::rules::{
     ENDPOINT_INVALID, FIELD_INVALID, REVIEW_END_REQUIRED, REVIEW_REQUIRED, UPDATE_IDENTITY,
-    VERDICT_DENIED, VERDICT_PARTIAL, WAIVER_INVALID,
+    VERDICT_PARTIAL, WAIVER_INVALID, WAIVER_REQUIRED,
 };
 
 /// The permission whose holder reviews a request (REQ-011-22).
@@ -674,7 +674,7 @@ impl Handler {
                 }
                 if denied && pg::waiver_at(conn, id, at_time).await?.is_none() {
                     out.push(subjects(Violation::new(
-                        &VERDICT_DENIED,
+                        &WAIVER_REQUIRED,
                         format!("the policy denies the flow ({why}) and no waiver covers it"),
                     )));
                 }
@@ -810,6 +810,13 @@ impl ModuleHandler for Handler {
                 .await?;
             let (at, _) = pg::bounds(period);
             pg::close_dependents(connection(tx)?, id, at, changeset).await?;
+            // REQ-011-7: with the changeset, never written into the flow.
+            tx.emit(
+                "flow.closed",
+                Some(id.to_string()),
+                json!({ "flow": id, "changeset": changeset }),
+            )
+            .map_err(WriteError::Store)?;
             Ok(())
         })
     }
@@ -861,8 +868,35 @@ impl ModuleHandler for Handler {
                     Self::check_flow(tx, *id, context.changeset, &mut out).await?;
                 }
             }
-            Ok(Findings::from(out))
+            crate::expiry::outcome_changed(tx, context)?;
+            let conn = connection(tx)?;
+            let now = now(conn).await?;
+            let mut findings = crate::approval::anomalies(conn, context, now).await?;
+            findings.violations.extend(out);
+            Ok(findings)
         })
+    }
+
+    fn run_job_findings<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
+        Box::pin(async move {
+            if name == crate::expiry::EXPIRY {
+                crate::expiry::run(tx).await
+            } else {
+                Ok(Findings::default())
+            }
+        })
+    }
+
+    fn measure<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Vec<(&'static str, u64)>, StoreError>> {
+        Box::pin(async move { crate::approval::measures(connection(tx)?, context).await })
     }
 
     fn ended<'a>(

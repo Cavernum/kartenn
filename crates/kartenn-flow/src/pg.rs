@@ -328,6 +328,30 @@ pub(crate) async fn marks(conn: &mut PgConnection, flow: Uuid) -> Result<Vec<Str
         .map_err(|e| store(&e))
 }
 
+/// The flows this transaction created or prolonged (`request`, `register`) and those it
+/// waived (`waive`): the measures `created` and `waiver` (REQ-011-6).
+pub(crate) async fn written_counts(conn: &mut PgConnection) -> Result<(u64, u64), StoreError> {
+    let exists: bool = sqlx::query_scalar("SELECT to_regclass('pg_temp.flow_written') IS NOT NULL")
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
+    if !exists {
+        return Ok((0, 0));
+    }
+    let (created, waived): (i64, i64) = sqlx::query_as(
+        "SELECT count(DISTINCT flow_id) FILTER (WHERE op IN ('request', 'register')),
+                count(DISTINCT flow_id) FILTER (WHERE op = 'waive')
+           FROM pg_temp.flow_written",
+    )
+    .fetch_one(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok((
+        u64::try_from(created).unwrap_or(0),
+        u64::try_from(waived).unwrap_or(0),
+    ))
+}
+
 /// A flow as stored: its last version, with its reviewer.
 #[derive(Debug, Clone)]
 pub(crate) struct Stored {
