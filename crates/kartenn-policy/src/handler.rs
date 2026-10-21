@@ -534,6 +534,9 @@ impl ModuleHandler for Handler {
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move {
             let (at, _) = pg::bounds(period);
+            if operation.name == "matrix.set" {
+                return crate::matrix::prepare_set(connection(tx)?, operation, at).await;
+            }
             Self::prepare_value(connection(tx)?, operation, at).await
         })
     }
@@ -551,6 +554,7 @@ impl ModuleHandler for Handler {
             "environment.create" => Self::plan_create_environment(operation, object),
             "environment.close" => Self::plan_close_environment(operation),
             "examples.install" => Self::plan_examples(operation, object),
+            "matrix.set" => crate::matrix::plan_set(operation, object, resolve),
             _ => plan_object(operation, object, resolve)
                 .unwrap_or_else(|| Err(invalid(operation, "unknown operation"))),
         }

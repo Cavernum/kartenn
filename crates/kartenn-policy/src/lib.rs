@@ -8,6 +8,7 @@
 pub mod diff;
 pub mod evaluate;
 pub mod inference;
+pub mod matrix;
 pub mod model;
 pub mod module;
 pub mod rules;

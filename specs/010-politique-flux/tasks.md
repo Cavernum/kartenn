@@ -239,10 +239,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   `acceptance_of_req_010_21_required_exposure` : un réseau qui hérite l'exposition est
   accepté sans environnement, un réseau qui l'arrête est refusé). REQ-010-22 (non
   classifiés comptés) relève du rapport d'audit (tâche 16).
-- [ ] 11. Vue matricielle (`policy.matrix.set`, lecture) — REQ-010-34 — verify : cas
+- [x] 11. Vue matricielle (`policy.matrix.set`, lecture) — REQ-010-34 — verify : cas
   d'acceptation ; aller-retour vue → règles → vue
   - où : `kartenn-policy/src/matrix.rs`
   - dépend de : 8
+  — `kartenn-policy/src/matrix.rs` : `view` (lecture pure sur un instantané : cellules,
+  état combiné, motifs, décompte des règles hors vue), `cell_of` ; `prepare_set` (règle de
+  la cellule lue dans la transaction) et `plan_set` (création, mise à jour ou clôture de
+  la règle) ; opération `policy.matrix.set` (`module.rs`, `handler.rs`). Tests :
+  `tests/it/matrix.rs` (`a_conditional_cell_is_an_allow_that_requires_its_patterns`, cas
+  d'acceptation ; `a_view_written_and_read_back_keeps_one_rule_per_cell`, aller-retour ;
+  `a_cell_is_refused_without_what_its_state_requires`).
+  choix : quatrième état d'écriture `none` (vide la cellule : clôture de sa règle ; une
+  cellule déjà vide est refusée) ; une règle de vue n'appartient à aucun motif, ne cite ni
+  service ni « même valeur » ; plusieurs règles dans une cellule : `deny` l'emporte, puis
+  `allow` sans motif, sinon `conditional` avec l'union des motifs, et l'écriture met à jour
+  la première par clé ; clé générée `matrix-<uuid>`, libellé `source → destination` par
+  défaut ; hors vue = règle qui cite le type de flux ou un de ses services sans être une
+  règle de vue ; la route REST revient à 010-18 ; droits : ceux d'une règle
+  (`policy.rule.admin`).
 
 ## P3 — Lectures et requêtes
 

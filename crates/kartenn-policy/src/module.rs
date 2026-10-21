@@ -163,6 +163,11 @@ static OPERATIONS: &[OperationType] = &[
         name: "rule.update",
         defines: None,
     },
+    // A cell of the matrix view (REQ-010-34): creates, updates or closes its rule.
+    OperationType {
+        name: "matrix.set",
+        defines: Some(RULE),
+    },
     OperationType {
         name: "condition.create",
         defines: Some(CONDITION),
