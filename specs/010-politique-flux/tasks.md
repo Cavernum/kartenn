@@ -22,11 +22,20 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : jeu de `kartenn-bench` (`crates/kartenn-bench`), modèle de
     `docs/spikes/003-resolution.md`
   - dépend de : —
-- [ ] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
+- [x] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
   (N9) — verify : 512 objets × 6 propriétés < 30 ms au banc ; mêmes résultats que la
   lecture unitaire
   - où : `crates/kartenn-store-pg/src/explain.rs`, `crates/kartenn-service/src/reads.rs`
   - dépend de : —
+  — livrée par la tâche **016-4** (REQ-016-1), dont c'est le port : store
+  `explain::resolved_many`, port `Reader::resolved_many`, service `reads::resolved_many`
+  (objets illisibles absents, valeurs sensibles masquées). Clause par clause : « mêmes
+  résultats que la lecture unitaire » = `kartenn-service/tests/it/grouped.rs`
+  (`resolved_many_matches_explain_on_random_pairs`, 1 000 tirages comparés à `explain`) ;
+  « < 30 ms au banc » = budget « grouped resolution 512 × 6, p95 » de `bench-properties`,
+  25,4 ms sur le jeu `small` (016-4). Reste à rejouer au calme : le jeu complet 10⁶, et la
+  mesure après l'index partiel `0047` (38,9 ms relevés une fois sous une charge de 16–17,
+  sans valeur de mesure) ; la machine était chargée à la clôture de cette tâche.
 
 ## P1 — Domaine pur
 
@@ -117,7 +126,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P2 — Stockage et pipeline
 
-- [ ] 7. Migrations du module (tables `policy_*` versionnées, contraintes, GiST des
+- [x] 7. Migrations du module (tables `policy_*` versionnées, contraintes, GiST des
   ports, `policy_revision`) ; déclarations `policy.environment`,
   `policy.declared_environment` ; référentiel de valeurs partagé (second volet de N7,
   ADR 0026) ; opérations `policy.axis.*`, `policy.value.describe`,
@@ -125,13 +134,68 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   — verify : tests de contraintes ; cas d'acceptation de REQ-010-1, 2, 29
   - où : migrations de `crates/kartenn-vlan` (forme), `declarations.rs`
   - dépend de : 3
-- [ ] 8. Opérations `policy.*` (types, services, règles, motifs, conditions, signaux,
+  — `crates/kartenn-policy` : `migrations/0001_policy.sql` (schéma `policy` : tables
+  versionnées `policy_axis`, `policy_value`, `policy_flow_type`, `policy_service`,
+  `policy_pattern`, `policy_rule`, `policy_condition`, `policy_signal`,
+  `policy_exempt_role`, `policy_inference_rule` ; `policy_revision` à une ligne) ;
+  `module.rs` (module `policy`, dépend de `machines` ; types `policy.axis`,
+  `policy.value` ; déclarations `policy.environment` (ensemble, arbre d'adressage,
+  domaine, préfixe, adresse), `policy.declared_environment` (`values_of`
+  `policy.environment`, machine, non héritée), `policy.personal_data` et les axes
+  d'exemple déclarés mais non désignés ; références axe → propriété (refus), attributs →
+  valeur de liste (cascade)) ; `handler.rs` (opérations `axis.designate`, `axis.update`,
+  `value.describe`, `environment.create` qui planifie `AddEnumValue`,
+  `environment.close` qui planifie la clôture de la valeur en cascade,
+  `examples.install` qui désigne les six axes d'exemple ; verrou `policy` ; révision
+  levée une fois par changeset) ; `pg.rs` (écritures génériques par
+  `jsonb_populate_record` et `kartenn_portion`, unicités vérifiées avant l'écriture) ;
+  règles `policy.operation.invalid`, `policy.axis.invalid`, `policy.value.unknown`,
+  `policy.reference.closed`. Serveur : feature `policy` par défaut. Tests :
+  `tests/it/axes.rs` (`acceptance_of_req_010_1`, `…_2`, `…_29`,
+  `a_value_is_described_then_modified`, `the_revision_rises_once_per_changeset`,
+  `the_tables_keep_their_constraints`, `a_machine_declares_environments_of_the_shared_list`).
+  choix : axes et valeurs nommés par leurs clés (une clé de propriété ou de valeur de liste
+  ne change pas, REQ-003-5), les autres objets cités par identifiant ; termes des règles,
+  textes pédagogiques et entrées d'un service en `jsonb` dans la ligne de l'objet (une
+  version = une ligne) plutôt que les tables filles du design (`policy_rule_term`,
+  `policy_rule_same`, `policy_text`, `policy_service_entry`) ; l'index des ports est celui
+  de l'instantané ; `policy.environment` est un axe implicite, refusé à la désignation ;
+  les axes d'exemple sont déclarés par le module (seul un module déclare `policy.*`) et
+  seulement désignés à l'installation, `policy.exposure` porté par l'arbre, les autres par
+  la machine (S27) ; droits par type (`policy.<type>.write`, globale, S15) ; module
+  dépendant de `machines` (axes portés par la machine, REQ-010-3) ; collection
+  `policy-values` pour les attributs des valeurs.
+- [x] 8. Opérations `policy.*` (types, services, règles, motifs, conditions, signaux,
   textes, rôles exemptés), règles du tableau du design, verrou `policy`, révision,
   événements de module (point différé N15, ADR 0026) — REQ-010-4 à 9, 26, 33 — verify :
   chaque règle de validation a un test ; annulation d'un changeset de règles ; événement
   `org.kartenn.policy.revised`
   - où : opérations de `crates/kartenn-vlan` (forme), `kartenn-service/src/module.rs`
   - dépend de : 7
+  — `crates/kartenn-policy` : `objects.rs` (`flow_type`, `service`, `pattern`, `rule`,
+  `condition`, `signal` : `<type>.create` et `<type>.update` en Merge Patch ;
+  `exempt_role.create` ; clôture par le `Close` du noyau ; contrôles locaux : clé,
+  libellé, entrées d'un service, termes vides, sélecteur de flux, interdiction
+  conditionnelle, textes, genres et paramètres), `codec.rs` (formes JSON des entrées,
+  sélecteurs, textes, genres des conditions et des signaux), `checks.rs` (règles sur
+  l'état final : références à des objets ou valeurs non vivants au début de la version,
+  `Rule::check` contre les axes désignés à cette date, textes dans la langue par défaut,
+  paramètres des conditions et des signaux, `policy.service.wide_ports` en
+  avertissement), `handler.rs` (unicités vérifiées avant l'écriture, révision levée et
+  événement `policy.revised` émis une fois par changeset, y compris à la clôture et à la
+  restauration), `pg.rs` (référents des références du module : service → type, règle →
+  type, service, motif, valeur de liste, condition → règle, type) ; règle
+  `policy.key.duplicate`. Tests : `tests/it/catalogue.rs`
+  (`each_rule_of_validation_refuses_its_case` — 17 cas, un par règle, `a_wide_service_warns`,
+  `a_rule_is_written_modified_and_closed`, `the_undo_of_a_changeset_of_rules`,
+  `a_new_revision_is_announced`), `codec::tests`.
+  choix : pas d'opérations `policy.text.set | remove` : les textes se donnent à la
+  création et se remplacent en entier par `<type>.update` ; une condition et un signal
+  n'ont pas de libellé (design « Données ») ; langue par défaut `fr` en constante
+  (`codec::DEFAULT_LOCALE`) en attendant une configuration de l'instance ; les signaux
+  citent types et services par clé dans leurs paramètres, sans référence bloquante ; un
+  champ inconnu est refusé par `policy.operation.invalid` ; le verrou `policy` est pris
+  par chaque plan (clé nommée, ADR 0026), sans test de concurrence dédié.
 - [ ] 9. Contributions au différentiel (`policy.combinations`, `policy.reclassified`) et
   déclencheurs de module (point différé N5) `policy.write`, `opens`, `closes`,
   `reclassify` — REQ-010-18, 19, 20 — verify : cas d'acceptation de REQ-010-18 en

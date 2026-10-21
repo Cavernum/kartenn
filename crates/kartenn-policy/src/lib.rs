@@ -2,12 +2,26 @@
 //! rules by attributes and patterns, verdicts with their outcome and explanation,
 //! policy differential and inference of expected classifications.
 //!
-//! This crate holds the pure domain, without storage; the module as the core sees it
-//! (ADR 0026) and its storage come with the tasks of phase P2.
+//! This crate holds the pure domain, the module as the core sees it (ADR 0026), and, with
+//! the feature `pg`, its handler in the write pipeline and its storage in PostgreSQL.
 
 pub mod diff;
 pub mod evaluate;
 pub mod inference;
 pub mod model;
+pub mod module;
 pub mod rules;
 pub mod snapshot;
+
+#[cfg(feature = "pg")]
+mod checks;
+#[cfg(feature = "pg")]
+mod codec;
+#[cfg(feature = "pg")]
+pub mod handler;
+#[cfg(feature = "pg")]
+mod objects;
+#[cfg(feature = "pg")]
+mod pg;
+
+pub use module::Policy;

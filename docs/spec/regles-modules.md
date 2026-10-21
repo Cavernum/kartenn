@@ -38,3 +38,31 @@ spécification du module.
 | `machines.mac.duplicate` | avertissement | Une MAC universelle n'est portée que par une interface vivante. | REQ-009-13 | 009/M11 |
 | `machines.address.vlan_mismatch` | avertissement | Le réseau d'une adresse rattachée ne porte pas de VLAN étranger à l'interface. | REQ-009-13 | 009/M11 |
 | `machines.host.site_mismatch` | avertissement | Une machine hébergée et son hébergeur ont le même site résolu. | REQ-009-13 | 009/M11 |
+
+## `policy`
+
+| Identifiant | Sévérité | Règle | Exigences | Source |
+|---|---|---|---|---|
+| `policy.key.syntax` | erreur | Une clé de la politique a de 1 à 63 caractères [a-z0-9] et des traits d'union non doublés ni en bord. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/S5 |
+| `policy.label.invalid` | erreur | Un libellé a de 1 à 200 caractères, sans caractère de contrôle. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/S5 |
+| `policy.service.entry_invalid` | erreur | Un couple d'un service a un transport connu, des ports 1–65535 pour tcp, udp, sctp et dccp, un type et un code ICMP 0–255 sans port, un protocole IP 0–255 sans port. | REQ-010-5 | 010/S5, RFC 6335 §6 |
+| `policy.service.flow_type` | erreur | Un service a exactement un type de flux. | REQ-010-5 | 010/S5, D29 |
+| `policy.service.entries_empty` | erreur | Un service a au moins un couple transport et ports. | REQ-010-5 | 010/S5 |
+| `policy.service.wide_ports` | avertissement | Un service qui couvre plus de 1 024 ports d'un même transport ouvre large. | REQ-010-7 | 010/S5 |
+| `policy.rule.flow_selector_empty` | erreur | Une règle cite au moins un type de flux ou un service. | REQ-010-8 | 010/S7, Q19 |
+| `policy.rule.unknown_axis` | erreur | Une règle ne cite que des propriétés désignées comme axes de la politique. | REQ-010-8, REQ-010-29 | 010/S22 |
+| `policy.rule.term_empty` | erreur | Un terme d'un sélecteur d'extrémité admet au moins une valeur. | REQ-010-8 | 010/S23 |
+| `policy.rule.conditional_deny` | erreur | Seule une autorisation peut exiger des motifs. | REQ-010-8, REQ-010-32 | 010/S25 |
+| `policy.text.missing` | erreur | Une interdiction, un motif et une condition portent un texte pédagogique dans la langue par défaut. | REQ-010-33 | 010/S29 |
+| `policy.text.invalid` | erreur | Un texte pédagogique est non vide, sans caractère de contrôle hors saut de ligne, d'au plus 4 000 caractères. | REQ-010-33 | 010/S29 |
+| `policy.condition.params_invalid` | erreur | Les paramètres d'une condition d'admissibilité respectent le schéma de son genre. | REQ-010-36 | 010/S30 |
+| `policy.signal.params_invalid` | erreur | Les paramètres d'un signal respectent le schéma de son genre. | REQ-010-37 | 010/S32 |
+| `policy.inference.regex_invalid` | erreur | Une expression régulière d'inférence est ancrée, d'au plus 256 caractères, dans la syntaxe du moteur à temps linéaire. | REQ-010-42 | 010/I3 |
+| `policy.inference.depth` | erreur | Les exceptions d'une règle d'inférence s'imbriquent sur 4 niveaux au plus. | REQ-010-44 | 010/I5 |
+| `policy.inference.criterion_invalid` | erreur | Un critère d'inférence admet au moins une valeur, et une règle au moins une valeur attendue. | REQ-010-42 | 010/I3 |
+| `policy.inference.conflict` | avertissement | Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents. | REQ-010-45 | 010/I6 adouci |
+| `policy.operation.invalid` | erreur | Une opération de la politique a un corps conforme à son schéma et cite des objets connus. | REQ-010-26 | ADR 0026 clause 6 |
+| `policy.axis.invalid` | erreur | Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé. | REQ-010-29 | 010/S22 |
+| `policy.value.unknown` | erreur | Les attributs d'une valeur décrivent une valeur vivante d'un axe. | REQ-010-2, REQ-010-30 | 010/S2 |
+| `policy.key.duplicate` | erreur | La clé d'un objet de la politique est unique sur sa période parmi les objets de son type. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/design « Données » |
+| `policy.reference.closed` | erreur | Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période. | REQ-010-2, REQ-010-8 | 010/design « Opérations » |

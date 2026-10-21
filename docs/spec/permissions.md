@@ -56,12 +56,39 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `machines.interface.read` | — | Lire les interfaces. |
 | `machines.interface.write` | — | Créer, modifier ou clore une interface. |
 | `machines.interface.propose` | — | Proposer un changement d'une interface. |
+| `policy.axis.read` | — | Lire les axes de la politique. |
+| `policy.axis.write` | oui | Désigner, modifier ou retirer un axe de la politique. |
+| `policy.axis.propose` | oui | Proposer un changement d'un axe de la politique. |
+| `policy.value.read` | — | Lire les attributs des valeurs des axes. |
+| `policy.value.write` | oui | Décrire une valeur d'axe, créer ou clore un environnement. |
+| `policy.value.propose` | oui | Proposer un changement des attributs d'une valeur d'axe. |
+| `policy.flow_type.read` | — | Lire les types de flux. |
+| `policy.flow_type.write` | oui | Créer, modifier ou clore un type de flux. |
+| `policy.flow_type.propose` | oui | Proposer un changement d'un type de flux. |
+| `policy.service.read` | — | Lire le catalogue de services. |
+| `policy.service.write` | oui | Créer, modifier ou clore un service. |
+| `policy.service.propose` | oui | Proposer un changement d'un service. |
+| `policy.pattern.read` | — | Lire les motifs d'architecture. |
+| `policy.pattern.write` | oui | Créer, modifier ou clore un motif d'architecture. |
+| `policy.pattern.propose` | oui | Proposer un changement d'un motif d'architecture. |
+| `policy.rule.read` | — | Lire les règles de la politique. |
+| `policy.rule.write` | oui | Créer, modifier ou clore une règle de la politique. |
+| `policy.rule.propose` | oui | Proposer un changement d'une règle de la politique. |
+| `policy.condition.read` | — | Lire les conditions d'admissibilité. |
+| `policy.condition.write` | oui | Créer, modifier ou clore une condition d'admissibilité. |
+| `policy.condition.propose` | oui | Proposer un changement d'une condition d'admissibilité. |
+| `policy.signal.read` | — | Lire les signaux de risque. |
+| `policy.signal.write` | oui | Créer, modifier ou clore un signal de risque. |
+| `policy.signal.propose` | oui | Proposer un changement d'un signal de risque. |
+| `policy.exempt_role.read` | — | Lire les rôles d'interface exemptés. |
+| `policy.exempt_role.write` | oui | Exempter un rôle d'interface ou retirer l'exemption. |
+| `policy.exempt_role.propose` | oui | Proposer une exemption d'un rôle d'interface. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
 | Administrateur | `administrator` | `*` |
