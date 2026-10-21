@@ -77,8 +77,17 @@ impl Identities for PgStore {
         subject: &str,
         name: &str,
     ) -> Result<(Uuid, bool), StoreError> {
+        let mut tx = self.pool().begin().await.map_err(store_err)?;
+        // A requester a service account named for this subject is the same person: it
+        // becomes one, and takes the issuer's name below (016, G10, INV-60).
+        sqlx::query("SELECT public.kartenn_promote_requester($1, $2)")
+            .bind(issuer)
+            .bind(subject)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?;
         // A pseudonymised person keeps its pseudonym (004, REQ-004-33).
-        sqlx::query_as(
+        let row = sqlx::query_as(
             "INSERT INTO person (id, display_name, issuer, subject, kind)
              VALUES ($1, $2, $3, $4, 'person')
              ON CONFLICT (issuer, subject) DO UPDATE
@@ -90,9 +99,11 @@ impl Identities for PgStore {
         .bind(name)
         .bind(issuer)
         .bind(subject)
-        .fetch_one(self.pool())
+        .fetch_one(&mut *tx)
         .await
-        .map_err(store_err)
+        .map_err(store_err)?;
+        tx.commit().await.map_err(store_err)?;
+        Ok(row)
     }
 
     async fn requester(

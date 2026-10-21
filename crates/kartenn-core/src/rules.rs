@@ -239,6 +239,8 @@ rules! {
         "Un rôle livré ne change que par la synchronisation du noyau.";
     RBAC_UNKNOWN_ROLE = "core.role.unknown", Error, ["REQ-005-25"], "005/K6",
         "Une liaison désigne un rôle en vigueur.";
+    RBAC_REQUESTER = "core.binding.requester", Error, ["REQ-016-12"], "016/G10",
+        "Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
     OBJECT_DEPENDENTS = "core.object.dependents", Error, ["REQ-008-10"], "D33, ADR 0026",

@@ -200,6 +200,23 @@ async fn bind(
                 .with_subjects([id]),
         ));
     };
+    if let BindingSubject::Identity { id: identity } = subject {
+        // A requester is not an account (016/G10, INV-60): refused before any write.
+        let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM person WHERE id = $1")
+            .bind(identity)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(write_err)?;
+        if kind.as_deref() == Some("requester") {
+            return Err(WriteError::Rule(
+                Violation::new(
+                    &rules::RBAC_REQUESTER,
+                    format!("identity {identity} is a requester, not an account"),
+                )
+                .with_subjects([id]),
+            ));
+        }
+    }
     let (kind, subject_id, issuer, group) = match subject {
         BindingSubject::Identity { id } => ("identity", Some(*id), None, None),
         BindingSubject::Group { issuer, group } => {

@@ -180,10 +180,12 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 
 ## Identités et RBAC (spec 005, ADR 0021)
 
-- **Identités** (`person`, étendue par les migrations 0028 et 0055) : `kind` (`person`,
-  `service_account`, `breakglass`, `system`, `requester` — demandeur nommé par un compte
-  de service, sans secret ni liaison, jamais connecté ; le rôle applicatif ne change
-  jamais la sorte d'une identité), émetteur et `sub` pour une personne (une
+- **Identités** (`person`, étendue par les migrations 0028, 0055 et 0056) : `kind`
+  (`person`, `service_account`, `breakglass`, `system`, `requester` — demandeur nommé par
+  un compte de service, sans secret ni liaison, jamais connecté ; le rôle applicatif ne
+  change jamais la sorte d'une identité, sauf `requester` → `person` à la première
+  connexion par l'émetteur et le sujet qu'il porte, par la fonction
+  `kartenn_promote_requester`), émetteur et `sub` pour une personne (une
   identité par couple), nom affiché seul, `disabled_at`, `revoked_after` (sessions
   ouvertes avant refusées). Le nom d'un compte de service ou de secours est unique dans
   sa sorte (migrations 0031, 0032) et sert d'identifiant de connexion.
