@@ -259,8 +259,8 @@ Acceptation :
 #### REQ-009-17 — Arêtes du graphe
 kartenn doit déclarer les arêtes `machines.has_address` (interface → adresse),
 `machines.access`, `machines.tagged`, `machines.native` (interface → VLAN),
-`machines.hosted_on` (machine → hébergeur), `machines.member_of` (machine → cluster)
-(REQ-008-11).
+`machines.hosted_on` (machine → machine hôte), `machines.hosted_in` (machine → cluster
+hôte), `machines.member_of` (machine → cluster) (REQ-008-11).
 
 Acceptation :
 - `GET /v1/graph/edges?object=<adresse>` rend l'arête vers l'interface qui la porte.

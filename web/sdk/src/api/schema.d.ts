@@ -489,6 +489,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/clusters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The clusters the caller may read. */
+    get: operations["list_clusters"];
+    put?: never;
+    /** Creates a cluster. */
+    post: operations["create_cluster"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/clusters/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The cluster. */
+    get: operations["show_cluster"];
+    put?: never;
+    post?: never;
+    /** Closes the cluster. */
+    delete: operations["close_cluster"];
+    options?: never;
+    head?: never;
+    /** Modifies the cluster (JSON Merge Patch). */
+    patch: operations["modify_cluster"];
+    trace?: never;
+  };
   "/v1/clusters/{id}/history": {
     parameters: {
       query?: never;
@@ -498,6 +535,23 @@ export interface paths {
     };
     /** The versions of the record of the machines.cluster, on both axes (REQ-004-18). */
     get: operations["machines_cluster_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/clusters/{id}/machines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The members of the cluster and the machines it hosts, those the caller may read. */
+    get: operations["cluster_machines"];
     put?: never;
     post?: never;
     delete?: never;
@@ -979,6 +1033,77 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/interfaces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The interfaces the caller may read. */
+    get: operations["list_interfaces"];
+    put?: never;
+    /** Creates a interface. */
+    post: operations["create_interface"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/interfaces/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The interface. */
+    get: operations["show_interface"];
+    put?: never;
+    post?: never;
+    /** Closes the interface. */
+    delete: operations["close_interface"];
+    options?: never;
+    head?: never;
+    /** Modifies the interface (JSON Merge Patch). */
+    patch: operations["modify_interface"];
+    trace?: never;
+  };
+  "/v1/interfaces/{id}/attachments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Attaches an address to the interface (REQ-009-9); the address is only read. */
+    post: operations["attach_address"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/interfaces/{id}/attachments/{address}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Detaches the address from the interface. */
+    delete: operations["detach_address"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/interfaces/{id}/history": {
     parameters: {
       query?: never;
@@ -1091,6 +1216,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/machines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The machines the caller may read. */
+    get: operations["list_machines"];
+    put?: never;
+    /** Creates a machine. */
+    post: operations["create_machine"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The machine. */
+    get: operations["show_machine"];
+    put?: never;
+    post?: never;
+    /** Closes the machine. */
+    delete: operations["close_machine"];
+    options?: never;
+    head?: never;
+    /** Modifies the machine (JSON Merge Patch). */
+    patch: operations["modify_machine"];
+    trace?: never;
+  };
+  "/v1/machines/{id}/addresses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The addresses of the machine by interface, those the caller may read (REQ-009-16). */
+    get: operations["machine_addresses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/machines/{id}/history": {
     parameters: {
       query?: never;
@@ -1100,6 +1279,23 @@ export interface paths {
     };
     /** The versions of the record of the machines.machine, on both axes (REQ-004-18). */
     get: operations["machines_machine_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/hosted": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The machines hosted by the machine, those the caller may read. */
+    get: operations["machine_hosted"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2140,6 +2336,19 @@ export interface components {
     };
     /** @description The body of an attachment. */
     AttachWrite: components["schemas"]["Reserved"] & components["schemas"]["AttachMembers"];
+    /** @description The body of the attachment of an address to an interface (REQ-009-9). */
+    AttachmentCreation: {
+      /** @description The address of the core. */
+      address: components["schemas"]["MachinesObjectRef"];
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The primary address of its family on the interface. */
+      primary?: boolean | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
     /** @description The attachment of an issuer. */
     AttachmentItem: {
       /**
@@ -2435,6 +2644,47 @@ export interface components {
       motive: string;
       /** @description The start of the closure, RFC 3339; now by default. */
       valid_from?: string | null;
+    };
+    /** @description A cluster of machines (REQ-009-3). */
+    Cluster: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      owner?: components["schemas"]["MachinesObjectRef"] | null;
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Slug, unique among the living clusters. */
+      slug: string;
+    };
+    /** @description The body of the creation of a cluster. */
+    ClusterCreation: {
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The owner (`core.owner`). */
+      owner: components["schemas"]["MachinesObjectRef"];
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Slug. */
+      slug: string;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
+    /** @description The body of the modification of a cluster (JSON Merge Patch); `site: null` removes it. */
+    ClusterPatch: {
+      /** @description Why; required by the rules. */
+      motive: string;
+      owner?: components["schemas"]["MachinesObjectRef"] | null;
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Slug. */
+      slug?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
     };
     /** @description An object of the core, of any kind. */
     CoreObject:
@@ -2762,6 +3012,81 @@ export interface components {
       /** @description The import. */
       self: string;
     };
+    /** @description An interface of a machine (REQ-009-6). */
+    Interface: {
+      /** @description Whether it is enabled. */
+      enabled: boolean;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its EUI-48, canonical (`aa:bb:cc:dd:ee:ff`). */
+      mac?: string | null;
+      /** @description Its machine. */
+      machine: components["schemas"]["MachinesObjectRef"];
+      /** @description Its name, unique on its machine. */
+      name: string;
+      /** @description Its 802.1Q mode. */
+      vlan: components["schemas"]["InterfaceVlan"];
+    };
+    /** @description The body of the creation of an interface. */
+    InterfaceCreation: {
+      /** @description Enabled, by default. */
+      enabled?: boolean | null;
+      /** @description Its EUI-48, any usual notation. */
+      mac?: string | null;
+      /** @description Its machine, fixed. */
+      machine: components["schemas"]["MachinesObjectRef"];
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Its name. */
+      name: string;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      vlan?: components["schemas"]["InterfaceVlanInput"] | null;
+    };
+    /**
+     * @description The body of the modification of an interface (JSON Merge Patch); `mac: null` and
+     *     `vlan: null` remove them.
+     */
+    InterfacePatch: {
+      /** @description Whether it is enabled. */
+      enabled?: boolean | null;
+      /** @description Its EUI-48. */
+      mac?: string | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Its name. */
+      name?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      vlan?: components["schemas"]["InterfaceVlanInput"] | null;
+    };
+    /** @description The 802.1Q mode of an interface (REQ-009-12). */
+    InterfaceVlan: {
+      access?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description `none`, `access` or `trunk`. */
+      mode: string;
+      native?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description The tagged VLANs of a trunk. */
+      tagged: components["schemas"]["MachinesObjectRef"][];
+    };
+    /** @description The 802.1Q mode of an interface, as written. */
+    InterfaceVlanInput: {
+      access?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description `none`, `access` or `trunk`. */
+      mode: string;
+      native?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description The tagged VLANs of a trunk. */
+      tagged?: components["schemas"]["MachinesObjectRef"][] | null;
+    };
     /** @description An issuer a browser logs in at, as the login page names it. */
     IssuerDto: {
       /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
@@ -2923,6 +3248,13 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_Cluster: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["Cluster"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_DeclarationItem: {
       /** @description The elements of the page. */
       items: {
@@ -3045,6 +3377,27 @@ export interface components {
         /** @description `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`. */
         state: string;
       }[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_Interface: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["Interface"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_Machine: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["Machine"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_MachineAddress: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["MachineAddress"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -3204,6 +3557,152 @@ export interface components {
       filter: string;
       /** @description The output. */
       output: string;
+    };
+    /** @description A machine (REQ-009-2). */
+    Machine: {
+      host?: components["schemas"]["MachineHost"] | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description `physical`, `virtual`, `container` or `appliance`. */
+      kind: string;
+      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Host name, lower case, unique per resolved owner. */
+      name: string;
+      owner?: components["schemas"]["MachinesObjectRef"] | null;
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+    };
+    /** @description An address attached to an interface (REQ-009-16). */
+    MachineAddress: {
+      /** @description The address of the core. */
+      address: components["schemas"]["MachinesObjectRef"];
+      /** @description The URL of the address. */
+      href: string;
+      /** @description The interface that holds it. */
+      interface: components["schemas"]["MachinesObjectRef"];
+      /** @description The name of the interface. */
+      interface_name: string;
+      /** @description Whether it is the primary address of its family on the interface. */
+      primary: boolean;
+      /** @description Its value, without prefix length. */
+      value: string;
+    };
+    /** @description The card of a machine: the machine, its interfaces and their addresses (REQ-009-15). */
+    MachineCard: {
+      host?: components["schemas"]["MachineHost"] | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its interfaces the caller may read, by name. */
+      interfaces: components["schemas"]["MachineCardInterface"][];
+      /** @description Its kind. */
+      kind: string;
+      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Host name. */
+      name: string;
+      owner?: components["schemas"]["MachinesObjectRef"] | null;
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+    };
+    /** @description An address on the card of a machine. */
+    MachineCardAddress: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Whether it is primary for its family. */
+      primary: boolean;
+      /** @description Its value. */
+      value: string;
+    };
+    /** @description An interface on the card of its machine, with the addresses the caller may read. */
+    MachineCardInterface: {
+      /** @description Its addresses, `(identifier, value)`. */
+      addresses: components["schemas"]["MachineCardAddress"][];
+      /** @description Whether it is enabled. */
+      enabled: boolean;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its EUI-48, canonical. */
+      mac?: string | null;
+      /** @description Its name. */
+      name: string;
+    };
+    /** @description The body of the creation of a machine. */
+    MachineCreation: {
+      host?: components["schemas"]["MachineHost"] | null;
+      /** @description `physical`, `virtual`, `container` or `appliance`. */
+      kind: string;
+      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Host name. */
+      name: string;
+      /** @description The owner (`core.owner`). */
+      owner: components["schemas"]["MachinesObjectRef"];
+      site?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
+    /** @description The host of a virtual machine or a container (M5): a machine or a cluster. */
+    MachineHost:
+      | {
+          /** @description A machine. */
+          machine: components["schemas"]["MachinesObjectRef"];
+        }
+      | {
+          /** @description A cluster. */
+          cluster: components["schemas"]["MachinesObjectRef"];
+        };
+    /**
+     * @description The body of the modification of a machine (JSON Merge Patch); `host: null` and
+     *     `member_of: null` remove them. Its owner and site change by the operations of the core.
+     */
+    MachinePatch: {
+      host?: components["schemas"]["MachineHost"] | null;
+      /** @description Kind. */
+      kind?: string | null;
+      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Host name. */
+      name?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
+    /** @description The optional body of the closure of an object of the module, or of a detachment. */
+    MachinesClosure: {
+      /** @description Also close or detach what cites the object (REQ-009-14). */
+      cascade?: boolean | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The start of the closure, RFC 3339; now by default. */
+      valid_from?: string | null;
+    };
+    /** @description The identifier of an object, as the operations name it. */
+    MachinesObjectRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
     };
     /** @description The caller and their effective rights, summed up. */
     Me: {
@@ -6053,6 +6552,224 @@ export interface operations {
       };
     };
   };
+  list_clusters: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        slug?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Cluster"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_cluster: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ClusterCreation"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_cluster: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Cluster"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_cluster: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["MachinesClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_cluster: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["ClusterPatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   machines_cluster_history: {
     parameters: {
       query?: {
@@ -6081,6 +6798,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  cluster_machines: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of machines. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Machine"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -7425,6 +8183,330 @@ export interface operations {
       };
     };
   };
+  list_interfaces: {
+    parameters: {
+      query?: {
+        /** @description Of this machine. */
+        machine?: string;
+        /** @description Equal to. */
+        name?: string;
+        /** @description This EUI-48, any usual notation. */
+        mac?: string;
+        /** @description Holding this address at the date. */
+        address?: string;
+        /** @description Carrying this VLAN, access, native or tagged. */
+        vlan?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Interface"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_interface: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InterfaceCreation"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_interface: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The interface. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Interface"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_interface: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The interface. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["MachinesClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_interface: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The interface. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["InterfacePatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  attach_address: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version of the interface read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The interface. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttachmentCreation"];
+      };
+    };
+    responses: {
+      /** @description Attached. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  detach_address: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version of the interface read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The interface. */
+        id: string;
+        /** @description The address. */
+        address: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["MachinesClosure"];
+      };
+    };
+    responses: {
+      /** @description Detached. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   machines_interface_history: {
     parameters: {
       query?: {
@@ -7744,6 +8826,275 @@ export interface operations {
       };
     };
   };
+  list_machines: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Starting with. */
+        name_prefix?: string;
+        /** @description `physical`, `virtual`, `container` or `appliance`. */
+        kind?: string;
+        /** @description Hosted by this machine or this cluster. */
+        host?: string;
+        /** @description Hosted by or member of this cluster. */
+        cluster?: string;
+        /** @description Whose resolved owner is this entity. */
+        owner?: string;
+        /** @description Whose resolved site is this site. */
+        site?: string;
+        /** @description Holding an address of this network. */
+        network?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Machine"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_machine: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MachineCreation"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_machine: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MachineCard"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_machine: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["MachinesClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_machine: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["MachinePatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machine_addresses: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The addresses. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_MachineAddress"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   machines_machine_history: {
     parameters: {
       query?: {
@@ -7772,6 +9123,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machine_hosted: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of machines. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Machine"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -10651,6 +12043,10 @@ export interface queries {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_AuditEvent"];
   };
+  "/v1/clusters": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_Cluster"];
+  };
   "/v1/domains": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Domain"];
@@ -10658,6 +12054,14 @@ export interface queries {
   "/v1/entities": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Node"];
+  };
+  "/v1/interfaces": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_Interface"];
+  };
+  "/v1/machines": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_Machine"];
   };
   "/v1/prefixes": {
     body: components["schemas"]["Search"];

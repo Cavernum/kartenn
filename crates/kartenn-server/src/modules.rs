@@ -23,6 +23,8 @@ pub fn routers() -> Vec<kartenn_rest::ModuleRouter> {
     let routers: Vec<kartenn_rest::ModuleRouter> = vec![
         #[cfg(feature = "vlan")]
         kartenn_vlan::rest::routes(),
+        #[cfg(feature = "machines")]
+        kartenn_machines::rest::routes(),
     ];
     routers
 }

@@ -11,7 +11,7 @@ use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{
-    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    EdgeType, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
 };
 
 use crate::rules::MACHINES_RULES;
@@ -48,6 +48,24 @@ fn declaration(key: &str, spec: TypeSpec, carrier: &str) -> Declaration {
         obligations: BTreeSet::new(),
         expected: None,
     }
+}
+
+/// The type of the clusters, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn cluster_type() -> &'static ObjectType {
+    &TYPES[0]
+}
+
+/// The type of the machines, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn machine_type() -> &'static ObjectType {
+    &TYPES[1]
+}
+
+/// The type of the interfaces, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn interface_type() -> &'static ObjectType {
+    &TYPES[2]
 }
 
 static TYPES: &[ObjectType] = &[
@@ -206,6 +224,47 @@ static REFERENCES: &[Reference] = &[
     },
 ];
 
+/// The edges of the topology graph (REQ-009-17). An [`EdgeType`] has one type of end: a
+/// machine hosted on a cluster is `machines.hosted_in`, beside `machines.hosted_on` for a
+/// host machine.
+static EDGES: &[EdgeType] = &[
+    EdgeType {
+        name: "machines.has_address",
+        from: INTERFACE,
+        to: ADDRESS,
+    },
+    EdgeType {
+        name: "machines.access",
+        from: INTERFACE,
+        to: VLAN,
+    },
+    EdgeType {
+        name: "machines.tagged",
+        from: INTERFACE,
+        to: VLAN,
+    },
+    EdgeType {
+        name: "machines.native",
+        from: INTERFACE,
+        to: VLAN,
+    },
+    EdgeType {
+        name: "machines.hosted_on",
+        from: MACHINE,
+        to: MACHINE,
+    },
+    EdgeType {
+        name: "machines.hosted_in",
+        from: MACHINE,
+        to: CLUSTER,
+    },
+    EdgeType {
+        name: "machines.member_of",
+        from: MACHINE,
+        to: CLUSTER,
+    },
+];
+
 /// The machines and interfaces module (spec 009).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Machines;
@@ -249,6 +308,9 @@ impl Module for Machines {
     }
     fn references(&self) -> &'static [Reference] {
         REFERENCES
+    }
+    fn edges(&self) -> &'static [EdgeType] {
+        EDGES
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS

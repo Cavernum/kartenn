@@ -218,7 +218,9 @@ noyau (clé `machines.interface_role`).
 | `GET /v1/machines?network=<prefix>` | machines d'un réseau |
 
 Arêtes (REQ-009-17) déclarées au registre : `machines.has_address`, `machines.access`,
-`machines.tagged`, `machines.native`, `machines.hosted_on`, `machines.member_of`.
+`machines.tagged`, `machines.native`, `machines.hosted_on` (machine → machine hôte),
+`machines.hosted_in` (machine → cluster hôte), `machines.member_of`. Un type d'arête
+n'a qu'un type d'extrémité : l'hébergement par un cluster a donc son propre nom.
 
 Droits (M16) : `attach_address` exige `machines.interface.write` (ou `propose`) sur
 l'interface et `core.address.read` sur l'adresse ; le gestionnaire ajoute ce second

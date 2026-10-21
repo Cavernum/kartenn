@@ -569,6 +569,23 @@ impl Store for PgStore {
     ) -> Result<HashMap<String, Uuid>, StoreError> {
         crate::imports::externals(&self.pool, source, external_ids).await
     }
+
+    async fn applied_changeset(
+        &self,
+        author: Uuid,
+        motive: &str,
+    ) -> Result<Option<Uuid>, StoreError> {
+        sqlx::query_scalar(
+            "SELECT id FROM changeset
+              WHERE author_id = $1 AND motive = $2 AND state = 'applied'
+              ORDER BY id LIMIT 1",
+        )
+        .bind(author)
+        .bind(motive)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)
+    }
 }
 
 fn table(kind: ObjectKind) -> &'static str {

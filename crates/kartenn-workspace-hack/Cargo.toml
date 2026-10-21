@@ -57,9 +57,7 @@ sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10", features = ["oid"]
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde"] }
-sqlx = { version = "0.9", default-features = false, features = ["json", "macros", "migrate", "postgres", "runtime-tokio", "time", "tls-none", "uuid"] }
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
-sqlx-postgres = { version = "0.9", default-features = false, features = ["migrate", "offline", "time", "uuid"] }
 subtle = { version = "2", features = ["const-generics"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
@@ -104,7 +102,6 @@ sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde"] }
 sqlx-core = { version = "0.9", features = ["_rt-tokio", "any", "json", "migrate", "offline", "time", "uuid"] }
-sqlx-postgres = { version = "0.9", default-features = false, features = ["migrate", "offline", "time", "uuid"] }
 subtle = { version = "2", features = ["const-generics"] }
 syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit", "visit-mut"] }

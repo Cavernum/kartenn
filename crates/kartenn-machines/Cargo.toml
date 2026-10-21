@@ -13,22 +13,40 @@ workspace = true
 [features]
 # The handler in the write pipeline and the storage in PostgreSQL (design 009, « Crates »).
 pg = ["dep:sqlx", "dep:serde", "dep:serde_json"]
+# Its routes under `/v1`, mounted by kartenn-server (design 009, « Routes »).
+rest = ["pg", "dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:time", "dep:utoipa"]
 
 [dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }
 kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
+kartenn-rest = { version = "0.0.0", path = "../kartenn-rest", optional = true }
 kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg", optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"], optional = true }
+time = { version = "0.3.55", optional = true }
+utoipa = { version = "6.0.0", default-features = false, features = ["macros", "uuid"], optional = true }
 uuid = { version = "1.28.0", features = ["v7", "serde"] }
 
 [[test]]
 name = "machines"
 required-features = ["pg"]
 
+[[test]]
+name = "rest"
+required-features = ["rest"]
+
+[[test]]
+name = "imports"
+required-features = ["pg"]
+
 [dev-dependencies]
+http-body-util = "0.1"
+kartenn-auth = { path = "../kartenn-auth" }
+tower = { version = "0.5", features = ["util"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
-kartenn-vlan = { path = "../kartenn-vlan", features = ["pg"] }
+kartenn-vlan = { path = "../kartenn-vlan", features = ["rest"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time", "json"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "time"] }

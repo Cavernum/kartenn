@@ -550,6 +550,14 @@ pub trait Store: Send + Sync {
         external_ids: &[String],
     ) -> impl Future<Output = Result<HashMap<String, Uuid>, StoreError>> + Send;
 
+    /// The changeset of `author` applied with `motive`, if any: a batch of an import that
+    /// a stop kept from being recorded (REQ-004-29).
+    fn applied_changeset(
+        &self,
+        author: Uuid,
+        motive: &str,
+    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+
     /// What an applied changeset wrote, to undo it; `None` if it is not applied.
     fn undo_facts(
         &self,
