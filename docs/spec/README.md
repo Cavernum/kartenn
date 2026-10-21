@@ -138,7 +138,7 @@ Non-objectifs :
 | [0025](../adr/0025-plugins-web.md) | Plugins Web : répertoire servi, code de confiance, SDK partagé | accepted |
 | [0026](../adr/0026-contrat-de-module.md) | Contrat de module : registre, schéma et migrations par module, `module_object`, opérations en enveloppe, ancres `core.owner`/`core.site` | accepted |
 | [0027](../adr/0027-un-binaire-de-tests-par-crate.md) | Un binaire de tests d'intégration par crate (`tests/it/`), `kartenn-server::http` à part | accepted |
-| [0028](../adr/0028-base-de-test-gabarit.md) | Bases de test clonées d'un gabarit migré (`#[kartenn_testing::pg_test]`, `WAL_LOG`) | proposed |
+| [0028](../adr/0028-base-de-test-gabarit.md) | Bases de test clonées d'un gabarit migré (`#[kartenn_testing::pg_test]`, `WAL_LOG`) | accepted |
 
 ## Questions ouvertes
 
