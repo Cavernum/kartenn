@@ -194,8 +194,10 @@ button {
   margin-bottom: var(--k-space-2);
 }
 
+/* The tabs of plugins add up: the row wraps rather than run under the side panels. */
 .k-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--k-space-1);
   border-bottom: 1px solid var(--k-color-border);
   margin-bottom: var(--k-space-3);

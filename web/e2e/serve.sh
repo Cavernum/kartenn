@@ -3,7 +3,7 @@
 # (`webServer`, in this order, before global-setup.ts):
 # - `serve.sh idp`: builds the binaries, writes the material of web/e2e/.state (authority,
 #   loopback certificate, client secret, key ring), then serves the issuer on 9444;
-# - `serve.sh kartenn`: builds the shell and the example plugin, gathers the plugins under
+# - `serve.sh kartenn`: builds the shell and the plugins of web/plugins, gathers them under
 #   web/e2e/.state/plugins, recreates the kartenn_e2e database, migrates it,
 #   creates the break-glass account `e2e` (its proofs in web/e2e/.state/breakglass.txt)
 #   and binds it to `administrator`, then serves kartenn-server on 9443.
@@ -23,9 +23,9 @@ idp)
   ;;
 kartenn)
   pnpm -C web --filter @kartenn/shell build >/dev/null
-  # The plugins directory of the instance: the test plugins and the example plugin, built
-  # as an operator would install it (web/dist/plugins).
-  pnpm -C web --filter @kartenn/plugin-example build >/dev/null
+  # The plugins directory of the instance: the test plugins, the example plugin and the
+  # plugin of the VLAN module, built as an operator would install them (web/dist/plugins).
+  pnpm -C web --filter @kartenn/plugin-example --filter @kartenn/plugin-vlan build >/dev/null
   rm -rf "$state/plugins"
   mkdir -p "$state/plugins"
   cp -R web/e2e/plugins/. web/dist/plugins/. "$state/plugins/"

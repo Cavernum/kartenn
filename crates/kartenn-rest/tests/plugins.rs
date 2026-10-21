@@ -369,3 +369,57 @@ fn a_file_rewritten_in_place_gets_its_new_digest() {
     plugins.reload();
     assert_ne!(plugins.published()[0].integrity["index.js"], before);
 }
+
+/// The plugin of the VLAN module as written in web/plugins/vlan (spec 008, REQ-008-24): its
+/// manifest and catalogues hold, and it is published only by a build with the module.
+#[test]
+fn the_vlan_plugin_is_published_only_with_its_module() {
+    use tracing_subscriber::layer::SubscriberExt;
+    // The reason of a rejection, in the message of a failure.
+    let (output, mut logs) = kartenn_telemetry::capture::Output::new("test", "debug", 64).unwrap();
+    let subscriber = tracing_subscriber::registry()
+        .with(kartenn_telemetry::capture::CaptureLayer::new(vec![output]));
+    let _guard = tracing::subscriber::set_default(subscriber);
+    let mut rejections = || {
+        let mut found = Vec::new();
+        while let Ok(record) = logs.try_recv() {
+            if record.name == "web.plugin.rejected" {
+                found.push(format!("{:?}", record.fields));
+            }
+        }
+        found
+    };
+    let public = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/plugins/vlan/public");
+    let manifest: Value =
+        serde_json::from_slice(&std::fs::read(public.join("manifest.json")).unwrap()).unwrap();
+    let with = |modules: &[&str]| {
+        let root = dir();
+        let version = root
+            .join("vlan")
+            .join(manifest["version"].as_str().unwrap());
+        std::fs::create_dir_all(version.join("i18n")).unwrap();
+        for file in [
+            "manifest.json",
+            "styles.css",
+            "i18n/fr.json",
+            "i18n/en.json",
+        ] {
+            std::fs::copy(public.join(file), version.join(file)).unwrap();
+        }
+        std::fs::write(version.join("index.js"), "export {};").unwrap();
+        let modules = modules.iter().map(|&m| m.to_owned()).collect();
+        published(&Plugins::open(&root, modules).unwrap())
+    };
+    assert_eq!(
+        with(&["objects", "vlan"]),
+        [("vlan".to_owned(), "1.0.0".to_owned())],
+        "{:?}",
+        rejections()
+    );
+    assert!(with(&["objects"]).is_empty());
+    assert!(
+        rejections()
+            .iter()
+            .any(|r| r.contains("module vlan absent from the build"))
+    );
+}

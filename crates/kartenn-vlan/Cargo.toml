@@ -37,6 +37,10 @@ name = "groups"
 required-features = ["pg"]
 
 [[test]]
+name = "imports"
+required-features = ["pg"]
+
+[[test]]
 name = "rest"
 required-features = ["rest"]
 

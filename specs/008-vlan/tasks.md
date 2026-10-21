@@ -404,11 +404,20 @@ numérotées après coup.
   de module accepte `cascade` dans son corps ; un membre inconnu → 400, un `null` dans un
   Merge Patch → 422 `invalid-member` ; l'occupation et le prochain libre ont un `ETag`
   faible de contenu.
-- [ ] 15. Imports : opérations du module dans les imports par morceaux — REQ-008-23 —
+- [x] 15. Imports : opérations du module dans les imports par morceaux — REQ-008-23 —
   verify : `import_ten_thousand_vlans_resumes_without_duplicates`
   où : `kartenn-rest/src/imports.rs`, `kartenn-service/src/import.rs` ; test voisin
   `kartenn-rest/tests/imports.rs`
   dépend de : 14
+  — Service : `import.rs` (`uses` : les références locales d'une opération de module sont
+  les `{"local": n}` de son corps, pour l'ordre des éléments et la reprise ;
+  `created_module_kind` : une création de module est liée à son identifiant source sous
+  le type que déclare son opération). Les morceaux REST acceptaient déjà l'enveloppe de
+  module (008-8). Test : `kartenn-vlan/tests/imports.rs` (10⁴ VLAN dans 100 groupes,
+  donnés VLAN d'abord ; reprise après un arrêt où les lots appliqués n'ont pas été notés).
+  choix : référence locale d'un corps de module reconnue à sa forme `{"local": n}` (celle
+  de `Ref`), sans consulter le module ; le rang des opérations de module reste le dernier,
+  l'ordre venant des références.
 
 ## P3 — Budgets, interface, synchronisation
 
@@ -417,13 +426,27 @@ numérotées après coup.
   REQ-008-25 — verify : `bench-core` vert en CI (sous-agent `bench-runner`)
   où : `kartenn-bench` (jeu, `core`), 002/A14
   dépend de : 14
-- [ ] 17. Plugin `web/plugins/vlan` : vues groupes et VLAN, onglet et colonne sur
+- [x] 17. Plugin `web/plugins/vlan` : vues groupes et VLAN, onglet et colonne sur
   `prefix`, action « créer un VLAN », catalogues FR/EN — REQ-008-24 — verify :
   parcours Playwright `web/e2e/journeys/vlan.spec.ts` avec axe-core ; plugin absent
   d'une build sans module
   où : design « Interface » ; plugin d'exemple `web/plugins/example` (007, tâche 23),
   007/design « Plugins côté serveur »
   dépend de : 14 ; 007 : 10, 12, 15, 23
+  — Plugin `web/plugins/vlan/` (MPL-2.0, `"module": "vlan"`) : vues `groups` (liste,
+  occupation et VLAN d'un groupe, création d'un groupe ancré sur une entité) et `vlans`,
+  onglet `network` et colonne `vlan` sur `prefix` (valeur de `vlan.vlan` lue par les
+  propriétés résolues), action `create-vlan` (VID proposé par `next-free`, création par
+  `POST /v1/vlans`, VLAN relu par groupe et VID, posé par un changeset
+  `assign_property`) ; écritures proposées au présent seulement (W9). Tests :
+  `test/vlan.test.ts` (Vitest), parcours `e2e/journeys/vlan.spec.ts` (Chromium et
+  Firefox, axe-core), `kartenn-rest/tests/plugins.rs`
+  (`the_vlan_plugin_is_published_only_with_its_module`, sur le manifeste et les
+  catalogues du dépôt). `serve.sh` construit le plugin ; projet Vitest ajouté.
+  choix : la liste des onglets de la fiche passe à la ligne (`flex-wrap`) : avec les
+  onglets de trois plugins, elle passait sous les panneaux latéraux qui captaient les
+  clics ; l'onglet a l'identifiant `network`, unique dans le manifeste ; la colonne lit
+  les propriétés de chaque ligne visible (pas de lecture groupée dans l'API).
 - [ ] 18. Synchronisation : `docs/spec/` (architecture : contrat de module ; data :
   `module_object`, schéma `vlan` ; interfaces : routes et opérations ; permissions),
   ADR 0026 acceptée, matrice CI serveur sans module et avec, spec passée à

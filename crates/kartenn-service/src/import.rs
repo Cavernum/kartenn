@@ -8,7 +8,8 @@ use kartenn_core::objects::Nature;
 use uuid::Uuid;
 
 use crate::authz::Authorizer;
-use crate::operations::{ChangesetRequest, ObjectKind, Operation, Ref};
+use crate::module::ModuleRegistry;
+use crate::operations::{ChangesetRequest, ModuleKind, ObjectKind, Operation, Ref};
 use crate::pipeline::{Outcome, RequestError, references, submit};
 use crate::port::{ImportBatch, ImportItem, ImportRecord, Store, StoreError};
 
@@ -88,6 +89,54 @@ fn created_kind(op: &Operation) -> Option<ObjectKind> {
     })
 }
 
+/// The kind of the object a module operation creates, as its module declares it.
+fn created_module_kind(modules: &ModuleRegistry, op: &Operation) -> Option<ObjectKind> {
+    let Operation::Module(m) = op.inner() else {
+        return None;
+    };
+    let (operation, _) = modules.operation(&m.module, &m.name)?;
+    operation
+        .defines
+        .and_then(ModuleKind::parse)
+        .map(ObjectKind::Module)
+}
+
+/// The local names an operation uses: those of its references, and, in the body of a
+/// module operation (REQ-008-23), every `{"local": n}`, the form of a [`Ref`].
+fn uses(op: &Operation) -> Vec<u32> {
+    fn walk(value: &serde_json::Value, out: &mut Vec<u32>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if map.len() == 1
+                    && let Some(local) = map
+                        .get("local")
+                        .and_then(serde_json::Value::as_u64)
+                        .and_then(|n| u32::try_from(n).ok())
+                {
+                    out.push(local);
+                    return;
+                }
+                map.values().for_each(|v| walk(v, out));
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(v, out)),
+            _ => {}
+        }
+    }
+    if let Operation::Module(m) = op {
+        // The local a module operation defines is a number field, never an object.
+        let mut out = Vec::new();
+        m.body.values().for_each(|v| walk(v, &mut out));
+        return out;
+    }
+    references(op)
+        .into_iter()
+        .filter_map(|(r, _)| match r {
+            Ref::Local(local) => Some(local),
+            Ref::Id(_) => None,
+        })
+        .collect()
+}
+
 /// The elements in an order where every local reference is defined before it is used,
 /// by rank otherwise.
 fn order(items: Vec<ImportItem>) -> Result<Vec<ImportItem>, ImportError> {
@@ -105,15 +154,13 @@ fn order(items: Vec<ImportItem>) -> Result<Vec<ImportItem>, ImportError> {
     let mut waiting = vec![0_usize; items.len()];
     let mut users: Vec<Vec<usize>> = vec![Vec::new(); items.len()];
     for (i, item) in items.iter().enumerate() {
-        for (r, _) in references(item.operation.inner()) {
-            if let Ref::Local(local) = r {
-                let Some(&d) = definer.get(&local) else {
-                    return Err(ImportError::UnknownReference { element: i, local });
-                };
-                if d != i {
-                    waiting[i] += 1;
-                    users[d].push(i);
-                }
+        for local in uses(item.operation.inner()) {
+            let Some(&d) = definer.get(&local) else {
+                return Err(ImportError::UnknownReference { element: i, local });
+            };
+            if d != i {
+                waiting[i] += 1;
+                users[d].push(i);
             }
         }
     }
@@ -272,12 +319,7 @@ async fn known<S: Store>(
 ) -> Result<BTreeMap<u32, Uuid>, StoreError> {
     let mut locals: BTreeMap<String, u32> = BTreeMap::new();
     for item in items {
-        let used = references(item.operation.inner())
-            .into_iter()
-            .filter_map(|(r, _)| match r {
-                Ref::Local(local) => Some(local),
-                Ref::Id(_) => None,
-            });
+        let used = uses(item.operation.inner());
         for local in item.operation.defines().into_iter().chain(used) {
             if let Some(external) = externals.get(&local) {
                 locals.insert(external.clone(), local);
@@ -339,7 +381,9 @@ pub async fn run_import<S: Store, A: Authorizer>(
                 if known.contains_key(&local) {
                     continue;
                 }
-                let kind = created_kind(&item.operation).unwrap_or(ObjectKind::Address);
+                let kind = created_kind(&item.operation)
+                    .or_else(|| created_module_kind(store.modules(), &item.operation))
+                    .unwrap_or(ObjectKind::Address);
                 operations.push(resolve_known(&item.operation, &known)?);
                 operations.push(Operation::BindExternal {
                     object: Ref::Local(local),
