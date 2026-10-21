@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { visibleEntries } from "../navigation.ts";
 import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
+import TimeBanner from "../time/TimeBanner.vue";
 import UserMenu from "./UserMenu.vue";
 
 const { t } = useI18n();
@@ -41,6 +42,7 @@ const views = computed(() =>
       </template>
     </nav>
     <main id="k-main" class="k-main" tabindex="-1">
+      <TimeBanner />
       <RouterView />
     </main>
   </div>

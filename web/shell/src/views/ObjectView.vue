@@ -22,6 +22,7 @@ import { useRoute } from "vue-router";
 import ExtensionElement from "../plugins/ExtensionElement.vue";
 import { extensionsOf, pluginKey, usePlugins, type Placed } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
+import { datedSearch, useTime, useWrites } from "../time/index.ts";
 
 // The record of an object, with the extension points of plugins (REQ-007-13): tabs,
 // side panels, actions. Its own attributes come with the lists and records of task 17.
@@ -39,6 +40,9 @@ const { t } = useI18n();
 const route = useRoute();
 const session = useSession();
 const plugins = usePlugins();
+const time = useTime();
+// Under `as_of`, the actions of plugins are writes refused like the others (REQ-007-23).
+const writes = useWrites();
 
 const collection = computed(() => String(route.params.collection));
 const object = computed<ObjectRef>(() => ({
@@ -61,9 +65,9 @@ const actions = computed(() =>
 const open = ref<Placed | null>(null);
 
 watch(
-  object,
+  [object, () => time.value.validAt, () => time.value.asOf],
   async () => {
-    const response = await fetch(object.value.href).catch(() => null);
+    const response = await fetch(object.value.href + datedSearch(time.value)).catch(() => null);
     if (!response) return;
     missing.value = !response.ok;
     const body = response.ok
@@ -84,7 +88,9 @@ watch(
     <div class="k-object-main">
       <div v-if="actions.length > 0" class="k-toolbar">
         <DropdownMenuRoot :modal="false">
-          <DropdownMenuTrigger>{{ t("object.actions") }}</DropdownMenuTrigger>
+          <DropdownMenuTrigger :disabled="!writes.draft">
+            {{ t("object.actions") }}
+          </DropdownMenuTrigger>
           <DropdownMenuPortal>
             <DropdownMenuContent class="k-menu" align="start" :side-offset="4">
               <DropdownMenuItem

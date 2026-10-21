@@ -116,5 +116,10 @@
       "range": "Range",
       "address": "Address"
     }
+  },
+  "time": {
+    "validAt": "Data valid at",
+    "asOf": "as known at",
+    "present": "Back to the present"
   }
 }

@@ -1,4 +1,5 @@
 import { createRouter, type Router, type RouterHistory } from "vue-router";
+import { installTime } from "./time/index.ts";
 
 /** The routes of the client; history injected so that tests run without a browser. */
 export function createShellRouter(history: RouterHistory): Router {
@@ -30,5 +31,6 @@ export function createShellRouter(history: RouterHistory): Router {
   router.onError((error, to) => {
     console.warn(`kartenn: navigation to ${to.fullPath} failed`, error);
   });
+  installTime(router);
   return router;
 }

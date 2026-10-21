@@ -116,5 +116,10 @@
       "range": "Plage",
       "address": "Adresse"
     }
+  },
+  "time": {
+    "validAt": "Données valides au",
+    "asOf": "telles que connues au",
+    "present": "Revenir au présent"
   }
 }

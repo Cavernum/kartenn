@@ -146,6 +146,24 @@ button {
   background: var(--k-color-border);
 }
 
+/* Off the present (REQ-007-22): a banner that stays above every page. */
+.k-time-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-space-2);
+  margin: 0 0 var(--k-space-3);
+  padding: var(--k-space-2) var(--k-space-3);
+  border: 2px solid var(--k-color-warning);
+  border-radius: var(--k-radius);
+  background: var(--k-color-surface);
+}
+
+.k-time-banner p {
+  margin: 0;
+}
+
 .k-nav-heading {
   margin: var(--k-space-3) 0 var(--k-space-1);
   padding: 0 var(--k-space-2);
