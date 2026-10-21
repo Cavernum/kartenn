@@ -50,7 +50,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     et celles de la dérogation ; le module n'est pas encore monté par `kartenn-server`
     (opérations et gestionnaire en 011-3).
 
-- [ ] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
+- [x] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
   forcée et permission de validation, N39, amendement additif de la 004 et du contrat) ;
   instruction (`approve_review`, séparation des tâches) ; dérogation — REQ-011-1 à 4,
   8 à 10, 17, 21, 22 — verify : cas d'acceptation de REQ-011-8, 9, 21, 22 ; demande
@@ -66,6 +66,38 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     acteurs du changeset (`ModuleTx::actors` : auteur, demandeur, validateur, pour
     `requester_id`, `reviewed_by`, `granted_by`, `flow.separation`) sont l'amendement 3
     de l'ADR 0026 ; reste à attendre 010-12 et 010-13
+  - fait (2026-10-22) : `src/handler.rs` (opérations `request`, `register`, `update`,
+    `waive`, `approve_review` ; `prepare` complète l'opération — fin lue comme instant,
+    propriété `core.owner`, triage de la demande — et l'écrase à chaque préparation ;
+    `review` force la proposition d'une demande non conforme ou non automatique ; `reads`
+    exige la lecture des deux extrémités pour `register` ; `check` sur l'état final ;
+    `ended` alimente `flow_rejection` au rejet), `src/evaluation.rs` (évaluation dans la
+    transaction : extrémités développées par le port de lecture de la 009, valeurs des
+    axes lues sur les origines matérialisées, axes portés par la machine, dossier,
+    `kartenn_policy::evaluate` par paire, synthèse), `src/pg.rs` (insertion, portion,
+    marques du changeset `pg_temp.flow_written`, couverture des périodes, évaluations,
+    enregistrement figé, dérogation, rejet), `src/module.rs` (opérations, opérations de
+    revue `approve_review` et `waive`, permissions `flow.flow.request`, `.waive`,
+    `.review`). Tests `crates/kartenn-flow/tests/it/requests.rs` : REQ-011-21 (conforme
+    appliquée et figée ; refusée → proposition), REQ-011-8 (écriture directe refusée,
+    `flow.review.required` et `flow.verdict.denied`), REQ-011-22 et 9 (instruite et
+    dérogée par le validateur ; le demandeur, servi par un compte de service, n'instruit
+    pas sa demande ; plafonds de 12 et 6 mois), rejet → non-conformité, REQ-011-17
+    (demande sans lecture des extrémités ; écriture directe sans lecture refusée,
+    `core.object.forbidden`), REQ-011-1 (référence manquante), REQ-011-4 (identité).
+  - choix : la demande d'un flux exige aussi `prop.core.owner.write` sur l'entité (le
+    module ancre le flux par une affectation ordinaire de `core.owner`, contrôlée comme
+    telle) ; `register` est le nom de l'écriture directe de maintenance (le design ne la
+    nommait pas) ; le demandeur est l'identité pour le compte de laquelle le changeset est
+    soumis, sinon son auteur, jamais la parole du client ; le triage n'est fait que pour
+    des extrémités, un service et une entité donnés par identifiant (sinon la demande est
+    instruite) ; l'évaluation d'un flux créé couvre toute sa période en un segment (la
+    segmentation aux bornes de la politique et des rattachements vient avec la
+    réévaluation, tâche 5) ; un flux sans paire d'adresses compte comme refusé ;
+    l'évaluation dans la transaction recharge la politique sans le cache des requêtes
+    (une simulation lève une révision qu'elle annule) ; `update` ne fait que raccourcir la
+    période (`end`), la prolongation reste à faire ; les conditions non remplies sont
+    reliées aux conditions par leur clé.
 - [x] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
   clôture d'une adresse citée refusée ; cascade clôt le flux
   - où : références de module (ADR 0026 clause 12, tâche 008-7)
@@ -86,13 +118,42 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     s'il recouvre la période à partir du début de la clôture (actif ou à venir) ; la
     restauration ne rétablit que la ligne du flux, pas ses tables dérivées (recalculées
     par la réévaluation, 011-5).
-- [ ] 5. Réévaluation dans la transaction (flux touchés par les sections 003, 009, 010,
+- [x] 5. Réévaluation dans la transaction (flux touchés par les sections 003, 009, 010,
   recalcul segmenté avec dossier, écriture des seuls segments changés), évaluation figée
   à l'enregistrement, différentiel des flux — REQ-011-11, 12, 13, 23 — verify : cas
   d'acceptation de REQ-011-11 et 13 ; oracle contre recalcul complet sur suites
   aléatoires ; changement de règle d'inférence sans réévaluation
   - où : `Module::diff` (tâche 008-19), `kartenn-policy/src/evaluate.rs`
   - dépend de : 3
+  - fait (2026-10-22) : `src/reevaluation.rs` (flux touchés : écrits par le changeset,
+    extrémité, service ou adresse développée parmi les objets écrits, du différentiel des
+    propriétés ou de `machines.attachments`, adresse ou extrémité dont l'origine d'une
+    valeur est un tel objet, machine portant une adresse d'extrémité ; tous les flux
+    vivants quand le changeset écrit la politique hors règles d'inférence ; recalcul de
+    maintenant à la fin du flux, coupé aux bornes des versions de la politique, des
+    rattachements, des origines et valeurs lues et d'un préfixe extrémité ; comparaison
+    à l'état stocké, segments contigus égaux fusionnés, réécriture seulement s'il
+    diffère ; section `flow.flows` : décompte `breaks`, `heals`, `outcome` puis un rang
+    par flux existant dont la synthèse, un verdict ou l'issue bascule, avant, après et
+    élément décisif ; `drift`, l'oracle), `src/pg.rs` (`state_of`, `read_states`,
+    `write_states` remplacent `write_evaluation`), `src/handler.rs` (`diff` ; `check`
+    n'écrit plus l'évaluation). Tests `crates/kartenn-flow/tests/it/reevaluation.rs` :
+    REQ-011-11 (conteneur `{dev}` inséré au-dessus de la source : flux refusé dans le
+    changeset accepté, enregistrement figé), REQ-011-13 (retrait de la règle : la
+    simulation annonce 3 flux `allowed → denied` sans rien écrire, puis l'application),
+    écriture de la politique sans changement de verdict : aucune réécriture ni section,
+    oracle sur trois suites aléatoires (classements présents et à venir, règles créées et
+    closes, demandes).
+  - choix : l'écriture d'une politique réévalue tous les flux vivants (filtre par service
+    et valeurs d'axes reporté au banc, tâche 10) ; la règle d'inférence n'a pas encore
+    d'opération : son exclusion est celle de tout type de la politique dont le nom porte
+    `inference`, et le test vérifie l'absence de réécriture sur une écriture de politique
+    neutre ; la réécriture porte sur tout le flux à partir de maintenant quand un segment
+    change ; la révision de politique ne compte pas dans la comparaison ; un flux créé
+    par le changeset n'a pas de rang dans la section (il a son triage) ; `breaks` compte
+    les flux qui passent à `denied` (synthèse absente comprise), `heals` l'inverse ;
+    héritiers d'une valeur à venir absents du différentiel des propriétés (fenêtre
+    future) : rattrapés par l'index des origines ; anomalies et déclencheurs en tâche 6.
 - [ ] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
   l'installation), `flow.waiver` ; anomalies `flow.verdict.denied` ouvertes et fermées ;
   crochet de rejet (N38) et `flow_rejection` — REQ-011-6, 12, 25 — verify : politique

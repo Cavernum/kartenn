@@ -14,11 +14,17 @@ workspace = true
 
 [dependencies]
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
-kartenn-policy = { version = "0.1.0", path = "../kartenn-policy" }
+# The addresses of the endpoints and the values carried by machines (009 port of reading),
+# and the policy evaluated in the transaction (spec 010).
+kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["pg"] }
+kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["pg"] }
 kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+# The operations of the module, decoded from their JSON body (ADR 0026, clause 6).
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 # The handler in the write pipeline, in PostgreSQL (design 011 « Données »).
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"] }
 # Calendar months of the review and waiver ceilings (REQ-011-9, 22).
 time = "0.3.55"
 unicode-normalization = "0.1.25"
