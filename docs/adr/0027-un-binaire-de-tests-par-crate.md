@@ -61,6 +61,38 @@ noyau, l'exécution des tests (environ 90 s, une base PostgreSQL par test) pèse
 la compilation et le lien (environ 40 s) : le regroupement ne vise que cette seconde
 part et l'espace disque.
 
+### Mesure après (tâche 013-9)
+
+Même protocole au commit `71c6b6b` (toutes les crates regroupées), un répertoire
+`target/` neuf (`CARGO_TARGET_DIR` vide) tenant lieu de worktree neuve, mêmes sources et
+même `devenv.local.nix` ; `k-check` lancé sous un créneau et le verrou PostgreSQL déjà
+pris, `CARGO_BUILD_JOBS=12`, `NEXTEST_TEST_THREADS=12`, sccache neutralisé. Charge
+relevée par `/proc/loadavg` (moyenne sur 1, 5 et 15 min) : la machine restait partagée
+avec d'autres sessions.
+
+| Passe (21/10) | Charge au départ | Durée de `k-check` | dont tests (nextest) | Binaires de test | `target/debug` |
+|---|---|---|---|---|---|
+| À froid | 9,9 / 16,3 / 17,1 | 434 s | 100 s | 27 | 6,1 Go |
+| Après une modification de `kartenn-core` (1) | 5,4 / 12,6 / 15,9 | 158 s | 122 s | 27 | 8,2 Go |
+| Après une modification de `kartenn-core` (2) | 9,7 / 11,6 / 15,0 | 86 s | 61 s | 27 | 8,1 Go |
+
+732 tests passent à chaque passe, le même nombre que `cargo nextest list --workspace
+--all-features` avant la tâche 2 (731 à la mesure de référence, plus un test ajouté
+entre-temps par 009-7).
+
+Gain :
+- **binaires de test** : 126 → 27 (lib et `*_it` par crate, `kartenn-server::http` à
+  part) ;
+- **disque** : `target/debug` 12 → 6,1 Go à froid, 15 → 8,1-8,2 Go après une
+  modification du noyau, environ la moitié ;
+- **compilation et lien après une modification du noyau** (durée de `k-check` moins
+  celle des tests) : environ 41 s → 25 à 36 s ;
+- **durée totale** : non concluante. La charge de la machine partagée fait varier le
+  temps des tests du simple au double (61 s et 122 s pour le même code), et la passe à
+  froid, dominée par la compilation des dépendances, a tourné sous une charge plus
+  forte que la référence (434 s contre 341 s). La part des tests, la plus lourde,
+  relève de l'ADR 0028.
+
 ## Decision
 
 Chaque crate a **un seul binaire de tests d'intégration** : `tests/it/main.rs` déclare

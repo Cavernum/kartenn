@@ -101,7 +101,7 @@ même crate.
 
 ## P3 — Mesure
 
-- [ ] 9. Mesure finale et synchronisation : même protocole que la mesure de référence de
+- [x] 9. Mesure finale et synchronisation : même protocole que la mesure de référence de
   l'ADR (worktree neuve avec `devenv.local.nix`, sccache neutralisé, `k-check` complet à
   froid puis après une modification de kartenn-core : temps, nombre de binaires, taille
   de `target/debug`) ; gain reporté dans l'ADR ; restes des lignes `où :` des tâches
@@ -109,3 +109,12 @@ même crate.
   --all-features` égal à celui d'avant la tâche 2
   où : ADR 0027 « Mesure de référence (avant) » ; `specs/*/tasks.md`
   dépend de : 2 à 8
+  — 732 tests avant et après (731 à la référence, plus `an_unrelated_changeset_raises_no_warning`
+  ajouté par le correctif de 009-7) ; ADR 0027 § « Mesure après » : 126 → 27 binaires,
+  `target/debug` 12 → 6,1 Go à froid et 15 → 8,1 Go après une modification du noyau,
+  compilation et lien d'environ 41 s à 25-36 s ; durée totale non concluante (charge de
+  la machine partagée, tests de 61 à 122 s pour le même code). Aucune ligne `où :` de
+  tâche ouverte ne citait un fichier de test déplacé.
+  choix : un `CARGO_TARGET_DIR` vide dans la worktree de la tâche tient lieu de worktree
+  neuve (mêmes sources, même `devenv.local.nix`) ; deux passes après la modification du
+  noyau pour montrer la variance.
