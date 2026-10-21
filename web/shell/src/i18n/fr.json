@@ -233,6 +233,8 @@
     "server": "Version du serveur",
     "plugins": "Plugins",
     "noPlugins": "Aucun plugin déclaré.",
+    "pluginsUnavailable": "La liste des plugins n'a pas pu être lue.",
+    "retry": "Réessayer",
     "timeZone": "Fuseau horaire affiché : {zone}",
     "rejected": "écarté : {reason}"
   },
