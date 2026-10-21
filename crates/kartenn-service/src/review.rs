@@ -268,6 +268,7 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
         sources,
         id,
         validator,
+        &RequestContext::of(validator),
         Vec::new(),
         max_operations,
     )
@@ -277,17 +278,21 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
 /// Validates a pending changeset as [`validate_pending`], with `operations` the validator
 /// joins to it: only operations a module declares « of review », on a proposal, planned
 /// checked and applied with it in one changeset (REQ-016-11). Another operation refuses
-/// the validation with `core.review.operation`; the changeset stays pending.
+/// the validation with `core.review.operation`, recorded as `authz.access.denied` (INV-61);
+/// the changeset stays pending. `context` is the request's: its events name the requester
+/// a service account acts for (REQ-016-13).
 ///
 /// # Errors
 ///
 /// As [`validate_pending`].
+#[allow(clippy::too_many_arguments)] // the parts of a validation, as the route has them
 pub async fn validate_pending_with<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
     sources: &Sources,
     id: Uuid,
     validator: &Subject,
+    context: &RequestContext,
     operations: Vec<Operation>,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
@@ -301,13 +306,17 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
             _ => "an operation of the core".to_owned(),
         };
         let message = format!("{name} is not an operation of review of a proposal");
+        let violation = Violation::new(&rules::REVIEW_OPERATION, message).with_subjects([id]);
+        // An operation slipped past a review is a signal: recorded before the refusal.
+        if let Some(event) = denial(context, &violation, Some(id))? {
+            store.audit(&event).await.map_err(RequestError::Audit)?;
+        }
         return Ok(Outcome::Refused {
             changeset: id,
-            violations: vec![Violation::new(&rules::REVIEW_OPERATION, message).with_subjects([id])],
+            violations: vec![violation],
         });
     }
     found.request.operations.extend(operations);
-    let context = RequestContext::of(validator);
     let validator_id = validator.id;
     if found.request.author == validator_id {
         let error = refused(
@@ -315,7 +324,7 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
             format!("{validator} is the author of changeset {id}"),
             id,
         );
-        return Err(audited(store, &context, error, id).await);
+        return Err(audited(store, context, error, id).await);
     }
     let mode = Mode::Validation {
         id,
@@ -336,7 +345,7 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
         &found.request,
         max_operations,
         mode,
-        &context,
+        context,
         &author,
     )
     .await
@@ -365,15 +374,39 @@ pub async fn reject<S: Store, A: Authorizer>(
     validator: &Subject,
     motive: &str,
 ) -> Result<(), RequestError> {
+    reject_in(
+        store,
+        authorizer,
+        id,
+        validator,
+        motive,
+        &RequestContext::of(validator),
+    )
+    .await
+}
+
+/// Rejects as [`reject`], under the request's `context`: its events name the requester a
+/// service account acts for (REQ-016-13).
+///
+/// # Errors
+///
+/// As [`reject`].
+pub async fn reject_in<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    id: Uuid,
+    validator: &Subject,
+    motive: &str,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
     let found = pending(store, id).await?;
-    let context = RequestContext::of(validator);
     if found.request.author == validator.id {
         let error = refused(
             &rules::APPROVAL_SELF,
             format!("{validator} is the author of changeset {id}"),
             id,
         );
-        return Err(audited(store, &context, error, id).await);
+        return Err(audited(store, context, error, id).await);
     }
     if motive.trim().is_empty() {
         return Err(RequestError::MotiveRequired);
@@ -387,10 +420,10 @@ pub async fn reject<S: Store, A: Authorizer>(
             )
             .with_subjects(denied),
         );
-        return Err(audited(store, &context, error, id).await);
+        return Err(audited(store, context, error, id).await);
     }
     let event = decision(
-        &context,
+        context,
         &kartenn_core::audit::CHANGESET_REJECTED,
         id,
         Some(motive),
@@ -494,22 +527,31 @@ async fn notify<T: WriteTx>(
 /// [`RequestError::Review`] when the changeset is not pending or `author` is not its
 /// author.
 pub async fn withdraw<S: Store>(store: &S, id: Uuid, author: Uuid) -> Result<(), RequestError> {
+    withdraw_in(store, id, author, &RequestContext::person(author)).await
+}
+
+/// Withdraws as [`withdraw`], under the request's `context`: its events name the requester
+/// a service account acts for (REQ-016-13).
+///
+/// # Errors
+///
+/// As [`withdraw`].
+pub async fn withdraw_in<S: Store>(
+    store: &S,
+    id: Uuid,
+    author: Uuid,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
     let found = pending(store, id).await?;
-    let context = RequestContext::person(author);
     if found.request.author != author {
         let error = refused(
             &rules::CHANGESET_NOT_AUTHOR,
             format!("only the author of changeset {id} withdraws it"),
             id,
         );
-        return Err(audited(store, &context, error, id).await);
+        return Err(audited(store, context, error, id).await);
     }
-    let event = decision(
-        &context,
-        &kartenn_core::audit::CHANGESET_WITHDRAWN,
-        id,
-        None,
-    )?;
+    let event = decision(context, &kartenn_core::audit::CHANGESET_WITHDRAWN, id, None)?;
     let ended = Ended {
         found: &found,
         how: Ending::Withdrawn,
