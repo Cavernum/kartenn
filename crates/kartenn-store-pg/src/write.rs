@@ -747,7 +747,9 @@ async fn write_journal(
     if journal.state == "applied" {
         // REQ-004-36: one CloudEvents 1.0 event per applied changeset, in its transaction.
         sqlx::query(
-            "INSERT INTO outbox (changeset_id, domain_ids, payload) VALUES ($1, $2, jsonb_build_object(
+            "INSERT INTO outbox (changeset_id, domain_ids, order_keys, payload) VALUES ($1, $2,
+                ARRAY(SELECT 'domain:' || d FROM unnest($2::uuid[]) d) || $8::text[],
+                jsonb_build_object(
                 'specversion', '1.0', 'id', $1::text, 'source', $3::text,
                 'type', 'org.kartenn.changeset.applied', 'time', now(),
                 'datacontenttype', 'application/json',
@@ -762,6 +764,7 @@ async fn write_journal(
         .bind(journal.validator)
         // the summarised differential, as recorded on the changeset
         .bind(serde_json::to_value(journal.diff).map_err(store_err)?)
+        .bind(journal.keys)
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;

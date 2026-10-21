@@ -149,6 +149,9 @@ pub struct Journal<'a> {
     pub violations: &'a [Violation],
     /// Addressing domains written by the changeset (event ordering key, ADR 0018).
     pub domains: &'a [Uuid],
+    /// Lock keys of module operations (ADR 0026, clause 14): with the domains, the
+    /// ordering keys of the changeset's events (REQ-016-14, ADR 0018 amendment 4).
+    pub keys: &'a [String],
     /// Objects created or modified.
     pub objects: &'a [Uuid],
     /// Rules evaluated anew on objects, as `(object, rule-id prefix)`: their anomalies that

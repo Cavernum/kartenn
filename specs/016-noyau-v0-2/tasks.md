@@ -54,12 +54,22 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## File B — Contrat de module, outbox, tâches (ADR 0026, 0018, 0023)
 
-- [ ] 6. Clés d'ordre de l'outbox — REQ-016-14 — verify :
+- [x] 6. Clés d'ordre de l'outbox — REQ-016-14 — verify :
   `two_changesets_under_one_module_lock_are_delivered_in_order`, forme d'un événement v0.1
   inchangée ; migration avec remplissage par lots
   - où : `kartenn-store-pg/src/outbox.rs`, `write.rs` (insertion de l'événement),
     migration du noyau ; amendement 4 de l'ADR 0018
   - dépend de : —
+  — migration `0050_outbox_order_keys.sql` (`order_keys text[]`, existant rempli par
+  tranches de 10 000 numéros) ; `Journal::keys` (clés de verrou des opérations de module,
+  `pipeline::stages`) ; insertion `domain:<uuid>` puis clés de module ;
+  `outbox::Event::order_keys`. Tests `kartenn-service/tests/it/outbox.rs` :
+  `two_changesets_under_one_module_lock_are_delivered_in_order` (verrou nommé tenu par un
+  changeset en cours, le suivant attend, ordre de livraison, payload sans `order_keys`),
+  `the_ordering_keys_of_a_changeset_name_its_domains`.
+  choix : migration numérotée 0050 (0045 à 0049 laissés à la file A, qui ajoute ses
+  migrations en parallèle) ; le relais ne change pas, l'ordre par clé découlant du verrou
+  nommé ; clés de module brutes (déjà qualifiées par leur module, ex. `vlan.group:<uuid>`).
 - [ ] 7. Tâches de fond de module — REQ-016-16 — verify :
   `a_module_job_runs_once_per_due_time_across_instances`, tâche retirée désactivée
   - où : `kartenn-service/src/module.rs` (`Module::jobs`, `ModuleHandler::run_job`),

@@ -151,6 +151,7 @@ pub async fn rewrite_public(
             pending: None,
             violations: &[],
             domains: &domains,
+            keys: &[],
             objects: &objects,
             reevaluated: &[],
             diff: &[],

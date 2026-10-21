@@ -370,6 +370,7 @@ pub async fn reevaluate_outdated<S: Store>(
                 pending: None,
                 violations: &violations,
                 domains: &[],
+                keys: &[],
                 objects: &checked,
                 reevaluated: &reevaluated,
                 diff: &[],

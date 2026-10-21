@@ -3,11 +3,13 @@
 //! Events are written in the changeset transaction. The relay reads the committed events
 //! never delivered to this consumer, in sequence order, and records each delivery after
 //! the sink accepted it: delivery is at least once, without gaps, ordered within an
-//! addressing domain. An event of a transaction still running is invisible and delivered
-//! on a later run; it can only be overtaken by events of other domains, since changesets
-//! of a domain are serialised by its lock (ADR 0015) and so number their events in commit
-//! order. There is no barrier on the oldest running transaction: it is cluster-wide, and
-//! any long transaction (a backup, a report) would stall every consumer.
+//! ordering key: an addressing domain, or a lock key of module operations (REQ-016-14,
+//! ADR 0018 amendment 4). An event of a transaction still running is invisible and
+//! delivered on a later run; it can only be overtaken by events without a key in common,
+//! since changesets that share a key are serialised by its lock (ADR 0015, ADR 0026
+//! clause 14) and so number their events in commit order. There is no barrier on the
+//! oldest running transaction: it is cluster-wide, and any long transaction (a backup, a
+//! report) would stall every consumer.
 
 use std::future::Future;
 
@@ -23,6 +25,9 @@ pub struct Event {
     pub changeset: Uuid,
     /// Addressing domains written by the changeset.
     pub domains: Vec<Uuid>,
+    /// Ordering keys: `domain:<uuid>` for each domain, then the lock keys of its module
+    /// operations (REQ-016-14).
+    pub order_keys: Vec<String>,
     /// CloudEvents envelope and data.
     pub payload: serde_json::Value,
 }
@@ -42,6 +47,9 @@ pub enum RelayError<E> {
         source: E,
     },
 }
+
+/// A row of the outbox: sequence, changeset, domains, ordering keys, payload.
+type Row = (i64, Uuid, Vec<Uuid>, Vec<String>, serde_json::Value);
 
 /// The events a consumer has not received (from the floor of its relay, migration 0027).
 const UNDELIVERED: crate::floor::Rows = crate::floor::Rows {
@@ -80,8 +88,8 @@ where
         &UNDELIVERED,
     )
     .await?;
-    let rows: Vec<(i64, Uuid, Vec<Uuid>, serde_json::Value)> = sqlx::query_as(
-        "SELECT o.seq, o.changeset_id, o.domain_ids, o.payload FROM outbox o
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT o.seq, o.changeset_id, o.domain_ids, o.order_keys, o.payload FROM outbox o
          WHERE o.seq >= $3
            AND NOT EXISTS (SELECT 1 FROM outbox_delivery d WHERE d.consumer = $1 AND d.seq = o.seq)
          ORDER BY o.seq LIMIT $2",
@@ -92,11 +100,12 @@ where
     .fetch_all(&mut *tx)
     .await?;
     let mut delivered = 0;
-    for (seq, changeset, domains, payload) in rows {
+    for (seq, changeset, domains, order_keys, payload) in rows {
         if let Err(source) = sink(Event {
             seq,
             changeset,
             domains,
+            order_keys,
             payload,
         })
         .await
