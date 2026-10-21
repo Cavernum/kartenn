@@ -22,11 +22,20 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : jeu de `kartenn-bench` (`crates/kartenn-bench`), modèle de
     `docs/spikes/003-resolution.md`
   - dépend de : —
-- [ ] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
+- [x] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
   (N9) — verify : 512 objets × 6 propriétés < 30 ms au banc ; mêmes résultats que la
   lecture unitaire
   - où : `crates/kartenn-store-pg/src/explain.rs`, `crates/kartenn-service/src/reads.rs`
   - dépend de : —
+  — livrée par la tâche **016-4** (REQ-016-1), dont c'est le port : store
+  `explain::resolved_many`, port `Reader::resolved_many`, service `reads::resolved_many`
+  (objets illisibles absents, valeurs sensibles masquées). Clause par clause : « mêmes
+  résultats que la lecture unitaire » = `kartenn-service/tests/it/grouped.rs`
+  (`resolved_many_matches_explain_on_random_pairs`, 1 000 tirages comparés à `explain`) ;
+  « < 30 ms au banc » = budget « grouped resolution 512 × 6, p95 » de `bench-properties`,
+  25,4 ms sur le jeu `small` (016-4). Reste à rejouer au calme : le jeu complet 10⁶, et la
+  mesure après l'index partiel `0047` (38,9 ms relevés une fois sous une charge de 16–17,
+  sans valeur de mesure) ; la machine était chargée à la clôture de cette tâche.
 
 ## P1 — Domaine pur
 
