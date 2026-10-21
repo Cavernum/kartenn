@@ -3,8 +3,7 @@
 //! networks of a VLAN under the rights of the caller, the writes under the rights of the
 //! writer and `If-Match`.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -136,7 +135,7 @@ impl Env {
 
     /// A new group `slug` anchored on `anchor`, range `range`, with the VLANs
     /// `(vid, status)`.
-    async fn group(
+    async fn seed_group(
         &self,
         slug: &str,
         anchor: Value,
@@ -212,7 +211,7 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
     let group = env
-        .group(
+        .seed_group(
             "edge",
             json!({"domain": {"id": lab}}),
             (1, 4094),
@@ -226,7 +225,7 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
             ],
         )
         .await;
-    env.group(
+    env.seed_group(
         "core",
         json!({"domain": {"id": lab}}),
         (1, 4094),
@@ -300,7 +299,7 @@ async fn occupancy_over_http(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
     let group = env
-        .group(
+        .seed_group(
             "edge",
             json!({"domain": {"id": lab}}),
             (1, 10),
@@ -359,7 +358,7 @@ async fn next_free_404_when_exhausted(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
     let group = env
-        .group(
+        .seed_group(
             "edge",
             json!({"domain": {"id": lab}}),
             (1, 2),
@@ -404,7 +403,7 @@ async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
     .await;
     let far = env.id("addressing_domain", "far").await;
     let group = env
-        .group(
+        .seed_group(
             "edge",
             json!({"domain": {"id": lab}}),
             (1, 4094),
@@ -491,10 +490,10 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
         env.id("entity", "other").await,
     );
     let mine = env
-        .group("mine", json!({"entity": {"id": acme}}), (1, 4094), &[])
+        .seed_group("mine", json!({"entity": {"id": acme}}), (1, 4094), &[])
         .await;
     let theirs = env
-        .group("theirs", json!({"entity": {"id": other}}), (1, 4094), &[])
+        .seed_group("theirs", json!({"entity": {"id": other}}), (1, 4094), &[])
         .await;
     let writer = env
         .person(
@@ -554,7 +553,7 @@ async fn patch_needs_if_match(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
     let group = env
-        .group(
+        .seed_group(
             "edge",
             json!({"domain": {"id": lab}}),
             (1, 4094),

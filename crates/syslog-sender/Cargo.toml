@@ -10,6 +10,12 @@ license = "MPL-2.0"
 publish.workspace = true
 keywords = ["syslog", "rfc5424", "rfc5425", "logging"]
 categories = ["development-tools::debugging", "network-programming"]
+# One integration test binary for the crate (ADR 0027): tests/it/main.rs.
+autotests = false
+
+[[test]]
+name = "syslog_sender_it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

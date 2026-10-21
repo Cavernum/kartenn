@@ -3,8 +3,7 @@
 //! exclusion constraints as the last defence; a VID free again once its VLAN is closed; a
 //! VLAN that moves to another group under the same rules.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use std::time::Duration;
 

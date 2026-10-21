@@ -1,6 +1,6 @@
 //! Canary secrets through a running instance: none reaches an output, audit, logs or
 //! traces, whatever the transport (spec 012, REQ-012-28; task 012-20). The panic report
-//! is covered by `kartenn-telemetry/tests/panic.rs`, the connection error of the binary
+//! is covered by `kartenn-telemetry/tests/it/panic.rs`, the connection error of the binary
 //! by `redact_credentials`.
 
 use std::sync::{Arc, Mutex};

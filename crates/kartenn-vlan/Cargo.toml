@@ -6,6 +6,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
+# One integration test binary for the crate (ADR 0027): tests/it/main.rs.
+autotests = false
 
 [lints]
 workspace = true
@@ -32,16 +34,10 @@ utoipa = { version = "6.0.0", default-features = false, features = ["macros", "u
 utoipa-axum = { version = "0.3.0", optional = true }
 uuid = { version = "1.28.0", features = ["v7", "serde"], optional = true }
 
+# One integration test binary for the crate (ADR 0027, point 2): `rest` implies `pg`.
 [[test]]
-name = "groups"
-required-features = ["pg"]
-
-[[test]]
-name = "imports"
-required-features = ["pg"]
-
-[[test]]
-name = "rest"
+name = "vlan_it"
+path = "tests/it/main.rs"
 required-features = ["rest"]
 
 [dev-dependencies]
