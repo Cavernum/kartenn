@@ -6,3 +6,4 @@ mod support;
 mod axes;
 mod catalogue;
 mod dated;
+mod verdict;

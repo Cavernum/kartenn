@@ -15,10 +15,12 @@ workspace = true
 [features]
 # The handler in the write pipeline and the storage in PostgreSQL (design 010, « Données »,
 # « Opérations »).
-pg = ["dep:sqlx", "dep:serde", "dep:serde_json"]
+pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:kartenn-machines", "dep:thiserror"]
 
 [dependencies]
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+# The port of reading of the 009 for the query of compliance (REQ-010-13, 31).
+kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["pg"], optional = true }
 kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 # Inference criteria on names: linear-time engine, no backtracking (REQ-010-42).
@@ -26,6 +28,7 @@ regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"], optional = true }
+thiserror = { version = "2.0.21", optional = true }
 unicode-normalization = "0.1.25"
 uuid = { version = "1.28.0", features = ["v7", "serde"] }
 

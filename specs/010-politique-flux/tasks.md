@@ -231,12 +231,33 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   pas à la date est omise de l'instantané, un service sans type vivant aussi ; une ligne
   illisible est une erreur de stockage. Budget du chargement non mesuré ici : il revient au
   banc 010-19.
-- [ ] 13. Requête de conformité : extrémités, axes portés par la machine (S27), objet,
+- [x] 13. Requête de conformité : extrémités, axes portés par la machine (S27), objet,
   dossier, synthèse et issue, bornes, visibilité et explication réduite — REQ-010-13,
   14, 15, 25, 31, 38 — verify : cas d'acceptation de REQ-010-13, 14, 25, 31 ;
   extrémité invisible → 404
   - où : port de lecture de la 009 (REQ-009-22, 25), `crates/kartenn-service/src/rights.rs`
   - dépend de : 2, 4, 12
+  — `kartenn-policy/src/verdict.rs` (feature `pg`) : `query` (extrémités `EndpointRef`
+  développées par `Reader::object` et le port de lecture de la 009, bornes
+  `MAX_ADDRESSES`/`MAX_EVALUATIONS` → `QueryError::TooLarge`, valeurs par
+  `Reader::resolved_many` en une lecture et `machine_values_of_addresses` pour les axes
+  portés par la machine, instantané par `SnapshotCache`, `evaluate` et `synthesis`),
+  `Access` (`policy.verdict.read` + lecture des extrémités → complète ; sinon
+  `policy.flow.request` sur l'entité → réduite ; sinon `QueryError::NotFound`), adresses
+  illisibles d'une machine omises et comptées (`hidden`) ; permissions
+  `policy.verdict.read` (globale) et `policy.flow.request` au catalogue du module,
+  `docs/spec/permissions.md` régénéré ; dépendance `kartenn-machines` (feature `pg`).
+  Tests : `tests/it/verdict.rs` (`acceptance_of_req_010_13`, `_14`, `_25` avec extrémité
+  invisible, inexistante ou d'un autre genre → 404, `_31` avec la VIP,
+  `a_machine_of_too_many_addresses_is_refused`) ; unitaires de largeur et de valeurs.
+  choix : une explication réduite ne nomme aucun objet du référentiel (ni origine, ni
+  chaîne, ni machine, ni adresse : les points sont repérés par leur rang) ; les valeurs se
+  lisent sans filtre de droits (le verdict d'un demandeur porte sur des objets qu'il ne
+  lit pas), le filtre ne vaut que pour l'explication ; un service inconnu ou un type sans
+  service donne `unknown_service` comme un port non couvert ; l'entité de la demande vient
+  du champ `entity` de la requête (le dossier), sans repli sur l'entité de rattachement de
+  l'appelant ; les routes `QUERY`/`GET /v1/verdicts` et le problème
+  `policy-query-too-large` restent à la tâche 18.
 - [ ] 14. Cohérence des machines et anomalies d'inférence ; tâche de fond
   `policy.inference.check` (point différé N14, genres de module) — REQ-010-17, 48 —
   verify : anomalies ouvertes et fermées ; regroupement par nœud d'origine

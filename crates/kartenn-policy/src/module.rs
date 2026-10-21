@@ -263,6 +263,10 @@ permissions! {
     EXEMPT_ROLE_READ = "policy.exempt_role.read", false, "Lire les rôles d'interface exemptés.";
     EXEMPT_ROLE_WRITE = "policy.exempt_role.write", true, "Exempter un rôle d'interface ou retirer l'exemption.";
     EXEMPT_ROLE_PROPOSE = "policy.exempt_role.propose", true, "Proposer une exemption d'un rôle d'interface.";
+    // The query of compliance (S15, REQ-010-25): the whole explanation, or the verdicts of
+    // the requests of an entity with a reduced explanation.
+    VERDICT_READ = "policy.verdict.read", true, "Interroger la conformité d'un flux avec l'explication complète.";
+    FLOW_REQUEST = "policy.flow.request", false, "Demander un flux pour une entité et en connaître le verdict, avec une explication réduite.";
 }
 
 /// The events of the module (N15, ADR 0026): a new revision of the policy.

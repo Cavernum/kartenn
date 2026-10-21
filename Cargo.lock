@@ -1879,6 +1879,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "tokio",
  "unicode-normalization",
  "uuid",

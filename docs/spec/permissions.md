@@ -83,6 +83,8 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `policy.exempt_role.read` | — | Lire les rôles d'interface exemptés. |
 | `policy.exempt_role.write` | oui | Exempter un rôle d'interface ou retirer l'exemption. |
 | `policy.exempt_role.propose` | oui | Proposer une exemption d'un rôle d'interface. |
+| `policy.verdict.read` | oui | Interroger la conformité d'un flux avec l'explication complète. |
+| `policy.flow.request` | — | Demander un flux pour une entité et en connaître le verdict, avec une explication réduite. |
 | `flow.flow.read` | — | Lire les flux. |
 | `flow.flow.request` | — | Demander un flux sans lire ses extrémités, et lire ses propres demandes. |
 | `flow.flow.review` | — | Instruire une demande de flux. |
