@@ -18,7 +18,7 @@ use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffSection, EndContext, Ending, Findings, ModuleHandler,
     ModuleObjectRow, ModulePlan, ModuleTx, Reference,
 };
-use kartenn_service::operations::{ModuleKind, ModuleOperation, RawInput, Ref};
+use kartenn_service::operations::{ModuleKind, ModuleOperation, PeriodSpec, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
 use kartenn_service::reads::read_permission;
 use kartenn_service::{ObjectKind, Operation};
@@ -66,6 +66,10 @@ fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
 struct Completed {
     /// `core.owner`, to anchor a new flow on its entity.
     owner_property: Option<Uuid>,
+    /// The start of the operation, in microseconds: the anchor of a dated flow is bounded to
+    /// its life, from here to `end`.
+    #[serde(default)]
+    start: Option<i64>,
     /// The end given, in microseconds.
     end: Option<i64>,
     /// Whether the end given is not an instant.
@@ -234,7 +238,10 @@ impl Handler {
             Some(at) => at,
             None => now(conn).await?,
         };
-        let mut completed = Completed::default();
+        let mut completed = Completed {
+            start: Some(pg::instant(at).0),
+            ..Completed::default()
+        };
         if let Some(text) = operation.body.get("end").and_then(Value::as_str) {
             match pg::parse_instant(conn, text).await? {
                 Some(end) => completed.end = Some(end.0),
@@ -376,18 +383,31 @@ impl Handler {
             "personal_data": input.personal_data,
             "entity": entity,
         });
+        let anchor = Operation::AssignProperty {
+            object: Ref::Id(object),
+            kind: ObjectKind::Module(flow_kind()),
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(entity.to_string())],
+        };
+        // A dated flow lives until its end only: its anchor stops with it, whatever the
+        // period of the changeset (an anchor beyond would target a flow that no longer is).
+        let anchor = match (c.start, c.end) {
+            (Some(start), Some(end)) => Operation::Within {
+                period: PeriodSpec {
+                    start,
+                    end: Some(end),
+                },
+                operation: Box::new(anchor),
+            },
+            _ => anchor,
+        };
         Ok(ModulePlan {
             kind: flow_kind(),
             object,
             creates: true,
             domains: Vec::new(),
             keys: vec!["flow".into()],
-            core: vec![Operation::AssignProperty {
-                object: Ref::Id(object),
-                kind: ObjectKind::Module(flow_kind()),
-                property: Ref::Id(owner),
-                values: vec![RawInput::Text(entity.to_string())],
-            }],
+            core: vec![anchor],
             data: json!({
                 "op": operation.name,
                 "record": record,

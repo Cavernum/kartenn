@@ -1823,9 +1823,13 @@ dependencies = [
 name = "kartenn-flow"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "http-body-util",
+ "kartenn-auth",
  "kartenn-core",
  "kartenn-machines",
  "kartenn-policy",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
@@ -1836,7 +1840,10 @@ dependencies = [
  "sqlx",
  "time",
  "tokio",
+ "tower",
  "unicode-normalization",
+ "utoipa",
+ "utoipa-axum",
  "uuid",
 ]
 

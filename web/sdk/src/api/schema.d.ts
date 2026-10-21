@@ -75,6 +75,23 @@ export interface paths {
     patch: operations["modify_address"];
     trace?: never;
   };
+  "/v1/addresses/{id}/flows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flows of the address, those the caller may read (REQ-011-15). */
+    get: operations["address_flows"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/addresses/{id}/history": {
     parameters: {
       query?: never;
@@ -985,6 +1002,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/flow-nonconformities": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The non-conformities the caller may read, newest first (REQ-011-25). */
+    get: operations["list_flow_nonconformities"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/flow-types": {
     parameters: {
       query?: never;
@@ -1090,6 +1124,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/flows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flows the caller may read (REQ-011-14). */
+    get: operations["list_flows"];
+    put?: never;
+    /** Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`). */
+    post: operations["request_flow"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/flows/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flow. */
+    get: operations["show_flow"];
+    put?: never;
+    post?: never;
+    /** Closes the flow. */
+    delete: operations["close_flow"];
+    options?: never;
+    head?: never;
+    /** Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4). */
+    patch: operations["modify_flow"];
+    trace?: never;
+  };
+  "/v1/flows/{id}/evaluations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16); reduced for its requester (REQ-010-25). */
+    get: operations["flow_evaluations"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/flows/{id}/history": {
     parameters: {
       query?: never;
@@ -1152,6 +1240,23 @@ export interface paths {
     get: operations["flow_flow_property_suggestion"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/flows/{id}/waiver": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`. */
+    post: operations["waive_flow"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1525,6 +1630,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/interfaces/{id}/flows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flows of the interface, those the caller may read (REQ-011-15). */
+    get: operations["interface_flows"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/interfaces/{id}/history": {
     parameters: {
       query?: never;
@@ -1683,6 +1805,23 @@ export interface paths {
     };
     /** The addresses of the machine by interface, those the caller may read (REQ-009-16). */
     get: operations["machine_addresses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/{id}/flows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flows of the machine, those the caller may read (REQ-011-15). */
+    get: operations["machine_flows"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2487,6 +2626,23 @@ export interface paths {
      *     its rank (prefix, range, address) and its identifier.
      */
     get: operations["prefix_children"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/prefixes/{id}/flows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flows of the prefix, those the caller may read (REQ-011-15). */
+    get: operations["prefix_flows"];
     put?: never;
     post?: never;
     delete?: never;
@@ -4148,6 +4304,178 @@ export interface components {
       /** @description The resolved value; `null` when masked or without value. */
       value: Record<string, never>;
     };
+    /**
+     * @description A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its
+     *     derived state, summary and outcome at the date.
+     */
+    Flow: {
+      /**
+       * @description Its fields as stored: kind, endpoints, service, external references, justification,
+       *     requester, entity…
+       */
+      fields: Record<string, never>;
+      /**
+       * Format: uuid
+       * @description Its identifier.
+       */
+      id: string;
+      /** @description Its outcome at the date, if evaluated there. */
+      outcome?: string | null;
+      /** @description Its derived state at the date. */
+      state: string;
+      /** @description Its summary at the date, if evaluated there. */
+      summary?: string | null;
+      /** @description The start of its period. */
+      valid_from: string;
+      /** @description The end of its period, if any. */
+      valid_to?: string | null;
+      /** @description Whether a waiver covers the date. */
+      waived: boolean;
+    };
+    /**
+     * @description An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never
+     *     recomputed. Reduced for a requester without the read of the flow (REQ-010-25): the
+     *     addresses and the decisive element are not named.
+     */
+    FlowEvaluation: {
+      /** @description The values of the axes of the pair. */
+      combination: Record<string, never>;
+      /**
+       * Format: uuid
+       * @description The decisive rule or pattern; `null` when reduced.
+       */
+      decisive?: string | null;
+      /**
+       * Format: uuid
+       * @description The destination address; `null` when reduced.
+       */
+      destination?: string | null;
+      /** @description `automatic`, `review` or `noncompliant`. */
+      outcome: string;
+      /**
+       * Format: int64
+       * @description The revision of the policy it was computed against.
+       */
+      policy_revision: number;
+      /** @description The reason. */
+      reason: string;
+      /**
+       * Format: int32
+       * @description The informative score.
+       */
+      score?: number | null;
+      /**
+       * Format: uuid
+       * @description The source address; `null` when reduced.
+       */
+      source?: string | null;
+      /** @description The conditions not met. */
+      unmet_conditions: string[];
+      /** @description `allowed`, `conditional` or `denied`. */
+      verdict: string;
+    };
+    /** @description A non-conformity (REQ-011-25). */
+    FlowNonconformity: {
+      /** @description When it arose. */
+      at: string;
+      /**
+       * Format: uuid
+       * @description The changeset of the rejected request.
+       */
+      changeset?: string | null;
+      /**
+       * Format: uuid
+       * @description The entity.
+       */
+      entity: string;
+      /**
+       * Format: uuid
+       * @description The flow; `null` for a rejected request.
+       */
+      flow?: string | null;
+      /** @description `requested` or `observed`. */
+      kind: string;
+      /** @description The motive. */
+      motive?: string | null;
+      /**
+       * Format: uuid
+       * @description The requester.
+       */
+      requester: string;
+      /**
+       * Format: uuid
+       * @description The rule in cause.
+       */
+      rule?: string | null;
+      /** @description Its key. */
+      rule_key?: string | null;
+      /** @description Its label. */
+      rule_label?: string | null;
+      /** @description Its educational texts by language. */
+      rule_texts?: Record<string, never> | null;
+      /** @description `rejected`, `noncompliant` or `waived`. */
+      state: string;
+    };
+    /** @description The body of `PATCH /v1/flows/{id}`: the fields that may change (REQ-011-4). */
+    FlowPatch: {
+      /** @description The natures of the data carried. */
+      data_nature?: string[] | null;
+      /** @description An earlier end. */
+      end?: string | null;
+      /** @description The external references. */
+      external_refs?: Record<string, never>[] | null;
+      /** @description The justification. */
+      justification?: string | null;
+      /** @description The motive of the changeset. */
+      motive?: string | null;
+      /** @description Whether personal data are carried. */
+      personal_data?: boolean | null;
+      /** @description The persons responsible. */
+      responsibles?: string[] | null;
+    };
+    /** @description The body of `POST /v1/flows` (REQ-011-1, 20, 21), besides `motive`, `valid_from`. */
+    FlowRequest: {
+      /** @description The natures of the data carried. */
+      data_nature: string[];
+      /** @description The destination, as the source. */
+      destination: Record<string, never>;
+      /** @description The end of the flow, an RFC 3339 instant; none for a flow without end. */
+      end?: string | null;
+      /** @description The entity (the application): `{ "id": … }`. */
+      entity: Record<string, never>;
+      /** @description The external references, at least one: `{ "system": …, "id": … }`. */
+      external_refs: Record<string, never>[];
+      /** @description The justification. */
+      justification?: string | null;
+      /** @description `requested` (default) or `observed`. */
+      kind?: string | null;
+      /** @description The motive of the changeset. */
+      motive?: string | null;
+      /** @description The requester the request is made for. */
+      on_behalf_of?: Record<string, never> | null;
+      /** @description Whether personal data are carried. */
+      personal_data?: boolean | null;
+      /** @description The persons responsible. */
+      responsibles: string[];
+      /** @description The service: `{ "id": … }`. */
+      service: Record<string, never>;
+      /**
+       * @description The source: `{ "kind": "address" | "prefix" | "interface" | "machine" | "range",
+       *     "id": { "id": … } }`.
+       */
+      source: Record<string, never>;
+    };
+    /** @description The body of `POST /v1/flows/{id}/waiver` (REQ-011-9). */
+    FlowWaiver: {
+      /** @description The risk accepted. */
+      accepted_risk: string;
+      /** @description The end of the waiver, mandatory. */
+      end: string;
+      /** @description The motive of the changeset. */
+      motive?: string | null;
+      /** @description The reason. */
+      reason: string;
+    };
     /** @description A deviation between a resolved and an expected value. */
     Gap: {
       /**
@@ -4559,6 +4887,27 @@ export interface components {
         /** @description Its key. */
         key: string;
       }[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_Flow: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["Flow"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_FlowEvaluation: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["FlowEvaluation"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_FlowNonconformity: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["FlowNonconformity"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -7168,6 +7517,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  address_flows: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The address. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of flows. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Flow"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -9880,6 +10270,58 @@ export interface operations {
       };
     };
   };
+  list_flow_nonconformities: {
+    parameters: {
+      query?: {
+        /** @description The entity. */
+        entity?: string;
+        /** @description The requester. */
+        requester?: string;
+        /** @description The rule in cause. */
+        rule?: string;
+        /** @description From this instant. */
+        from?: string;
+        /** @description Before this instant. */
+        to?: string;
+        /** @description `rejected`, `noncompliant` or `waived`. */
+        state?: string;
+        /** @description `requested` or `observed`. */
+        kind?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The non-conformities. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_FlowNonconformity"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_flow_types: {
     parameters: {
       query?: {
@@ -10250,6 +10692,287 @@ export interface operations {
       };
     };
   };
+  list_flows: {
+    parameters: {
+      query?: {
+        /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range). */
+        endpoint?: string;
+        /** @description A prefix: the flows with an endpoint address in its subtree. */
+        prefix?: string;
+        /** @description A machine: the flows with an endpoint address of the machine. */
+        machine?: string;
+        /** @description The service. */
+        service?: string;
+        /** @description The flow type of the service. */
+        flow_type?: string;
+        /** @description `requested` or `observed`. */
+        kind?: string;
+        /** @description `requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` or `withdrawn`. */
+        state?: string;
+        /** @description `allowed`, `partial` or `denied`. */
+        summary?: string;
+        /** @description `automatic`, `review` or `noncompliant`. */
+        outcome?: string;
+        /** @description The decisive rule or pattern of an evaluation. */
+        decisive?: string;
+        /** @description `true` or `false`. */
+        waived?: string;
+        /** @description Ending before this instant. */
+        ending_before?: string;
+        /** @description The entity (the application). */
+        entity?: string;
+        /** @description The requester. */
+        requester?: string;
+        /** @description An external reference: `<system>:<identifier>`. */
+        external_ref?: string;
+        /** @description A value of an axis an endpoint carries: `<property>=<value>`. */
+        axis?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of flows. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Flow"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  request_flow: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FlowRequest"];
+      };
+    };
+    responses: {
+      /** @description Applied. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a review. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_flow: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The flow. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The flow; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Flow"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_flow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The flow. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_flow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The flow. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["FlowPatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  flow_evaluations: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The flow. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The evaluations. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_FlowEvaluation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   flow_flow_history: {
     parameters: {
       query?: {
@@ -10393,6 +11116,54 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  waive_flow: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The flow. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FlowWaiver"];
+      };
+    };
+    responses: {
+      /** @description Granted. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -11531,6 +12302,47 @@ export interface operations {
       };
     };
   };
+  interface_flows: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The interface. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of flows. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Flow"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   machines_interface_history: {
     parameters: {
       query?: {
@@ -12106,6 +12918,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_MachineAddress"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machine_flows: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The machine. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of flows. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Flow"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -14564,6 +15417,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_TreeNode"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  prefix_flows: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The prefix. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of flows. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Flow"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -17787,6 +18681,10 @@ export interface queries {
   "/v1/flow-types": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/flows": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_Flow"];
   };
   "/v1/inference-rules": {
     body: components["schemas"]["Search"];

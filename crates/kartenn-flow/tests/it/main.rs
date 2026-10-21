@@ -7,4 +7,5 @@ mod reads;
 mod reevaluation;
 mod references;
 mod requests;
+mod rest;
 mod schema;

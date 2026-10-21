@@ -15,6 +15,8 @@ pub mod module;
 mod pg;
 pub mod read;
 pub mod reevaluation;
+#[cfg(feature = "rest")]
+pub mod rest;
 pub mod rules;
 pub mod state;
 

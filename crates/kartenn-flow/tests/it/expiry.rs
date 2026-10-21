@@ -5,7 +5,6 @@
 
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::module::run_job;
-use kartenn_service::operations::PeriodSpec;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ObjectKind, Operation, Outcome, Ref, submit};
 use serde_json::Value;
@@ -31,8 +30,7 @@ async fn events(pool: &PgPool, kind: &str, flow: Uuid) -> Vec<Value> {
 }
 
 /// A compliant flow `prod → dev` from the addresses `n.1`, ending `seconds` from now (none:
-/// without end): requested in a changeset whose period ends with it, so that the anchor
-/// of the flow does not outlive it.
+/// without end), requested with its `end` in a changeset of open period.
 async fn dated(env: &Env, n: u8, seconds: Option<i64>) -> Uuid {
     let source = env
         .address(&format!("10.{n}.0.0/24"), &format!("10.{n}.0.1"), "prod")
@@ -44,20 +42,19 @@ async fn dated(env: &Env, n: u8, seconds: Option<i64>) -> Uuid {
             "dev",
         )
         .await;
-    let now: i64 = sqlx::query_scalar("SELECT (extract(epoch FROM now()) * 1000000)::bigint")
+    let mut fields = env.fields(source, destination).await;
+    if let Some(seconds) = seconds {
+        let end: String = sqlx::query_scalar(
+            "SELECT to_char((now() + $1 * interval '1 second') AT TIME ZONE 'UTC',
+                            'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')",
+        )
+        .bind(seconds)
         .fetch_one(&env.pool)
         .await
         .unwrap();
-    let mut request = env.request(
-        env.author,
-        vec![flow("request", env.fields(source, destination).await)],
-    );
-    if let Some(seconds) = seconds {
-        request.period = Some(PeriodSpec {
-            start: now,
-            end: Some(now + seconds * 1_000_000),
-        });
+        fields["end"] = Value::String(end);
     }
+    let request = env.request(env.author, vec![flow("request", fields)]);
     let outcome = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
         .await
         .unwrap();
