@@ -33,6 +33,16 @@ pub fn routers() -> Vec<kartenn_rest::ModuleRouter> {
     routers
 }
 
+/// The sources of expected values the modules of the build provide (REQ-003-21): the
+/// inference of the policy (spec 010, REQ-010-50 to 52).
+#[must_use]
+pub fn sources() -> kartenn_service::expected::Sources {
+    let sources = kartenn_service::expected::Sources::none();
+    #[cfg(feature = "policy")]
+    let sources = sources.with(Arc::new(kartenn_policy::infer::InferenceSource));
+    sources
+}
+
 /// The registry of the modules of the build.
 ///
 /// # Errors

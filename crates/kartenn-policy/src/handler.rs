@@ -24,7 +24,7 @@ use uuid::Uuid;
 
 use crate::checks;
 use crate::model::Label;
-use crate::module::{AXIS, ENVIRONMENT, EXAMPLES, KINDS, VALUE};
+use crate::module::{AXIS, ENVIRONMENT, EXAMPLES, INFERENCE_RULE, KINDS, VALUE};
 use crate::objects::{plan_object, unique_columns};
 use crate::pg::{self, table};
 use crate::rules::{AXIS_INVALID, KEY_DUPLICATE, OPERATION_INVALID, VALUE_UNKNOWN};
@@ -468,6 +468,20 @@ impl Handler {
         Ok(())
     }
 
+    /// Raises the revision of the rules of inference once per changeset (REQ-010-50), or
+    /// that of the policy for any other object.
+    async fn revised_for(
+        tx: &mut dyn ModuleTx,
+        kind: ModuleKind,
+        changeset: Uuid,
+    ) -> Result<(), StoreError> {
+        if kind.as_str() == INFERENCE_RULE {
+            pg::bump(connection(tx)?, "inference", changeset).await?;
+            return Ok(());
+        }
+        Self::revised(tx, changeset).await
+    }
+
     /// Raises the revision of the policy once per changeset, and announces it.
     async fn revised(tx: &mut dyn ModuleTx, changeset: Uuid) -> Result<(), StoreError> {
         if let Some(revision) = pg::bump(connection(tx)?, "policy", changeset).await? {
@@ -510,13 +524,19 @@ impl Handler {
         } else {
             pg::patch(conn, &table, id, columns, period, changeset).await?;
         }
-        Self::revised(tx, changeset).await?;
+        Self::revised_for(tx, planned.kind, changeset).await?;
+        // A rule of inference is anchored in the domain it cites (REQ-010-46).
+        let domain = if name == INFERENCE_RULE {
+            crate::infer::domain_of(connection(tx)?, id).await?
+        } else {
+            None
+        };
         tx.register(
             ModuleObjectRow {
                 id,
                 kind: planned.kind,
                 parent: None,
-                domain: None,
+                domain,
             },
             period,
             changeset,
@@ -555,6 +575,9 @@ impl ModuleHandler for Handler {
             "environment.close" => Self::plan_close_environment(operation),
             "examples.install" => Self::plan_examples(operation, object),
             "matrix.set" => crate::matrix::plan_set(operation, object, resolve),
+            "inference_rule.create" | "inference_rule.update" => {
+                crate::infer::plan_rule(operation, object, resolve)
+            }
             _ => plan_object(operation, object, resolve)
                 .unwrap_or_else(|| Err(invalid(operation, "unknown operation"))),
         }
@@ -591,7 +614,7 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             tx.close_versioned(&table_of(kind), id, period, changeset)
                 .await?;
-            Self::revised(tx, changeset).await?;
+            Self::revised_for(tx, kind, changeset).await?;
             Ok(())
         })
     }
@@ -671,6 +694,7 @@ impl ModuleHandler for Handler {
                 );
             }
             found.extend(checks::catalogue(conn, context.changeset).await?);
+            found.extend(crate::infer::check(conn, context.changeset).await?);
             findings.violations.extend(found);
             Ok(findings)
         })

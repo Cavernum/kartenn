@@ -326,12 +326,39 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   l'obligation, REQ-010-21) ; l'anomalie porte sur la machine seule ; liste des rôles
   exemptés par défaut (`administration`, `backup`, `monitoring`) tant qu'aucun rôle n'a
   jamais été administré, et le premier rôle administré la remplace.
-- [ ] 15. Source de valeurs attendues de l'inférence (contrat 003 amendé, N20, N28) :
+- [x] 15. Source de valeurs attendues de l'inférence (contrat 003 amendé, N20, N28) :
   suggestion, valeur par défaut, versionnement et provenance — REQ-010-40, 41, 46, 50,
   51, 52 — verify : cas d'acceptation de REQ-010-45 (création sans défaut) et 52 ;
   provenance lue dans l'explication
   - où : `ExpectedValueSource` (`kartenn-core`), amendement de la 003
   - dépend de : 6, 7
+  — `kartenn-policy/src/infer.rs` : `criterion` (forme stockée des critères, un membre par
+  critère), `rules_at` (règles valides à une date dans la transaction, arbres
+  d'exceptions, domaine cité ajouté comme critère), `chain` (domaine, préfixes qui
+  contiennent le nœud, nœud ; sites et entités résolus avec leurs ancêtres, valeurs
+  résolues des propriétés que les critères testent), `InferenceSource` (source
+  `policy.inference`, révision = compteur `inference` de `policy_revision`, détail = règle
+  ou dernière exception retenue), `plan_rule` (`policy.inference_rule.create | update`),
+  `check` (axe désigné pour l'inférence, parent du même axe, valeurs vivantes, critères,
+  profondeur) ; type `policy.inference_rule` (collection `inference-rules`, ancré dans le
+  domaine cité, écrit sous `policy.inference.admin`) ; révision `inference` levée une fois
+  par changeset ; déclaration de `policy.environment` avec la source en mode `default` ;
+  serveur : `modules::sources()`. Noyau (`kartenn-service/src/expected.rs`) :
+  `ExpectedValueSource::defaults_when_inheriting` (méthode ajoutée, vraie par défaut :
+  comportement de REQ-003-22 inchangé), et un module peut déclarer une source de son
+  propre espace de noms avant que les sources du déploiement ne soient assemblées. Tests :
+  `tests/it/inference.rs` (`a_single_expectation_is_written_as_a_default_with_its_provenance`,
+  REQ-010-52 et 50, provenance lue dans l'explication ;
+  `a_tie_gives_every_candidate_and_no_default`, cas d'acceptation de REQ-010-45 ;
+  `a_rule_of_inference_is_checked_on_the_final_state`).
+  choix : critères stockés en `jsonb` (`[{"within": […]}, {"property": {"key", "in"}}…]`) ;
+  domaine d'une règle fixé à la création, comme sa clé, son axe et son parent ; le nom
+  d'un nœud n'est porté que par les domaines (slug) : le noyau ne nomme ni préfixe ni
+  adresse ; un mode par déclaration (contrat 003) : `default`, qui suggère aussi ; le
+  contrôle d'écart (mode `check`, anomalies) revient à 010-14 et demandera de combiner
+  les modes ; une source qui ne donne pas de défaut sous une valeur héritée matérialise
+  d'abord les origines des objets créés (`refresh_origins`) ; droits par domaine : la
+  portée du domaine cité, sans test dédié ici (environnement de test sans restriction).
 - [ ] 16. Rapport d'audit (tâche de fond, rubriques, pagination, purge) — REQ-010-23 —
   verify : un test par rubrique
   - où : `crates/kartenn-service/src/import.rs` (tâche sous bail),

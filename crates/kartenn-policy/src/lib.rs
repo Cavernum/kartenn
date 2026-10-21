@@ -27,6 +27,8 @@ mod contribution;
 #[cfg(feature = "pg")]
 pub mod handler;
 #[cfg(feature = "pg")]
+pub mod infer;
+#[cfg(feature = "pg")]
 mod load;
 #[cfg(feature = "pg")]
 mod objects;
