@@ -249,6 +249,23 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
     par interface ; exclusions GiST). Propriétés du module : `machines.interface_role`
     (liste livrée, extensible) et `machines.fqdn`. Règles :
     [catalogue des modules](regles-modules.md).
+  - `policy` (spec 010, migrations du module 0001 à 0003) : `policy_axis` (propriété
+    désignée comme axe, porteur arbre ou machine), `policy_value` (attributs d'une valeur
+    d'axe par `property_key` et `value_key` : libellé, transverse, rang),
+    `policy_flow_type`, `policy_service` (entrées transport et ports en `jsonb`),
+    `policy_pattern`, `policy_rule` (effet `allow`/`deny`, termes source et destination
+    par axe en `jsonb`, axes « même valeur », types, services, motifs requis, textes),
+    `policy_condition`, `policy_signal`, `policy_exempt_role`, `policy_inference_rule`
+    (axe, critères, valeurs, exception, priorité ; ancrée dans le domaine cité), toutes
+    versionnées, clés uniques dans le temps par exclusions GiST ; `policy_revision`
+    (compteurs `policy` et `inference`, clé du cache de l'instantané) ;
+    `policy_inference_check` (curseur de la tâche d'écart d'inférence) ; `policy_report`
+    et `policy_report_item` (rapport d'audit, purgé à 30 jours). Propriétés :
+    `policy.environment` (axe imposé, héritable) et `policy.declared_environment` (sur les
+    machines, valeurs partagées avec `policy.environment`, N7) ; axes d'exemple installés
+    par `policy.examples.install`. Les objets de la politique n'ont pas d'ancre
+    (administration globale, S15), sauf les règles d'inférence. Source de valeurs
+    attendues `policy.inference` (provenance `source:policy.inference@<révision>#<règle>`).
 
 ## Stockage PostgreSQL (D15, ADR 0004)
 

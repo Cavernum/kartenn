@@ -141,6 +141,7 @@ Non-objectifs :
 | [0027](../adr/0027-un-binaire-de-tests-par-crate.md) | Un binaire de tests d'intégration par crate (`tests/it/`), `kartenn-server::http` à part | accepted |
 | [0028](../adr/0028-base-de-test-gabarit.md) | Bases de test clonées d'un gabarit migré (`#[kartenn_testing::pg_test]`, `WAL_LOG`) | accepted |
 | [0029](../adr/0029-paquetage-nix-oci.md) | Paquetage par un flake Nix : une image OCI, un module NixOS (amende D35) | accepted |
+| [0030](../adr/0030-evaluation-sur-instantane.md) | Verdicts de flux évalués en mémoire sur un instantané versionné de la politique, en deux étapes (verdict, issue) | accepted |
 
 ## Questions ouvertes
 

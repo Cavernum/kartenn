@@ -110,7 +110,8 @@ Règles :
 | Connecteurs | Processus externes, clients REST | À chaud |
 
 Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée, amendements 1
-et 2 ; implémenté par la 008, éprouvé par la 009, complété pour la v0.2 par la 016) :
+à 4 ; implémenté par la 008, éprouvé par la 009, complété pour la v0.2 par la 016 et
+pendant la 010) :
 identifiant et version ;
 dépendances ; migrations ; types d'objets et leurs ancres de périmètre ; propriétés et
 types de valeurs ; règles de validation (identifiant, sévérité) ; sources de valeurs
@@ -138,10 +139,21 @@ Forme dans le code (`kartenn-service::module`) :
 - `Module` déclare aussi, pour la v0.2 (016) : `jobs`, `events`, `measures`,
   `default_policies` (installées une seule fois) et `review_operations` (opérations
   qu'un valideur peut joindre ; un module qui exige une revue force la proposition).
+- Pendant la 010 : `type_permissions` (un type se lit et s'écrit sous des permissions
+  déclarées par le module au lieu de `<type>.read`/`.write`, S15),
+  `operation_permissions` (amendement 3 : permission propre à une opération, même
+  vérification et mêmes portées ; une permission inconnue du module est refusée au
+  démarrage du registre), `ModuleTx::actors()` (auteur, demandeur, validateur, posés par
+  le seul pipeline) et `run_job_findings` (amendement 4 : les constats d'une tâche de
+  fond sont journalisés dans un changeset système, avertissements ouverts en anomalies,
+  objets réévalués refermés).
 - `ModuleRegistry` ordonne les modules selon le DAG, refuse noms, collections,
   permissions et règles en collision, et complète les catalogues du processus.
-- Le serveur compose le registre selon ses features (`vlan`, `machines` ; défaut :
-  toutes) ; `kartenn-server openapi` écrit le contrat de référence du build. Un module
+- Le serveur compose le registre selon ses features (`vlan`, `machines`, `policy` qui
+  active `machines`, `flow` qui active `policy` ; défaut : toutes). Le module politique
+  (`kartenn-policy`, spec 010) évalue ses verdicts en mémoire sur un instantané versionné
+  ([ADR 0030](../adr/0030-evaluation-sur-instantane.md)) et livre un convertisseur hors
+  ligne (feature `import`, binaire `kartenn-policy-import`) ; `kartenn-server openapi` écrit le contrat de référence du build. Un module
   sert ses routes avec `kartenn_rest::kit`.
 
 Modules livrés : `vlan` (008 ; groupes et VLAN 802.1Q, propriété `vlan.vlan` des

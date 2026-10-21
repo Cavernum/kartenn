@@ -1,7 +1,9 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
+<!-- Implémentées sauf REQ-010-28 et 54 (budgets : prototype 010-1 et banc 010-19 à faire). -->
+
 
 # 010 — Politique de flux : exigences
 
