@@ -315,11 +315,23 @@ impl Handler {
         let _ = describe.local;
         let key = property_key(operation, &describe.property)?;
         let columns = attribute_columns(operation, &describe.attributes)?;
+        // A value of `policy.environment` is an environment (S15).
+        let environment = key.to_string() == ENVIRONMENT;
         if let Some(existing) = describe.completed.existing {
-            return Ok(plan(VALUE, existing, false, json!({ "update": columns })));
+            return Ok(plan(
+                VALUE,
+                existing,
+                false,
+                json!({ "update": columns, "environment": environment }),
+            ));
         }
         let row = value_row(object, &key.to_string(), &describe.value, columns);
-        Ok(plan(VALUE, object, true, json!({ "create": row })))
+        Ok(plan(
+            VALUE,
+            object,
+            true,
+            json!({ "create": row, "environment": environment }),
+        ))
     }
 
     fn plan_create_environment(
@@ -334,7 +346,12 @@ impl Handler {
             .ok_or_else(|| invalid(operation, "policy.environment is not declared"))?;
         let columns = attribute_columns(operation, &create.attributes)?;
         let row = value_row(object, ENVIRONMENT, &create.key, columns);
-        let mut planned = plan(VALUE, object, true, json!({ "create": row }));
+        let mut planned = plan(
+            VALUE,
+            object,
+            true,
+            json!({ "create": row, "environment": true }),
+        );
         // The value of the closed list, an ordinary operation of the core (REQ-003-5).
         planned.core.push(Operation::AddEnumValue {
             local: None,
@@ -355,7 +372,12 @@ impl Handler {
         // The value is closed by the core, its attributes with it (reference with
         // cascade); a node or a rule that cites it refuses the closure (REQ-010-2).
         let object = close.completed.existing.unwrap_or(value);
-        let mut planned = plan(VALUE, object, false, json!({ "noop": true }));
+        let mut planned = plan(
+            VALUE,
+            object,
+            false,
+            json!({ "noop": true, "environment": true }),
+        );
         planned.core.push(Operation::Close {
             kind: ObjectKind::EnumValue,
             id: Ref::Id(value),
@@ -531,6 +553,16 @@ impl ModuleHandler for Handler {
             "examples.install" => Self::plan_examples(operation, object),
             _ => plan_object(operation, object, resolve)
                 .unwrap_or_else(|| Err(invalid(operation, "unknown operation"))),
+        }
+    }
+
+    /// An environment, a value of `policy.environment`, is written under
+    /// `policy.environment.admin` besides the write of the values (S15).
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        if plan.data.get("environment") == Some(&serde_json::Value::Bool(true)) {
+            vec![(crate::module::ENVIRONMENT_ADMIN.to_owned(), plan.object)]
+        } else {
+            Vec::new()
         }
     }
 

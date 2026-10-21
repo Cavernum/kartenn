@@ -5,3 +5,4 @@ mod support;
 
 mod axes;
 mod catalogue;
+mod rights;

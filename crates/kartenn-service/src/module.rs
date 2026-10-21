@@ -585,6 +585,11 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn permissions(&self) -> &'static [&'static Permission] {
         &[]
     }
+    /// The permissions its object types are read and written under, when not
+    /// `<type>.read` and `<type>.write` (several types may share one).
+    fn type_permissions(&self) -> &'static [kartenn_core::authz::TypePermissions] {
+        &[]
+    }
     /// Its validation rules.
     fn rules(&self) -> &'static [&'static Rule] {
         &[]
@@ -854,6 +859,7 @@ impl ModuleRegistry {
         // (REQ-008-8): role entries, scopes and journaled violations see them.
         for module in &order {
             kartenn_core::authz::register(module.permissions());
+            kartenn_core::authz::register_types(module.type_permissions());
             kartenn_core::rules::register(module.rules());
         }
         Ok(Self { modules: order })

@@ -103,7 +103,7 @@ async fn record_all<J: AuditJournal>(
 #[must_use]
 pub fn read_permission(kind: &str) -> String {
     if kind.contains('.') {
-        format!("{kind}.read")
+        kartenn_core::authz::type_read_permission(kind)
     } else {
         format!("core.{kind}.read")
     }

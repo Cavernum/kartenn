@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use kartenn_core::authz::Permission;
+use kartenn_core::authz::{Permission, TypePermissions};
 use kartenn_core::properties::{Declarant, Declaration, InheritTree, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
@@ -232,37 +232,48 @@ macro_rules! permissions {
     };
 }
 
-// The objects of the policy have no anchor (S15): their writes are granted at the global
-// scope only; reading them is a right of the delivered reader roles.
+// The rights of the policy (S15, amended by Q17; REQ-010-24). Its objects have no anchor:
+// administering them is granted at the global scope only, reading them is a right of the
+// delivered reader roles. `policy.inference.admin` is scoped by domain (REQ-010-46),
+// `policy.flow.request` by entity; the write of each axis is the property permission of
+// its key, on the scope of the node or the machine (REQ-003-17).
 permissions! {
     PERMISSIONS;
-    AXIS_READ = "policy.axis.read", false, "Lire les axes de la politique.";
-    AXIS_WRITE = "policy.axis.write", true, "Désigner, modifier ou retirer un axe de la politique.";
-    AXIS_PROPOSE = "policy.axis.propose", true, "Proposer un changement d'un axe de la politique.";
-    VALUE_READ = "policy.value.read", false, "Lire les attributs des valeurs des axes.";
-    VALUE_WRITE = "policy.value.write", true, "Décrire une valeur d'axe, créer ou clore un environnement.";
-    VALUE_PROPOSE = "policy.value.propose", true, "Proposer un changement des attributs d'une valeur d'axe.";
-    FLOW_TYPE_READ = "policy.flow_type.read", false, "Lire les types de flux.";
-    FLOW_TYPE_WRITE = "policy.flow_type.write", true, "Créer, modifier ou clore un type de flux.";
-    FLOW_TYPE_PROPOSE = "policy.flow_type.propose", true, "Proposer un changement d'un type de flux.";
-    SERVICE_READ = "policy.service.read", false, "Lire le catalogue de services.";
-    SERVICE_WRITE = "policy.service.write", true, "Créer, modifier ou clore un service.";
-    SERVICE_PROPOSE = "policy.service.propose", true, "Proposer un changement d'un service.";
-    PATTERN_READ = "policy.pattern.read", false, "Lire les motifs d'architecture.";
-    PATTERN_WRITE = "policy.pattern.write", true, "Créer, modifier ou clore un motif d'architecture.";
-    PATTERN_PROPOSE = "policy.pattern.propose", true, "Proposer un changement d'un motif d'architecture.";
-    RULE_READ = "policy.rule.read", false, "Lire les règles de la politique.";
-    RULE_WRITE = "policy.rule.write", true, "Créer, modifier ou clore une règle de la politique.";
-    RULE_PROPOSE = "policy.rule.propose", true, "Proposer un changement d'une règle de la politique.";
-    CONDITION_READ = "policy.condition.read", false, "Lire les conditions d'admissibilité.";
-    CONDITION_WRITE = "policy.condition.write", true, "Créer, modifier ou clore une condition d'admissibilité.";
-    CONDITION_PROPOSE = "policy.condition.propose", true, "Proposer un changement d'une condition d'admissibilité.";
-    SIGNAL_READ = "policy.signal.read", false, "Lire les signaux de risque.";
-    SIGNAL_WRITE = "policy.signal.write", true, "Créer, modifier ou clore un signal de risque.";
-    SIGNAL_PROPOSE = "policy.signal.propose", true, "Proposer un changement d'un signal de risque.";
-    EXEMPT_ROLE_READ = "policy.exempt_role.read", false, "Lire les rôles d'interface exemptés.";
-    EXEMPT_ROLE_WRITE = "policy.exempt_role.write", true, "Exempter un rôle d'interface ou retirer l'exemption.";
-    EXEMPT_ROLE_PROPOSE = "policy.exempt_role.propose", true, "Proposer une exemption d'un rôle d'interface.";
+    READ = "policy.read", false, "Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux.";
+    VERDICT_READ = "policy.verdict.read", false, "Demander un verdict de conformité entre deux extrémités dont on détient la lecture.";
+    FLOW_REQUEST = "policy.flow.request", false, "Demander un flux pour une entité : verdict de toute paire, explication réduite aux valeurs, règles, motifs et conditions.";
+    AXIS_ADMIN = "policy.axis.admin", true, "Désigner, modifier ou retirer un axe, décrire ses valeurs.";
+    ENVIRONMENT_ADMIN_PERMISSION = "policy.environment.admin", true, "Créer, décrire ou clore un environnement.";
+    FLOW_TYPE_ADMIN = "policy.flow_type.admin", true, "Créer, modifier ou clore un type de flux.";
+    SERVICE_ADMIN = "policy.service.admin", true, "Créer, modifier ou clore un service.";
+    RULE_ADMIN = "policy.rule.admin", true, "Créer, modifier ou clore une règle, un motif, une condition d'admissibilité, un signal de risque ou un rôle exempté.";
+    INFERENCE_ADMIN = "policy.inference.admin", false, "Écrire les règles d'inférence qui citent un domaine du périmètre.";
+}
+
+/// The permission an environment is written under, besides the write of the values (S15).
+pub(crate) const ENVIRONMENT_ADMIN: &str = "policy.environment.admin";
+
+/// The types of the module under the permissions of S15: one read for all, one
+/// administration by family (rules, patterns, conditions, signals and exempt roles under
+/// `policy.rule.admin`).
+static TYPE_PERMISSIONS: &[TypePermissions] = &[
+    typed(AXIS, "policy.axis.admin"),
+    typed(VALUE, "policy.axis.admin"),
+    typed(FLOW_TYPE, "policy.flow_type.admin"),
+    typed(SERVICE, "policy.service.admin"),
+    typed(PATTERN, "policy.rule.admin"),
+    typed(RULE, "policy.rule.admin"),
+    typed(CONDITION, "policy.rule.admin"),
+    typed(SIGNAL, "policy.rule.admin"),
+    typed(EXEMPT_ROLE, "policy.rule.admin"),
+];
+
+const fn typed(kind: &'static str, write: &'static str) -> TypePermissions {
+    TypePermissions {
+        kind,
+        read: "policy.read",
+        write,
+    }
 }
 
 /// The events of the module (N15, ADR 0026): a new revision of the policy.
@@ -364,6 +375,9 @@ impl Module for Policy {
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS
+    }
+    fn type_permissions(&self) -> &'static [TypePermissions] {
+        TYPE_PERMISSIONS
     }
     fn rules(&self) -> &'static [&'static Rule] {
         POLICY_RULES

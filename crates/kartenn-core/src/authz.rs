@@ -102,6 +102,57 @@ pub fn module_permissions() -> Vec<&'static Permission> {
         .clone()
 }
 
+/// The permissions an object type of a module is read and written under, when they are not
+/// `<type>.read` and `<type>.write` (ADR 0026, clause 5): several types may share one
+/// permission (the policy module, spec 010/S15).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypePermissions {
+    /// The qualified type, `<module>.<type>`.
+    pub kind: &'static str,
+    /// Its read permission.
+    pub read: &'static str,
+    /// Its write permission; its proposal is the same name ending in `.propose`, if any.
+    pub write: &'static str,
+}
+
+/// The type permissions the modules of the build declared.
+static TYPE_PERMISSIONS: RwLock<Vec<TypePermissions>> = RwLock::new(Vec::new());
+
+/// Records the permissions of object types of a module; a type already there is kept once.
+pub fn register_types(types: &[TypePermissions]) {
+    let mut known = TYPE_PERMISSIONS
+        .write()
+        .unwrap_or_else(PoisonError::into_inner);
+    for t in types {
+        if !known.iter().any(|k| k.kind == t.kind) {
+            known.push(*t);
+        }
+    }
+}
+
+fn type_permissions(kind: &str) -> Option<TypePermissions> {
+    TYPE_PERMISSIONS
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .copied()
+        .find(|t| t.kind == kind)
+}
+
+/// The read permission of the object type `kind` of a module: its declared one, else
+/// `<kind>.read`.
+#[must_use]
+pub fn type_read_permission(kind: &str) -> String {
+    type_permissions(kind).map_or_else(|| format!("{kind}.read"), |t| t.read.to_owned())
+}
+
+/// The write permission of the object type `kind` of a module: its declared one, else
+/// `<kind>.write`.
+#[must_use]
+pub fn type_write_permission(kind: &str) -> String {
+    type_permissions(kind).map_or_else(|| format!("{kind}.write"), |t| t.write.to_owned())
+}
+
 #[must_use]
 pub fn permission(name: &str) -> Option<&'static Permission> {
     PERMISSIONS
