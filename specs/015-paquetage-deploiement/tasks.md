@@ -16,14 +16,25 @@ après l'autre.
 
 ## P1 — Briques
 
-- [ ] 1. Flake et binaire : `flake.nix`, `flake.lock` (nixpkgs de devenv),
+- [x] 1. Flake et binaire : `flake.nix`, `flake.lock` (nixpkgs de devenv),
   `nix/package/server.nix`, version lue dans `Cargo.toml`, `checks.lock-sync` —
   REQ-015-1, 2 — verify : `nix build .#kartenn-server` deux fois, même chemin ;
   `result/bin/kartenn-server --version` ; `nix build .#checks.x86_64-linux.lock-sync`
   où : design « Flake » ; `devenv.yaml`, `devenv.lock` ; `Cargo.toml`
   (`[workspace.package]`) ; `.sqlx/`
   dépend de : —
-- [ ] 2. Interface : `nix/package/web.nix` (shell, plugins `vlan` et `machines`),
+  — `flake.nix` (seule entrée `nixpkgs`, `x86_64-linux` et `aarch64-linux`), `flake.lock`
+  recopié des nœuds `nixpkgs` et `nixpkgs-src` de `devenv.lock`, `nix/package/server.nix`
+  (`buildRustPackage`, source filtrée à `Cargo.*`, `crates/`, `.sqlx/`, `SQLX_OFFLINE`,
+  `doCheck = false`), `nix/checks/lock-sync.nix` (compare les `rev` des deux verrous).
+  Vérifié : deux `nix build .#kartenn-server` donnent le même chemin ; le binaire démarre
+  (usage des sous-commandes) ; `checks.x86_64-linux.lock-sync` construit. Sortie : binaire
+  38 Mo, clôture 84 Mo (glibc, libgcc). `--version` arrive avec la tâche 3.
+  choix : version lue dans `crates/kartenn-server/Cargo.toml`, ou dans
+  `[workspace.package]` dès que le paquet en hérite ; pas de `cargoHash` (verrou lu
+  directement) ; le test de dérive des verrous échoue au build, pas à l'évaluation, pour
+  ne pas masquer les autres `checks`.
+- [x] 2. Interface : `nix/package/web.nix` (shell, plugins `vlan` et `machines`),
   `scripts/update-pnpm-hash.sh`, paquet joint `kartenn` — REQ-015-1 — verify : `nix
   build .#kartenn` contient `share/kartenn/web/shell/index.html` avec son import map et
   `share/kartenn/plugins/{vlan,machines}/<version>/manifest.json`, sans `example`
@@ -31,6 +42,18 @@ après l'autre.
   `web/plugins/*/package.json` ; `crates/kartenn-rest/src/web/plugins.rs` (structure
   attendue du répertoire)
   dépend de : —
+  — `nix/package/web.nix` (`fetchPnpmDeps` avec `fetcherVersion = 4` et `pnpm_12`, la
+  version de `packageManager` ; `pnpmConfigHook` ; build filtré au shell et aux plugins
+  `vlan` et `machines` ; copie de `web/dist/shell` et `web/dist/plugins/{vlan,machines}`),
+  `nix/package/default.nix` (`symlinkJoin` nommé `kartenn`, paquet par défaut du flake),
+  `scripts/update-pnpm-hash.sh`. Vérifié : `nix build .#kartenn` donne `bin/kartenn-server`,
+  `share/kartenn/web/shell/index.html` avec son import map (`/sdk/index.js`,
+  `/sdk/host.js`) et `share/kartenn/plugins/{vlan,machines}/1.0.0/manifest.json`, sans
+  `example` ; shell 596 Ko, plugins 60 Ko, clôture du paquet 84,6 Mo.
+  choix : `fetchPnpmDeps` et `pnpmConfigHook` (noms actuels de nixpkgs) au lieu de
+  `pnpm.fetchDeps` et `pnpm.configHook` cités par le design ; le manifeste de build
+  `.vite/` (banc de taille) est retiré du paquet ; source = `web/` hors `node_modules`,
+  `dist` et état des parcours.
 - [ ] 3. URL de la base par fichier et `--version` : section `[database] url_file`,
   argument facultatif, `--config` pour `migrate` et `breakglass create` — REQ-015-4 —
   verify : tests de `config.rs` (champ inconnu, fichier vide, illisible, ambiguïté

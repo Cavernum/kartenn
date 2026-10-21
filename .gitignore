@@ -13,6 +13,10 @@ devenv.local.yaml
 # cargo
 /target
 
+# nix build
+/result
+/result-*
+
 # development material written by `kartenn-dev-idp certs` (spec 007)
 /dev/state/
 # and by web/e2e/serve.sh for the end-to-end journeys
