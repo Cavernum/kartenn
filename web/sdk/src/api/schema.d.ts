@@ -143,6 +143,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/admissibility-conditions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The admissibility-conditions of the policy. */
+    get: operations["list_admissibility_conditions"];
+    put?: never;
+    /** Creates in admissibility-conditions (policy.condition.create). */
+    post: operations["create_admissibility_conditions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admissibility-conditions/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_admissibility_conditions"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_admissibility_conditions"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.condition.update, JSON Merge Patch). */
+    patch: operations["modify_admissibility_conditions"];
+    trace?: never;
+  };
   "/v1/admissibility-conditions/{id}/history": {
     parameters: {
       query?: never;
@@ -912,6 +949,79 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/environments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The environments of the policy. */
+    get: operations["list_environments"];
+    put?: never;
+    /** Creates in environments (policy.environment.create). */
+    post: operations["create_environments"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/environments/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_environments"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_environments"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/flow-types": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The flow-types of the policy. */
+    get: operations["list_flow_types"];
+    put?: never;
+    /** Creates in flow-types (policy.flow_type.create). */
+    post: operations["create_flow_types"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/flow-types/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_flow_types"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_flow_types"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.flow_type.update, JSON Merge Patch). */
+    patch: operations["modify_flow_types"];
+    trace?: never;
+  };
   "/v1/flow-types/{id}/history": {
     parameters: {
       query?: never;
@@ -1237,6 +1347,43 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/v1/inference-rules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The inference-rules of the policy. */
+    get: operations["list_inference_rules"];
+    put?: never;
+    /** Creates in inference-rules (policy.inference_rule.create). */
+    post: operations["create_inference_rules"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/inference-rules/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_inference_rules"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_inference_rules"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.inference_rule.update, JSON Merge Patch). */
+    patch: operations["modify_inference_rules"];
     trace?: never;
   };
   "/v1/inference-rules/{id}/history": {
@@ -1663,6 +1810,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-axes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The policy-axes of the policy. */
+    get: operations["list_policy_axes"];
+    put?: never;
+    /** Creates in policy-axes (policy.axis.designate). */
+    post: operations["create_policy_axes"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-axes/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_policy_axes"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_policy_axes"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.axis.update, JSON Merge Patch). */
+    patch: operations["modify_policy_axes"];
+    trace?: never;
+  };
   "/v1/policy-axes/{id}/history": {
     parameters: {
       query?: never;
@@ -1726,6 +1910,42 @@ export interface paths {
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-exempt-roles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The policy-exempt-roles of the policy. */
+    get: operations["list_policy_exempt_roles"];
+    put?: never;
+    /** Creates in policy-exempt-roles (policy.exempt_role.create). */
+    post: operations["create_policy_exempt_roles"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-exempt-roles/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_policy_exempt_roles"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_policy_exempt_roles"];
     options?: never;
     head?: never;
     patch?: never;
@@ -1799,6 +2019,77 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-matrix": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The rules of a flow type between environments, as a matrix (REQ-010-34). */
+    get: operations["show_policy_matrix"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-matrix/{source}/{flow_type}/{destination}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Sets a cell of the matrix (policy.matrix.set): allow, deny, conditional or none. */
+    put: operations["set_policy_matrix_cell"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-patterns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The policy-patterns of the policy. */
+    get: operations["list_policy_patterns"];
+    put?: never;
+    /** Creates in policy-patterns (policy.pattern.create). */
+    post: operations["create_policy_patterns"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-patterns/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_policy_patterns"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_policy_patterns"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.pattern.update, JSON Merge Patch). */
+    patch: operations["modify_policy_patterns"];
+    trace?: never;
+  };
   "/v1/policy-patterns/{id}/history": {
     parameters: {
       query?: never;
@@ -1867,6 +2158,94 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-reports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Asks for the audit report of the policy at a date (REQ-010-23); one at a time. */
+    post: operations["request_policy_report"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-reports/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A report of the policy. */
+    get: operations["show_policy_report"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-reports/{id}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The items of a rubric of a report, by rank. */
+    get: operations["policy_report_items"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-rules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The policy-rules of the policy. */
+    get: operations["list_policy_rules"];
+    put?: never;
+    /** Creates in policy-rules (policy.rule.create). */
+    post: operations["create_policy_rules"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-rules/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_policy_rules"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_policy_rules"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.rule.update, JSON Merge Patch). */
+    patch: operations["modify_policy_rules"];
+    trace?: never;
+  };
   "/v1/policy-rules/{id}/history": {
     parameters: {
       query?: never;
@@ -1927,6 +2306,41 @@ export interface paths {
     };
     /** The value the source of a property expects for the object (REQ-003-23). */
     get: operations["policy_rule_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The policy-values of the policy. */
+    get: operations["list_policy_values"];
+    put?: never;
+    /** Creates in policy-values (policy.value.describe). */
+    post: operations["create_policy_values"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_policy_values"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2373,6 +2787,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/risk-signals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The risk-signals of the policy. */
+    get: operations["list_risk_signals"];
+    put?: never;
+    /** Creates in risk-signals (policy.signal.create). */
+    post: operations["create_risk_signals"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/risk-signals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_risk_signals"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_risk_signals"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.signal.update, JSON Merge Patch). */
+    patch: operations["modify_risk_signals"];
+    trace?: never;
+  };
   "/v1/risk-signals/{id}/history": {
     parameters: {
       query?: never;
@@ -2552,6 +3003,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The services of the policy. */
+    get: operations["list_services"];
+    put?: never;
+    /** Creates in services (policy.service.create). */
+    post: operations["create_services"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/services/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The object. */
+    get: operations["show_services"];
+    put?: never;
+    post?: never;
+    /** Closes the object. */
+    delete: operations["close_services"];
+    options?: never;
+    head?: never;
+    /** Modifies the object (policy.service.update, JSON Merge Patch). */
+    patch: operations["modify_services"];
+    trace?: never;
+  };
   "/v1/services/{id}/history": {
     parameters: {
       query?: never;
@@ -2717,6 +3205,23 @@ export interface paths {
     };
     /** The value the source of a property expects for the object (REQ-003-23). */
     get: operations["site_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/verdicts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The verdicts of a query of compliance, by parameters (REQ-010-13). */
+    get: operations["show_verdicts"];
     put?: never;
     post?: never;
     delete?: never;
@@ -4172,6 +4677,13 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_PolicyObject: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["PolicyObject"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_Prefix: {
       /** @description The elements of the page. */
       items: components["schemas"]["Prefix"][];
@@ -5197,6 +5709,271 @@ export interface components {
        * @description Start, included.
        */
       start: number;
+    };
+    /** @description The values of an endpoint on an axis, and where they come from (REQ-010-31). */
+    PolicyAxisResolution: {
+      /** @description The axis. */
+      axis: string;
+      /** @description The objects walked to the origin (`tree`). */
+      chain?: string[];
+      /** @description The machines carrying a value (`machine`). */
+      machines?: string[];
+      /**
+       * Format: uuid
+       * @description The object carrying the assignment (`tree`), absent in a reduced explanation.
+       */
+      origin?: string | null;
+      /** @description `tree` or `machine`. */
+      source: string;
+      /** @description Its values, empty when not classified. */
+      values: string[];
+    };
+    /** @description A value that made the decisive rule apply. */
+    PolicyCombinationValue: {
+      /** @description The axis. */
+      axis: string;
+      /** @description `source` or `destination`. */
+      side: string;
+      /** @description The value. */
+      value: string;
+    };
+    /** @description An admissibility condition and its state (REQ-010-36). */
+    PolicyConditionResult: {
+      /** @description The condition. */
+      condition: string;
+      /** @description `met`, `unmet` or `not_evaluated`. */
+      state: string;
+    };
+    /** @description What decided a verdict (REQ-010-12). */
+    PolicyDecisive: {
+      /** @description The axis not classified (`unclassified`). */
+      axis?: string | null;
+      /** @description The patterns expected (`pending`). */
+      expected?: string[];
+      /** @description `unclassified`, `rule`, `pattern`, `pending`, `no_rule` or `unknown_service`. */
+      kind: string;
+      /** @description The pattern that matched (`pattern`). */
+      pattern?: string | null;
+      /** @description The rule, if any. */
+      rule?: string | null;
+      /** @description The side not classified (`unclassified`). */
+      side?: string | null;
+    };
+    /** @description A rule set aside, and why. */
+    PolicyDiscarded: {
+      /** @description The rule. */
+      rule: string;
+      /** @description `deny_wins`, `less_specific` or `unconditional_first`. */
+      why: string;
+    };
+    /** @description The file joined to a query (REQ-010-38). */
+    PolicyDossier: {
+      /** @description Fields present: `external_refs`, `requester`, `owners`, `data_nature`, `period`. */
+      fields?: string[];
+      /** @description Values of the file, by axis. */
+      values?: {
+        [key: string]: string[];
+      };
+    };
+    /** @description An endpoint of a query (REQ-010-13). */
+    PolicyEndpoint: {
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      id: string;
+      /** @description `address`, `prefix`, `interface` or `machine`. */
+      kind: string;
+    };
+    /** @description One evaluation: a pair of points and a service (REQ-010-11, 12, 37). */
+    PolicyEvaluation: {
+      /** @description The values that made the decisive rule apply. */
+      combination: components["schemas"]["PolicyCombinationValue"][];
+      /** @description Applicable conditions and their state. */
+      conditions: components["schemas"]["PolicyConditionResult"][];
+      /** @description What decided it. */
+      decisive: components["schemas"]["PolicyDecisive"];
+      /** @description Index of the destination point. */
+      destination: number;
+      /** @description Applicable rules set aside, three at most. */
+      discarded: components["schemas"]["PolicyDiscarded"][];
+      /** @description `automatic`, `review` or `noncompliant`. */
+      outcome: string;
+      /**
+       * Format: int64
+       * @description The informative score.
+       */
+      score: number;
+      /** @description The service; absent for a port no service covers. */
+      service?: string | null;
+      /** @description The risk signals raised. */
+      signals: string[];
+      /** @description Index of the source point. */
+      source: number;
+      /** @description `allowed`, `allowed_pending` or `denied`. */
+      verdict: string;
+    };
+    /** @description The matrix view of a flow type (REQ-010-34). */
+    PolicyMatrix: {
+      /** @description Its cells; a cell absent is denied by default (S8). */
+      cells: components["schemas"]["PolicyMatrixCell"][];
+      /** @description The flow type. */
+      flow_type: string;
+      /**
+       * @description Rules of the flow type the view does not show (more than one axis, more than one
+       *     value).
+       */
+      outside: number;
+    };
+    /** @description A cell of the matrix view (REQ-010-34). */
+    PolicyMatrixCell: {
+      /** @description The environment of the destination. */
+      destination: string;
+      /** @description The patterns of a conditional authorisation. */
+      patterns: string[];
+      /** @description The rules the cell stands for. */
+      rules: string[];
+      /** @description The environment of the source. */
+      source: string;
+      /** @description `allow`, `deny` or `conditional`. */
+      state: string;
+    };
+    /** @description A generic object of the policy, as its table holds it (design « Données »). */
+    PolicyObject: {
+      /**
+       * Format: uuid
+       * @description The identifier.
+       */
+      id: string;
+      /** @description Start of validity. */
+      valid_from?: string | null;
+      /** @description End of validity, absent when open. */
+      valid_to?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description A point of an endpoint: an address or a prefix and its values. */
+    PolicyPoint: {
+      /** @description Its values per axis. */
+      axes: components["schemas"]["PolicyAxisResolution"][];
+      /**
+       * Format: uuid
+       * @description The address or the prefix; absent in a reduced explanation.
+       */
+      id?: string | null;
+    };
+    /** @description A report of the policy (REQ-010-23). */
+    PolicyReport: {
+      /**
+       * @description The number of items of each rubric so far; `null` for a rubric the build cannot
+       *     answer.
+       */
+      counts: {
+        [key: string]: number | null;
+      };
+      /** @description When it was over. */
+      done_at?: string | null;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description When it was asked for. */
+      requested_at: string;
+      /**
+       * Format: uuid
+       * @description Who asked for it.
+       */
+      requested_by?: string | null;
+      /** @description `pending`, `running` or `done`. */
+      state: string;
+      /** @description The date the report describes. */
+      valid_at: string;
+    };
+    /** @description An item of a rubric of a report. */
+    PolicyReportItem: {
+      /** @description What the item says. */
+      detail: unknown;
+      /** @description Rubric. */
+      rubric: string;
+      /**
+       * Format: int64
+       * @description Rank within the rubric, from 1.
+       */
+      seq: number;
+      /**
+       * Format: uuid
+       * @description The object the item is about, if one.
+       */
+      subject?: string | null;
+    };
+    /** @description The body of `POST /v1/policy-reports`. */
+    PolicyReportRequest: {
+      /** @description The date to describe (RFC 3339), now by default. */
+      valid_at?: string | null;
+    };
+    /** @description The synthesis of the evaluations (REQ-010-15). */
+    PolicySynthesis: {
+      /** @description Evaluations that allow. */
+      allowed: number;
+      /** @description Evaluations that deny. */
+      denied: number;
+      /** @description The worst outcome. */
+      outcome: string;
+      /** @description `allowed`, `partial` or `denied`. */
+      verdict: string;
+    };
+    /** @description The answer of a query of compliance (REQ-010-13, 15, 25). */
+    PolicyVerdict: {
+      /** @description `full` or `reduced`. */
+      access: string;
+      /** @description The points of the destination. */
+      destinations: components["schemas"]["PolicyPoint"][];
+      /** @description `no_address` when an endpoint has no address at the date. */
+      empty?: string | null;
+      /** @description The evaluations. */
+      evaluations: components["schemas"]["PolicyEvaluation"][];
+      /** @description Addresses left out, which the caller may not read one by one. */
+      hidden: number;
+      /**
+       * Format: int64
+       * @description Revision of the policy read.
+       */
+      revision: number;
+      /** @description The points of the source. */
+      sources: components["schemas"]["PolicyPoint"][];
+      synthesis?: components["schemas"]["PolicySynthesis"] | null;
+    };
+    /**
+     * @description The body of `QUERY /v1/verdicts` (design « API »): what is evaluated is one of a
+     *     service, a transport and a port, or a flow type.
+     */
+    PolicyVerdictQuery: {
+      /** @description System time (RFC 3339), now by default. */
+      as_of?: string | null;
+      /** @description The destination. */
+      destination: components["schemas"]["PolicyEndpoint"];
+      dossier?: components["schemas"]["PolicyDossier"] | null;
+      /**
+       * Format: uuid
+       * @description The entity of the request, where `policy.flow.request` is looked for.
+       */
+      entity?: string | null;
+      /** @description A flow type, by its key. */
+      flow_type?: string | null;
+      /**
+       * Format: int32
+       * @description A port, with `transport`.
+       */
+      port?: number | null;
+      /** @description A service, by its key. */
+      service?: string | null;
+      /** @description The source. */
+      source: components["schemas"]["PolicyEndpoint"];
+      /** @description A transport, with `port`. */
+      transport?: string | null;
+      /** @description Valid time (RFC 3339), now by default. */
+      valid_at?: string | null;
     };
     /** @description A prefix. */
     Prefix: {
@@ -6547,6 +7324,222 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_admissibility_conditions: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Equal to, or held by, `kind`. */
+        kind?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_admissibility_conditions: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_admissibility_conditions: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_admissibility_conditions: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_admissibility_conditions: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -8721,6 +9714,386 @@ export interface operations {
       };
     };
   };
+  list_environments: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `value_key`. */
+        key?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_environments: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_environments: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_environments: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_flow_types: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_flow_types: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_flow_types: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_flow_types: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_flow_types: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   policy_flow_type_history: {
     parameters: {
       query?: {
@@ -9445,6 +10818,226 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ImportDto"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_inference_rules: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Equal to, or held by, `axis_key`. */
+        axis?: string;
+        /** @description Equal to, or held by, `domain_id`. */
+        domain?: string;
+        /** @description Equal to, or held by, `parent_id`. */
+        parent?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_inference_rules: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_inference_rules: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_inference_rules: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_inference_rules: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -10781,6 +12374,220 @@ export interface operations {
       };
     };
   };
+  list_policy_axes: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `property_key`. */
+        property?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_policy_axes: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_axes: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_policy_axes: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_policy_axes: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   policy_axis_history: {
     parameters: {
       query?: {
@@ -10924,6 +12731,172 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_policy_exempt_roles: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `role_key`. */
+        role?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_policy_exempt_roles: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_exempt_roles: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_policy_exempt_roles: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -11093,6 +13066,305 @@ export interface operations {
       };
     };
   };
+  show_policy_matrix: {
+    parameters: {
+      query?: {
+        /** @description The flow type, by its key. */
+        flow_type?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The matrix; its revision is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyMatrix"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  set_policy_matrix_cell: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The environment of the source. */
+        source: string;
+        /** @description The flow type. */
+        flow_type: string;
+        /** @description The environment of the destination. */
+        destination: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Set. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_policy_patterns: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_policy_patterns: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_patterns: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_policy_patterns: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_policy_patterns: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   policy_pattern_history: {
     parameters: {
       query?: {
@@ -11249,6 +13521,330 @@ export interface operations {
       };
     };
   };
+  request_policy_report: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PolicyReportRequest"];
+      };
+    };
+    responses: {
+      /** @description Asked for; its Location is the report. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyReport"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_report: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The report. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The report and the counts of its rubrics. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyReport"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_report_items: {
+    parameters: {
+      query?: {
+        /** @description The rubric. */
+        rubric?: string;
+        /** @description The rank to start after. */
+        after?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The report. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of items. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyReportItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_policy_rules: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Equal to, or held by, `effect`. */
+        effect?: string;
+        /** @description Equal to, or held by, `pattern_id`. */
+        pattern?: string;
+        /** @description Equal to, or held by, `flow_type_ids`. */
+        flow_type?: string;
+        /** @description Equal to, or held by, `service_ids`. */
+        service?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_policy_rules: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_rules: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_policy_rules: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_policy_rules: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   policy_rule_history: {
     parameters: {
       query?: {
@@ -11392,6 +13988,128 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_policy_values: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `property_key`. */
+        axis?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_policy_values: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_policy_values: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -12618,6 +15336,222 @@ export interface operations {
       };
     };
   };
+  list_risk_signals: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Equal to, or held by, `kind`. */
+        kind?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_risk_signals: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_risk_signals: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_risk_signals: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_risk_signals: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   policy_signal_history: {
     parameters: {
       query?: {
@@ -13119,6 +16053,222 @@ export interface operations {
     };
     responses: {
       /** @description Revoked. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_services: {
+    parameters: {
+      query?: {
+        /** @description Equal to, or held by, `key`. */
+        key?: string;
+        /** @description Equal to, or held by, `flow_type_id`. */
+        flow_type?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_services: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_services: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyObject"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_services: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_services: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["PolicyObject"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -13666,6 +16816,54 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_verdicts: {
+    parameters: {
+      query?: {
+        /** @description The source, `<kind>:<id>`. */
+        source?: string;
+        /** @description The destination, `<kind>:<id>`. */
+        destination?: string;
+        /** @description A service, by its key. */
+        service?: string;
+        /** @description A transport, with `port`. */
+        transport?: string;
+        /** @description A port, with `transport`. */
+        port?: string;
+        /** @description A flow type, by its key. */
+        flow_type?: string;
+        /** @description The entity of the request. */
+        entity?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The verdicts and their synthesis. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PolicyVerdict"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -14562,6 +17760,10 @@ export interface queries {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Address"];
   };
+  "/v1/admissibility-conditions": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
   "/v1/audit-events": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_AuditEvent"];
@@ -14578,6 +17780,18 @@ export interface queries {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Node"];
   };
+  "/v1/environments": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/flow-types": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/inference-rules": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
   "/v1/interfaces": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Interface"];
@@ -14585,6 +17799,26 @@ export interface queries {
   "/v1/machines": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Machine"];
+  };
+  "/v1/policy-axes": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/policy-exempt-roles": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/policy-patterns": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/policy-rules": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/policy-values": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
   };
   "/v1/prefixes": {
     body: components["schemas"]["Search"];
@@ -14594,9 +17828,21 @@ export interface queries {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Range"];
   };
+  "/v1/risk-signals": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/services": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_PolicyObject"];
+  };
   "/v1/sites": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Node"];
+  };
+  "/v1/verdicts": {
+    body: components["schemas"]["PolicyVerdictQuery"];
+    response: components["schemas"]["PolicyVerdict"];
   };
   "/v1/vlan-groups": {
     body: components["schemas"]["Search"];

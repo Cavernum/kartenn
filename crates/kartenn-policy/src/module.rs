@@ -119,6 +119,19 @@ static TYPES: &[ObjectType] = &[
     },
 ];
 
+/// The type `kind` of the module, for its routes.
+///
+/// # Panics
+///
+/// When `kind` is not a type of the module.
+#[cfg(feature = "rest")]
+pub(crate) fn object_type(kind: &str) -> &'static ObjectType {
+    TYPES
+        .iter()
+        .find(|t| t.kind == kind)
+        .expect("a type of the module")
+}
+
 static OPERATIONS: &[OperationType] = &[
     OperationType {
         name: "axis.designate",

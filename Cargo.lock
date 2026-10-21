@@ -1868,8 +1868,12 @@ dependencies = [
 name = "kartenn-policy"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "http-body-util",
+ "kartenn-auth",
  "kartenn-core",
  "kartenn-machines",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
@@ -1881,9 +1885,13 @@ dependencies = [
  "serde_json",
  "sqlx",
  "thiserror",
+ "time",
  "tokio",
  "toml_edit 0.22.27",
+ "tower",
  "unicode-normalization",
+ "utoipa",
+ "utoipa-axum",
  "uuid",
 ]
 

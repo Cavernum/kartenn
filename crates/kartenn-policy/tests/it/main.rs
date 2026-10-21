@@ -14,5 +14,6 @@ mod matrix;
 mod mismatch;
 mod obligation;
 mod report;
+mod rest;
 mod rights;
 mod verdict;

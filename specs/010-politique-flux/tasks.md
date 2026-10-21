@@ -428,11 +428,30 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   convertit pas est écarté avec un avis ; l'outil d'origine est simulé par une
   implémentation propre de sa sémantique (dernière règle lue l'emporte, puis ses
   exceptions), une contrainte inconnue n'y correspond jamais.
-- [ ] 18. Routes du module, `QUERY` et `GET` des verdicts, vue matricielle,
+- [x] 18. Routes du module, `QUERY` et `GET` des verdicts, vue matricielle,
   suggestion, rapports, contrat OpenAPI — REQ-010-24, 27 — verify : contrat comparé ;
   tests de routes
   - où : routeur de module (tâche 008-8), `crates/kartenn-rest/src/contract.rs`
   - dépend de : 11, 13, 15, 16
+  — `crates/kartenn-policy/src/rest.rs` (feature `rest`, montée par kartenn-server) : les
+  collections de REQ-010-27 et `policy-values`, `policy-exempt-roles` (liste datée,
+  filtres, curseur, `QUERY`, fiche avec `ETag`, `POST`, `PATCH` en Merge Patch sous
+  `If-Match`, `DELETE`) ; `/v1/environments` = valeurs de `policy.environment`, clôture par
+  `policy.environment.close` de la clé ; `GET /v1/policy-matrix?flow_type=<clé>`, `PUT
+  /v1/policy-matrix/{source}/{flow_type}/{destination}` (`policy.matrix.set`) ; `QUERY
+  /v1/verdicts` et `GET /v1/verdicts?source=<genre>:<id>&…` sur `verdict::query`
+  (404 sans droit, `policy-query-too-large` en 422, plage en 422) ; `POST
+  /v1/policy-reports`, `GET …/{id}`, `GET …/{id}/items?rubric=&after=`. Ajouts hors du
+  module : `kit::submit` (opération sans objet ni `If-Match`), problème
+  `policy-query-too-large`. La suggestion d'inférence passe par la route transverse du
+  noyau (`/v1/{collection}/{id}/suggestion`), déjà servie. Contrat de référence et types
+  du SDK régénérés. Tests : `tests/it/rest.rs` (5 parcours : lecture sous le catalogue,
+  écriture par famille, matrice, verdict sous ses deux formes et refus, rapport).
+  choix : objets rendus tels que leur table les garde (`PolicyObject`, membres de la
+  table, période en `valid_from`/`valid_to`) plutôt qu'un schéma par type ; le rapport est
+  demandé et lu sous `policy.rule.admin` (il nomme des nœuds de tout le référentiel ;
+  404 sinon), une demande pendant une autre répond 409 avec le `Location` de la première ;
+  les filtres `transport`/`port` des services ne sont pas servis (entrées en `jsonb`).
 - [ ] 19. Banc `bench-policy` bloquant en CI — REQ-010-28, 54 — verify : budgets tenus
   - où : `crates/kartenn-bench`
   - dépend de : 13, 15

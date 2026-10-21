@@ -21,6 +21,8 @@ pub(crate) struct Env {
     pub(crate) store: PgStore,
     pub(crate) author: Uuid,
     pub(crate) domain: Uuid,
+    /// The modules of the environment, as an instance serves them.
+    pub(crate) registry: Arc<ModuleRegistry>,
 }
 
 impl Env {
@@ -55,6 +57,7 @@ impl Env {
         let mut env = Self {
             pool: pool.clone(),
             store,
+            registry,
             author,
             domain: Uuid::nil(),
         };
