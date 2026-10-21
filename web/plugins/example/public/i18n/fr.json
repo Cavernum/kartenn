@@ -1,0 +1,26 @@
+{
+  "nav": { "overview": "Exemple" },
+  "view": {
+    "title": "Plugin d'exemple",
+    "body": "Ce plugin éprouve le SDK sans framework : une vue, un onglet, un panneau, une colonne et une action.",
+    "present": "Vous regardez le référentiel au présent.",
+    "dated": "Vous regardez le référentiel à une autre date que le présent.",
+    "draft": "Opérations dans le brouillon : {n}"
+  },
+  "tab": {
+    "details": "Exemple",
+    "loading": "Lecture du préfixe…",
+    "value": "Préfixe {value}, domaine {domain}",
+    "failed": "Lecture impossible : {detail}"
+  },
+  "panel": { "title": "Résumé de l'exemple", "body": "Objet {type} {id}" },
+  "column": { "usage": "Usage (exemple)", "reserved": "réservée", "other": "—" },
+  "action": {
+    "label": "Ajouter une adresse au brouillon",
+    "address": "Adresse",
+    "submit": "Ajouter au brouillon",
+    "added": "Opération ajoutée ; le brouillon en compte {n}.",
+    "failed": "Ajout impossible : {detail}",
+    "close": "Fermer"
+  }
+}

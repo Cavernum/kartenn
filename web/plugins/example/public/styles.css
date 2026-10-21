@@ -1,0 +1,72 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/*
+ * Style sheet of the example plugin, added to each shadow root by styles() of the SDK
+ * (with its digest). Only the design tokens of the shell: they cross the shadow root, so
+ * the elements follow the light and dark modes without knowing them (REQ-007-30).
+ */
+:host {
+  display: block;
+  color: var(--k-color-text);
+  font-family: var(--k-font-family);
+  font-size: var(--k-font-size);
+}
+
+:host(example-usage) {
+  display: inline;
+}
+
+.card {
+  background: var(--k-color-surface);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+  padding: var(--k-space-3);
+}
+
+h1,
+h2 {
+  margin: 0 0 var(--k-space-2);
+}
+
+p {
+  margin: var(--k-space-2) 0;
+}
+
+.muted {
+  color: var(--k-color-muted);
+}
+
+.error {
+  color: var(--k-color-danger);
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--k-space-2);
+  align-items: end;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-space-1);
+}
+
+input,
+button {
+  font: inherit;
+  color: var(--k-color-text);
+  background: var(--k-color-bg);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+  padding: var(--k-space-1) var(--k-space-2);
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--k-color-focus);
+  outline-offset: 2px;
+}

@@ -1,0 +1,40 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "sdk": "^0.1",
+  "entry": "index.js",
+  "module": null,
+  "catalogs": { "fr": "i18n/fr.json", "en": "i18n/en.json" },
+  "extensions": [
+    { "point": "view", "id": "overview", "element": "example-overview", "nav": "nav.overview" },
+    {
+      "point": "tab",
+      "id": "details",
+      "element": "example-details",
+      "object_types": ["prefix"],
+      "label": "tab.details",
+      "permission": "core.prefix.read"
+    },
+    {
+      "point": "panel",
+      "id": "summary",
+      "element": "example-summary",
+      "object_types": ["prefix", "address"]
+    },
+    {
+      "point": "column",
+      "id": "usage",
+      "element": "example-usage",
+      "object_types": ["address"],
+      "label": "column.usage"
+    },
+    {
+      "point": "action",
+      "id": "draft-address",
+      "element": "example-draft-address",
+      "object_types": ["prefix"],
+      "label": "action.label",
+      "permission": "core.address.write"
+    }
+  ]
+}

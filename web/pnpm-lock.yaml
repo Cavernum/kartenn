@@ -215,7 +215,15 @@ importers:
         specifier: 1.63.0
         version: 1.63.0
 
-  plugins/example: {}
+  plugins/example:
+    dependencies:
+      '@kartenn/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      happy-dom:
+        specifier: ^21.0.3
+        version: 21.0.3
 
   sdk:
     devDependencies:

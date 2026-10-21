@@ -9,7 +9,7 @@ import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   tag: string;
-  object?: ObjectRef;
+  object?: ObjectRef | undefined;
   row?: unknown;
 }>();
 const emit = defineEmits<{ close: [] }>();

@@ -504,12 +504,28 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
 
 ## P6 — Plugin d'exemple, budgets, synchronisation
 
-- [ ] 23. Plugin d'exemple sans framework : vue, onglet, panneau et colonne, action qui
+- [x] 23. Plugin d'exemple sans framework : vue, onglet, panneau et colonne, action qui
   ajoute une opération au brouillon, catalogues FR et EN, feuille par `styles()`, tests
   Vitest par le bac à sable ; build vers `web/dist/plugins/` — REQ-007-6, 11, 21 —
   verify : Vitest du plugin ; E2E sur Chromium et Firefox : chaque point visible là où
   il est déclaré, élément en mode sombre, opération ajoutée au brouillon
   où : design « Plugins côté serveur » (manifeste), « SDK » ; `web/plugins/example/`
+  — `web/plugins/example/` : `src/index.ts` (cinq éléments en shadow DOM, client et
+  brouillon du SDK, redessin au changement de contexte), `public/` (`manifest.json`,
+  `styles.css` sur les seuls jetons, `i18n/fr.json`, `i18n/en.json`), `vite.config.ts`
+  (build vers `web/dist/plugins/example/1.0.0/`, `@kartenn/sdk` externe), projet Vitest
+  `example` ; colonnes des plugins dans les listes (`DataTable.vue`, `ListView.vue`,
+  point `column` jusque-là sans hôte) ; `e2e/serve.sh` réunit plugins de test et plugin
+  d'exemple construit sous `web/e2e/.state/plugins` (`plugins_dir` des parcours). Tests :
+  `plugins/example/test/example.test.ts` (10, bac à sable), `e2e/journeys/example.spec.ts`
+  (points, mode sombre, brouillon).
+  choix : axe-core lancé sans préchargement CSSOM (il recopie les feuilles des shadow
+  roots en `<style>`, refusés par la CSP ; seule `css-orientation-lock` en dépend) ;
+  libellés distincts de ceux du plugin de test `notes` pour garder les sélecteurs
+  univoques ; le compteur du brouillon est montré par la vue du plugin en attendant la
+  tâche 20 ; `[web] plugins_dir` non ajouté à `dev/kartenn.toml` : la configuration
+  exige un répertoire existant, relatif au répertoire courant, ce que le test
+  `the_development_configuration_is_valid` (lancé depuis le crate) ne trouve pas.
 - [ ] 24. Banc `bench-web` : taille du shell, `kartenn-bench seed` et domaine à 10⁵
   enfants, projet Playwright `budgets` (premier écran, page de 100 lignes, arbre, plugin
   lent) — REQ-007-32 — verify : chaque mesure sous son budget, sortie non nulle sinon ;

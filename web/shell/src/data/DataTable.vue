@@ -1,7 +1,9 @@
 <script setup lang="ts" generic="T extends Record<string, unknown>">
+import type { ObjectRef } from "@kartenn/sdk";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import ExtensionElement from "../plugins/ExtensionElement.vue";
 
 // A long list (REQ-007-31, design « Thème, composants, arbre »): native `<table>`, rows
 // virtualised at a fixed height, `aria-rowcount` and `aria-rowindex`, one focusable row at
@@ -11,6 +13,13 @@ import { useRouter } from "vue-router";
 export interface Column {
   key: string;
   label: string;
+}
+
+/** A column of a plugin (point `column`): its element gets the object and the row. */
+export interface ExtensionColumn {
+  key: string;
+  label: string;
+  tag: string;
 }
 
 const props = defineProps<{
@@ -25,6 +34,10 @@ const props = defineProps<{
   cell: (row: T, key: string) => string;
   /** The page a cell links to, else `null` (summaries). */
   link?: (row: T, key: string) => string | null;
+  /** Columns of plugins, after those of the list (REQ-007-13). */
+  extensions?: readonly ExtensionColumn[];
+  /** The object of a row, given to the elements of the plugin columns. */
+  objectOf?: (row: T) => ObjectRef | undefined;
 }>();
 const emit = defineEmits<{ more: [] }>();
 
@@ -45,6 +58,7 @@ const virtualizer = useVirtualizer(
   })),
 );
 const virtual = computed(() => virtualizer.value.getVirtualItems());
+const width = computed(() => props.columns.length + (props.extensions?.length ?? 0));
 const before = computed(() => virtual.value[0]?.start ?? 0);
 const after = computed(
   () => virtualizer.value.getTotalSize() - (virtual.value[virtual.value.length - 1]?.end ?? 0),
@@ -111,6 +125,9 @@ function onKey(event: KeyboardEvent, index: number): void {
       <thead>
         <tr aria-rowindex="1">
           <th v-for="column in columns" :key="column.key" scope="col">{{ column.label }}</th>
+          <th v-for="column in extensions ?? []" :key="column.key" scope="col">
+            {{ column.label }}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -120,7 +137,7 @@ function onKey(event: KeyboardEvent, index: number): void {
           aria-hidden="true"
           :style="{ height: `${before}px` }"
         >
-          <td :colspan="columns.length"></td>
+          <td :colspan="width"></td>
         </tr>
         <tr
           v-for="item in virtual"
@@ -150,6 +167,13 @@ function onKey(event: KeyboardEvent, index: number): void {
             </RouterLink>
             <template v-else>{{ cell(rows[item.index]!, column.key) }}</template>
           </td>
+          <td v-for="column in extensions ?? []" :key="column.key">
+            <ExtensionElement
+              :tag="column.tag"
+              :object="objectOf?.(rows[item.index]!)"
+              :row="rows[item.index]"
+            />
+          </td>
         </tr>
         <tr
           v-if="after > 0"
@@ -157,7 +181,7 @@ function onKey(event: KeyboardEvent, index: number): void {
           aria-hidden="true"
           :style="{ height: `${after}px` }"
         >
-          <td :colspan="columns.length"></td>
+          <td :colspan="width"></td>
         </tr>
       </tbody>
     </table>
