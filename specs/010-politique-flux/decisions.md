@@ -409,7 +409,8 @@ Machines et interfaces (009, en cours). Note de référence :
   propriétés, REQ-009-24) ni dans l'évaluation.
 - Rejeté : extension du vocabulaire du rôle d'interface (mélange deux notions, une VM
   d'un seul attachement serait conduit par interface).
-- Décidé par : Claude (délégation, 2026-10-21 ; ecarts D22 et M8 laissaient le choix)
+- Décidé par : l'utilisateur (2026-10-21), sur la proposition de Claude (ecarts D22 et
+  M8 laissaient le choix)
 
 ## S27 — Axes portés par la machine
 - Décision : pour un axe porté par la machine, la valeur d'une adresse est l'**union**
@@ -418,8 +419,8 @@ Machines et interfaces (009, en cours). Note de référence :
   hérité**. L'explication nomme la source (machine et interface, ou nœud d'origine).
 - Pourquoi : Q6 (« une valeur posée sur un préfixe sert de défaut hérité ») ; union
   cohérente avec D25.
-- Décidé par : l'utilisateur (Q6) ; union pour plusieurs machines : Claude (délégation,
-  2026-10-21)
+- Décidé par : l'utilisateur (Q6) ; union pour plusieurs machines : l'utilisateur
+  (2026-10-21), sur la proposition de Claude
 
 ## S28 — Vue matricielle et import
 - Décision : la matrice (environnement source × environnement destination × type de
@@ -443,8 +444,8 @@ Machines et interfaces (009, en cours). Note de référence :
   est stocké par langue plutôt que par clé.
 - Rejeté : clés de traduction résolues par le shell (texte d'exploitation hors du
   référentiel).
-- Décidé par : l'utilisateur (pédagogie) ; stockage par langue : Claude (délégation,
-  2026-10-21)
+- Décidé par : l'utilisateur (pédagogie) ; stockage par langue : l'utilisateur
+  (2026-10-21), sur la proposition de Claude
 
 ## S30 — Conditions d'admissibilité et issue
 - Décision : une condition est un prédicat nommé d'un **genre** pris dans une liste
@@ -457,7 +458,8 @@ Machines et interfaces (009, en cours). Note de référence :
   les valeurs d'axe (S2), jamais lu par le verdict (D21 : axes non ordonnés).
 - Pourquoi : Q2, Q4 ; un genre fermé reste explicable et borné (D14).
 - Rejeté : prédicats en langage libre.
-- Décidé par : l'utilisateur (Q2, Q4) ; genres et rang : Claude (délégation, 2026-10-21)
+- Décidé par : l'utilisateur (Q2, Q4) ; genres et rang : l'utilisateur (2026-10-21), sur
+  la proposition de Claude
 
 ## S31 — Explication
 - Décision : chaîne complète (expression du besoin § 6.4) : demande normalisée et
@@ -492,4 +494,4 @@ Machines et interfaces (009, en cours). Note de référence :
   suggestion par `GET /v1/{collection}/{id}/suggestion` (route transverse du noyau).
 - Pourquoi : l'ADR 0026, acceptée, fixe la forme des chemins de module ; l'écart N13
   relevé à sa rédaction est ainsi résolu.
-- Décidé par : Claude (délégation, 2026-10-21)
+- Décidé par : l'utilisateur (2026-10-21), sur la proposition de Claude

@@ -114,8 +114,9 @@ l'amendement de D30 (validité dérivée).
   (`flow.flow.review`, distinct du demandeur, C1) l'approuve avec une date de fin, ou la
   rejette avec un motif (non-conformité, F17). Déclencheur `flow.waiver` ajouté (octroi
   ou prolongation d'une dérogation), sans défaut.
-- Décidé par (amendement) : l'utilisateur (Q2) ; proposition forcée et date de fin de
-  l'instruction (12 mois par défaut, réglable) : Claude (délégation, 2026-10-21)
+- Décidé par (amendement) : l'utilisateur (Q2) ; proposition forcée (N39, amende la 004)
+  et date de fin de l'instruction (12 mois par défaut, réglable) : l'utilisateur
+  (2026-10-21), sur la proposition de Claude
 
 ## F6 — Flux non conforme à l'enregistrement
 - Décision : créer ou prolonger un flux dont un verdict est `denied` sur une partie de
@@ -133,8 +134,9 @@ l'amendement de D30 (validité dérivée).
   défaut), accordée par `flow.flow.waive` **distinct du demandeur**, **recertifiée** par
   une prolongation qui réévalue le flux contre la politique du jour ; elle ne modifie
   jamais la politique. Un flux autorisé sous réserve n'est pas refusé : il est instruit.
-- Décidé par (amendement) : l'utilisateur (Q8, Q11) ; plafond de 6 mois : Claude
-  (délégation, 2026-10-21, ferme la question ouverte de la durée maximale)
+- Décidé par (amendement) : l'utilisateur (Q8, Q11) ; plafond de 6 mois : l'utilisateur
+  (2026-10-21), sur la proposition de Claude ; ferme la question ouverte de la durée
+  maximale
 
 ## F7 — Verdicts matérialisés
 - Décision : chaque flux a ses verdicts (par paire d'adresses) et sa synthèse
