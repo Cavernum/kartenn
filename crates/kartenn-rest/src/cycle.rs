@@ -44,8 +44,8 @@ use uuid::Uuid;
 use crate::anomalies::{Motive, motive};
 use crate::changesets::{
     Answer, Cascaded, ChangesetApplied, ChangesetPending, ChangesetRef, ChangesetSimulated,
-    DiffCountDto, Pointers, ViolationDto, answered, cascaded, href, linked, simulate,
-    submit_answered, summary, violations, write_store,
+    DiffCountDto, Pointers, SectionRowDto, ViolationDto, answered, cascaded, href, linked,
+    simulate, submit_answered, summary, violations, write_store,
 };
 use crate::cursor::{Listing, ListingLinks, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
@@ -558,20 +558,54 @@ fn diff_entry(item: &DiffItem, shown: bool) -> Result<DiffEntry, Problem> {
     })
 }
 
+/// A section of the differential contributed by a module, as counted with the
+/// differential.
+#[derive(Debug, Serialize, ToSchema)]
+struct SectionCount {
+    /// Its name, `<module>.<name>`.
+    name: String,
+    /// Its rows.
+    count: i64,
+}
+
 /// The differential of a changeset: its counts, and its objects by pages.
 #[derive(Debug, Serialize, ToSchema)]
 struct DiffPage<'a> {
     /// The counted differential.
     #[schema(value_type = Vec<DiffCountDto>)]
     counts: Value,
+    /// The sections the modules contributed, with their number of rows (REQ-008-26).
+    sections: Vec<SectionCount>,
     /// The objects of the page.
     items: Vec<DiffEntry>,
     /// The links of the page.
     links: ListingLinks<'a>,
 }
 
+/// A section of the differential of a changeset, by pages (REQ-008-26).
+#[derive(Debug, Serialize, ToSchema)]
+struct SectionPage<'a> {
+    /// Its name.
+    section: String,
+    /// The rows of the page, in the order the module gave.
+    rows: Vec<SectionRowDto>,
+    /// The links of the page.
+    links: ListingLinks<'a>,
+}
+
+/// The differential of the properties, or one section of the modules.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(untagged)]
+enum DiffAnswer<'a> {
+    /// The differential of the property values.
+    Properties(DiffPage<'a>),
+    /// One section, with `section=`.
+    Section(SectionPage<'a>),
+}
+
 /// `GET /v1/changesets/{id}/diff?property=…`: the counted differential and its detail by
-/// pages, in the order of the journal.
+/// pages, in the order of the journal; `?section=<module>.<name>`: the rows of a section
+/// contributed by a module, by pages (REQ-008-26).
 #[utoipa::path(
     get,
     path = "/changesets/{id}/diff",
@@ -580,9 +614,10 @@ struct DiffPage<'a> {
     params(
         ("id" = Uuid, Path, description = "The changeset."),
         ("property" = Option<String>, Query, description = "Only this property."),
+        ("section" = Option<String>, Query, description = "This section of a module instead of the properties."),
         PageParams,
     ),
-    responses((status = 200, description = "The differential.", body = DiffPage))
+    responses((status = 200, description = "The differential, or a section.", body = DiffAnswer))
 )]
 pub(crate) async fn diff(
     State(api): State<Api>,
@@ -594,12 +629,20 @@ pub(crate) async fn diff(
     let name = format!("changesets/{id}/diff");
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
     let mut property = None;
+    let mut section = None;
     for (key, value) in &page.filters {
         match key.as_str() {
             "property" if property.is_none() => property = Some(value.clone()),
-            "property" => return Err(bad("property is given more than once")),
+            "section" if section.is_none() => section = Some(value.clone()),
+            "property" | "section" => return Err(bad(format!("{key} is given more than once"))),
             other => return Err(bad(format!("unknown parameter {other}"))),
         }
+    }
+    if let Some(section) = section {
+        if property.is_some() {
+            return Err(bad("property and section exclude each other"));
+        }
+        return section_diff(&api, &context, id, &name, &page, section).await;
     }
     let after = page
         .after()
@@ -657,13 +700,82 @@ pub(crate) async fn diff(
         json!({ "changeset": id, "diff": { "property": property } }),
     )
     .await?;
-    let mut response = axum::Json(DiffPage {
+    let sections = kartenn_store_pg::sections::section_counts(&api.pool, id)
+        .await
+        .map_err(Problem::from)?
+        .into_iter()
+        .map(|(name, count)| SectionCount { name, count })
+        .collect();
+    let mut response = axum::Json(DiffAnswer::Properties(DiffPage {
         counts: counts(&api, &context, id, journal.diff).await?,
+        sections,
         items,
         links: ListingLinks {
             next: next.as_deref(),
         },
-    })
+    }))
+    .into_response();
+    if let Some(next) = &next {
+        response.headers_mut().insert(
+            header::LINK,
+            HeaderValue::try_from(format!("<{next}>; rel=\"next\"")).map_err(internal)?,
+        );
+    }
+    Ok(response)
+}
+
+/// The rows of the section `section` of the changeset `id`, by pages (REQ-008-26).
+async fn section_diff(
+    api: &Api,
+    context: &RequestContext,
+    id: Uuid,
+    name: &str,
+    page: &Page,
+    section: String,
+) -> Result<Response, Problem> {
+    let after = page
+        .after()
+        .map(|seq| {
+            seq.as_i64()
+                .ok_or_else(|| Problem::new(ProblemKind::InvalidCursor))
+        })
+        .transpose()?;
+    let moment = current(api, page).await?;
+    idempotency::journaled(&api.pool, id)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let size = usize::from(page.size);
+    let mut found = kartenn_store_pg::sections::section_page(
+        &api.pool,
+        id,
+        &section,
+        after,
+        i64::from(page.size) + 1,
+    )
+    .await
+    .map_err(Problem::from)?;
+    let next = (found.len() > size).then(|| {
+        found.truncate(size);
+        let cursor = page.next_current(&api.ring, name, &moment, json!(found[size - 1].0));
+        next_href(&format!("/v1/{name}"), &cursor)
+    });
+    audit_read(
+        api,
+        context,
+        &[id],
+        json!({ "changeset": id, "diff": { "section": section } }),
+    )
+    .await?;
+    let mut response = axum::Json(DiffAnswer::Section(SectionPage {
+        rows: found
+            .iter()
+            .map(|(_, row)| SectionRowDto::from(row))
+            .collect(),
+        section,
+        links: ListingLinks {
+            next: next.as_deref(),
+        },
+    }))
     .into_response();
     if let Some(next) = &next {
         response.headers_mut().insert(

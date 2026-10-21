@@ -10,8 +10,8 @@ use std::sync::Arc;
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
-    BoxFuture, Module, ModuleHandler, ModuleMigration, ModuleObjectRow, ModulePlan, ModuleRegistry,
-    ModuleTx, ObjectType, OnClose, OperationType, Reference,
+    BoxFuture, CheckContext, Module, ModuleHandler, ModuleMigration, ModuleObjectRow, ModulePlan,
+    ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -353,10 +353,10 @@ impl ModuleHandler for Handler {
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
-        touched: &'a [(ModuleKind, Uuid)],
+        context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
         Box::pin(async move {
-            let ids: Vec<Uuid> = touched.iter().map(|(_, id)| *id).collect();
+            let ids: Vec<Uuid> = context.touched.iter().map(|(_, id)| *id).collect();
             let forbidden: Vec<Uuid> = sqlx::query_scalar(
                 "SELECT id FROM dummy.thing WHERE id = ANY($1) AND label = 'forbidden'
                    AND valid_period @> now()",

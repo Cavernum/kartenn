@@ -2520,6 +2520,13 @@ impl WriteTx for PgTx {
         self.diff_first(limit).await
     }
 
+    async fn record_section(
+        &mut self,
+        section: &kartenn_service::module::DiffSection,
+    ) -> Result<(), StoreError> {
+        self.record_section_rows(section).await
+    }
+
     async fn lock_changeset(&mut self, id: Uuid) -> Result<Option<String>, StoreError> {
         crate::pending::lock(&mut self.tx, id).await
     }
@@ -2543,6 +2550,7 @@ impl WriteTx for PgTx {
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
         write_journal(&mut self.tx, journal, &self.instance).await?;
         self.store_diff(journal.id).await?;
+        self.store_sections(journal.id).await?;
         crate::anomalies::record(
             &mut self.tx,
             journal.id,

@@ -992,6 +992,13 @@
             },
             "type": "array"
           },
+          "sections": {
+            "description": "The sections the modules would contribute to the differential (REQ-008-26).",
+            "items": {
+              "$ref": "#/components/schemas/SectionSampleDto"
+            },
+            "type": "array"
+          },
           "valid": {
             "description": "No violation is an error.",
             "type": "boolean"
@@ -1009,7 +1016,8 @@
           "violations",
           "diff",
           "sample",
-          "cascaded"
+          "cascaded",
+          "sections"
         ],
         "type": "object"
       },
@@ -1266,6 +1274,19 @@
         ],
         "type": "object"
       },
+      "DiffAnswer": {
+        "description": "The differential of the properties, or one section of the modules.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DiffPage",
+            "description": "The differential of the property values."
+          },
+          {
+            "$ref": "#/components/schemas/SectionPage",
+            "description": "One section, with `section=`."
+          }
+        ]
+      },
       "DiffCountDto": {
         "description": "A line of the counted differential (REQ-003-19): how many objects see a property go\nfrom one value to another.",
         "properties": {
@@ -1407,10 +1428,18 @@
           "links": {
             "$ref": "#/components/schemas/ListingLinks",
             "description": "The links of the page."
+          },
+          "sections": {
+            "description": "The sections the modules contributed, with their number of rows (REQ-008-26).",
+            "items": {
+              "$ref": "#/components/schemas/SectionCount"
+            },
+            "type": "array"
           }
         },
         "required": [
           "counts",
+          "sections",
           "items",
           "links"
         ],
@@ -5767,6 +5796,122 @@
         ],
         "description": "The body of a new secret."
       },
+      "SectionCount": {
+        "description": "A section of the differential contributed by a module, as counted with the\ndifferential.",
+        "properties": {
+          "count": {
+            "description": "Its rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Its name, `<module>.<name>`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "type": "object"
+      },
+      "SectionPage": {
+        "description": "A section of the differential of a changeset, by pages (REQ-008-26).",
+        "properties": {
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          },
+          "rows": {
+            "description": "The rows of the page, in the order the module gave.",
+            "items": {
+              "$ref": "#/components/schemas/SectionRowDto"
+            },
+            "type": "array"
+          },
+          "section": {
+            "description": "Its name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "rows",
+          "links"
+        ],
+        "type": "object"
+      },
+      "SectionRowDto": {
+        "description": "A row of a section of the differential contributed by a module (REQ-008-26).",
+        "properties": {
+          "after": {
+            "description": "What the module shows of it after; `null`: absent.",
+            "type": "object"
+          },
+          "before": {
+            "description": "What the module shows of it before; `null`: absent.",
+            "type": "object"
+          },
+          "kind": {
+            "description": "Its qualified type.",
+            "type": "string"
+          },
+          "object": {
+            "description": "The object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "Start of the period of the change; `null`: that of the changeset.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "End of the period of the change; `null`: unbounded, or that of the changeset.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "object",
+          "kind",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
+      "SectionSampleDto": {
+        "description": "A section of the differential in a simulation: its size and its first rows\n(REQ-008-26).",
+        "properties": {
+          "count": {
+            "description": "Its rows.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Its name, `<module>.<name>`.",
+            "type": "string"
+          },
+          "rows": {
+            "description": "Its first rows.",
+            "items": {
+              "$ref": "#/components/schemas/SectionRowDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "rows"
+        ],
+        "type": "object"
+      },
       "SessionState": {
         "description": "The session of the caller.",
         "properties": {
@@ -8117,6 +8262,15 @@
             }
           },
           {
+            "description": "This section of a module instead of the properties.",
+            "in": "query",
+            "name": "section",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "The next page, from `links.next`; it freezes the dates and the filters.",
             "in": "query",
             "name": "cursor",
@@ -8142,11 +8296,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DiffPage"
+                  "$ref": "#/components/schemas/DiffAnswer"
                 }
               }
             },
-            "description": "The differential."
+            "description": "The differential, or a section."
           },
           "default": {
             "content": {
@@ -8159,7 +8313,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/changesets/{id}/diff?property=…`: the counted differential and its detail by\npages, in the order of the journal.",
+        "summary": "`GET /v1/changesets/{id}/diff?property=…`: the counted differential and its detail by\npages, in the order of the journal; `?section=<module>.<name>`: the rows of a section\ncontributed by a module, by pages (REQ-008-26).",
         "tags": [
           "changesets"
         ]

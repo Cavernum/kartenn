@@ -361,6 +361,73 @@ impl From<&DiffCount> for DiffCountDto {
     }
 }
 
+/// A row of a section of the differential contributed by a module (REQ-008-26).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct SectionRowDto {
+    /// The object.
+    object: Uuid,
+    /// Its qualified type.
+    kind: String,
+    /// What the module shows of it before; `null`: absent.
+    #[schema(value_type = Object)]
+    before: Value,
+    /// What the module shows of it after; `null`: absent.
+    #[schema(value_type = Object)]
+    after: Value,
+    /// Start of the period of the change; `null`: that of the changeset.
+    valid_from: Option<String>,
+    /// End of the period of the change; `null`: unbounded, or that of the changeset.
+    valid_to: Option<String>,
+}
+
+/// An instant of the core as RFC 3339.
+fn rfc3339(at: kartenn_core::period::Instant) -> Option<String> {
+    time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.0) * 1_000)
+        .ok()
+        .and_then(|t| {
+            t.format(&time::format_description::well_known::Rfc3339)
+                .ok()
+        })
+}
+
+impl From<&kartenn_service::module::DiffRow> for SectionRowDto {
+    fn from(r: &kartenn_service::module::DiffRow) -> Self {
+        Self {
+            object: r.object,
+            kind: r.kind.clone(),
+            before: r.before.clone().unwrap_or(Value::Null),
+            after: r.after.clone().unwrap_or(Value::Null),
+            valid_from: r.period.and_then(|p| rfc3339(p.start())),
+            valid_to: r
+                .period
+                .and_then(kartenn_core::period::Period::end)
+                .and_then(rfc3339),
+        }
+    }
+}
+
+/// A section of the differential in a simulation: its size and its first rows
+/// (REQ-008-26).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct SectionSampleDto {
+    /// Its name, `<module>.<name>`.
+    name: String,
+    /// Its rows.
+    count: u64,
+    /// Its first rows.
+    rows: Vec<SectionRowDto>,
+}
+
+impl From<&kartenn_service::pipeline::SectionSample> for SectionSampleDto {
+    fn from(s: &kartenn_service::pipeline::SectionSample) -> Self {
+        Self {
+            name: s.name.clone(),
+            count: s.count,
+            rows: s.rows.iter().map(SectionRowDto::from).collect(),
+        }
+    }
+}
+
 /// One object of the differential (REQ-003-19).
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub(crate) struct DiffItemDto {
@@ -485,6 +552,8 @@ pub(crate) struct ChangesetSimulated {
     sample: Vec<DiffItemDto>,
     /// The closures a cascade would add.
     cascaded: Vec<Cascaded>,
+    /// The sections the modules would contribute to the differential (REQ-008-26).
+    sections: Vec<SectionSampleDto>,
 }
 
 /// What `Location` names for the changeset `changeset` applied.
@@ -668,12 +737,14 @@ pub(crate) async fn answered(
             diff,
             sample,
             cascaded: closures,
+            sections,
         } => Json(ChangesetSimulated {
             valid: !found.iter().any(Violation::is_error),
             violations: violations(api, &found, answer.pointers).await?,
             diff: diff.iter().map(DiffCountDto::from).collect(),
             sample: sample.iter().map(DiffItemDto::from).collect(),
             cascaded: cascaded(&closures),
+            sections: sections.iter().map(SectionSampleDto::from).collect(),
         })
         .into_response(),
         other => {

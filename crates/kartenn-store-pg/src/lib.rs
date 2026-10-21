@@ -35,6 +35,7 @@ mod rbac_admin;
 pub mod rbac_read;
 pub mod read;
 pub mod registry;
+pub mod sections;
 pub mod temporal;
 pub mod tree;
 mod undo;

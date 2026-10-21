@@ -164,7 +164,7 @@ numérotées après coup.
   où : design « Lectures et routes » ; `kartenn-rest/src/lib.rs` (`router`, `v1`),
   `resources.rs`, `properties.rs`, `versions.rs`, `contract.rs`, `openapi.rs`
   dépend de : 4, 5
-- [ ] 19. Contributions au différentiel : `Module::diff`, `DiffContext` (différentiel des
+- [x] 19. Contributions au différentiel : `Module::diff`, `DiffContext` (différentiel des
   propriétés, objets touchés typés, sections précédentes), ordre du registre, table
   `changeset_diff_section` (migration), sections dans la réponse de simulation et
   `GET /v1/changesets/{id}/diff?section=`, `CheckContext` des règles — REQ-008-26 —
@@ -175,6 +175,23 @@ numérotées après coup.
   différentiel des propriétés), store `diff.rs`, migration `0003` (`changeset_diff`),
   `0015` ; rest `cycle.rs::diff`
   dépend de : 3
+  — Service : `module.rs` (`DiffRow`, `DiffSection`, `DiffContext`, `CheckContext`,
+  `ModuleHandler::diff`, `check` sur `CheckContext`), `sections.rs` (objets touchés
+  typés, contributions dans l'ordre du registre, nom `<module>.<nom>` vérifié),
+  `pipeline.rs` (sections puis règles des modules après le différentiel des propriétés ;
+  `Outcome::Simulated::sections`, `SectionSample`), `port.rs::record_section` ; store
+  `sections.rs` (table temporaire, copie au journal, `section_counts`, `section_page`),
+  migration `0043_changeset_diff_section.sql` ; REST : `sections` dans la simulation et
+  le différentiel, `?section=` paginé, contrat de référence et types du SDK régénérés.
+  Tests : `kartenn-service/tests/module_diff.rs` (les quatre du verify, modules
+  `alpha` et `beta` de `support/section_modules.rs`), `kartenn-rest/tests/diff_sections.rs`
+  (simulation, comptes, pages par liens).
+  choix : `diff` et `check` sur `ModuleHandler` (asynchrones, comme les autres étapes)
+  plutôt que sur `Module` ; les règles des modules passent après le différentiel des
+  propriétés (elles lisent les sections), chaque module une fois dans l'ordre du registre,
+  même sans objet écrit ; sections stockées pour un changeset appliqué seulement, comme
+  `changeset_diff` ; réponse du différentiel en `oneOf` (`DiffAnswer`) selon `section=` ;
+  migration `0043` (la `0042` est prévue par la tâche 5).
 - [ ] 20. Obligations d'administrateur sur une propriété de module : colonne `origin` de
   `property_obligation`, opérations `AddObligation`/`RemoveObligation` (sous
   `core.property.admin`, contrôle de REQ-003-6), `sync_operations` limité aux

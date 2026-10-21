@@ -401,7 +401,8 @@ export interface paths {
     };
     /**
      * `GET /v1/changesets/{id}/diff?property=…`: the counted differential and its detail by
-     *     pages, in the order of the journal.
+     *     pages, in the order of the journal; `?section=<module>.<name>`: the rows of a section
+     *     contributed by a module, by pages (REQ-008-26).
      */
     get: operations["changeset_diff"];
     put?: never;
@@ -1925,6 +1926,8 @@ export interface components {
       diff: components["schemas"]["DiffCountDto"][];
       /** @description Its first entries. */
       sample: components["schemas"]["DiffItemDto"][];
+      /** @description The sections the modules would contribute to the differential (REQ-008-26). */
+      sections: components["schemas"]["SectionSampleDto"][];
       /** @description No violation is an error. */
       valid: boolean;
       /** @description Every violation, errors and warnings. */
@@ -2012,6 +2015,8 @@ export interface components {
       /** @description Its type. */
       type: string;
     };
+    /** @description The differential of the properties, or one section of the modules. */
+    DiffAnswer: components["schemas"]["DiffPage"] | components["schemas"]["SectionPage"];
     /**
      * @description A line of the counted differential (REQ-003-19): how many objects see a property go
      *     from one value to another.
@@ -2077,6 +2082,8 @@ export interface components {
       items: components["schemas"]["DiffEntry"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
+      /** @description The sections the modules contributed, with their number of rows (REQ-008-26). */
+      sections: components["schemas"]["SectionCount"][];
     };
     /** @description An addressing domain. */
     Domain: {
@@ -3671,6 +3678,61 @@ export interface components {
     };
     /** @description The body of a new secret. */
     SecretWrite: components["schemas"]["Reserved"] & components["schemas"]["SecretMembers"];
+    /**
+     * @description A section of the differential contributed by a module, as counted with the
+     *     differential.
+     */
+    SectionCount: {
+      /**
+       * Format: int64
+       * @description Its rows.
+       */
+      count: number;
+      /** @description Its name, `<module>.<name>`. */
+      name: string;
+    };
+    /** @description A section of the differential of a changeset, by pages (REQ-008-26). */
+    SectionPage: {
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+      /** @description The rows of the page, in the order the module gave. */
+      rows: components["schemas"]["SectionRowDto"][];
+      /** @description Its name. */
+      section: string;
+    };
+    /** @description A row of a section of the differential contributed by a module (REQ-008-26). */
+    SectionRowDto: {
+      /** @description What the module shows of it after; `null`: absent. */
+      after: Record<string, never>;
+      /** @description What the module shows of it before; `null`: absent. */
+      before: Record<string, never>;
+      /** @description Its qualified type. */
+      kind: string;
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      object: string;
+      /** @description Start of the period of the change; `null`: that of the changeset. */
+      valid_from?: string | null;
+      /** @description End of the period of the change; `null`: unbounded, or that of the changeset. */
+      valid_to?: string | null;
+    };
+    /**
+     * @description A section of the differential in a simulation: its size and its first rows
+     *     (REQ-008-26).
+     */
+    SectionSampleDto: {
+      /**
+       * Format: int64
+       * @description Its rows.
+       */
+      count: number;
+      /** @description Its name, `<module>.<name>`. */
+      name: string;
+      /** @description Its first rows. */
+      rows: components["schemas"]["SectionRowDto"][];
+    };
     /** @description The session of the caller. */
     SessionState: {
       /** @description A break-glass session. */
@@ -4952,6 +5014,8 @@ export interface operations {
       query?: {
         /** @description Only this property. */
         property?: string;
+        /** @description This section of a module instead of the properties. */
+        section?: string;
         /** @description The next page, from `links.next`; it freezes the dates and the filters. */
         cursor?: string;
         /** @description The size of a page, 1 to 1 000; 100 by default. */
@@ -4966,13 +5030,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The differential. */
+      /** @description The differential, or a section. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DiffPage"];
+          "application/json": components["schemas"]["DiffAnswer"];
         };
       };
       /** @description A problem (RFC 9457). */

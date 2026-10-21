@@ -1173,6 +1173,13 @@ pub trait WriteTx {
         property: &str,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
+    /// Records a section of the differential contributed by a module (REQ-008-26), stored
+    /// with the journal of an applied changeset.
+    fn record_section(
+        &mut self,
+        section: &crate::module::DiffSection,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// First `limit` entries of the differential recorded so far.
     fn diff_sample(
         &mut self,

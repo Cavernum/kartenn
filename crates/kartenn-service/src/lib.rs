@@ -23,6 +23,7 @@ pub mod reads;
 mod resolution;
 pub mod review;
 mod rights;
+mod sections;
 pub mod undo;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
