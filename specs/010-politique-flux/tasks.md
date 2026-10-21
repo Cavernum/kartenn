@@ -295,7 +295,22 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   verify : anomalies ouvertes et fermées ; regroupement par nœud d'origine
   - où : règles de module (clause 7), `crates/kartenn-service/src/import.rs` (tâche sous
     bail)
-  - dépend de : 6, 8
+  - dépend de : 6, 8, 15 (lecture des règles d'inférence et chaîne des ancêtres)
+  — **partielle (2026-10-21)** : REQ-010-17 faite — `crates/kartenn-policy/src/coherence.rs`
+  (machines touchées : écrites, interfaces ou adresses écrites, `policy.environment`,
+  `policy.declared_environment` ou `machines.interface_role` changés au différentiel, rôle
+  exempté écrit ; lecture des valeurs dans la transaction ; aucune lecture quand rien ne
+  touche une machine), règle `policy.machine.environment_mismatch`, appelée par
+  `Handler::check` ; tests `tests/it/coherence.rs` (acceptation de REQ-010-17, machine non
+  déclarée, changeset sans rapport, liste des rôles exemptés administrée) et unitaires.
+  **Reste REQ-010-48** (`policy.inference.mismatch` par nœud d'origine, tâche de fond
+  `policy.inference.check`) : il lit les règles d'inférence en base et la chaîne des
+  ancêtres d'un nœud, que la 15 construit (source de valeurs attendues), et les opérations
+  `policy.inference_rule.*` ne sont écrites par aucune tâche faite ; à reprendre après 15.
+  choix : seules les adresses classées comptent (une adresse sans environnement relève de
+  l'obligation, REQ-010-21) ; l'anomalie porte sur la machine seule ; liste des rôles
+  exemptés par défaut (`administration`, `backup`, `monitoring`) tant qu'aucun rôle n'a
+  jamais été administré, et le premier rôle administré la remplace.
 - [ ] 15. Source de valeurs attendues de l'inférence (contrat 003 amendé, N20, N28) :
   suggestion, valeur par défaut, versionnement et provenance — REQ-010-40, 41, 46, 50,
   51, 52 — verify : cas d'acceptation de REQ-010-45 (création sans défaut) et 52 ;

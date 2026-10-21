@@ -55,6 +55,8 @@ rules! {
         "Les exceptions d'une règle d'inférence s'imbriquent sur 4 niveaux au plus.";
     INFERENCE_CRITERION_INVALID = "policy.inference.criterion_invalid", Error, ["REQ-010-42"], "010/I3",
         "Un critère d'inférence admet au moins une valeur, et une règle au moins une valeur attendue.";
+    MACHINE_ENVIRONMENT_MISMATCH = "policy.machine.environment_mismatch", Warning, ["REQ-010-17"], "010/S10, D22",
+        "Les adresses d'une machine, hors interfaces d'un rôle exempté, résolvent l'environnement qu'elle déclare, ou, sans déclaration, un même environnement.";
     INFERENCE_CONFLICT = "policy.inference.conflict", Warning, ["REQ-010-45"], "010/I6 adouci",
         "Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents.";
     OPERATION_INVALID = "policy.operation.invalid", Error, ["REQ-010-26"], "ADR 0026 clause 6",
