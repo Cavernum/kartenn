@@ -23,7 +23,9 @@
   # stay out of the KARTENN_ prefix, which the server reads as its configuration.
   # `k-heavy --pg <command>` also takes the exclusive lock of the shared PostgreSQL: the
   # #[sqlx::test] runs of two worktrees would drop each other's test databases, and the
-  # benches recreate kartenn_bench. The lock is always taken after the slot (no cycle).
+  # benches recreate kartenn_bench. The lock is taken *before* the slot: a command waiting
+  # for PostgreSQL holds no slot, so the cores stay free for builds meanwhile. Nothing may
+  # ask for the lock while holding a slot (k-check takes them phase by phase).
   kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
     set -uo pipefail
     pg=0
@@ -34,16 +36,16 @@
     [ "$jobs" -ge 1 ] || jobs=1
     dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
     mkdir -p "$dir"
+    if [ "$pg" -eq 1 ] && [ -z "''${K_PG_HELD:-}" ]; then
+      exec 8>"$dir/pg"
+      ${pkgs.util-linux}/bin/flock -n 8 || {
+        echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
+        ${pkgs.util-linux}/bin/flock 8
+      }
+      export K_PG_HELD=1
+    fi
     run() {
       export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
-      if [ "$pg" -eq 1 ] && [ -z "''${K_PG_HELD:-}" ]; then
-        exec 8>"$dir/pg"
-        ${pkgs.util-linux}/bin/flock -n 8 || {
-          echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
-          ${pkgs.util-linux}/bin/flock 8
-        }
-        export K_PG_HELD=1
-      fi
       exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
     }
     [ -z "''${K_HEAVY_HELD:-}" ] || run "$@"
@@ -200,12 +202,13 @@ in {
     description = "fmt, clippy and tests, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
-      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      # Phase by phase under k-heavy: builds take a slot, tests take the PostgreSQL lock
+      # then a slot; no slot is held while waiting for the lock.
       log=$(mktemp -d -t k-check.XXXXXX)
       if ! cargo fmt --all --check >"$log/fmt" 2>&1; then
         echo "KO fmt ($log/fmt) — cargo fmt --all"; grep '^Diff in' "$log/fmt" | head -20; exit 1
       fi
-      if ! cargo clippy -q --workspace --all-targets --all-features >"$log/clippy" 2>&1; then
+      if ! k-heavy cargo clippy -q --workspace --all-targets --all-features >"$log/clippy" 2>&1; then
         echo "KO clippy ($log/clippy)"; grep -E '^(error|warning)|^ *-->' "$log/clippy" | head -40; exit 1
       fi
       warnings=$(grep -c '^warning' "$log/clippy" || true)
@@ -213,6 +216,8 @@ in {
       # `-p <crate>` narrows the run: --workspace would add every other crate back.
       ws=--workspace
       for a in "$@"; do case $a in -p | -p* | --package | --package=*) ws= ;; esac; done
+      # Build the test binaries outside the PostgreSQL lock; a build error shows in the run.
+      k-heavy cargo nextest run --no-run $ws --all-features "$@" >"$log/build" 2>&1 || true
       if ! k-heavy --pg cargo nextest run $ws --all-features --hide-progress-bar \
           --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
         echo "KO tests ($log/test)"
