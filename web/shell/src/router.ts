@@ -61,6 +61,11 @@ export function createShellRouter(history: RouterHistory): Router {
         component: () => import("./views/ListView.vue"),
       },
       {
+        path: `/:collection(${COLLECTION_PATTERN})/new`,
+        name: "new",
+        component: () => import("./views/NewView.vue"),
+      },
+      {
         path: `/:collection(${COLLECTION_PATTERN})/:id`,
         name: "object",
         component: () => import("./views/ObjectView.vue"),

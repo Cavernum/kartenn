@@ -431,3 +431,19 @@ textarea {
   display: inline-block;
   width: 1em;
 }
+
+/* Quick edit (REQ-007-25): a checkbox beside its label, a violation under its field. */
+.k-form label.k-check {
+  flex-direction: row;
+  align-items: center;
+}
+
+.k-field-error {
+  margin: 0;
+}
+
+.k-form textarea {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}

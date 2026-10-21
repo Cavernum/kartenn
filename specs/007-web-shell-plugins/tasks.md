@@ -461,11 +461,38 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   qu'invisibles au clavier ; un clic sur une ligne ouvre ou ferme, son lien mène à la
   fiche ; la page d'un conteneur à 10⁴ enfants coûte environ 2 s au serveur (chaque page
   recalcule tous les enfants avant le curseur), d'où des délais de 60 s dans le parcours
-- [ ] 19. Modification rapide : création, modification, clôture avec motif et `If-Match`,
+- [x] 19. Modification rapide : création, modification, clôture avec motif et `If-Match`,
   réponses 202, 403, 412 et 422 — REQ-007-25, 20 — verify : E2E : deux onglets sur le
   même préfixe → 412, saisie retrouvée après relecture ; politique d'approbation → 202 et
   lien ; violation placée sur son champ ; refus 403 sans perte de saisie
   où : design « Écriture » (tableau des réponses) ; 006 design « Écritures »
+  — `web/shell/src/edit/fields.ts` (champs de création et de modification par
+  collection, d'après `New*` et `*Patch` du contrat ; formulaire rempli depuis l'objet,
+  Merge Patch des seuls membres changés, domaine en référence), `edit/submit.ts`
+  (`POST`, `PATCH` en `application/merge-patch+json` ou `DELETE` par `shellFetch`, motif,
+  `If-Match`, clé d'idempotence d'une création ; 200 et 201 → appliqué, 202 → en attente,
+  412 → périmé, 422 → violations par champ selon leur pointeur (`/slug`), les autres en
+  tête, règles `*.forbidden` lues comme un refus ; autre problème → refus),
+  `edit/QuickEdit.vue` (formulaire, motif obligatoire, `aria-invalid` et
+  `aria-describedby` sur le champ fautif, alerte en tête, avis et lien vers le
+  changeset ; dialogue du 412 : valeur actuelle et saisie côte à côte, « Reprendre sur
+  la nouvelle version » relit l'objet et garde les champs saisis, les autres suivant la
+  nouvelle version), `views/ObjectView.vue` (Modifier, Clore, `ETag` de la lecture
+  gardé ; `read` de `data/api.ts` rend l'`ETag`), `views/NewView.vue` et route
+  `/:collection/new` (`?domain=` présélectionne ; 201 → fiche créée), lien « Créer » des
+  listes ; formulaires cachés hors du présent et sans permission d'écrire ou de proposer
+  le type ; catalogues `edit.*`. Jeu de bout en bout : utilisatrice `carol` (groupe
+  `redacteurs` : lecteur et lecture des droits partout, éditeur de la seule entité
+  `redaction`). Tests : Vitest `edit/edit.test.ts` (champs, patch, issues de chaque
+  réponse, en-têtes) ; E2E `journeys/edit.spec.ts` (création d'un préfixe puis deux
+  onglets → 412, dialogue, reprise, enregistrement, clôture ; domaine sous politique
+  d'approbation → 202 et lien ; slug invalide → violation sur « Nom court » ; `carol` sur
+  une autre entité → refus, saisie et motif gardés), axe-core
+  choix : le serveur refuse une écriture hors du périmètre par un 422 portant
+  `core.object.forbidden` (REQ-005-22), le 403 étant réservé aux permissions globales ;
+  le shell montre les deux comme un refus (« Vous n'avez pas le droit de faire cela. »),
+  saisie gardée ; le lien du changeset vise `/changesets/<id>` (écran de la tâche 21) ;
+  valeurs des listes fermées (nature, usage) affichées telles que le contrat les nomme
 - [ ] 20. Brouillon : magasin IndexedDB, onglets, simulation continue, soumission
   idempotente, identité, ajout par les plugins — REQ-007-26, 27 — verify : Vitest
   (`fake-indexeddb`) : clés par identité et onglet, onglet dupliqué, brouillons d'une

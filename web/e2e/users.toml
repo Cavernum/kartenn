@@ -21,6 +21,14 @@ name = "Bob Exemple"
 email = "bob@kartenn.invalid"
 groups = ["lecteurs"]
 
+# An editor confined to one entity (task 19): the interface shows her the forms, the
+# server refuses a write elsewhere (403).
+[[users]]
+sub = "carol"
+name = "Carol Exemple"
+email = "carol@kartenn.invalid"
+groups = ["redacteurs"]
+
 [[users]]
 sub = "refuse"
 name = "Refus d'accès"

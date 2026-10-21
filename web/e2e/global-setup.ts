@@ -50,6 +50,29 @@ export default async function globalSetup(): Promise<void> {
       }
     }
     const entity = await created(api, "/v1/entities", { slug: DATA.entity });
+    // The group `redacteurs` (task 19): readers everywhere, able to read the roles (so that
+    // the interface knows its scoped role), editors of one entity only.
+    const confined = await created(api, "/v1/entities", { slug: DATA.confined });
+    const redacteurs = { kind: "group", issuer: ISSUER, group: "redacteurs" };
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end journeys",
+      operations: [
+        {
+          op: "set_role",
+          key: "e2e_rbac_reader",
+          label: "Lecture des droits",
+          entries: ["core.rbac.read"],
+        },
+        { op: "bind", subject: redacteurs, role: "reader", scope: { kind: "global" } },
+        { op: "bind", subject: redacteurs, role: "e2e_rbac_reader", scope: { kind: "global" } },
+        {
+          op: "bind",
+          subject: redacteurs,
+          role: "editor",
+          scope: { kind: "entity", id: { id: confined } },
+        },
+      ],
+    });
     // A domain carries its owner from its creation (`core.owner`, REQ-002-11): one changeset.
     const declarations = (await (await api.get("/v1/property-declarations")).json()) as {
       items: { id: string; key: string }[];

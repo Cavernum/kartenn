@@ -389,5 +389,37 @@
     "validAt": "Données valides au",
     "asOf": "telles que connues au",
     "present": "Revenir au présent"
+  },
+  "edit": {
+    "create": "Créer",
+    "modify": "Modifier",
+    "close": "Clore",
+    "new": "Nouvel objet : {type}",
+    "off": "Les écritures sont coupées hors du présent.",
+    "title": {
+      "create": "Création",
+      "modify": "Modification",
+      "close": "Clôture"
+    },
+    "submit": {
+      "create": "Créer",
+      "modify": "Enregistrer",
+      "close": "Clore"
+    },
+    "cancel": "Annuler",
+    "motive": "Motif",
+    "applied": "Changement appliqué.",
+    "pending": "Changement en attente d'approbation.",
+    "changeset": "Voir le changeset",
+    "yes": "oui",
+    "no": "non",
+    "stale": {
+      "title": "L'objet a changé",
+      "detail": "Quelqu'un l'a modifié depuis votre lecture. Votre saisie est gardée ; reprenez sur la nouvelle version avant d'enregistrer.",
+      "field": "Champ",
+      "current": "Valeur actuelle",
+      "yours": "Votre saisie",
+      "resume": "Reprendre sur la nouvelle version"
+    }
   }
 }

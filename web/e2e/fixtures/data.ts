@@ -17,6 +17,8 @@ export const GROUPS: Record<string, readonly string[]> = {
 /** The data set of the journeys, loaded by global-setup.ts. */
 export const DATA = {
   entity: "exemple",
+  /** The entity the group `redacteurs` may edit, and nothing else (task 19). */
+  confined: "redaction",
   domain: "production",
   prefixes: [
     ["10.0.0.0/8", "container"],

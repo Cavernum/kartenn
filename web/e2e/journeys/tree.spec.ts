@@ -1,3 +1,4 @@
+import { DATA } from "../fixtures/data.ts";
 import { expect, expectAccessible, test } from "../fixtures/index.ts";
 
 // The tree of the prefixes (spec 007, task 18; REQ-007-17, 31, 33): roots of the domain,
@@ -21,10 +22,14 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
 }) => {
   test.setTimeout(4 * LOAD);
   await login("bob");
-  await page.goto("/");
-  const tree = page.getByRole("tree", { name: "Préfixes du domaine production" });
+  // Other journeys add domains: the one of the data set is chosen in the selector.
+  await page
+    .getByRole("combobox", { name: "Domaine" })
+    .selectOption({ label: DATA.domain }, { timeout: LOAD });
+  await expect(page).toHaveURL(/[?&]domain=[0-9a-f-]{36}/);
+  const tree = page.getByRole("tree", { name: `Préfixes du domaine ${DATA.domain}` });
   const root = item(tree, "10.0.0.0/8");
-  await expect(root).toBeVisible();
+  await expect(root).toBeVisible({ timeout: LOAD });
   await expect(root).toHaveAttribute("aria-expanded", "false");
   await expectAccessible(page);
 
