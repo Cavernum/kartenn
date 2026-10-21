@@ -15,7 +15,7 @@
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
-| [015-paquetage-deploiement](015-paquetage-deploiement/) | validées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | rédigée | [tasks](015-paquetage-deploiement/tasks.md) (0/10) |
+| [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (8/10 : reste l'essai `compose.yaml` et l'audit de synchronisation) |
 | [016-noyau-v0-2](016-noyau-v0-2/) | validées (2026-10-21) | rédigée | [tasks](016-noyau-v0-2/tasks.md) (0/13) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
@@ -224,3 +224,24 @@ Reste : la tâche 12, banc complet des machines (10⁵ machines) ; la variante r
 tous les budgets (fiche 7,2 ms, page filtrée 35 ms, machines d'un /24 24 ms, création
 39 ms). Le banc complet tient le verrou PostgreSQL près d'une heure : à lancer quand rien
 d'autre ne tourne.
+
+## Point d'étape — 2026-10-21 : spec 015
+
+Paquetage et déploiement implémentés (8/10) : `flake.nix` qui suit le nixpkgs de devenv,
+paquet `kartenn` (binaire, shell, plugins `vlan` et `machines`), une seule image OCI non
+root et sans shell (32 Mo), module NixOS `services.kartenn` éprouvé par une machine
+virtuelle (`checks.vm` : migration oneshot, deux instances, amorçage du premier
+administrateur, secrets absents, durcissement 1,1, migration en échec bloquante, base en
+retard à 503, migration tuée puis rejouée, sauvegarde et restauration avec `audit
+verify`). URL de la base par fichier (`[database] url_file`), `--version`, version
+`0.1.0` et `CHANGELOG.md`. Documentation de l'exploitant dans `docs/exploitation/`,
+intégration continue neutre `scripts/ci.sh` (verte).
+
+Corrigés en route : `/health/ready` restait à 503 en production, le rôle d'instance ne
+pouvant pas lire `_sqlx_migrations` (migration 0054, `SELECT` seul) ; le paquet en liens
+symboliques, que le registre des plugins refuse ; une suppression forcée de base de test
+refusée par un autovacuum (`kartenn-testing`).
+
+Reste : démarrer l'essai `compose.yaml` avec l'image (aucun moteur de conteneurs sur la
+machine de développement) et l'audit `spec-keeper` de la 015. Question ouverte : registre
+et signature de l'image (E13).

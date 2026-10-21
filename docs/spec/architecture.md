@@ -202,6 +202,18 @@ flowchart TB
   les crée trois mois à l'avance, et se relance au moins chaque mois (004-25).
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur
   le primaire après un changeset).
-- Livrables : images OCI (serveur avec le shell construit et les plugins de première
-  partie, migration), module NixOS ;
+- Livrables (spec 015, ADR 0029, D35 amendée) : un `flake.nix` qui suit le nixpkgs de
+  devenv et construit le paquet `kartenn` (binaire, shell construit, plugins `vlan` et
+  `machines`, en fichiers réels) ; **une seule image OCI** non root et sans shell, qui
+  sert d'instance (`run`), de job de migration (`migrate`) et d'amorçage
+  (`breakglass create`) ; le module NixOS `services.kartenn` (migration en unité oneshot
+  relancée chaque mois, une unité `kartenn@<nom>` par instance qui en dépend,
+  `DynamicUser`, secrets par `LoadCredential=`, durcissement noté 1,1 par
+  `systemd-analyze security`), éprouvé par une machine virtuelle (`checks.vm`) ;
   configuration 12-factor ; OpenTelemetry (OTLP) ; sondes `/health/live`, `/health/ready`.
+  Documentation de l'exploitant : `docs/exploitation/` ; intégration continue neutre :
+  `scripts/ci.sh`.
+- Le rôle d'instance (membre de `kartenn_app`) lit `_sqlx_migrations` (migration 0054),
+  et rien d'autre de ce que gère sqlx : `/health/ready` compare la dernière migration
+  appliquée à celle du binaire ; une migration interrompue se rejoue (chaque fichier dans
+  sa transaction, version inscrite au commit).

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 updated: 2026-10-21
 ---
 
@@ -217,3 +217,12 @@ après l'autre.
   audit `spec-keeper` de la 015 sans écart bloquant
   où : `docs/spec/` ; `docs/adr/0029-paquetage-nix-oci.md`
   dépend de : 1 à 9
+  — fait (2026-10-21), **non cochée** : `docs/spec/architecture.md` § Déploiement
+  (livrables : flake, une image, module, VM ; `_sqlx_migrations` lisible par le rôle
+  d'instance, rejeu des migrations), `interfaces.md` (`[database] url_file`, `--version`,
+  sous-commandes à URL facultative, `breakglass create` lié à `administrator`,
+  `openapi`) ; D35 amendée et ADR 0029 acceptée (déjà sur `main`) ; statuts : exigences
+  et conception `implemented`, tâches `in-progress` ; ligne et point d'étape de la 015
+  dans `specs/README.md`. **Reste** : la tâche 8 (essai `compose.yaml`) et l'audit
+  `spec-keeper` de la 015, que ce sous-agent ne pouvait pas lancer (relecture faite à la
+  main : aucun écart trouvé hors de la tâche 8).
