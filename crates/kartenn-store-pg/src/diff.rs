@@ -28,7 +28,9 @@ pub(crate) fn value_json(closed_list: &str) -> String {
             SELECT DISTINCT e.key AS k FROM property_enum_value e WHERE e.id = ANY(a.v_uuids)) x)
     ELSE coalesce(to_jsonb(a.v_uuid), to_jsonb(a.v_uuids), to_jsonb(a.v_text), to_jsonb(a.v_texts),
                   to_jsonb(a.v_int), to_jsonb(a.v_ints), to_jsonb(a.v_bool), to_jsonb(a.v_date),
-                  to_jsonb(a.v_dates))
+                  to_jsonb(a.v_dates), public.kartenn_external_json(a.v_json),
+                  (SELECT jsonb_agg(public.kartenn_external_json(x))
+                     FROM jsonb_array_elements(a.v_jsons) x))
 END"
     )
 }
@@ -58,7 +60,8 @@ ab AS (
     SELECT * FROM property_assignment WHERE property_id = $1 AND sys_start < now()
     UNION ALL
     SELECT object_id, object_type, property_id, kind, v_uuid, v_uuids, v_text, v_texts, v_int,
-           v_ints, v_bool, v_date, v_dates, provenance, valid_period, sys_start, changeset_id
+           v_ints, v_bool, v_date, v_dates, provenance, valid_period, sys_start, changeset_id,
+           v_json, v_jsons
     FROM property_assignment_history
     WHERE property_id = $1 AND sys_start < now() AND sys_end = now()
 ),
@@ -111,7 +114,8 @@ ab AS (
     WHERE property_id = $1 AND object_id = ANY($2) AND sys_start < now()
     UNION ALL
     SELECT object_id, object_type, property_id, kind, v_uuid, v_uuids, v_text, v_texts, v_int,
-           v_ints, v_bool, v_date, v_dates, provenance, valid_period, sys_start, changeset_id
+           v_ints, v_bool, v_date, v_dates, provenance, valid_period, sys_start, changeset_id,
+           v_json, v_jsons
     FROM property_assignment_history
     WHERE property_id = $1 AND object_id = ANY($2) AND sys_start < now() AND sys_end = now()
 ),

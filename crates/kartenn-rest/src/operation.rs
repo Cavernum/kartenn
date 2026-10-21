@@ -158,6 +158,8 @@ pub(crate) enum TypeDto {
         /// Target kind.
         target: String,
     },
+    /// A reference to an object of another system.
+    ExternalRef,
 }
 
 impl From<TypeDto> for TypeInput {
@@ -178,6 +180,7 @@ impl From<TypeDto> for TypeInput {
             TypeDto::Date => Self::Date,
             TypeDto::Fqdn => Self::Fqdn,
             TypeDto::Ref { target } => Self::Ref { target },
+            TypeDto::ExternalRef => Self::ExternalRef,
         }
     }
 }
@@ -315,6 +318,14 @@ pub(crate) enum RawDto {
     Bool(bool),
     Int(i64),
     Text(String),
+    /// A reference to an object of another system: a value of `core.external_system`,
+    /// the identifier there, a label.
+    External {
+        system: String,
+        id: String,
+        #[serde(default)]
+        label: Option<String>,
+    },
 }
 
 impl From<RawDto> for RawInput {
@@ -323,6 +334,7 @@ impl From<RawDto> for RawInput {
             RawDto::Bool(b) => Self::Bool(b),
             RawDto::Int(i) => Self::Int(i),
             RawDto::Text(t) => Self::Text(t),
+            RawDto::External { system, id, label } => Self::External { system, id, label },
         }
     }
 }

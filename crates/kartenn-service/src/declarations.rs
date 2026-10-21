@@ -21,6 +21,9 @@ use crate::operations::{
 use crate::pipeline::{Outcome, Planned, RequestError, submit};
 use crate::port::{PropertyFacts, Store, StoreError, WriteError, WriteTx};
 
+/// The closed list of the systems an external reference names (REQ-016-3).
+pub const EXTERNAL_SYSTEM: &str = "core.external_system";
+
 /// Author of the changesets kartenn writes on its own, such as module synchronisation
 /// (P12); created by migration.
 pub const SYSTEM_AUTHOR: Uuid = uuid!("00000000-0000-7000-8000-000000000001");
@@ -59,6 +62,7 @@ fn type_spec(input: &TypeInput, modules: &ModuleRegistry) -> Result<TypeSpec, Vi
                 .or_else(|| modules.object_type(target).map(|t| t.kind))
                 .ok_or_else(|| invalid(format!("{target} is not a kind a reference can target")))?,
         },
+        TypeInput::ExternalRef => TypeSpec::ExternalRef,
         TypeInput::Module { id } => TypeSpec::Module(id.clone()),
     })
 }
@@ -190,6 +194,7 @@ fn input(declaration: &Declaration) -> DeclarationInput {
         TypeSpec::Ref { target } => TypeInput::Ref {
             target: (*target).to_owned(),
         },
+        TypeSpec::ExternalRef => TypeInput::ExternalRef,
         TypeSpec::Module(id) => TypeInput::Module { id: id.clone() },
     };
     DeclarationInput {
@@ -703,6 +708,21 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                         )
                         .map(|k| ObligationScope::ObjectType(k.into()))
                         .collect(),
+                    expected: None,
+                },
+                Vec::new(),
+            ),
+            (
+                // The systems of external references (REQ-016-3), delivered empty and
+                // administrable; a closed list needs a carrier, which never uses it.
+                Declaration {
+                    key: key(EXTERNAL_SYSTEM),
+                    declarant: core(),
+                    spec: TypeSpec::ENUM,
+                    cardinality: Cardinality::Single,
+                    carriers: BTreeSet::from(["entity".to_owned()]),
+                    inherit: None,
+                    obligations: BTreeSet::new(),
                     expected: None,
                 },
                 Vec::new(),

@@ -7,7 +7,7 @@ use kartenn_core::properties::{
     CurrentAssignment, Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey,
     TypeSpec, object_kind,
 };
-use kartenn_core::values::{Cardinality, Date, Scalar, Value};
+use kartenn_core::values::{Cardinality, Date, ExternalRef, Scalar, Value};
 use kartenn_service::port::StoreError;
 use serde_json::{Value as Json, json};
 use sqlx::types::Uuid;
@@ -30,6 +30,7 @@ pub(crate) fn encode_type(spec: &TypeSpec) -> (String, String) {
             values_of: Some(owner),
         } => json!({ "values_of": owner.to_string() }),
         TypeSpec::Enum { values_of: None }
+        | TypeSpec::ExternalRef
         | TypeSpec::Bool
         | TypeSpec::Date
         | TypeSpec::Fqdn
@@ -68,6 +69,7 @@ fn decode_type(id: &str, params: &str) -> Result<TypeSpec, StoreError> {
         "bool" => TypeSpec::Bool,
         "date" => TypeSpec::Date,
         "fqdn" => TypeSpec::Fqdn,
+        "external_ref" => TypeSpec::ExternalRef,
         "ref" => {
             let target = p["target"].as_str().unwrap_or_default();
             TypeSpec::Ref {
@@ -134,11 +136,35 @@ pub(crate) type AssignmentRow = (
     Option<bool>,
     Option<String>,
     Option<Vec<String>>,
+    Option<String>,
+    Option<String>,
 );
 
 /// Columns of [`AssignmentRow`].
 pub(crate) const ASSIGNMENT_COLUMNS: &str = "object_id, object_type, kind, v_uuid, v_uuids, \
-     v_text, v_texts, v_int, v_ints, v_bool, v_date::text, v_dates::text[]";
+     v_text, v_texts, v_int, v_ints, v_bool, v_date::text, v_dates::text[], v_json::text, \
+     v_jsons::text";
+
+/// An external reference as stored (REQ-016-3): `{"system", "id", "label"}`, the system by
+/// the identifier of its closed-list value.
+fn external_json(r: &ExternalRef) -> Json {
+    let mut v = json!({ "system": r.system, "id": r.id });
+    if let Some(label) = &r.label {
+        v["label"] = json!(label);
+    }
+    v
+}
+
+fn decode_external(v: &Json) -> Result<Scalar, StoreError> {
+    let text = |k: &str| v[k].as_str().map(str::to_owned);
+    Ok(Scalar::External(ExternalRef {
+        system: text("system")
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| decode_err("external_ref.system"))?,
+        id: text("id").ok_or_else(|| decode_err("external_ref.id"))?,
+        label: text("label"),
+    }))
+}
 
 /// Decodes an assignment; identifiers are closed-list values or references depending on
 /// the type of the property.
@@ -146,8 +172,23 @@ pub(crate) fn decode_assignment(
     type_id: &str,
     row: AssignmentRow,
 ) -> Result<CurrentAssignment, StoreError> {
-    let (object, object_type, kind, uuid, uuids, text, texts, int, ints, boolean, date, dates) =
-        row;
+    let (
+        object,
+        object_type,
+        kind,
+        uuid,
+        uuids,
+        text,
+        texts,
+        int,
+        ints,
+        boolean,
+        date,
+        dates,
+        one_json,
+        many_json,
+    ) = row;
+    let json = |t: &str| serde_json::from_str::<Json>(t).map_err(decode_err);
     let id = |v: Uuid| {
         if type_id == "enum" {
             Scalar::Enum(v)
@@ -177,6 +218,17 @@ pub(crate) fn decode_assignment(
     } else if let Some(v) = dates {
         Some(Value::Set(
             v.iter().map(|t| day(t)).collect::<Result<_, _>>()?,
+        ))
+    } else if let Some(v) = one_json {
+        Some(Value::One(decode_external(&json(&v)?)?))
+    } else if let Some(v) = many_json {
+        let all = json(&v)?;
+        Some(Value::Set(
+            all.as_array()
+                .ok_or_else(|| decode_err("external_ref set"))?
+                .iter()
+                .map(decode_external)
+                .collect::<Result<_, _>>()?,
         ))
     } else {
         return Err(decode_err(format!("assignment of {object} has no value")));
@@ -224,6 +276,8 @@ pub(crate) struct ValueColumns {
     pub(crate) boolean: Option<bool>,
     pub(crate) date: Option<String>,
     pub(crate) dates: Option<Vec<String>>,
+    pub(crate) json: Option<String>,
+    pub(crate) jsons: Option<String>,
 }
 
 /// The columns of a value (003/design, § Types de valeurs); sets are already sorted.
@@ -239,6 +293,7 @@ pub(crate) fn encode_value(value: &Value) -> Result<ValueColumns, String> {
         Value::One(Scalar::Int(v)) => c.int = Some(*v),
         Value::One(Scalar::Bool(v)) => c.boolean = Some(*v),
         Value::One(Scalar::Date(v)) => c.date = Some(v.to_string()),
+        Value::One(Scalar::External(v)) => c.json = Some(external_json(v).to_string()),
         Value::Set(set) => {
             let first = set.iter().next().ok_or("a set has at least one value")?;
             match first {
@@ -281,6 +336,16 @@ pub(crate) fn encode_value(value: &Value) -> Result<ValueColumns, String> {
                             })
                             .collect(),
                     );
+                }
+                Scalar::External(_) => {
+                    let all: Vec<Json> = set
+                        .iter()
+                        .filter_map(|s| match s {
+                            Scalar::External(v) => Some(external_json(v)),
+                            _ => None,
+                        })
+                        .collect();
+                    c.jsons = Some(Json::Array(all).to_string());
                 }
                 Scalar::Bool(_) => return Err("a set of booleans is not supported".to_owned()),
             }

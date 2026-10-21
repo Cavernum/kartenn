@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::rules::{self, Violation};
 use crate::values::{
-    BoolType, Cardinality, DateType, EnumType, FqdnType, IntType, RefType, TextType, Value,
-    ValueType,
+    BoolType, Cardinality, DateType, EnumType, ExternalRefType, FqdnType, IntType, RefType,
+    TextType, Value, ValueType,
 };
 
 /// Namespace of administrator properties (003/P1).
@@ -116,6 +116,8 @@ pub enum TypeSpec {
         /// Target kind.
         target: &'static str,
     },
+    /// Reference to an object of another system (REQ-016-3).
+    ExternalRef,
     /// Type compiled by a module (never available to administrators).
     Module(String),
 }
@@ -135,6 +137,7 @@ impl TypeSpec {
             Self::Date => "date",
             Self::Fqdn => "fqdn",
             Self::Ref { .. } => "ref",
+            Self::ExternalRef => "external_ref",
             Self::Module(id) => id,
         }
     }
@@ -162,6 +165,7 @@ impl TypeSpec {
             Self::Date => Box::new(DateType),
             Self::Fqdn => Box::new(FqdnType),
             Self::Ref { target } => Box::new(RefType { target }),
+            Self::ExternalRef => Box::new(ExternalRefType),
             Self::Module(id) => return Err(format!("type {id} is provided by a module")),
         })
     }

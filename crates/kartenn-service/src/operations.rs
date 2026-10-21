@@ -177,6 +177,8 @@ pub enum TypeInput {
         /// Target kind.
         target: String,
     },
+    /// Reference to an object of another system (REQ-016-3).
+    ExternalRef,
     /// Type compiled by a module; only module synchronisation declares it (P1, P12).
     #[serde(skip_deserializing)]
     Module {
@@ -201,6 +203,16 @@ pub enum RawInput {
     Int(i64),
     /// Text.
     Text(String),
+    /// Reference to an object of another system (REQ-016-3).
+    External {
+        /// Key of a value of `core.external_system`.
+        system: String,
+        /// Identifier in that system.
+        id: String,
+        /// Label.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+    },
 }
 
 impl RawInput {
@@ -211,6 +223,11 @@ impl RawInput {
             Self::Bool(b) => Raw::Bool(*b),
             Self::Int(i) => Raw::Int(*i),
             Self::Text(t) => Raw::Text(t.clone()),
+            Self::External { system, id, label } => Raw::External {
+                system: system.clone(),
+                id: id.clone(),
+                label: label.clone(),
+            },
         }
     }
 }

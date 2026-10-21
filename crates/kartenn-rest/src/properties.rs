@@ -626,6 +626,9 @@ fn raw_value(input: &RawInput) -> Value {
         RawInput::Bool(b) => json!(b),
         RawInput::Int(i) => json!(i),
         RawInput::Text(t) => json!(t),
+        RawInput::External { system, id, label } => {
+            json!({ "system": system, "id": id, "label": label })
+        }
     }
 }
 

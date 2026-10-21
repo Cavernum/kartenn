@@ -199,6 +199,8 @@ async fn assignment_at(
             "v_bool",
             "v_date",
             "v_dates",
+            "v_json",
+            "v_jsons",
             "provenance",
         ],
     )

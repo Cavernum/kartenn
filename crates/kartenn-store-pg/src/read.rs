@@ -90,6 +90,8 @@ fn properties_sql() -> Result<String, TemporalError> {
             "v_bool",
             "v_date",
             "v_dates",
+            "v_json",
+            "v_jsons",
         ],
     )?;
     let value = value_json("s.value_type = 'enum'");

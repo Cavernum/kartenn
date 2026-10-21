@@ -4553,6 +4553,10 @@ export interface components {
           target: string;
           /** @enum {string} */
           type: "ref";
+        }
+      | {
+          /** @enum {string} */
+          type: "external_ref";
         };
     /**
      * @description What a merge patch writes in a property: a value or the elements of a set assign it,
@@ -4611,7 +4615,15 @@ export interface components {
      * @description One raw value of an assignment: text (closed-list key, text, host name, date,
      *     reference), integer or boolean (REQ-003-8).
      */
-    RawValue: boolean | number | string;
+    RawValue:
+      | boolean
+      | number
+      | string
+      | {
+          id: string;
+          label?: string | null;
+          system: string;
+        };
     /**
      * @description An object of the changeset: an existing UUID, or the local name of an object created by
      *     an earlier operation of the same changeset (REQ-004-4).

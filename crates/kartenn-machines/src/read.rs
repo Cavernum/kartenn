@@ -326,7 +326,7 @@ pub async fn machine_values_of_addresses(
     let assignment = snapshot(
         "public.property_assignment",
         "object_id, property_id, kind, v_uuid, v_uuids, v_text, v_texts, v_int, v_ints, \
-         v_bool, v_date, v_dates",
+         v_bool, v_date, v_dates, v_json, v_jsons",
     );
     let value = snapshot("public.property_enum_value", "id, key");
     let keys: Vec<String> = keys.iter().map(|&k| k.to_owned()).collect();
@@ -350,7 +350,10 @@ pub async fn machine_values_of_addresses(
                              WHERE e.id = ANY(a.v_uuids)) x)
                     ELSE coalesce(to_jsonb(a.v_uuid), to_jsonb(a.v_uuids), to_jsonb(a.v_text),
                                   to_jsonb(a.v_texts), to_jsonb(a.v_int), to_jsonb(a.v_ints),
-                                  to_jsonb(a.v_bool), to_jsonb(a.v_date), to_jsonb(a.v_dates))
+                                  to_jsonb(a.v_bool), to_jsonb(a.v_date), to_jsonb(a.v_dates),
+                                  public.kartenn_external_json(a.v_json),
+                                  (SELECT jsonb_agg(public.kartenn_external_json(x))
+                                     FROM jsonb_array_elements(a.v_jsons) x))
                 END
            FROM held h
            LEFT JOIN wanted w ON true

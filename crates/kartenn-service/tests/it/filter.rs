@@ -3,6 +3,7 @@
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
+use kartenn_service::declarations::{EXTERNAL_SYSTEM, core_declarations, sync_modules};
 use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
@@ -320,4 +321,184 @@ async fn pages_follow_a_cursor_and_origins_use_their_index(pool: PgPool) {
         .await
         .unwrap();
     assert!(plan.contains("property_origin_by_origin"), "{plan}");
+}
+
+fn external(system: &str, id: &str, label: Option<&str>) -> RawInput {
+    RawInput::External {
+        system: system.into(),
+        id: id.into(),
+        label: label.map(Into::into),
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn external_references_filter_by_system_and_identifier(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    // The list of the systems, as the core declares it (the fixture's domain has no
+    // owner, which the rest of the core would require).
+    let mut core = core_declarations();
+    core.properties
+        .retain(|(d, _)| d.key.to_string() == EXTERNAL_SYSTEM);
+    let synced = sync_modules(&f.store, &Unrestricted, &[core], MAX_OPERATIONS)
+        .await
+        .unwrap();
+    assert!(
+        matches!(synced[..], [Outcome::Applied { .. }]),
+        "{synced:?}"
+    );
+    let systems: Uuid = sqlx::query_scalar(
+        "SELECT id FROM property_declaration WHERE key = 'core.external_system'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let system = |key: &str| Operation::AddEnumValue {
+        local: None,
+        property: Ref::Id(systems),
+        key: key.into(),
+    };
+    f.applied(vec![
+        system("cmdb"),
+        system("ticketing"),
+        system("retired"),
+        Operation::DeclareProperty {
+            local: Some(1),
+            declaration: declaration(
+                "custom.ci",
+                TypeInput::ExternalRef,
+                Cardinality::Single,
+                &["prefix", "address"],
+                false,
+            ),
+        },
+        Operation::DeclareProperty {
+            local: Some(2),
+            declaration: declaration(
+                "custom.tickets",
+                TypeInput::ExternalRef,
+                Cardinality::Set,
+                &["address"],
+                false,
+            ),
+        },
+    ])
+    .await;
+    let property = |key: &'static str| {
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = $1")
+            .bind(key)
+            .fetch_one(&f.pool)
+    };
+    let (ci, tickets): (Uuid, Uuid) = (
+        property("custom.ci").await.unwrap(),
+        property("custom.tickets").await.unwrap(),
+    );
+    let assign = |object: Uuid, kind, property, values| Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind,
+        property: Ref::Id(property),
+        values,
+    };
+    let (net1, net2, host1, host2) = (
+        f.id("10.1.0.0/24").await,
+        f.id("10.2.0.0/24").await,
+        f.id("10.1.0.1").await,
+        f.id("10.2.0.1").await,
+    );
+    f.applied(vec![
+        assign(
+            net1,
+            ObjectKind::Prefix,
+            ci,
+            vec![external("cmdb", "CI-42", Some("Paie"))],
+        ),
+        assign(
+            net2,
+            ObjectKind::Prefix,
+            ci,
+            vec![external("cmdb", "CI-42", None)],
+        ),
+        assign(
+            host2,
+            ObjectKind::Address,
+            ci,
+            vec![external("ticketing", "CI-42", None)],
+        ),
+        assign(
+            host1,
+            ObjectKind::Address,
+            tickets,
+            vec![
+                external("ticketing", "T-1", None),
+                external("ticketing", "T-2", Some("Ouverture")),
+            ],
+        ),
+    ])
+    .await;
+    // REQ-016-3: equal by system and identifier, whatever the label; another system
+    // differs; a set holding the reference.
+    let mut same = vec![net1, net2];
+    same.sort();
+    assert_eq!(f.find(ci, Condition::Equals(key("cmdb:CI-42"))).await, same);
+    assert_eq!(
+        f.find(ci, Condition::Equals(key("ticketing:CI-42"))).await,
+        vec![host2]
+    );
+    assert!(
+        f.find(ci, Condition::Equals(key("cmdb:CI-7")))
+            .await
+            .is_empty()
+    );
+    assert_eq!(
+        f.find(tickets, Condition::Equals(key("ticketing:T-2")))
+            .await,
+        vec![host1]
+    );
+    // A system named by a reference stays open; a closed one is refused at writing.
+    let value = |key: &'static str| {
+        sqlx::query_scalar("SELECT id FROM property_enum_value WHERE property_id = $1 AND key = $2")
+            .bind(systems)
+            .bind(key)
+            .fetch_one(&f.pool)
+    };
+    let close = |id: Uuid| Operation::Close {
+        kind: ObjectKind::EnumValue,
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    };
+    let refused = |operations: Vec<Operation>| async {
+        let request = ChangesetRequest {
+            author: f.author,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+        };
+        match submit(&f.store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+        {
+            Outcome::Refused { violations, .. } => {
+                violations.iter().map(|v| v.rule.id).collect::<Vec<_>>()
+            }
+            other => panic!("expected refused, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        refused(vec![close(value("ticketing").await.unwrap())]).await,
+        vec!["prop.declaration.incompatible"]
+    );
+    f.applied(vec![close(value("retired").await.unwrap())])
+        .await;
+    assert_eq!(
+        refused(vec![assign(
+            net1,
+            ObjectKind::Prefix,
+            ci,
+            vec![external("retired", "CI-1", None)]
+        )])
+        .await,
+        vec!["prop.assignment.invalid_value"]
+    );
 }

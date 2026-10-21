@@ -6528,6 +6528,21 @@
               "type"
             ],
             "type": "object"
+          },
+          {
+            "description": "A reference to an object of another system.",
+            "properties": {
+              "type": {
+                "enum": [
+                  "external_ref"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -6706,6 +6721,28 @@
           },
           {
             "type": "string"
+          },
+          {
+            "description": "A reference to an object of another system: a value of `core.external_system`,\nthe identifier there, a label.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "system": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "system",
+              "id"
+            ],
+            "type": "object"
           }
         ]
       },

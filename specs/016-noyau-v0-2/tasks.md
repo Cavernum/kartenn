@@ -42,9 +42,27 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     noyau suivante
   - dépend de : —
   - débloque : 010-7
-- [ ] 2. Type `external_ref` et liste `core.external_system` — REQ-016-3 — verify :
+- [x] 2. Type `external_ref` et liste `core.external_system` — REQ-016-3 — verify :
   égalité sans le libellé (unitaire, `values.rs`), filtrage par (système, identifiant),
   système clos refusé ; contrat de référence régénéré (ajout)
+  — noyau : `Scalar::External(ExternalRef)` (égalité, ordre et empreinte sur système et
+  identifiant), `Raw::External`, `ExternalRefType` (système valide sur la période, texte
+  NFC 1 à 256), `ValueContext::external_system` (défaut : aucun), `TypeSpec::ExternalRef` ;
+  service : `TypeInput::ExternalRef`, `RawInput::External`, déclaration du noyau
+  `core.external_system` (liste fermée livrée vide, `EXTERNAL_SYSTEM`), systèmes lus à
+  l'affectation dans `resolution.rs` ; store : migration `0046` (colonnes versionnées
+  `v_json`, `v_jsons`, contrainte de valeur unique, index GIN `jsonb_path_ops`,
+  `kartenn_external_json` qui rend le système par sa clé), codec des affectations, filtre
+  `<système>:<identifiant>` par inclusion, une valeur de système citée par une référence
+  ne se clôt pas ; REST : type `external_ref`, valeur `{system, id, label}` (aussi en
+  Merge Patch), contrat et types du SDK régénérés (ajouts) ; tests : unitaire
+  `external_references_compare_without_their_label`, intégration
+  `external_references_filter_by_system_and_identifier` (`kartenn-service/tests/it/filter.rs`).
+  choix : une liste fermée doit avoir un porteur : `core.external_system` est porté par
+  `entity`, sans usage ; colonnes `jsonb` dédiées plutôt que la colonne de texte (le design
+  disait « colonne de valeur existante », aucune n'est `jsonb`) ; filtre écrit
+  `<clé du système>:<identifiant>` (une clé de liste fermée n'a pas de `:`), conditions
+  d'égalité et d'appartenance seulement.
   - où : `kartenn-core/src/values.rs` (`Scalar`), `properties.rs` (`TypeSpec`), store
     `properties.rs`, `filter.rs`, `kartenn-rest` (types de valeur)
   - dépend de : 1
