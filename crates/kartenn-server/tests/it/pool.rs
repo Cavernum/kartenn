@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_transaction_ends_within_the_bound(pool: PgPool) -> sqlx::Result<()> {
     let options = (*pool.connect_options()).clone();
     let bounded = PgPool::connect_with(kartenn_server::app::bounded(

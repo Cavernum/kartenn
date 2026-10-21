@@ -201,7 +201,7 @@ fn the_development_configuration_is_valid() {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_instance_logs_in_through_the_development_issuer(pool: PgPool) {
     let dir = dir();
     certs::generate(&dir).unwrap();

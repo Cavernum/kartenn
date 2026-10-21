@@ -54,7 +54,7 @@ async fn record(pool: &PgPool, n: usize) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn audit_events_reach_an_otlp_collector_acknowledged(pool: PgPool) {
     let collector = Collector::default();
     let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

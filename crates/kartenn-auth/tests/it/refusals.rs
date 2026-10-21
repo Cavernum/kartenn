@@ -17,7 +17,7 @@ use sqlx::PgPool;
 
 const ISSUER: &str = "https://idp.example.invalid";
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn each_refusal_is_audited_with_its_reason(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));

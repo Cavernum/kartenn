@@ -55,6 +55,8 @@ kartenn-rest = { version = "0.0.0", path = "../kartenn-rest" }
 tower-service = "0.3"
 
 [dev-dependencies]
+# Test databases cloned from a migrated template (ADR 0028).
+kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics", "testing"] }
 opentelemetry-proto = { version = "0.33.1", default-features = false, features = ["gen-tonic", "logs", "trace"] }
 serde_json = "1.0.154"

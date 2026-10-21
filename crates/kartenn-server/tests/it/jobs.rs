@@ -45,7 +45,7 @@ impl Runner for Hanging {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn three_schedulers_run_each_due_task_once(pool: PgPool) {
     let counter = Counter::default();
     let schedulers: Vec<Scheduler> = (0..3)
@@ -81,7 +81,7 @@ async fn three_schedulers_run_each_due_task_once(pool: PgPool) {
     assert_eq!(held, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_stopped_holder_is_relieved_after_its_lease(pool: PgPool) {
     sqlx::query("UPDATE job SET due_at = now() + interval '1 day' WHERE name <> 'expire-pending'")
         .execute(&pool)
@@ -108,7 +108,7 @@ async fn a_stopped_holder_is_relieved_after_its_lease(pool: PgPool) {
     assert_eq!(counter.runs().get("expire-pending"), Some(&1));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_tasks_of_kartenn_run(pool: PgPool) {
     let tasks = Tasks {
         store: kartenn_store_pg::write::PgStore::new(pool.clone()),
@@ -238,7 +238,7 @@ async fn count(pool: &PgPool, table: &str) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
     // Only the import is due.
     sqlx::query("UPDATE job SET due_at = now() + interval '1 day'")

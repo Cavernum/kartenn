@@ -16,7 +16,7 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 use tracing_subscriber::layer::SubscriberExt;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_changeset_is_one_trace_with_its_database_spans(pool: PgPool) {
     let spans = InMemorySpanExporter::default();
     let logs = InMemoryLogExporter::default();

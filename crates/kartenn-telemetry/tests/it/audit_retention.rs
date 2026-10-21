@@ -45,7 +45,7 @@ async fn exists(pool: &PgPool, relation: &str) -> bool {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_month_past_retention_goes_once_sealed_and_exported(pool: PgPool) {
     sqlx::query("CALL kartenn_audit_partitions('2026-01-01', 1)")
         .execute(&pool)

@@ -282,7 +282,7 @@ async fn a_key_that_does_not_match_the_certificate_is_refused() {
     assert!(format!("{error:#}").contains("key"), "{error:#}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_instance_serves_the_api_reloads_on_sighup_and_stops_within_ten_seconds(pool: PgPool) {
     let dir = dir();
     let (a, b) = (cert(), cert());
@@ -364,7 +364,7 @@ async fn an_instance_serves_the_api_reloads_on_sighup_and_stops_within_ten_secon
 
 /// A plugin deposited while the instance runs is served as soon as `SIGHUP` arrives,
 /// without waiting for the reading every 10 s (spec 007, REQ-007-8; task 007-4).
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_plugin_deposited_is_served_at_the_next_sighup(pool: PgPool) {
     let dir = dir();
     let plugins = dir.join("plugins");

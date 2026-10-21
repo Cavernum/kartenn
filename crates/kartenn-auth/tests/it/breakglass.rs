@@ -49,7 +49,7 @@ fn now() -> Instant {
     Instant(i64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_break_glass_account_takes_a_passphrase_and_a_fresh_code(pool: PgPool) {
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
     let account = create(&ring, "rescue");
@@ -154,7 +154,7 @@ async fn a_break_glass_account_takes_a_passphrase_and_a_fresh_code(pool: PgPool)
     assert!(login(account.passphrase.clone(), current()).await.is_err());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_expired_account_is_refused(pool: PgPool) {
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
     let account = create(&ring, "old");
@@ -187,7 +187,7 @@ async fn an_expired_account_is_refused(pool: PgPool) {
     assert!(matches!(outcome, Err(AuthnError::Refused)));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_code_sent_twice_at_once_opens_one_session(pool: PgPool) {
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
     let account = create(&ring, "rescue");

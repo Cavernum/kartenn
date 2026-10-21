@@ -78,9 +78,13 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   choix : l'attribut autorise aussi `clippy::similar_names` et
   `clippy::many_single_char_names`, que `#[sqlx::test]` masquait de même (quatre tests de
   `objects.rs`).
-- [ ] 5. kartenn-server, kartenn-auth, kartenn-telemetry (27 tests) — verify : commun
+- [x] 5. kartenn-server, kartenn-auth, kartenn-telemetry (27 tests) — verify : commun
   où : `crates/kartenn-{server,auth,telemetry}/tests/`, `Cargo.toml`
   dépend de : 1 ; 013 : 5, 6, 8
+  — 27 attributs remplacés (14, 7 et 6 ; `kartenn-server/tests/http.rs` compris, aucun
+  laissé en `#[sqlx::test]`), dev-dependency `kartenn-testing` ; nextest : 32, 30 et 20
+  tests avant et après (mêmes noms). Exécution des suites : server 10,5 s → 9,0 s, auth
+  2,3 s → 1,2 s, telemetry 0,7 s → 0,3 s (charge 10 à 15 avant, 5 à 7 après).
 - [ ] 6. kartenn-vlan, kartenn-machines (71 tests) — verify : commun
   où : `crates/kartenn-vlan/tests/it/support/env.rs`, tests des deux modules, `Cargo.toml`
   dépend de : 1 ; 013 : 7

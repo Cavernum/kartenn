@@ -117,7 +117,7 @@ fn no_audit_detail_is_named_like_a_secret() {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn canary_secrets_reach_no_output(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-secrets-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
