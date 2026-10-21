@@ -9,3 +9,4 @@ mod dated;
 mod differential;
 mod obligation;
 mod rights;
+mod verdict;
