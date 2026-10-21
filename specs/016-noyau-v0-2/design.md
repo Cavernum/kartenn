@@ -143,8 +143,16 @@ implémentation par défaut : B passe en premier sur ce fichier, C s'y rebase.
 - Authentification : l'en-tête est lu par la couche REST (`authn.rs`), analysé en
   dictionnaire RFC 9651 ; refus 403 si l'appelant n'est pas un compte de service détenteur
   de `core.identity.act_on_behalf` (permission globale, catalogue 005).
-- Identité : `identity.kind = 'requester'` (aucun secret, aucune liaison possible),
-  retrouvée par (`iss`, `sub`) ; pseudonymisation existante (REQ-004-33).
+- Identité : `identity.kind = 'requester'` (aucun secret, aucune liaison possible : règle
+  `core.binding.requester`), retrouvée par (`iss`, `sub`) ; pseudonymisation existante
+  (REQ-004-33). Un demandeur ne réserve pas l'identité d'une personne : à la première
+  connexion par l'émetteur et le sujet qu'il porte, la fiche est promue `person` et prend
+  le nom donné par l'émetteur (fonction `kartenn_promote_requester`, migration 0056, seule
+  transition de genre permise à l'application ; INV-60).
+- Refus journalisés : une tentative d'agir pour le compte d'un tiers refusée, et une
+  opération jointe à une validation hors revue, sont enregistrées en
+  `authz.access.denied` avant le refus (INV-60, INV-61). La revue (validation, rejet,
+  retrait) porte le contexte de la requête, `on_behalf_of` compris (REQ-016-13).
 - Changeset : colonne `on_behalf_of uuid NULL` (identité `requester`) ; restitué dans la
   fiche du changeset.
 - Audit : `on_behalf_of` dans les `details` de chaque événement de la requête (tel
