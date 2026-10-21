@@ -198,9 +198,19 @@ après l'autre.
   personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : démarrer
   `compose.yaml` avec l'image de la tâche 6 ; aucun moteur de conteneurs sur la machine
   de développement.
-- [ ] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
+- [x] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
   où : design « CI » ; `devenv.nix` (`enterTest`)
   dépend de : 6, 7
+  — `scripts/ci.sh` (`--no-nix` pour sauter la VM et l'image) : vérifie que le
+  PostgreSQL de développement répond, puis une ligne par étape, le détail dans un journal :
+  hakari, métadonnées sqlx hors ligne (`k-heavy --pg`), `k-check`, `k-web-check`,
+  `k-web-e2e`, `nix flake check` (`k-heavy --all`). Passé sur la branche (2026-10-21) :
+  hakari 1 s, sqlx 11 s, Rust 142 s, web 32 s, E2E 316 s, Nix 550 s. Une première passe
+  a révélé un test instable de `kartenn-testing` (suppression forcée refusée par un
+  autovacuum, 42501), corrigé dans la bibliothèque (`drop_database` réessayé 10 s).
+  choix : les étapes de `devenv test` (`enterTest`) sont reprises une à une sous le
+  sémaphore plutôt que `devenv test` lui-même, qui relance tous les tests hors `k-heavy`
+  et sans le verrou PostgreSQL.
 - [ ] 10. Synchronisation : `docs/spec/architecture.md` § Déploiement (une image,
   module), `interfaces.md` (CLI, `[database]`), D35 amendée dans
   `specs/001-cadrage/decisions.md`, ADR 0029 acceptée, statuts de la 015 — verify :
