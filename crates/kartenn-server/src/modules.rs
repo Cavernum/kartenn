@@ -29,6 +29,8 @@ pub fn routers() -> Vec<kartenn_rest::ModuleRouter> {
         kartenn_vlan::rest::routes(),
         #[cfg(feature = "machines")]
         kartenn_machines::rest::routes(),
+        #[cfg(feature = "policy")]
+        kartenn_policy::rest::routes(),
     ];
     routers
 }

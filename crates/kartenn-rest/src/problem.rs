@@ -67,11 +67,13 @@ pub enum ProblemKind {
     Internal,
     /// Nothing is free from there in the space asked (REQ-008-20).
     Exhausted,
+    /// A query of compliance beyond its bounds (spec 010, design « API »).
+    PolicyQueryTooLarge,
 }
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 26] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -97,6 +99,7 @@ impl ProblemKind {
         Self::Unavailable,
         Self::Internal,
         Self::Exhausted,
+        Self::PolicyQueryTooLarge,
     ];
 
     /// The last segment of the `type`.
@@ -128,6 +131,7 @@ impl ProblemKind {
             Self::Unavailable => "unavailable",
             Self::Internal => "internal",
             Self::Exhausted => "exhausted",
+            Self::PolicyQueryTooLarge => "policy-query-too-large",
         }
     }
 
@@ -152,7 +156,8 @@ impl ProblemKind {
             | Self::IdempotencyKeyReused
             | Self::InvalidMember
             | Self::InvalidOverride
-            | Self::InvalidImport => StatusCode::UNPROCESSABLE_ENTITY,
+            | Self::InvalidImport
+            | Self::PolicyQueryTooLarge => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -189,6 +194,7 @@ impl ProblemKind {
             Self::Unavailable => "The service is unavailable",
             Self::Internal => "Internal error",
             Self::Exhausted => "Nothing is free",
+            Self::PolicyQueryTooLarge => "The query of compliance is too large",
         }
     }
 }

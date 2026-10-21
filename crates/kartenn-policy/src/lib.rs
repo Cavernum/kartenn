@@ -42,6 +42,8 @@ mod pg;
 pub mod read;
 #[cfg(feature = "pg")]
 pub mod report;
+#[cfg(feature = "rest")]
+pub mod rest;
 #[cfg(feature = "pg")]
 pub mod verdict;
 

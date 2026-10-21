@@ -18,9 +18,17 @@ workspace = true
 pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:kartenn-machines", "dep:thiserror"]
 # The offline converter of an existing policy into a changeset (REQ-010-35, 53; S28).
 import = ["pg", "dep:toml_edit"]
+# Its routes under `/v1`, mounted by kartenn-server (REQ-010-27, design « API »).
+rest = ["pg", "dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:time", "dep:utoipa", "dep:utoipa-axum"]
 
 [dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-rest = { version = "0.1.0", path = "../kartenn-rest", optional = true }
+kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg", optional = true }
+time = { version = "0.3.55", optional = true }
+utoipa = { version = "6.0.0", default-features = false, features = ["macros", "uuid"], optional = true }
+utoipa-axum = { version = "0.3.0", optional = true }
 # The port of reading of the 009 for the query of compliance (REQ-010-13, 31).
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["pg"], optional = true }
 kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
@@ -40,7 +48,7 @@ uuid = { version = "1.28.0", features = ["v7", "serde"] }
 [[test]]
 name = "policy_it"
 path = "tests/it/main.rs"
-required-features = ["pg", "import"]
+required-features = ["pg", "import", "rest"]
 
 # The offline converter of an existing policy (task 010-17, REQ-010-35, 53).
 [[bin]]
@@ -51,6 +59,9 @@ required-features = ["import"]
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
 kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
+http-body-util = "0.1"
+kartenn-auth = { path = "../kartenn-auth" }
+tower = { version = "0.5", features = ["util"] }
 kartenn-machines = { path = "../kartenn-machines", features = ["pg"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 kartenn-vlan = { path = "../kartenn-vlan", features = ["pg"] }

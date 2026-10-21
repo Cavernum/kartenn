@@ -384,6 +384,60 @@ pub async fn act(
     submit_answered(api, context, &request, &answer).await
 }
 
+/// An operation `name` that names its objects by itself (a cell of a matrix, a value by its
+/// key; REQ-010-27): the members of an optional JSON body, each one of `allowed`,
+/// completed by `fixed` (members of the path). No version guard: the operation checks
+/// the state it writes; 200 once applied, 202 when held for a decision.
+///
+/// # Errors
+///
+/// 400, 415 for the body; the problems of a changeset.
+pub async fn submit(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    headers: &HeaderMap,
+    raw: &Bytes,
+    write: (&str, &[&str], Map<String, Value>),
+) -> Result<Response, Problem> {
+    let (name, allowed, fixed) = write;
+    let (reserved, mut members) = if raw.is_empty() {
+        (
+            crate::resources::Reserved {
+                motive: String::new(),
+                valid_from: None,
+                valid_to: None,
+            },
+            Map::new(),
+        )
+    } else {
+        written(headers, raw, "application/json", allowed)?
+    };
+    members.extend(fixed);
+    let request = ChangesetRequest {
+        author: principal.identity,
+        motive: reserved.motive,
+        period: period(
+            api,
+            reserved.valid_from.as_deref(),
+            reserved.valid_to.as_deref(),
+        )
+        .await?,
+        operations: vec![operation(name, members)?],
+        simulate: false,
+        idempotency_key: idempotency_key(headers)?,
+    };
+    let pointers = [WHOLE.to_owned()];
+    let answer = Answer {
+        pointers: Pointers::Members(&pointers),
+        applied: StatusCode::OK,
+        location: None,
+        precondition: false,
+        shown: None,
+    };
+    submit_answered(api, context, &request, &answer).await
+}
+
 /// `DELETE /v1/<collection>/{id}` of a module under `If-Match`: closes the object, from
 /// `valid_from` of an optional body `{motive, valid_from, cascade}` (REQ-008-10).
 ///

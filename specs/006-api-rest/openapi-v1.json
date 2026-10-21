@@ -3241,6 +3241,27 @@
         ],
         "type": "object"
       },
+      "Listing_PolicyObject": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyObject"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_Prefix": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -6213,6 +6234,695 @@
         },
         "required": [
           "start"
+        ],
+        "type": "object"
+      },
+      "PolicyAxisResolution": {
+        "description": "The values of an endpoint on an axis, and where they come from (REQ-010-31).",
+        "properties": {
+          "axis": {
+            "description": "The axis.",
+            "type": "string"
+          },
+          "chain": {
+            "description": "The objects walked to the origin (`tree`).",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "machines": {
+            "description": "The machines carrying a value (`machine`).",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "origin": {
+            "description": "The object carrying the assignment (`tree`), absent in a reduced explanation.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "description": "`tree` or `machine`.",
+            "type": "string"
+          },
+          "values": {
+            "description": "Its values, empty when not classified.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "axis",
+          "values",
+          "source"
+        ],
+        "type": "object"
+      },
+      "PolicyCombinationValue": {
+        "description": "A value that made the decisive rule apply.",
+        "properties": {
+          "axis": {
+            "description": "The axis.",
+            "type": "string"
+          },
+          "side": {
+            "description": "`source` or `destination`.",
+            "type": "string"
+          },
+          "value": {
+            "description": "The value.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "axis",
+          "value"
+        ],
+        "type": "object"
+      },
+      "PolicyConditionResult": {
+        "description": "An admissibility condition and its state (REQ-010-36).",
+        "properties": {
+          "condition": {
+            "description": "The condition.",
+            "type": "string"
+          },
+          "state": {
+            "description": "`met`, `unmet` or `not_evaluated`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "condition",
+          "state"
+        ],
+        "type": "object"
+      },
+      "PolicyDecisive": {
+        "description": "What decided a verdict (REQ-010-12).",
+        "properties": {
+          "axis": {
+            "description": "The axis not classified (`unclassified`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected": {
+            "description": "The patterns expected (`pending`).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "`unclassified`, `rule`, `pattern`, `pending`, `no_rule` or `unknown_service`.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "The pattern that matched (`pattern`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule": {
+            "description": "The rule, if any.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "side": {
+            "description": "The side not classified (`unclassified`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "PolicyDiscarded": {
+        "description": "A rule set aside, and why.",
+        "properties": {
+          "rule": {
+            "description": "The rule.",
+            "type": "string"
+          },
+          "why": {
+            "description": "`deny_wins`, `less_specific` or `unconditional_first`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "why"
+        ],
+        "type": "object"
+      },
+      "PolicyDossier": {
+        "additionalProperties": false,
+        "description": "The file joined to a query (REQ-010-38).",
+        "properties": {
+          "fields": {
+            "description": "Fields present: `external_refs`, `requester`, `owners`, `data_nature`, `period`.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "values": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Values of the file, by axis.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyEndpoint": {
+        "additionalProperties": false,
+        "description": "An endpoint of a query (REQ-010-13).",
+        "properties": {
+          "id": {
+            "description": "The object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`address`, `prefix`, `interface` or `machine`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      },
+      "PolicyEvaluation": {
+        "description": "One evaluation: a pair of points and a service (REQ-010-11, 12, 37).",
+        "properties": {
+          "combination": {
+            "description": "The values that made the decisive rule apply.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyCombinationValue"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "description": "Applicable conditions and their state.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyConditionResult"
+            },
+            "type": "array"
+          },
+          "decisive": {
+            "$ref": "#/components/schemas/PolicyDecisive",
+            "description": "What decided it."
+          },
+          "destination": {
+            "description": "Index of the destination point.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discarded": {
+            "description": "Applicable rules set aside, three at most.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDiscarded"
+            },
+            "type": "array"
+          },
+          "outcome": {
+            "description": "`automatic`, `review` or `noncompliant`.",
+            "type": "string"
+          },
+          "score": {
+            "description": "The informative score.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "service": {
+            "description": "The service; absent for a port no service covers.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signals": {
+            "description": "The risk signals raised.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source": {
+            "description": "Index of the source point.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verdict": {
+            "description": "`allowed`, `allowed_pending` or `denied`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "verdict",
+          "decisive",
+          "combination",
+          "discarded",
+          "conditions",
+          "outcome",
+          "signals",
+          "score"
+        ],
+        "type": "object"
+      },
+      "PolicyMatrix": {
+        "description": "The matrix view of a flow type (REQ-010-34).",
+        "properties": {
+          "cells": {
+            "description": "Its cells; a cell absent is denied by default (S8).",
+            "items": {
+              "$ref": "#/components/schemas/PolicyMatrixCell"
+            },
+            "type": "array"
+          },
+          "flow_type": {
+            "description": "The flow type.",
+            "type": "string"
+          },
+          "outside": {
+            "description": "Rules of the flow type the view does not show (more than one axis, more than one\nvalue).",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "flow_type",
+          "cells",
+          "outside"
+        ],
+        "type": "object"
+      },
+      "PolicyMatrixCell": {
+        "description": "A cell of the matrix view (REQ-010-34).",
+        "properties": {
+          "destination": {
+            "description": "The environment of the destination.",
+            "type": "string"
+          },
+          "patterns": {
+            "description": "The patterns of a conditional authorisation.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rules": {
+            "description": "The rules the cell stands for.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source": {
+            "description": "The environment of the source.",
+            "type": "string"
+          },
+          "state": {
+            "description": "`allow`, `deny` or `conditional`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "state",
+          "patterns",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "PolicyObject": {
+        "additionalProperties": {
+          "description": "The members of the object, by its type."
+        },
+        "description": "A generic object of the policy, as its table holds it (design « Données »).",
+        "properties": {
+          "id": {
+            "description": "The identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "Start of validity.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "End of validity, absent when open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "PolicyPoint": {
+        "description": "A point of an endpoint: an address or a prefix and its values.",
+        "properties": {
+          "axes": {
+            "description": "Its values per axis.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyAxisResolution"
+            },
+            "type": "array"
+          },
+          "id": {
+            "description": "The address or the prefix; absent in a reduced explanation.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "axes"
+        ],
+        "type": "object"
+      },
+      "PolicyReport": {
+        "description": "A report of the policy (REQ-010-23).",
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "The number of items of each rubric so far; `null` for a rubric the build cannot\nanswer.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "done_at": {
+            "description": "When it was over.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "requested_at": {
+            "description": "When it was asked for.",
+            "type": "string"
+          },
+          "requested_by": {
+            "description": "Who asked for it.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`pending`, `running` or `done`.",
+            "type": "string"
+          },
+          "valid_at": {
+            "description": "The date the report describes.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "valid_at",
+          "requested_at",
+          "state",
+          "counts"
+        ],
+        "type": "object"
+      },
+      "PolicyReportItem": {
+        "description": "An item of a rubric of a report.",
+        "properties": {
+          "detail": {
+            "description": "What the item says."
+          },
+          "rubric": {
+            "description": "Rubric.",
+            "type": "string"
+          },
+          "seq": {
+            "description": "Rank within the rubric, from 1.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "subject": {
+            "description": "The object the item is about, if one.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rubric",
+          "seq",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "PolicyReportRequest": {
+        "additionalProperties": false,
+        "description": "The body of `POST /v1/policy-reports`.",
+        "properties": {
+          "valid_at": {
+            "description": "The date to describe (RFC 3339), now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "PolicySynthesis": {
+        "description": "The synthesis of the evaluations (REQ-010-15).",
+        "properties": {
+          "allowed": {
+            "description": "Evaluations that allow.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "denied": {
+            "description": "Evaluations that deny.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "description": "The worst outcome.",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "`allowed`, `partial` or `denied`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "allowed",
+          "denied",
+          "outcome"
+        ],
+        "type": "object"
+      },
+      "PolicyVerdict": {
+        "description": "The answer of a query of compliance (REQ-010-13, 15, 25).",
+        "properties": {
+          "access": {
+            "description": "`full` or `reduced`.",
+            "type": "string"
+          },
+          "destinations": {
+            "description": "The points of the destination.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyPoint"
+            },
+            "type": "array"
+          },
+          "empty": {
+            "description": "`no_address` when an endpoint has no address at the date.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evaluations": {
+            "description": "The evaluations.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyEvaluation"
+            },
+            "type": "array"
+          },
+          "hidden": {
+            "description": "Addresses left out, which the caller may not read one by one.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision": {
+            "description": "Revision of the policy read.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sources": {
+            "description": "The points of the source.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyPoint"
+            },
+            "type": "array"
+          },
+          "synthesis": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PolicySynthesis",
+                "description": "Their synthesis, absent without evaluation."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "access",
+          "revision",
+          "sources",
+          "destinations",
+          "evaluations",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "PolicyVerdictQuery": {
+        "additionalProperties": false,
+        "description": "The body of `QUERY /v1/verdicts` (design « API »): what is evaluated is one of a\nservice, a transport and a port, or a flow type.",
+        "properties": {
+          "as_of": {
+            "description": "System time (RFC 3339), now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destination": {
+            "$ref": "#/components/schemas/PolicyEndpoint",
+            "description": "The destination."
+          },
+          "dossier": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDossier",
+                "description": "The file, if any."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity": {
+            "description": "The entity of the request, where `policy.flow.request` is looked for.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "flow_type": {
+            "description": "A flow type, by its key.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "description": "A port, with `transport`.",
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "service": {
+            "description": "A service, by its key.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/PolicyEndpoint",
+            "description": "The source."
+          },
+          "transport": {
+            "description": "A transport, with `port`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_at": {
+            "description": "Valid time (RFC 3339), now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "destination"
         ],
         "type": "object"
       },
@@ -9262,6 +9972,385 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/admissibility-conditions": {
+      "get": {
+        "operationId": "list_admissibility_conditions",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `kind`.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The admissibility-conditions of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_admissibility_conditions",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in admissibility-conditions (policy.condition.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_admissibility_conditions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The admissibility-conditions of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/admissibility-conditions/{id}": {
+      "delete": {
+        "operationId": "close_admissibility_conditions",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_admissibility_conditions",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_admissibility_conditions",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.condition.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
         ]
       }
     },
@@ -12990,6 +14079,676 @@
         ]
       }
     },
+    "/v1/environments": {
+      "get": {
+        "operationId": "list_environments",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `value_key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The environments of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_environments",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in environments (policy.environment.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_environments",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The environments of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/environments/{id}": {
+      "delete": {
+        "operationId": "close_environments",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_environments",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/flow-types": {
+      "get": {
+        "operationId": "list_flow_types",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flow-types of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_flow_types",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in flow-types (policy.flow_type.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_flow_types",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flow-types of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/flow-types/{id}": {
+      "delete": {
+        "operationId": "close_flow_types",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_flow_types",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_flow_types",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.flow_type.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/flow-types/{id}/history": {
       "get": {
         "operationId": "policy_flow_type_history",
@@ -14159,6 +15918,403 @@
         "summary": "`POST /v1/imports/{id}/start` → 202: sorted, cut in batches and ready.",
         "tags": [
           "imports"
+        ]
+      }
+    },
+    "/v1/inference-rules": {
+      "get": {
+        "operationId": "list_inference_rules",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `axis_key`.",
+            "in": "query",
+            "name": "axis",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `domain_id`.",
+            "in": "query",
+            "name": "domain",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `parent_id`.",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The inference-rules of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_inference_rules",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in inference-rules (policy.inference_rule.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_inference_rules",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The inference-rules of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/inference-rules/{id}": {
+      "delete": {
+        "operationId": "close_inference_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_inference_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_inference_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.inference_rule.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
         ]
       }
     },
@@ -16470,6 +18626,376 @@
         ]
       }
     },
+    "/v1/policy-axes": {
+      "get": {
+        "operationId": "list_policy_axes",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `property_key`.",
+            "in": "query",
+            "name": "property",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-axes of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_axes",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in policy-axes (policy.axis.designate).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_policy_axes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-axes of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-axes/{id}": {
+      "delete": {
+        "operationId": "close_policy_axes",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_policy_axes",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_policy_axes",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.axis.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/policy-axes/{id}/history": {
       "get": {
         "operationId": "policy_axis_history",
@@ -16749,6 +19275,306 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/policy-exempt-roles": {
+      "get": {
+        "operationId": "list_policy_exempt_roles",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `role_key`.",
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-exempt-roles of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_exempt_roles",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in policy-exempt-roles (policy.exempt_role.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_policy_exempt_roles",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-exempt-roles of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-exempt-roles/{id}": {
+      "delete": {
+        "operationId": "close_policy_exempt_roles",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_policy_exempt_roles",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
         ]
       }
     },
@@ -17034,6 +19860,517 @@
         ]
       }
     },
+    "/v1/policy-matrix": {
+      "get": {
+        "operationId": "show_policy_matrix",
+        "parameters": [
+          {
+            "description": "The flow type, by its key.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyMatrix"
+                }
+              }
+            },
+            "description": "The matrix; its revision is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The rules of a flow type between environments, as a matrix (REQ-010-34).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-matrix/{source}/{flow_type}/{destination}": {
+      "put": {
+        "operationId": "set_policy_matrix_cell",
+        "parameters": [
+          {
+            "description": "The environment of the source.",
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The flow type.",
+            "in": "path",
+            "name": "flow_type",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The environment of the destination.",
+            "in": "path",
+            "name": "destination",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Set."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Sets a cell of the matrix (policy.matrix.set): allow, deny, conditional or none.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-patterns": {
+      "get": {
+        "operationId": "list_policy_patterns",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-patterns of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_patterns",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in policy-patterns (policy.pattern.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_policy_patterns",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-patterns of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-patterns/{id}": {
+      "delete": {
+        "operationId": "close_policy_patterns",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_policy_patterns",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_policy_patterns",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.pattern.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/policy-patterns/{id}/history": {
       "get": {
         "operationId": "policy_pattern_history",
@@ -17316,6 +20653,557 @@
         ]
       }
     },
+    "/v1/policy-reports": {
+      "post": {
+        "operationId": "request_policy_report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyReportRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyReport"
+                }
+              }
+            },
+            "description": "Asked for; its Location is the report."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Asks for the audit report of the policy at a date (REQ-010-23); one at a time.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-reports/{id}": {
+      "get": {
+        "operationId": "show_policy_report",
+        "parameters": [
+          {
+            "description": "The report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyReport"
+                }
+              }
+            },
+            "description": "The report and the counts of its rubrics."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "A report of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-reports/{id}/items": {
+      "get": {
+        "operationId": "policy_report_items",
+        "parameters": [
+          {
+            "description": "The report.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The rubric.",
+            "in": "query",
+            "name": "rubric",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The rank to start after.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyReportItem"
+                }
+              }
+            },
+            "description": "A page of items."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The items of a rubric of a report, by rank.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-rules": {
+      "get": {
+        "operationId": "list_policy_rules",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `effect`.",
+            "in": "query",
+            "name": "effect",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `pattern_id`.",
+            "in": "query",
+            "name": "pattern",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `flow_type_ids`.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `service_ids`.",
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-rules of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_rules",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in policy-rules (policy.rule.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_policy_rules",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-rules of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-rules/{id}": {
+      "delete": {
+        "operationId": "close_policy_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_policy_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_policy_rules",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.rule.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/policy-rules/{id}/history": {
       "get": {
         "operationId": "policy_rule_history",
@@ -17595,6 +21483,246 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/policy-values": {
+      "get": {
+        "operationId": "list_policy_values",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `property_key`.",
+            "in": "query",
+            "name": "axis",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-values of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_values",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in policy-values (policy.value.describe).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_policy_values",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The policy-values of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy-values/{id}": {
+      "get": {
+        "operationId": "show_policy_values",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
         ]
       }
     },
@@ -19772,6 +23900,385 @@
         ]
       }
     },
+    "/v1/risk-signals": {
+      "get": {
+        "operationId": "list_risk_signals",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `kind`.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The risk-signals of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_risk_signals",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in risk-signals (policy.signal.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_risk_signals",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The risk-signals of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/risk-signals/{id}": {
+      "delete": {
+        "operationId": "close_risk_signals",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_risk_signals",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_risk_signals",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.signal.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/risk-signals/{id}/history": {
       "get": {
         "operationId": "policy_signal_history",
@@ -20603,6 +25110,385 @@
         "summary": "`DELETE /v1/service-accounts/{id}/secrets/{secret}`: revokes the secret.",
         "tags": [
           "rights"
+        ]
+      }
+    },
+    "/v1/services": {
+      "get": {
+        "operationId": "list_services",
+        "parameters": [
+          {
+            "description": "Equal to, or held by, `key`.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to, or held by, `flow_type_id`.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The services of the policy.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "post": {
+        "operationId": "create_services",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates in services (policy.service.create).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_services",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyObject"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The services of the policy.",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/services/{id}": {
+      "delete": {
+        "operationId": "close_services",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "get": {
+        "operationId": "show_services",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyObject"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The object.",
+        "tags": [
+          "policy"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_services",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the object (policy.service.update, JSON Merge Patch).",
+        "tags": [
+          "policy"
         ]
       }
     },
@@ -21556,6 +26442,149 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/verdicts": {
+      "get": {
+        "operationId": "show_verdicts",
+        "parameters": [
+          {
+            "description": "The source, `<kind>:<id>`.",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The destination, `<kind>:<id>`.",
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A service, by its key.",
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A transport, with `port`.",
+            "in": "query",
+            "name": "transport",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A port, with `transport`.",
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A flow type, by its key.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The entity of the request.",
+            "in": "query",
+            "name": "entity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVerdict"
+                }
+              }
+            },
+            "description": "The verdicts and their synthesis."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The verdicts of a query of compliance, by parameters (REQ-010-13).",
+        "tags": [
+          "policy"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_verdicts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyVerdictQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyVerdict"
+                }
+              }
+            },
+            "description": "The verdicts and their synthesis."
+          }
+        },
+        "summary": "The verdicts of a query of compliance (REQ-010-13).",
+        "tags": [
+          "policy"
         ]
       }
     },

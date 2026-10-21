@@ -34,7 +34,7 @@ flow = ["policy", "dep:kartenn-flow"]
 kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", optional = true }
 kartenn-vlan = { version = "0.1.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"], optional = true }
-kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["pg"], optional = true }
+kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["rest"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
 figment = { version = "0.10.19", features = ["toml", "env"] }
