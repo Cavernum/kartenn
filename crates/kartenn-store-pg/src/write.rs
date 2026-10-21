@@ -50,6 +50,28 @@ impl kartenn_service::module::ModuleTx for PgTx {
     ) -> kartenn_service::module::BoxFuture<'_, Result<(), WriteError>> {
         Box::pin(async move {
             let (a, b) = bounds(period)?;
+            // Already registered over the period: a new version of its record.
+            let rewritten = self
+                .guarded(
+                    sqlx::AssertSqlSafe(format!(
+                        "UPDATE module_object SET parent_id = $2, domain_id = $3, changeset_id = $6
+                         WHERE id = $1 AND valid_period && {}",
+                        period_sql(4, 5)
+                    )),
+                    vec![
+                        Bind::Uuid(row.id),
+                        Bind::OptUuid(row.parent),
+                        Bind::OptUuid(row.domain),
+                        Bind::Time(a),
+                        Bind::Time(b),
+                        Bind::Uuid(changeset),
+                    ],
+                    row.id,
+                )
+                .await?;
+            if rewritten > 0 {
+                return Ok(());
+            }
             let sql = format!(
                 "INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
                  VALUES ($1, $2, $3, $4, $5, {}, $8)",
@@ -69,6 +91,55 @@ impl kartenn_service::module::ModuleTx for PgTx {
                 .await
                 .map(|_| ())
         })
+    }
+
+    fn close_versioned<'a>(
+        &'a mut self,
+        table: &'a str,
+        id: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), WriteError>> {
+        Box::pin(async move {
+            let table = module_table(table)?;
+            self.close_in(table, id, period, changeset).await
+        })
+    }
+
+    fn restore_versioned<'a>(
+        &'a mut self,
+        table: &'a str,
+        id: Uuid,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), WriteError>> {
+        Box::pin(async move {
+            let table = module_table(table)?;
+            let key = serde_json::json!({ "id": id });
+            self.restore_in(table, &key, id, before, period, changeset)
+                .await
+        })
+    }
+}
+
+/// A versioned table of a module, `<module>.<table>`: checked before it reaches SQL.
+fn module_table(table: &str) -> Result<&str, WriteError> {
+    let identifier = |part: &str| {
+        part.starts_with(|c: char| c.is_ascii_lowercase())
+            && part
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    };
+    match table.split_once('.') {
+        Some((schema, name))
+            if identifier(schema) && identifier(name) && !["public", "core"].contains(&schema) =>
+        {
+            Ok(table)
+        }
+        _ => Err(WriteError::Store(store_err(format!(
+            "{table} is not a table of a module"
+        )))),
     }
 }
 
@@ -216,6 +287,91 @@ pub struct PgTx {
 }
 
 impl PgTx {
+    /// Ends over `period` the versions of `id` in the versioned table `t`.
+    async fn close_in(
+        &mut self,
+        t: &str,
+        id: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (at, _) = bounds(period)?;
+        let shortened = self
+            .guarded(
+                sqlx::AssertSqlSafe(format!(
+                    "UPDATE {t} SET valid_period = tstzrange(lower(valid_period), coalesce($2::timestamptz, now())),
+                                    changeset_id = $3
+                     WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())
+                       AND lower(valid_period) < coalesce($2::timestamptz, now())"
+                )),
+                vec![Bind::Uuid(id), Bind::Time(at), Bind::Uuid(changeset)],
+                id,
+            )
+            .await?;
+        let removed = self
+            .guarded(
+                sqlx::AssertSqlSafe(format!(
+                    "DELETE FROM {t} WHERE id = $1 AND lower(valid_period) >= coalesce($2::timestamptz, now())"
+                )),
+                vec![Bind::Uuid(id), Bind::Time(at)],
+                id,
+            )
+            .await?;
+        if shortened + removed == 0 {
+            Err(WriteError::NoVersion(id))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Restores over `period` the versions of the row `key` (of the object `id`) of the
+    /// versioned table `target` as asserted just before the changeset `before`.
+    async fn restore_in(
+        &mut self,
+        target: &str,
+        key: &serde_json::Value,
+        id: Uuid,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let (a, b) = bounds(period)?;
+        let at: Option<OffsetDateTime> = sqlx::query_scalar(
+            "SELECT applied_at FROM changeset WHERE id = $1 AND state = 'applied'",
+        )
+        .bind(before)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?
+        .flatten();
+        let Some(at) = at else {
+            return Err(WriteError::Rule(
+                Violation::new(
+                    &rules::CHANGESET_NO_VERSION,
+                    format!("changeset {before} is not applied: nothing to restore"),
+                )
+                .with_subjects([before]),
+            ));
+        };
+        self.guarded(
+            sqlx::AssertSqlSafe(
+                "SELECT kartenn_restore($1::regclass, $2::jsonb, $3, coalesce($4::timestamptz, now()), $5, $6)"
+                    .to_owned(),
+            ),
+            vec![
+                Bind::Text(target.to_owned()),
+                Bind::Text(key.to_string()),
+                Bind::Time(Some(at)),
+                Bind::Time(a),
+                Bind::Time(b),
+                Bind::Uuid(changeset),
+            ],
+            id,
+        )
+        .await
+        .map(|_| ())
+    }
+
     /// Inserts a version of a declaration from `start` (transaction time if `None`) to
     /// `end`.
     async fn write_declaration(
@@ -916,34 +1072,7 @@ impl WriteTx for PgTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
-        let (at, _) = bounds(period)?;
-        let t = table(kind);
-        let shortened = self
-            .guarded(
-                sqlx::AssertSqlSafe(format!(
-                    "UPDATE {t} SET valid_period = tstzrange(lower(valid_period), coalesce($2::timestamptz, now())),
-                                    changeset_id = $3
-                     WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())
-                       AND lower(valid_period) < coalesce($2::timestamptz, now())"
-                )),
-                vec![Bind::Uuid(id), Bind::Time(at), Bind::Uuid(changeset)],
-                id,
-            )
-            .await?;
-        let removed = self
-            .guarded(
-                sqlx::AssertSqlSafe(format!(
-                    "DELETE FROM {t} WHERE id = $1 AND lower(valid_period) >= coalesce($2::timestamptz, now())"
-                )),
-                vec![Bind::Uuid(id), Bind::Time(at)],
-                id,
-            )
-            .await?;
-        if shortened + removed == 0 {
-            Err(WriteError::NoVersion(id))
-        } else {
-            Ok(())
-        }
+        self.close_in(table(kind), id, period, changeset).await
     }
 
     async fn modify(
@@ -1034,24 +1163,6 @@ impl WriteTx for PgTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
-        let (a, b) = bounds(period)?;
-        let at: Option<OffsetDateTime> = sqlx::query_scalar(
-            "SELECT applied_at FROM changeset WHERE id = $1 AND state = 'applied'",
-        )
-        .bind(before)
-        .fetch_optional(&mut *self.tx)
-        .await
-        .map_err(store_err)?
-        .flatten();
-        let Some(at) = at else {
-            return Err(WriteError::Rule(
-                Violation::new(
-                    &rules::CHANGESET_NO_VERSION,
-                    format!("changeset {before} is not applied: nothing to restore"),
-                )
-                .with_subjects([before]),
-            ));
-        };
         let (target, key) = match property {
             None => (table(kind), serde_json::json!({ "id": id })),
             Some(p) => (
@@ -1059,23 +1170,8 @@ impl WriteTx for PgTx {
                 serde_json::json!({ "object_id": id, "property_id": p }),
             ),
         };
-        self.guarded(
-            sqlx::AssertSqlSafe(
-                "SELECT kartenn_restore($1::regclass, $2::jsonb, $3, coalesce($4::timestamptz, now()), $5, $6)"
-                    .to_owned(),
-            ),
-            vec![
-                Bind::Text(target.to_owned()),
-                Bind::Text(key.to_string()),
-                Bind::Time(Some(at)),
-                Bind::Time(a),
-                Bind::Time(b),
-                Bind::Uuid(changeset),
-            ],
-            id,
-        )
-        .await
-        .map(|_| ())
+        self.restore_in(target, &key, id, before, period, changeset)
+            .await
     }
 
     async fn dependents(
@@ -2497,13 +2593,10 @@ pub async fn operations_of(pool: &PgPool, changeset: Uuid) -> Result<Vec<Operati
 
 /// The kind of an object from its stored name.
 fn object_kind(name: &str) -> Result<ObjectKind, StoreError> {
-    Ok(match name {
-        "domain" => ObjectKind::Domain,
-        "prefix" => ObjectKind::Prefix,
-        "range" => ObjectKind::Range,
-        "address" => ObjectKind::Address,
-        "entity" => ObjectKind::Entity,
-        "site" => ObjectKind::Site,
-        other => return Err(store_err(format!("unknown object kind {other}"))),
-    })
+    match ObjectKind::from_name(name) {
+        Some(ObjectKind::Property | ObjectKind::EnumValue) | None => {
+            Err(store_err(format!("unknown object kind {name}")))
+        }
+        Some(kind) => Ok(kind),
+    }
 }

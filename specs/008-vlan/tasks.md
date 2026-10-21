@@ -92,7 +92,7 @@ numérotées après coup.
   verrous et domaines portés par le `ModulePlan` (pas de lecture en base pour les
   calculer) ; l'enveloppe REST (`OperationDto`) reste à la tâche 8 ; `Close` et les
   opérations génériques sur objets de module à la tâche 4.
-- [ ] 4. Opérations génériques et mécanismes transverses sur objets de module : `Close`,
+- [x] 4. Opérations génériques et mécanismes transverses sur objets de module : `Close`,
   `Expect` et `object_version`, `BindExternal`, `Within`, historique, `Restore` et
   annulation — REQ-008-3, 5 — verify : `module_object_has_etag_and_history`,
   `undo_closes_a_created_module_object`, `undo_restores_a_modified_module_object`,
@@ -100,6 +100,21 @@ numérotées après coup.
   où : design « Enveloppe d'opération » (annulation) ; `pipeline.rs::{close, restore,
   conflict}`, `undo.rs`, store `undo.rs`, `temporal.rs`, `keys.rs` (external_id)
   dépend de : 3
+  — Service : `module.rs` (`ModuleTx::{close_versioned, restore_versioned}`,
+  `ModuleHandler::{close, restore}` sans effet par défaut, `ModuleRegistry::handler_of`),
+  `pipeline.rs` (`close` et `restore` atteignent les lignes du module après
+  l'enregistrement du noyau, `close` retire les affectations ; `check_modules` vérifie
+  aussi les objets de module clos ou restaurés ; le registre passé à `apply`). Store :
+  `register` réécrit l'enregistrement d'un objet déjà inscrit sur la période (nouvelle
+  version, trace pour l'annulation) ; `close_in`/`restore_in` génériques pour le noyau
+  et les tables versionnées d'un module (`module_table` vérifie `<module>.<table>`) ;
+  `undo.rs` lit `module_object` (`module_objects`), `kind_of` et `object_kind`
+  acceptent les types qualifiés. Tests : `module_pipeline.rs` (les quatre du verify,
+  `Within` et `Expect` dans le premier), module factice versionné avec
+  `dummy.update_thing`.
+  choix : une modification d'objet de module réécrit tout l'enregistrement qui recouvre
+  sa période (pas de découpe dans `module_object`, le module découpe ses propres lignes) ;
+  l'affectation de propriétés à un objet de module reste à la tâche 5 (porteurs).
 - [ ] 5. Ancres et RBAC des objets de module : porteurs et cibles de référence étendus
   par le registre, `core.owner`/`core.site` portés par les types de module, arbre
   `InheritTree::Module` le long de `parent_id` dans la résolution matérialisée,
@@ -120,13 +135,26 @@ numérotées après coup.
   où : design « Registre de modules » ; `kartenn-core/src/authz.rs` (`PERMISSIONS`,
   `BuiltinRole`), `rbac.rs::check`, test de `docs/spec/permissions.md`
   dépend de : 1
-- [ ] 7. Références et suppression : `Reference` des modules interrogées à la clôture de
+- [x] 7. Références et suppression : `Reference` des modules interrogées à la clôture de
   tout objet, refus listant les dépendants, cascade (clôture ou mise à nul) sous les
   droits de chaque dépendant — REQ-008-10 — verify (module factice) :
   `closing_a_referenced_core_object_is_refused_with_dependents`,
   `cascade_closes_module_dependents`, `nullify_policy_unassigns`
   où : design « Références » ; `cascade.rs::dependents`, `pipeline.rs::close`
   dépend de : 4
+  — Service : `module.rs` (`ModuleHandler::{referrers, nullify}`, sans effet par
+  défaut), `cascade.rs` (`referrers` interroge les références déclarées vers la sorte
+  de l'objet clos ; la cascade ajoute la clôture des sources sous `Cascade`,
+  récursivement, et le `ModulePlan` de mise à nul sous `Nullify` ; `check_referrers` sur
+  l'état final), `pipeline.rs` (registre passé à `expand`, contrôle après la validation
+  globale) ; règle `core.object.dependents` (catalogue régénéré). Tests :
+  `module_pipeline.rs` (les trois du verify ; la mise à nul exige `dummy.thing.write`),
+  module factice : référence au préfixe (`Cascade`) et au domaine (`Nullify`).
+  choix : identifiant `core.object.dependents` (le design écrit `core.dependents`, le
+  catalogue impose trois segments) ; sans cascade, toute référence vivante refuse ; avec
+  cascade, `Refuse` refuse encore, `Cascade` clôt, `Nullify` détache par une
+  modification que le module construit (`nullify` sans plan : refus) ; le refus est
+  vérifié sur l'état final, après les écritures.
 - [ ] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
   transverses par type de module (`history`, `properties`, `explanation`,
   `suggestion`), enveloppe d'opération dans le contrat OpenAPI, `GET /v1/graph/edges`,

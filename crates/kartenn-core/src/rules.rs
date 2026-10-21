@@ -235,6 +235,8 @@ rules! {
         "Une liaison désigne un rôle en vigueur.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
+    OBJECT_DEPENDENTS = "core.object.dependents", Error, ["REQ-008-10"], "D33, ADR 0026",
+        "Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence.";
 }
 
 /// Every rule, all groups, in catalogue order.

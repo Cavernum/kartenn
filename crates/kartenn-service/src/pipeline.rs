@@ -1158,6 +1158,7 @@ async fn assignment<T: WriteTx>(
 /// changeset wrote (ADR 0026, clause 7).
 async fn check_modules<T: WriteTx>(
     tx: &mut T,
+    modules: &ModuleRegistry,
     planned: &[Planned],
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
@@ -1165,11 +1166,28 @@ async fn check_modules<T: WriteTx>(
     type Touched = (Arc<dyn ModuleHandler>, Vec<(ModuleKind, Uuid)>);
     let mut touched: Vec<Touched> = Vec::new();
     for p in planned {
-        if let Planned::Module { handler, plan } = p {
-            match touched.iter_mut().find(|(h, _)| Arc::ptr_eq(h, handler)) {
-                Some((_, objects)) => objects.push((plan.kind, plan.object)),
-                None => touched.push((Arc::clone(handler), vec![(plan.kind, plan.object)])),
+        let (handler, object) = match p {
+            Planned::Module { handler, plan } => (Arc::clone(handler), (plan.kind, plan.object)),
+            // Closed or restored by the generic operations (REQ-008-5).
+            Planned::Close {
+                kind: ObjectKind::Module(kind),
+                id,
+                ..
             }
+            | Planned::Restore {
+                kind: ObjectKind::Module(kind),
+                id,
+                property: None,
+                ..
+            } => match modules.handler_of(*kind) {
+                Some(handler) => (handler, (*kind, *id)),
+                None => continue,
+            },
+            _ => continue,
+        };
+        match touched.iter_mut().find(|(h, _)| Arc::ptr_eq(h, &handler)) {
+            Some((_, objects)) => objects.push(object),
+            None => touched.push((handler, vec![object])),
         }
     }
     for (handler, objects) in touched {
@@ -1202,6 +1220,7 @@ fn record(
 /// of a prefix.
 async fn restore<T: WriteTx>(
     tx: &mut T,
+    modules: &ModuleRegistry,
     (kind, id, property, before): (ObjectKind, Uuid, Option<Uuid>, Uuid),
     period: Option<Period>,
     changeset: Uuid,
@@ -1213,7 +1232,16 @@ async fn restore<T: WriteTx>(
         }
     }
     tx.restore(kind, id, property, before, period, changeset)
-        .await
+        .await?;
+    // An object of a module: its record, then the module's own rows (REQ-008-3).
+    if let (ObjectKind::Module(kind), None) = (kind, property)
+        && let Some(handler) = modules.handler_of(kind)
+    {
+        handler
+            .restore(tx.module_tx(), kind, id, before, period, changeset)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Writes a modification, noting the former extent of a resized prefix.
@@ -1238,6 +1266,7 @@ async fn modify<T: WriteTx>(
 /// components), an addressing object's assignments (003/design).
 async fn close<T: WriteTx>(
     tx: &mut T,
+    modules: &ModuleRegistry,
     kind: ObjectKind,
     id: Uuid,
     period: Option<Period>,
@@ -1248,6 +1277,15 @@ async fn close<T: WriteTx>(
         tx.close_enum_values_of(id, period, changeset).await?;
     } else if kind.is_addressing() {
         tx.unassign(id, None, period, changeset).await?;
+    } else if let ObjectKind::Module(kind) = kind {
+        // Its record ended, the module's own rows and its assignments end with it
+        // (REQ-008-5).
+        if let Some(handler) = modules.handler_of(kind) {
+            handler
+                .close(tx.module_tx(), kind, id, period, changeset)
+                .await?;
+        }
+        tx.unassign(id, None, period, changeset).await?;
     }
     Ok(())
 }
@@ -1257,6 +1295,7 @@ async fn close<T: WriteTx>(
 #[allow(clippy::too_many_lines)] // one arm per kind of planned operation
 async fn apply<T: WriteTx>(
     tx: &mut T,
+    modules: &ModuleRegistry,
     planned: &[Planned],
     origins: &[usize],
     periods: &[Option<Period>],
@@ -1295,7 +1334,7 @@ async fn apply<T: WriteTx>(
                 before,
             } => {
                 let key = (*kind, *id, *property, *before);
-                restore(tx, key, period, changeset, &mut former).await
+                restore(tx, modules, key, period, changeset, &mut former).await
             }
             Planned::Anchor {
                 kind,
@@ -1325,7 +1364,7 @@ async fn apply<T: WriteTx>(
                     violations.push(v.at(origin));
                     continue;
                 }
-                close(tx, *kind, *id, period, changeset).await
+                close(tx, modules, *kind, *id, period, changeset).await
             }
             Planned::Declare { id, declaration } => {
                 crate::declarations::declare(tx, *id, declaration, period, changeset).await
@@ -1671,7 +1710,7 @@ async fn stages<S: Store, A: Authorizer>(
     // One period per planned operation: that of the operation it comes from.
     let periods: Vec<Option<Period>> = origins.iter().map(|&o| periods[o]).collect();
     let (planned, origins, periods, cascaded) =
-        crate::cascade::expand(&mut tx, planned, origins, periods).await?;
+        crate::cascade::expand(&mut tx, modules, planned, origins, periods).await?;
     let (domains, public, keys) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     tx.lock_keys(&keys).await?;
@@ -1714,6 +1753,7 @@ async fn stages<S: Store, A: Authorizer>(
     };
     let former = match apply(
         &mut tx,
+        modules,
         &planned,
         &origins,
         &periods,
@@ -1735,8 +1775,17 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return Err(e.into());
     }
+    // REQ-008-10: what the modules still reference is not closed.
     if !has_errors(&violations)
-        && let Err(e) = check_modules(&mut tx, &planned, &mut violations).await
+        && let Err(e) =
+            crate::cascade::check_referrers(&mut tx, modules, &planned, &periods, &mut violations)
+                .await
+    {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    if !has_errors(&violations)
+        && let Err(e) = check_modules(&mut tx, modules, &planned, &mut violations).await
     {
         tx.rollback().await?;
         return Err(e.into());

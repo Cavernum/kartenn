@@ -163,12 +163,39 @@ pub trait ModuleTx: Send {
 
     /// Registers a version of an object of the module over `period` (the changeset's when
     /// `None`), written by `changeset`.
+    ///
+    /// A first version is inserted; an object already registered over `period` is
+    /// rewritten there (a new version, kept in the history), so that each changeset that
+    /// writes an object of a module leaves its trace for undo (REQ-008-3).
     fn register(
         &mut self,
         row: ModuleObjectRow,
         period: Option<Period>,
         changeset: Uuid,
     ) -> BoxFuture<'_, Result<(), WriteError>>;
+
+    /// Ends over `period` the versions of `id` in `table`, a versioned table of the module
+    /// (`<module>.<table>`, made with `kartenn_make_versioned`), as the core ends its own
+    /// objects (REQ-008-5).
+    fn close_versioned<'a>(
+        &'a mut self,
+        table: &'a str,
+        id: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>>;
+
+    /// Gives back over `period` the versions of `id` in `table` (versioned, as for
+    /// [`ModuleTx::close_versioned`]) asserted just before the changeset `before`
+    /// (undo, REQ-008-3).
+    fn restore_versioned<'a>(
+        &'a mut self,
+        table: &'a str,
+        id: Uuid,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>>;
 }
 
 /// The behaviour of a module inside the write pipeline (ADR 0026, clause 6).
@@ -195,6 +222,59 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         period: Option<Period>,
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>>;
+
+    /// Ends the module's own rows of `id` over `period`, once the core has ended its record
+    /// (`Close`, REQ-008-5). Nothing by default: a module without rows of its own.
+    fn close<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        kind: ModuleKind,
+        id: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>> {
+        let _ = (tx, kind, id, period, changeset);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    /// Gives back the module's own rows of `id` as before the changeset `before`, once the
+    /// core has restored its record (`Restore`, undo, REQ-008-3). Nothing by default.
+    #[allow(clippy::too_many_arguments)] // the restore of the core, for the module's rows
+    fn restore<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        kind: ModuleKind,
+        id: Uuid,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>> {
+        let _ = (tx, kind, id, before, period, changeset);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    /// The living objects of the module that reference `target` by `reference` (one of the
+    /// module's [`Module::references`]) from the start of `period` on, on the state of the
+    /// transaction (REQ-008-10). None by default.
+    fn referrers<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        let _ = (tx, reference, target, period);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// The write that clears `reference` in `source` (pointing at `target`), for the
+    /// cascade of a reference whose policy is [`OnClose::Nullify`]: a modification of
+    /// `source`, checked under its rights. `None` keeps the reference, so the closure is
+    /// refused.
+    fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
+        let _ = (reference, source, target);
+        None
+    }
 
     /// The rules of the module on the final state, once every operation is written:
     /// `touched` lists the objects of the module the changeset wrote.
@@ -418,6 +498,18 @@ impl ModuleRegistry {
         let found = self.get(module)?;
         let operation = found.operations().iter().find(|o| o.name == name)?;
         Some((operation, found.handler()?))
+    }
+
+    /// The handler of the module that declares the type `kind`, if any.
+    #[must_use]
+    pub fn handler_of(&self, kind: ModuleKind) -> Option<Arc<dyn ModuleHandler>> {
+        let found = self.get(kind.module())?;
+        found
+            .object_types()
+            .iter()
+            .any(|t| t.kind == kind.as_str())
+            .then(|| found.handler())
+            .flatten()
     }
 }
 

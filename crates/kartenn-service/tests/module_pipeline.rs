@@ -297,3 +297,409 @@ async fn named_lock_keys_do_not_deadlock(pool: PgPool) {
     }
     assert_eq!(count(&pool, "SELECT count(*) FROM dummy.thing").await, 20);
 }
+
+/// Applies `operations`, returns the changeset.
+async fn applied(store: &PgStore, author: Uuid, operations: Vec<Operation>) -> Uuid {
+    let outcome = submit(
+        store,
+        &Unrestricted,
+        &request(author, operations),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    match outcome {
+        Outcome::Applied { changeset, .. } => changeset,
+        other => panic!("not applied: {other:?}"),
+    }
+}
+
+async fn thing(pool: &PgPool, label: &str) -> Uuid {
+    sqlx::query_scalar("SELECT id FROM dummy.thing WHERE label = $1")
+        .bind(label)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn current_label(pool: &PgPool, id: Uuid) -> Option<String> {
+    sqlx::query_scalar("SELECT label FROM dummy.thing WHERE id = $1 AND valid_period @> now()")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .unwrap()
+}
+
+async fn version(pool: &PgPool, id: Uuid) -> Uuid {
+    sqlx::query_scalar("SELECT changeset_id FROM object_version WHERE object_id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+fn close(id: Uuid) -> Operation {
+    Operation::Close {
+        kind: dummy::thing_kind(),
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn module_object_has_etag_and_history(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let created = applied(
+        &store,
+        author,
+        vec![dummy::create_thing(json!({"label": "a"}))],
+    )
+    .await;
+    let id = thing(&pool, "a").await;
+    assert_eq!(version(&pool, id).await, created);
+    let update = |label: &str| dummy::update_thing(json!({"id": {"id": id}, "label": label}));
+    let changed = applied(&store, author, vec![update("b")]).await;
+    // A new version (ETag), its record rewritten, the former one in the history.
+    assert_eq!(version(&pool, id).await, changed);
+    let record: Uuid = sqlx::query_scalar("SELECT changeset_id FROM module_object WHERE id = $1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(record, changed);
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM module_object_history WHERE kind = 'dummy.thing'"
+        )
+        .await,
+        1
+    );
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM dummy.thing_history WHERE label = 'a'"
+        )
+        .await,
+        1
+    );
+    // `Expect` guards it like an object of the core.
+    let expect = |expected: Uuid| Operation::Expect {
+        kind: dummy::thing_kind(),
+        id: Ref::Id(id),
+        expected,
+    };
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![expect(created), update("c")]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(rules(&outcome), ["changeset.operation.conflict"]);
+    applied(&store, author, vec![expect(changed), update("c")]).await;
+    assert_eq!(current_label(&pool, id).await.as_deref(), Some("c"));
+    // `Within`: an operation of a module on its own period.
+    let start: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM now() + interval '1 day') * 1000000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let later = Operation::Within {
+        period: kartenn_service::operations::PeriodSpec { start, end: None },
+        operation: Box::new(dummy::create_thing(json!({"label": "later"}))),
+    };
+    applied(&store, author, vec![later]).await;
+    let future: bool = sqlx::query_scalar(
+        "SELECT lower(o.valid_period) > now() AND lower(t.valid_period) = lower(o.valid_period)
+         FROM module_object o JOIN dummy.thing t USING (id) WHERE t.label = 'later'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(future);
+    // Closed, record and rows: no current version; an unknown one is refused.
+    applied(&store, author, vec![close(id)]).await;
+    assert_eq!(current_label(&pool, id).await, None);
+    let live: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM module_object WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(live, 0);
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![close(Uuid::now_v7())]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(rules(&outcome), ["changeset.operation.no_version"]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn undo_closes_a_created_module_object(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let created = applied(
+        &store,
+        author,
+        vec![dummy::create_thing(json!({"label": "a"}))],
+    )
+    .await;
+    let id = thing(&pool, "a").await;
+    let undo = kartenn_service::undo::inverse(&store, created, author)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(undo.conflicts.is_empty() && undo.unsupported.is_empty());
+    assert!(
+        matches!(
+            undo.request.operations.as_slice(),
+            [Operation::Close { kind, id: Ref::Id(closed), .. }]
+                if *kind == dummy::thing_kind() && *closed == id
+        ),
+        "{:?}",
+        undo.request.operations
+    );
+    applied(&store, author, undo.request.operations).await;
+    assert_eq!(current_label(&pool, id).await, None);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn undo_restores_a_modified_module_object(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    applied(
+        &store,
+        author,
+        vec![dummy::create_thing(json!({"label": "a"}))],
+    )
+    .await;
+    let id = thing(&pool, "a").await;
+    let changed = applied(
+        &store,
+        author,
+        vec![dummy::update_thing(json!({"id": {"id": id}, "label": "b"}))],
+    )
+    .await;
+    assert_eq!(current_label(&pool, id).await.as_deref(), Some("b"));
+    let undo = kartenn_service::undo::inverse(&store, changed, author)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(
+            undo.request.operations.as_slice(),
+            [Operation::Restore { kind, id: Ref::Id(restored), before, property: None }]
+                if *kind == dummy::thing_kind() && *restored == id && *before == changed
+        ),
+        "{:?}",
+        undo.request.operations
+    );
+    applied(&store, author, undo.request.operations).await;
+    assert_eq!(current_label(&pool, id).await.as_deref(), Some("a"));
+}
+
+/// A domain `lab` with a network `10.0.0.0/24`, and a thing `a` on the network that
+/// references a domain `other` without prefixes: (network, other domain, thing).
+async fn referenced(store: &PgStore, pool: &PgPool, author: Uuid) -> (Uuid, Uuid, Uuid) {
+    applied(
+        store,
+        author,
+        vec![
+            domain(1, "lab"),
+            Operation::CreatePrefix {
+                local: Some(2),
+                domain: Ref::Local(1),
+                prefix: "10.0.0.0/24".into(),
+                nature: Nature::Network,
+                point_to_point: false,
+                anycast: false,
+            },
+            domain(3, "other"),
+            dummy::create_thing(
+                json!({"label": "a", "prefix": {"local": 2}, "domain_ref": {"local": 3}}),
+            ),
+        ],
+    )
+    .await;
+    let network: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.0.0.0/24'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let other: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'other'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    (network, other, thing(pool, "a").await)
+}
+
+fn close_kind(kind: kartenn_service::ObjectKind, id: Uuid, cascade: bool) -> Operation {
+    Operation::Close {
+        kind,
+        id: Ref::Id(id),
+        expected: None,
+        cascade,
+    }
+}
+
+fn subjects(outcome: &Outcome, rule: &str) -> Vec<Uuid> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations
+            .iter()
+            .find(|v| v.rule.id == rule)
+            .map(|v| v.subjects.clone())
+            .unwrap_or_default(),
+        other => panic!("not refused: {other:?}"),
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_a_referenced_core_object_is_refused_with_dependents(pool: PgPool) {
+    use kartenn_service::ObjectKind;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let (network, other, thing) = referenced(&store, &pool, author).await;
+    for (kind, target) in [(ObjectKind::Prefix, network), (ObjectKind::Domain, other)] {
+        let outcome = submit(
+            &store,
+            &Unrestricted,
+            &request(author, vec![close_kind(kind, target, false)]),
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap();
+        assert_eq!(rules(&outcome), ["core.object.dependents"]);
+        assert_eq!(
+            subjects(&outcome, "core.object.dependents"),
+            [target, thing]
+        );
+    }
+    assert_eq!(current_label(&pool, thing).await.as_deref(), Some("a"));
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn cascade_closes_module_dependents(pool: PgPool) {
+    use kartenn_service::ObjectKind;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let (network, _, thing) = referenced(&store, &pool, author).await;
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![close_kind(ObjectKind::Prefix, network, true)]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // The thing closed with its network, its record and its rows.
+    assert_eq!(current_label(&pool, thing).await, None);
+    let live: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM module_object WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(thing)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(live, 0);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn nullify_policy_unassigns(pool: PgPool) {
+    use kartenn_service::ObjectKind;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let (_, other, thing) = referenced(&store, &pool, author).await;
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![close_kind(ObjectKind::Domain, other, true)]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // The thing lives on, its reference to the domain cleared under a new version.
+    let (label, cleared): (String, Option<Uuid>) = sqlx::query_as(
+        "SELECT label, domain_ref FROM dummy.thing WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(thing)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((label.as_str(), cleared), ("a", None));
+    let Outcome::Applied { changeset, .. } = outcome else {
+        unreachable!()
+    };
+    assert_eq!(version(&pool, thing).await, changeset);
+    // Clearing a reference is a write on the thing: it needs its permission.
+    applied(
+        &store,
+        author,
+        vec![
+            domain(1, "third"),
+            dummy::create_thing(json!({"label": "b", "domain_ref": {"local": 1}})),
+        ],
+    )
+    .await;
+    let other: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'third'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let only_domains = Grants::new().everywhere(author, "core.domain.write");
+    let outcome = submit(
+        &store,
+        &only_domains,
+        &request(author, vec![close_kind(ObjectKind::Domain, other, true)]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        rules(&outcome).contains(&"core.object.forbidden"),
+        "{outcome:?}"
+    );
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn bind_external_on_module_object(pool: PgPool) {
+    use kartenn_service::port::Store as _;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let bind = Operation::BindExternal {
+        object: Ref::Local(1),
+        kind: dummy::thing_kind(),
+        source: "inventory".into(),
+        external_id: "T-1".into(),
+    };
+    applied(
+        &store,
+        author,
+        vec![dummy::create_thing(json!({"local": 1, "label": "a"})), bind],
+    )
+    .await;
+    let id = thing(&pool, "a").await;
+    let (object, kind): (Uuid, String) = sqlx::query_as(
+        "SELECT object_id, object_type FROM external_id
+         WHERE source = 'inventory' AND external_id = 'T-1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((object, kind.as_str()), (id, "dummy.thing"));
+    // An import finds it by its identifier in the source.
+    let found = store
+        .external_objects("inventory", &["T-1".to_owned()])
+        .await
+        .unwrap();
+    assert_eq!(found.get("T-1"), Some(&id));
+}
