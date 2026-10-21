@@ -80,10 +80,17 @@ impl Runner for Tasks {
                 tracing::info!(name: "job.idempotency_purge", purged, "expired idempotency keys purged");
             }
             other => {
-                let Some(import) = kartenn_store_pg::imports::job_import(other) else {
+                if let Some(import) = kartenn_store_pg::imports::job_import(other) {
+                    self.import(import).await?;
+                } else if kartenn_service::module::run_job(&self.store, other)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.0))?
+                {
+                    // A background task of a module (REQ-016-16).
+                    tracing::info!(name: "job.module", job = other, "module task run");
+                } else {
                     anyhow::bail!("unknown task {other}");
-                };
-                self.import(import).await?;
+                }
             }
         }
         Ok(())

@@ -402,6 +402,17 @@ impl From<SubjectDto> for BindingSubject {
     }
 }
 
+/// A trigger of an approval policy on a measure of a module (REQ-016-7).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+#[schema(as = ModuleTrigger)]
+pub(crate) struct ModuleTriggerDto {
+    /// `<module>.<measure>`, declared by a module of the build.
+    measure: String,
+    /// The policy holds from this value up.
+    threshold: u64,
+}
+
 /// Where a binding acts (005, K14): its scope and what lies below.
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -705,6 +716,9 @@ pub(crate) enum CoreOperationDto {
         /// The changeset binds one of these roles (005, REQ-005-25).
         #[serde(default)]
         bound_roles: Vec<String>,
+        /// Measures of modules reach these thresholds (REQ-016-7).
+        #[serde(default)]
+        module_triggers: Vec<ModuleTriggerDto>,
         /// A disabled policy holds nothing.
         #[serde(default = "enabled")]
         enabled: bool,
@@ -1055,6 +1069,7 @@ impl From<CoreOperationDto> for Operation {
                 author_roles,
                 author_groups,
                 bound_roles,
+                module_triggers,
                 enabled,
             } => Self::SetApprovalPolicy {
                 name,
@@ -1067,6 +1082,13 @@ impl From<CoreOperationDto> for Operation {
                 author_roles,
                 author_groups,
                 bound_roles,
+                module_triggers: module_triggers
+                    .into_iter()
+                    .map(|t| kartenn_service::operations::ModuleTrigger {
+                        measure: t.measure,
+                        threshold: t.threshold,
+                    })
+                    .collect(),
                 enabled,
             },
             CoreOperationDto::Restore {

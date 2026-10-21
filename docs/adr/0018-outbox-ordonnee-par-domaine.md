@@ -57,6 +57,21 @@ Une passe par heure relit depuis zéro, pour le cas d'un numéro tiré avant que
 transaction ait un identifiant. Les garanties ci-dessus sont inchangées (tests
 `a_running_transaction_is_never_skipped`, `pass_floor`).
 
+**Quatrième amendement (spec 016, tâche 6, 2026-10-21)** : l'ordre est garanti par **clé
+d'ordre** et non plus seulement par domaine (REQ-016-14). Les clés d'un changeset sont ses
+domaines (`domain:<uuid>`) et les clés de verrou de ses opérations de module (ADR 0026,
+clause 14), que le store prend comme un verrou de domaine (classe de verrou nommé) : deux
+changesets qui partagent une clé sont sérialisés et numérotent leurs événements dans
+l'ordre de validation, comme deux changesets d'un même domaine. Colonne
+`outbox.order_keys text[]` (migration 0050, remplie par lots depuis `domain_ids` pour
+l'existant), exposée au relais (`Event::order_keys`) ; la forme CloudEvents de
+l'événement ne change pas, et `domain_ids` reste lue par les consommateurs de la v0.1
+jusqu'à son retrait. Le relais lui-même ne change pas : il livre par numéro croissant
+(test `two_changesets_under_one_module_lock_are_delivered_in_order`). Les événements
+des modules (tâche 016-8) passent par la même outbox, sous les clés de leur changeset ;
+ceux d'une tâche de fond, sans changeset (`changeset_id` nul, migration 0052), sous la clé
+`<module>:<tâche>`.
+
 ## Alternatives
 
 - Lecture par numéro seul : risque de trou.

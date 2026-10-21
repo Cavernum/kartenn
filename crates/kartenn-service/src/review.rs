@@ -2,7 +2,7 @@
 //! REQ-004-19 to 24, 39 to 43; tasks 004-11 to 14; 004/design, § Approbation et
 //! propositions).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
@@ -37,6 +37,8 @@ pub struct Exposure {
     pub author_groups: BTreeSet<(String, String)>,
     /// The roles the changeset binds (005).
     pub bound_roles: BTreeSet<String>,
+    /// Measures of the modules, `<module>.<measure>` (REQ-016-7); absent counts as zero.
+    pub measures: BTreeMap<String, u64>,
 }
 
 /// Whether `policy` holds a changeset: every trigger it defines matches, and it defines
@@ -84,12 +86,19 @@ pub fn holds(policy: &ApprovalPolicy, exposure: &Exposure) -> bool {
                 .iter()
                 .any(|r| exposure.bound_roles.contains(r))
         }),
+        // Measures of modules, each at its threshold (REQ-016-7).
+        (!policy.module_triggers.is_empty()).then(|| {
+            policy.module_triggers.iter().all(|(measure, threshold)| {
+                exposure.measures.get(measure).copied().unwrap_or(0) >= *threshold
+            })
+        }),
     ];
     policy.enabled && triggers.iter().any(Option::is_some) && triggers.iter().flatten().all(|t| *t)
 }
 
 /// The first of `policies` (enabled, by name, as in force at submission) that holds the
 /// changeset; never for the system author (P12), and none by default (REQ-004-39).
+#[allow(clippy::too_many_arguments)] // what a changeset shows, gathered by the pipeline
 pub(crate) async fn holding_policy<T: WriteTx>(
     tx: &mut T,
     policies: &[ApprovalPolicy],
@@ -98,6 +107,7 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     planned: &[Planned],
     diff: &[DiffCount],
     domains: &[Uuid],
+    measures: &BTreeMap<String, u64>,
 ) -> Result<Option<Uuid>, StoreError> {
     if req.author == SYSTEM_AUTHOR {
         return Ok(None);
@@ -157,6 +167,7 @@ pub(crate) async fn holding_policy<T: WriteTx>(
                 _ => None,
             })
             .collect(),
+        measures: measures.clone(),
     };
     Ok(policies.iter().find(|p| holds(p, &exposure)).map(|p| p.id))
 }
@@ -446,6 +457,7 @@ mod tests {
             author_roles: Vec::new(),
             author_groups: Vec::new(),
             bound_roles: Vec::new(),
+            module_triggers: Vec::new(),
             enabled: true,
         }
     }
@@ -462,6 +474,7 @@ mod tests {
             author_roles: ["auditor".to_owned()].into(),
             author_groups: [("idp".to_owned(), "netops".to_owned())].into(),
             bound_roles: ["administrator".to_owned()].into(),
+            measures: [("policy.opens".to_owned(), 2)].into(),
         };
         // No trigger: holds nothing.
         assert!(!holds(&policy(), &exposure));
@@ -509,6 +522,20 @@ mod tests {
                 ..exposure.clone()
             }
         ));
+        // 016: measures of modules, each at its threshold (REQ-016-7).
+        let opens = ApprovalPolicy {
+            module_triggers: vec![("policy.opens".into(), 1)],
+            ..policy()
+        };
+        assert!(holds(&opens, &exposure));
+        let unmeasured = ApprovalPolicy {
+            module_triggers: vec![("policy.opens".into(), 1), ("flow.breaks".into(), 1)],
+            ..policy()
+        };
+        assert!(
+            !holds(&unmeasured, &exposure),
+            "an absent measure counts as zero"
+        );
         // 005: a scope touched; an author by role or by group.
         let scoped = ApprovalPolicy {
             scopes: vec![("entity".into(), Uuid::from_u128(5))],

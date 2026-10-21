@@ -149,6 +149,9 @@ pub struct Journal<'a> {
     pub violations: &'a [Violation],
     /// Addressing domains written by the changeset (event ordering key, ADR 0018).
     pub domains: &'a [Uuid],
+    /// Lock keys of module operations (ADR 0026, clause 14): with the domains, the
+    /// ordering keys of the changeset's events (REQ-016-14, ADR 0018 amendment 4).
+    pub keys: &'a [String],
     /// Objects created or modified.
     pub objects: &'a [Uuid],
     /// Rules evaluated anew on objects, as `(object, rule-id prefix)`: their anomalies that
@@ -374,6 +377,9 @@ pub struct ApprovalPolicy {
     /// The changeset binds one of these roles (005, REQ-005-25: a second administrator
     /// for any binding of the administrator role).
     pub bound_roles: Vec<String>,
+    /// Measures of modules and their thresholds (`<module>.<measure>`, REQ-016-7): each
+    /// reaches its threshold.
+    pub module_triggers: Vec<(String, u64)>,
     /// Disabled policies hold nothing.
     pub enabled: bool,
 }
@@ -1237,6 +1243,11 @@ pub trait WriteTx {
         &mut self,
         journal: &Journal<'_>,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Writes to the outbox the events emitted by the background task `job`
+    /// (`<module>.<task>`) in this transaction, ordered under the key `<module>:<task>`
+    /// (REQ-016-15).
+    fn journal_job(&mut self, job: &str) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Commits.
     fn commit(self) -> impl Future<Output = Result<(), StoreError>> + Send;

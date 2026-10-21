@@ -124,6 +124,26 @@ pub struct ModuleMigration {
     pub sql: &'static str,
 }
 
+/// A background task of a module (REQ-016-16): run under the lease of the core's tasks
+/// (ADR 0023) by one instance at a time, every `period`, as `<module>.<name>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JobSpec {
+    /// Its name within the module, `[a-z][a-z0-9_]*`.
+    pub name: &'static str,
+    /// The time between two runs.
+    pub period: std::time::Duration,
+}
+
+/// An approval policy a module installs on its first deployment (REQ-016-8): never
+/// installed again, even disabled or closed by an administrator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultPolicy {
+    /// The name of the policy, unique among the policies.
+    pub name: &'static str,
+    /// Its triggers: a measure of the module (its local name) and a threshold.
+    pub triggers: &'static [(&'static str, u64)],
+}
+
 /// A future of a module, boxed so that its traits stay object-safe.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -301,6 +321,21 @@ pub trait ModuleTx: Send {
         period: Option<Period>,
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>>;
+
+    /// Emits the event `event` (`<module>.<name>`, declared by [`Module::events`]) of type
+    /// `org.kartenn.<module>.<name>`, with an optional CloudEvents `subject` (REQ-016-15).
+    /// It reaches the outbox only with the transaction: when the changeset is applied, or
+    /// when the background task ends well; a simulation or a refusal emits nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError`] for an event no module of the build declares.
+    fn emit(
+        &mut self,
+        event: &str,
+        subject: Option<String>,
+        data: serde_json::Value,
+    ) -> Result<(), StoreError>;
 }
 
 /// A read of the state at the dates of a request, as a module reads (ADR 0026, clauses
@@ -453,6 +488,31 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         let _ = (read, object);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
+
+    /// The values of the module's [`Module::measures`] for the changeset of `context`
+    /// (local names), read after the sections of its differential; an approval policy
+    /// holds the changeset on them (REQ-016-7). Nothing by default: a measure not given
+    /// counts as zero.
+    fn measure<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Vec<(&'static str, u64)>, StoreError>> {
+        let _ = (tx, context);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// Runs the background task `name` of the module's [`Module::jobs`], in one
+    /// transaction of its own, committed when it ends well (REQ-016-16). Nothing by
+    /// default.
+    fn run_job<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (name, tx);
+        Box::pin(std::future::ready(Ok(())))
+    }
 }
 
 /// A business module compiled in the build (ADR 0026).
@@ -501,6 +561,24 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         None
     }
+    /// Its background tasks, run by [`ModuleHandler::run_job`] (REQ-016-16).
+    fn jobs(&self) -> &'static [JobSpec] {
+        &[]
+    }
+    /// The names of the events it emits by [`ModuleTx::emit`], `[a-z][a-z0-9_]*`, typed
+    /// `org.kartenn.<module>.<name>` (REQ-016-15).
+    fn events(&self) -> &'static [&'static str] {
+        &[]
+    }
+    /// The names of its measures, `[a-z][a-z0-9_]*`, that an approval policy may name as
+    /// `<module>.<measure>` in its triggers (REQ-016-7).
+    fn measures(&self) -> &'static [&'static str] {
+        &[]
+    }
+    /// The approval policies it installs on its first deployment (REQ-016-8).
+    fn default_policies(&self) -> &'static [DefaultPolicy] {
+        &[]
+    }
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).
@@ -542,6 +620,31 @@ pub enum RegistryError {
         /// The permission or the rule.
         name: String,
     },
+    /// A background task with an invalid or repeated name.
+    #[error("module `{module}`: background task `{name}` must be named [a-z][a-z0-9_]* once")]
+    InvalidJob {
+        /// The module.
+        module: String,
+        /// The task.
+        name: String,
+    },
+    /// An event with an invalid or repeated name.
+    #[error("module `{module}`: event `{name}` must be named [a-z][a-z0-9_]* once")]
+    InvalidEvent {
+        /// The module.
+        module: String,
+        /// The event.
+        name: String,
+    },
+    /// A measure with an invalid or repeated name, or a default policy on a measure the
+    /// module does not declare.
+    #[error("module `{module}`: measure `{name}` must be named [a-z][a-z0-9_]* once and declared")]
+    InvalidMeasure {
+        /// The module.
+        module: String,
+        /// The measure.
+        name: String,
+    },
     /// A REST collection declared twice, or taken from the core.
     #[error("collection `/v1/{collection}` of module `{module}` is already served by `{owner}`")]
     DuplicateCollection {
@@ -558,6 +661,45 @@ pub enum RegistryError {
 #[derive(Debug, Clone, Default)]
 pub struct ModuleRegistry {
     modules: Vec<Arc<dyn Module>>,
+}
+
+/// The background tasks, the events and the measures of `module` have valid names, each
+/// once, and its default policies name its own measures (REQ-016-7, 8, 15, 16).
+fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
+    let mut jobs = BTreeSet::new();
+    for job in module.jobs() {
+        if !valid_name(job.name) || !jobs.insert(job.name) {
+            return Err(RegistryError::InvalidJob {
+                module: module.name().to_owned(),
+                name: job.name.to_owned(),
+            });
+        }
+    }
+    let mut events = BTreeSet::new();
+    for event in module.events() {
+        if !valid_name(event) || !events.insert(*event) {
+            return Err(RegistryError::InvalidEvent {
+                module: module.name().to_owned(),
+                name: (*event).to_owned(),
+            });
+        }
+    }
+    let invalid_measure = |name: &str| RegistryError::InvalidMeasure {
+        module: module.name().to_owned(),
+        name: name.to_owned(),
+    };
+    let mut measures = BTreeSet::new();
+    for measure in module.measures() {
+        if !valid_name(measure) || !measures.insert(*measure) {
+            return Err(invalid_measure(measure));
+        }
+    }
+    for policy in module.default_policies() {
+        if let Some((measure, _)) = policy.triggers.iter().find(|(m, _)| !measures.contains(m)) {
+            return Err(invalid_measure(measure));
+        }
+    }
+    Ok(())
 }
 
 fn valid_name(name: &str) -> bool {
@@ -617,6 +759,7 @@ impl ModuleRegistry {
                     });
                 }
             }
+            check_jobs_and_events(module.as_ref())?;
             for ty in module.object_types() {
                 if ty
                     .kind
@@ -719,6 +862,47 @@ impl ModuleRegistry {
         Some((operation, found.handler()?))
     }
 
+    /// The background tasks of every module, qualified (`<module>.<task>`), with their
+    /// period, in registry order (REQ-016-16).
+    #[must_use]
+    pub fn jobs(&self) -> Vec<(String, std::time::Duration)> {
+        self.modules
+            .iter()
+            .flat_map(|m| {
+                m.jobs()
+                    .iter()
+                    .map(|j| (format!("{}.{}", m.name(), j.name), j.period))
+            })
+            .collect()
+    }
+
+    /// Whether a module of the build declares the measure `measure` (`<module>.<name>`).
+    #[must_use]
+    pub fn declares_measure(&self, measure: &str) -> bool {
+        measure.split_once('.').is_some_and(|(module, name)| {
+            self.get(module)
+                .is_some_and(|m| m.measures().contains(&name))
+        })
+    }
+
+    /// The default policies of every module, with their module, in registry order
+    /// (REQ-016-8).
+    #[must_use]
+    pub fn default_policies(&self) -> Vec<(&'static str, &'static DefaultPolicy)> {
+        self.modules
+            .iter()
+            .flat_map(|m| m.default_policies().iter().map(|p| (m.name(), p)))
+            .collect()
+    }
+
+    /// Whether a module of the build declares the event `event` (`<module>.<name>`).
+    #[must_use]
+    pub fn declares_event(&self, event: &str) -> bool {
+        event.split_once('.').is_some_and(|(module, name)| {
+            self.get(module).is_some_and(|m| m.events().contains(&name))
+        })
+    }
+
     /// The handler of the module that declares the type `kind`, if any.
     #[must_use]
     pub fn handler_of(&self, kind: ModuleKind) -> Option<Arc<dyn ModuleHandler>> {
@@ -729,6 +913,42 @@ impl ModuleRegistry {
             .any(|t| t.kind == kind.as_str())
             .then(|| found.handler())
             .flatten()
+    }
+}
+
+/// Runs the background task `name` (`<module>.<task>`) of a module of `store`'s build, in
+/// one transaction committed when the task ends well (REQ-016-16). `false` when no module
+/// of the build declares the task: the scheduler then knows it is not a module's.
+///
+/// # Errors
+///
+/// [`StoreError`] of the task or of the transaction; the transaction is rolled back.
+pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<bool, StoreError> {
+    use crate::port::WriteTx as _;
+    let Some((module, task)) = name.split_once('.') else {
+        return Ok(false);
+    };
+    let Some(found) = store.modules().get(module) else {
+        return Ok(false);
+    };
+    if !found.jobs().iter().any(|j| j.name == task) {
+        return Ok(false);
+    }
+    let Some(handler) = found.handler() else {
+        return Ok(false);
+    };
+    let mut tx = store.begin().await?;
+    let outcome = match handler.run_job(task, tx.module_tx()).await {
+        // The events it emitted, with the task (REQ-016-15).
+        Ok(()) => tx.journal_job(name).await,
+        Err(e) => Err(e),
+    };
+    match outcome {
+        Ok(()) => tx.commit().await.map(|()| true),
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
     }
 }
 
@@ -830,6 +1050,40 @@ mod tests {
         assert!(
             message.contains("machines") && message.contains("vlan"),
             "{message}"
+        );
+    }
+
+    #[test]
+    fn registry_refuses_a_repeated_job() {
+        #[derive(Debug)]
+        struct Jobs;
+        impl Module for Jobs {
+            fn name(&self) -> &'static str {
+                "jobs"
+            }
+            fn version(&self) -> &'static str {
+                "0.0.0"
+            }
+            fn jobs(&self) -> &'static [JobSpec] {
+                const PERIOD: std::time::Duration = std::time::Duration::from_secs(60);
+                &[
+                    JobSpec {
+                        name: "expiry",
+                        period: PERIOD,
+                    },
+                    JobSpec {
+                        name: "expiry",
+                        period: PERIOD,
+                    },
+                ]
+            }
+        }
+        assert_eq!(
+            ModuleRegistry::new(vec![Arc::new(Jobs)]).map(|_| ()),
+            Err(RegistryError::InvalidJob {
+                module: "jobs".into(),
+                name: "expiry".into()
+            })
         );
     }
 

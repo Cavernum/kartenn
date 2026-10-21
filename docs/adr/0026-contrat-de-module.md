@@ -256,6 +256,18 @@ forme. Sources : `crates/kartenn-service/src/module.rs`, `kartenn-rest/src/kit.r
 `core.object.forbidden`, comme pour le noyau, là où REQ-008-22 écrit 403 ; à trancher
 (aligner la 008 sur le noyau, ou passer noyau et modules à 403).
 
+### Amendement 2 — 2026-10-21, spec 016 (amendements du noyau pour la v0.2)
+
+Les points différés à la v0.2 (N5, N14, N15) et les autres besoins du contrat de la 010
+et de la 011, ajoutés eux aussi à défaut neutre. Source :
+`crates/kartenn-service/src/module.rs`.
+
+| Ajout | Clause | Tâche | Raison |
+|---|---|---|---|
+| `Module::jobs` (`JobSpec { name, period }`), `ModuleHandler::run_job(name, tx)` dans une transaction propre, validée si la tâche réussit ; `ModuleRegistry::jobs` ; le déploiement déclare `<module>.<tâche>` dans `job` (colonnes `module`, `enabled`) et désactive sans la supprimer une tâche que le build ne déclare plus ; l'ordonnanceur route un nom qualifié vers son module | 15 | 016-7 | N14 : tâches de fond d'un module sous le bail de l'ADR 0023 (REQ-016-16) |
+| `Module::events` (noms `[a-z][a-z0-9_]*`, une fois ; sinon `RegistryError::InvalidEvent` au démarrage), `ModuleTx::emit(event, subject, data)` : un nom que le build ne déclare pas échoue l'opération ; les événements attendent le journal de la transaction (`journal_applied` pour un changeset, sous ses clés d'ordre ; `WriteTx::journal_job` pour une tâche, sous `<module>:<tâche>`, sans changeset), de type `org.kartenn.<module>.<nom>`, chacun son `id` CloudEvents | 15 | 016-8 | N15 : un événement de module n'existe que si sa transaction aboutit (REQ-016-15) |
+| `Module::measures` et `ModuleHandler::measure(tx, context)`, lue après les règles du module sur le même `CheckContext` (une mesure absente vaut zéro, une mesure non déclarée échoue le changeset) ; `ApprovalPolicy::module_triggers` (`<module>.<mesure>`, seuil), refus `core.approval_policy.trigger` d'une mesure qu'aucun module du build ne déclare ; `Module::default_policies` (`DefaultPolicy`), installées au premier déploiement seulement (table `module_default_policy`, `origin = 'module'`) ; `RegistryError::InvalidMeasure` | 7 | 016-9 | N5 : déclencheurs d'approbation fournis par un module (REQ-016-7, 8) |
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

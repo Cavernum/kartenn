@@ -80,7 +80,7 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
     let events = drain(&pool, "test").await;
     assert_eq!(events.len(), 1, "refused changesets emit nothing");
     let e = &events[0];
-    assert_eq!(e.changeset, changeset);
+    assert_eq!(e.changeset, Some(changeset));
     assert_eq!(e.payload["specversion"], "1.0");
     assert_eq!(e.payload["id"], changeset.to_string());
     assert_eq!(e.payload["type"], "org.kartenn.changeset.applied");
@@ -128,7 +128,7 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![c2],
         "committed events are not held back"
@@ -139,7 +139,7 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![c1],
         "delivered once committed"
@@ -255,8 +255,119 @@ async fn events_of_a_domain_follow_the_order_of_its_changesets(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![earlier, changeset]
     );
+}
+
+#[kartenn_testing::pg_test]
+async fn two_changesets_under_one_module_lock_are_delivered_in_order(pool: PgPool) {
+    // REQ-016-14: no domain in common, but one lock key of module operations.
+    let store = crate::support::dummy_module::store(&pool).await;
+    let author = person(&pool).await;
+    let earlier: Uuid = sqlx::query_scalar(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES (gen_random_uuid(), $1, 'm', 'applied', 'direct', tstzrange(now(), NULL)) RETURNING id",
+    )
+    .bind(author)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // A changeset under the key `policy`, still running: it holds the named lock (class
+    // "kark", as the store takes it) and has written its event.
+    let mut running = pool.begin().await.unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext('policy'))")
+        .bind(0x6b61_726b_i32)
+        .execute(&mut *running)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO outbox (changeset_id, order_keys, payload) VALUES ($1, '{policy}', '{}')",
+    )
+    .bind(earlier)
+    .execute(&mut *running)
+    .await
+    .unwrap();
+    let later = tokio::spawn({
+        let store = store.clone();
+        async move {
+            let op = crate::support::dummy_module::create_thing(
+                serde_json::json!({"label": "x", "keys": ["policy"]}),
+            );
+            submit(
+                &store,
+                &Unrestricted,
+                &request(author, vec![op]),
+                MAX_OPERATIONS,
+            )
+            .await
+            .unwrap()
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(!later.is_finished(), "waits for the running changeset");
+    assert!(drain(&pool, "k").await.is_empty(), "nothing committed yet");
+    running.commit().await.unwrap();
+    let Outcome::Applied { changeset, .. } = later.await.unwrap() else {
+        panic!()
+    };
+    let events = drain(&pool, "k").await;
+    assert_eq!(
+        events
+            .iter()
+            .filter_map(|e| e.changeset)
+            .collect::<Vec<_>>(),
+        vec![earlier, changeset]
+    );
+    let event = &events[1];
+    assert_eq!(event.order_keys, ["policy"]);
+    assert!(event.domains.is_empty());
+    // The form of a v0.1 event is unchanged: the keys are not in its payload.
+    let data = event.payload["data"].as_object().unwrap();
+    assert!(
+        !event
+            .payload
+            .as_object()
+            .unwrap()
+            .contains_key("order_keys")
+    );
+    assert!(!data.contains_key("order_keys"));
+    assert_eq!(event.payload["type"], "org.kartenn.changeset.applied");
+}
+
+#[kartenn_testing::pg_test]
+async fn the_ordering_keys_of_a_changeset_name_its_domains(pool: PgPool) {
+    let author = person(&pool).await;
+    let store = PgStore::new(pool.clone());
+    let Outcome::Applied { .. } = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            author,
+            vec![
+                Operation::CreateDomain {
+                    local: Some(1),
+                    slug: "keys".into(),
+                },
+                Operation::CreatePrefix {
+                    local: None,
+                    domain: Ref::Local(1),
+                    prefix: "10.0.0.0/8".into(),
+                    nature: Nature::Container,
+                    point_to_point: false,
+                    anycast: false,
+                },
+            ],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap() else {
+        panic!()
+    };
+    let events = drain(&pool, "d").await;
+    let event = &events[0];
+    assert_eq!(event.domains.len(), 1, "the prefix writes in its domain");
+    assert_eq!(event.order_keys, [format!("domain:{}", event.domains[0])]);
 }

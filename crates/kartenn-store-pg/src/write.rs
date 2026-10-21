@@ -42,6 +42,25 @@ impl kartenn_service::module::ModuleTx for PgTx {
         &mut *self.tx
     }
 
+    fn emit(
+        &mut self,
+        event: &str,
+        subject: Option<String>,
+        data: serde_json::Value,
+    ) -> Result<(), StoreError> {
+        if !self.modules.declares_event(event) {
+            return Err(StoreError(format!(
+                "event `{event}` is not declared by a module of the build"
+            )));
+        }
+        self.events.push(ModuleEvent {
+            event: event.to_owned(),
+            subject,
+            data,
+        });
+        Ok(())
+    }
+
     fn register(
         &mut self,
         row: kartenn_service::module::ModuleObjectRow,
@@ -284,9 +303,54 @@ pub struct PgTx {
     pub(crate) tx: Transaction<'static, Postgres>,
     pub(crate) down_from: usize,
     pub(crate) instance: Instance,
+    /// The modules of the build: the events they declare (REQ-016-15).
+    pub(crate) modules: std::sync::Arc<ModuleRegistry>,
+    /// Events emitted by modules, written to the outbox with the transaction's journal.
+    pub(crate) events: Vec<ModuleEvent>,
+}
+
+/// An event emitted by a module, waiting for the journal of its transaction.
+#[derive(Debug)]
+pub(crate) struct ModuleEvent {
+    /// `<module>.<name>`.
+    event: String,
+    subject: Option<String>,
+    data: serde_json::Value,
 }
 
 impl PgTx {
+    /// Writes the events emitted by modules in this transaction (REQ-016-15): one row of
+    /// the outbox each, of type `org.kartenn.<module>.<name>`, its own CloudEvents `id`.
+    async fn write_events(
+        &mut self,
+        changeset: Option<Uuid>,
+        domains: &[Uuid],
+        keys: &[String],
+    ) -> Result<(), StoreError> {
+        for event in std::mem::take(&mut self.events) {
+            sqlx::query(
+                "INSERT INTO outbox (changeset_id, domain_ids, order_keys, payload)
+                 VALUES ($1, $2, $3, jsonb_build_object(
+                     'specversion', '1.0', 'id', gen_random_uuid()::text, 'source', $4::text,
+                     'type', 'org.kartenn.' || $5, 'time', now(),
+                     'datacontenttype', 'application/json', 'data', $7::jsonb)
+                   || CASE WHEN $6::text IS NULL THEN '{}'::jsonb
+                           ELSE jsonb_build_object('subject', $6::text) END)",
+            )
+            .bind(changeset)
+            .bind(domains)
+            .bind(keys)
+            .bind(EVENT_SOURCE)
+            .bind(&event.event)
+            .bind(&event.subject)
+            .bind(&event.data)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        }
+        Ok(())
+    }
+
     /// Ends over `period` the versions of `id` in the versioned table `t`.
     async fn close_in(
         &mut self,
@@ -490,6 +554,8 @@ impl Store for PgStore {
             tx: self.pool.begin().await.map_err(store_err)?,
             down_from: self.down_from,
             instance: self.instance.clone(),
+            modules: self.modules.clone(),
+            events: Vec::new(),
         })
     }
 
@@ -747,7 +813,9 @@ async fn write_journal(
     if journal.state == "applied" {
         // REQ-004-36: one CloudEvents 1.0 event per applied changeset, in its transaction.
         sqlx::query(
-            "INSERT INTO outbox (changeset_id, domain_ids, payload) VALUES ($1, $2, jsonb_build_object(
+            "INSERT INTO outbox (changeset_id, domain_ids, order_keys, payload) VALUES ($1, $2,
+                ARRAY(SELECT 'domain:' || d FROM unnest($2::uuid[]) d) || $8::text[],
+                jsonb_build_object(
                 'specversion', '1.0', 'id', $1::text, 'source', $3::text,
                 'type', 'org.kartenn.changeset.applied', 'time', now(),
                 'datacontenttype', 'application/json',
@@ -762,6 +830,7 @@ async fn write_journal(
         .bind(journal.validator)
         // the summarised differential, as recorded on the changeset
         .bind(serde_json::to_value(journal.diff).map_err(store_err)?)
+        .bind(journal.keys)
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;
@@ -2579,6 +2648,15 @@ impl WriteTx for PgTx {
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
         write_journal(&mut self.tx, journal, &self.instance).await?;
+        // The events of the modules, under the ordering keys of the changeset (REQ-016-15).
+        let keys: Vec<String> = journal
+            .domains
+            .iter()
+            .map(|d| format!("domain:{d}"))
+            .chain(journal.keys.iter().cloned())
+            .collect();
+        self.write_events(Some(journal.id), journal.domains, &keys)
+            .await?;
         self.store_diff(journal.id).await?;
         self.store_sections(journal.id).await?;
         crate::anomalies::record(
@@ -2589,6 +2667,11 @@ impl WriteTx for PgTx {
         )
         .await
         .map_err(store_err)
+    }
+
+    async fn journal_job(&mut self, job: &str) -> Result<(), StoreError> {
+        let key = job.replacen('.', ":", 1);
+        self.write_events(None, &[], &[key]).await
     }
 
     #[tracing::instrument(name = "COMMIT", skip_all, fields(

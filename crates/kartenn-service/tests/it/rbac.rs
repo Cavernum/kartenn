@@ -1179,6 +1179,7 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
                 author_roles: Vec::new(),
                 author_groups: Vec::new(),
                 bound_roles: vec!["root".into()],
+                module_triggers: Vec::new(),
                 enabled: true,
             }],
         )
@@ -1217,6 +1218,7 @@ fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -
         author_roles,
         author_groups: Vec::new(),
         bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
         enabled: true,
     }
 }

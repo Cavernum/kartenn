@@ -54,27 +54,68 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## File B — Contrat de module, outbox, tâches (ADR 0026, 0018, 0023)
 
-- [ ] 6. Clés d'ordre de l'outbox — REQ-016-14 — verify :
+- [x] 6. Clés d'ordre de l'outbox — REQ-016-14 — verify :
   `two_changesets_under_one_module_lock_are_delivered_in_order`, forme d'un événement v0.1
   inchangée ; migration avec remplissage par lots
   - où : `kartenn-store-pg/src/outbox.rs`, `write.rs` (insertion de l'événement),
     migration du noyau ; amendement 4 de l'ADR 0018
   - dépend de : —
-- [ ] 7. Tâches de fond de module — REQ-016-16 — verify :
+  — migration `0050_outbox_order_keys.sql` (`order_keys text[]`, existant rempli par
+  tranches de 10 000 numéros) ; `Journal::keys` (clés de verrou des opérations de module,
+  `pipeline::stages`) ; insertion `domain:<uuid>` puis clés de module ;
+  `outbox::Event::order_keys`. Tests `kartenn-service/tests/it/outbox.rs` :
+  `two_changesets_under_one_module_lock_are_delivered_in_order` (verrou nommé tenu par un
+  changeset en cours, le suivant attend, ordre de livraison, payload sans `order_keys`),
+  `the_ordering_keys_of_a_changeset_name_its_domains`.
+  choix : migration numérotée 0050 (0045 à 0049 laissés à la file A, qui ajoute ses
+  migrations en parallèle) ; le relais ne change pas, l'ordre par clé découlant du verrou
+  nommé ; clés de module brutes (déjà qualifiées par leur module, ex. `vlan.group:<uuid>`).
+- [x] 7. Tâches de fond de module — REQ-016-16 — verify :
   `a_module_job_runs_once_per_due_time_across_instances`, tâche retirée désactivée
   - où : `kartenn-service/src/module.rs` (`Module::jobs`, `ModuleHandler::run_job`),
     `kartenn-server/src/jobs.rs`, store `jobs.rs`, `modules.rs::deploy` ; migration
     (`job.enabled`)
   - dépend de : 6
   - débloque : 010-14, 010-16, 011-8
-- [ ] 8. Événements de module — REQ-016-15 — verify :
+  — `module.rs` : `JobSpec`, `Module::jobs`, `ModuleHandler::run_job`,
+  `ModuleRegistry::jobs`, `RegistryError::InvalidJob`, `run_job(store, name)` (une
+  transaction par exécution, annulée sur erreur) ; store `jobs.rs` : `claim` ne prend que
+  les tâches `enabled`, `declare_module_jobs` ; migration `0051_job_module.sql` (`enabled`,
+  `module`) ; `maintenance::deploy` déclare les tâches ; `kartenn-server/src/jobs.rs`
+  route un nom qualifié vers son module. Tests : `kartenn-server/tests/it/jobs.rs`
+  `a_module_job_runs_once_per_due_time_across_instances` (trois ordonnanceurs, une
+  exécution par échéance, tâche retirée désactivée et conservée) ; test unitaire
+  `registry_refuses_a_repeated_job`. ADR 0026, amendement 2.
+  choix : la colonne `module` repère les tâches d'un module (les tâches du noyau et des
+  imports n'en ont pas) ; `run_job` n'a pas de journal d'audit en paramètre, une tâche qui
+  en écrit le fait par sa transaction ; la reprise après arrêt d'une instance est celle des
+  tâches du noyau (bail, test `a_stopped_holder_is_relieved_after_its_lease`).
+- [x] 8. Événements de module — REQ-016-15 — verify :
   `a_module_event_is_delivered_only_if_applied`, `an_undeclared_event_fails_the_registry`,
   événement émis par une tâche
   - où : `module.rs` (`Module::events`, `ModuleTx::emit`), store `write.rs`,
     `outbox.rs`
   - dépend de : 6, 7
   - débloque : 010-8, 011-8
-- [ ] 9. Mesures de module et politiques par défaut — REQ-016-7, 8 — verify :
+  — `module.rs` : `Module::events`, `ModuleTx::emit`, `ModuleRegistry::declares_event`,
+  `RegistryError::InvalidEvent` (contrôle des noms au démarrage), `run_job` écrit les
+  événements de la tâche avant de valider ; `port.rs` : `WriteTx::journal_job` ; store
+  `write.rs` : `PgTx` garde les événements émis (`modules`, `events`) et les écrit avec le
+  journal (`journal_applied` sous les clés du changeset, `journal_job` sous
+  `<module>:<tâche>`) ; migration `0052_outbox_task_events.sql` (`changeset_id` nul) ;
+  `outbox::Event::changeset` devient `Option<Uuid>`. Tests
+  `kartenn-service/tests/it/module_events.rs` :
+  `a_module_event_is_delivered_only_if_applied` (simulation et refus n'émettent rien),
+  `an_undeclared_event_fails_the_registry` (nom invalide refusé au démarrage, nom non
+  déclaré émis : le changeset échoue sans rien écrire), `a_background_task_emits_its_events` ;
+  module de test `dummy` doté d'un événement et d'une tâche. ADR 0026 amendement 2,
+  ADR 0018 amendement 4.
+  choix : le registre ne peut pas connaître à l'avance ce qu'un module émet ; il contrôle
+  les noms déclarés au démarrage, et l'émission d'un nom non déclaré échoue à l'exécution
+  (opération en erreur, transaction annulée) ; `id` CloudEvents propre à chaque événement
+  de module (`gen_random_uuid`), `subject` facultatif ; `domain_ids` du changeset recopiés
+  sur ses événements de module, pour les consommateurs de la v0.1.
+- [x] 9. Mesures de module et politiques par défaut — REQ-016-7, 8 — verify :
   `a_policy_on_a_module_measure_holds_the_changeset`, mesure inconnue refusée,
   `a_default_policy_is_installed_once`
   - où : `module.rs` (`measures`, `measure`, `default_policies`),
@@ -82,6 +123,27 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     `changesets.rs`, `modules.rs::deploy`, REST des politiques ; migration
   - dépend de : 8
   - débloque : 010-9, 011-6
+  — `module.rs` : `Module::measures`, `Module::default_policies` (`DefaultPolicy`),
+  `ModuleHandler::measure`, `ModuleRegistry::{declares_measure, default_policies}`,
+  `RegistryError::InvalidMeasure` ; `operations.rs` : `ModuleTrigger`,
+  `SetApprovalPolicy::module_triggers` ; `port.rs` : `ApprovalPolicy::module_triggers` ;
+  `pipeline.rs` : refus d'une mesure inconnue au plan (règle `core.approval_policy.trigger`,
+  catalogue régénéré), mesures lues dans `check_modules` ; `review.rs` : déclencheur de
+  mesures (`Exposure::measures`, une mesure absente vaut zéro) ; store `pending.rs`
+  (désormais public) : `module_triggers` lu et écrit, `install_default_policies` appelée
+  par `maintenance::deploy` ; migration `0053_module_policies.sql` (`module_triggers`,
+  `origin`, `module_default_policy`) ; REST : `ModuleTrigger` dans l'opération, contrat et
+  types du SDK régénérés (ajouts). Tests `kartenn-service/tests/it/module_measures.rs` :
+  `a_policy_on_a_module_measure_holds_the_changeset`, `an_unknown_measure_is_refused`,
+  `a_default_policy_is_installed_once` (désactivée puis supprimée, jamais réinstallée) ;
+  test unitaire de `holds` étendu.
+  choix : `measure` reçoit la transaction et le contexte (le design la donnait sur le seul
+  contexte) et rend des noms locaux, qualifiés par le noyau ; les mesures sont calculées
+  avant la branche de simulation, mais la simulation n'expose toujours pas la politique
+  qui retiendrait le changeset (pas de changement de sa réponse) ; la règle porte le nom du
+  design, `core.approval_policy.trigger` ; `origin` n'est pas dans `ApprovalPolicy` (lu
+  par personne pour l'instant), une politique par défaut modifiée par changeset garde
+  `origin = 'module'`.
 
 ## File C — Changesets et identités (004, 005, 006, 012)
 

@@ -296,3 +296,141 @@ async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
         .unwrap();
     assert_eq!(jobs, 0);
 }
+
+/// Runs of the background task `ticker.tick` (REQ-016-16).
+static TICKS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// A module with one background task and nothing else.
+#[derive(Debug)]
+struct Ticker;
+
+#[derive(Debug)]
+struct TickerHandler;
+
+impl kartenn_service::module::ModuleHandler for TickerHandler {
+    fn plan(
+        &self,
+        _: &kartenn_service::operations::ModuleOperation,
+        _: Uuid,
+        _: &dyn Fn(kartenn_service::operations::Ref) -> Option<Uuid>,
+    ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
+        unreachable!("the module has no operation")
+    }
+
+    fn apply<'a>(
+        &'a self,
+        _: &'a mut dyn kartenn_service::module::ModuleTx,
+        _: &'a kartenn_service::module::ModulePlan,
+        _: Option<kartenn_core::period::Period>,
+        _: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), kartenn_service::port::WriteError>> {
+        unreachable!("the module has no operation")
+    }
+
+    fn run_job<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn kartenn_service::module::ModuleTx,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), kartenn_service::port::StoreError>> {
+        Box::pin(async move {
+            assert_eq!(name, "tick");
+            // In a transaction of its own, on the connection of the adapter.
+            let conn = tx
+                .connection()
+                .downcast_mut::<sqlx::PgConnection>()
+                .expect("a PostgreSQL connection");
+            sqlx::query("SELECT 1").execute(conn).await.unwrap();
+            TICKS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        })
+    }
+}
+
+impl kartenn_service::module::Module for Ticker {
+    fn name(&self) -> &'static str {
+        "ticker"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+    fn jobs(&self) -> &'static [kartenn_service::module::JobSpec] {
+        const JOBS: &[kartenn_service::module::JobSpec] = &[kartenn_service::module::JobSpec {
+            name: "tick",
+            period: Duration::from_secs(3_600),
+        }];
+        JOBS
+    }
+    fn handler(&self) -> Option<std::sync::Arc<dyn kartenn_service::module::ModuleHandler>> {
+        Some(std::sync::Arc::new(TickerHandler))
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn a_module_job_runs_once_per_due_time_across_instances(pool: PgPool) {
+    // Only the task of the module is due.
+    sqlx::query("UPDATE job SET due_at = now() + interval '1 day'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let registry = std::sync::Arc::new(
+        kartenn_service::module::ModuleRegistry::new(vec![std::sync::Arc::new(Ticker)]).unwrap(),
+    );
+    kartenn_store_pg::jobs::declare_module_jobs(&pool, &registry.jobs())
+        .await
+        .unwrap();
+    let tasks = Tasks {
+        store: kartenn_store_pg::write::PgStore::new(pool.clone()).with_modules(registry),
+        sources: kartenn_service::expected::Sources::none(),
+    };
+    let schedulers: Vec<Scheduler> = (0..3)
+        .map(|_| Scheduler::new(pool.clone(), Uuid::now_v7()))
+        .collect();
+    let round = |scheduler: &Scheduler| {
+        let (scheduler, tasks) = (scheduler.clone(), &tasks);
+        async move {
+            for _ in 0..3 {
+                scheduler.tick(tasks).await;
+            }
+        }
+    };
+    tokio::join!(
+        round(&schedulers[0]),
+        round(&schedulers[1]),
+        round(&schedulers[2])
+    );
+    assert_eq!(
+        TICKS.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "one run"
+    );
+    let (period, module): (f64, Option<String>) = sqlx::query_as(
+        "SELECT extract(epoch FROM period)::float8, module FROM job WHERE name = 'ticker.tick'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((period, module.as_deref()), (3_600.0, Some("ticker")));
+    // Due again: one more run.
+    kartenn_store_pg::jobs::due_now(&pool, "ticker.tick")
+        .await
+        .unwrap();
+    assert_eq!(
+        schedulers[1].tick(&tasks).await.as_deref(),
+        Some("ticker.tick")
+    );
+    assert_eq!(TICKS.load(std::sync::atomic::Ordering::SeqCst), 2);
+    // The build no longer declares it: disabled, kept, never claimed again.
+    kartenn_store_pg::jobs::declare_module_jobs(&pool, &[])
+        .await
+        .unwrap();
+    kartenn_store_pg::jobs::due_now(&pool, "ticker.tick")
+        .await
+        .unwrap();
+    assert_eq!(schedulers[2].tick(&tasks).await, None);
+    let enabled: bool = sqlx::query_scalar("SELECT enabled FROM job WHERE name = 'ticker.tick'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!enabled, "a retired task is disabled, not deleted");
+    assert_eq!(TICKS.load(std::sync::atomic::Ordering::SeqCst), 2);
+}

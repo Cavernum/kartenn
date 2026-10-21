@@ -27,7 +27,7 @@ mod obligations;
 mod origins;
 pub mod outbox;
 mod overrides;
-mod pending;
+pub mod pending;
 mod properties;
 pub mod property_read;
 pub mod rbac;

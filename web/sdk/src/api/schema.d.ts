@@ -3761,6 +3761,16 @@ export interface components {
        */
       parent?: string | null;
     };
+    /** @description A trigger of an approval policy on a measure of a module (REQ-016-7). */
+    ModuleTrigger: {
+      /** @description `<module>.<measure>`, declared by a module of the build. */
+      measure: string;
+      /**
+       * Format: int64
+       * @description The policy holds from this value up.
+       */
+      threshold: number;
+    };
     /** @description A version of an object of a module, on both axes (REQ-004-18). */
     ModuleVersion: {
       /** @description The start of its assertion, RFC 3339. */
@@ -4150,6 +4160,8 @@ export interface components {
            * @description At least this many operations.
            */
           min_operations?: number | null;
+          /** @description Measures of modules reach these thresholds (REQ-016-7). */
+          module_triggers?: components["schemas"]["ModuleTrigger"][];
           /** @description Unique name. */
           name: string;
           /** @enum {string} */
