@@ -75,9 +75,24 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     (`…/suggestion`), store `expected.rs` ; REQ-003-21 à 24
   - dépend de : 2, 4 (lecteur des ancêtres)
   - débloque : 010-15
-- [ ] 4. Lecture groupée des valeurs résolues — REQ-016-1 — verify :
+- [x] 4. Lecture groupée des valeurs résolues — REQ-016-1 — verify :
   `resolved_many_matches_explain_on_random_pairs`, objet illisible absent ; budget au banc
   `bench-properties` (512 × 6 < 30 ms)
+  — store : `explain::resolved_many` (valeur, origine, chaîne, provenance, sensibilité, par
+  objet puis clé, comme `explain` un à un) ; port `Reader::resolved_many` (`Resolved`) ;
+  service `reads::resolved_many` : sans sujet tout, sinon les objets dont le genre est
+  lisible (les autres absents, sans erreur), valeurs sensibles masquées (`masked`) sauf
+  divulgation tracée ; banc : budget « grouped resolution 512 × 6 » ; tests
+  `kartenn-service/tests/it/grouped.rs` (1 000 tirages comparés à `explain`, objet
+  illisible absent). Mesure : 25,4 ms p95 sur le jeu `small` (charge machine ~3,3) ;
+  jeu complet 10⁶ non rejoué au calme.
+  choix : objets lus en 4 parts côte à côte sur le pool (latence d'une part), la requête
+  des valeurs et celles des ancêtres en parallèle (`tokio::try_join!`, dépendance `tokio`
+  du store) ; plans personnalisés (`persistent(false)`) ; genre et ancêtres par sondes
+  latérales (les clés `GiST` lisent un `= ANY` par bitmap, lent à 10⁶) ; migration `0047`,
+  index btree partiel `property_origin (object_id)` pour les origines d'un lot (partiel
+  sur `object_id IS NOT NULL`, sans quoi le saut de colonne de PostgreSQL 18 l'offrait
+  aux filtres par propriété).
   - où : `kartenn-store-pg/src/explain.rs` (modèle), `property_read.rs`,
     `kartenn-service/src/reads.rs`, `kartenn-bench`
   - dépend de : 2

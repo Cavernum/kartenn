@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::audit::{AuditJournal, Outcome, RequestContext};
 use crate::authz::Authorizer;
 use crate::pipeline::RequestError;
-use crate::port::{AuditQuery, ObjectRead, Reader, StoreError};
+use crate::port::{AuditQuery, ObjectRead, Reader, Resolved, StoreError};
 
 /// Permission to consult or export the audit journal (REQ-012-17), on [`AUDIT_JOURNAL`];
 /// until the catalogue of permissions of spec 005.
@@ -181,6 +181,69 @@ pub async fn read_object<R: Reader, A: Authorizer, J: AuditJournal>(
     }
     record_all(journal, &events).await?;
     Ok(read)
+}
+
+/// The properties `keys` of the `objects`, resolved and explained at `valid_at` as
+/// asserted at `as_of`, in one call (REQ-016-1), read by `context` under the rights of its
+/// subject: an object it may not read is left out without error (REQ-005-24); the value
+/// of a sensitive property needs `prop.<key>.read`, or it is masked (REQ-005-21), and
+/// each one shown is recorded as `data.sensitive.read` (REQ-012-18). A read without a
+/// subject (the system) sees everything.
+///
+/// # Errors
+///
+/// [`RequestError::Audit`] when a disclosure cannot be audited; [`RequestError::Store`]
+/// on infrastructure failure.
+#[allow(clippy::too_many_arguments)] // a read, its reader, its rights and its audit
+pub async fn resolved_many<R: Reader, A: Authorizer, J: AuditJournal>(
+    reader: &R,
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    objects: &[Uuid],
+    keys: &[String],
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<Resolved>, RequestError> {
+    let mut found = reader.resolved_many(objects, keys, valid_at, as_of).await?;
+    let Some(subject) = context.subject() else {
+        return Ok(found);
+    };
+    let mut by_kind: std::collections::BTreeMap<&str, BTreeSet<Uuid>> =
+        std::collections::BTreeMap::new();
+    for r in &found {
+        by_kind.entry(r.kind.as_str()).or_default().insert(r.object);
+    }
+    let mut unreadable = BTreeSet::new();
+    for (kind, ids) in by_kind {
+        let ids: Vec<Uuid> = ids.into_iter().collect();
+        unreadable.extend(
+            authorizer
+                .authorize_many(&subject, &read_permission(kind), &ids)
+                .await?,
+        );
+    }
+    found.retain(|r| !unreadable.contains(&r.object));
+    let mut sensitive: std::collections::BTreeMap<String, BTreeSet<Uuid>> =
+        std::collections::BTreeMap::new();
+    for r in found.iter().filter(|r| r.sensitive && r.value.is_some()) {
+        sensitive
+            .entry(r.property.clone())
+            .or_default()
+            .insert(r.object);
+    }
+    for (key, ids) in sensitive {
+        let ids: Vec<Uuid> = ids.into_iter().collect();
+        let shown = sensitive_disclosed(authorizer, journal, context, &key, &ids).await?;
+        for r in found
+            .iter_mut()
+            .filter(|r| r.property == key && r.value.is_some() && !shown.contains(&r.object))
+        {
+            r.value = None;
+            r.masked = true;
+        }
+    }
+    Ok(found)
 }
 
 /// The objects among `objects` on which the subject of `context` may see the value of the

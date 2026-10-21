@@ -20,6 +20,7 @@ mod diff;
 mod expected;
 mod explain;
 mod filter;
+mod grouped;
 mod heirs;
 mod import;
 mod locks;
