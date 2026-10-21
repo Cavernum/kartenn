@@ -169,7 +169,7 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   en échec à l'expiration laisse tous les changesets du passage en attente (relancés au
   passage suivant) ; les événements émis par un module à la fin d'une proposition sont
   ordonnés sous `changeset:<id>`.
-- [ ] 11. Proposition forcée, permission de validation, opérations de revue —
+- [x] 11. Proposition forcée, permission de validation, opérations de revue —
   REQ-016-10, 11 — verify : `a_reviewed_operation_makes_a_proposal_despite_write`,
   `validation_needs_the_review_permission`, `review_operations_apply_with_the_proposal`,
   opération non « de revue » jointe → 422
@@ -178,6 +178,28 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     (`review_permission`)
   - dépend de : 10
   - débloque : 011-3
+  — Service : `module.rs` (`ModuleHandler::review(plan) -> Option<&'static str>`,
+  `Module::review_operations`), `pipeline.rs` (`reviews` : à la soumission, les
+  permissions de revue s'ajoutent aux droits requis et font une proposition même avec
+  l'écriture ; à la validation d'une proposition, la permission est vérifiée dans la
+  transaction sur les objets écrits), `review.rs` (`validate_pending_with` : opérations
+  jointes, refus `core.review.operation` hors des opérations « de revue » ou hors d'une
+  proposition, le changeset reste en attente). Noyau : règle `core.review.operation`
+  (`docs/spec/regles-noyau.md` régénéré). REST : `POST /v1/changesets/{id}/validation`
+  accepte un corps facultatif `{"operations": […]}` (ajout ; contrat de référence et types
+  du SDK régénérés). Store : `write.rs` (la validation d'un changeset en attente
+  réécrit sa requête, opérations jointes comprises). Tests :
+  `kartenn-service/tests/it/module_review.rs` (les trois du verify, le 422 compris), module factice `dummy` (revue des choses `review-…`,
+  `update_thing` de revue).
+  choix : la permission de revue est enregistrée dans les droits requis de la proposition
+  (`required_rights`, déjà persistés) et redemandée au module à la validation, au lieu
+  d'une colonne `review_permission` : pas de migration ; `Module::review_operations` (liste
+  de noms) au lieu d'un champ `OperationType::review_only`, pour ne pas changer la forme
+  littérale des types d'opération de tous les modules ; la route existante de validation
+  porte les opérations jointes (le design la nomme `approve`) ; une opération jointe hors
+  revue rend 422 `changeset-refused` avec la violation, sans journal ; un module disparu
+  du build (`core.review.module` du design) n'a pas de traitement propre : ses opérations
+  ne se planifient plus et la validation est refusée par la règle d'opération inconnue.
 - [ ] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :
   `a_service_account_writes_on_behalf_of_a_requester`, sans permission → 403, droits du
   seul compte de service, audit validé par le schéma, pseudonymisation du demandeur

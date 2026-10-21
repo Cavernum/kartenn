@@ -541,6 +541,15 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(())))
     }
 
+    /// The permission whose holder validates `plan`, when the module requires a review of
+    /// it: the changeset becomes a proposal even if its author may write it, and only an
+    /// identity that holds this permission on the object validates it (REQ-016-10, 11,
+    /// G12). `None` by default.
+    fn review(&self, plan: &ModulePlan) -> Option<&'static str> {
+        let _ = plan;
+        None
+    }
+
     /// A pending changeset holding operations of the module ends without being applied
     /// (rejected, withdrawn, expired), in the transaction that ends it: an error rolls the
     /// ending back (REQ-016-9). Nothing by default.
@@ -594,6 +603,11 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     }
     /// The operations it accepts in a changeset.
     fn operations(&self) -> &'static [OperationType] {
+        &[]
+    }
+    /// The names of its operations a validator may join to the validation of a proposal
+    /// (REQ-016-11, operations « de revue »); none by default.
+    fn review_operations(&self) -> &'static [&'static str] {
         &[]
     }
     /// Its handler in the write pipeline.

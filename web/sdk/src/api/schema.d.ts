@@ -463,7 +463,9 @@ export interface paths {
     put?: never;
     /**
      * `POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current
-     *     state (REQ-004-21, 22, 42); 200, or 422 when it no longer holds.
+     *     state (REQ-004-21, 22, 42), with the operations of review its validator joins
+     *     (REQ-016-11); 200, or 422 when it no longer holds or an operation joined is not one
+     *     of review.
      */
     post: operations["validate_changeset"];
     delete?: never;
@@ -5054,6 +5056,14 @@ export interface components {
       /** @description Its kind. */
       kind: string;
     };
+    /**
+     * @description The optional body of a validation: operations of review the validator joins
+     *     (REQ-016-11).
+     */
+    Validation: {
+      /** @description Operations a module declares « of review », applied with the proposal. */
+      operations?: components["schemas"]["Operation"][];
+    };
     /** @description A version of an object, on both axes (REQ-004-18). */
     Version: {
       /** @description The start of its assertion, RFC 3339. */
@@ -6507,7 +6517,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["Validation"] | null;
+      };
+    };
     responses: {
       /** @description Applied. */
       200: {

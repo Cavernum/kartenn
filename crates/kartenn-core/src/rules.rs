@@ -219,6 +219,8 @@ rules! {
         "L'auteur ne valide ni ne rejette son propre changeset.";
     APPROVAL_FORBIDDEN = "changeset.approval.forbidden", Error, ["REQ-004-21", "REQ-004-42"], "004/C1, C7",
         "Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition.";
+    REVIEW_OPERATION = "core.review.operation", Error, ["REQ-016-11"], "016/G12",
+        "Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition.";
     POLICY_INVALID = "changeset.policy.invalid", Error, ["REQ-004-40"], "004/C6",
         "Une politique d'approbation a un nom et au moins un déclencheur.";
     POLICY_TRIGGER = "core.approval_policy.trigger", Error, ["REQ-016-7"], "016/G3",

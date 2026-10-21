@@ -30,6 +30,7 @@ mod module_ending;
 mod module_events;
 mod module_measures;
 mod module_pipeline;
+mod module_review;
 mod obligations;
 mod outbox;
 mod pass_floor;

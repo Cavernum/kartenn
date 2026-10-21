@@ -7796,6 +7796,20 @@
         ],
         "type": "object"
       },
+      "Validation": {
+        "additionalProperties": false,
+        "description": "The optional body of a validation: operations of review the validator joins\n(REQ-016-11).",
+        "properties": {
+          "operations": {
+            "description": "Operations a module declares « of review », applied with the proposal.",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "Version": {
         "description": "A version of an object, on both axes (REQ-004-18).",
         "properties": {
@@ -10370,6 +10384,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Validation"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -10392,7 +10422,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current\nstate (REQ-004-21, 22, 42); 200, or 422 when it no longer holds.",
+        "summary": "`POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current\nstate (REQ-004-21, 22, 42), with the operations of review its validator joins\n(REQ-016-11); 200, or 422 when it no longer holds or an operation joined is not one\nof review.",
         "tags": [
           "changesets"
         ]

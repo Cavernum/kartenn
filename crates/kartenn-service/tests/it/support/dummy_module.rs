@@ -119,6 +119,9 @@ impl Module for Dummy {
     fn references(&self) -> &'static [Reference] {
         REFERENCES
     }
+    fn review_operations(&self) -> &'static [&'static str] {
+        &["update_thing"]
+    }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
     }
@@ -346,6 +349,13 @@ impl ModuleHandler for Handler {
         tx: &'a mut dyn ModuleTx,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move { tx.emit("dummy.created", None, serde_json::json!({"job": name})) })
+    }
+
+    fn review(&self, plan: &ModulePlan) -> Option<&'static str> {
+        // A thing created with a label `review-…` waits for a reviewer (016-11).
+        let label = plan.data.get("label").and_then(serde_json::Value::as_str);
+        (plan.creates && label.is_some_and(|l| l.starts_with("review-")))
+            .then_some("dummy.thing.review")
     }
 
     fn ended<'a>(

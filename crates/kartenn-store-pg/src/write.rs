@@ -752,7 +752,9 @@ async fn write_journal(
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
              anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary,
-             cascaded = EXCLUDED.cascaded",
+             cascaded = EXCLUDED.cascaded,
+             -- A validated changeset records the operations of review joined (REQ-016-11).
+             request = CASE WHEN changeset.request IS NULL THEN NULL ELSE $18 END",
     )
     .bind(journal.id)
     .bind(journal.request.author)
@@ -783,6 +785,7 @@ async fn write_journal(
     .bind(crate::pending::PENDING_DAYS)
     .bind(earliest(journal.request)?)
     .bind(cascaded_json(journal.cascaded))
+    .bind(serde_json::to_value(journal.request).map_err(store_err)?)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;

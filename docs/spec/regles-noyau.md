@@ -56,6 +56,7 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.state.not_author` | erreur | Seul l'auteur retire son changeset en attente. | REQ-004-23 | 004/design |
 | `changeset.approval.self` | erreur | L'auteur ne valide ni ne rejette son propre changeset. | REQ-004-21, REQ-004-42 | 004/C1 |
 | `changeset.approval.forbidden` | erreur | Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition. | REQ-004-21, REQ-004-42 | 004/C1, C7 |
+| `core.review.operation` | erreur | Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition. | REQ-016-11 | 016/G12 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `core.approval_policy.trigger` | erreur | Un déclencheur de politique nomme une mesure déclarée par un module du build. | REQ-016-7 | 016/G3 |
 | `changeset.policy.forbidden` | erreur | Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques. | REQ-004-39, REQ-004-40 | 004/C6 |

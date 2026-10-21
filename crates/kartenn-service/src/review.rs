@@ -262,7 +262,51 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
     validator: &Subject,
     max_operations: usize,
 ) -> Result<Outcome, RequestError> {
-    let found = pending(store, id).await?;
+    validate_pending_with(
+        store,
+        authorizer,
+        sources,
+        id,
+        validator,
+        Vec::new(),
+        max_operations,
+    )
+    .await
+}
+
+/// Validates a pending changeset as [`validate_pending`], with `operations` the validator
+/// joins to it: only operations a module declares « of review », on a proposal, planned
+/// checked and applied with it in one changeset (REQ-016-11). Another operation refuses
+/// the validation with `core.review.operation`; the changeset stays pending.
+///
+/// # Errors
+///
+/// As [`validate_pending`].
+pub async fn validate_pending_with<S: Store, A: Authorizer>(
+    store: &S,
+    authorizer: &A,
+    sources: &Sources,
+    id: Uuid,
+    validator: &Subject,
+    operations: Vec<Operation>,
+    max_operations: usize,
+) -> Result<Outcome, RequestError> {
+    let mut found = pending(store, id).await?;
+    if let Some(foreign) = operations
+        .iter()
+        .find(|op| !is_review(store.modules(), op) || kind(&found) != PendingKind::Proposal)
+    {
+        let name = match foreign {
+            Operation::Module(op) => op.tag(),
+            _ => "an operation of the core".to_owned(),
+        };
+        let message = format!("{name} is not an operation of review of a proposal");
+        return Ok(Outcome::Refused {
+            changeset: id,
+            violations: vec![Violation::new(&rules::REVIEW_OPERATION, message).with_subjects([id])],
+        });
+    }
+    found.request.operations.extend(operations);
     let context = RequestContext::of(validator);
     let validator_id = validator.id;
     if found.request.author == validator_id {
@@ -296,6 +340,16 @@ pub async fn validate_pending<S: Store, A: Authorizer>(
         &author,
     )
     .await
+}
+
+/// Whether `operation` is one a module declares « of review » (REQ-016-11).
+fn is_review(modules: &ModuleRegistry, operation: &Operation) -> bool {
+    let Operation::Module(op) = operation else {
+        return false;
+    };
+    modules
+        .get(&op.module)
+        .is_some_and(|m| m.review_operations().contains(&op.name.as_str()))
 }
 
 /// Rejects a pending changeset with a motive, given back to its author (REQ-004-23, 43).
