@@ -4,7 +4,8 @@
 use std::collections::BTreeSet;
 
 use kartenn_core::properties::ObligationScope;
-use kartenn_service::port::StoreError;
+use kartenn_core::rules::{self, Violation};
+use kartenn_service::port::{StoreError, WriteError};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
@@ -33,18 +34,22 @@ fn decode(kind: &str, id: Option<Uuid>, ty: Option<String>) -> Result<Obligation
 }
 
 impl PgTx {
-    /// Obligations of a property valid at `at` (transaction time if `None`).
+    /// Obligations of a property valid at `at` (transaction time if `None`), of the
+    /// origin `origin` (`module` or `admin`), or of both if `None` (REQ-008-28).
     pub(crate) async fn obligations_at(
         &mut self,
         property: Uuid,
         at: Option<OffsetDateTime>,
+        origin: Option<&str>,
     ) -> Result<BTreeSet<ObligationScope>, StoreError> {
         let rows: Vec<(String, Option<Uuid>, Option<String>)> = sqlx::query_as(
             "SELECT scope_kind, scope_id, scope_type FROM property_obligation
-             WHERE property_id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+             WHERE property_id = $1 AND valid_period @> coalesce($2::timestamptz, now())
+               AND ($3::text IS NULL OR origin = $3)",
         )
         .bind(property)
         .bind(at)
+        .bind(origin)
         .fetch_all(&mut *self.tx)
         .await
         .map_err(store_err)?;
@@ -53,8 +58,10 @@ impl PgTx {
             .collect()
     }
 
-    /// Makes the obligations of a property from `start` to `end` those of `wanted`: the
-    /// others end at `start`, the missing ones begin there.
+    /// Makes the obligations of the declaration of a property (origin `module`) from
+    /// `start` to `end` those of `wanted`: the others end at `start`, the missing ones
+    /// begin there. Those of an administrator stay as they are; a scope one of them already
+    /// covers is not added twice (REQ-008-28).
     pub(crate) async fn set_obligations(
         &mut self,
         property: Uuid,
@@ -63,59 +70,140 @@ impl PgTx {
         end: Option<OffsetDateTime>,
         changeset: Uuid,
     ) -> Result<(), StoreError> {
-        let current = self.obligations_at(property, start).await?;
+        let current = self.obligations_at(property, start, Some("module")).await?;
+        let admin = self.obligations_at(property, start, Some("admin")).await?;
         for scope in current.difference(wanted) {
-            let (kind, id, ty) = encode(scope);
-            sqlx::query(
-                "UPDATE property_obligation
-                 SET valid_period = tstzrange(lower(valid_period), coalesce($5::timestamptz, now())),
-                     changeset_id = $6
-                 WHERE property_id = $1 AND scope_kind = $2 AND scope_id IS NOT DISTINCT FROM $3
-                   AND scope_type IS NOT DISTINCT FROM $4
-                   AND valid_period @> coalesce($5::timestamptz, now())
-                   AND lower(valid_period) < coalesce($5::timestamptz, now())",
-            )
-            .bind(property)
-            .bind(kind)
-            .bind(id)
-            .bind(ty.clone())
-            .bind(start)
-            .bind(changeset)
-            .execute(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
-            sqlx::query(
-                "DELETE FROM property_obligation
-                 WHERE property_id = $1 AND scope_kind = $2 AND scope_id IS NOT DISTINCT FROM $3
-                   AND scope_type IS NOT DISTINCT FROM $4
-                   AND lower(valid_period) >= coalesce($5::timestamptz, now())",
-            )
-            .bind(property)
-            .bind(kind)
-            .bind(id)
-            .bind(ty)
-            .bind(start)
-            .execute(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
+            self.end_obligation(property, scope, "module", start, changeset)
+                .await?;
         }
         for scope in wanted.difference(&current) {
-            let (kind, id, ty) = encode(scope);
-            sqlx::query(
-                "INSERT INTO property_obligation (id, property_id, scope_kind, scope_id, scope_type, valid_period, changeset_id)
-                 VALUES (gen_random_uuid(), $1, $2, $3, $4,
-                         tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz), $7)",
+            if !admin.contains(scope) {
+                self.begin_obligation(property, scope, "module", start, end, changeset)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Ends at `start` the obligation `scope` of origin `origin`.
+    async fn end_obligation(
+        &mut self,
+        property: Uuid,
+        scope: &ObligationScope,
+        origin: &str,
+        start: Option<OffsetDateTime>,
+        changeset: Uuid,
+    ) -> Result<(), StoreError> {
+        let (kind, id, ty) = encode(scope);
+        sqlx::query(
+            "UPDATE property_obligation
+             SET valid_period = tstzrange(lower(valid_period), coalesce($5::timestamptz, now())),
+                 changeset_id = $6
+             WHERE property_id = $1 AND scope_kind = $2 AND scope_id IS NOT DISTINCT FROM $3
+               AND scope_type IS NOT DISTINCT FROM $4 AND origin = $7
+               AND valid_period @> coalesce($5::timestamptz, now())
+               AND lower(valid_period) < coalesce($5::timestamptz, now())",
+        )
+        .bind(property)
+        .bind(kind)
+        .bind(id)
+        .bind(ty.clone())
+        .bind(start)
+        .bind(changeset)
+        .bind(origin)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        sqlx::query(
+            "DELETE FROM property_obligation
+             WHERE property_id = $1 AND scope_kind = $2 AND scope_id IS NOT DISTINCT FROM $3
+               AND scope_type IS NOT DISTINCT FROM $4 AND origin = $6
+               AND lower(valid_period) >= coalesce($5::timestamptz, now())",
+        )
+        .bind(property)
+        .bind(kind)
+        .bind(id)
+        .bind(ty)
+        .bind(start)
+        .bind(origin)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    /// Begins at `start`, up to `end`, the obligation `scope` of origin `origin`.
+    async fn begin_obligation(
+        &mut self,
+        property: Uuid,
+        scope: &ObligationScope,
+        origin: &str,
+        start: Option<OffsetDateTime>,
+        end: Option<OffsetDateTime>,
+        changeset: Uuid,
+    ) -> Result<(), StoreError> {
+        let (kind, id, ty) = encode(scope);
+        sqlx::query(
+            "INSERT INTO property_obligation
+                 (id, property_id, scope_kind, scope_id, scope_type, valid_period, changeset_id, origin)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4,
+                     tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz), $7, $8)",
+        )
+        .bind(property)
+        .bind(kind)
+        .bind(id)
+        .bind(ty)
+        .bind(start)
+        .bind(end)
+        .bind(changeset)
+        .bind(origin)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    /// Adds (`required`) or removes an administrator's obligation `scope` on `property`
+    /// from `start` to `end` (REQ-008-28): refused when the scope is already required, or,
+    /// for a removal, when no administrator required it.
+    pub(crate) async fn admin_obligation(
+        &mut self,
+        property: Uuid,
+        scope: &ObligationScope,
+        required: bool,
+        start: Option<OffsetDateTime>,
+        end: Option<OffsetDateTime>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let refused = |message: String| {
+            WriteError::Rule(
+                Violation::new(&rules::PROP_INCOMPATIBLE_CHANGE, message).with_subjects([property]),
             )
-            .bind(property)
-            .bind(kind)
-            .bind(id)
-            .bind(ty)
-            .bind(start)
-            .bind(end)
-            .bind(changeset)
-            .execute(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
+        };
+        if required {
+            if self
+                .obligations_at(property, start, None)
+                .await?
+                .contains(scope)
+            {
+                return Err(refused(format!(
+                    "{property}: {scope:?} is already required"
+                )));
+            }
+            self.begin_obligation(property, scope, "admin", start, end, changeset)
+                .await?;
+        } else {
+            if !self
+                .obligations_at(property, start, Some("admin"))
+                .await?
+                .contains(scope)
+            {
+                return Err(refused(format!(
+                    "{property}: no administrator requires it in {scope:?}"
+                )));
+            }
+            self.end_obligation(property, scope, "admin", start, changeset)
+                .await?;
         }
         Ok(())
     }

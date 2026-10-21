@@ -46,6 +46,13 @@ pub enum Change {
     Slug(Slug),
     /// Whether a property is sensitive (REQ-003-27).
     Sensitive(bool),
+    /// An administrator's obligation on a property, added or removed (REQ-008-28).
+    Obligation {
+        /// Where the property is required.
+        scope: kartenn_core::properties::ObligationScope,
+        /// Added, or removed.
+        required: bool,
+    },
 }
 
 /// Failure of one write.

@@ -1128,6 +1128,11 @@ impl WriteTx for PgTx {
             Change::Sensitive(sensitive) => {
                 patch.insert("sensitive".into(), (*sensitive).into());
             }
+            Change::Obligation { scope, required } => {
+                return self
+                    .admin_obligation(id, scope, *required, a, b, changeset)
+                    .await;
+            }
         }
         // `kartenn_portion` returns the number of versions over the portion.
         let touched = self
@@ -1814,7 +1819,7 @@ impl WriteTx for PgTx {
         let Some(mut declaration) = row.map(decode_declaration).transpose()? else {
             return Ok(None);
         };
-        declaration.obligations = self.obligations_at(id, at).await?;
+        declaration.obligations = self.obligations_at(id, at, None).await?;
         Ok(Some(declaration))
     }
 
@@ -1931,9 +1936,12 @@ impl WriteTx for PgTx {
         .map_err(store_err)?;
         let mut out = Vec::with_capacity(ids.len());
         for id in ids {
-            let Some(declaration) = self.declaration(id, None).await? else {
+            let Some(mut declaration) = self.declaration(id, None).await? else {
                 continue;
             };
+            // The module's own: an administrator's obligations are not its code's
+            // (REQ-008-28).
+            declaration.obligations = self.obligations_at(id, None, Some("module")).await?;
             let keys: Vec<String> = sqlx::query_scalar(
                 "SELECT key FROM property_enum_value
                  WHERE property_id = $1 AND valid_period @> now() ORDER BY key",

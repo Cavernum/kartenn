@@ -4360,6 +4360,78 @@
             "type": "object"
           },
           {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Obligation",
+                "description": "Where it becomes required."
+              },
+              {
+                "properties": {
+                  "property": {
+                    "$ref": "#/components/schemas/Ref",
+                    "description": "The property."
+                  }
+                },
+                "required": [
+                  "property"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Requires a property in a scope, as an administrator; the synchronisation of the\nmodule that declares it keeps it (008, REQ-008-28).",
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "add_obligation"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "op"
+                ],
+                "type": "object"
+              }
+            ],
+            "description": "Requires a property in a scope, as an administrator; the synchronisation of the\nmodule that declares it keeps it (008, REQ-008-28)."
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Obligation",
+                "description": "Where it was required."
+              },
+              {
+                "properties": {
+                  "property": {
+                    "$ref": "#/components/schemas/Ref",
+                    "description": "The property."
+                  }
+                },
+                "required": [
+                  "property"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Removes an obligation an administrator added (008, REQ-008-28).",
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "remove_obligation"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "op"
+                ],
+                "type": "object"
+              }
+            ],
+            "description": "Removes an obligation an administrator added (008, REQ-008-28)."
+          },
+          {
             "description": "Changes the slug of a domain, an entity or a site; its UUID stays (REQ-002-47).",
             "properties": {
               "expected": {

@@ -478,3 +478,141 @@ async fn entity_and_site_trees_inherit_among_their_objects(pool: PgPool) {
         f.applied(vec![declare(1, declaration)]).await;
     }
 }
+
+/// An administrator's obligation in the domain `domain` (REQ-008-28).
+fn obligation(property: Uuid, domain: Uuid, required: bool) -> Operation {
+    let scope = kartenn_service::operations::ObligationInput::Domain { id: domain };
+    let property = Ref::Id(property);
+    if required {
+        Operation::AddObligation { property, scope }
+    } else {
+        Operation::RemoveObligation { property, scope }
+    }
+}
+
+/// The domain `slug`, created.
+async fn domain(f: &Fixture, slug: &str) -> Uuid {
+    f.applied(vec![Operation::CreateDomain {
+        local: None,
+        slug: slug.into(),
+    }])
+    .await;
+    sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = $1 AND valid_period @> now()")
+        .bind(slug)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap()
+}
+
+/// The prefix `prefix` in `domain`.
+fn prefix_in(domain: Uuid, prefix: &str) -> Operation {
+    Operation::CreatePrefix {
+        local: None,
+        domain: Ref::Id(domain),
+        prefix: prefix.into(),
+        nature: Nature::Container,
+        point_to_point: false,
+        anycast: false,
+    }
+}
+
+/// The current obligations of `property`, by origin.
+async fn obligations(pool: &PgPool, property: Uuid) -> Vec<(String, Option<Uuid>)> {
+    sqlx::query_as(
+        "SELECT origin, scope_id FROM property_obligation
+         WHERE property_id = $1 AND valid_period @> now() ORDER BY origin, scope_id",
+    )
+    .bind(property)
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn admin_obligation_survives_module_sync(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let sync = |module: ModuleDeclarations| {
+        let store = f.store.clone();
+        async move {
+            sync_modules(&store, &Unrestricted, &[module], MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }
+    };
+    sync(policy(&["prod", "dev"], &["prefix", "address"])).await;
+    let env = f.property("policy.environment").await;
+    let lab = domain(&f, "lab").await;
+    // An administrator requires the module's property in the domain.
+    f.applied(vec![obligation(env, lab, true)]).await;
+    assert_eq!(
+        obligations(&pool, env).await,
+        [("admin".to_owned(), Some(lab))]
+    );
+    // Enforced like any obligation: a prefix of the domain needs a value.
+    assert_eq!(
+        f.refused(vec![prefix_in(lab, "10.0.0.0/8")]).await,
+        vec!["prop.assignment.required"]
+    );
+    // The same code: nothing to synchronise, the obligation is not the module's.
+    assert!(
+        sync(policy(&["prod", "dev"], &["prefix", "address"]))
+            .await
+            .is_empty()
+    );
+    // New code rewrites the declaration: the obligation stays.
+    let outcomes = sync(policy(
+        &["prod", "dev", "sandbox"],
+        &["prefix", "address", "range"],
+    ))
+    .await;
+    assert!(
+        matches!(outcomes[..], [Outcome::Applied { .. }]),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        obligations(&pool, env).await,
+        [("admin".to_owned(), Some(lab))]
+    );
+    // Removed by an administrator only.
+    f.applied(vec![obligation(env, lab, false)]).await;
+    assert!(obligations(&pool, env).await.is_empty());
+    f.applied(vec![prefix_in(lab, "10.0.0.0/8")]).await;
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn incompatible_obligation_refused(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    sync_modules(
+        &f.store,
+        &Unrestricted,
+        &[policy(&["prod"], &["prefix", "address"])],
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let env = f.property("policy.environment").await;
+    let lab = domain(&f, "lab").await;
+    f.applied(vec![prefix_in(lab, "10.0.0.0/8")]).await;
+    // A prefix of the domain has no value: the obligation would not hold (REQ-003-16).
+    assert_eq!(
+        f.refused(vec![obligation(env, lab, true)]).await,
+        vec!["prop.assignment.required"]
+    );
+    assert!(obligations(&pool, env).await.is_empty());
+    // An obligation already in force, and one no administrator added.
+    let empty = domain(&f, "empty").await;
+    f.applied(vec![obligation(env, empty, true)]).await;
+    assert_eq!(
+        f.refused(vec![obligation(env, empty, true)]).await,
+        vec!["prop.declaration.incompatible"]
+    );
+    assert_eq!(
+        f.refused(vec![obligation(env, lab, false)]).await,
+        vec!["prop.declaration.incompatible"]
+    );
+    // A scope that is not a domain over the period.
+    assert_eq!(
+        f.refused(vec![obligation(env, Uuid::now_v7(), true)]).await,
+        vec!["prop.declaration.invalid"]
+    );
+}

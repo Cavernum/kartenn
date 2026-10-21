@@ -3162,6 +3162,20 @@ export interface components {
           /** @description Sensitive or not. */
           sensitive: boolean;
         }
+      | (components["schemas"]["Obligation"] & {
+          /** @description The property. */
+          property: components["schemas"]["Ref"];
+        } & {
+          /** @enum {string} */
+          op: "add_obligation";
+        })
+      | (components["schemas"]["Obligation"] & {
+          /** @description The property. */
+          property: components["schemas"]["Ref"];
+        } & {
+          /** @enum {string} */
+          op: "remove_obligation";
+        })
       | {
           /**
            * Format: uuid

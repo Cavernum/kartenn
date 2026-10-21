@@ -364,7 +364,10 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             kind,
             property,
         } => vec![(*object, *kind), (*property, ObjectKind::Property)],
-        Operation::AddEnumValue { property, .. } | Operation::SetSensitivity { property, .. } => {
+        Operation::AddEnumValue { property, .. }
+        | Operation::SetSensitivity { property, .. }
+        | Operation::AddObligation { property, .. }
+        | Operation::RemoveObligation { property, .. } => {
             vec![(*property, ObjectKind::Property)]
         }
         Operation::CreateEntity { parent, .. } => {
@@ -700,6 +703,16 @@ fn plan_anchor(
             change: Change::Sensitive(*sensitive),
             expected: None,
         },
+        Operation::AddObligation { property, scope }
+        | Operation::RemoveObligation { property, scope } => Planned::Modify {
+            kind: ObjectKind::Property,
+            id: resolve(*property),
+            change: Change::Obligation {
+                scope: crate::declarations::scope(scope),
+                required: matches!(op, Operation::AddObligation { .. }),
+            },
+            expected: None,
+        },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id, &resolve)?,
         Operation::BindExternal {
             object,
@@ -895,6 +908,8 @@ fn plan(
                 | Operation::MoveSite { .. }
                 | Operation::Rename { .. }
                 | Operation::SetSensitivity { .. }
+                | Operation::AddObligation { .. }
+                | Operation::RemoveObligation { .. }
                 | Operation::SetApprovalPolicy { .. }
                 | Operation::Restore { .. }
                 | Operation::BindExternal { .. }
@@ -1289,6 +1304,18 @@ async fn modify<T: WriteTx>(
         for (old, _) in tx.prefix_versions(id, period).await? {
             former.push((old.domain, old.value));
         }
+    }
+    // REQ-008-28: an administrator's obligation, checked like those of a declaration.
+    if let Change::Obligation {
+        scope,
+        required: true,
+    } = change
+    {
+        let declaration =
+            crate::declarations::check_admin_obligation(tx, id, scope, period).await?;
+        tx.modify(kind, id, change, period, changeset).await?;
+        return crate::declarations::admin_obligation_held(tx, id, &declaration, scope, period)
+            .await;
     }
     tx.modify(kind, id, change, period, changeset).await
 }
