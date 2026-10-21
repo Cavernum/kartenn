@@ -88,7 +88,12 @@ async fn a_break_glass_account_takes_a_passphrase_and_a_fresh_code(pool: PgPool)
             .await
         }
     };
-    let principal = login(account.passphrase.clone(), current()).await.unwrap();
+    // One code, reused for the replay below: computed again, it could fall in the next
+    // 30-second step and be a fresh code.
+    let first = current();
+    let principal = login(account.passphrase.clone(), first.clone())
+        .await
+        .unwrap();
     assert_eq!(principal.kind, IdentityKind::Breakglass);
     let used: Vec<String> = sqlx::query_scalar(
         "SELECT criticality FROM audit.event WHERE name IN ('authn.breakglass.used', 'account.breakglass.created') ORDER BY seq",
@@ -99,7 +104,7 @@ async fn a_break_glass_account_takes_a_passphrase_and_a_fresh_code(pool: PgPool)
     assert_eq!(used, ["high", "high"]);
     // The same code again: refused (RFC 6238 §5.2).
     assert!(matches!(
-        login(account.passphrase.clone(), current()).await,
+        login(account.passphrase.clone(), first).await,
         Err(AuthnError::Refused)
     ));
     // A wrong passphrase, an unknown account: refused, audited.
