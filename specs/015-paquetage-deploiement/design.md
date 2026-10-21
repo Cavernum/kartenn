@@ -10,7 +10,7 @@ updated: 2026-10-21
 ```mermaid
 flowchart LR
   subgraph flake.nix
-    srv[kartenn-server<br/>buildRustPackage] --> pkg[kartenn<br/>symlinkJoin]
+    srv[kartenn-server<br/>buildRustPackage] --> pkg[kartenn<br/>fichiers réels]
     web[kartenn-web<br/>pnpm.fetchDeps] --> pkg
     pkg --> oci[oci<br/>buildLayeredImage]
     pkg --> mod[nixosModules.default]

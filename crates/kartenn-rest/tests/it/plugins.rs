@@ -302,6 +302,26 @@ fn limits_of_size_number_and_links() {
     );
 }
 
+/// The OCI image points `plugins_dir` at a link into the store (`/opt/kartenn/plugins`,
+/// spec 015): the directory itself may be a link, its content may not.
+#[tokio::test]
+async fn a_plugins_dir_that_is_a_link_is_read_through() {
+    let real = dir();
+    deposit(&real, &manifest("example", "1.0.0"));
+    let link = std::env::temp_dir().join(format!("kartenn-plugins-link-{}", Uuid::now_v7()));
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let plugins = Arc::new(Plugins::open(&link, modules()).unwrap());
+    assert_eq!(
+        published(&plugins),
+        [("example".to_owned(), "1.0.0".to_owned())]
+    );
+    let app = app(plugins);
+    assert_eq!(
+        get(&app, "/plugins/example/1.0.0/index.js").await.status(),
+        StatusCode::OK
+    );
+}
+
 #[tokio::test]
 async fn a_deposit_and_a_removal_appear_at_the_next_reading() {
     let root = dir();

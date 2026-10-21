@@ -35,6 +35,22 @@ runCommand "kartenn-oci-check" {nativeBuildInputs = [jq gnutar];} ''
   if grep -E '(^|/)bin/(sh|bash|dash|ash|zsh|busybox)$' files; then
     fail "a shell is in the image"
   fi
+  # `/opt/kartenn/{shell,plugins}` are the paths of the configuration (docs/exploitation/
+  # oci.md): links into the store, followed by the server (canonical shell root, plugin
+  # directory read through), whose target must lie in the layers with real content.
+  target() {
+    sed -n "s#^l.* \(\./\)\?opt/kartenn/$1 -> /\(.*\)\$#\2#p" listing | head -n 1
+  }
+  shell=$(target shell)
+  plugins=$(target plugins)
+  [ -n "$shell" ] || fail "no /opt/kartenn/shell"
+  [ -n "$plugins" ] || fail "no /opt/kartenn/plugins"
+  # Store paths are listed absolute, the files of extraCommands relative (`./`).
+  in_layers() { grep -qxF "/$1" files || grep -qxF "$1" files; }
+  in_layers "$shell/index.html" || fail "/opt/kartenn/shell leads to no index.html"
+  grep -F "$plugins/" files | grep -qE '/(vlan|machines)/[^/]+/manifest\.json$' ||
+    fail "/opt/kartenn/plugins leads to no first-party plugin"
+
   grep -q 'etc/ssl/certs/ca-bundle.crt$' files || fail "no root certificates"
   grep -q '/share/kartenn/web/shell/index.html$' files || fail "no web shell"
   grep -qE '/share/kartenn/plugins/(vlan|machines)/' files || fail "no first-party plugin"
