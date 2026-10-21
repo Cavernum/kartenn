@@ -3,7 +3,7 @@
 //! transversal routes of its types of objects, the edges of the graph filtered by the
 //! rights of the caller on both ends.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

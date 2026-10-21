@@ -5,7 +5,7 @@
 //! anomalies and their acknowledgement (task 006-12c); children and history by pages
 //! (task 006-12d).
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

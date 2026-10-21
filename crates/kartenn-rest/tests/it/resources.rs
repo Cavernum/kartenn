@@ -3,7 +3,7 @@
 //! closes; `If-Match` prevents a lost update, properties included; removing a property
 //! and clearing it differ.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

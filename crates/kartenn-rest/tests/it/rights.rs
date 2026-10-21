@@ -3,7 +3,7 @@
 //! service account is shown once and never compressed nor stored, the reads need
 //! `core.rbac.read` (`GET /v1/me`: `tests/sessions.rs`).
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

@@ -22,7 +22,7 @@ use kartenn_service::audit::RequestContext;
 use tokio::sync::Notify;
 use tower::ServiceExt;
 
-mod common;
+use crate::common;
 use uuid::Uuid;
 
 struct Ready;

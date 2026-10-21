@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-mod common;
+use crate::common;
 
 struct Ready;
 

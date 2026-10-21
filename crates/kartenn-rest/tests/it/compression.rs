@@ -21,7 +21,7 @@ use kartenn_rest::transport::Settings;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-mod common;
+use crate::common;
 
 struct Ready;
 

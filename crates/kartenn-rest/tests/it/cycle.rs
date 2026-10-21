@@ -3,7 +3,7 @@
 //! sensitive values masked, the proposals, and the actions validate, reject, withdraw and
 //! undo under `If-Match`.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

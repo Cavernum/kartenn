@@ -23,7 +23,7 @@ use kartenn_telemetry::capture::{CaptureLayer, Output};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-mod common;
+use crate::common;
 use tracing_subscriber::layer::SubscriberExt;
 use uuid::Uuid;
 

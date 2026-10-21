@@ -23,7 +23,7 @@ use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-mod wire;
+use crate::wire;
 
 const PUBLIC: &str = "https://kartenn.example.invalid";
 

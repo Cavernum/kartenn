@@ -2,8 +2,7 @@
 //! in the order of the registry, each reading the sections before it, in the simulation
 //! and stored with the applied changeset, read by the rules of the modules.
 
-#[path = "support/section_modules.rs"]
-mod sections;
+use crate::support::section_modules as sections;
 
 use kartenn_core::objects::Nature;
 use kartenn_service::authz::Unrestricted;

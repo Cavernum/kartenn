@@ -22,8 +22,8 @@ use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::{Client, ConnectionTls, MAX_URL, Settings};
 use tower::ServiceExt;
 
-mod common;
-mod wire;
+use crate::common;
+use crate::wire;
 
 struct Ready;
 

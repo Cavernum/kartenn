@@ -28,7 +28,9 @@ la spec l'est déjà ; on itère sur du code qui compile et des tests qui tourne
    internes, organisation des tests, messages de log) se tranchent sans demander : prends
    l'option la plus simple qui tient la spec, et note-la à la clôture.
 3. **Implémentation** de toute la tâche, selon les compétences du projet (coding-rust),
-   avec les tests qu'elle nomme dans son `verify`. Lis ciblé : outil `LSP` (définitions,
+   avec les tests qu'elle nomme dans son `verify`. Un test d'intégration est un module de
+   `tests/it/` déclaré dans `tests/it/main.rs`, jamais un nouveau fichier `tests/*.rs`
+   (ADR 0027, `docs/practices/rust-build.md` §2.5). Lis ciblé : outil `LSP` (définitions,
    références, symboles, type au survol) plutôt qu'une lecture pour trouver un symbole,
    `k-ctx` pour le plan d'un fichier, puis des plages de 80 lignes au plus.
 4. **Vérification** : `k-check` sur les crates touchés (`-p <crate>`), puis `k-check`

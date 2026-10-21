@@ -3,7 +3,7 @@
 //! `core.audit.read`, a consultation refused and audited without it; a person
 //! pseudonymised at once; the filter of an output changed, then back to the configuration.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

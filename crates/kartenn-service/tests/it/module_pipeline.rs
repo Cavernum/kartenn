@@ -1,7 +1,6 @@
 //! Operations of a module in the changeset pipeline (spec 008, REQ-008-4, 27; task 008-3).
 
-#[path = "support/dummy_module.rs"]
-mod dummy;
+use crate::support::dummy_module as dummy;
 
 use kartenn_core::objects::Nature;
 use kartenn_service::authz::{Grants, Unrestricted};

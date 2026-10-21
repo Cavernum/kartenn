@@ -3,8 +3,7 @@
 //! from the nearest ancestor, the domain of an anchored type, and module types as
 //! carriers and targets of properties.
 
-#[path = "support/kit_module.rs"]
-mod kit;
+use crate::support::kit_module as kit;
 
 use std::collections::HashMap;
 

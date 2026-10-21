@@ -17,7 +17,7 @@ fn a_panic_is_logged_with_its_place() {
     assert_eq!(record.name, "sys.panic");
     assert_eq!(record.fields["panic"], "invariant broken: 42");
     assert!(
-        record.fields["location"].contains("tests/panic.rs"),
+        record.fields["location"].contains("tests/it/panic.rs"),
         "{:?}",
         record.fields
     );
@@ -36,7 +36,8 @@ fn panicking_child() {
 #[test]
 fn the_report_on_stderr_is_masked() {
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "panicking_child", "--nocapture"])
+        // Its path in the one integration binary of the crate (ADR 0027).
+        .args(["--exact", "panic::panicking_child", "--nocapture"])
         .env("KARTENN_PANIC_CHILD", "1")
         .output()
         .unwrap();
