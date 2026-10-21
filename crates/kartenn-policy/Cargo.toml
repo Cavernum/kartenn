@@ -16,6 +16,8 @@ workspace = true
 # The handler in the write pipeline and the storage in PostgreSQL (design 010, « Données »,
 # « Opérations »).
 pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:kartenn-machines", "dep:thiserror"]
+# The offline converter of an existing policy into a changeset (REQ-010-35, 53; S28).
+import = ["pg", "dep:toml_edit"]
 
 [dependencies]
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
@@ -29,6 +31,8 @@ serde = { version = "1.0.229", features = ["derive"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"], optional = true }
 thiserror = { version = "2.0.21", optional = true }
+# The rule files of the existing inference, read in their written order (REQ-010-53).
+toml_edit = { version = "0.22.27", optional = true }
 unicode-normalization = "0.1.25"
 uuid = { version = "1.28.0", features = ["v7", "serde"] }
 
@@ -36,7 +40,13 @@ uuid = { version = "1.28.0", features = ["v7", "serde"] }
 [[test]]
 name = "policy_it"
 path = "tests/it/main.rs"
-required-features = ["pg"]
+required-features = ["pg", "import"]
+
+# The offline converter of an existing policy (task 010-17, REQ-010-35, 53).
+[[bin]]
+name = "kartenn-policy-import"
+path = "src/bin/kartenn-policy-import.rs"
+required-features = ["import"]
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).

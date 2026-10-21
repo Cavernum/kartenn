@@ -1,0 +1,7 @@
+service,transport,port
+https,tcp,443
+ssh,tcp,22
+pgsql,tcp,5432
+sftp,tcp,2222
+telnet,tcp,23
+ping,icmp,

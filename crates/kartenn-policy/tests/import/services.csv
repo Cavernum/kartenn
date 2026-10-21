@@ -1,0 +1,7 @@
+service;allowed;description;flow_type
+https;vrai;Web chiffré;app
+ssh;vrai;Accès d'administration;admin
+pgsql;vrai;Base de données;bdd
+sftp;vrai;Transfert de fichiers;fic
+telnet;faux;Protocole en clair, interdit : utiliser ssh.;admin
+ping;vrai;Supervision;

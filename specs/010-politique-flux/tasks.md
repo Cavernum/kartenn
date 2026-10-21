@@ -367,12 +367,28 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P4 — Import, API, budgets, synchronisation
 
-- [ ] 17. Convertisseur hors ligne (matrice à trois états, catalogue en deux tables,
+- [x] 17. Convertisseur hors ligne (matrice à trois états, catalogue en deux tables,
   règles d'inférence) en changesets, avec la liste des différences en simulation —
   REQ-010-35, 53 — verify : jeu d'exemple anonymisé de Q10 converti ; différences
   listées
   - où : binaire `kartenn-policy-import` (crate de la 010, `publish = false`)
   - dépend de : 8, 11, 15
+  — `kartenn-policy` feature `import` : `src/import/{source,convert,simulate}.rs`, binaire
+  `src/bin/kartenn-policy-import.rs`, jeu d'exemple inventé `tests/import/`, test
+  `policy_it import::{the_example_converts_and_lists_its_differences,
+  the_converted_changeset_applies_and_answers_as_simulated}` (le changeset appliqué par
+  le pipeline, la politique stockée répond comme la simulation sur chaque couple
+  d'environnements et chaque service) ; documentation `docs/exploitation/import-politique.md`.
+  choix : un seul changeset (références locales entre types, services, motif, cellules et
+  règles) ; format d'entrée neutre propre au convertisseur (CSV à en-tête, TOML pour les
+  règles, lu par `toml_edit` pour garder l'ordre écrit) ; ordre de lecture → priorité
+  `rang × 10` (exceptions : `ordre × 10` sous leur parent) ; recherche dans un nom →
+  expression ancrée de même sens ; expression sur le site → liste des sites du fichier
+  `sites` à la conversion ; « partiel » → `conditional` sous le motif `revue-import` ; un
+  service sans type de flux prend `--default-flow-type` ou est écarté ; ce qui ne se
+  convertit pas est écarté avec un avis ; l'outil d'origine est simulé par une
+  implémentation propre de sa sémantique (dernière règle lue l'emporte, puis ses
+  exceptions), une contrainte inconnue n'y correspond jamais.
 - [ ] 18. Routes du module, `QUERY` et `GET` des verdicts, vue matricielle,
   suggestion, rapports, contrat OpenAPI — REQ-010-24, 27 — verify : contrat comparé ;
   tests de routes
