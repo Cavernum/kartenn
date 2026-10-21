@@ -213,6 +213,11 @@ in {
       # `-p <crate>` narrows the run: --workspace would add every other crate back.
       ws=--workspace
       for a in "$@"; do case $a in -p | -p* | --package | --package=*) ws= ;; esac; done
+      # Build the test binaries before taking the PostgreSQL lock: another worktree only
+      # waits for our test run, not for our compilation.
+      if ! cargo nextest run --no-run $ws --all-features "$@" >"$log/build" 2>&1; then
+        echo "KO build ($log/build)"; grep -E '^error|^ *--> ' "$log/build" | head -40; exit 1
+      fi
       if ! k-heavy --pg cargo nextest run $ws --all-features --hide-progress-bar \
           --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
         echo "KO tests ($log/test)"
@@ -220,7 +225,8 @@ in {
         echo "---"; grep -E 'panicked at|assertion|left:|right:|^error(\[|:)| --> ' "$log/test" | head -40
         exit 1
       fi
-      if [ $# -eq 0 ] && ! k-heavy --pg cargo test -q --workspace --doc --all-features >"$log/doc" 2>&1; then
+      # Doctests never touch the database: no PostgreSQL lock.
+      if [ $# -eq 0 ] && ! cargo test -q --workspace --doc --all-features >"$log/doc" 2>&1; then
         echo "KO doctests ($log/doc)"; grep -E 'FAILED|panicked|error' "$log/doc" | head -30; exit 1
       fi
       echo "OK — $(grep -E '^ +Summary' "$log/test" | tail -1 | sed 's/^ *//')$warnings"
