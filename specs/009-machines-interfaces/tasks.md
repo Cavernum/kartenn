@@ -215,10 +215,20 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   site lus par `kartenn_owner`/`kartenn_site` à la date ; un rattachement par la route
   répond 200 (le changeset) ; une adresse n'apparaît, sur la fiche comme dans les
   lectures croisées, que si l'appelant la lit.
-- [ ] 11. Imports — REQ-009-19 — verify :
+- [x] 11. Imports — REQ-009-19 — verify :
   `import_machines_interfaces_attachments_by_local_names`
   où : 008 tâche 15
   dépend de : 10
+  — Service : `import.rs` (`run_import` retrouve par son motif, qui nomme l'import, le
+  changeset d'un lot appliqué avant un arrêt et l'enregistre sans rien rejouer), port
+  `Store::applied_changeset` ; store : `write.rs`. Tests :
+  `kartenn-machines/tests/imports.rs` (machines, interfaces, adresses et rattachements
+  par noms locaux, puis reprise après un arrêt simulé).
+  choix : un lot sans création (rattachements seuls) ne se reconnaissait pas à ses
+  identifiants externes et se rejouait, refusé par `machines.address.taken` ; le motif
+  d'un lot devient `import <source> batch <n> (<import>)` et sert à retrouver son
+  changeset ; le test porte sur 10³ machines (1,1·10⁴ opérations, 9 s), le volume de
+  l'acceptation (10⁴ machines) revenant au banc (tâche 12).
 
 ## P3 — Budgets, interface, synchronisation
 

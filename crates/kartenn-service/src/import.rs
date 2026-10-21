@@ -346,6 +346,7 @@ async fn known<S: Store>(
 /// # Errors
 ///
 /// [`RequestError`] on infrastructure failure or a malformed batch.
+#[allow(clippy::too_many_lines)] // one batch after the other, each recovered, built, submitted
 pub async fn run_import<S: Store, A: Authorizer>(
     store: &S,
     authorizer: &A,
@@ -373,6 +374,16 @@ pub async fn run_import<S: Store, A: Authorizer>(
         let progress = store.import_progress(import).await?;
         if progress.is_none_or(|p| p.state != "running") {
             return Ok(import_status(store, import).await?);
+        }
+        // A batch applied before a stop kept it from being recorded: its changeset, found
+        // by its motive, is recorded and nothing of it is replayed, not even the operations
+        // that create nothing (an attachment), which the source does not know.
+        let motive = format!("import {} batch {} ({import})", record.source, batch.index);
+        if let Some(changeset) = store.applied_changeset(record.author, &motive).await? {
+            store
+                .set_batch(import, batch.index, "applied", Some(changeset))
+                .await?;
+            continue;
         }
         let known = known(store, &record.source, &externals, &batch.items).await?;
         let mut operations = Vec::new();
@@ -403,7 +414,7 @@ pub async fn run_import<S: Store, A: Authorizer>(
         }
         let request = ChangesetRequest {
             author: record.author,
-            motive: format!("import {} batch {}", record.source, batch.index),
+            motive,
             period: None,
             operations,
             simulate: false,
