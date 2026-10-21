@@ -23,7 +23,8 @@ use kartenn_store_pg::filter::{Condition, filter};
 use kartenn_store_pg::rbac::ReadScope;
 use kartenn_store_pg::read::object;
 use kartenn_store_pg::tree::{
-    children, children_as_of, next_free_address, occupancy, occupancy_as_of, roots_of,
+    children, children_as_of, children_of, next_free_address, occupancy, occupancy_as_of,
+    prefix_as_of, roots_of,
 };
 use kartenn_store_pg::write::PgStore;
 use rand::{RngExt, SeedableRng};
@@ -430,6 +431,59 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         limit: Duration::from_millis(150),
         measured: p95(samples),
         note: "100 draws".into(),
+    });
+
+    // A page of 100 children of a container with 10⁴ of them, after a cursor and as known
+    // when the first page was read, as the API reads it (task 007-18): a domain of its own.
+    let wide: Uuid = sqlx::query_scalar(
+        "WITH d AS (
+           INSERT INTO addressing_domain (id, slug, valid_period, changeset_id)
+           VALUES (gen_random_uuid(), 'bench-wide', tstzrange('2026-01-01', NULL),
+                   gen_random_uuid())
+           RETURNING id),
+         c AS (
+           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                               valid_period, changeset_id)
+           SELECT gen_random_uuid(), d.id, '100.64.0.0/16', 'container', false,
+                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
+           FROM d RETURNING id),
+         n AS (
+           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                               valid_period, changeset_id)
+           SELECT gen_random_uuid(), d.id,
+                  set_masklen('100.64.0.0'::inet + 4 * i, 30)::cidr, 'network', false,
+                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
+           FROM d, generate_series(0, 9999) i)
+         SELECT id FROM c",
+    )
+    .fetch_one(&pool)
+    .await?;
+    sqlx::query("ANALYZE prefix").execute(&pool).await?;
+    let parent = prefix_as_of(&pool, wide, now, None)
+        .await?
+        .context("the wide container is missing")?;
+    let all = children_of(&pool, &parent, now, None, &ReadScope::all(), None, None).await?;
+    let mut samples = Vec::new();
+    for _ in 0..100 {
+        let after = all[rng.random_range(0..99) * 100 + 99].key();
+        let t = Instant::now();
+        children_of(
+            &pool,
+            &parent,
+            now,
+            Some(now),
+            &ReadScope::all(),
+            Some(&after),
+            Some(101),
+        )
+        .await?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "children of a container of 10^4, page of 100, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: format!("100 draws among {} children, after a cursor", all.len()),
     });
 
     // The same as known in the past (task 006-12d): the prefix read first, its domain and

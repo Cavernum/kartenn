@@ -302,7 +302,9 @@ impl Node {
 /// asserted at `as_of`, within what `scope` lets read: at most `limit` of them (all when
 /// `None`) after the key `after`, in [`ChildKey`] order (REQ-002-42, REQ-006-7). The
 /// domain and the value of `parent` are parameters of the query, so that a past read
-/// keeps the per-domain index of the history (task 006-12d).
+/// keeps the per-domain index of the history (task 006-12d). The children are the roots
+/// of the subtree of `parent`, walked from the cursor as [`roots_of`] walks the domain: a
+/// page costs its own rows, not the whole subtree (task 007-18).
 ///
 /// # Errors
 ///
@@ -321,54 +323,17 @@ pub async fn children_of(
     after: Option<&ChildKey>,
     limit: Option<i64>,
 ) -> sqlx::Result<Vec<Node>> {
-    // kind: 'p' prefix (a = value, b = nature), 'r' range (a, b = bounds, c = usage),
-    // 'a' address (a = value); start: the first address, without mask, for the order.
-    let (prefix_readable, range_readable, address_readable) = (
-        readable("q.id", "'prefix'", "q.domain_id", "q.prefix", "$1"),
-        readable("g.id", "'range'", "g.domain_id", "lower(g.range)", "$1"),
-        readable("a.id", "'address'", "a.domain_id", "a.address", "$1"),
-    );
-    let rows: Vec<ChildRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "WITH {},
-              s AS MATERIALIZED (SELECT * FROM kartenn_scopes($5))
-         SELECT kind, id, a, b, c FROM (
-           SELECT 'p' AS kind, q.id, q.prefix::text AS a, q.nature AS b, NULL AS c,
-                  host(q.prefix)::inet AS start, 0 AS rank FROM pf q
-           WHERE q.domain_id = $3 AND q.prefix << $4::cidr
-             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
-                             AND r.prefix << $4::cidr AND q.prefix << r.prefix)
-             AND ($5::jsonb IS NULL OR {prefix_readable})
-           UNION ALL
-           SELECT 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage,
-                  host(lower(g.range))::inet, 1 FROM rg g
-           WHERE g.domain_id = $3 AND lower(g.range) <<= $4::cidr AND upper(g.range) <<= $4::cidr
-             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
-                             AND r.prefix << $4::cidr AND lower(g.range) <<= r.prefix)
-             AND ($5::jsonb IS NULL OR {range_readable})
-           UNION ALL
-           SELECT 'a', a.id, host(a.address), NULL, NULL, host(a.address)::inet, 2 FROM ad a
-           WHERE a.domain_id = $3 AND a.address <<= $4::cidr
-             AND NOT EXISTS (SELECT 1 FROM pf r WHERE r.domain_id = $3
-                             AND r.prefix << $4::cidr AND a.address <<= r.prefix)
-             AND ($5::jsonb IS NULL OR {address_readable})
-         ) c
-         WHERE $6::inet IS NULL OR (c.start, c.rank, c.id) > ($6::inet, $7::int, $8::uuid)
-         ORDER BY c.start, c.rank, c.id
-         LIMIT $9",
-        relations(as_of)?
-    )))
-    .bind(valid_at)
-    .bind(as_of)
-    .bind(parent.domain)
-    .bind(parent.value.to_string())
-    .bind(scope.to_json())
-    .bind(after.map(|k| k.start.to_string()))
-    .bind(after.map(|k| i32::from(k.rank)))
-    .bind(after.map(|k| k.id))
-    .bind(limit)
-    .fetch_all(pool)
-    .await?;
-    rows.into_iter().map(node_of).collect()
+    tops(
+        pool,
+        parent.domain,
+        Some(&parent.value),
+        valid_at,
+        as_of,
+        scope,
+        after,
+        limit,
+    )
+    .await
 }
 
 /// The node of a row read by [`children_of`] or [`roots_of`].
@@ -396,23 +361,77 @@ fn node_of((kind, id, a, b, c): ChildRow) -> sqlx::Result<Node> {
 /// An `inet` below every address of every family, the lower bound of an open gap.
 const LOWEST: &str = "'0.0.0.0/0'::inet";
 
-/// The scan of a gap `p` of [`roots_of`]: past `p.after` and the cursor, before `p.before`
-/// if the gap is bounded, in order. Each bound is a plain comparison so that the keyset
-/// index of the table serves it: one branch for a bounded gap, one for the last one.
-/// `select` reads the table as `t`, ordered by `t.{value}`; `bound(x)` is the address `x`
-/// as a value of that column; `exact` what the index leaves to check, readability included.
-fn gap(select: &str, value: &str, bound: &dyn Fn(&str) -> String, exact: &str) -> String {
-    let common = format!(
-        "{select} WHERE t.domain_id = $3 AND t.{value} > {after} AND t.{value} >= {from} {exact}",
-        after = bound("p.after"),
-        from = bound(&format!("coalesce($5::inet, {LOWEST})")),
-    );
-    let order = format!("ORDER BY t.{value}, t.id LIMIT $8 + 1");
+/// An ordered probe of `table`, read as `alias`: its first `limit` rows in `order` that meet
+/// `cond`, valid at `$1` as asserted at `$2` (`past`) or now. In the past, the current table
+/// and its history are probed each on its own keyset index, then merged: the `UNION ALL`
+/// relation of [`relations`] would sort every row of the domain before the limit, at every
+/// step of the walk (task 007-18). The history, partitioned by month, is probed only when
+/// the domain has rows closed after `$2` (the relation `recent` of [`tops`]): a page read
+/// shortly after its first one, under a cursor, costs as a read of the present.
+fn probe(
+    past: bool,
+    table: &str,
+    alias: &str,
+    cols: &str,
+    cond: &str,
+    order: &str,
+    limit: &str,
+) -> String {
+    let current = format!("{alias}.valid_period @> $1::timestamptz AND {cond}");
+    if !past {
+        return format!(
+            "SELECT {cols} FROM {table} {alias} WHERE {current} ORDER BY {order} LIMIT {limit}"
+        );
+    }
+    let asserted = format!("{alias}.sys_start <= $2::timestamptz");
     format!(
-        "({common} AND p.before IS NOT NULL AND t.{value} < {before} {order})
+        "SELECT * FROM (
+           (SELECT {cols} FROM {table} {alias} WHERE {current} AND {asserted}
+            ORDER BY {order} LIMIT {limit})
+           UNION ALL
+           (SELECT {cols} FROM {table}_history {alias}
+            WHERE (SELECT {table} FROM recent)
+              AND {current} AND {asserted} AND {alias}.sys_end > $2::timestamptz
+            ORDER BY {order} LIMIT {limit})) {alias}
+         ORDER BY {order} LIMIT {limit}"
+    )
+}
+
+/// The scan of a gap `p` of [`tops`]: past `p.after` and the cursor (or, without one, from
+/// the first address of the prefix `$9` the walk stays in), before `p.before` if the gap is
+/// bounded, else up to the last address of `$9`, in order. Each bound is a plain comparison
+/// so that the keyset index of the table serves it: one branch for a bounded gap, one for
+/// the last one. `table` is read as `t` (`cols`), ordered by `t.{value}`; `bound(x)` is the
+/// address `x` as a value of that column; `exact` what the index leaves to check,
+/// readability included.
+fn gap(
+    past: bool,
+    (table, cols): (&str, &str),
+    value: &str,
+    bound: &dyn Fn(&str) -> String,
+    exact: &str,
+) -> String {
+    let common = format!(
+        "t.domain_id = $3 AND t.{value} > {after} AND t.{value} >= {from} {exact}",
+        after = bound("p.after"),
+        from = bound(&format!(
+            "coalesce($5::inet, host($9::cidr)::inet, {LOWEST})"
+        )),
+    );
+    let order = format!("t.{value}, t.id");
+    let branch = |cond: String| probe(past, table, "t", cols, &cond, &order, "$8 + 1");
+    format!(
+        "({})
          UNION ALL
-         ({common} AND p.before IS NULL {order})",
-        before = bound("p.before"),
+         ({})",
+        branch(format!(
+            "{common} AND p.before IS NOT NULL AND t.{value} < {}",
+            bound("p.before")
+        )),
+        branch(format!(
+            "{common} AND p.before IS NULL AND ($9::cidr IS NULL OR t.{value} <= {})",
+            bound("host(broadcast($9::cidr))::inet")
+        )),
     )
 }
 
@@ -445,15 +464,88 @@ pub async fn roots_of(
     after: Option<&ChildKey>,
     limit: Option<i64>,
 ) -> sqlx::Result<Vec<Node>> {
+    tops(pool, domain, None, valid_at, as_of, scope, after, limit).await
+}
+
+/// The nodes of the domain `domain` that no other prefix of the domain contains, those
+/// inside the prefix `within` only when it is given: the roots of the domain, or the
+/// direct children of `within` (the walk of [`roots_of`], bounded by `within`). The bounds
+/// of `within` are plain comparisons of `cidr`: the prefixes strictly inside it are those
+/// past it and up to the host route of its last address.
+#[allow(clippy::too_many_arguments)] // the read and its page
+#[allow(clippy::too_many_lines)] // one query, built from its parts
+async fn tops(
+    pool: &PgPool,
+    domain: Uuid,
+    within: Option<&Prefix>,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+    scope: &ReadScope,
+    after: Option<&ChildKey>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Node>> {
     let max = |x: &str| format!("CASE family({x}) WHEN 4 THEN 32 ELSE 128 END");
+    let max_in = max("$9::cidr");
+    let inside = |x: &str| {
+        format!(
+            "($9::cidr IS NULL OR ({x} > $9::cidr \
+              AND {x} <= set_masklen(broadcast($9::cidr), {max_in})::cidr))"
+        )
+    };
+    let (inside_c, inside_q) = (inside("c.prefix"), inside("q.prefix"));
     let (first, next, root) = (
         readable("f.id", "'prefix'", "$3", "f.prefix", "$1"),
         readable("x.id", "'prefix'", "$3", "x.prefix", "$1"),
         readable("r.id", "'prefix'", "$3", "r.prefix", "$1"),
     );
     let (max_w, max_p) = (max("w.prefix"), max("prefix"));
+    let past = as_of.is_some();
+    // Whether each history holds rows of the domain closed after `$2` (see [`probe`]).
+    let recent = if past {
+        let closed = |table: &str| {
+            format!(
+                "EXISTS (SELECT 1 FROM {table}_history h \
+                 WHERE h.domain_id = $3 AND h.sys_end > $2::timestamptz) AS {table}"
+            )
+        };
+        format!(
+            "recent AS MATERIALIZED (SELECT {}, {}, {}),",
+            closed("prefix"),
+            closed("ip_range"),
+            closed("address")
+        )
+    } else {
+        String::new()
+    };
+    let prefixes = |alias: &str, cols: &str, cond: &str, order: &str| {
+        probe(past, "prefix", alias, cols, cond, order, "1")
+    };
+    let holder = prefixes(
+        "c",
+        "c.id, c.prefix, c.nature, 0 AS o",
+        &format!(
+            "$5::inet IS NOT NULL AND c.domain_id = $3 AND c.prefix >>= $5::inet AND {inside_c}"
+        ),
+        "masklen(c.prefix)",
+    );
+    let start = prefixes(
+        "q",
+        "q.id, q.prefix, q.nature, 1 AS o",
+        &format!("q.domain_id = $3 AND ($5::inet IS NULL OR q.prefix >= $5::cidr) AND {inside_q}"),
+        "q.prefix",
+    );
+    let step = prefixes(
+        "q",
+        "q.id, q.prefix, q.nature",
+        &format!(
+            "q.domain_id = $3 AND q.prefix > set_masklen(broadcast(w.prefix), {max_w})::cidr \
+             AND {inside_q}"
+        ),
+        "q.prefix",
+    );
     let ranges = gap(
-        "SELECT t.id, t.range, t.usage FROM rg t",
+        past,
+        ("ip_range", "t.id, t.range, t.usage"),
         "range",
         &|x| format!("inetrange({x}, {x}, '[]')"),
         &format!(
@@ -462,7 +554,8 @@ pub async fn roots_of(
         ),
     );
     let addresses = gap(
-        "SELECT t.id, t.address FROM ad t",
+        past,
+        ("address", "t.id, t.address"),
         "address",
         &|x| x.to_owned(),
         &format!(
@@ -474,28 +567,17 @@ pub async fn roots_of(
     // intervals of addresses between two of them (`after`, `before`), the last one only if
     // the walk reached the end of the domain.
     let sql = format!(
-        "WITH RECURSIVE {},
+        "WITH RECURSIVE {recent}
               s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
               walk (id, prefix, nature, n) AS (
                 (SELECT f.id, f.prefix, f.nature,
                         CASE WHEN $4::jsonb IS NULL OR {first} THEN 1 ELSE 0 END
-                 FROM ((SELECT c.id, c.prefix, c.nature, 0 AS o FROM pf c
-                        WHERE $5::inet IS NOT NULL AND c.domain_id = $3
-                          AND c.prefix >>= $5::inet
-                        ORDER BY masklen(c.prefix) LIMIT 1)
-                       UNION ALL
-                       (SELECT q.id, q.prefix, q.nature, 1 FROM pf q
-                        WHERE q.domain_id = $3 AND ($5::inet IS NULL OR q.prefix >= $5::cidr)
-                        ORDER BY q.prefix LIMIT 1)) f
+                 FROM (({holder}) UNION ALL ({start})) f
                  ORDER BY f.o LIMIT 1)
                 UNION ALL
                 SELECT x.id, x.prefix, x.nature,
                        w.n + CASE WHEN $4::jsonb IS NULL OR {next} THEN 1 ELSE 0 END
-                FROM walk w CROSS JOIN LATERAL (
-                  SELECT q.id, q.prefix, q.nature FROM pf q
-                  WHERE q.domain_id = $3
-                    AND q.prefix > set_masklen(broadcast(w.prefix), {max_w})::cidr
-                  ORDER BY q.prefix LIMIT 1) x
+                FROM walk w CROSS JOIN LATERAL ({step}) x
                 WHERE $8::bigint IS NULL OR w.n <= $8
               ),
               roots AS MATERIALIZED (
@@ -527,10 +609,13 @@ pub async fn roots_of(
          ) c
          WHERE $5::inet IS NULL OR (c.start, c.rank, c.id) > ($5::inet, $6::int, $7::uuid)
          ORDER BY c.start, c.rank, c.id
-         LIMIT $8",
-        relations(as_of)?
+         LIMIT $8"
     );
+    // Planned with the values each time: after five runs a prepared statement falls back to
+    // a generic plan, which cannot tell a null cursor or bound from a set one and walks
+    // 10⁴ children in 150 ms instead of 2 ms (task 007-18).
     let rows: Vec<ChildRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .persistent(false)
         .bind(valid_at)
         .bind(as_of)
         .bind(domain)
@@ -539,6 +624,7 @@ pub async fn roots_of(
         .bind(after.map(|k| i32::from(k.rank)))
         .bind(after.map(|k| k.id))
         .bind(limit)
+        .bind(within.map(ToString::to_string))
         .fetch_all(pool)
         .await?;
     rows.into_iter().map(node_of).collect()

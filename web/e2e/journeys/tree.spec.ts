@@ -10,26 +10,18 @@ const item = (tree: import("@playwright/test").Locator, value: string) =>
 
 /** The rows in the DOM: a few hundreds at most, whatever the size of the tree. */
 const MAX_ROWS = 300;
-/**
- * A page of the 10⁴ children takes about 2 s, the first up to some 20 s on a busy machine:
- * the server computes every child before the page (see the report of task 18).
- */
-const LOAD = 60_000;
 
 test("the tree opens on demand, reads pages as it scrolls, and goes by the keyboard", async ({
   page,
   login,
 }) => {
-  test.setTimeout(4 * LOAD);
   await login("bob");
   // Other journeys add domains: the one of the data set is chosen in the selector.
-  await page
-    .getByRole("combobox", { name: "Domaine" })
-    .selectOption({ label: DATA.domain }, { timeout: LOAD });
+  await page.getByRole("combobox", { name: "Domaine" }).selectOption({ label: DATA.domain });
   await expect(page).toHaveURL(/[?&]domain=[0-9a-f-]{36}/);
   const tree = page.getByRole("tree", { name: `Préfixes du domaine ${DATA.domain}` });
   const root = item(tree, "10.0.0.0/8");
-  await expect(root).toBeVisible({ timeout: LOAD });
+  await expect(root).toBeVisible();
   await expect(root).toHaveAttribute("aria-expanded", "false");
   await expectAccessible(page);
 
@@ -37,7 +29,7 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
   await tree.focus();
   await page.keyboard.press("ArrowRight");
   await expect(root).toHaveAttribute("aria-expanded", "true");
-  await expect(item(tree, "10.3.0.0/16")).toBeVisible({ timeout: LOAD });
+  await expect(item(tree, "10.3.0.0/16")).toBeVisible();
   await page.keyboard.press("ArrowRight");
   await expect(tree).toHaveAttribute(
     "aria-activedescendant",
@@ -52,14 +44,14 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
   await page.keyboard.press("ArrowRight");
   await expect(wide).toHaveAttribute("aria-expanded", "true");
   const first = item(tree, "10.3.0.0/30");
-  await expect(first).toBeVisible({ timeout: LOAD });
+  await expect(first).toBeVisible();
   await expect(first).toHaveAttribute("aria-level", "3");
   await expect(first).toHaveAttribute("aria-setsize", "-1");
   await expectAccessible(page);
 
   // End goes to the last row read: the next page comes as it nears the window.
   await page.keyboard.press("End");
-  await expect(item(tree, "10.3.1.144/30")).toBeAttached({ timeout: LOAD });
+  await expect(item(tree, "10.3.1.144/30")).toBeAttached();
   // Scrolling reads the pages after it; the DOM keeps a few hundred rows at most.
   await tree.hover();
   await expect(async () => {
@@ -68,11 +60,20 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
       .getByRole("treeitem")
       .evaluateAll((rows) => rows.map((row) => Number(row.getAttribute("aria-posinset") ?? 0)));
     expect(Math.max(...ranks)).toBeGreaterThan(200);
-  }).toPass({ timeout: LOAD });
+  }).toPass();
   expect(await tree.getByRole("treeitem").count()).toBeLessThanOrEqual(MAX_ROWS);
+  // The smooth scrolling of the wheel settles before the keys take over.
+  await expect
+    .poll(async () => {
+      const before = await tree.evaluate((element) => element.scrollTop);
+      await page.waitForTimeout(200);
+      return before === (await tree.evaluate((element) => element.scrollTop));
+    })
+    .toBe(true);
 
   // Home back to the first row; left closes; Enter opens the record.
   await page.keyboard.press("Home");
+  await expect(root).toBeVisible();
   await expect(tree).toHaveAttribute("aria-activedescendant", (await root.getAttribute("id"))!);
   await page.keyboard.press("ArrowLeft");
   await expect(root).toHaveAttribute("aria-expanded", "false");
