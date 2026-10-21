@@ -559,6 +559,19 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(())))
     }
 
+    /// Runs the background task `name` and returns what its rules found (ADR 0026,
+    /// amendment 4): the warnings become anomalies and the `(object, rule)` evaluated anew
+    /// close the anomalies no warning raises again, journaled by kartenn in a changeset of
+    /// its own (author kartenn), as the re-evaluation of a source of expected values
+    /// (REQ-003-24). By default, [`Self::run_job`] and nothing found.
+    fn run_job_findings<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
+        Box::pin(async move { self.run_job(name, tx).await.map(|()| Findings::default()) })
+    }
+
     /// The permission whose holder validates `plan`, when the module requires a review of
     /// it: the changeset becomes a proposal even if its author may write it, and only an
     /// identity that holds this permission on the object validates it (REQ-016-10, 11,
@@ -1082,9 +1095,55 @@ pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<boo
         return Ok(false);
     };
     let mut tx = store.begin().await?;
-    let outcome = match handler.run_job(task, tx.module_tx()).await {
+    let outcome = match handler.run_job_findings(task, tx.module_tx()).await {
         // The events it emitted, with the task (REQ-016-15).
-        Ok(()) => tx.journal_job(name).await,
+        Ok(found) if found.violations.is_empty() && found.reevaluated.is_empty() => {
+            tx.journal_job(name).await
+        }
+        // Its findings, in a changeset of kartenn that opens and closes the anomalies
+        // (amendment 4); the events go with it, under the key of the task.
+        Ok(found) => {
+            let request = crate::ChangesetRequest {
+                author: crate::declarations::SYSTEM_AUTHOR,
+                motive: format!("background task {name}"),
+                period: None,
+                operations: Vec::new(),
+                simulate: false,
+                idempotency_key: None,
+            };
+            let objects: Vec<Uuid> = found
+                .reevaluated
+                .iter()
+                .map(|(o, _)| *o)
+                .chain(
+                    found
+                        .violations
+                        .iter()
+                        .flat_map(|v| v.subjects.iter().copied()),
+                )
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            let keys = [name.replacen('.', ":", 1)];
+            let journal = crate::port::Journal {
+                id: Uuid::now_v7(),
+                request: &request,
+                state: "applied",
+                kind: "direct",
+                validator: None,
+                pending: None,
+                violations: &found.violations,
+                domains: &[],
+                keys: &keys,
+                objects: &objects,
+                reevaluated: &found.reevaluated,
+                diff: &[],
+                cascaded: &[],
+                audit: &[],
+                on_behalf_of: None,
+            };
+            tx.journal_applied(&journal).await
+        }
         Err(e) => Err(e),
     };
     match outcome {

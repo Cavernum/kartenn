@@ -13,7 +13,7 @@ use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{
-    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
 };
 
 use crate::rules::POLICY_RULES;
@@ -239,10 +239,26 @@ static REFERENCES: &[Reference] = &[
     refuse(CONDITION, FLOW_TYPE),
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "policy",
-    sql: include_str!("../migrations/0001_policy.sql"),
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "policy",
+        sql: include_str!("../migrations/0001_policy.sql"),
+    },
+    ModuleMigration {
+        version: 2,
+        name: "inference_check",
+        sql: include_str!("../migrations/0002_inference_check.sql"),
+    },
+];
+
+/// The background task that re-evaluates the deviations of the inference by origin node
+/// when its rules change (REQ-010-48): `policy.inference_check`.
+pub const INFERENCE_CHECK: &str = "inference_check";
+
+static JOBS: &[JobSpec] = &[JobSpec {
+    name: INFERENCE_CHECK,
+    period: std::time::Duration::from_secs(60),
 }];
 
 macro_rules! permissions {
@@ -425,6 +441,9 @@ impl Module for Policy {
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS
+    }
+    fn jobs(&self) -> &'static [JobSpec] {
+        JOBS
     }
     fn events(&self) -> &'static [&'static str] {
         EVENTS

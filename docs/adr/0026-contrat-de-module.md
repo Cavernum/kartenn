@@ -306,6 +306,23 @@ rôles). Tests : `module_anchors::an_operation_requires_the_permission_its_modul
 du noyau, d'un autre module, opération inconnue, doublon ; type étranger ou permissions de
 type non déclarées), `kartenn-policy` `rights.rs` (droits S15 de la politique).
 
+### Amendement 4 — 2026-10-21, constats d'une tâche de fond (010 REQ-010-48)
+
+Un ajout additif, à défaut neutre (tâche 010-14) : une tâche de fond d'un module
+(clause 13, tâche 016-7) peut rendre des constats. Source :
+`crates/kartenn-service/src/module.rs` (`ModuleHandler::run_job_findings`, `run_job`).
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `ModuleHandler::run_job_findings(name, tx) -> Findings` : par défaut `run_job` puis aucun constat. Quand la tâche rend des violations ou des objets réévalués, le noyau les journalise dans un changeset de kartenn (auteur système, motif `background task <module>.<tâche>`, état `applied`, sans opération), dans la transaction de la tâche, comme la réévaluation d'une source de valeurs attendues (REQ-003-24) : les avertissements ouvrent des anomalies, les couples (objet, règle) réévalués ferment celles qu'aucun avertissement ne relève ; les événements émis par la tâche partent avec ce changeset, sous la clé de la tâche. Sans constat, rien ne change (`journal_job`) | 7, 13 | REQ-010-48 : l'écart d'inférence par nœud d'origine se réévalue quand les règles changent, hors de tout changeset d'un utilisateur ; une tâche ne pouvait ni ouvrir ni fermer une anomalie |
+
+Pas de changement du schéma des déclarations ni du contrat REST. Un changeset système
+n'écrit aucun objet et ne passe par aucun contrôle de droits : il ne fait que consigner
+des constats que seul le code du module produit. Le module borne lui-même le travail
+d'une exécution (la politique : 1 000 héritiers par exécution, reprise par un curseur).
+Test : `kartenn-policy` `mismatch.rs` (anomalie ouverte sur le nœud d'origine avec le
+décompte, puis fermée quand la règle change ; décompte réparti sur plusieurs exécutions).
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

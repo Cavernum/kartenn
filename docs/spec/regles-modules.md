@@ -62,6 +62,7 @@ spécification du module.
 | `policy.inference.criterion_invalid` | erreur | Un critère d'inférence admet au moins une valeur, et une règle au moins une valeur attendue. | REQ-010-42 | 010/I3 |
 | `policy.machine.environment_mismatch` | avertissement | Les adresses d'une machine, hors interfaces d'un rôle exempté, résolvent l'environnement qu'elle déclare, ou, sans déclaration, un même environnement. | REQ-010-17 | 010/S10, D22 |
 | `policy.inference.conflict` | avertissement | Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents. | REQ-010-45 | 010/I6 adouci |
+| `policy.inference.mismatch` | avertissement | Les héritiers d'une valeur déclarée de policy.environment portent la valeur que l'inférence attend ; l'anomalie, sur le nœud d'origine, compte les héritiers en écart. | REQ-010-48 | 010/I9, Q13 |
 | `policy.operation.invalid` | erreur | Une opération de la politique a un corps conforme à son schéma et cite des objets connus. | REQ-010-26 | ADR 0026 clause 6 |
 | `policy.axis.invalid` | erreur | Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé. | REQ-010-29 | 010/S22 |
 | `policy.value.unknown` | erreur | Les attributs d'une valeur décrivent une valeur vivante d'un axe. | REQ-010-2, REQ-010-30 | 010/S2 |

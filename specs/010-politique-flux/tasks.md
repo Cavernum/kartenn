@@ -305,7 +305,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   du champ `entity` de la requête (le dossier), sans repli sur l'entité de rattachement de
   l'appelant ; les routes `QUERY`/`GET /v1/verdicts` et le problème
   `policy-query-too-large` restent à la tâche 18.
-- [ ] 14. Cohérence des machines et anomalies d'inférence ; tâche de fond
+- [x] 14. Cohérence des machines et anomalies d'inférence ; tâche de fond
   `policy.inference.check` (point différé N14, genres de module) — REQ-010-17, 48 —
   verify : anomalies ouvertes et fermées ; regroupement par nœud d'origine
   - où : règles de module (clause 7), `crates/kartenn-service/src/import.rs` (tâche sous
@@ -322,7 +322,23 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   `policy.inference.check`) : il lit les règles d'inférence en base et la chaîne des
   ancêtres d'un nœud, que la 15 construit (source de valeurs attendues), et les opérations
   `policy.inference_rule.*` ne sont écrites par aucune tâche faite ; à reprendre après 15.
-  choix : seules les adresses classées comptent (une adresse sans environnement relève de
+  — REQ-010-48 faite (2026-10-21), sur l'amendement 4 de l'ADR 0026 (une tâche de fond rend
+  des `Findings`, journalisés dans un changeset système) : `crates/kartenn-policy/src/mismatch.rs`
+  (tâche `policy.inference_check`, `run`/`run_with`), migration du module
+  `0002_inference_check.sql` (progression d'une passe : révision vérifiée, curseur
+  d'origine et d'héritier, décompte), règle `policy.inference.mismatch` (avertissement sur le
+  nœud d'origine, avec le nombre d'héritiers en écart), `Handler::run_job_findings` ;
+  `kartenn-service/src/module.rs` (`ModuleHandler::run_job_findings`, `run_job` qui
+  journalise les constats) ; tests `tests/it/mismatch.rs` (acceptation de REQ-010-48 :
+  aucune règle, rien ; règle → anomalie sur l'origine comptant 3 héritiers, une seule ;
+  seconde exécution sans effet ; règle corrigée → anomalie fermée ; passe en lots d'un
+  héritier sur plusieurs exécutions).
+  choix : la tâche s'appelle `policy.inference_check` (un nom de tâche n'a pas de point) ;
+  une passe démarre quand la révision `inference` dépasse la dernière vérifiée, et couvre
+  les domaines cités par les règles écrites ou closes depuis la passe précédente (tous si
+  l'une n'en cite aucun) ; seuls les héritiers à attendu unique comptent (égalité ou aucun
+  attendu : pas d'écart, REQ-010-45) ; 1 000 héritiers par exécution, période de 60 s ;
+  seules les adresses classées comptent (une adresse sans environnement relève de
   l'obligation, REQ-010-21) ; l'anomalie porte sur la machine seule ; liste des rôles
   exemptés par défaut (`administration`, `backup`, `monitoring`) tant qu'aucun rôle n'a
   jamais été administré, et le premier rôle administré la remplace.
