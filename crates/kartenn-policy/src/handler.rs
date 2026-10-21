@@ -678,6 +678,8 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             if name == crate::module::INFERENCE_CHECK {
                 crate::mismatch::run(tx).await
+            } else if name == crate::module::REPORT {
+                crate::report::run(tx).await.map(|()| Findings::default())
             } else {
                 Ok(Findings::default())
             }

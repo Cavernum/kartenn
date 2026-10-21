@@ -375,11 +375,34 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   les modes ; une source qui ne donne pas de défaut sous une valeur héritée matérialise
   d'abord les origines des objets créés (`refresh_origins`) ; droits par domaine : la
   portée du domaine cité, sans test dédié ici (environnement de test sans restriction).
-- [ ] 16. Rapport d'audit (tâche de fond, rubriques, pagination, purge) — REQ-010-23 —
+- [x] 16. Rapport d'audit (tâche de fond, rubriques, pagination, purge) — REQ-010-23 —
   verify : un test par rubrique
   - où : `crates/kartenn-service/src/import.rs` (tâche sous bail),
     `crates/kartenn-store-pg/migrations/0039_job.sql`
   - dépend de : 12, 14
+  — `kartenn-policy` : `src/report.rs` (`request`, `report`, `items`, `export`, `run`,
+  `run_with`), migration du module `0003_report.sql` (`policy_report`, `policy_report_item`,
+  un seul rapport en cours par index unique partiel), tâche de fond `policy.report` (toutes
+  les 5 s, 20 pas de 1 000 objets au plus par exécution), branchée dans
+  `Handler::run_job_findings`. Dix rubriques : `unclassified`, `transverse`,
+  `transverse_allow`, `uncited_values`, `unborne_values`, `masked_allow`,
+  `rules_never_applied`, `combinations_without_flow`, `inference_mismatch`,
+  `machine_anomalies`. Tests `policy_it report::*` : un par rubrique, plus l'axe non cité,
+  les rubriques sans flux (non répondues) et un test de pages, un rapport à la fois,
+  reprise par fenêtres d'un objet et purge. Les routes `POST /v1/policy-reports`,
+  `GET …/{id}` et `…/items` restent à la tâche 18.
+  choix : les rubriques qui parcourent le référentiel (non classifiés, transverses,
+  anomalies) vont par fenêtres de 1 000 objets par identifiant, reprises au dernier ; les
+  rubriques sur la politique (bornée, REQ-010-28) sont produites d'un coup ;
+  `policy.environment`, axe imposé (S22) non stocké dans `policy_axis`, est ajouté aux axes
+  lus ; « jamais appliquée » = jamais règle décisive d'une évaluation de la 011 ; une
+  combinaison autorisée = (règle `allow`, service couvert) ; sans les tables de la 011,
+  leurs deux rubriques ont un décompte `null` (« non répondue ») ; masquage : une `deny`
+  dont chaque terme est plus large des deux côtés, dont les axes « même valeur » sont
+  parmi ceux de l'`allow` et dont les flux couvrent les siens ; les anomalies sont lues à
+  l'état présent, le reste à `valid_at` ; purge à la demande + 30 jours, à chaque
+  exécution ; les tests des deux rubriques de flux créent les seules colonnes de la 011
+  que le rapport lit.
 
 ## P4 — Import, API, budgets, synchronisation
 
