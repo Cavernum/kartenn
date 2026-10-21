@@ -3,8 +3,7 @@
 //! group of the VLAN is anchored on a site outside that of the network or on another
 //! domain.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use env::{Env, op, rules};
 use kartenn_service::authz::Unrestricted;

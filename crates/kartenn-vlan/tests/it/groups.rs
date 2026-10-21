@@ -3,8 +3,7 @@
 //! range that keeps the VLANs of its group; an anchor that moves the group to another
 //! scope.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use env::{Env, messages, op, rules};
 use kartenn_service::Outcome;

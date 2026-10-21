@@ -2,8 +2,7 @@
 //! 008-15): an import of 10⁴ VLANs in 100 groups ends, and a replay after a stop
 //! duplicates nothing.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use env::{Env, op};
 use kartenn_service::authz::Unrestricted;

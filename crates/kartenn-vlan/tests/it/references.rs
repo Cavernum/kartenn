@@ -3,8 +3,7 @@
 //! assignment; a group is closed with its VLANs under the cascade only; the anchor of a
 //! group is not closed while the group lives on it, cascade or not.
 
-#[path = "support/env.rs"]
-mod env;
+use crate::support::env;
 
 use env::{Env, op, rules};
 use kartenn_service::operations::RawInput;

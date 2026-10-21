@@ -78,11 +78,17 @@ même crate.
   `http`) ; `dev_idp` lance toujours le binaire par `CARGO_BIN_EXE_kartenn-server` ; le
   commentaire de `secrets.rs` suit le déplacement de `panic.rs`. Aucune ligne `où :` de
   tâche ouverte ne citait un test de la crate.
-- [ ] 7. kartenn-vlan, kartenn-machines : cibles `vlan_it` et `machines_it` avec
+- [x] 7. kartenn-vlan, kartenn-machines : cibles `vlan_it` et `machines_it` avec
   `required-features = ["rest"]`, `[[test]]` actuels retirés, `kartenn-vlan/tests/support/`
   → `tests/it/support/` — ADR 0027 point 2 — verify : nombre de tests identique
   où : `crates/kartenn-vlan/`, `crates/kartenn-machines/` (`Cargo.toml`, `tests/`)
   dépend de : 1
+  — kartenn-vlan : 35 tests avant et après (mêmes noms hors préfixe), 7 binaires → 2 ;
+  kartenn-machines : 54 tests avant et après, 4 binaires → 2. Le `#[path = "support/env.rs"]
+  mod env;` de chaque fichier devient `use crate::support::env;`, module déclaré une fois.
+  choix : dans un seul binaire, les blocs `impl Env` des fichiers se rejoignent ; l'aide
+  `group` de `rest.rs` (autre signature que celle de `vlans.rs`) devient `seed_group`, nom
+  d'aide et non de test. Aucune ligne `où :` de tâche ouverte ne citait ces tests.
 - [ ] 8. kartenn-auth, kartenn-core, syslog-sender : cibles `auth_it`, `core_it`,
   `syslog_sender_it` — verify : nombre de tests identique
   où : `Cargo.toml` et `tests/` de chaque crate
