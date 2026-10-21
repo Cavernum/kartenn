@@ -85,12 +85,19 @@ pub async fn deploy(
             crate::registry::load(pool, registry).await?;
         }
     }
-    let modules = [kartenn_service::declarations::core_declarations()];
-    let store = crate::write::PgStore::new(pool.clone());
+    // The declarations of the core, completed by the types of the modules (REQ-008-6),
+    // then those of each module, in registry order.
+    let declarations: Vec<_> = std::iter::once(
+        kartenn_service::declarations::core_declarations_for(modules),
+    )
+    .chain(modules.modules().filter_map(|m| m.declarations()))
+    .collect();
+    let store =
+        crate::write::PgStore::new(pool.clone()).with_modules(std::sync::Arc::new(modules.clone()));
     let outcomes = kartenn_service::declarations::sync_modules(
         &store,
         &kartenn_service::authz::Unrestricted,
-        &modules,
+        &declarations,
         kartenn_service::pipeline::MAX_OPERATIONS,
     )
     .await?;

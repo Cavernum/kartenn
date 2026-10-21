@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use kartenn_core::properties::{
     CurrentAssignment, Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey,
-    REF_TARGETS, TypeSpec,
+    TypeSpec, object_kind,
 };
 use kartenn_core::values::{Cardinality, Date, Scalar, Value};
 use kartenn_service::port::StoreError;
@@ -58,9 +58,7 @@ fn decode_type(id: &str, params: &str) -> Result<TypeSpec, StoreError> {
         "ref" => {
             let target = p["target"].as_str().unwrap_or_default();
             TypeSpec::Ref {
-                target: REF_TARGETS
-                    .iter()
-                    .find(|t| **t == target)
+                target: object_kind(target)
                     .ok_or_else(|| decode_err(format!("reference target {target}")))?,
             }
         }
@@ -177,9 +175,10 @@ pub(crate) fn decode_assignment(
     })
 }
 
-/// Kind name of a stored object kind, as a reference target names it.
+/// Kind name of a stored object kind, as a reference target names it: a kind of the core
+/// or a qualified type of a module (REQ-008-7).
 pub(crate) fn ref_kind(kind: &str) -> Option<&'static str> {
-    REF_TARGETS.iter().find(|t| **t == kind).copied()
+    object_kind(kind)
 }
 
 /// Objects referenced by assignments.

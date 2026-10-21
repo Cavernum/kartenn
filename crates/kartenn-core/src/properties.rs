@@ -167,6 +167,43 @@ pub const REF_TARGETS: [&str; 6] = ["entity", "site", "domain", "prefix", "range
 /// modules register theirs (003/design, § Déclarations).
 pub const CORE_CARRIERS: [&str; 6] = REF_TARGETS;
 
+/// Whether `name` is a qualified type of a module, `<module>.<type>` (ADR 0026, clause 4).
+#[must_use]
+pub fn is_module_kind(name: &str) -> bool {
+    let segment = |s: &str| {
+        let mut chars = s.chars();
+        chars.next().is_some_and(|c| c.is_ascii_lowercase())
+            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    };
+    name.split_once('.')
+        .is_some_and(|(module, kind)| module != "core" && segment(module) && segment(kind))
+}
+
+/// The kind of object `name` names, as a reference target or a carrier names it: a kind
+/// of the core, or a qualified type of a module (spec 008, REQ-008-7). The names of module
+/// types are interned: there are as many as the types of the build, read back from the
+/// declarations.
+#[must_use]
+pub fn object_kind(name: &str) -> Option<&'static str> {
+    static INTERNED: std::sync::LazyLock<std::sync::Mutex<BTreeSet<&'static str>>> =
+        std::sync::LazyLock::new(Default::default);
+    if let Some(core) = REF_TARGETS.iter().find(|t| **t == name) {
+        return Some(core);
+    }
+    if !is_module_kind(name) {
+        return None;
+    }
+    let mut interned = INTERNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(known) = interned.get(name) {
+        return Some(known);
+    }
+    let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
+    interned.insert(leaked);
+    Some(leaked)
+}
+
 impl InheritTree {
     /// Name, as stored.
     #[must_use]

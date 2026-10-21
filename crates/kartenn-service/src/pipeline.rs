@@ -904,7 +904,7 @@ fn plan(
                 Operation::DeclareProperty { .. }
                 | Operation::UpdateProperty { .. }
                 | Operation::AddEnumValue { .. } => {
-                    match crate::declarations::plan(op, id, |r| resolve(r, &ids)) {
+                    match crate::declarations::plan(op, id, |r| resolve(r, &ids), modules) {
                         Ok(p) => planned.push(p),
                         Err(v) => violations.push(v),
                     }

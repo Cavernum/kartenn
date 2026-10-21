@@ -367,6 +367,14 @@ pub enum RegistryError {
         /// The type.
         kind: String,
     },
+    /// A permission or a rule outside the namespace of its module, or taken already.
+    #[error("module `{module}`: `{name}` must be named `{module}.<…>` and be new")]
+    ForeignName {
+        /// The module.
+        module: String,
+        /// The permission or the rule.
+        name: String,
+    },
     /// A REST collection declared twice, or taken from the core.
     #[error("collection `/v1/{collection}` of module `{module}` is already served by `{owner}`")]
     DuplicateCollection {
@@ -424,6 +432,24 @@ impl ModuleRegistry {
                     });
                 }
             }
+            let prefix = format!("{}.", module.name());
+            let names = module
+                .permissions()
+                .iter()
+                .map(|p| p.name)
+                .chain(module.rules().iter().map(|r| r.id));
+            for name in names {
+                let taken = kartenn_core::authz::PERMISSIONS
+                    .iter()
+                    .any(|p| p.name == name)
+                    || kartenn_core::rules::all_rules().any(|r| r.id == name);
+                if !name.starts_with(&prefix) || taken {
+                    return Err(RegistryError::ForeignName {
+                        module: module.name().to_owned(),
+                        name: name.to_owned(),
+                    });
+                }
+            }
             for ty in module.object_types() {
                 if ty
                     .kind
@@ -461,6 +487,12 @@ impl ModuleRegistry {
             placed.insert(module.name());
             order.push(module);
         }
+        // The catalogues of the build gain the permissions and rules of its modules
+        // (REQ-008-8): role entries, scopes and journaled violations see them.
+        for module in &order {
+            kartenn_core::authz::register(module.permissions());
+            kartenn_core::rules::register(module.rules());
+        }
         Ok(Self { modules: order })
     }
 
@@ -486,6 +518,26 @@ impl ModuleRegistry {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.modules.is_empty()
+    }
+
+    /// The types of objects of every module, in registry order.
+    pub fn object_types(&self) -> impl Iterator<Item = &'static ObjectType> + '_ {
+        self.modules.iter().flat_map(|m| m.object_types().iter())
+    }
+
+    /// The permissions of every module, in registry order.
+    #[must_use]
+    pub fn permissions(&self) -> Vec<&'static Permission> {
+        self.modules
+            .iter()
+            .flat_map(|m| m.permissions().iter().copied())
+            .collect()
+    }
+
+    /// The type of objects of this qualified name, if a module of the build declares it.
+    #[must_use]
+    pub fn object_type(&self, kind: &str) -> Option<&'static ObjectType> {
+        self.object_types().find(|t| t.kind == kind)
     }
 
     /// The operation `name` of `module`, with its handler, if the build has both.

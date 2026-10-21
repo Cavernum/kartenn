@@ -3,10 +3,15 @@
 //! A permission is `<module>.<object>.<action>`, or `prop.<key>.<action>` for a property
 //! (003). A role lists catalogue permissions and two patterns: `prop.*.<action>` covers the
 //! properties that are **not sensitive** (a sensitive one needs its own permission,
-//! 003/P17), and `*` covers everything. `docs/spec/permissions.md` is generated from here
-//! and checked by a test.
+//! 003/P17), and `*` covers everything. `docs/spec/permissions.md` is generated from here, with the
+//! permissions of the modules of the build, and checked by a test of `kartenn-server`.
+//!
+//! The modules of a build add their permissions to the catalogue when their registry is
+//! checked (spec 008, REQ-008-8): a lookup, a role entry and the scopes of a permission
+//! see them as the core's.
 
 use std::fmt::Write as _;
+use std::sync::{PoisonError, RwLock};
 
 /// A permission of the catalogue.
 #[derive(Debug, PartialEq, Eq)]
@@ -72,9 +77,37 @@ permissions! {
 pub const PROPERTY_ACTIONS: [&str; 3] = ["read", "write", "propose"];
 
 /// The permission `name` of the catalogue, if any.
+/// The permissions the modules of the build added to the catalogue.
+static MODULE_PERMISSIONS: RwLock<Vec<&'static Permission>> = RwLock::new(Vec::new());
+
+/// Adds the permissions of a module to the catalogue; a name already there is kept once.
+pub fn register(permissions: &[&'static Permission]) {
+    let mut known = MODULE_PERMISSIONS
+        .write()
+        .unwrap_or_else(PoisonError::into_inner);
+    for p in permissions {
+        if !known.iter().any(|k| k.name == p.name) {
+            known.push(p);
+        }
+    }
+}
+
+/// The permissions the modules added, in the order of their registration.
+#[must_use]
+pub fn module_permissions() -> Vec<&'static Permission> {
+    MODULE_PERMISSIONS
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
 #[must_use]
 pub fn permission(name: &str) -> Option<&'static Permission> {
-    PERMISSIONS.iter().copied().find(|p| p.name == name)
+    PERMISSIONS
+        .iter()
+        .copied()
+        .find(|p| p.name == name)
+        .or_else(|| module_permissions().into_iter().find(|p| p.name == name))
 }
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
@@ -183,9 +216,33 @@ pub static ADMINISTRATOR: BuiltinRole = BuiltinRole {
 /// The delivered roles.
 pub static BUILTIN_ROLES: &[&BuiltinRole] = &[&READER, &EDITOR, &APPROVER, &ADMINISTRATOR];
 
+impl BuiltinRole {
+    /// Its entries in a build with the permissions `modules`: the delivered roles that
+    /// read read the objects of the modules too (spec 008, REQ-008-8); `*` needs nothing.
+    #[must_use]
+    pub fn entries_with(&self, modules: &[&'static Permission]) -> Vec<&'static str> {
+        let mut entries: Vec<&'static str> = self.entries.to_vec();
+        if entries.contains(&"core.entity.read") {
+            entries.extend(
+                modules
+                    .iter()
+                    .filter(|p| p.name.rsplit('.').next() == Some("read") && !p.global_only)
+                    .map(|p| p.name),
+            );
+        }
+        entries
+    }
+}
+
 /// The catalogue as Markdown (REQ-005-16).
 #[must_use]
 pub fn catalogue_markdown() -> String {
+    catalogue_markdown_with(&[])
+}
+
+/// [`catalogue_markdown`] for a build whose modules declare `modules`.
+#[must_use]
+pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
     let mut out = String::from(
         "<!-- Généré par kartenn-core (authz::catalogue_markdown) : ne pas modifier à la main. -->\n\n\
          # Catalogue des permissions\n\n\
@@ -196,7 +253,7 @@ pub fn catalogue_markdown() -> String {
          | Permission | Global | Description |\n\
          |---|---|---|\n",
     );
-    for p in PERMISSIONS {
+    for p in PERMISSIONS.iter().chain(modules) {
         let _ = writeln!(
             out,
             "| `{}` | {} | {} |",
@@ -208,7 +265,7 @@ pub fn catalogue_markdown() -> String {
     out.push_str("\n## Rôles livrés\n\n| Rôle | Clé | Contenu |\n|---|---|---|\n");
     for r in BUILTIN_ROLES {
         let entries = r
-            .entries
+            .entries_with(modules)
             .iter()
             .map(|e| format!("`{e}`"))
             .collect::<Vec<_>>()
@@ -260,22 +317,5 @@ mod tests {
         assert!(grants("*", "prop.custom.secret.read", true));
         assert!(grants("core.address.read", "core.address.read", false));
         assert!(!grants("core.address.read", "core.address.write", false));
-    }
-
-    #[test]
-    fn the_published_catalogue_matches_the_code() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../docs/spec/permissions.md"
-        );
-        let generated = catalogue_markdown();
-        if std::env::var_os("KARTENN_BLESS").is_some() {
-            std::fs::write(path, &generated).expect("write the catalogue");
-        }
-        let published = std::fs::read_to_string(path).unwrap_or_default();
-        assert_eq!(
-            published, generated,
-            "docs/spec/permissions.md is stale: run `KARTENN_BLESS=1 cargo test -p kartenn-core authz`"
-        );
     }
 }

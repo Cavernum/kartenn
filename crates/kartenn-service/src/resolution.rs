@@ -197,16 +197,25 @@ pub(crate) async fn unassign<T: WriteTx>(
         .await?)
 }
 
-/// The core tree an object of `kind` belongs to, if any.
-const fn tree_of(kind: ObjectKind) -> Option<InheritTree> {
+/// The tree an object of `kind` belongs to, if any: a tree of the core, or the tree of its
+/// module.
+fn tree_of(kind: ObjectKind) -> Option<InheritTree> {
     match kind {
         ObjectKind::Domain | ObjectKind::Prefix | ObjectKind::Range | ObjectKind::Address => {
             Some(InheritTree::Addressing)
         }
         ObjectKind::Entity => Some(InheritTree::Entity),
         ObjectKind::Site => Some(InheritTree::Site),
+        ObjectKind::Module(kind) => Some(InheritTree::Module(kind.module().to_owned())),
         _ => None,
     }
+}
+
+/// Whether the objects of `kind` inherit a property heritable along `declared`: the
+/// objects of its tree, and the objects of a module along the tree of their module,
+/// whatever the tree declared (spec 008, REQ-008-6).
+fn inherits_along(kind: ObjectKind, declared: &InheritTree) -> bool {
+    matches!(kind, ObjectKind::Module(_)) || tree_of(kind).as_ref() == Some(declared)
 }
 
 /// What the maintenance of the origins did, per heritable property.
@@ -240,9 +249,8 @@ pub(crate) async fn maintain<T: WriteTx>(
     // Every property heritable along the tree of `kind` targets `objects`.
     let add_all =
         |targets: &mut HashMap<Uuid, BTreeSet<Uuid>>, kind: ObjectKind, objects: &[Uuid]| {
-            let tree = tree_of(kind);
             for (p, t) in &heritable {
-                if tree.as_ref() == Some(t) {
+                if inherits_along(kind, t) {
                     targets.entry(*p).or_default().extend(objects);
                 }
             }
@@ -253,6 +261,13 @@ pub(crate) async fn maintain<T: WriteTx>(
             continue;
         }
         match p {
+            // A changed object of a module may have moved in the tree of its module: it and
+            // the objects below it look for their origins again (REQ-008-6).
+            Planned::Module { plan, .. } => {
+                let below = tx.subtree(plan.object, period).await?;
+                add_all(&mut targets, ObjectKind::Module(plan.kind), &below);
+                inheritors(tx, plan.object, &mut targets, period).await?;
+            }
             // Rules 2 and 3: an assignment written or removed changes the origin of the
             // object and of the objects below it that do not carry their own; a new value
             // where one was already carried moves no origin, only its heirs' values.
@@ -329,13 +344,16 @@ pub(crate) async fn maintain<T: WriteTx>(
 }
 
 /// The object a planned operation creates in a tree, with its kind.
-const fn new_object(p: &Planned) -> Option<(ObjectKind, Uuid)> {
+fn new_object(p: &Planned) -> Option<(ObjectKind, Uuid)> {
     match p {
         Planned::Domain { id, .. } => Some((ObjectKind::Domain, *id)),
         Planned::Prefix { object, .. } => Some((ObjectKind::Prefix, object.id)),
         Planned::Range { object, .. } => Some((ObjectKind::Range, object.id)),
         Planned::Address { object, .. } => Some((ObjectKind::Address, object.id)),
         Planned::Anchor { kind, id, .. } => Some((*kind, *id)),
+        Planned::Module { plan, .. } if plan.creates => {
+            Some((ObjectKind::Module(plan.kind), plan.object))
+        }
         _ => None,
     }
 }
@@ -368,11 +386,20 @@ async fn refresh<T: WriteTx>(
 ) -> Result<Maintained, StoreError> {
     let mut out = Maintained::default();
     for property in everything {
-        let kinds: Vec<String> = heritable[&property]
+        let mut kinds: Vec<String> = heritable[&property]
             .kinds()
             .iter()
             .map(|k| (*k).to_owned())
             .collect();
+        // The objects of modules that carry it inherit along the trees of their modules.
+        if let Some(declaration) = tx.declaration(property, period).await? {
+            kinds.extend(
+                declaration
+                    .carriers
+                    .into_iter()
+                    .filter(|c| kartenn_core::properties::is_module_kind(c)),
+            );
+        }
         let all = tx.objects_of_kinds(&kinds, period).await?;
         targets.entry(property).or_default().extend(all);
     }
@@ -404,13 +431,12 @@ async fn restored<T: WriteTx>(
             let mut objects = vec![id];
             if matches!(
                 kind,
-                ObjectKind::Prefix | ObjectKind::Entity | ObjectKind::Site
+                ObjectKind::Prefix | ObjectKind::Entity | ObjectKind::Site | ObjectKind::Module(_)
             ) {
                 objects.extend(tx.subtree(id, period).await?);
             }
-            let tree = tree_of(kind);
             for (p, t) in heritable {
-                if tree.as_ref() == Some(t) {
+                if inherits_along(kind, t) {
                     targets.entry(*p).or_default().extend(&objects);
                 }
             }
@@ -486,6 +512,7 @@ fn created(planned: &[Planned]) -> Vec<Uuid> {
             Planned::Prefix { object, .. } => Some(object.id),
             Planned::Range { object, .. } => Some(object.id),
             Planned::Address { object, .. } => Some(object.id),
+            Planned::Module { plan, .. } if plan.creates => Some(plan.object),
             _ => None,
         })
         .collect()
