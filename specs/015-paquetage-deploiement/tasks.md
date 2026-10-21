@@ -54,6 +54,11 @@ après l'autre.
   `pnpm.fetchDeps` et `pnpm.configHook` cités par le design ; le manifeste de build
   `.vite/` (banc de taille) est retiré du paquet ; source = `web/` hors `node_modules`,
   `dist` et état des parcours.
+  correctif (tâche 6, 2026-10-21) : le paquet `kartenn` était un `symlinkJoin` dont
+  chaque fichier du shell et des plugins était un lien vers `kartenn-web` ; le registre
+  des plugins refuse les liens et le shell ne sert que sous sa racine canonique. Le
+  paquet copie désormais `bin/` et `share/` (fichiers réels, `passthru` vers les deux
+  paquets) ; `checks.oci` refuse tout lien dans `share/kartenn/{web,plugins}`.
 - [x] 3. URL de la base par fichier et `--version` : section `[database] url_file`,
   argument facultatif, `--config` pour `migrate` et `breakglass create` — REQ-015-4 —
   verify : tests de `config.rs` (champ inconnu, fichier vide, illisible, ambiguïté

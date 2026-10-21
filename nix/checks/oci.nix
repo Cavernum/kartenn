@@ -22,9 +22,16 @@ runCommand "kartenn-oci-check" {nativeBuildInputs = [jq gnutar];} ''
   jq -e '.config.Env | any(startswith("SSL_CERT_FILE="))' "$config" >/dev/null || fail "SSL_CERT_FILE unset"
 
   : > files
+  : > listing
   for layer in $(jq -r '.[0].Layers[]' manifest.json); do
     tar -tf "$layer" >> files
+    tar -tvf "$layer" >> listing
   done
+  # The plugin registry refuses symbolic links and the shell serves only files under its
+  # canonical root: the shell and the plugins are real files.
+  if grep -E '^l.*/share/kartenn/(web|plugins)/.* -> ' listing; then
+    fail "symbolic links in the shell or the plugins"
+  fi
   if grep -E '(^|/)bin/(sh|bash|dash|ash|zsh|busybox)$' files; then
     fail "a shell is in the image"
   fi
