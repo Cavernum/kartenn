@@ -394,6 +394,11 @@ impl Module for Policy {
     fn events(&self) -> &'static [&'static str] {
         EVENTS
     }
+    /// The approval triggers of the policy (REQ-010-20, S12), `policy.<name>` once
+    /// qualified: none applies by default.
+    fn measures(&self) -> &'static [&'static str] {
+        &["write", "opens", "closes", "reclassify"]
+    }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         #[cfg(feature = "pg")]
         {

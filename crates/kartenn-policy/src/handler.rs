@@ -12,8 +12,8 @@ use kartenn_core::properties::PropertyKey;
 use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
-    Reference,
+    BoxFuture, CheckContext, DiffContext, DiffSection, Findings, ModuleHandler, ModuleObjectRow,
+    ModulePlan, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -620,6 +620,25 @@ impl ModuleHandler for Handler {
             let (at, _) = pg::bounds(period);
             pg::referrers(connection(tx)?, reference.from, reference.to, target, at).await
         })
+    }
+
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        Box::pin(async move { crate::contribution::section(connection(tx)?, context).await })
+    }
+
+    fn measure<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Vec<(&'static str, u64)>, StoreError>> {
+        let _ = tx;
+        Box::pin(std::future::ready(Ok(crate::contribution::measures(
+            context,
+        ))))
     }
 
     fn check<'a>(
