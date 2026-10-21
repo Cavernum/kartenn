@@ -93,6 +93,13 @@ Gain :
   forte que la référence (434 s contre 341 s). La part des tests, la plus lourde,
   relève de l'ADR 0028.
 
+Mesure au calme (tâche 014-7, même protocole, deux passes, seul agent sur la machine,
+avec en plus les bases clonées de l'ADR 0028 ; détail dans l'ADR 0028, § « Mesure
+après ») : à froid 313 et 321 s (référence 341 s) ; après une modification du noyau 72 et
+98 s (référence 131 s), dont compilation et lien 26 et 28 s (référence 41 s) ; 31
+binaires, `target/debug` 6,4 et 8,5 Go. Le gain de compilation et de lien propre au
+regroupement se confirme au calme : environ un tiers.
+
 ## Decision
 
 Chaque crate a **un seul binaire de tests d'intégration** : `tests/it/main.rs` déclare

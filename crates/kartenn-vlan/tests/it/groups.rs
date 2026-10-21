@@ -11,7 +11,7 @@ use serde_json::json;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn group_requires_an_owner(pool: PgPool) {
     let env = Env::new(&pool).await;
     let paris = env.id("site", "paris").await;
@@ -80,7 +80,7 @@ async fn group_requires_an_owner(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn domain_anchor_defaults_owner(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -112,7 +112,7 @@ async fn domain_anchor_defaults_owner(pool: PgPool) {
     assert_eq!(domain, Some(lab));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn slug_unique_over_time(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.id("entity", "acme").await;
@@ -140,7 +140,7 @@ async fn slug_unique_over_time(pool: PgPool) {
     assert!(rules(&refused).contains(&"core.slug.syntax"), "{refused:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn range_cannot_exclude_existing_vlans(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.id("entity", "acme").await;
@@ -190,7 +190,7 @@ async fn range_cannot_exclude_existing_vlans(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn moving_the_anchor_reclassifies(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.id("entity", "acme").await;

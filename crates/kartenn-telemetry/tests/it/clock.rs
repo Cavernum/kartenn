@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 use kartenn_store_pg::clock::{SKEW_TOLERANCE, clock_skew};
 use sqlx::PgPool;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_drifting_clock_is_measured(pool: PgPool) {
     let synced = clock_skew(&pool, SystemTime::now).await.unwrap();
     assert!(synced.abs() < SKEW_TOLERANCE.as_secs_f64(), "{synced}");

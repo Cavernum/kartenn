@@ -181,6 +181,24 @@ d'intégration** ([ADR 0027](../adr/0027-un-binaire-de-tests-par-crate.md)) :
   fonction de test (un filtre nextest par sous-chaîne le trouve sous son préfixe
   `<module>::`).
 
+#### Bases de test : clones d'un gabarit migré (ADR 0028)
+
+Créer une base puis y rejouer toutes les migrations coûtait environ 0,55 s par test ; un
+clone d'une base gabarit déjà migrée (`CREATE DATABASE … TEMPLATE … STRATEGY WAL_LOG`)
+environ 0,1 s ([ADR 0028](../adr/0028-base-de-test-gabarit.md)) :
+
+- un test qui a besoin de la base utilise `#[kartenn_testing::pg_test]` (migrateur du
+  noyau par défaut, `migrator = "…"` pour un autre) ; il reçoit un `PgPool` comme sous
+  `#[sqlx::test]` ;
+- `#[sqlx::test]` est réservé au cas, justifié en commentaire, d'une base vide ou migrée
+  autrement ;
+- aucun test ne crée lui-même de base dans le cluster partagé ;
+- `k-check` supprime avant chaque exécution les bases de test et les gabarits périmés,
+  sous le verrou PostgreSQL de `k-heavy`.
+
+Source : [PostgreSQL, `CREATE DATABASE`](https://www.postgresql.org/docs/18/sql-createdatabase.html)
+(`TEMPLATE`, `STRATEGY`).
+
 Source : [Cargo targets, « Integration tests »](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#integration-tests).
 
 ### 2.6 Profils de livraison et de mesure

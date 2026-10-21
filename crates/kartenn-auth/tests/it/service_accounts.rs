@@ -100,7 +100,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_service_account_lives_by_its_secrets(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let first = generate(&f.ring, None);
@@ -214,7 +214,7 @@ async fn a_service_account_lives_by_its_secrets(pool: PgPool) {
     assert_eq!(leaked, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_person_is_created_at_its_first_login(pool: PgPool) {
     use kartenn_service::authn::{Method, logged_in};
     let f = Fixture::new(&pool).await;
@@ -301,7 +301,7 @@ async fn check(
         .await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_revoked_session_is_cut_at_the_next_request(pool: PgPool) {
     use kartenn_service::authn::{Method, StateCache, logged_in};
     let f = Fixture::new(&pool).await;

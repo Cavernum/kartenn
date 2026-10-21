@@ -66,6 +66,44 @@ qu'une estimation : la tâche 2 la vérifie sur la suite réelle. Le coût propr
 (migrations et synchronisation dans le test) n'est pas mesuré ici ; il relève de la
 variante différée (point 5).
 
+### Mesure après (tâche 014-7)
+
+Protocole de l'ADR 0027 (§ « Mesure de référence ») au commit `6c3470b` : tous les tests
+sur clones (ADR 0028) et regroupés (ADR 0027) ; `k-check` complet sous un créneau et le
+verrou PostgreSQL déjà pris, `CARGO_BUILD_JOBS=12`, `NEXTEST_TEST_THREADS=12`, sccache
+neutralisé (`SCCACHE_DISABLE=1`, `RUSTC_WRAPPER=` vide) ; « à froid » = un
+`CARGO_TARGET_DIR` neuf ; « après modification » = le même `black_box(())` dans
+`Violation::at`, puis annulé. Seul agent sur la machine ; charge `/proc/loadavg` (1, 5 et
+15 min) au départ de chaque passe, la hausse en cours de passe venant de la mesure
+elle-même. Deux passes (script `a5ff-final.sh`, joint à la tâche).
+
+| Passe (21/10) | Charge au départ | `k-check` | dont tests | Compilation et lien | Binaires | `target/debug` |
+|---|---|---|---|---|---|---|
+| Référence à froid (ADR 0027) | partagée | 341 s | 88 s | 253 s | 126 | 12 Go |
+| À froid (1) | 1,6 / 6,6 / 10,2 | 321 s | 44 s | 277 s | 31 | 6,4 Go |
+| À froid (2) | 2,7 / 6,4 / 9,1 | 313 s | 47 s | 266 s | 31 | 6,4 Go |
+| Référence après modification (ADR 0027) | partagée | 131 s | 90 s | 41 s | 126 | 15 Go |
+| Après modification (1) | 6,4 / 8,2 / 10,0 | 98 s | 70 s | 28 s | 31 | 8,5 Go |
+| Après modification (2) | 6,3 / 8,1 / 9,2 | 72 s | 46 s | 26 s | 31 | 8,5 Go |
+
+738 tests passent à chaque passe (732 à la mesure de l'ADR 0027 plus les 6 de
+`kartenn-testing`) ; les 31 binaires sont les 27 de l'ADR 0027 plus ceux de
+`kartenn-testing` et `kartenn-testing-macros`.
+
+Gain, ADR 0027 et 0028 ensemble, sur la boucle de travail (`k-check` après une
+modification du noyau) :
+- **`k-check`** : 131 s → 72 à 98 s, soit 25 à 45 % de moins ;
+- **tests** : environ 90 s → 46 à 70 s (le haut de la fourchette sous une charge de 6) ;
+  l'estimation de l'ADR (15 à 30 s de moins) est atteinte ou dépassée ;
+- **compilation et lien** : 41 s → 26 à 28 s (ADR 0027) ;
+- **binaires** 126 → 31, **disque** 15 → 8,5 Go.
+
+À froid, la compilation des dépendances domine (266 à 277 s, sans sccache) : le total ne
+gagne que 20 à 28 s, tous pris sur les tests. Par crate (tâches 2 à 6), le gain est net là
+où la création des bases dominait (kartenn-service 21 → 14 s, kartenn-auth 2,3 → 1,2 s),
+faible là où le temps est ailleurs (kartenn-rest : attentes, chiffrement, imports ; vlan
+et machines : déploiement des modules sur chaque clone, variante différée).
+
 ### Exigences normatives (PostgreSQL 18)
 
 - « no other sessions can be connected to the source database while it is being copied.

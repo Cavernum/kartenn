@@ -41,6 +41,8 @@ path = "tests/it/main.rs"
 required-features = ["rest"]
 
 [dev-dependencies]
+# Test databases cloned from a migrated template (ADR 0028).
+kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
 http-body-util = "0.1"
 kartenn-auth = { path = "../kartenn-auth" }
 kartenn-store-pg = { path = "../kartenn-store-pg" }

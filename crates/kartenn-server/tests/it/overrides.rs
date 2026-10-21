@@ -59,7 +59,7 @@ impl Node {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_override_reaches_every_instance_and_expires(pool: PgPool) {
     let admin = Uuid::now_v7();
     let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));

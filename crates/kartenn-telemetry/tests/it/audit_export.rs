@@ -53,7 +53,7 @@ impl AuditSink for Flaky {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_outage_delays_without_loss_or_gap(pool: PgPool) {
     let sink = Flaky::default();
     record(&pool, 3).await;
@@ -96,7 +96,7 @@ async fn an_outage_delays_without_loss_or_gap(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_file_output_writes_json_lines(pool: PgPool) {
     let path = std::env::temp_dir().join(format!("kartenn-audit-{}.jsonl", uuid_like()));
     let sink = FileSink::new("file", &path);
@@ -119,7 +119,7 @@ fn uuid_like() -> u128 {
         .as_nanos()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_syslog_output_speaks_rfc_5424(pool: PgPool) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap().to_string();

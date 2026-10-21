@@ -46,7 +46,7 @@ async fn count(pool: &PgPool, sql: &str) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn import_ten_thousand_vlans_resumes_without_duplicates(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.id("entity", "acme").await;

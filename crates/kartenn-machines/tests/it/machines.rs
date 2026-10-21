@@ -470,7 +470,7 @@ fn machines_needs_vlan() {
     ModuleRegistry::new(vec![Arc::new(Vlan), Arc::new(Machines)]).expect("both modules");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn name_unique_per_owner(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (env.entity("acme").await, env.entity("other").await);
@@ -540,7 +540,7 @@ async fn name_unique_per_owner(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn owner_change_into_taken_name_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (env.entity("acme").await, env.entity("other").await);
@@ -571,7 +571,7 @@ async fn owner_change_into_taken_name_refused(pool: PgPool) {
     env.machine("web2", acme).await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vm_on_cluster_container_on_vm(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -612,7 +612,7 @@ async fn vm_on_cluster_container_on_vm(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn hosting_cycle_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let a = env.create("a", "container", json!({})).await;
@@ -642,7 +642,7 @@ async fn hosting_cycle_refused(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn kind_change_with_host_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let host = env.create("h", "physical", json!({})).await;
@@ -674,7 +674,7 @@ async fn kind_change_with_host_refused(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn cluster_slug_unique(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -703,7 +703,7 @@ async fn cluster_slug_unique(pool: PgPool) {
     env.applied(vec![cluster("prod")]).await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn interface_name_unique_per_machine(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (a, b) = (
@@ -748,7 +748,7 @@ async fn interface_name_unique_per_machine(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn mac_stored_as_macaddr(pool: PgPool) {
     let env = Env::new(&pool).await;
     let m = env.create("m", "physical", json!({})).await;
@@ -796,7 +796,7 @@ async fn mac_stored_as_macaddr(pool: PgPool) {
     assert_eq!(mac, None);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn interface_cannot_change_machine(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (a, b) = (
@@ -828,7 +828,7 @@ async fn interface_cannot_change_machine(pool: PgPool) {
     assert_eq!(parent, Some(a));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn owner_change_moves_interface_scope(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (env.entity("acme").await, env.entity("other").await);
@@ -875,7 +875,7 @@ fn interface(machine: Uuid, n: u32, vlan: Value) -> Operation {
     op("create_interface", fields)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn access_needs_one_vlan(pool: PgPool) {
     let env = Env::new(&pool).await;
     let [a, b, c] = env.vlans(&[10, 20, 30]).await[..] else {
@@ -939,7 +939,7 @@ async fn access_needs_one_vlan(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn native_not_in_tagged(pool: PgPool) {
     let env = Env::new(&pool).await;
     let [a, b] = env.vlans(&[10, 20]).await[..] else {
@@ -962,7 +962,7 @@ async fn native_not_in_tagged(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closed_vlan_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let [a, b] = env.vlans(&[10, 20]).await[..] else {
@@ -1012,7 +1012,7 @@ async fn closed_vlan_refused(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vlan_read_required(pool: PgPool) {
     let env = Env::new(&pool).await;
     let [a] = env.vlans(&[10]).await[..] else {
@@ -1055,7 +1055,7 @@ async fn vlan_read_required(pool: PgPool) {
     assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn two_concurrent_attachments_one_wins(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1102,7 +1102,7 @@ async fn two_concurrent_attachments_one_wins(pool: PgPool) {
     assert_eq!(env.attachments(address).await.len(), 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vip_on_two_machines(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1130,7 +1130,7 @@ async fn vip_on_two_machines(pool: PgPool) {
     assert_eq!(env.attachments(host).await, vec![(e2, false, false)]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn usage_back_to_host_refused_when_shared(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1160,7 +1160,7 @@ async fn usage_back_to_host_refused_when_shared(pool: PgPool) {
     assert_eq!(env.attachments(single).await, vec![(e1, false, false)]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn two_primary_v4_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1182,7 +1182,7 @@ async fn two_primary_v4_refused(pool: PgPool) {
     assert_eq!(env.attachments(a6).await, vec![(e1, false, true)]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn attach_needs_address_read_only(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (env.entity("acme").await, env.entity("other").await);
@@ -1256,7 +1256,7 @@ impl Env {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn interface_role_values(pool: PgPool) {
     let env = Env::new(&pool).await;
     let role = env.property("machines.interface_role").await;
@@ -1304,7 +1304,7 @@ async fn interface_role_values(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn admin_adds_a_role_value(pool: PgPool) {
     let env = Env::new(&pool).await;
     let role = env.property("machines.interface_role").await;
@@ -1382,7 +1382,7 @@ impl Module for Inventory {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn foreign_module_property_on_a_machine(pool: PgPool) {
     let env = Env::with(&pool, vec![Arc::new(Inventory)]).await;
     let criticality = env.property("inventory.criticality").await;
@@ -1490,7 +1490,7 @@ fn update_interface(interface: Uuid, fields: Value) -> Operation {
     op("update_interface", object)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn each_warning_opens_and_closes(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -1583,7 +1583,7 @@ async fn each_warning_opens_and_closes(pool: PgPool) {
     assert!(!env.anomaly(vm, "machines.host.site_mismatch").await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vlan_change_on_network_reevaluates(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -1619,7 +1619,7 @@ async fn vlan_change_on_network_reevaluates(pool: PgPool) {
     assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_unrelated_changeset_raises_no_warning(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -1760,7 +1760,7 @@ impl Env {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_machine_lists_interfaces(pool: PgPool) {
     let env = Env::new(&pool).await;
     let m = env.create("m1", "physical", json!({})).await;
@@ -1782,7 +1782,7 @@ async fn closing_a_machine_lists_interfaces(pool: PgPool) {
     assert!(env.lives("machines.machine", m).await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn cascade_machine_closes_attachments(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1807,7 +1807,7 @@ async fn cascade_machine_closes_attachments(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn cascade_cluster_nullifies_hosts(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -1851,7 +1851,7 @@ async fn cascade_cluster_nullifies_hosts(pool: PgPool) {
     assert!(!env.lives("machines.cluster", cluster).await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_an_attached_address_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -1885,7 +1885,7 @@ async fn closing_an_attached_address_refused(pool: PgPool) {
     assert!(env.lives("machines.interface", e1).await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_used_vlan_cascades_to_interfaces(pool: PgPool) {
     let env = Env::new(&pool).await;
     let vlans = env.vlans(&[10, 20]).await;
@@ -1933,7 +1933,7 @@ fn vop_close(vlan: Uuid, cascade: bool) -> Operation {
     close("vlan.vlan", vlan, cascade)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn attachments_section_in_simulation(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -2048,7 +2048,7 @@ impl Module for Reader {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn dependent_module_reads_the_section(pool: PgPool) {
     let env = Env::with(&pool, vec![Arc::new(Reader)]).await;
     let lab = env
@@ -2086,7 +2086,7 @@ impl Env {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn undo_restores_attachments(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -2127,7 +2127,7 @@ impl Env {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn addresses_of_machine_with_roles(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -2183,7 +2183,7 @@ async fn addresses_of_machine_with_roles(pool: PgPool) {
     assert_eq!(of_eth1[0].interface_name, "eth1");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn attachments_of_address_as_of(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -2223,7 +2223,7 @@ async fn attachments_of_address_as_of(pool: PgPool) {
     assert_eq!(at_then[0].interface, e1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn machines_in_network_paginated(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env
@@ -2357,7 +2357,7 @@ impl Module for Probe {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn dependent_module_reads_in_transaction(pool: PgPool) {
     let env = Env::with(&pool, vec![Arc::new(Probe)]).await;
     let lab = env
@@ -2400,7 +2400,7 @@ async fn dependent_module_reads_in_transaction(pool: PgPool) {
 /// A machine of an address: machine, interface, first value and its origin, second value.
 type Held = (Uuid, Uuid, Option<Value>, Option<Uuid>, Option<Value>);
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn machine_values_of_addresses_batch(pool: PgPool) {
     let env = Env::with(&pool, vec![Arc::new(Inventory)]).await;
     let sensitivity = env.property("inventory.sensitivity").await;

@@ -17,7 +17,7 @@ fn lines(path: &std::path::Path) -> Vec<serde_json::Value> {
         .collect()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_instance_runs_and_stops_cleanly(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-run-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -112,7 +112,7 @@ async fn an_instance_runs_and_stops_cleanly(pool: PgPool) {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_audit_output_removed_from_the_configuration_is_audited(pool: PgPool) {
     // `siem` received events before; the new configuration no longer has it.
     sqlx::query(
@@ -146,7 +146,7 @@ async fn an_audit_output_removed_from_the_configuration_is_audited(pool: PgPool)
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_backlog_is_drained_in_one_tick(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-backlog-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
