@@ -312,3 +312,120 @@ async fn an_unreadable_object_is_absent_without_error(pool: PgPool) {
     .unwrap();
     assert_eq!(all.len(), f.addresses.len() * 2);
 }
+
+#[kartenn_testing::pg_test]
+async fn an_admin_enum_reads_in_batch_and_takes_a_module_obligation(pool: PgPool) {
+    // REQ-016-6 (G13): an axis an administrator declares is read by the grouped read and
+    // takes an obligation by domain, as a property of a module does (008-20).
+    let author: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let store = PgStore::new(pool.clone());
+    let submitted = |operations: Vec<Operation>| {
+        let store = store.clone();
+        async move {
+            let request = ChangesetRequest {
+                author,
+                motive: "test".into(),
+                period: None,
+                operations,
+                simulate: false,
+                idempotency_key: None,
+            };
+            submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }
+    };
+    let applied =
+        |outcome: Outcome| assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    applied(
+        submitted(vec![
+            Operation::DeclareProperty {
+                local: Some(1),
+                declaration: declaration(
+                    "custom.axis",
+                    TypeInput::ENUM,
+                    &["domain", "prefix"],
+                    Some("addressing"),
+                ),
+            },
+            Operation::AddEnumValue {
+                local: None,
+                property: Ref::Local(1),
+                key: "a".into(),
+            },
+            Operation::CreateDomain {
+                local: Some(2),
+                slug: "lab".into(),
+            },
+            Operation::CreateDomain {
+                local: Some(3),
+                slug: "bare".into(),
+            },
+            Operation::AssignProperty {
+                object: Ref::Local(2),
+                kind: ObjectKind::Domain,
+                property: Ref::Local(1),
+                values: vec![RawInput::Text("a".into())],
+            },
+        ])
+        .await,
+    );
+    let id = |sql: &'static str| sqlx::query_scalar::<_, Uuid>(sql).fetch_one(&pool);
+    let axis = id("SELECT id FROM property_declaration WHERE key = 'custom.axis'")
+        .await
+        .unwrap();
+    let lab = id("SELECT id FROM addressing_domain WHERE slug = 'lab'")
+        .await
+        .unwrap();
+    let bare = id("SELECT id FROM addressing_domain WHERE slug = 'bare'")
+        .await
+        .unwrap();
+    let required = |domain: Uuid| Operation::AddObligation {
+        property: Ref::Id(axis),
+        scope: kartenn_service::operations::ObligationInput::Domain { id: domain },
+    };
+    applied(submitted(vec![required(lab)]).await);
+    match submitted(vec![required(bare)]).await {
+        Outcome::Refused { violations, .. } => assert_eq!(
+            violations.iter().map(|v| v.rule.id).collect::<Vec<_>>(),
+            ["prop.assignment.required"]
+        ),
+        other => panic!("{other:?}"),
+    }
+    applied(
+        submitted(vec![Operation::CreatePrefix {
+            local: None,
+            domain: Ref::Id(lab),
+            prefix: "10.0.0.0/8".into(),
+            nature: Nature::Container,
+            point_to_point: false,
+            anycast: false,
+        }])
+        .await,
+    );
+    let net = id("SELECT id FROM prefix").await.unwrap();
+    let found = explain::resolved_many(
+        &pool,
+        &[lab, net],
+        &["custom.axis".to_owned()],
+        OffsetDateTime::now_utc(),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        found
+            .iter()
+            .map(|r| (r.value.as_deref(), r.chain.clone()))
+            .collect::<Vec<_>>(),
+        [
+            (Some(r#""a""#), vec![lab]),
+            (Some(r#""a""#), vec![net, lab])
+        ]
+    );
+}

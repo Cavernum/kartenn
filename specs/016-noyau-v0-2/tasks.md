@@ -108,8 +108,12 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     `kartenn-service/src/reads.rs`, `kartenn-bench`
   - dépend de : 2
   - débloque : 010-2 (qui devient l'appel de ce port), 010-4, 010-13
-- [ ] 5. Axe déclaré par l'administrateur — REQ-016-6 — verify :
+- [x] 5. Axe déclaré par l'administrateur — REQ-016-6 — verify :
   `an_admin_enum_reads_in_batch_and_takes_a_module_obligation`
+  — test seul (`kartenn-service/tests/it/grouped.rs`) : liste fermée `custom.axis`,
+  obligation ajoutée par changeset sur un domaine (l'autre refusé,
+  `prop.assignment.required`), héritage par un préfixe, lecture groupée avec chaînes
+  `[domaine]` et `[préfixe, domaine]`. Aucun code : le noyau le permettait déjà.
   - où : tests seuls (`kartenn-service/tests/it/`)
   - dépend de : 4
 
