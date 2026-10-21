@@ -41,6 +41,56 @@ pub struct Config {
     /// `/v1` and `/health`.
     #[serde(default)]
     pub web: Option<Web>,
+    /// Where the database is (spec 015); without it, its URL is the argument of the
+    /// subcommand.
+    #[serde(default)]
+    pub database: Option<Database>,
+}
+
+/// Where the database is (spec 015, REQ-015-4, design « Configuration de la base »).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Database {
+    /// A file holding the URL of the database (`postgres://…`), read at start: the URL,
+    /// which may carry a password, then stays off the command line (readable by every
+    /// user of the machine) and out of logs and errors.
+    pub url_file: Option<PathBuf>,
+}
+
+impl Config {
+    /// The URL of the database: the `argument` of the subcommand or the content of
+    /// `[database] url_file`, exactly one of them.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError::Invalid`] for neither or both, or a file unreadable or empty; the
+    /// message names the file, never its content.
+    pub fn database_url(&self, argument: Option<&str>) -> Result<String, ConfigError> {
+        let file = self.database.as_ref().and_then(|d| d.url_file.as_deref());
+        match (argument, file) {
+            (Some(url), None) => Ok(url.to_owned()),
+            (None, Some(file)) => {
+                let text = std::fs::read_to_string(file).map_err(|e| {
+                    ConfigError::Invalid(format!("database.url_file {}: {e}", file.display()))
+                })?;
+                let url = text.trim_end();
+                if url.is_empty() {
+                    return Err(ConfigError::Invalid(format!(
+                        "database.url_file {} is empty",
+                        file.display()
+                    )));
+                }
+                Ok(url.to_owned())
+            }
+            (Some(_), Some(file)) => Err(ConfigError::Invalid(format!(
+                "the database is given twice: as an argument and by database.url_file {}",
+                file.display()
+            ))),
+            (None, None) => Err(ConfigError::Invalid(
+                "no database: give its URL as an argument or set database.url_file".into(),
+            )),
+        }
+    }
 }
 
 /// The web shell and its plugins (spec 007, design « Configuration »).
@@ -1041,5 +1091,46 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("rooot"), "{error}");
+    }
+
+    #[test]
+    fn the_database_comes_from_the_argument_or_its_file_once() {
+        const URL: &str = "postgres://kartenn:s3cret@db.invalid/kartenn";
+        let dir = std::env::temp_dir().join(format!("kartenn-db-config-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("url");
+        let section = format!("[database]\nurl_file = \"{}\"", file.display());
+        // Unknown field, as everywhere.
+        let error = from_toml("[database]\nurl = \"x\"")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("url"), "{error}");
+        // The argument alone.
+        assert_eq!(from_toml("").unwrap().database_url(Some(URL)).unwrap(), URL);
+        // The file alone, its final newline dropped.
+        std::fs::write(&file, format!("{URL}\n")).unwrap();
+        let config = from_toml(&section).unwrap();
+        assert_eq!(config.database_url(None).unwrap(), URL);
+        // Neither, both, an empty file, an unreadable one: refused, the URL never shown.
+        let refusals = [
+            from_toml("").unwrap().database_url(None).unwrap_err(),
+            config.database_url(Some(URL)).unwrap_err(),
+            {
+                std::fs::write(&file, " \n").unwrap();
+                config.database_url(None).unwrap_err()
+            },
+            {
+                std::fs::write(&file, URL).unwrap();
+                from_toml(&section.replace("url\"", "absent\""))
+                    .unwrap()
+                    .database_url(None)
+                    .unwrap_err()
+            },
+        ];
+        for error in refusals {
+            let error = error.to_string();
+            assert!(!error.contains("s3cret"), "{error}");
+            assert!(error.contains("database"), "{error}");
+        }
     }
 }
