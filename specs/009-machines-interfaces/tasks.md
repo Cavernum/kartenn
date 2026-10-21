@@ -237,10 +237,20 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   `bench-runner`)
   où : `kartenn-bench` ; 008 tâche 16
   dépend de : 10 ; 008 : 16
-- [ ] 13. Plugin `web/plugins/machines` — REQ-009-20 — verify : parcours Playwright
+- [x] 13. Plugin `web/plugins/machines` — REQ-009-20 — verify : parcours Playwright
   `web/e2e/journeys/machines.spec.ts` avec axe-core
   où : design « Interface » ; plugin VLAN (008, tâche 17)
   dépend de : 10 ; 008 : 17
+  — `web/plugins/machines/` (manifeste `"module": "machines"`, six éléments : vues des
+  machines, des clusters et des interfaces, onglet « Machines » d'une adresse et d'un
+  réseau, colonne machine des adresses, action « rattacher à une interface » ; catalogues
+  FR/EN ; Vitest `test/machines.test.ts`), `e2e/journeys/machines.spec.ts` (machine,
+  interface, mode d'accès sur un VLAN, rattachement par l'action, onglet, colonne ; axe à
+  chaque étape), `e2e/serve.sh` (construction du plugin), `vitest.config.ts`.
+  choix : la vue des machines porte la création des interfaces et le mode 802.1Q (aucun
+  ou accès ; le trunk reste à l'API) ; écritures sous l'`If-Match` de l'interface relu
+  juste avant ; la colonne et l'onglet d'une adresse lisent `GET /v1/interfaces?address=`,
+  l'onglet d'un réseau `GET /v1/machines?network=`.
 - [ ] 14. Synchronisation : `docs/spec/` (data : schéma `machines` ; interfaces : routes,
   opérations, port de lecture ; permissions), spec passée à `implemented` — verify :
   rapport `spec-keeper` sans écart bloquant

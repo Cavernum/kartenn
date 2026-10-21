@@ -1,0 +1,55 @@
+{
+  "name": "machines",
+  "version": "1.0.0",
+  "sdk": "^0.1",
+  "entry": "index.js",
+  "module": "machines",
+  "catalogs": { "fr": "i18n/fr.json", "en": "i18n/en.json" },
+  "extensions": [
+    {
+      "point": "view",
+      "id": "machines",
+      "element": "machines-machines",
+      "nav": "nav.machines",
+      "permission": "machines.machine.read"
+    },
+    {
+      "point": "view",
+      "id": "clusters",
+      "element": "machines-clusters",
+      "nav": "nav.clusters",
+      "permission": "machines.cluster.read"
+    },
+    {
+      "point": "view",
+      "id": "interfaces",
+      "element": "machines-interfaces",
+      "nav": "nav.interfaces",
+      "permission": "machines.interface.read"
+    },
+    {
+      "point": "tab",
+      "id": "held-by",
+      "element": "machines-tab",
+      "object_types": ["address", "prefix"],
+      "label": "tab.label",
+      "permission": "machines.machine.read"
+    },
+    {
+      "point": "column",
+      "id": "machine",
+      "element": "machines-column",
+      "object_types": ["address"],
+      "label": "column.label",
+      "permission": "machines.interface.read"
+    },
+    {
+      "point": "action",
+      "id": "attach",
+      "element": "machines-attach",
+      "object_types": ["address"],
+      "label": "action.label",
+      "permission": "machines.interface.write"
+    }
+  ]
+}
