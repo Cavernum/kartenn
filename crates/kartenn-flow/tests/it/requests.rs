@@ -29,21 +29,21 @@ use sqlx::types::time::OffsetDateTime;
 /// flow it creates (`core.owner`, set by the module in the changeset).
 const REQUEST: &[&str] = &["flow.flow.request", "prop.core.owner.write"];
 
-struct Env {
-    pool: PgPool,
-    store: PgStore,
-    author: Uuid,
+pub(crate) struct Env {
+    pub(crate) pool: PgPool,
+    pub(crate) store: PgStore,
+    pub(crate) author: Uuid,
     acme: Uuid,
-    domain: Uuid,
+    pub(crate) domain: Uuid,
 }
 
-fn policy(name: &str, fields: Value) -> Operation {
+pub(crate) fn policy(name: &str, fields: Value) -> Operation {
     let mut object = fields;
     object["op"] = format!("policy.{name}").into();
     serde_json::from_value(object).unwrap()
 }
 
-fn flow(name: &str, fields: Value) -> Operation {
+pub(crate) fn flow(name: &str, fields: Value) -> Operation {
     let mut object = fields;
     object["op"] = format!("flow.{name}").into();
     serde_json::from_value(object).unwrap()
@@ -53,7 +53,7 @@ impl Env {
     /// The modules, the entity `acme`, the domain `lab` it owns, and the policy: the
     /// environments `prod` and `dev`, the service `ssh` of the flow type `admin`, and the
     /// rule « prod to dev for admin ».
-    async fn new(pool: &PgPool) -> Self {
+    pub(crate) async fn new(pool: &PgPool) -> Self {
         let registry = Arc::new(
             ModuleRegistry::new(vec![
                 Arc::new(Vlan),
@@ -140,7 +140,7 @@ impl Env {
     }
 
     #[allow(clippy::unused_self)] // a request of the environment, as its helpers read
-    fn request(&self, author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
+    pub(crate) fn request(&self, author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         ChangesetRequest {
             author,
             motive: "test".into(),
@@ -151,7 +151,7 @@ impl Env {
         }
     }
 
-    async fn submit_as<A: Authorizer>(
+    pub(crate) async fn submit_as<A: Authorizer>(
         &self,
         authorizer: &A,
         author: Uuid,
@@ -167,13 +167,13 @@ impl Env {
         .unwrap()
     }
 
-    async fn applied(&self, operations: Vec<Operation>) -> Outcome {
+    pub(crate) async fn applied(&self, operations: Vec<Operation>) -> Outcome {
         let outcome = self.submit_as(&Unrestricted, self.author, operations).await;
         assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
         outcome
     }
 
-    async fn property(&self, key: &str) -> Uuid {
+    pub(crate) async fn property(&self, key: &str) -> Uuid {
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = $1")
             .bind(key)
             .fetch_one(&self.pool)
@@ -192,7 +192,7 @@ impl Env {
     }
 
     /// An address of a network of the domain classified `environment`.
-    async fn address(&self, network: &str, address: &str, environment: &str) -> Uuid {
+    pub(crate) async fn address(&self, network: &str, address: &str, environment: &str) -> Uuid {
         let property = self.property("policy.environment").await;
         self.applied(vec![
             Operation::CreatePrefix {
@@ -232,7 +232,7 @@ impl Env {
     }
 
     /// The fields of a flow `ssh` from `source` to `destination` for `acme`.
-    async fn fields(&self, source: Uuid, destination: Uuid) -> Value {
+    pub(crate) async fn fields(&self, source: Uuid, destination: Uuid) -> Value {
         json!({
             "local": 1,
             "source": { "kind": "address", "id": { "id": source } },

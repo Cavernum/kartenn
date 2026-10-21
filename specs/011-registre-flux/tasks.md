@@ -118,13 +118,42 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     s'il recouvre la période à partir du début de la clôture (actif ou à venir) ; la
     restauration ne rétablit que la ligne du flux, pas ses tables dérivées (recalculées
     par la réévaluation, 011-5).
-- [ ] 5. Réévaluation dans la transaction (flux touchés par les sections 003, 009, 010,
+- [x] 5. Réévaluation dans la transaction (flux touchés par les sections 003, 009, 010,
   recalcul segmenté avec dossier, écriture des seuls segments changés), évaluation figée
   à l'enregistrement, différentiel des flux — REQ-011-11, 12, 13, 23 — verify : cas
   d'acceptation de REQ-011-11 et 13 ; oracle contre recalcul complet sur suites
   aléatoires ; changement de règle d'inférence sans réévaluation
   - où : `Module::diff` (tâche 008-19), `kartenn-policy/src/evaluate.rs`
   - dépend de : 3
+  - fait (2026-10-22) : `src/reevaluation.rs` (flux touchés : écrits par le changeset,
+    extrémité, service ou adresse développée parmi les objets écrits, du différentiel des
+    propriétés ou de `machines.attachments`, adresse ou extrémité dont l'origine d'une
+    valeur est un tel objet, machine portant une adresse d'extrémité ; tous les flux
+    vivants quand le changeset écrit la politique hors règles d'inférence ; recalcul de
+    maintenant à la fin du flux, coupé aux bornes des versions de la politique, des
+    rattachements, des origines et valeurs lues et d'un préfixe extrémité ; comparaison
+    à l'état stocké, segments contigus égaux fusionnés, réécriture seulement s'il
+    diffère ; section `flow.flows` : décompte `breaks`, `heals`, `outcome` puis un rang
+    par flux existant dont la synthèse, un verdict ou l'issue bascule, avant, après et
+    élément décisif ; `drift`, l'oracle), `src/pg.rs` (`state_of`, `read_states`,
+    `write_states` remplacent `write_evaluation`), `src/handler.rs` (`diff` ; `check`
+    n'écrit plus l'évaluation). Tests `crates/kartenn-flow/tests/it/reevaluation.rs` :
+    REQ-011-11 (conteneur `{dev}` inséré au-dessus de la source : flux refusé dans le
+    changeset accepté, enregistrement figé), REQ-011-13 (retrait de la règle : la
+    simulation annonce 3 flux `allowed → denied` sans rien écrire, puis l'application),
+    écriture de la politique sans changement de verdict : aucune réécriture ni section,
+    oracle sur trois suites aléatoires (classements présents et à venir, règles créées et
+    closes, demandes).
+  - choix : l'écriture d'une politique réévalue tous les flux vivants (filtre par service
+    et valeurs d'axes reporté au banc, tâche 10) ; la règle d'inférence n'a pas encore
+    d'opération : son exclusion est celle de tout type de la politique dont le nom porte
+    `inference`, et le test vérifie l'absence de réécriture sur une écriture de politique
+    neutre ; la réécriture porte sur tout le flux à partir de maintenant quand un segment
+    change ; la révision de politique ne compte pas dans la comparaison ; un flux créé
+    par le changeset n'a pas de rang dans la section (il a son triage) ; `breaks` compte
+    les flux qui passent à `denied` (synthèse absente comprise), `heals` l'inverse ;
+    héritiers d'une valeur à venir absents du différentiel des propriétés (fenêtre
+    future) : rattrapés par l'index des origines ; anomalies et déclencheurs en tâche 6.
 - [ ] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
   l'installation), `flow.waiver` ; anomalies `flow.verdict.denied` ouvertes et fermées ;
   crochet de rejet (N38) et `flow_rejection` — REQ-011-6, 12, 25 — verify : politique

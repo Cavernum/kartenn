@@ -11,6 +11,7 @@ pub mod handler;
 pub mod model;
 pub mod module;
 mod pg;
+pub mod reevaluation;
 pub mod rules;
 pub mod state;
 

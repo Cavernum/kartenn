@@ -15,8 +15,8 @@ use kartenn_core::period::{Instant, Period};
 use kartenn_core::rules::Violation;
 use kartenn_policy::evaluate::{Outcome as PolicyOutcome, SynthesisVerdict};
 use kartenn_service::module::{
-    BoxFuture, CheckContext, EndContext, Ending, Findings, ModuleHandler, ModuleObjectRow,
-    ModulePlan, ModuleTx, Reference,
+    BoxFuture, CheckContext, DiffContext, DiffSection, EndContext, Ending, Findings, ModuleHandler,
+    ModuleObjectRow, ModulePlan, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -644,15 +644,8 @@ impl Handler {
         if created {
             let at = flow.period.start().max(now_instant);
             let at_time = pg::time(at);
+            // Its evaluation is written by the section of the differential (`diff`).
             let evaluated = evaluate_flow(conn, flow, at_time).await?;
-            pg::write_evaluation(
-                conn,
-                id,
-                &evaluated,
-                (at_time, flow.period.end().map(pg::time)),
-                changeset,
-            )
-            .await?;
             let summary = evaluated.summary;
             let compliant = summary.is_some_and(|s| {
                 s.verdict == SynthesisVerdict::Allowed && s.outcome == PolicyOutcome::Automatic
@@ -845,6 +838,14 @@ impl ModuleHandler for Handler {
             let (at, _) = pg::bounds(period);
             pg::referrers(connection(tx)?, reference.to, target, at).await
         })
+    }
+
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        Box::pin(async move { crate::reevaluation::section(connection(tx)?, context).await })
     }
 
     fn check<'a>(
