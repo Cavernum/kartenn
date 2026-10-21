@@ -46,8 +46,39 @@ kartenn)
   exec env SSL_CERT_FILE="$state/ca.pem" \
     "$bin/kartenn-server" run "$database" web/e2e/kartenn.toml
   ;;
+budgets)
+  # The instance of the browser bench (REQ-007-32, `bench-web`): kartenn-server in release
+  # on the kartenn_bench database, migrated then loaded by `kartenn-bench seed` (the
+  # dataset of bench-core and a container of 10⁵ networks, whose ids go to
+  # .state/budgets.env), with the example plugin and a plugin that loads too slowly; the
+  # break-glass account `e2e` as above, for budgets/global-setup.ts.
+  release=${CARGO_TARGET_DIR:-target}/release
+  cargo build -q --release -p kartenn-server -p kartenn-bench
+  pnpm -C web --filter @kartenn/shell --filter @kartenn/plugin-example build >/dev/null
+  rm -rf "$state/plugins"
+  mkdir -p "$state/plugins"
+  cp -R web/e2e/budgets/plugins/. web/dist/plugins/example "$state/plugins/"
+  database="${DATABASE_URL%/*}/kartenn_bench"
+  psql "$DATABASE_URL" -q -c 'DROP DATABASE IF EXISTS kartenn_bench WITH (FORCE)' \
+    -c 'CREATE DATABASE kartenn_bench'
+  "$release/kartenn-server" migrate "$database" >/dev/null
+  "$release/kartenn-bench" seed "$database" "${BENCH_SEED:-42}" ${BENCH_SMALL:+small} \
+    >"$state/budgets.env"
+  "$release/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
+    >"$state/breakglass.txt"
+  psql "$database" -q -c "
+    INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, valid_period,
+                         changeset_id)
+    SELECT DISTINCT gen_random_uuid(), 'identity', p.id, r.id, 'global',
+           tstzrange(now(), NULL), gen_random_uuid()
+      FROM person p, role r
+     WHERE p.kind = 'breakglass' AND p.display_name = 'e2e'
+       AND r.key = 'administrator' AND upper_inf(r.valid_period)"
+  exec env SSL_CERT_FILE="$state/ca.pem" \
+    "$release/kartenn-server" run "$database" web/e2e/kartenn.toml
+  ;;
 *)
-  echo "usage: serve.sh idp|kartenn" >&2
+  echo "usage: serve.sh idp|kartenn|budgets" >&2
   exit 2
   ;;
 esac

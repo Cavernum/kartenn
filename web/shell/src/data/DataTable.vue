@@ -74,6 +74,17 @@ watch(
   { immediate: true },
 );
 
+// Rows drawn after a page came (REQ-007-32): the browser bench measures from the end of
+// the response of the page to this mark.
+watch(
+  () => props.rows.length,
+  async (count, before) => {
+    if (count <= before) return;
+    await nextTick();
+    performance.mark("k:rows", { detail: { count } });
+  },
+);
+
 async function focusRow(index: number): Promise<void> {
   if (props.rows.length === 0) return;
   active.value = Math.max(0, Math.min(index, props.rows.length - 1));

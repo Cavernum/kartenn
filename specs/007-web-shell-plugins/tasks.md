@@ -588,13 +588,27 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   tâche 20 ; `[web] plugins_dir` non ajouté à `dev/kartenn.toml` : la configuration
   exige un répertoire existant, relatif au répertoire courant, ce que le test
   `the_development_configuration_is_valid` (lancé depuis le crate) ne trouve pas.
-- [ ] 24. Banc `bench-web` : taille du shell, `kartenn-bench seed` et domaine à 10⁵
+- [x] 24. Banc `bench-web` : taille du shell, `kartenn-bench seed` et domaine à 10⁵
   enfants, projet Playwright `budgets` (premier écran, page de 100 lignes, arbre, plugin
   lent) — REQ-007-32 — verify : chaque mesure sous son budget, sortie non nulle sinon ;
   référence consignée dans la note de clôture
   où : design « Budgets » ; `devenv.nix` (`scripts.bench-http` à imiter) ;
   `kartenn-bench/src/main.rs` (sous-commandes), `lib.rs` (`Dataset`) ; agent
   `bench-runner`
+  — `devenv.nix` (`scripts.bench-web [graine] [small]`, sous `k-heavy --pg`) ;
+  `web/shell/scripts/size.mjs` (manifeste de Vite, `build.manifest`) ;
+  `kartenn-bench seed` (`core_budgets::seed`, `wide_container` partagé avec le banc des
+  enfants) ; `web/e2e/serve.sh budgets` (kartenn-server en release sur `kartenn_bench`,
+  plugin d'exemple et plugin `slow`) ; `web/e2e/budgets.config.ts`, `budgets/global-setup.ts`,
+  `budgets/budgets.spec.ts` ; marques `k:ready` (`PrefixTree.vue`, racines dessinées) et
+  `k:rows` (`DataTable.vue`, lignes dessinées). Référence du 2026-10-21, graine 42, jeu
+  complet, CPU ×4 : shell initial 123 858 o gzip -9 (≤ 300 000) ; premier écran 451 ms
+  (≤ 2 s) ; page de 100 lignes 22 ms p95 sur 20 (≤ 100 ms) ; 10 011 lignes du conteneur
+  de 10⁵ atteintes en 10 s, aucune tâche longue (> 50 ms) ; plugin `slow` écarté à 5 s.
+  choix : premier écran compté depuis `fetchStart` du document du shell (après les
+  redirections du rappel) ; la page de 100 lignes est mesurée sur `/addresses` ; le
+  groupe d'`alice` lié à `reader` par l'API sous la session de secours, comme les
+  parcours.
 - [x] 25. Accessibilité de bout en bout : parcours entier au clavier (arbre, table,
   dialogue, menu d'actions), axe dans chaque parcours vérifié par un test, revue des
   écrans des tâches 13 à 23 — REQ-007-33 — verify : `k-web-e2e` vert ; un fichier de

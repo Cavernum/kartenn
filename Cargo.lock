@@ -1748,6 +1748,7 @@ name = "kartenn-bench"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "axum",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -1758,6 +1759,7 @@ dependencies = [
  "kartenn-server",
  "kartenn-service",
  "kartenn-store-pg",
+ "kartenn-vlan",
  "kartenn-workspace-hack",
  "opentelemetry-proto",
  "p256",
@@ -1769,6 +1771,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic",
+ "tower",
  "tracing",
  "tracing-subscriber",
  "uuid",

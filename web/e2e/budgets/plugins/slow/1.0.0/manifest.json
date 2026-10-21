@@ -1,0 +1,8 @@
+{
+  "name": "slow",
+  "version": "1.0.0",
+  "sdk": "^0.1",
+  "entry": "index.js",
+  "catalogs": { "en": "i18n/en.json" },
+  "extensions": [{ "point": "view", "id": "view", "element": "slow-view", "nav": "nav.view" }]
+}

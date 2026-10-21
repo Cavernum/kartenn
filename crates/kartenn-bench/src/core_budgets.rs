@@ -3,7 +3,7 @@
 //! and as known in the past, a filtered page, a subtree with its occupancy (now and as
 //! known in the past, task 006-12d), a unitary changeset, a sustained rate of unitary
 //! changesets and an import of as many addresses as the dataset holds, through the real
-//! service and storage adapter.
+//! service and storage adapter; then those of the VLAN module (task 008-16).
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -201,6 +201,64 @@ fn import_items(count: usize) -> Vec<ImportItem> {
         }
     }
     items
+}
+
+/// A domain `slug` whose container `root` has `children` direct networks `/30`, written
+/// as the dataset is (spec 007, REQ-007-39 and 32); returns the domain and the container.
+///
+/// # Errors
+///
+/// Database failures.
+pub(crate) async fn wide_container(
+    pool: &PgPool,
+    slug: &str,
+    root: &str,
+    children: i32,
+) -> anyhow::Result<(Uuid, Uuid)> {
+    let (domain, container): (Uuid, Uuid) = sqlx::query_as(
+        "WITH d AS (
+           INSERT INTO addressing_domain (id, slug, valid_period, changeset_id)
+           VALUES (gen_random_uuid(), $1, tstzrange('2026-01-01', NULL), gen_random_uuid())
+           RETURNING id),
+         c AS (
+           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                               valid_period, changeset_id)
+           SELECT gen_random_uuid(), d.id, $2::cidr, 'container', false,
+                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
+           FROM d RETURNING id, domain_id),
+         n AS (
+           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                               valid_period, changeset_id)
+           SELECT gen_random_uuid(), d.id,
+                  set_masklen(host($2::cidr)::inet + 4 * i, 30)::cidr, 'network', false,
+                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
+           FROM d, generate_series(0, $3 - 1) i)
+         SELECT domain_id, id FROM c",
+    )
+    .bind(slug)
+    .bind(root)
+    .bind(children)
+    .fetch_one(pool)
+    .await?;
+    sqlx::query("ANALYZE prefix").execute(pool).await?;
+    Ok((domain, container))
+}
+
+/// Loads the dataset of `bench-core` into the database at `database`, already migrated by
+/// `kartenn-server migrate`, and a domain `bench-web` whose container has 10⁵ networks
+/// (spec 007, REQ-007-32: the budgets of the browser); returns the line
+/// `domain=<id> container=<id>` for the browser bench.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+pub async fn seed(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<String> {
+    let Prepared { pool, .. } = prepare(database, data, seed).await?;
+    let (domain, container) = wide_container(&pool, "bench-web", "100.64.0.0/13", 100_000).await?;
+    sqlx::raw_sql("VACUUM ANALYZE prefix")
+        .execute(&pool)
+        .await?;
+    Ok(format!("domain={domain} container={container}\n"))
 }
 
 /// The prepared database: the dataset loaded with three years of history, an author, and
@@ -435,30 +493,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
 
     // A page of 100 children of a container with 10⁴ of them, after a cursor and as known
     // when the first page was read, as the API reads it (task 007-18): a domain of its own.
-    let wide: Uuid = sqlx::query_scalar(
-        "WITH d AS (
-           INSERT INTO addressing_domain (id, slug, valid_period, changeset_id)
-           VALUES (gen_random_uuid(), 'bench-wide', tstzrange('2026-01-01', NULL),
-                   gen_random_uuid())
-           RETURNING id),
-         c AS (
-           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
-                               valid_period, changeset_id)
-           SELECT gen_random_uuid(), d.id, '100.64.0.0/16', 'container', false,
-                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
-           FROM d RETURNING id),
-         n AS (
-           INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
-                               valid_period, changeset_id)
-           SELECT gen_random_uuid(), d.id,
-                  set_masklen('100.64.0.0'::inet + 4 * i, 30)::cidr, 'network', false,
-                  '2025-10-09', tstzrange('2026-01-01', NULL), gen_random_uuid()
-           FROM d, generate_series(0, 9999) i)
-         SELECT id FROM c",
-    )
-    .fetch_one(&pool)
-    .await?;
-    sqlx::query("ANALYZE prefix").execute(&pool).await?;
+    let (_, wide) = wide_container(&pool, "bench-wide", "100.64.0.0/16", 10_000).await?;
     let parent = prefix_as_of(&pool, wide, now, None)
         .await?
         .context("the wide container is missing")?;
@@ -586,6 +621,9 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         note: format!("{count} addresses, {} batches", status.applied),
     });
     progress(&format!("import: {:?}", started.elapsed()));
+
+    // The VLAN module on the same dataset (spec 008, REQ-008-25).
+    budgets.extend(crate::vlan_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
 
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);

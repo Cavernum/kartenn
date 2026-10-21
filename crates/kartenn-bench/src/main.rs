@@ -19,6 +19,11 @@
 //! `kartenn-bench telemetry <database-url> <seed> [small]`: the overhead of the telemetry
 //! on those budgets, in three configurations (REQ-012-23), and the volume of the audit
 //! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
+//!
+//! `kartenn-bench seed <database-url> <seed> [small]`: loads the dataset of `core`, and a
+//! domain whose container has 10⁵ networks, into a database migrated by
+//! `kartenn-server migrate`, for the budgets of the browser (`bench-web`, REQ-007-32);
+//! prints `domain=<id> container=<id>`.
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -58,6 +63,14 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
+        [command, database, seed, rest @ ..] if command == "seed" => {
+            let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
+            let data = generate(seed, scale(rest));
+            let line = tokio::runtime::Runtime::new()?
+                .block_on(kartenn_bench::core_budgets::seed(database, &data, seed))?;
+            print!("{line}");
+            Ok(())
+        }
         [command, database, seed, rest @ ..] if command == "telemetry" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let small = rest.first().map(String::as_str) == Some("small");
@@ -83,7 +96,7 @@ fn main() -> anyhow::Result<()> {
             ))
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|telemetry <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|telemetry|seed <database-url> <seed> [small]"
         ),
     }
 }
