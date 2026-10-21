@@ -16,7 +16,7 @@ touche aucun `tests/` existant.
 Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest list
 --workspace --all-features` avant et après, `k-check` complet vert.
 
-- [ ] 1. Moteur et attribut. Crates `kartenn-testing` (moteur `run(test_path, variante,
+- [x] 1. Moteur et attribut. Crates `kartenn-testing` (moteur `run(test_path, variante,
   corps)`) et `kartenn-testing-macros` (attribut `#[kartenn_testing::pg_test]`),
   `publish = false`, dans le `workspace-hack` (hakari). Gabarit `_kt_tpl_<empreinte>`
   (SHA-256 des couples version et somme de contrôle de `MIGRATOR`) construit sous
@@ -41,9 +41,9 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   `a_failed_test_keeps_its_database_a_passed_one_drops_it`,
   `the_application_role_keeps_its_grants_on_a_clone`, plus l'attribut sur `()` et
   `Result`, et `#[ignore]` conservé. `kartenn-testing-clean` essayé sous `k-heavy --pg`
-  (bases `_sqlx_test_` restantes supprimées, gabarit récent gardé). **Reste** : appeler
-  `cargo run -q -p kartenn-testing --bin kartenn-testing-clean` dans `scripts.k-check`
-  (devenv.nix), sous `k-heavy --pg`, avant nextest.
+  (bases `_sqlx_test_` restantes supprimées, gabarit récent gardé). Câblé ensuite dans
+  `scripts.k-check` (devenv.nix) : binaire construit sous un créneau, lancé sous
+  `k-heavy --pg` avant nextest ; un échec du nettoyage est signalé sans arrêter `k-check`.
   choix : le migrateur est passé par l'attribut (aucune dépendance de `kartenn-testing`
   sur `kartenn-store-pg`) ; la construction concurrente est éprouvée par 8 fils, chacun
   avec son runtime et sa connexion, plutôt que 8 processus ; `clean` n'a pas de test

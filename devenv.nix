@@ -221,6 +221,13 @@ in {
       if ! k-heavy cargo nextest run --no-run $ws --all-features "$@" >"$log/build" 2>&1; then
         echo "KO build ($log/build)"; grep -E '^error|^ *--> ' "$log/build" | head -40; exit 1
       fi
+      # Stale test databases and templates (ADR 0028), dropped under the lock: no other
+      # suite is running then.
+      if [ -d crates/kartenn-testing ]; then
+        k-heavy cargo build -q -p kartenn-testing --bin kartenn-testing-clean >>"$log/build" 2>&1 &&
+          k-heavy --pg cargo run -q -p kartenn-testing --bin kartenn-testing-clean >"$log/clean" 2>&1 ||
+          echo "k-check: nettoyage des bases de test en échec ($log/clean)" >&2
+      fi
       if ! k-heavy --pg cargo nextest run $ws --all-features --hide-progress-bar \
           --status-level fail --final-status-level fail --failure-output final "$@" >"$log/test" 2>&1; then
         echo "KO tests ($log/test)"
