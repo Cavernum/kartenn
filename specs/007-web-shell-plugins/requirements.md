@@ -299,8 +299,9 @@ le serveur restant seul juge, un 403 ou une violation `core.object.forbidden` do
 présenté comme un refus, sans perte de saisie. [W17, REQ-006-23]
 
 Acceptation :
-- Un lecteur ne voit pas « Modifier » ; une requête forcée reçoit 403 et le shell
-  l'affiche.
+- Un lecteur ne voit pas « Modifier » ; une requête forcée reçoit un refus (la violation
+  `core.object.forbidden`, 422, pour une écriture hors périmètre ; 403 pour une route
+  refusée, 008/V16) et le shell l'affiche.
 
 #### REQ-007-21 — Plugin d'exemple
 kartenn doit fournir un plugin d'exemple (`web/plugins/example/`), écrit sans framework,

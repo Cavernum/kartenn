@@ -221,6 +221,15 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
   deux requêtes simultanées avec le même code n'en ouvrent qu'une) et ouvre une session
   d'au plus 1 h (006) ; 100 échecs consécutifs (phrase ou code faux, comptés en base)
   désactivent le compte et produisent `authn.account.locked`.
+- **Amorçage (K17)** : dans la même transaction, la sous-commande écrit une liaison
+  `binding (subject_kind = identity, subject_id = <identité du compte>, role =
+  administrator, scope_kind = global)` sur la période `[création, valid_until)`, avec sa
+  trace d'historique, directement par l'adaptateur (`kartenn_store_pg::breakglass::create`)
+  et non par le pipeline : la sous-commande n'a pas d'identité appelante. La liaison
+  prend fin avec le compte ; un compte désactivé n'ouvre plus de session, donc plus
+  d'effet. `account.breakglass.created` porte `role` et `scope` en détail. Les parcours
+  de bout en bout (`web/e2e/serve.sh`), qui posent aujourd'hui ce rôle en SQL, passeront
+  par la sous-commande.
 
 ### Configuration
 

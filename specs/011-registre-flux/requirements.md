@@ -283,5 +283,5 @@ non-conformités < 150 ms ; réévaluation complète en tâche de fond < 5 min (
 
 ## Questions ouvertes
 
-- [ ] Durées maximales par défaut d'une instruction (12 mois) et d'une dérogation
-  (6 mois) : réglables ; valeurs à confirmer. (utilisateur)
+- [x] Durées maximales par défaut d'une instruction (12 mois) et d'une dérogation
+  (6 mois) : réglables ; valeurs confirmées par l'utilisateur le 2026-10-21 (F5, F6).

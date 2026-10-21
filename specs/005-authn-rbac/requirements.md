@@ -185,10 +185,15 @@ l'audit (REQ-012-19). [K14]
 #### REQ-005-14 — Création hors API
 kartenn ne doit créer un compte humain de secours que par une sous-commande du binaire
 exécutée avec le rôle propriétaire du schéma, pour une durée de validité bornée ; aucun
-n'existe par défaut. [K9]
+n'existe par défaut. La même sous-commande doit lier l'identité du compte au rôle livré
+`administrator`, portée globale, jusqu'à la fin de validité du compte : c'est la seule
+voie d'amorçage d'une instance neuve. [K9, K17]
 
 Acceptation :
 - Aucune opération de l'API ni du pipeline ne crée ni ne modifie un compte de secours.
+- Sur une instance neuve, un compte créé par la sous-commande ouvre une session de secours
+  qui peut lier un groupe OIDC à un rôle ; `account.breakglass.created` nomme le rôle et
+  la portée ; après `valid_until`, la liaison n'a plus d'effet.
 
 #### REQ-005-15 — Deux facteurs
 kartenn doit exiger d'un compte de secours un mot de passe d'au moins 15 caractères,

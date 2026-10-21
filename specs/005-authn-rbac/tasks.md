@@ -1,6 +1,6 @@
 ---
-status: implemented
-updated: 2026-10-18
+status: in-progress
+updated: 2026-10-21
 ---
 
 # 005 — Authentification et RBAC : tâches
@@ -157,3 +157,14 @@ les fonctions qu'elles appelleront et les teste par des appels directs.
   (`kartenn-store-pg/src/undo.rs`, lignes supprimées retrouvées par la fin de leur
   historique à l'instant d'application), `undo::rbac_inverse` (`tests/undo.rs`,
   `tests/rbac.rs::an_undo_cannot_escalate`)
+- [ ] 19. Amorçage d'une instance neuve (K17) : `breakglass create` lie l'identité du
+  compte au rôle `administrator`, portée globale, jusqu'à `valid_until`, dans la même
+  transaction, avec trace d'historique ; `account.breakglass.created` nomme rôle et
+  portée — REQ-005-14 — verify : instance neuve, `breakglass create`, connexion de
+  secours, puis liaison d'un groupe OIDC acceptée ; l'événement d'audit porte rôle et
+  portée ; après `valid_until` (horloge du test), la liaison ne donne plus de droit ;
+  `web/e2e/serve.sh` n'écrit plus le rôle en SQL et les parcours passent
+  où : `kartenn-store-pg/src/breakglass.rs` (`create`), `kartenn-server/src/main.rs`
+  (`create_breakglass`), table `binding` (design « Modèle ») ; tests à la manière de
+  `kartenn-server/tests/it/` et `kartenn-store-pg/tests/it/` ; `web/e2e/serve.sh`
+  dépend de : —
