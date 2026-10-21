@@ -1619,6 +1619,72 @@ async fn vlan_change_on_network_reevaluates(pool: PgPool) {
     assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
 }
 
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn an_unrelated_changeset_raises_no_warning(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    // Three open anomalies: a MAC on two interfaces, a VLAN foreign to an interface, a
+    // guest on another site than its host.
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![
+        update_interface(e1, json!({"mac": "00:1b:21:0a:0b:0c"})),
+        update_interface(e2, json!({"mac": "00:1b:21:0a:0b:0c"})),
+    ])
+    .await;
+    let vlans = env.vlans(&[10, 20]).await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    env.applied(vec![
+        update_interface(
+            e1,
+            json!({"vlan": {"mode": "access", "access": {"id": vlans[1]}}}),
+        ),
+        attach(e1, address, false),
+    ])
+    .await;
+    env.applied(vec![Operation::CreateSite {
+        local: None,
+        slug: "lyon".into(),
+        parent: None,
+    }])
+    .await;
+    let (paris, lyon) = (
+        env.id("site", "slug", "paris").await,
+        env.id("site", "slug", "lyon").await,
+    );
+    let host = env
+        .create("host1", "physical", json!({"site": {"id": paris}}))
+        .await;
+    let vm = env
+        .create(
+            "vm1",
+            "virtual",
+            json!({"host": {"machine": {"id": host}}, "site": {"id": lyon}}),
+        )
+        .await;
+    assert!(env.anomaly(e1, "machines.mac.duplicate").await);
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    assert!(env.anomaly(vm, "machines.host.site_mismatch").await);
+    // A changeset that touches none of them: no warning, and the anomalies stay open.
+    let unrelated = vec![Operation::CreateSite {
+        local: None,
+        slug: "nantes".into(),
+        parent: None,
+    }];
+    let warnings = env.simulated_warnings(unrelated.clone()).await;
+    assert!(
+        !warnings.iter().any(|rule| rule.starts_with("machines.")),
+        "{warnings:?}"
+    );
+    env.applied(unrelated).await;
+    assert!(env.anomaly(e2, "machines.mac.duplicate").await);
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    assert!(env.anomaly(vm, "machines.host.site_mismatch").await);
+}
+
 /// `Close` of the object `id` of the module type `kind`.
 fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
     Operation::Close {

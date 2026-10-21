@@ -831,14 +831,55 @@ pub(crate) async fn orphan_interfaces(
     .map_err(|e| store(&e))
 }
 
-/// The objects with an open anomaly of `rule`.
-pub(crate) async fn open_anomalies(
+/// The objects whose resolved value of one of `keys` the changeset changes, read from the
+/// detail of the differential of the properties recorded in the transaction (REQ-003-19):
+/// a warning may have changed there, and only there.
+pub(crate) async fn diff_objects(
     conn: &mut PgConnection,
+    keys: &[&str],
+) -> Result<Vec<Uuid>, StoreError> {
+    // The detail exists once the differential was computed; reading a missing table would
+    // abort the transaction.
+    let recorded: bool =
+        sqlx::query_scalar("SELECT to_regclass('pg_temp.diff_detail') IS NOT NULL")
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+    if !recorded {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT object_id FROM pg_temp.diff_detail WHERE property_key = ANY($1)",
+    )
+    .bind(keys)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces with an open anomaly of `rule` that share a MAC with one of `ids`, before
+/// or after the changeset (the versions it replaced end now in the history): evaluated
+/// again, so that the partner of an interface whose MAC moved away closes its anomaly.
+pub(crate) async fn mac_partners(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
     rule: &str,
 ) -> Result<Vec<Uuid>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
     sqlx::query_scalar(
-        "SELECT object_id FROM public.anomaly WHERE rule_id = $1 AND closed_at IS NULL",
+        "SELECT DISTINCT o.object_id
+           FROM public.anomaly o
+           JOIN machines.interface p ON p.id = o.object_id
+          WHERE o.rule_id = $2 AND o.closed_at IS NULL
+            AND p.mac IN (SELECT mac FROM machines.interface
+                           WHERE id = ANY($1) AND mac IS NOT NULL
+                          UNION
+                          SELECT mac FROM machines.interface_history
+                           WHERE id = ANY($1) AND mac IS NOT NULL AND sys_end = now())",
     )
+    .bind(ids)
     .bind(rule)
     .fetch_all(conn)
     .await
