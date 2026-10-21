@@ -29,6 +29,12 @@ static TYPES: &[ObjectType] = &[
     },
 ];
 
+/// The type of a flow, as the routes gate it.
+#[must_use]
+pub fn flow_type() -> &'static ObjectType {
+    &TYPES[0]
+}
+
 // REQ-011-3: an endpoint of a living flow is not closed; the cascade closes the flow
 // (D33). The interface and the machine come with the module Machines, a dependency of the
 // policy this module depends on.

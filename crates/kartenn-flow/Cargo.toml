@@ -12,7 +12,16 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Its routes under `/v1`, mounted by kartenn-server (REQ-011-18, design « API »).
+rest = ["dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:utoipa", "dep:utoipa-axum"]
+
 [dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }
+kartenn-rest = { version = "0.1.0", path = "../kartenn-rest", optional = true }
+kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg", optional = true }
+utoipa = { version = "6.0.0", default-features = false, features = ["macros", "uuid"], optional = true }
+utoipa-axum = { version = "0.3.0", optional = true }
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
 # The addresses of the endpoints and the values carried by machines (009 port of reading),
 # and the policy evaluated in the transaction (spec 010).
@@ -33,10 +42,17 @@ uuid = { version = "1.28.0", features = ["v7"] }
 [[test]]
 name = "flow_it"
 path = "tests/it/main.rs"
+required-features = ["rest"]
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
 kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
+# The routes through the router (task 011-9).
+axum = { version = "0.8.9", default-features = false, features = ["json"] }
+http-body-util = "0.1"
+kartenn-auth = { path = "../kartenn-auth" }
+kartenn-rest = { path = "../kartenn-rest" }
+tower = { version = "0.5", features = ["util"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 # The modules the flow registry depends on, for the tests through the write pipeline.
 kartenn-machines = { path = "../kartenn-machines", features = ["pg"] }

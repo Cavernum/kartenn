@@ -1844,6 +1844,415 @@
         ],
         "type": "object"
       },
+      "Flow": {
+        "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date.",
+        "properties": {
+          "fields": {
+            "description": "Its fields as stored: kind, endpoints, service, external references, justification,\nrequester, entity…",
+            "type": "object"
+          },
+          "id": {
+            "description": "Its identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "Its outcome at the date, if evaluated there.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "Its derived state at the date.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Its summary at the date, if evaluated there.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of its period.",
+            "type": "string"
+          },
+          "valid_to": {
+            "description": "The end of its period, if any.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waived": {
+            "description": "Whether a waiver covers the date.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "fields",
+          "valid_from",
+          "state",
+          "waived"
+        ],
+        "type": "object"
+      },
+      "FlowEvaluation": {
+        "description": "An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never\nrecomputed. Reduced for a requester without the read of the flow (REQ-010-25): the\naddresses and the decisive element are not named.",
+        "properties": {
+          "combination": {
+            "description": "The values of the axes of the pair.",
+            "type": "object"
+          },
+          "decisive": {
+            "description": "The decisive rule or pattern; `null` when reduced.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destination": {
+            "description": "The destination address; `null` when reduced.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "description": "`automatic`, `review` or `noncompliant`.",
+            "type": "string"
+          },
+          "policy_revision": {
+            "description": "The revision of the policy it was computed against.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "The reason.",
+            "type": "string"
+          },
+          "score": {
+            "description": "The informative score.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "description": "The source address; `null` when reduced.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unmet_conditions": {
+            "description": "The conditions not met.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verdict": {
+            "description": "`allowed`, `conditional` or `denied`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "outcome",
+          "reason",
+          "combination",
+          "unmet_conditions",
+          "policy_revision"
+        ],
+        "type": "object"
+      },
+      "FlowNonconformity": {
+        "description": "A non-conformity (REQ-011-25).",
+        "properties": {
+          "at": {
+            "description": "When it arose.",
+            "type": "string"
+          },
+          "changeset": {
+            "description": "The changeset of the rejected request.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity": {
+            "description": "The entity.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "flow": {
+            "description": "The flow; `null` for a rejected request.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "`requested` or `observed`.",
+            "type": "string"
+          },
+          "motive": {
+            "description": "The motive.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requester": {
+            "description": "The requester.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "rule": {
+            "description": "The rule in cause.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_key": {
+            "description": "Its key.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_label": {
+            "description": "Its label.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_texts": {
+            "description": "Its educational texts by language.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`rejected`, `noncompliant` or `waived`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "requester",
+          "entity",
+          "at",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "FlowPatch": {
+        "description": "The body of `PATCH /v1/flows/{id}`: the fields that may change (REQ-011-4).",
+        "properties": {
+          "data_nature": {
+            "description": "The natures of the data carried.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "end": {
+            "description": "An earlier end.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_refs": {
+            "description": "The external references.",
+            "items": {
+              "type": "object"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "justification": {
+            "description": "The justification.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "The motive of the changeset.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personal_data": {
+            "description": "Whether personal data are carried.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "responsibles": {
+            "description": "The persons responsible.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "FlowRequest": {
+        "description": "The body of `POST /v1/flows` (REQ-011-1, 20, 21), besides `motive`, `valid_from`.",
+        "properties": {
+          "data_nature": {
+            "description": "The natures of the data carried.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "destination": {
+            "description": "The destination, as the source.",
+            "type": "object"
+          },
+          "end": {
+            "description": "The end of the flow, an RFC 3339 instant; none for a flow without end.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity": {
+            "description": "The entity (the application): `{ \"id\": … }`.",
+            "type": "object"
+          },
+          "external_refs": {
+            "description": "The external references, at least one: `{ \"system\": …, \"id\": … }`.",
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "justification": {
+            "description": "The justification.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "`requested` (default) or `observed`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "The motive of the changeset.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "on_behalf_of": {
+            "description": "The requester the request is made for.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "personal_data": {
+            "description": "Whether personal data are carried.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "responsibles": {
+            "description": "The persons responsible.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "service": {
+            "description": "The service: `{ \"id\": … }`.",
+            "type": "object"
+          },
+          "source": {
+            "description": "The source: `{ \"kind\": \"address\" | \"prefix\" | \"interface\" | \"machine\" | \"range\",\n\"id\": { \"id\": … } }`.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "service",
+          "external_refs",
+          "responsibles",
+          "data_nature",
+          "entity"
+        ],
+        "type": "object"
+      },
+      "FlowWaiver": {
+        "description": "The body of `POST /v1/flows/{id}/waiver` (REQ-011-9).",
+        "properties": {
+          "accepted_risk": {
+            "description": "The risk accepted.",
+            "type": "string"
+          },
+          "end": {
+            "description": "The end of the waiver, mandatory.",
+            "type": "string"
+          },
+          "motive": {
+            "description": "The motive of the changeset.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "description": "The reason.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "accepted_risk",
+          "end"
+        ],
+        "type": "object"
+      },
       "Gap": {
         "description": "A deviation between a resolved and an expected value.",
         "properties": {
@@ -2933,6 +3342,69 @@
                 "key"
               ],
               "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_Flow": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/Flow"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_FlowEvaluation": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/FlowEvaluation"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_FlowNonconformity": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/FlowNonconformity"
             },
             "type": "array"
           },
@@ -9693,6 +10165,87 @@
         ]
       }
     },
+    "/v1/addresses/{id}/flows": {
+      "get": {
+        "operationId": "address_flows",
+        "parameters": [
+          {
+            "description": "The address.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows of the address, those the caller may read (REQ-011-15).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
     "/v1/addresses/{id}/history": {
       "get": {
         "operationId": "address_history",
@@ -14379,6 +14932,140 @@
         ]
       }
     },
+    "/v1/flow-nonconformities": {
+      "get": {
+        "operationId": "list_flow_nonconformities",
+        "parameters": [
+          {
+            "description": "The entity.",
+            "in": "query",
+            "name": "entity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The requester.",
+            "in": "query",
+            "name": "requester",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The rule in cause.",
+            "in": "query",
+            "name": "rule",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "From this instant.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Before this instant.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`rejected`, `noncompliant` or `waived`.",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`requested` or `observed`.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_FlowNonconformity"
+                }
+              }
+            },
+            "description": "The non-conformities."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The non-conformities the caller may read, newest first (REQ-011-25).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
     "/v1/flow-types": {
       "get": {
         "operationId": "list_flow_types",
@@ -15031,6 +15718,572 @@
         ]
       }
     },
+    "/v1/flows": {
+      "get": {
+        "operationId": "list_flows",
+        "parameters": [
+          {
+            "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range).",
+            "in": "query",
+            "name": "endpoint",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A prefix: the flows with an endpoint address in its subtree.",
+            "in": "query",
+            "name": "prefix",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A machine: the flows with an endpoint address of the machine.",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The service.",
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The flow type of the service.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`requested` or `observed`.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` or `withdrawn`.",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`allowed`, `partial` or `denied`.",
+            "in": "query",
+            "name": "summary",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`automatic`, `review` or `noncompliant`.",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The decisive rule or pattern of an evaluation.",
+            "in": "query",
+            "name": "decisive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true` or `false`.",
+            "in": "query",
+            "name": "waived",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ending before this instant.",
+            "in": "query",
+            "name": "ending_before",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The entity (the application).",
+            "in": "query",
+            "name": "entity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The requester.",
+            "in": "query",
+            "name": "requester",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "An external reference: `<system>:<identifier>`.",
+            "in": "query",
+            "name": "external_ref",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A value of an axis an endpoint carries: `<property>=<value>`.",
+            "in": "query",
+            "name": "axis",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows the caller may read (REQ-011-14).",
+        "tags": [
+          "flow"
+        ]
+      },
+      "post": {
+        "operationId": "request_flow",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Applied."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a review."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`).",
+        "tags": [
+          "flow"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_flows",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows the caller may read (REQ-011-14).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
+    "/v1/flows/{id}": {
+      "delete": {
+        "operationId": "close_flow",
+        "parameters": [
+          {
+            "description": "The flow.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the flow.",
+        "tags": [
+          "flow"
+        ]
+      },
+      "get": {
+        "operationId": "show_flow",
+        "parameters": [
+          {
+            "description": "The flow.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Flow"
+                }
+              }
+            },
+            "description": "The flow; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flow.",
+        "tags": [
+          "flow"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_flow",
+        "parameters": [
+          {
+            "description": "The flow.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
+    "/v1/flows/{id}/evaluations": {
+      "get": {
+        "operationId": "flow_evaluations",
+        "parameters": [
+          {
+            "description": "The flow.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_FlowEvaluation"
+                }
+              }
+            },
+            "description": "The evaluations."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16); reduced for its requester (REQ-010-25).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
     "/v1/flows/{id}/history": {
       "get": {
         "operationId": "flow_flow_history",
@@ -15310,6 +16563,78 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/flows/{id}/waiver": {
+      "post": {
+        "operationId": "waive_flow",
+        "parameters": [
+          {
+            "description": "The flow.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowWaiver"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Granted."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`.",
+        "tags": [
+          "flow"
         ]
       }
     },
@@ -17170,6 +18495,87 @@
         ]
       }
     },
+    "/v1/interfaces/{id}/flows": {
+      "get": {
+        "operationId": "interface_flows",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows of the interface, those the caller may read (REQ-011-15).",
+        "tags": [
+          "flow"
+        ]
+      }
+    },
     "/v1/interfaces/{id}/history": {
       "get": {
         "operationId": "machines_interface_history",
@@ -18198,6 +19604,87 @@
         "summary": "The addresses of the machine by interface, those the caller may read (REQ-009-16).",
         "tags": [
           "machines"
+        ]
+      }
+    },
+    "/v1/machines/{id}/flows": {
+      "get": {
+        "operationId": "machine_flows",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows of the machine, those the caller may read (REQ-011-15).",
+        "tags": [
+          "flow"
         ]
       }
     },
@@ -22536,6 +24023,87 @@
         "summary": "`GET /v1/prefixes/{id}/children`: the direct children the caller may read, in address\norder (REQ-002-42), by pages (REQ-006-7, 8): the key of a child is its first address,\nits rank (prefix, range, address) and its identifier.",
         "tags": [
           "core"
+        ]
+      }
+    },
+    "/v1/prefixes/{id}/flows": {
+      "get": {
+        "operationId": "prefix_flows",
+        "parameters": [
+          {
+            "description": "The prefix.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Flow"
+                }
+              }
+            },
+            "description": "A page of flows."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The flows of the prefix, those the caller may read (REQ-011-15).",
+        "tags": [
+          "flow"
         ]
       }
     },

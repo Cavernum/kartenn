@@ -221,11 +221,27 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     valeurs par défaut (`expected::defaults`) sont posées sur la période ouverte du
     changeset, au-delà de la fin du flux ; les tests soumettent les flux datés dans un
     changeset dont la période finit avec eux.
-- [ ] 9. Routes `/v1/flows`, `/v1/flows/{id}/evaluations`, `/v1/flow-nonconformities`,
+- [x] 9. Routes `/v1/flows`, `/v1/flows/{id}/evaluations`, `/v1/flow-nonconformities`,
   `/v1/{collection}/{id}/flows`, contrat OpenAPI — REQ-011-18 — verify : contrat
   comparé ; tests de routes ; `POST /v1/flows` rend l'évaluation et l'état
   - où : routeur de module (tâche 008-8), `crates/kartenn-rest/src/contract.rs`
   - dépend de : 7
+  — `crates/kartenn-flow/src/rest.rs` (feature `rest`, montée par kartenn-server) :
+  `GET`/`QUERY /v1/flows` (filtres de REQ-011-14), `POST /v1/flows` (opération `request`,
+  201 avec `flow` et `evaluations`), `GET`/`PATCH`/`DELETE /v1/flows/{id}`,
+  `GET /v1/flows/{id}/evaluations`, `POST /v1/flows/{id}/waiver`,
+  `GET /v1/flow-nonconformities`, `GET /v1/{addresses,prefixes,interfaces,machines}/{id}/flows` ;
+  contrat de référence et types du SDK régénérés. Tests : `tests/it/rest.rs` (demande
+  rendue avec son état et ses évaluations, lecture réduite du demandeur, 404 d'un
+  inconnu, liste et filtres d'un lecteur, flux d'une adresse, non-conformités).
+  choix : un flux se lit sous `flow.flow.read` par le prédicat du noyau, ou par son
+  demandeur (évaluations réduites : adresses et élément décisif masqués) ; une page est
+  coupée avant le filtre des droits (page parfois plus courte, jamais de fuite) ; les
+  non-conformités se lisent par entité (`flow.flow.read` globale ou sur l'entité) ou par
+  le demandeur, sans curseur (une page) ; un `POST` retenu pour instruction (202) rend le
+  changeset seul ; la liste des flux d'un objet ne vérifie pas la lecture de l'objet
+  (elle ne rend que des flux lisibles) ; route `waiver` ajoutée (F6), additive ; pas de
+  route d'écriture directe `register` (maintenance par `POST /v1/changesets`).
 
 ## P4 — Budgets et synchronisation
 

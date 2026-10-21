@@ -33,8 +33,9 @@ pub(crate) struct Env {
     pub(crate) pool: PgPool,
     pub(crate) store: PgStore,
     pub(crate) author: Uuid,
-    acme: Uuid,
+    pub(crate) acme: Uuid,
     pub(crate) domain: Uuid,
+    pub(crate) registry: Arc<ModuleRegistry>,
 }
 
 pub(crate) fn policy(name: &str, fields: Value) -> Operation {
@@ -82,6 +83,7 @@ impl Env {
             author: Uuid::nil(),
             acme: Uuid::nil(),
             domain: Uuid::nil(),
+            registry,
         };
         env.author = env.person().await;
         env.applied(vec![Operation::CreateEntity {

@@ -31,7 +31,7 @@ policy = ["machines", "dep:kartenn-policy"]
 flow = ["policy", "dep:kartenn-flow"]
 
 [dependencies]
-kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", optional = true }
+kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", features = ["rest"], optional = true }
 kartenn-vlan = { version = "0.1.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"], optional = true }
 kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["rest"], optional = true }
