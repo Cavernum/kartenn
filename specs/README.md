@@ -9,7 +9,7 @@
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (18/18) |
 | [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (26/26) |
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
-| [008-vlan](008-vlan/) | en cours (contrat de module, ADR 0026) | en cours | [tasks](008-vlan/tasks.md) |
+| [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | en cours | en cours | [tasks](009-machines-interfaces/tasks.md) |
 | [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | rédigées, révisées par l'expression du besoin (D28, D30 amendées) ; v0.2 | rédigée | [010](010-politique-flux/tasks.md), [011](011-registre-flux/tasks.md) (0) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
@@ -163,3 +163,38 @@ synchronisation.
 - `dev/kartenn.toml` n'a pas de `[web] plugins_dir` : la validation exige un répertoire
   existant, relatif au répertoire courant, ce que le test de la configuration de
   développement, lancé depuis le crate, ne tient pas.
+
+## Point d'étape — 2026-10-21 : spec 008
+
+Contrat de module et module VLAN implémentés (20/20). Le noyau accueille des modules
+compilés : registre ordonné selon le DAG (`ModuleRegistry`), migrations et schéma
+PostgreSQL par module, table `module_object`, opérations en enveloppe
+`Operation::Module` sous les contrôles du pipeline (verrous, droits, simulation,
+annulation), ancres `core.owner`/`core.site` héritées le long de l'arbre du module,
+catalogues de permissions et de règles fusionnés, références et suppression (refus,
+cascade, mise à nul), sections de différentiel (`?section=`), obligations
+d'administrateur, routes montées sous `/v1` avec `kartenn_rest::kit` et arêtes du
+graphe. Le module `vlan` : groupes ancrés sur une entité, un site ou un domaine, VLAN
+802.1Q, occupation et prochain VID libre, propriété `vlan.vlan` des réseaux et ses
+avertissements, imports par morceaux, plugin `web/plugins/vlan`. La 009 (machines) a
+éprouvé le contrat sans le refondre. ADR 0026 amendée (amendement 1) des ajouts faits en
+route : `prepare`, `reads`, `CheckContext::{objects, changeset}`, `Findings`, catalogues
+du processus, contrat écrit par `kartenn-server openapi`.
+
+Budgets tenus au banc complet (2·10⁴ groupes, 10⁵ VLAN) : lecture d'un VLAN 3,7 ms,
+page filtrée 38,5 ms (654 ms avant de lire les droits après la limite), occupation
+2,9 ms, création 51,9 ms ; les budgets du noyau tiennent avec le module.
+
+Corrigés en route : l'import ignorait les références locales dans le corps d'une
+opération de module ; la garde `Expect` d'un objet de module visait une permission
+inexistante ; une anomalie de module ne se fermait jamais (réévaluation par `Findings`,
+bornée aux objets touchés) ; le délestage comptait les fichiers du shell et des plugins
+(REQ-006-30 précisée : `/v1` seul).
+
+Écarts restants, à arbitrer :
+- REQ-008-22 demande 403 pour une écriture hors périmètre ; le code répond 422
+  `core.object.forbidden`, comme le noyau ;
+- aucune opération ne lie le premier administrateur d'une instance neuve ;
+- le dépôt n'a pas de CI : la matrice « serveur sans module et avec » est une
+  vérification locale (`cargo check -p kartenn-server --no-default-features`, sans
+  module puis avec `vlan`), à porter dans la CI quand elle existera.

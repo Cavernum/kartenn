@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-20
+status: implemented
+updated: 2026-10-21
 ---
 
 # 008 — VLAN : conception

@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-20
+status: implemented
+updated: 2026-10-21
 ---
 
 # 008 — VLAN : tâches
@@ -463,9 +463,22 @@ numérotées après coup.
   onglets de trois plugins, elle passait sous les panneaux latéraux qui captaient les
   clics ; l'onglet a l'identifiant `network`, unique dans le manifeste ; la colonne lit
   les propriétés de chaque ligne visible (pas de lecture groupée dans l'API).
-- [ ] 18. Synchronisation : `docs/spec/` (architecture : contrat de module ; data :
+- [x] 18. Synchronisation : `docs/spec/` (architecture : contrat de module ; data :
   `module_object`, schéma `vlan` ; interfaces : routes et opérations ; permissions),
   ADR 0026 acceptée, matrice CI serveur sans module et avec, spec passée à
   `implemented` — verify : rapport `spec-keeper` sans écart bloquant
   où : skill `tech-specs` (mode sync)
   dépend de : 1 à 17, 19, 20
+  — ADR 0026 amendée (amendement 1 : `prepare`, `reads`, `CheckContext::{objects,
+  changeset}`, `diff`/`check` sur `ModuleHandler`, `Findings`, catalogues du processus,
+  `core.object.dependents`, règles `<module>.operation.invalid`, contrat écrit par
+  `kartenn-server openapi`, kit REST, arête `machines.hosted_in`) ; `docs/spec/`
+  (architecture : forme du contrat et modules livrés ; data : section « Objets des
+  modules », migrations 0041 à 0044, schémas `vlan` et `machines` ; interfaces :
+  routes des modules, `?section=`, enveloppe `Operation::Module`, obligations) ;
+  `specs/README.md` (ligne et point d'étape de la 008) ; statuts `implemented`.
+  choix : faute de CI dans le dépôt, la matrice serveur sans module et avec est une
+  vérification locale (`cargo check -p kartenn-server --no-default-features`, sans
+  module puis avec `vlan`) ; audit spec-keeper non lancé (agent sans sous-agent),
+  relecture faite à la main contre le code ; écart REQ-008-22 (422 au lieu de 403)
+  noté, non tranché.

@@ -169,6 +169,35 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   pour tester d'abord les périmètres bon marché) ; `kartenn_scopes` (une portée de
   lecture JSON en tableaux typés, matérialisée une fois par requête, 0033).
 
+## Objets des modules (ADR 0026 ; specs 008, 009)
+
+- **`module_object`** (migration 0041), versionnée (ADR 0017) : chaque version d'un objet
+  de module y est inscrite (identifiant, module, type qualifié `vlan.vlan`, parent du
+  même module, domaine d'ancrage, période, changeset), dans la transaction qui l'écrit.
+  Le noyau y trouve versions, ETag, historique, identifiants externes, anomalies,
+  propriétés et annulation sans connaître les tables du module.
+- **`module_migration`** (0041) : migrations appliquées par module, avec l'empreinte
+  SHA-256 de leur SQL ; une migration modifiée arrête le job.
+- **Ancres** (0042) : tout type de module porte `core.owner` (obligatoire si le type
+  l'exige), hérité le long de l'arbre du module (`parent_id`) et matérialisé ;
+  `kartenn_site` remonte cet arbre jusqu'au `core.site` le plus proche ; un type ancré
+  dans un domaine entre dans la portée de ce domaine (`kartenn_visible`).
+- **`changeset_diff_section`** (0043) : lignes des sections de différentiel des modules
+  (section, objet, type, avant, après, période), paginées par
+  `GET /v1/changesets/{id}/diff?section=`.
+- **`property_obligation.origin`** (0044) : `module` (synchronisée avec le code du
+  module) ou `admin` (ajoutée par changeset, jamais réécrite par la synchronisation).
+- **Schéma par module** : le migrateur crée le schéma du module, en donne l'usage à
+  `kartenn_app` et le place en tête du `search_path` de ses migrations ; les tables d'un
+  module sont versionnées comme celles du noyau.
+  - `vlan` : `vlan_group` (slug unique dans le temps, ancre entité, site ou domaine,
+    plage de VID) et `vlan` (groupe, VID 1–4094, nom, statut `active`/`reserved`/
+    `deprecated` ; VID et nom uniques par groupe dans le temps, par exclusions GiST). Le
+    lien d'un réseau à son VLAN est la propriété `vlan.vlan`.
+  - `machines` : `cluster`, `machine` (nom d'hôte, sorte, hébergement par une machine ou
+    un cluster, appartenance à un cluster), `interface` (machine, nom, MAC, mode 802.1Q
+    `none`/`access`/`trunk`), `attachment` (interface ↔ adresse, daté).
+
 ## Stockage PostgreSQL (D15, ADR 0004)
 
 - Préfixes en `cidr`, adresses en `inet` ; jamais de texte utilisateur transmis tel quel

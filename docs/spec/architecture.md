@@ -109,12 +109,35 @@ Règles :
 | Frontend | Plugins ES modules enregistrant des Custom Elements, découverts via l'endpoint de capacités | À chaud |
 | Connecteurs | Processus externes, clients REST | À chaud |
 
-Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée ; implémenté
-par la 008) : identifiant et version ;
+Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée, amendement 1 ;
+implémenté par la 008, éprouvé par la 009) : identifiant et version ;
 dépendances ; migrations ; types d'objets et leurs ancres de périmètre ; propriétés et
 types de valeurs ; règles de validation (identifiant, sévérité) ; sources de valeurs
 attendues ; permissions ; ressources REST ; contribution au graphe de topologie ;
 plugin UI éventuel.
+
+Forme dans le code (`kartenn-service::module`) :
+
+- `Module` décrit statiquement le module : nom, version, dépendances, types d'objets
+  (`ObjectType` : parent, propriétaire obligatoire, site, ancrage de domaine),
+  déclarations de propriétés, permissions, règles, références (`Reference`, politique
+  `OnClose` : refus, cascade, mise à nul), types d'arêtes, migrations, opérations ;
+  `handler()` rend son gestionnaire.
+- `ModuleHandler` agit dans la transaction du changeset par `ModuleTx` : `prepare`
+  (complète l'opération sur l'état courant), `plan` (sans base : objet, domaines, clés
+  de verrou, opérations du noyau planifiées), `reads` (droits de lecture sur les objets
+  cités), `apply`, `close`/`restore`, `referrers`/`nullify` (dépendants), `diff`
+  (section du différentiel), `check` (règles sur l'état final, `Findings`), `edges`
+  (lecture hors changeset par `ModuleRead`).
+- `ModuleRegistry` ordonne les modules selon le DAG, refuse noms, collections,
+  permissions et règles en collision, et complète les catalogues du processus.
+- Le serveur compose le registre selon ses features (`vlan`, `machines` ; défaut :
+  toutes) ; `kartenn-server openapi` écrit le contrat de référence du build. Un module
+  sert ses routes avec `kartenn_rest::kit`.
+
+Modules livrés : `vlan` (008 ; groupes et VLAN 802.1Q, propriété `vlan.vlan` des
+réseaux) et `machines` (009, dépend de `vlan` ; clusters, machines, interfaces,
+rattachements d'adresses).
 
 Organisation du workspace (voir
 [`../practices/rust-build.md`](../practices/rust-build.md)) :
