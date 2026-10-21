@@ -759,7 +759,7 @@ fn typed(name: &str, value_type: &str, condition: &Condition) -> Result<(), Prob
     };
     if !matches!(
         value_type,
-        "enum" | "ref" | "text" | "fqdn" | "int" | "date" | "bool"
+        "enum" | "ref" | "external_ref" | "text" | "fqdn" | "int" | "date" | "bool"
     ) {
         return Err(bad(format!(
             "{name}: a property of type {value_type} is not a filter"

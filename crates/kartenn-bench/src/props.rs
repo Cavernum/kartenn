@@ -12,7 +12,7 @@ use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::DiffCount;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
-use kartenn_store_pg::explain::explain;
+use kartenn_store_pg::explain::{explain, resolved_many};
 use kartenn_store_pg::filter::{Condition, filter};
 use kartenn_store_pg::write::PgStore;
 use rand::{RngExt, SeedableRng};
@@ -155,7 +155,7 @@ impl Bench {
                 local: Some(local),
                 declaration: input(
                     key,
-                    TypeInput::Enum,
+                    TypeInput::ENUM,
                     Cardinality::Set,
                     &["prefix", "address"],
                     true,
@@ -357,6 +357,28 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         limit: Duration::from_millis(50),
         measured: p95(samples),
         note: "200 draws".into(),
+    });
+
+    // Grouped read: 512 addresses, 6 properties (REQ-016-1).
+    let keys: Vec<String> = HERITABLE
+        .iter()
+        .chain(&PLAIN[..3])
+        .map(|k| (*k).to_owned())
+        .collect();
+    let mut samples = Vec::new();
+    for _ in 0..50 {
+        let objects: Vec<Uuid> = (0..512)
+            .map(|_| data.addresses[rng.random_range(0..data.addresses.len())].id)
+            .collect();
+        let t = Instant::now();
+        resolved_many(&pool, &objects, &keys, now, None).await?;
+        samples.push(t.elapsed());
+    }
+    budgets.push(Budget {
+        name: "grouped resolution 512 × 6, p95",
+        limit: Duration::from_millis(30),
+        measured: p95(samples),
+        note: "50 draws".into(),
     });
 
     // Filtered pages of 100.

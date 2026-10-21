@@ -1358,7 +1358,7 @@ impl Module for Inventory {
         let property = |key: &str| Declaration {
             key: PropertyKey::parse(key).unwrap(),
             declarant: Declarant::Module("inventory".into()),
-            spec: TypeSpec::Enum,
+            spec: TypeSpec::ENUM,
             cardinality: Cardinality::Single,
             carriers: std::collections::BTreeSet::from(["machines.machine".to_owned()]),
             inherit: None,

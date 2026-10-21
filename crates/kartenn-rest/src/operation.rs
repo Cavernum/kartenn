@@ -124,7 +124,11 @@ impl From<TargetKindDto> for ObjectKind {
 #[schema(as = PropertyType)]
 pub(crate) enum TypeDto {
     /// A closed list.
-    Enum,
+    Enum {
+        /// Key of another closed list of the same declarant whose values it shares.
+        #[serde(default)]
+        values_of: Option<String>,
+    },
     /// A text.
     Text {
         /// Minimum length in code points.
@@ -154,12 +158,14 @@ pub(crate) enum TypeDto {
         /// Target kind.
         target: String,
     },
+    /// A reference to an object of another system.
+    ExternalRef,
 }
 
 impl From<TypeDto> for TypeInput {
     fn from(t: TypeDto) -> Self {
         match t {
-            TypeDto::Enum => Self::Enum,
+            TypeDto::Enum { values_of } => Self::Enum { values_of },
             TypeDto::Text {
                 min_len,
                 max_len,
@@ -174,6 +180,7 @@ impl From<TypeDto> for TypeInput {
             TypeDto::Date => Self::Date,
             TypeDto::Fqdn => Self::Fqdn,
             TypeDto::Ref { target } => Self::Ref { target },
+            TypeDto::ExternalRef => Self::ExternalRef,
         }
     }
 }
@@ -311,6 +318,14 @@ pub(crate) enum RawDto {
     Bool(bool),
     Int(i64),
     Text(String),
+    /// A reference to an object of another system: a value of `core.external_system`,
+    /// the identifier there, a label.
+    External {
+        system: String,
+        id: String,
+        #[serde(default)]
+        label: Option<String>,
+    },
 }
 
 impl From<RawDto> for RawInput {
@@ -319,6 +334,7 @@ impl From<RawDto> for RawInput {
             RawDto::Bool(b) => Self::Bool(b),
             RawDto::Int(i) => Self::Int(i),
             RawDto::Text(t) => Self::Text(t),
+            RawDto::External { system, id, label } => Self::External { system, id, label },
         }
     }
 }

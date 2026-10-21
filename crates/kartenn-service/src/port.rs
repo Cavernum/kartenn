@@ -87,6 +87,29 @@ pub struct ObjectRead {
     pub masked: BTreeSet<String>,
 }
 
+/// The resolution of one property for one object, explained (REQ-003-14, REQ-016-1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Resolved {
+    /// The object.
+    pub object: Uuid,
+    /// Its kind (`domain`…, or a qualified type of a module).
+    pub kind: String,
+    /// Property key.
+    pub property: String,
+    /// Whether the property is declared sensitive (REQ-003-27).
+    pub sensitive: bool,
+    /// Resolved value (closed-list keys); `None` when absent, "no value" or masked.
+    pub value: Option<serde_json::Value>,
+    /// Object carrying the applicable assignment; `None` when nothing applies.
+    pub origin: Option<Uuid>,
+    /// Objects walked from the object to its origin, both included.
+    pub chain: Vec<Uuid>,
+    /// Provenance of the applicable assignment: `input` or `source:<id>@<version>`.
+    pub provenance: Option<String>,
+    /// The value is sensitive and the reader may not see it (REQ-005-21).
+    pub masked: bool,
+}
+
 /// What a consultation of the audit journal asks for (spec 012, REQ-012-17).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AuditQuery {
@@ -115,6 +138,17 @@ pub trait Reader: Send + Sync {
         valid_at: kartenn_core::period::Instant,
         as_of: Option<kartenn_core::period::Instant>,
     ) -> impl Future<Output = Result<Option<ObjectRead>, StoreError>> + Send;
+
+    /// The properties `keys` of the `objects` resolved and explained at `valid_at`, as
+    /// asserted at `as_of` (REQ-016-1): one per existing object and declared key, in the
+    /// order of `objects` then `keys`; nothing filtered by rights.
+    fn resolved_many(
+        &self,
+        objects: &[Uuid],
+        keys: &[String],
+        valid_at: kartenn_core::period::Instant,
+        as_of: Option<kartenn_core::period::Instant>,
+    ) -> impl Future<Output = Result<Vec<Resolved>, StoreError>> + Send;
 
     /// Audit events matching `query`, as exported (JSON).
     fn audit_events(
@@ -936,6 +970,22 @@ pub trait WriteTx {
         id: Uuid,
         period: Option<Period>,
     ) -> impl Future<Output = Result<Option<Declaration>, StoreError>> + Send;
+
+    /// The declaration of the property `key` valid at the start of `period`, with its
+    /// identifier.
+    fn declaration_by_key(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<(Uuid, Declaration)>, StoreError>> + Send;
+
+    /// Keys of the closed lists that borrow the values of `key` at the start of `period`
+    /// (REQ-016-2), sorted.
+    fn borrowers_of(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
 
     /// Replaces the version of a declaration valid at the start of `period`, from that
     /// start to the end of the version (REQ-003-6).

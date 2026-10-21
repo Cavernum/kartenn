@@ -254,7 +254,7 @@ fn declaration(
 ) -> DeclarationInput {
     DeclarationInput {
         key: "custom.zone".into(),
-        value_type: TypeInput::Enum,
+        value_type: TypeInput::ENUM,
         cardinality: Cardinality::Single,
         carriers: carriers.iter().map(|c| (*c).to_owned()).collect(),
         inherit: Some(tree.into()),

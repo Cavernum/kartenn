@@ -160,7 +160,7 @@ pub async fn enum_values(
         snapshot("property_enum_value", &["property_id", "key"]).map_err(|e| sql_err(&e))?;
     sqlx::query_scalar(AssertSqlSafe(format!(
         "SELECT key FROM {values} v
-         WHERE property_id = $3 AND ($4::text IS NULL OR key > $4)
+         WHERE property_id = public.kartenn_values_owner($3) AND ($4::text IS NULL OR key > $4)
          ORDER BY key LIMIT $5"
     )))
     .bind(valid_at)

@@ -65,6 +65,7 @@ pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
 struct Facts {
     enum_values: HashMap<String, Uuid>,
     kinds: HashMap<Uuid, &'static str>,
+    external_systems: HashMap<String, Uuid>,
 }
 
 impl ValueContext for Facts {
@@ -74,6 +75,10 @@ impl ValueContext for Facts {
 
     fn object_kind(&self, id: Uuid) -> Option<&'static str> {
         self.kinds.get(&id).copied()
+    }
+
+    fn external_system(&self, key: &str) -> Option<Uuid> {
+        self.external_systems.get(key).copied()
     }
 }
 
@@ -132,10 +137,27 @@ pub(crate) async fn parse<T: WriteTx>(
     let mut facts = Facts {
         enum_values: HashMap::new(),
         kinds: HashMap::new(),
+        external_systems: HashMap::new(),
     };
     match declaration.spec {
-        TypeSpec::Enum => {
+        TypeSpec::Enum { .. } => {
             facts.enum_values = tx.enum_values_covering(property, &texts, period).await?;
+        }
+        // The systems valid over the whole period (REQ-016-3): a closed one is refused.
+        TypeSpec::ExternalRef => {
+            let systems: Vec<String> = raws
+                .iter()
+                .filter_map(|r| match r {
+                    Raw::External { system, .. } => Some(system.clone()),
+                    _ => None,
+                })
+                .collect();
+            if let Some((list, _)) = tx
+                .declaration_by_key(crate::declarations::EXTERNAL_SYSTEM, period)
+                .await?
+            {
+                facts.external_systems = tx.enum_values_covering(list, &systems, period).await?;
+            }
         }
         TypeSpec::Ref { .. } => {
             for id in texts.iter().filter_map(|t| t.parse::<Uuid>().ok()) {

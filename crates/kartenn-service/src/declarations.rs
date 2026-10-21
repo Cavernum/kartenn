@@ -21,6 +21,9 @@ use crate::operations::{
 use crate::pipeline::{Outcome, Planned, RequestError, submit};
 use crate::port::{PropertyFacts, Store, StoreError, WriteError, WriteTx};
 
+/// The closed list of the systems an external reference names (REQ-016-3).
+pub const EXTERNAL_SYSTEM: &str = "core.external_system";
+
 /// Author of the changesets kartenn writes on its own, such as module synchronisation
 /// (P12); created by migration.
 pub const SYSTEM_AUTHOR: Uuid = uuid!("00000000-0000-7000-8000-000000000001");
@@ -31,7 +34,9 @@ fn invalid(message: String) -> Violation {
 
 fn type_spec(input: &TypeInput, modules: &ModuleRegistry) -> Result<TypeSpec, Violation> {
     Ok(match input {
-        TypeInput::Enum => TypeSpec::Enum,
+        TypeInput::Enum { values_of } => TypeSpec::Enum {
+            values_of: values_of.as_deref().map(PropertyKey::parse).transpose()?,
+        },
         TypeInput::Text {
             min_len,
             max_len,
@@ -57,6 +62,7 @@ fn type_spec(input: &TypeInput, modules: &ModuleRegistry) -> Result<TypeSpec, Vi
                 .or_else(|| modules.object_type(target).map(|t| t.kind))
                 .ok_or_else(|| invalid(format!("{target} is not a kind a reference can target")))?,
         },
+        TypeInput::ExternalRef => TypeSpec::ExternalRef,
         TypeInput::Module { id } => TypeSpec::Module(id.clone()),
     })
 }
@@ -166,7 +172,9 @@ pub(crate) fn plan(
 /// The input describing a declaration, the reverse of [`declaration`].
 fn input(declaration: &Declaration) -> DeclarationInput {
     let value_type = match &declaration.spec {
-        TypeSpec::Enum => TypeInput::Enum,
+        TypeSpec::Enum { values_of } => TypeInput::Enum {
+            values_of: values_of.as_ref().map(ToString::to_string),
+        },
         TypeSpec::Text {
             min_len,
             max_len,
@@ -186,6 +194,7 @@ fn input(declaration: &Declaration) -> DeclarationInput {
         TypeSpec::Ref { target } => TypeInput::Ref {
             target: (*target).to_owned(),
         },
+        TypeSpec::ExternalRef => TypeInput::ExternalRef,
         TypeSpec::Module(id) => TypeInput::Module { id: id.clone() },
     };
     DeclarationInput {
@@ -265,6 +274,56 @@ async fn check_scopes<T: WriteTx>(
     Ok(())
 }
 
+/// A closed list that borrows its values (REQ-016-2) borrows them from a closed list
+/// valid at the start of `period` that borrows from no other, and is not itself a lender.
+async fn check_values_of<T: WriteTx>(
+    tx: &mut T,
+    declaration: &Declaration,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    let TypeSpec::Enum {
+        values_of: Some(owner),
+    } = &declaration.spec
+    else {
+        return Ok(());
+    };
+    let refused = |why: String| {
+        Err(WriteError::Rule(Violation::new(
+            &rules::PROP_VALUES_OF,
+            format!(
+                "{} cannot borrow the values of {owner}: {why}",
+                declaration.key
+            ),
+        )))
+    };
+    match tx.declaration_by_key(&owner.to_string(), period).await? {
+        None => return refused("it is not declared".into()),
+        Some((
+            _,
+            Declaration {
+                spec: TypeSpec::Enum { values_of: None },
+                ..
+            },
+        )) => {}
+        Some((
+            _,
+            Declaration {
+                spec: TypeSpec::Enum { values_of: Some(_) },
+                ..
+            },
+        )) => return refused("it borrows its own values".into()),
+        Some(_) => return refused("it is not a closed list".into()),
+    }
+    let borrowers = tx
+        .borrowers_of(&declaration.key.to_string(), period)
+        .await?;
+    if borrowers.is_empty() {
+        Ok(())
+    } else {
+        refused(format!("{} borrow its own values", borrowers.join(", ")))
+    }
+}
+
 /// Declares a property; refused if a scope of its obligations already holds objects,
 /// which have no value yet (REQ-003-16).
 pub(crate) async fn declare<T: WriteTx>(
@@ -275,6 +334,7 @@ pub(crate) async fn declare<T: WriteTx>(
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     check_scopes(tx, None, declaration, period).await?;
+    check_values_of(tx, declaration, period).await?;
     tx.insert_declaration(id, declaration, period, changeset)
         .await?;
     let missing: Vec<Uuid> = missing_values(tx, id, None, declaration, period)
@@ -357,6 +417,7 @@ pub(crate) async fn update<T: WriteTx>(
         return Ok(());
     }
     check_scopes(tx, Some(&old), new, period).await?;
+    check_values_of(tx, new, period).await?;
     let facts = tx.property_facts(id, old.spec.id(), period).await?;
     let missing = missing_values(tx, id, Some(&old), new, period).await?;
     match check_evolution(&old, new, &Usage(facts, missing)) {
@@ -378,10 +439,26 @@ pub(crate) async fn add_enum_value<T: WriteTx>(
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     match tx.declaration(property, period).await? {
-        Some(d) if d.spec == TypeSpec::Enum => {
+        Some(Declaration {
+            spec: TypeSpec::Enum { values_of: None },
+            ..
+        }) => {
             tx.insert_enum_value(id, property, key.as_str(), period, changeset)
                 .await
         }
+        Some(Declaration {
+            key: borrower,
+            spec: TypeSpec::Enum {
+                values_of: Some(owner),
+            },
+            ..
+        }) => Err(WriteError::Rule(
+            Violation::new(
+                &rules::PROP_VALUES_OF,
+                format!("{borrower} borrows the values of {owner}: add the value to {owner}"),
+            )
+            .with_subjects([id, property]),
+        )),
         Some(d) => Err(WriteError::Rule(
             Violation::new(
                 &rules::PROP_ENUM_VALUE_INVALID,
@@ -631,6 +708,21 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                         )
                         .map(|k| ObligationScope::ObjectType(k.into()))
                         .collect(),
+                    expected: None,
+                },
+                Vec::new(),
+            ),
+            (
+                // The systems of external references (REQ-016-3), delivered empty and
+                // administrable; a closed list needs a carrier, which never uses it.
+                Declaration {
+                    key: key(EXTERNAL_SYSTEM),
+                    declarant: core(),
+                    spec: TypeSpec::ENUM,
+                    cardinality: Cardinality::Single,
+                    carriers: BTreeSet::from(["entity".to_owned()]),
+                    inherit: None,
+                    obligations: BTreeSet::new(),
                     expected: None,
                 },
                 Vec::new(),

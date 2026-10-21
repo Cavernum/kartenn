@@ -92,6 +92,7 @@ fn predicate(
         "int" => ("v_int", "v_ints", "bigint"),
         "date" => ("v_date", "v_dates", "date"),
         "bool" => ("v_bool", "v_bool", "boolean"),
+        "external_ref" => ("v_json", "v_jsons", "jsonb"),
         other => return Err(FilterError::Unsupported(other.to_owned())),
     };
     let Slots {
@@ -101,11 +102,36 @@ fn predicate(
         high,
         ..
     } = s;
+    // An external reference is written `<system>:<identifier>` (REQ-016-3) and matches
+    // by containment, which ignores the label.
+    if value_type == "external_ref" {
+        let wanted = format!(
+            "(SELECT array_agg(jsonb_build_object('system', e.id::text,
+                                                  'id', substr(v, strpos(v, ':') + 1)))
+                FROM unnest({values}::text[]) v
+                JOIN property_enum_value e ON e.key = split_part(v, ':', 1)
+                 AND e.property_id = public.kartenn_values_owner(
+                     (SELECT d.id FROM property_declaration d
+                       WHERE d.key = 'core.external_system' AND d.valid_period @> $3))
+                 AND e.valid_period @> $3)"
+        );
+        return Ok(Some(match condition {
+            Condition::Present | Condition::Absent => return Ok(None),
+            Condition::Equals(_) | Condition::OneOf(_) if set => format!(
+                "EXISTS (SELECT 1 FROM unnest({wanted}) x
+                         WHERE a.{many} @> jsonb_build_array(x))"
+            ),
+            Condition::Equals(_) | Condition::OneOf(_) => {
+                format!("a.{single} @> ANY(coalesce({wanted}, '{{}}'))")
+            }
+            Condition::Between(..) => return Err(unsupported()),
+        }));
+    }
     // Closed-list keys become the identifiers of the values valid at `$3`.
     let values = if value_type == "enum" {
         format!(
             "(SELECT array_agg(e.id) FROM property_enum_value e
-          WHERE e.property_id = {property} AND e.key = ANY({values}) AND e.valid_period @> $3)::uuid[]"
+          WHERE e.property_id = public.kartenn_values_owner({property}) AND e.key = ANY({values}) AND e.valid_period @> $3)::uuid[]"
         )
     } else {
         format!("({values}::text[])::{cast}[]")

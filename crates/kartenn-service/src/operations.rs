@@ -141,8 +141,13 @@ impl<'de> Deserialize<'de> for ObjectKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TypeInput {
-    /// Closed list.
-    Enum,
+    /// Closed list; `values_of` borrows the values of another closed list of the same
+    /// declarant (REQ-016-2).
+    Enum {
+        /// Key of the declaration that owns the values.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        values_of: Option<String>,
+    },
     /// Text.
     Text {
         /// Minimum length in code points.
@@ -172,12 +177,19 @@ pub enum TypeInput {
         /// Target kind.
         target: String,
     },
+    /// Reference to an object of another system (REQ-016-3).
+    ExternalRef,
     /// Type compiled by a module; only module synchronisation declares it (P1, P12).
     #[serde(skip_deserializing)]
     Module {
         /// Type identifier.
         id: String,
     },
+}
+
+impl TypeInput {
+    /// A closed list with values of its own.
+    pub const ENUM: Self = Self::Enum { values_of: None };
 }
 
 /// One raw value of an assignment, as received: text (closed-list key, text, host name,
@@ -191,6 +203,16 @@ pub enum RawInput {
     Int(i64),
     /// Text.
     Text(String),
+    /// Reference to an object of another system (REQ-016-3).
+    External {
+        /// Key of a value of `core.external_system`.
+        system: String,
+        /// Identifier in that system.
+        id: String,
+        /// Label.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+    },
 }
 
 impl RawInput {
@@ -201,6 +223,11 @@ impl RawInput {
             Self::Bool(b) => Raw::Bool(*b),
             Self::Int(i) => Raw::Int(*i),
             Self::Text(t) => Raw::Text(t.clone()),
+            Self::External { system, id, label } => Raw::External {
+                system: system.clone(),
+                id: id.clone(),
+                label: label.clone(),
+            },
         }
     }
 }

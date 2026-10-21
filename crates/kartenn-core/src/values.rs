@@ -85,6 +85,53 @@ pub enum Scalar {
     Date(Date),
     /// Reference to an object.
     Ref(Uuid),
+    /// Reference to an object of another system (REQ-016-3).
+    External(ExternalRef),
+}
+
+/// A reference to an object of another system (REQ-016-3): the system, a value of the
+/// closed list `core.external_system`, and the identifier there; the label is shown but
+/// never compared, so two references with the same system and identifier are equal.
+#[derive(Debug, Clone)]
+pub struct ExternalRef {
+    /// Closed-list value of `core.external_system`.
+    pub system: Uuid,
+    /// Identifier in that system (NFC, 1 to 256 code points).
+    pub id: String,
+    /// Label (NFC, 1 to 256 code points), if any.
+    pub label: Option<String>,
+}
+
+impl ExternalRef {
+    fn identity(&self) -> (Uuid, &str) {
+        (self.system, &self.id)
+    }
+}
+
+impl PartialEq for ExternalRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity() == other.identity()
+    }
+}
+
+impl Eq for ExternalRef {}
+
+impl PartialOrd for ExternalRef {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ExternalRef {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.identity().cmp(&other.identity())
+    }
+}
+
+impl std::hash::Hash for ExternalRef {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.identity().hash(state);
+    }
 }
 
 /// A property value: one scalar or a set of scalars (REQ-003-9).
@@ -105,6 +152,16 @@ pub enum Raw {
     Int(i64),
     /// Boolean.
     Bool(bool),
+    /// Reference to an object of another system: the key of the system, the identifier
+    /// there, an optional label (REQ-016-3).
+    External {
+        /// Key of a value of `core.external_system`.
+        system: String,
+        /// Identifier in that system.
+        id: String,
+        /// Label.
+        label: Option<String>,
+    },
 }
 
 /// Cardinality of a property.
@@ -130,11 +187,12 @@ impl Cardinality {
 
 impl Scalar {
     /// The raw input that yields this scalar again, to revalidate a stored value under
-    /// new parameters; `None` for a closed-list value, stored by identifier.
+    /// new parameters; `None` for a closed-list value or an external reference, stored by
+    /// the identifier of a value.
     #[must_use]
     pub fn to_raw(&self) -> Option<Raw> {
         Some(match self {
-            Self::Enum(_) => return None,
+            Self::Enum(_) | Self::External(_) => return None,
             Self::Text(t) => Raw::Text(t.clone()),
             Self::Int(i) => Raw::Int(*i),
             Self::Bool(b) => Raw::Bool(*b),
@@ -151,6 +209,12 @@ pub trait ValueContext {
     fn enum_value(&self, key: &str) -> Option<Uuid>;
     /// Kind of the object `id` if it exists over the whole period of the assignment.
     fn object_kind(&self, id: Uuid) -> Option<&'static str>;
+    /// Identifier of the value `key` of `core.external_system` valid over the whole
+    /// period of the assignment, if any (REQ-016-3).
+    fn external_system(&self, key: &str) -> Option<Uuid> {
+        let _ = key;
+        None
+    }
 }
 
 /// A value type: parses, normalises and validates a raw scalar (REQ-003-7, 8).
@@ -169,6 +233,40 @@ pub trait ValueType: fmt::Debug + Send + Sync {
 /// Closed list (`enum`): the raw text is the key of a value valid at the date.
 #[derive(Debug, Clone, Copy)]
 pub struct EnumType;
+
+/// Reference to an object of another system (`external_ref`, REQ-016-3): a system valid
+/// at the date, an identifier, an optional label; the identifier's existence in that
+/// system is not checked.
+#[derive(Debug, Clone, Copy)]
+pub struct ExternalRefType;
+
+impl ValueType for ExternalRefType {
+    fn id(&self) -> &'static str {
+        "external_ref"
+    }
+
+    fn parse(&self, raw: &Raw, ctx: &dyn ValueContext) -> Result<Scalar, String> {
+        let Raw::External { system, id, label } = raw else {
+            return Err(format!(
+                "{raw:?} is not an external reference {{system, id, label}}"
+            ));
+        };
+        let bounded = TextType::new(1, 256, None)?;
+        let text = |t: &str, what: &str| match bounded.parse(&Raw::Text(t.to_owned()), ctx) {
+            Ok(Scalar::Text(t)) => Ok(t),
+            Ok(_) => unreachable!("a text type yields a text"),
+            Err(e) => Err(format!("{what}: {e}")),
+        };
+        let system = ctx.external_system(system).ok_or_else(|| {
+            format!("{system:?} is not a system of core.external_system valid over the period")
+        })?;
+        Ok(Scalar::External(ExternalRef {
+            system,
+            id: text(id, "identifier")?,
+            label: label.as_deref().map(|l| text(l, "label")).transpose()?,
+        }))
+    }
+}
 
 /// Text (`text`): NFC, no control character, length in code points, optional regex.
 #[derive(Debug, Clone)]
@@ -417,6 +515,42 @@ pub(crate) mod tests {
         }
         fn object_kind(&self, id: Uuid) -> Option<&'static str> {
             (id == self.entity).then_some("entity")
+        }
+        fn external_system(&self, key: &str) -> Option<Uuid> {
+            ["cmdb", "ticketing"].contains(&key).then(|| enum_id(key))
+        }
+    }
+
+    fn external(system: &str, id: &str, label: Option<&str>) -> Raw {
+        Raw::External {
+            system: system.into(),
+            id: id.into(),
+            label: label.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn external_references_compare_without_their_label() {
+        // REQ-016-3: equal by system and identifier; another system differs; a system
+        // outside the list, an empty identifier, a control character are refused.
+        let parse = |raw: &Raw| ExternalRefType.parse(raw, &ctx());
+        let a = parse(&external("cmdb", "CI-42", Some("Serveur de paie"))).unwrap();
+        let b = parse(&external("cmdb", "CI-42", None)).unwrap();
+        let c = parse(&external("ticketing", "CI-42", None)).unwrap();
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(BTreeSet::from([a.clone(), b]).len(), 1);
+        let Scalar::External(r) = a else {
+            panic!("{a:?}")
+        };
+        assert_eq!(r.label.as_deref(), Some("Serveur de paie"));
+        for bad in [
+            external("closed", "CI-42", None),
+            external("cmdb", "", None),
+            external("cmdb", "CI\u{7}", None),
+            Raw::Text("cmdb:CI-42".into()),
+        ] {
+            assert!(parse(&bad).is_err(), "{bad:?}");
         }
     }
 

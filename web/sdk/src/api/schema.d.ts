@@ -4521,6 +4521,8 @@ export interface components {
       | {
           /** @enum {string} */
           type: "enum";
+          /** @description Key of another closed list of the same declarant whose values it shares. */
+          values_of?: string | null;
         }
       | {
           /** @description Maximum length in code points. */
@@ -4563,6 +4565,10 @@ export interface components {
           target: string;
           /** @enum {string} */
           type: "ref";
+        }
+      | {
+          /** @enum {string} */
+          type: "external_ref";
         };
     /**
      * @description What a merge patch writes in a property: a value or the elements of a set assign it,
@@ -4621,7 +4627,15 @@ export interface components {
      * @description One raw value of an assignment: text (closed-list key, text, host name, date,
      *     reference), integer or boolean (REQ-003-8).
      */
-    RawValue: boolean | number | string;
+    RawValue:
+      | boolean
+      | number
+      | string
+      | {
+          id: string;
+          label?: string | null;
+          system: string;
+        };
     /**
      * @description An object of the changeset: an existing UUID, or the local name of an object created by
      *     an earlier operation of the same changeset (REQ-004-4).
@@ -4893,6 +4907,8 @@ export interface components {
     };
     /** @description The value the source of a property expects for an object (REQ-003-23). */
     Suggestion: {
+      /** @description Every candidate of the source, in its order (REQ-016-5). */
+      candidates: components["schemas"]["Expected"][];
       /** @description Links. */
       links: components["schemas"]["ObjectLinks"];
       /** @description The property. */

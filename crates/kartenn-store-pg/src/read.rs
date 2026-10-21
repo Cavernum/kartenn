@@ -7,7 +7,7 @@ use sqlx::types::time::OffsetDateTime;
 use sqlx::{AssertSqlSafe, PgPool};
 
 use kartenn_service::StoreError;
-use kartenn_service::port::{AuditQuery, Reader};
+use kartenn_service::port::{AuditQuery, Reader, Resolved};
 
 use crate::diff::value_json;
 use crate::temporal::{TemporalError, snapshot};
@@ -90,6 +90,8 @@ fn properties_sql() -> Result<String, TemporalError> {
             "v_bool",
             "v_date",
             "v_dates",
+            "v_json",
+            "v_jsons",
         ],
     )?;
     let value = value_json("s.value_type = 'enum'");
@@ -270,6 +272,46 @@ impl Reader for crate::write::PgStore {
         object(self.pool(), id, instant_time(valid_at)?, as_of)
             .await
             .map_err(|e| StoreError(e.to_string()))
+    }
+
+    async fn resolved_many(
+        &self,
+        objects: &[Uuid],
+        keys: &[String],
+        valid_at: kartenn_core::period::Instant,
+        as_of: Option<kartenn_core::period::Instant>,
+    ) -> Result<Vec<Resolved>, StoreError> {
+        let as_of = as_of.map(instant_time).transpose()?;
+        let found = crate::explain::resolved_many(
+            self.pool(),
+            objects,
+            keys,
+            instant_time(valid_at)?,
+            as_of,
+        )
+        .await
+        .map_err(|e| StoreError(e.to_string()))?;
+        found
+            .into_iter()
+            .map(|r| {
+                Ok(Resolved {
+                    object: r.object,
+                    kind: r.kind,
+                    property: r.property,
+                    sensitive: r.sensitive,
+                    value: r
+                        .value
+                        .as_deref()
+                        .map(serde_json::from_str)
+                        .transpose()
+                        .map_err(|e| StoreError(e.to_string()))?,
+                    origin: r.origin,
+                    chain: r.chain,
+                    provenance: r.provenance,
+                    masked: false,
+                })
+            })
+            .collect()
     }
 
     async fn audit_events(&self, query: &AuditQuery) -> Result<Vec<serde_json::Value>, StoreError> {

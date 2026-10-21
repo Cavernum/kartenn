@@ -48,7 +48,7 @@ impl Fixture {
                 local: Some(1),
                 declaration: DeclarationInput {
                     key: "custom.environment".into(),
-                    value_type: TypeInput::Enum,
+                    value_type: TypeInput::ENUM,
                     cardinality: Cardinality::Single,
                     carriers: vec!["prefix".into(), "address".into()],
                     inherit: None,

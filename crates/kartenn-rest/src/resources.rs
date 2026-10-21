@@ -702,6 +702,15 @@ async fn properties(
                 kind: object_kind,
                 property,
             },
+            // An external reference is an object naming its system (REQ-016-3).
+            Value::Object(reference) if reference.contains_key("system") => {
+                Operation::AssignProperty {
+                    object,
+                    kind: object_kind,
+                    property,
+                    values: vec![typed(&name, Value::Object(reference))?],
+                }
+            }
             Value::Object(clear) => {
                 if clear.len() != 1 || clear.get("clear") != Some(&Value::Bool(true)) {
                     return Err(bad(format!("{name}: only {{\"clear\": true}} clears")));

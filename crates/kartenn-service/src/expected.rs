@@ -1,20 +1,24 @@
-//! Sources of expected values (spec 003, REQ-003-21 to 24; task 003-13; P5, D23, D24).
+//! Sources of expected values (spec 003, REQ-003-21 to 24; task 003-13; P5, D23, D24;
+//! version 2: spec 016, REQ-016-4, 5, G8).
 //!
 //! A source computes, from a frozen view of an object (core object and resolved
-//! properties), the value it expects for a property, with an explanation. Kartenn uses it
-//! three ways, per declaration: suggestions, default values at creation, and anomalies
-//! when the resolved value differs. Verdicts always use the resolved value (D23).
+//! properties) and the state of the transaction under way, the values it expects for a
+//! property: none, one or several candidates, each with an explanation. Kartenn uses them
+//! three ways, per declaration: suggestions (every candidate), default values at creation
+//! and anomalies when the resolved value differs (one candidate only). Verdicts always use
+//! the resolved value (D23).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
-use kartenn_core::period::Period;
+use kartenn_core::period::{Instant, Period};
 use kartenn_core::properties::{Declaration, ExpectedMode};
 use kartenn_core::rules::{self, Violation};
 use kartenn_core::values::Raw;
 use uuid::Uuid;
 
+use crate::module::{BoxFuture, ModuleTx};
 use crate::operations::{ObjectKind, RawInput};
 use crate::pipeline::Planned;
 use crate::port::{ObjectView, Store, StoreError, WriteError, WriteTx};
@@ -26,16 +30,107 @@ pub struct Suggestion {
     pub values: Vec<RawInput>,
     /// Explanation (rule applied, evidence).
     pub explanation: String,
+    /// What, within the source, gave the value (a rule), recorded in the provenance
+    /// `source:<id>@<revision>#<detail>` of a default value (REQ-016-5).
+    pub detail: Option<String>,
 }
 
-/// A source of expected values, compiled into a module (REQ-003-21, P5).
+/// What a source expects for one object (REQ-016-5).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Expected {
+    /// Nothing.
+    #[default]
+    None,
+    /// One candidate: a default value, and a deviation when the resolved value differs.
+    One(Suggestion),
+    /// Several candidates: neither default nor deviation; all of them are suggested.
+    Candidates(Vec<Suggestion>),
+}
+
+impl Expected {
+    /// The single candidate, if there is exactly one.
+    #[must_use]
+    pub fn single(&self) -> Option<&Suggestion> {
+        match self {
+            Self::One(s) => Some(s),
+            Self::Candidates(c) if c.len() == 1 => c.first(),
+            Self::None | Self::Candidates(_) => None,
+        }
+    }
+
+    /// Every candidate.
+    #[must_use]
+    pub fn candidates(&self) -> &[Suggestion] {
+        match self {
+            Self::None => &[],
+            Self::One(s) => std::slice::from_ref(s),
+            Self::Candidates(c) => c,
+        }
+    }
+}
+
+/// The dates of an evaluation (REQ-016-4). Beside it a source receives the transaction
+/// under way, so that the rules a changeset writes apply to the objects it creates; the
+/// resolved values of the ancestors of an object are read on that transaction by the
+/// grouped read of the adapter (REQ-016-1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ExpectedContext {
+    /// Valid time of the evaluation; `None` for now (the transaction's own state).
+    pub valid_at: Option<Instant>,
+}
+
+/// A source of expected values, compiled into a module (REQ-003-21, P5; REQ-016-4, 5).
 pub trait ExpectedValueSource: Send + Sync {
     /// Identifier, as declarations name it.
     fn id(&self) -> &str;
-    /// Version, recorded in the provenance of the default values it gives.
-    fn version(&self) -> &str;
-    /// The value expected for `property` (its key) on `object`, if any.
-    fn expected(&self, property: &str, object: &ObjectView) -> Option<Suggestion>;
+
+    /// Revision, recorded in the provenance of the default values it gives and compared to
+    /// the last evaluation of its deviations; computed at the call (the rules of a module
+    /// change with its data).
+    ///
+    /// # Errors
+    ///
+    /// Infrastructure failure.
+    fn revision<'a>(
+        &'a self,
+        ctx: ExpectedContext,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<String, StoreError>>;
+
+    /// What it expects for `property` (its key) on `object`.
+    ///
+    /// # Errors
+    ///
+    /// Infrastructure failure.
+    fn expected<'a>(
+        &'a self,
+        property: &'a str,
+        object: &'a ObjectView,
+        ctx: ExpectedContext,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Expected, StoreError>>;
+
+    /// What it expects for `property` on each of `objects`, in their order, in one call
+    /// (REQ-016-4): one [`Self::expected`] per object unless the source reads them at once.
+    ///
+    /// # Errors
+    ///
+    /// Infrastructure failure.
+    fn expected_many<'a>(
+        &'a self,
+        property: &'a str,
+        objects: &'a [ObjectView],
+        ctx: ExpectedContext,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Vec<Expected>, StoreError>> {
+        Box::pin(async move {
+            let mut out = Vec::with_capacity(objects.len());
+            for object in objects {
+                out.push(self.expected(property, object, ctx, &mut *tx).await?);
+            }
+            Ok(out)
+        })
+    }
 }
 
 /// The sources available to the pipeline, by identifier.
@@ -116,10 +211,36 @@ fn raws(values: &[RawInput]) -> Vec<Raw> {
     values.iter().map(RawInput::to_raw).collect()
 }
 
-/// Default values (REQ-003-22): every created object of a carrier kind without an
-/// assignment of the property in the changeset receives the expected value, with the
-/// provenance `source:<id>@<version>`. Returns the assignments written, to resolve them
-/// like the others.
+/// The provenance of a default value: `source:<id>@<revision>`, and `#<detail>` when the
+/// source names what gave it (REQ-016-5).
+fn provenance(source: &str, revision: &str, suggestion: &Suggestion) -> String {
+    match &suggestion.detail {
+        Some(detail) => format!("source:{source}@{revision}#{detail}"),
+        None => format!("source:{source}@{revision}"),
+    }
+}
+
+/// The views of `objects` at the start of `period`, with their kinds; objects without a
+/// view are left out.
+async fn views<T: WriteTx>(
+    tx: &mut T,
+    objects: &[(Uuid, Option<ObjectKind>)],
+    period: Option<Period>,
+) -> Result<Vec<(ObjectView, Option<ObjectKind>)>, StoreError> {
+    let mut out = Vec::new();
+    for &(object, kind) in objects {
+        if let Some(view) = tx.object_view(object, period).await? {
+            out.push((view, kind));
+        }
+    }
+    Ok(out)
+}
+
+/// Default values (REQ-003-22, REQ-016-5): every created object of a carrier kind without
+/// an assignment of the property in the changeset receives the expected value when the
+/// source gives exactly one candidate, with the provenance `source:<id>@<revision>`. The
+/// objects of a property are evaluated in one call. Returns the assignments written, to
+/// resolve them like the others.
 pub(crate) async fn defaults<T: WriteTx>(
     tx: &mut T,
     sources: &Sources,
@@ -154,33 +275,45 @@ pub(crate) async fn defaults<T: WriteTx>(
         if expected.mode != ExpectedMode::Default {
             continue;
         }
-        for (object, kind) in &created {
-            if !declaration.carriers.contains(kind.name())
-                || assigned.contains(&(*object, property))
-            {
-                continue;
-            }
-            let Some(view) = tx.object_view(*object, period).await? else {
-                continue;
-            };
-            let Some(suggestion) = source.expected(&declaration.key.to_string(), &view) else {
+        let wanted: Vec<(Uuid, Option<ObjectKind>)> = created
+            .iter()
+            .filter(|(object, kind)| {
+                declaration.carriers.contains(kind.name())
+                    && !assigned.contains(&(*object, property))
+            })
+            .map(|(o, k)| (*o, Some(*k)))
+            .collect();
+        let found = views(tx, &wanted, period).await?;
+        if found.is_empty() {
+            continue;
+        }
+        let objects: Vec<ObjectView> = found.iter().map(|(v, _)| v.clone()).collect();
+        let key = declaration.key.to_string();
+        let ctx = ExpectedContext {
+            valid_at: period.map(Period::start),
+        };
+        let revision = source.revision(ctx, tx.module_tx()).await?;
+        let answers = source
+            .expected_many(&key, &objects, ctx, tx.module_tx())
+            .await?;
+        for ((view, kind), answer) in found.iter().zip(answers) {
+            let (Some(suggestion), Some(kind)) = (answer.single(), kind) else {
                 continue;
             };
             let values = raws(&suggestion.values);
-            let provenance = format!("source:{}@{}", source.id(), source.version());
             crate::resolution::assign(
                 tx,
-                *object,
+                view.id,
                 *kind,
                 property,
                 Some(&values),
-                &provenance,
+                &provenance(source.id(), &revision, suggestion),
                 period,
                 changeset,
             )
             .await?;
             written.push(Planned::Assign {
-                object: *object,
+                object: view.id,
                 kind: *kind,
                 property,
                 values: Some(values),
@@ -190,9 +323,10 @@ pub(crate) async fn defaults<T: WriteTx>(
     Ok(written)
 }
 
-/// Deviations (REQ-003-24): on every touched object of a carrier kind, a resolved value
-/// that differs from the expected one is a warning citing the property, both values and
-/// the explanation; it becomes an anomaly of the object. Returns the objects evaluated.
+/// Deviations (REQ-003-24, REQ-016-5): on every touched object of a carrier kind, when the
+/// source gives exactly one candidate and the resolved value differs, a warning citing the
+/// property, both values and the explanation; it becomes an anomaly of the object. The
+/// objects of a property are evaluated in one call. Returns the objects evaluated.
 pub(crate) async fn check<T: WriteTx>(
     tx: &mut T,
     sources: &Sources,
@@ -213,29 +347,46 @@ pub(crate) async fn check<T: WriteTx>(
     if checked.is_empty() {
         return Ok(Vec::new());
     }
-    let mut evaluated = Vec::new();
-    for object in touched {
-        let Some(view) = tx.object_view(*object, period).await? else {
+    let touched: Vec<(Uuid, Option<ObjectKind>)> = touched.iter().map(|o| (*o, None)).collect();
+    let all: Vec<ObjectView> = views(tx, &touched, period)
+        .await?
+        .into_iter()
+        .map(|(v, _)| v)
+        .collect();
+    let evaluated: Vec<Uuid> = all.iter().map(|v| v.id).collect();
+    for (property, declaration) in &checked {
+        let key = declaration.key.to_string();
+        let Some(source) = declaration
+            .expected
+            .as_ref()
+            .and_then(|e| sources.get(&e.source))
+        else {
             continue;
         };
-        evaluated.push(*object);
-        for (property, declaration) in &checked {
-            let key = declaration.key.to_string();
-            let source = declaration
-                .expected
-                .as_ref()
-                .and_then(|e| sources.get(&e.source));
-            let (Some(source), true) = (source, declaration.carriers.contains(&view.kind)) else {
-                continue;
-            };
-            let Some(suggestion) = source.expected(&key, &view) else {
+        let objects: Vec<ObjectView> = all
+            .iter()
+            .filter(|v| declaration.carriers.contains(&v.kind))
+            .cloned()
+            .collect();
+        if objects.is_empty() {
+            continue;
+        }
+        let ctx = ExpectedContext {
+            valid_at: period.map(Period::start),
+        };
+        let revision = source.revision(ctx, tx.module_tx()).await?;
+        let answers = source
+            .expected_many(&key, &objects, ctx, tx.module_tx())
+            .await?;
+        for (view, answer) in objects.iter().zip(answers) {
+            let Some(suggestion) = answer.single() else {
                 continue;
             };
             let expected = match crate::resolution::parse(
                 tx,
                 declaration,
                 *property,
-                *object,
+                view.id,
                 &raws(&suggestion.values),
                 period,
             )
@@ -247,7 +398,7 @@ pub(crate) async fn check<T: WriteTx>(
                 Err(_) => continue,
             };
             let resolved = tx
-                .resolved_value(*object, *property, declaration, period)
+                .resolved_value(view.id, *property, declaration, period)
                 .await?;
             if resolved.as_ref() != Some(&expected) {
                 let shown = view.properties.get(&key).cloned().flatten();
@@ -255,15 +406,14 @@ pub(crate) async fn check<T: WriteTx>(
                     Violation::new(
                         &rules::PROP_EXPECTED_MISMATCH,
                         format!(
-                            "{key}: resolved {}, expected {:?} by {}@{} ({})",
+                            "{key}: resolved {}, expected {:?} by {}@{revision} ({})",
                             shown.as_deref().unwrap_or("no value"),
                             suggestion.values,
                             source.id(),
-                            source.version(),
                             suggestion.explanation
                         ),
                     )
-                    .with_subjects([*object]),
+                    .with_subjects([view.id]),
                 );
             }
         }
@@ -271,8 +421,9 @@ pub(crate) async fn check<T: WriteTx>(
     Ok(evaluated)
 }
 
-/// The value a property's source expects for an object at the start of `period`, written
-/// nowhere (REQ-003-23). `None` without a source, an object or an expectation.
+/// What a property's source expects for an object at the start of `period`, written
+/// nowhere (REQ-003-23, REQ-016-5): every candidate. [`Expected::None`] without a source,
+/// an object or an expectation.
 ///
 /// # Errors
 ///
@@ -283,31 +434,63 @@ pub async fn suggest<S: Store>(
     property: Uuid,
     object: Uuid,
     period: Option<Period>,
-) -> Result<Option<Suggestion>, StoreError> {
+) -> Result<Expected, StoreError> {
     let mut tx = store.begin().await?;
     let declaration = tx.declaration(property, period).await?;
     let view = tx.object_view(object, period).await?;
+    let found = match (declaration, view) {
+        (Some(declaration), Some(view)) => {
+            let ctx = ExpectedContext {
+                valid_at: period.map(Period::start),
+            };
+            suggest_for(
+                sources,
+                Some(&declaration),
+                Some(&view),
+                ctx,
+                tx.module_tx(),
+            )
+            .await?
+        }
+        _ => Expected::None,
+    };
     tx.rollback().await?;
-    Ok(suggest_for(sources, declaration.as_ref(), view.as_ref()))
+    Ok(found)
 }
 
-/// The value a property's source expects for an object being entered (not stored yet),
+/// What a property's source expects for an object being entered (not stored yet),
 /// described by its view (REQ-003-23).
-#[must_use]
-pub fn suggest_for(
+///
+/// # Errors
+///
+/// Infrastructure failure.
+pub async fn suggest_for(
     sources: &Sources,
     declaration: Option<&Declaration>,
     view: Option<&ObjectView>,
-) -> Option<Suggestion> {
-    let declaration = declaration?;
-    let source = sources.get(&declaration.expected.as_ref()?.source)?;
-    source.expected(&declaration.key.to_string(), view?)
+    ctx: ExpectedContext,
+    tx: &mut dyn ModuleTx,
+) -> Result<Expected, StoreError> {
+    let (Some(declaration), Some(view)) = (declaration, view) else {
+        return Ok(Expected::None);
+    };
+    let Some(source) = declaration
+        .expected
+        .as_ref()
+        .and_then(|e| sources.get(&e.source))
+    else {
+        return Ok(Expected::None);
+    };
+    source
+        .expected(&declaration.key.to_string(), view, ctx, tx)
+        .await
 }
 
-/// Re-evaluates the deviations of every source of the registry whose version changed since
+/// Re-evaluates the deviations of every source of the registry whose revision changed since
 /// the last evaluation (REQ-003-24): all carrier objects of its properties in `check`
-/// mode, by batches of `batch` objects, each journaled as a system changeset that opens
-/// and closes the anomalies; then records the version. Returns the objects evaluated.
+/// mode, by batches of `batch` objects (one call of the source per property and batch,
+/// REQ-016-4), each journaled as a system changeset that opens and closes the anomalies;
+/// then records the revision. Returns the objects evaluated.
 ///
 /// # Errors
 ///
@@ -329,12 +512,15 @@ pub async fn reevaluate_outdated<S: Store>(
         let Some(source) = sources.get(&expected.source) else {
             continue;
         };
-        if tx.source_version(source.id()).await?.as_deref() == Some(source.version()) {
+        let revision = source
+            .revision(ExpectedContext::default(), tx.module_tx())
+            .await?;
+        if tx.source_version(source.id()).await?.as_deref() == Some(revision.as_str()) {
             continue;
         }
         outdated
             .entry(source.id().to_owned())
-            .or_insert_with(|| (source.version().to_owned(), BTreeSet::new()))
+            .or_insert_with(|| (revision, BTreeSet::new()))
             .1
             .extend(declaration.carriers);
     }
