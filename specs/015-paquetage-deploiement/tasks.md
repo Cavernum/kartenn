@@ -110,11 +110,24 @@ après l'autre.
 
 ## P2 — Livrables
 
-- [ ] 6. Image OCI : `nix/oci.nix`, `checks.oci` — REQ-015-3 — verify : `nix build
+- [x] 6. Image OCI : `nix/oci.nix`, `checks.oci` — REQ-015-3 — verify : `nix build
   .#oci` ; `checks.oci` (utilisateur, point d'entrée, absence de `bin/sh`) ; taille
   relevée dans la note de la tâche
   où : design « Image OCI »
   dépend de : 1, 2, 3
+  — `nix/oci.nix` (`dockerTools.buildLayeredImage`, `packages.oci`) : clôture du paquet
+  seule, sans `/bin` ; `User = "65532:65532"`, `Entrypoint` = `kartenn-server` du paquet,
+  `Cmd = ["run"]`, `SSL_CERT_FILE` vers `cacert`, port 8443, étiquettes OCI (titre,
+  version, licence) ; `/etc/kartenn/` vide, `/tmp` en 1777, `/opt/kartenn/shell` et
+  `/opt/kartenn/plugins` liés au shell et aux plugins livrés. `nix/checks/oci.nix`
+  (`checks.oci`) : lit `manifest.json` et la configuration de l'image (utilisateur,
+  point d'entrée, commande, certificats) et toutes les couches (aucun `bin/sh`, `bash`,
+  `dash`, `ash`, `zsh` ni `busybox` ; certificats, shell et plugins présents). Image
+  compressée : **32 Mo** (31 936 Kio), 1 387 entrées.
+  choix : aucune variable `KARTENN_*` par défaut dans l'image (elles écraseraient le
+  fichier monté) : `[web] root` et `plugins_dir` se posent dans la configuration de
+  l'exploitant, vers les chemins fixes `/opt/kartenn/…` ; image non lancée par le check
+  (configuration et contenu seulement, comme le prévoit le design).
 - [ ] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
   `checks.vm` — REQ-015-5, 6, 7, 8, 9, 11 — verify : `checks.vm` (sondes de deux
   instances, migration en échec bloquante, secrets absents du magasin, de `systemctl

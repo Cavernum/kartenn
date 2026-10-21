@@ -22,6 +22,7 @@
       kartenn-web = pkgs.callPackage ./nix/package/web.nix {};
       kartenn = pkgs.callPackage ./nix/package {inherit kartenn-server kartenn-web;};
       default = kartenn;
+      oci = pkgs.callPackage ./nix/oci.nix {inherit kartenn;};
     });
 
     checks = forAll (pkgs: let
@@ -31,6 +32,7 @@
       version = pkgs.callPackage ./nix/checks/version.nix {
         inherit (packages) kartenn kartenn-server kartenn-web;
       };
+      oci = pkgs.callPackage ./nix/checks/oci.nix {inherit (packages) oci;};
     });
   };
 }
