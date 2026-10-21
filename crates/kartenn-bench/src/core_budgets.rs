@@ -3,7 +3,7 @@
 //! and as known in the past, a filtered page, a subtree with its occupancy (now and as
 //! known in the past, task 006-12d), a unitary changeset, a sustained rate of unitary
 //! changesets and an import of as many addresses as the dataset holds, through the real
-//! service and storage adapter.
+//! service and storage adapter; then those of the VLAN module (task 008-16).
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -586,6 +586,9 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         note: format!("{count} addresses, {} batches", status.applied),
     });
     progress(&format!("import: {:?}", started.elapsed()));
+
+    // The VLAN module on the same dataset (spec 008, REQ-008-25).
+    budgets.extend(crate::vlan_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
 
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);

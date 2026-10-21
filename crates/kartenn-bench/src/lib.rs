@@ -20,6 +20,7 @@ pub mod http;
 pub mod props;
 pub mod rbac;
 pub mod telemetry;
+pub mod vlan_budgets;
 
 /// Address family of a generated value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
