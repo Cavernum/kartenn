@@ -76,11 +76,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   sans rang lisible est « non évaluée » (issue `review`) ; « non classifié » s'apprécie
   sur l'union des axes cités par les candidates, des deux côtés ; les conditions ne sont
   évaluées que pour un verdict `allowed`.
-- [ ] 5. Différentiel de politique pur (candidats par combinaisons de valeurs, verdicts
+- [x] 5. Différentiel de politique pur (candidats par combinaisons de valeurs, verdicts
   de principe avant et après) — REQ-010-18 — verify : égal aux basculements du produit
   cartésien sur politiques aléatoires
   - où : `kartenn-policy/src/diff.rs`
   - dépend de : 4
+  — `diff.rs` (`diff`, `PolicyDiff` avec `opens`, `closes`, `pending`, `Flip`,
+  `Candidate`, `Slot`, `MAX_CANDIDATES`) : un service n'est examiné que si ses règles
+  candidates ou son type changent ; par axe cité, classes de valeurs (valeurs citées,
+  « autre valeur » distincte de chaque côté, « même valeur non citée » quand une règle
+  l'exige) ; candidats = ensembles d'une ou deux classes par axe et par côté ; verdict de
+  principe de `evaluate::verdict` sur les deux instantanés. Tests :
+  `acceptance_of_req_010_18` (ouverture, masquage par une interdiction sur
+  `{global, prod}`, rien sans changement) et la propriété
+  `equals_the_flips_of_the_cartesian_product` (produit d'extrémités à une ou deux valeurs
+  sur les valeurs citées et deux non citées).
+  choix : extrémités d'au plus deux valeurs par axe et par côté (`VALUES_PER_AXIS`) : le
+  masquage d'une autorisation par une interdiction (acceptation de REQ-010-18) exige deux
+  valeurs, et le décompte reste polynomial ; au-delà de 10⁵ candidats, décompte seul
+  (`truncated`) ; la propriété tourne 4 cas (environ 10⁵ paires par service affecté).
 - [ ] 6. Moteur d'inférence pur (critères, transmission, exceptions, départage,
   candidats multiples, explication) — REQ-010-42 à 45, 47, 49 — verify : cas
   d'acceptation de REQ-010-42, 44, 45 ; oracle du départage sur arbres aléatoires

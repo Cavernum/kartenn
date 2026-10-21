@@ -70,7 +70,7 @@ pub enum Verdict {
 }
 
 /// What decided the verdict (REQ-010-12).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Decisive {
     /// An endpoint has no value on an axis cited by a candidate rule.
     Unclassified {

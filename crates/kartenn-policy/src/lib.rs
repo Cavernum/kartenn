@@ -5,6 +5,7 @@
 //! This crate holds the pure domain, without storage; the module as the core sees it
 //! (ADR 0026) and its storage come with the tasks of phase P2.
 
+pub mod diff;
 pub mod evaluate;
 pub mod model;
 pub mod rules;
