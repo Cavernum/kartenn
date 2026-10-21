@@ -55,10 +55,12 @@ même crate.
   choix : copie locale `tests/it/support/section_modules.rs` (avec une ligne qui en
   nomme l'original) plutôt qu'une feature `test-support` de kartenn-service : un seul
   utilisateur, aucune dépendance de la crate vers ses helpers de test.
-- [ ] 4. kartenn-store-pg : cible `store_pg_it`, `tests/*.rs` → `tests/it/` — verify :
+- [x] 4. kartenn-store-pg : cible `store_pg_it`, `tests/*.rs` → `tests/it/` — verify :
   nombre de tests identique
   où : `crates/kartenn-store-pg/Cargo.toml`, `crates/kartenn-store-pg/tests/`
   dépend de : 1
+  — 50 tests avant et après (mêmes noms hors préfixe), 13 binaires → 2 ; aucun helper
+  partagé, aucune ligne `où :` de tâche ouverte à corriger.
 - [ ] 5. kartenn-telemetry : cible `telemetry_it`, `tests/*.rs` → `tests/it/` ; `panic.rs`
   relance son enfant par `--exact panic::panicking_child` — verify : nombre de tests
   identique ; le test de panique trouve toujours son enfant
