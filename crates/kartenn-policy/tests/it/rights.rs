@@ -26,7 +26,7 @@ async fn submit_with(env: &Env, grants: &Grants, operations: Vec<Operation>) -> 
 async fn the_catalogue_is_that_of_s15(pool: PgPool) {
     let _env = Env::new(&pool).await;
     for name in [
-        "policy.read",
+        "policy.catalogue.read",
         "policy.verdict.read",
         "policy.flow.request",
         "policy.axis.admin",
@@ -38,12 +38,16 @@ async fn the_catalogue_is_that_of_s15(pool: PgPool) {
     ] {
         assert!(kartenn_core::authz::permission(name).is_some(), "{name}");
     }
+    // A role entry is `<module>.<object>.<action>` (K12): every permission of the module.
+    for p in kartenn_service::module::Module::permissions(&kartenn_policy::Policy) {
+        assert_eq!(p.name.split('.').count(), 3, "{}", p.name);
+    }
     assert!(kartenn_core::authz::permission("policy.axis.write").is_none());
     assert!(kartenn_core::authz::permission("policy.matrix.admin").is_none());
     // Every object of the policy is read under one permission, written under its family's.
     assert_eq!(
         kartenn_service::reads::read_permission("policy.signal"),
-        "policy.read"
+        "policy.catalogue.read"
     );
     assert_eq!(
         kartenn_core::authz::type_write_permission("policy.condition"),

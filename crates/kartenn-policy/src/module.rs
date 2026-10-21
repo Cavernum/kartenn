@@ -239,7 +239,7 @@ macro_rules! permissions {
 // its key, on the scope of the node or the machine (REQ-003-17).
 permissions! {
     PERMISSIONS;
-    READ = "policy.read", false, "Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux.";
+    READ = "policy.catalogue.read", false, "Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux.";
     VERDICT_READ = "policy.verdict.read", false, "Demander un verdict de conformité entre deux extrémités dont on détient la lecture.";
     FLOW_REQUEST = "policy.flow.request", false, "Demander un flux pour une entité : verdict de toute paire, explication réduite aux valeurs, règles, motifs et conditions.";
     AXIS_ADMIN = "policy.axis.admin", true, "Désigner, modifier ou retirer un axe, décrire ses valeurs.";
@@ -271,7 +271,7 @@ static TYPE_PERMISSIONS: &[TypePermissions] = &[
 const fn typed(kind: &'static str, write: &'static str) -> TypePermissions {
     TypePermissions {
         kind,
-        read: "policy.read",
+        read: "policy.catalogue.read",
         write,
     }
 }
