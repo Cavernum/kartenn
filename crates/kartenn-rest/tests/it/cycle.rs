@@ -256,6 +256,52 @@ async fn an_author_who_validates_gets_403(pool: PgPool) {
     );
 }
 
+// REQ-016-11, INV-61: operations joined to a validation in its body.
+#[kartenn_testing::pg_test]
+async fn a_validation_body_joins_operations_of_review_only(pool: PgPool) {
+    let author = app_as(&pool, person(&pool, &["*"]).await);
+    let approver = app_as(&pool, person(&pool, &["*"]).await);
+    let (id, _) = domain(&author, &pool, "lab").await;
+    hold_everything(&author).await;
+    let pending = held(rename(&author, &id, "lab2").await).await;
+    let validation = format!("/v1/changesets/{pending}/validation");
+
+    // An operation of the core is not one of review: 422, recorded, still pending.
+    let smuggled = json!({"operations": [{"op": "create_domain", "slug": "smuggled"}]});
+    let refused = send(
+        &approver,
+        act(&validation, Some("\"pending\""), Some(&smuggled)),
+    )
+    .await;
+    assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(
+        json_of(refused)
+            .await
+            .to_string()
+            .contains("core.review.operation")
+    );
+    let recorded: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit.event
+         WHERE name = 'authz.access.denied' AND reason = 'core.review.operation'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(recorded, 1);
+    // The author, with an empty list: 403, as without a body.
+    let own = send(
+        &author,
+        act(
+            &validation,
+            Some("\"pending\""),
+            Some(&json!({"operations": []})),
+        ),
+    )
+    .await;
+    assert_eq!(own.status(), StatusCode::FORBIDDEN);
+    assert_eq!(slug_of(&pool, &id).await, "lab");
+}
+
 #[kartenn_testing::pg_test]
 async fn an_undo_in_conflict_answers_409_with_the_list(pool: PgPool) {
     let app = app_as(&pool, person(&pool, &["*"]).await);

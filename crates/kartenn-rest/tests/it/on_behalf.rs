@@ -113,3 +113,21 @@ async fn the_header_is_refused_where_it_does_not_apply() {
     let (status, _) = send(app(IdentityKind::ServiceAccount), "POST", Some("sub=other")).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+// REQ-016-12: two headers would name two requesters; neither is chosen.
+#[tokio::test]
+async fn a_repeated_header_is_refused() {
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/echo")
+        .header(header::AUTHORIZATION, "Bearer test")
+        .header("Kartenn-On-Behalf-Of", "sub=jdoe")
+        .header("Kartenn-On-Behalf-Of", "sub=jdoe")
+        .body(Body::empty())
+        .unwrap();
+    let response = app(IdentityKind::ServiceAccount)
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}

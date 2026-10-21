@@ -132,7 +132,8 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   `two_changesets_under_one_module_lock_are_delivered_in_order` (verrou nommé tenu par un
   changeset en cours, le suivant attend, ordre de livraison, payload sans `order_keys`),
   `the_ordering_keys_of_a_changeset_name_its_domains`.
-  choix : migration numérotée 0050 (0045 à 0049 laissés à la file A, qui ajoute ses
+  choix : migration numérotée 0050 (0045 à 0049 laissés à la file A, qui n'a pris que 0045
+  à 0047 : 0048 et 0049 restent volontairement inutilisés, sans effet pour sqlx ; ses
   migrations en parallèle) ; le relais ne change pas, l'ordre par clé découlant du verrou
   nommé ; clés de module brutes (déjà qualifiées par leur module, ex. `vlan.group:<uuid>`).
 - [x] 7. Tâches de fond de module — REQ-016-16 — verify :
@@ -239,7 +240,7 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   `validation_needs_the_review_permission`, `review_operations_apply_with_the_proposal`,
   opération non « de revue » jointe → 422
   - où : `module.rs` (`review`, `OperationType::review_only`), `rights.rs`,
-    `review.rs` (`approve`), REST `POST /v1/changesets/{id}/approve` ; migration
+    `review.rs` (`validate_pending_with`), REST `POST /v1/changesets/{id}/validation` ; migration
     (`review_permission`)
   - dépend de : 10
   - débloque : 011-3
@@ -262,7 +263,8 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   de noms) au lieu d'un champ `OperationType::review_only`, pour ne pas changer la forme
   littérale des types d'opération de tous les modules ; la route existante de validation
   porte les opérations jointes (le design la nomme `approve`) ; une opération jointe hors
-  revue rend 422 `changeset-refused` avec la violation, sans journal ; un module disparu
+  revue rend 422 `changeset-refused` avec la violation, journalisée en
+  `authz.access.denied` (correctif de l'audit du 2026-10-21) ; un module disparu
   du build (`core.review.module` du design) n'a pas de traitement propre : ses opérations
   ne se planifient plus et la validation est refusée par la règle d'opération inconnue.
 - [x] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :

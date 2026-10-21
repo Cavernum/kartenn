@@ -66,5 +66,6 @@ Sévérités fixées par la spécification (002/A4).
 | `core.binding.escalation` | erreur | On ne lie un rôle sur un périmètre que si l'on détient soi-même chacune de ses entrées sur ce périmètre. | REQ-005-26 | 005/K7 |
 | `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
 | `core.role.unknown` | erreur | Une liaison désigne un rôle en vigueur. | REQ-005-25 | 005/K6 |
+| `core.binding.requester` | erreur | Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un. | REQ-016-12 | 016/G10 |
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |

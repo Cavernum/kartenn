@@ -23,7 +23,7 @@ use kartenn_service::authn::Principal;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::{DiffItem, RbacRow};
 use kartenn_service::reads::{changesets_readable, objects_read, sensitive_disclosed};
-use kartenn_service::review::{proposals_for, reject, validate_pending_with, withdraw};
+use kartenn_service::review::{proposals_for, reject_in, validate_pending_with, withdraw_in};
 use kartenn_service::undo::inverse;
 use kartenn_service::{Operation, Ref, RequestError};
 use kartenn_store_pg::audit::diff_page;
@@ -947,6 +947,7 @@ fn validation_body(headers: &HeaderMap, body: &[u8]) -> Result<Validation, Probl
 pub(crate) async fn validation(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
     body: Bytes,
@@ -959,6 +960,7 @@ pub(crate) async fn validation(
         &api.sources,
         id,
         &principal.subject(),
+        &context,
         joined.operations.into_iter().map(Into::into).collect(),
         MAX_OPERATIONS,
     )
@@ -982,18 +984,20 @@ pub(crate) async fn validation(
 pub(crate) async fn rejection(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, Problem> {
     expected(&api, id, &headers).await?;
     let motive = motive(&headers, &body, "a rejection needs a motive")?;
-    reject(
+    reject_in(
         &write_store(&api),
         &api.authorizer(),
         id,
         &principal.subject(),
         &motive,
+        &context,
     )
     .await?;
     Ok(decided(id, "rejected"))
@@ -1014,11 +1018,12 @@ pub(crate) async fn rejection(
 pub(crate) async fn withdrawal(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     expected(&api, id, &headers).await?;
-    withdraw(&write_store(&api), id, principal.identity).await?;
+    withdraw_in(&write_store(&api), id, principal.identity, &context).await?;
     Ok(decided(id, "withdrawn"))
 }
 

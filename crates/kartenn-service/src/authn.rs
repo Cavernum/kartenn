@@ -255,20 +255,35 @@ pub async fn act_on_behalf<I: Identities, J: AuditJournal>(
     requester: &Requester,
     source: kartenn_core::audit::Source,
 ) -> Result<Uuid, AuthnError> {
+    let permission = kartenn_core::authz::IDENTITY_ACT_ON_BEHALF.name;
+    // A refused attempt to act for another is a signal: recorded before the refusal
+    // (INV-60).
+    let refusal = async |source: kartenn_core::audit::Source| {
+        let event = principal
+            .context(source)
+            .event(
+                &kartenn_core::audit::AUTHZ_DENIED,
+                crate::audit::Outcome::Denied,
+            )
+            .and_then(|event| event.detail("permission", permission))
+            .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?
+            .target("person", [principal.identity]);
+        journal.record(&event).await.map_err(AuthnError::Audit)?;
+        Err(AuthnError::Refused)
+    };
     if principal.kind != IdentityKind::ServiceAccount {
-        return Err(AuthnError::Refused);
+        return refusal(source).await;
     }
     let rights = identities
         .rights(&principal.subject())
         .await
         .map_err(AuthnError::Store)?;
-    let permission = kartenn_core::authz::IDENTITY_ACT_ON_BEHALF.name;
     if !rights
         .global_permissions
         .iter()
         .any(|entry| kartenn_core::authz::grants(entry, permission, false))
     {
-        return Err(AuthnError::Refused);
+        return refusal(source).await;
     }
     // Without an issuer, the subject is the service account's own: its namespace.
     let issuer = requester

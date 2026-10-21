@@ -5,7 +5,7 @@
 use kartenn_core::audit::{Source, event_schema};
 use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authn::{
-    AuthnError, IdentityKind, Method, Principal, Requester, act_on_behalf,
+    AuthnError, Identities, IdentityKind, Method, Principal, Requester, act_on_behalf,
 };
 use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::expected::Sources;
@@ -93,6 +93,7 @@ fn journal(pool: &PgPool) -> PgAuditJournal {
     PgAuditJournal::new(pool.clone(), Instance::new("test"))
 }
 
+// REQ-016-12, REQ-016-13
 #[kartenn_testing::pg_test]
 async fn a_service_account_writes_on_behalf_of_a_requester(pool: PgPool) {
     let store = PgStore::new(pool.clone());
@@ -211,6 +212,121 @@ async fn without_the_permission_or_as_a_person_it_is_refused(pool: PgPool) {
             .await
             .unwrap();
     assert_eq!(requesters, 0);
+    // Both attempts are recorded (INV-60).
+    let denied: Vec<(Option<Uuid>, Option<String>)> = sqlx::query_as(
+        "SELECT actor_id, details->>'permission' FROM audit.event
+         WHERE name = 'authz.access.denied' ORDER BY seq",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let permission = Some("core.identity.act_on_behalf".to_owned());
+    assert_eq!(
+        denied,
+        [
+            (Some(bare), permission.clone()),
+            (Some(account), permission)
+        ]
+    );
+}
+
+// REQ-016-12, INV-60: the requester a service account named is a placeholder, never a
+// reservation; the person who then logs in through the issuer takes the row over.
+#[kartenn_testing::pg_test]
+async fn the_requester_who_logs_in_becomes_a_person_under_the_issuer_name(pool: PgPool) {
+    let store = PgStore::new(pool.clone());
+    let account = connector(&pool, &store).await;
+    let sa = principal(account, IdentityKind::ServiceAccount);
+    let named = Requester {
+        sub: "jdoe".into(),
+        iss: Some("https://idp.example".into()),
+        name: Some("A name the connector chose".into()),
+    };
+    let id = act_on_behalf(&store, &journal(&pool), &sa, &named, Source::default())
+        .await
+        .unwrap();
+    // A requester is not an account: no binding names it.
+    let bind = |by: Uuid| {
+        request(
+            by,
+            vec![Operation::Bind {
+                local: None,
+                subject: BindingSubject::Identity { id },
+                role: "connector".into(),
+                scope: BindingScope::Global,
+            }],
+        )
+    };
+    let refused = submit(
+        &store,
+        &Unrestricted,
+        &bind(identity(&pool, "person").await),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    match refused {
+        Outcome::Refused { violations, .. } => {
+            assert_eq!(violations[0].rule.id, "core.binding.requester");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    // The real person logs in through the issuer: the same row, now a person, named by
+    // the issuer.
+    let (logged, disabled) = store
+        .upsert_person("https://idp.example", "jdoe", "Jane Doe")
+        .await
+        .unwrap();
+    assert_eq!(logged, id);
+    assert!(!disabled);
+    let (kind, name): (String, String) =
+        sqlx::query_as("SELECT kind, display_name FROM person WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((kind.as_str(), name.as_str()), ("person", "Jane Doe"));
+    // Its rights are those of its bindings, as any person's: none until bound, then the
+    // role's.
+    let subject = kartenn_service::authz::Subject::from(id);
+    assert!(
+        store
+            .rights(&subject)
+            .await
+            .unwrap()
+            .global_permissions
+            .is_empty()
+    );
+    let bound = submit(
+        &store,
+        &Unrestricted,
+        &bind(identity(&pool, "person").await),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(bound, Outcome::Applied { .. }), "{bound:?}");
+    assert!(
+        store
+            .rights(&subject)
+            .await
+            .unwrap()
+            .global_permissions
+            .iter()
+            .any(|p| p == "core.identity.act_on_behalf")
+    );
+    // A connector naming it again leaves it a person under the issuer's name.
+    let again = act_on_behalf(&store, &journal(&pool), &sa, &named, Source::default())
+        .await
+        .unwrap();
+    assert_eq!(again, id);
+    let (kind, name): (String, String) =
+        sqlx::query_as("SELECT kind, display_name FROM person WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((kind.as_str(), name.as_str()), ("person", "Jane Doe"));
 }
 
 #[kartenn_testing::pg_test]

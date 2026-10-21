@@ -3,7 +3,8 @@
 //! (spec 016, REQ-016-10, 11; task 016-11).
 
 use kartenn_core::rules;
-use kartenn_service::authz::Grants;
+use kartenn_service::audit::RequestContext;
+use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::expected::Sources;
 use kartenn_service::pipeline::{MAX_OPERATIONS, PendingKind};
 use kartenn_service::review::validate_pending_with;
@@ -70,16 +71,48 @@ async fn validate(
     validator: Uuid,
     operations: Vec<Operation>,
 ) -> Result<Outcome, RequestError> {
+    validate_as(
+        store,
+        grants,
+        id,
+        validator,
+        &RequestContext::person(validator),
+        operations,
+    )
+    .await
+}
+
+async fn validate_as(
+    store: &PgStore,
+    grants: &Grants,
+    id: Uuid,
+    validator: Uuid,
+    context: &RequestContext,
+    operations: Vec<Operation>,
+) -> Result<Outcome, RequestError> {
     validate_pending_with(
         store,
         grants,
         &Sources::none(),
         id,
         &validator.into(),
+        context,
         operations,
         MAX_OPERATIONS,
     )
     .await
+}
+
+/// The `authz.access.denied` events of a changeset, by rule.
+async fn denials(pool: &PgPool, changeset: Uuid) -> Vec<Option<String>> {
+    sqlx::query_scalar(
+        "SELECT reason FROM audit.event
+         WHERE name = 'authz.access.denied' AND changeset_id = $1 ORDER BY seq",
+    )
+    .bind(changeset)
+    .fetch_all(pool)
+    .await
+    .unwrap()
 }
 
 async fn labels(pool: &PgPool) -> Vec<String> {
@@ -126,6 +159,7 @@ async fn a_reviewed_operation_makes_a_proposal_despite_write(pool: PgPool) {
     assert!(matches!(direct, Outcome::Applied { .. }), "{direct:?}");
 }
 
+// REQ-016-11
 #[kartenn_testing::pg_test]
 async fn validation_needs_the_review_permission(pool: PgPool) {
     let store = dummy::store(&pool).await;
@@ -153,6 +187,7 @@ async fn validation_needs_the_review_permission(pool: PgPool) {
     assert_eq!(labels(&pool).await, ["review-me"]);
 }
 
+// REQ-016-11, INV-61
 #[kartenn_testing::pg_test]
 async fn review_operations_apply_with_the_proposal(pool: PgPool) {
     let store = dummy::store(&pool).await;
@@ -182,6 +217,11 @@ async fn review_operations_apply_with_the_proposal(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(state, "pending");
+    // The attempt is recorded before the refusal (INV-61).
+    assert_eq!(
+        denials(&pool, id).await,
+        [Some(rules::REVIEW_OPERATION.id.to_owned())]
+    );
     // A relabelling joined by the reviewer: one changeset, its operation included.
     let joined = validate(
         &store,
@@ -203,4 +243,136 @@ async fn review_operations_apply_with_the_proposal(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(operations, 2);
+}
+
+// REQ-016-11, INV-61
+#[kartenn_testing::pg_test]
+async fn without_the_review_permission_joined_operations_are_refused_too(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    let (_, id) = forced(&pool, &store).await;
+    let validator = person(&pool).await;
+    let writer = Grants::new().everywhere(validator, "dummy.thing.write");
+    let refused = validate(
+        &store,
+        &writer,
+        id,
+        validator,
+        vec![dummy::update_thing(
+            json!({"id": Ref::Local(1), "label": "reviewed"}),
+        )],
+    )
+    .await;
+    assert_eq!(rule(&refused), rules::APPROVAL_FORBIDDEN.id);
+    assert!(labels(&pool).await.is_empty());
+}
+
+// REQ-016-11, INV-61
+#[kartenn_testing::pg_test]
+async fn review_operations_join_a_proposal_only(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    // Every changeset now waits for an approval.
+    let admin = person(&pool).await;
+    let policy = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            admin,
+            vec![Operation::SetApprovalPolicy {
+                name: "all".into(),
+                min_operations: Some(1),
+                min_diff_objects: None,
+                property_keys: Vec::new(),
+                domains: Vec::new(),
+                authors: Vec::new(),
+                scopes: Vec::new(),
+                author_roles: Vec::new(),
+                author_groups: Vec::new(),
+                bound_roles: Vec::new(),
+                module_triggers: Vec::new(),
+                enabled: true,
+            }],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(policy, Outcome::Applied { .. }), "{policy:?}");
+    let author = person(&pool).await;
+    let writer = Grants::new().everywhere(author, "dummy.thing.write");
+    let held = submit(
+        &store,
+        &writer,
+        &request(
+            author,
+            vec![dummy::create_thing(json!({"label": "plain", "local": 1}))],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Pending {
+        changeset,
+        kind: PendingKind::Approval,
+        ..
+    } = held
+    else {
+        panic!("expected an approval, got {held:?}");
+    };
+    // An operation of review joined to an approval: refused, recorded.
+    let approver = person(&pool).await;
+    let refused = validate(
+        &store,
+        &Grants::new().everywhere(approver, "*"),
+        changeset,
+        approver,
+        vec![dummy::update_thing(
+            json!({"id": Ref::Local(1), "label": "reviewed"}),
+        )],
+    )
+    .await;
+    match refused {
+        Ok(Outcome::Refused { violations, .. }) => {
+            assert_eq!(violations[0].rule.id, rules::REVIEW_OPERATION.id);
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    assert_eq!(
+        denials(&pool, changeset).await,
+        [Some(rules::REVIEW_OPERATION.id.to_owned())]
+    );
+}
+
+// REQ-016-13
+#[kartenn_testing::pg_test]
+async fn a_validation_for_a_requester_names_it_in_its_events(pool: PgPool) {
+    let store = dummy::store(&pool).await;
+    let (_, id) = forced(&pool, &store).await;
+    let validator = person(&pool).await;
+    let requester = person(&pool).await;
+    let reviewer = Grants::new()
+        .everywhere(validator, "dummy.thing.write")
+        .everywhere(validator, "dummy.thing.review");
+    let mut context = RequestContext::person(validator);
+    context.on_behalf_of = Some(requester);
+    let applied = validate_as(&store, &reviewer, id, validator, &context, Vec::new()).await;
+    assert!(
+        matches!(applied, Ok(Outcome::Applied { .. })),
+        "{applied:?}"
+    );
+    let named: Vec<Option<String>> = sqlx::query_scalar(
+        "SELECT details->>'on_behalf_of' FROM audit.event
+         WHERE changeset_id = $1 AND actor_id = $2",
+    )
+    .bind(id)
+    .bind(validator)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(!named.is_empty());
+    assert!(
+        named
+            .iter()
+            .all(|n| n.as_deref() == Some(&requester.to_string())),
+        "{named:?}"
+    );
 }
