@@ -39,16 +39,27 @@ async function problemOf(response: Response): Promise<Problem> {
   };
 }
 
+/**
+ * The body of a successful answer, or `undefined` when reading it fails: a navigation that
+ * leaves the page cuts the body short (Firefox then rejects `text()`), and an error left
+ * to the caller would reach Vue's handler, logged as an uncaught error of the screen.
+ */
+async function bodyText(response: Response): Promise<string | undefined> {
+  return response.text().catch(() => undefined);
+}
+
 /** A read of the API; a failure of the network is a problem of status 0. */
 export async function read<T>(url: string): Promise<Read<T>> {
   const response = await shellFetch(url).catch(() => null);
   if (!response) return { ok: false, status: 0, problem: NETWORK };
   if (!response.ok)
     return { ok: false, status: response.status, problem: await problemOf(response) };
+  const text = await bodyText(response);
+  if (text === undefined) return { ok: false, status: 0, problem: NETWORK };
   return {
     ok: true,
     status: response.status,
-    body: (await response.json()) as T,
+    body: JSON.parse(text) as T,
     etag: response.headers.get("ETag"),
   };
 }
@@ -63,7 +74,8 @@ export async function write<T>(url: string, body: unknown): Promise<Read<T | nul
   if (!response) return { ok: false, status: 0, problem: NETWORK };
   if (!response.ok)
     return { ok: false, status: response.status, problem: await problemOf(response) };
-  const text = await response.text();
+  const text = await bodyText(response);
+  if (text === undefined) return { ok: false, status: 0, problem: NETWORK };
   return { ok: true, status: response.status, body: text ? (JSON.parse(text) as T) : null };
 }
 
@@ -90,7 +102,8 @@ export async function send<T>(
   const etag = response.headers.get("etag");
   if (!response.ok)
     return { ok: false, status: response.status, problem: await problemOf(response), etag };
-  const text = await response.text();
+  const text = await bodyText(response);
+  if (text === undefined) return { ok: false, status: 0, problem: NETWORK, etag };
   return { ok: true, status: response.status, body: text ? (JSON.parse(text) as T) : null, etag };
 }
 
