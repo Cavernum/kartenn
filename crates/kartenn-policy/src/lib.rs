@@ -14,6 +14,8 @@ pub mod rules;
 pub mod snapshot;
 
 #[cfg(feature = "pg")]
+pub mod cache;
+#[cfg(feature = "pg")]
 mod checks;
 #[cfg(feature = "pg")]
 mod codec;
@@ -23,5 +25,7 @@ pub mod handler;
 mod objects;
 #[cfg(feature = "pg")]
 mod pg;
+#[cfg(feature = "pg")]
+pub mod read;
 
 pub use module::Policy;
