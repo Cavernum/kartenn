@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 updated: 2026-10-21
 ---
 
@@ -126,15 +126,17 @@ implémentation par défaut : B passe en premier sur ce fichier, C s'y rebase.
 
 ### Proposition forcée (REQ-016-10, 11, G12)
 - Contrat : `ModuleHandler::review(plan) -> Option<&'static str>` (permission de
-  validation) ; `OperationType::review_only` pour les opérations jointes à la validation.
+  validation) ; `Module::review_operations` (liste de noms) pour les opérations jointes
+  à la validation (tel qu'implémenté : pas de champ `OperationType::review_only`, la
+  forme d'`OperationType` reste inchangée).
 - Pipeline : `rights.rs` décide « proposition » si une opération est revue, même avec
-  l'écriture ; la permission retenue est stockée sur le changeset (`review_permission
-  text NULL`).
-- Validation : `review::approve` vérifie REQ-004-42, la permission retenue sur le
-  périmètre, l'auteur ≠ validateur ; les opérations jointes sont planifiées, contrôlées
-  et appliquées dans la même transaction que la proposition ; refus 422
-  `core.review.operation` si une opération jointe n'est pas `review_only`.
-- REST : `POST /v1/changesets/{id}/approve` accepte un corps facultatif `operations`
+  l'écriture ; la permission retenue rejoint les **droits requis** de la proposition
+  (tel qu'implémenté : pas de colonne `review_permission`, pas de migration).
+- Validation : vérifie REQ-004-42, les droits requis sur le périmètre dans la transaction,
+  l'auteur ≠ validateur ; les opérations jointes sont planifiées, contrôlées et appliquées
+  dans la même transaction que la proposition et enregistrées dans `changeset.request` ;
+  refus 422 `core.review.operation` si une opération jointe n'est pas déclarée de revue.
+- REST : `POST /v1/changesets/{id}/validation` accepte un corps facultatif `operations`
   (ajout).
 
 ### Pour le compte d'un demandeur (REQ-016-12, 13, G10)
@@ -145,8 +147,10 @@ implémentation par défaut : B passe en premier sur ce fichier, C s'y rebase.
   retrouvée par (`iss`, `sub`) ; pseudonymisation existante (REQ-004-33).
 - Changeset : colonne `on_behalf_of uuid NULL` (identité `requester`) ; restitué dans la
   fiche du changeset.
-- Audit : champ `on_behalf_of` des événements (schéma `evenements-audit.schema.json`
-  étendu) ; `authn.on_behalf` enregistré à la création d'une identité `requester`.
+- Audit : `on_behalf_of` dans les `details` de chaque événement de la requête (tel
+  qu'implémenté : pas de colonne, qui changerait le `to_jsonb` des événements déjà
+  scellés) ; `authn.requester.created` enregistré à la création d'une identité
+  `requester` (le catalogue impose trois segments).
 
 ## Erreurs et cas limites
 

@@ -109,8 +109,9 @@ Règles :
 | Frontend | Plugins ES modules enregistrant des Custom Elements, découverts via l'endpoint de capacités | À chaud |
 | Connecteurs | Processus externes, clients REST | À chaud |
 
-Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée, amendement 1 ;
-implémenté par la 008, éprouvé par la 009) : identifiant et version ;
+Contrat de module ([ADR 0026](../adr/0026-contrat-de-module.md), acceptée, amendements 1
+et 2 ; implémenté par la 008, éprouvé par la 009, complété pour la v0.2 par la 016) :
+identifiant et version ;
 dépendances ; migrations ; types d'objets et leurs ancres de périmètre ; propriétés et
 types de valeurs ; règles de validation (identifiant, sévérité) ; sources de valeurs
 attendues ; permissions ; ressources REST ; contribution au graphe de topologie ;
@@ -127,8 +128,16 @@ Forme dans le code (`kartenn-service::module`) :
   (complète l'opération sur l'état courant), `plan` (sans base : objet, domaines, clés
   de verrou, opérations du noyau planifiées), `reads` (droits de lecture sur les objets
   cités), `apply`, `close`/`restore`, `referrers`/`nullify` (dépendants), `diff`
-  (section du différentiel), `check` (règles sur l'état final, `Findings`), `edges`
-  (lecture hors changeset par `ModuleRead`).
+  (section du différentiel), `check` (règles sur l'état final, `Findings`), `measure`
+  (mesures lues par les politiques d'approbation, sur la transaction et le même
+  contexte), `ended` (fin d'une proposition : rejet, retrait, expiration, dans la même
+  transaction), `review` (permission du valideur quand le module exige une revue),
+  `run_job` (tâche de fond, transaction propre), `edges` (lecture hors
+  changeset par `ModuleRead`) ; `ModuleTx::emit` écrit un événement du module avec le
+  journal de la transaction.
+- `Module` déclare aussi, pour la v0.2 (016) : `jobs`, `events`, `measures`,
+  `default_policies` (installées une seule fois) et `review_operations` (opérations
+  qu'un valideur peut joindre ; un module qui exige une revue force la proposition).
 - `ModuleRegistry` ordonne les modules selon le DAG, refuse noms, collections,
   permissions et règles en collision, et complète les catalogues du processus.
 - Le serveur compose le registre selon ses features (`vlan`, `machines` ; défaut :

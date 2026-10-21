@@ -75,6 +75,28 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   entités de ce sous-arbre (003/P16).
 - **Déclarations de module** : synchronisées depuis le code par un changeset de l'auteur
   système (003/P12).
+- **Listes partagées** (migration 0045, REQ-016-2) : une liste fermée dont les
+  `type_params` nomment `values_of` emprunte les valeurs d'une autre déclaration du même
+  déclarant ; elles restent indexées par leur propriétaire, et toute lecture des valeurs
+  passe par lui (règle `prop.declaration.values_of`). Limite connue : clore une liste
+  dont une autre emprunte les valeurs n'est pas refusé.
+- **Référence externe** (0046, REQ-016-3) : type de valeur `external_ref`, stocké en
+  `jsonb` `{system, id, label}` (un tableau pour un ensemble) ; `system` est une valeur
+  de la liste `core.external_system` (portée par `entity`) ; égalité et filtres par
+  inclusion de `{system, id}` (le libellé est ignoré), filtre écrit
+  `<système>:<identifiant>`.
+- **Lecture groupée** (REQ-016-1, N9) : `resolved_many` (port `Reader`, service
+  `reads::resolved_many`) rend les propriétés demandées de plusieurs objets, résolues et
+  expliquées à une date, en un appel, sous les droits de l'appelant (objet illisible omis,
+  valeur sensible masquée et sa lecture auditée). Le store lit les origines en quatre
+  parts parallèles, par l'index partiel `property_origin_by_object` (0047) ; budget
+  512 objets × 6 propriétés < 30 ms (mesuré à 25,4 ms au banc réduit avant l'index
+  0047 ; à remesurer au calme).
+- **Sources de valeurs attendues** (REQ-016-4, 5) : asynchrones, elles lisent dans la
+  transaction du changeset (contexte : la date ; transaction passée à part). Une source
+  rend aucun, un ou plusieurs candidats : un seul candidat donne la valeur par défaut et
+  l'écart ; plusieurs ne donnent que des suggestions (`candidates` de la réponse de
+  suggestion) ; les verdicts lisent toujours la valeur résolue (D23).
 
 ## Temps (D8, D10, ADR 0005)
 
@@ -111,8 +133,20 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   données : changeset, domaines, objets, auteur, valideur, résumé du différentiel) et un
   événement par changement d'état d'un changeset en attente
   (`org.kartenn.changeset.<état>`, `id` = `<uuid>/<état>`). L'ordre est garanti par
-  domaine d'adressage ; chaque consommateur enregistre ses livraisons
-  (`outbox_delivery`) (ADR 0018).
+  **clé d'ordre** (`outbox.order_keys`, migration 0050 ; ADR 0018, amendement 4 ;
+  REQ-016-14) : les domaines d'adressage du changeset (`domain:<uuid>`) et les clés de
+  verrou de ses opérations de module ; `domain_ids` reste pour les consommateurs de la
+  v0.1. Chaque consommateur enregistre ses livraisons (`outbox_delivery`).
+- **Événements de module** (REQ-016-15) : `org.kartenn.<module>.<nom>`, écrits avec le
+  journal de leur transaction (une simulation ou un refus n'émet rien) ; ceux d'une
+  tâche de fond n'ont pas de changeset (`outbox.changeset_id` nullable, 0052) et sont
+  ordonnés sous `<module>:<tâche>`.
+- **Pour le compte d'un demandeur** (0055, REQ-016-12, 13) : `changeset.on_behalf_of`
+  (identité `requester`) ; l'audit le porte dans les `details` de chaque événement de la
+  requête, pas dans une colonne, pour ne pas changer la forme des événements déjà
+  scellés. La validation d'une proposition enregistre dans `changeset.request` les
+  opérations de revue jointes par le valideur (REQ-016-11 ; le rôle applicatif a
+  `UPDATE (request)` sur `changeset`).
 
 ## Journal d'audit (spec 012, ADR 0019)
 
@@ -146,8 +180,10 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 
 ## Identités et RBAC (spec 005, ADR 0021)
 
-- **Identités** (`person`, étendue par la migration 0028) : `kind` (`person`,
-  `service_account`, `breakglass`, `system`), émetteur et `sub` pour une personne (une
+- **Identités** (`person`, étendue par les migrations 0028 et 0055) : `kind` (`person`,
+  `service_account`, `breakglass`, `system`, `requester` — demandeur nommé par un compte
+  de service, sans secret ni liaison, jamais connecté ; le rôle applicatif ne change
+  jamais la sorte d'une identité), émetteur et `sub` pour une personne (une
   identité par couple), nom affiché seul, `disabled_at`, `revoked_after` (sessions
   ouvertes avant refusées). Le nom d'un compte de service ou de secours est unique dans
   sa sorte (migrations 0031, 0032) et sert d'identifiant de connexion.
@@ -187,6 +223,13 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   `GET /v1/changesets/{id}/diff?section=`.
 - **`property_obligation.origin`** (0044) : `module` (synchronisée avec le code du
   module) ou `admin` (ajoutée par changeset, jamais réécrite par la synchronisation).
+- **Tâches de fond de module** (0051, REQ-016-16) : `job.module` et `job.enabled` ; le
+  déploiement déclare `<module>.<tâche>` et désactive, sans la supprimer, une tâche que
+  le build ne déclare plus ; une tâche désactivée n'est jamais réclamée.
+- **Politiques d'approbation de module** (0053, REQ-016-7, 8) :
+  `approval_policy.module_triggers` (couples `[mesure, seuil]` d'une mesure qu'un module
+  du build déclare) et `origin` (`admin` ou `module`) ; `module_default_policy` retient
+  les politiques par défaut déjà installées, jamais réinstallées.
 - **Schéma par module** : le migrateur crée le schéma du module, en donne l'usage à
   `kartenn_app` et le place en tête du `search_path` de ses migrations ; les tables d'un
   module sont versionnées comme celles du noyau.

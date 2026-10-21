@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 updated: 2026-10-21
 ---
 
@@ -309,12 +309,24 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## Synchronisation
 
-- [ ] 13. `docs/spec/` (data, interfaces, architecture, permissions, événements d'audit),
+- [x] 13. `docs/spec/` (data, interfaces, architecture, permissions, événements d'audit),
   amendement 2 de l'ADR 0026, amendement 4 de l'ADR 0018, `specs/README.md`,
   spec-keeper sans écart bloquant ; REQ-003-7, 21 à 24, REQ-004-37, 40 à 42, REQ-006-38,
   REQ-012-10 annotées « amendée par la 016 »
   - où : `docs/spec/`, `docs/adr/0018-*`, `docs/adr/0026-*`
   - dépend de : 1 à 12
+  — `data.md` (listes partagées, `external_ref`, lecture groupée, sources à candidats,
+  clés d'ordre, événements de module, `on_behalf_of`, identité `requester`, tâches et
+  politiques de module), `interfaces.md` (cycle d'un changeset : revue forcée et
+  opérations de revue ; en-tête `Kartenn-On-Behalf-Of` ; événements de module),
+  `architecture.md` (forme du contrat complétée), `invariants.md` (INV-60, INV-61) ;
+  `permissions.md` et `evenements-audit.*` déjà régénérés par les tâches 9 et 12 ;
+  ADR 0026, amendement 2 complété (`ended`, `review`, `review_operations`, écarts au
+  design) ; ADR 0018, amendement 4 déjà écrit par la tâche 6 ; REQ annotées ; design
+  corrigé sur le code (pas de `review_permission` ni de `review_only`, `on_behalf_of`
+  dans les `details`, `authn.requester.created`).
+  choix : spec-keeper remplacé par une relecture spec ↔ code à la main (un sous-agent ne
+  peut lancer spec-keeper) ; les écarts relevés sont notés au point d'étape de la 016.
 
 ## Tâches de la 010 et de la 011 débloquées
 

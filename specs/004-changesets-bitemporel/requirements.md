@@ -188,12 +188,14 @@ Acceptation :
 - Instance neuve, modules v0.1 et v0.2 installés : aucun changeset ne passe en attente.
 
 #### REQ-004-40 — Déclencheurs d'une politique
+*Amendée par la 016 (REQ-016-7, 8, 2026-10-21) : mesures de module, politiques par défaut.*
 kartenn doit permettre de définir une politique d'approbation par une combinaison de
 déclencheurs : volume (opérations ou objets du différentiel au-delà d'un seuil),
 propriété (changement direct ou indirect), périmètre, auteur (rôle, groupe, compte de
 service).
 
 #### REQ-004-41 — Proposition
+*Amendée par la 016 (REQ-016-10, 2026-10-21) : proposition forcée par un module qui exige une revue.*
 Si l'auteur n'a pas le droit d'écriture requis par une opération ou un effet
 (003/REQ-003-17, 18) mais détient le droit de proposer correspondant (`…propose`), alors
 kartenn doit enregistrer le changeset comme **proposition** en attente au lieu de le
@@ -205,6 +207,7 @@ Acceptation :
   `propose`, le changeset est refusé.
 
 #### REQ-004-42 — Validation d'une proposition
+*Amendée par la 016 (REQ-016-11, 2026-10-21) : opérations de revue jointes par le valideur.*
 kartenn doit n'accepter la validation d'une proposition que d'une identité qui détient le
 droit d'écriture sur tout ce que la proposition modifie (objets et effets) et qui n'en est
 pas l'auteur ; la proposition est revalidée à l'application (REQ-004-22).
@@ -318,6 +321,7 @@ changeset, objets touchés, différentiel résumé) écrit dans la même transac
 données.
 
 #### REQ-004-37 — Livraison au moins une fois, dans l'ordre
+*Amendée par la 016 (REQ-016-14, 2026-10-21) : ordre par clé d'ordre (domaines et clés de verrou des modules).*
 kartenn doit livrer chaque événement au moins une fois aux consommateurs, dans l'ordre
 d'application des changesets d'un même domaine d'adressage ; l'identifiant du changeset
 permet aux consommateurs de dédoublonner. (Précisé le 2026-10-17 : l'ordre global n'est
