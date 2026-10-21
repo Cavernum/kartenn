@@ -52,7 +52,7 @@ fn declarations() -> Vec<Operation> {
             local: Some(1),
             declaration: declaration(
                 "custom.environment",
-                TypeInput::Enum,
+                TypeInput::ENUM,
                 Cardinality::Set,
                 &["prefix", "address"],
                 true,

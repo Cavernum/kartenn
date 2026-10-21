@@ -6390,6 +6390,13 @@
                   "enum"
                 ],
                 "type": "string"
+              },
+              "values_of": {
+                "description": "Key of another closed list of the same declarant whose values it shares.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [

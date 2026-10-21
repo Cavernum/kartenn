@@ -4509,6 +4509,8 @@ export interface components {
       | {
           /** @enum {string} */
           type: "enum";
+          /** @description Key of another closed list of the same declarant whose values it shares. */
+          values_of?: string | null;
         }
       | {
           /** @description Maximum length in code points. */

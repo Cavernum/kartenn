@@ -83,8 +83,12 @@ pub enum Declarant {
 /// Type of a property and its parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeSpec {
-    /// Closed list.
-    Enum,
+    /// Closed list; `values_of` names another closed list of the same declarant whose
+    /// values it shares (REQ-016-2).
+    Enum {
+        /// The declaration that owns the values, when they are borrowed.
+        values_of: Option<PropertyKey>,
+    },
     /// Text with bounds and an optional pattern.
     Text {
         /// Minimum length in code points.
@@ -117,11 +121,14 @@ pub enum TypeSpec {
 }
 
 impl TypeSpec {
+    /// A closed list with values of its own.
+    pub const ENUM: Self = Self::Enum { values_of: None };
+
     /// Identifier of the type (`enum`, `text`…, or the module type), as stored.
     #[must_use]
     pub fn id(&self) -> &str {
         match self {
-            Self::Enum => "enum",
+            Self::Enum { .. } => "enum",
             Self::Text { .. } => "text",
             Self::Int { .. } => "int",
             Self::Bool => "bool",
@@ -140,7 +147,7 @@ impl TypeSpec {
     /// module registry, not here).
     pub fn value_type(&self) -> Result<Box<dyn ValueType>, String> {
         Ok(match self {
-            Self::Enum => Box::new(EnumType),
+            Self::Enum { .. } => Box::new(EnumType),
             Self::Text {
                 min_len,
                 max_len,
@@ -377,6 +384,21 @@ impl Declaration {
                 format!("{} has no carrier type", self.key),
             ));
         }
+        // The owner of borrowed values is another declaration of the same declarant
+        // (REQ-016-2); its existence and type are checked against storage.
+        if let TypeSpec::Enum {
+            values_of: Some(owner),
+        } = &self.spec
+            && (owner == &self.key || owner.namespace() != self.key.namespace())
+        {
+            return Err(Violation::new(
+                &rules::PROP_VALUES_OF,
+                format!(
+                    "{} cannot borrow the values of {owner}: only those of another declaration of the same declarant",
+                    self.key
+                ),
+            ));
+        }
         if !matches!(self.spec, TypeSpec::Module(_)) {
             self.spec.value_type().map_err(|e| {
                 Violation::new(
@@ -452,6 +474,17 @@ pub fn check_evolution(
         return Err(incompatible(
             key,
             "type or cardinality changes while assignments exist",
+            assignments.iter().map(|a| a.object),
+        ));
+    }
+    let owner = |d: &Declaration| match &d.spec {
+        TypeSpec::Enum { values_of } => values_of.clone(),
+        _ => None,
+    };
+    if owner(old) != owner(new) && !assignments.is_empty() {
+        return Err(incompatible(
+            key,
+            "the owner of the values changes while assignments exist",
             assignments.iter().map(|a| a.object),
         ));
     }
@@ -642,6 +675,35 @@ mod tests {
     }
 
     #[test]
+    fn borrowed_values_come_from_another_declaration_of_the_same_declarant() {
+        // REQ-016-2: the owner's existence and type are checked against storage.
+        let module = Declarant::Module("policy".into());
+        let borrowing = |owner: &str| TypeSpec::Enum {
+            values_of: Some(key(owner)),
+        };
+        let id = |d: Declaration| d.validate().map_err(|v| v.rule.id);
+        assert_eq!(
+            id(decl(
+                "policy.declared_environment",
+                module.clone(),
+                borrowing("policy.environment")
+            )),
+            Ok(())
+        );
+        for owner in ["policy.declared_environment", "vlan.role"] {
+            assert_eq!(
+                id(decl(
+                    "policy.declared_environment",
+                    module.clone(),
+                    borrowing(owner)
+                )),
+                Err("prop.declaration.values_of"),
+                "{owner}"
+            );
+        }
+    }
+
+    #[test]
     fn namespaces_and_declarants() {
         // REQ-003-1, 2 acceptance.
         let admin = Declarant::Administrator;
@@ -652,7 +714,7 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            decl("policy.environment", module.clone(), TypeSpec::Enum)
+            decl("policy.environment", module.clone(), TypeSpec::ENUM)
                 .validate()
                 .is_ok()
         );
@@ -732,7 +794,7 @@ mod tests {
 
     #[test]
     fn inheritance_and_obligation_changes() {
-        let mut old = decl("custom.zone", Declarant::Administrator, TypeSpec::Enum);
+        let mut old = decl("custom.zone", Declarant::Administrator, TypeSpec::ENUM);
         old.inherit = Some(InheritTree::Addressing);
         let mut flat = old.clone();
         flat.inherit = None;

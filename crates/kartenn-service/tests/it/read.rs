@@ -68,7 +68,7 @@ async fn an_object_is_read_with_its_resolved_properties(pool: PgPool) {
         }
     };
     run(vec![
-        declare(1, "custom.environment", TypeInput::Enum, true),
+        declare(1, "custom.environment", TypeInput::ENUM, true),
         Operation::AddEnumValue {
             local: None,
             property: Ref::Local(1),

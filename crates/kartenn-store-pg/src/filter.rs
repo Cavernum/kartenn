@@ -105,7 +105,7 @@ fn predicate(
     let values = if value_type == "enum" {
         format!(
             "(SELECT array_agg(e.id) FROM property_enum_value e
-          WHERE e.property_id = {property} AND e.key = ANY({values}) AND e.valid_period @> $3)::uuid[]"
+          WHERE e.property_id = public.kartenn_values_owner({property}) AND e.key = ANY({values}) AND e.valid_period @> $3)::uuid[]"
         )
     } else {
         format!("({values}::text[])::{cast}[]")

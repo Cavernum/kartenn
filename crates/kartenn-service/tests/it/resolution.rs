@@ -54,7 +54,7 @@ impl Fixture {
         };
         let declaration = DeclarationInput {
             key: "custom.environment".into(),
-            value_type: TypeInput::Enum,
+            value_type: TypeInput::ENUM,
             cardinality: Cardinality::Single,
             carriers: ["domain", "prefix", "range", "address"]
                 .map(String::from)

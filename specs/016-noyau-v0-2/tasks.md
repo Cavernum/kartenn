@@ -17,9 +17,26 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## File A — Propriétés (003)
 
-- [ ] 1. Liste de valeurs partagée (`values_of`) — REQ-016-2 — verify :
+- [x] 1. Liste de valeurs partagée (`values_of`) — REQ-016-2 — verify :
   `a_declaration_borrows_the_values_of_another`, `a_borrowed_value_cannot_close_while_cited`,
   `a_chain_of_borrowings_is_refused`
+  — `TypeSpec::Enum { values_of }` et `TypeInput::Enum { values_of }` (constantes `ENUM`),
+  `Declaration::validate` (même déclarant, pas soi-même), `check_evolution` (le
+  propriétaire ne change pas sous des affectations), règle `prop.declaration.values_of` ;
+  service : `check_values_of` à la déclaration et à la mise à jour (cible déclarée, liste
+  fermée qui n'emprunte pas, prêteur qui n'emprunte pas), valeur ajoutée à un emprunteur
+  refusée ; port `declaration_by_key`, `borrowers_of` ; store : `values_of` dans
+  `type_params`, migration `0045` (`kartenn_values_owner`) lue par `enum_values_covering`,
+  `property_facts`, `property_read::enum_values`, le filtre ; REST : `values_of` dans le
+  type `enum` (contrat de référence et types du SDK régénérés, ajout seul) ; tests
+  `kartenn-service/tests/it/declarations.rs` (les trois du verify) et unitaire de
+  `properties.rs`.
+  choix : `values_of` porté par `type_params` (jsonb existant) plutôt qu'une colonne : pas
+  de colonne versionnée de plus ; règle nommée `prop.declaration.values_of` (catalogue des
+  règles de propriétés, `prop.*`) et non `core.…` ; une valeur ne s'ajoute qu'au
+  propriétaire. Limite : clore la déclaration d'un prêteur encore emprunté n'est pas
+  refusé (ses valeurs sont closes avec elle, les affectations de l'emprunteur ne sont pas
+  vérifiées) ; à reprendre si un module en a besoin.
   - où : `kartenn-core/src/properties.rs` (`PropertyDeclaration`), store `properties.rs`,
     `property_read.rs::enum_values`, `kartenn-service/src/declarations.rs` ; migration du
     noyau suivante

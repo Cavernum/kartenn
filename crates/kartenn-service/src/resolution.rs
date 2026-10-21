@@ -134,7 +134,7 @@ pub(crate) async fn parse<T: WriteTx>(
         kinds: HashMap::new(),
     };
     match declaration.spec {
-        TypeSpec::Enum => {
+        TypeSpec::Enum { .. } => {
             facts.enum_values = tx.enum_values_covering(property, &texts, period).await?;
         }
         TypeSpec::Ref { .. } => {

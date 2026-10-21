@@ -92,7 +92,7 @@ impl Fixture {
             .unwrap();
         let declaration = DeclarationInput {
             key: "custom.environment".into(),
-            value_type: TypeInput::Enum,
+            value_type: TypeInput::ENUM,
             cardinality: Cardinality::Single,
             carriers: vec!["prefix".into()],
             inherit: Some("addressing".into()),
@@ -252,7 +252,7 @@ async fn a_declared_source_must_exist(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Suggest, false).await;
     let declaration = DeclarationInput {
         key: "custom.other".into(),
-        value_type: TypeInput::Enum,
+        value_type: TypeInput::ENUM,
         cardinality: Cardinality::Single,
         carriers: vec!["prefix".into()],
         inherit: None,

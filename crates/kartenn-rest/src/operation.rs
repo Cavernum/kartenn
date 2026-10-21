@@ -124,7 +124,11 @@ impl From<TargetKindDto> for ObjectKind {
 #[schema(as = PropertyType)]
 pub(crate) enum TypeDto {
     /// A closed list.
-    Enum,
+    Enum {
+        /// Key of another closed list of the same declarant whose values it shares.
+        #[serde(default)]
+        values_of: Option<String>,
+    },
     /// A text.
     Text {
         /// Minimum length in code points.
@@ -159,7 +163,7 @@ pub(crate) enum TypeDto {
 impl From<TypeDto> for TypeInput {
     fn from(t: TypeDto) -> Self {
         match t {
-            TypeDto::Enum => Self::Enum,
+            TypeDto::Enum { values_of } => Self::Enum { values_of },
             TypeDto::Text {
                 min_len,
                 max_len,

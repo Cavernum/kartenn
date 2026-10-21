@@ -45,7 +45,7 @@ async fn an_address_inherits_a_value_it_cannot_carry(pool: PgPool) {
             local: Some(1),
             declaration: DeclarationInput {
                 key: "custom.zone".into(),
-                value_type: TypeInput::Enum,
+                value_type: TypeInput::ENUM,
                 cardinality: Cardinality::Single,
                 // Prefixes only: addresses inherit without carrying.
                 carriers: vec!["prefix".into()],

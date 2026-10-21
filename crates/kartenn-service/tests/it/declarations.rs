@@ -143,7 +143,7 @@ async fn an_administrator_declares_custom_properties(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // REQ-003-1, 2: `custom.*`, built-in types, closed-list values in the same changeset.
     f.applied(vec![
-        declare(1, input("custom.environment", TypeInput::Enum)),
+        declare(1, input("custom.environment", TypeInput::ENUM)),
         add_value(Ref::Local(1), "prod"),
         add_value(Ref::Local(1), "dev"),
     ])
@@ -158,7 +158,7 @@ async fn an_administrator_declares_custom_properties(pool: PgPool) {
     assert_eq!(
         f.refused(vec![declare(
             1,
-            input("policy.environment", TypeInput::Enum)
+            input("policy.environment", TypeInput::ENUM)
         )])
         .await,
         vec!["prop.declaration.namespace"]
@@ -264,7 +264,7 @@ async fn declarations_evolve_only_compatibly(pool: PgPool) {
 async fn closing_values_and_properties(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
-        declare(1, input("custom.environment", TypeInput::Enum)),
+        declare(1, input("custom.environment", TypeInput::ENUM)),
         add_value(Ref::Local(1), "prod"),
         add_value(Ref::Local(1), "sandbox"),
     ])
@@ -318,7 +318,7 @@ fn policy(values: &[&str], carriers: &[&str]) -> ModuleDeclarations {
             Declaration {
                 key: PropertyKey::parse("policy.environment").unwrap(),
                 declarant: Declarant::Module("policy".into()),
-                spec: TypeSpec::Enum,
+                spec: TypeSpec::ENUM,
                 cardinality: Cardinality::Set,
                 carriers: carriers.iter().map(|c| (*c).to_owned()).collect(),
                 inherit: Some(InheritTree::Addressing),
@@ -407,7 +407,7 @@ async fn module_declarations_follow_the_code(pool: PgPool) {
 async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
-        declare(1, input("custom.environment", TypeInput::Enum)),
+        declare(1, input("custom.environment", TypeInput::ENUM)),
         add_value(Ref::Local(1), "prod"),
         Operation::CreateDomain {
             local: Some(2),
@@ -614,5 +614,144 @@ async fn incompatible_obligation_refused(pool: PgPool) {
     assert_eq!(
         f.refused(vec![obligation(env, Uuid::now_v7(), true)]).await,
         vec!["prop.declaration.invalid"]
+    );
+}
+
+/// A closed list `key` borrowing the values of `owner` (REQ-016-2).
+fn borrowing(key: &str, owner: &str) -> DeclarationInput {
+    input(
+        key,
+        TypeInput::Enum {
+            values_of: Some(owner.into()),
+        },
+    )
+}
+
+fn assign(object: Uuid, property: Uuid, value: &str) -> Operation {
+    Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::Prefix,
+        property: Ref::Id(property),
+        values: vec![RawInput::Text(value.into())],
+    }
+}
+
+/// A prefix of a new domain `slug`.
+async fn a_prefix(f: &Fixture, slug: &str) -> Uuid {
+    let domain = domain(f, slug).await;
+    f.applied(vec![prefix_in(domain, "10.0.0.0/8")]).await;
+    sqlx::query_scalar("SELECT id FROM prefix WHERE domain_id = $1")
+        .bind(domain)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap()
+}
+
+#[kartenn_testing::pg_test]
+async fn a_declaration_borrows_the_values_of_another(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let net = a_prefix(&f, "lab").await;
+    // REQ-016-2: the values stay the owner's; a value created for the owner is assignable
+    // to the borrower in the same changeset.
+    f.applied(vec![
+        declare(1, input("custom.environment", TypeInput::ENUM)),
+        declare(2, borrowing("custom.declared", "custom.environment")),
+        add_value(Ref::Local(1), "prod"),
+    ])
+    .await;
+    let (env, declared) = (
+        f.property("custom.environment").await,
+        f.property("custom.declared").await,
+    );
+    f.applied(vec![
+        add_value(Ref::Id(env), "dev"),
+        assign(net, declared, "dev"),
+    ])
+    .await;
+    assert_eq!(f.current_enum_keys(env).await, vec!["dev", "prod"]);
+    assert!(f.current_enum_keys(declared).await.is_empty());
+    let value: Uuid = sqlx::query_scalar(
+        "SELECT v_uuid FROM property_assignment WHERE object_id = $1 AND property_id = $2",
+    )
+    .bind(net)
+    .bind(declared)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let owner: Uuid =
+        sqlx::query_scalar("SELECT property_id FROM property_enum_value WHERE id = $1")
+            .bind(value)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(owner, env);
+    // A key the owner lacks, and a value added to the borrower: refused.
+    assert_eq!(
+        f.refused(vec![assign(net, declared, "test")]).await,
+        vec!["prop.assignment.invalid_value"]
+    );
+    assert_eq!(
+        f.refused(vec![add_value(Ref::Id(declared), "test")]).await,
+        vec!["prop.declaration.values_of"]
+    );
+}
+
+#[kartenn_testing::pg_test]
+async fn a_borrowed_value_cannot_close_while_cited(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let net = a_prefix(&f, "lab").await;
+    f.applied(vec![
+        declare(1, input("custom.environment", TypeInput::ENUM)),
+        declare(2, borrowing("custom.declared", "custom.environment")),
+        add_value(Ref::Local(1), "prod"),
+    ])
+    .await;
+    let declared = f.property("custom.declared").await;
+    f.applied(vec![assign(net, declared, "prod")]).await;
+    let prod: Uuid = sqlx::query_scalar("SELECT id FROM property_enum_value WHERE key = 'prod'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Cited by the borrower only: the owner's value stays open (REQ-016-2).
+    assert_eq!(
+        f.refused(vec![Operation::Close {
+            kind: ObjectKind::EnumValue,
+            id: Ref::Id(prod),
+            expected: None,
+            cascade: false,
+        }])
+        .await,
+        vec!["prop.declaration.incompatible"]
+    );
+}
+
+#[kartenn_testing::pg_test]
+async fn a_chain_of_borrowings_is_refused(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    f.applied(vec![
+        declare(1, input("custom.environment", TypeInput::ENUM)),
+        declare(2, borrowing("custom.declared", "custom.environment")),
+        declare(3, input("custom.label", text(10))),
+        declare(4, input("custom.other", TypeInput::ENUM)),
+    ])
+    .await;
+    // Borrowing from a borrower, from nothing, from another type (REQ-016-2).
+    for owner in ["custom.declared", "custom.absent", "custom.label"] {
+        assert_eq!(
+            f.refused(vec![declare(1, borrowing("custom.chained", owner))])
+                .await,
+            vec!["prop.declaration.values_of"],
+            "{owner}"
+        );
+    }
+    // A lender that would borrow in turn.
+    let env = f.property("custom.environment").await;
+    assert_eq!(
+        f.refused(vec![Operation::UpdateProperty {
+            id: Ref::Id(env),
+            declaration: borrowing("custom.environment", "custom.other"),
+        }])
+        .await,
+        vec!["prop.declaration.values_of"]
     );
 }

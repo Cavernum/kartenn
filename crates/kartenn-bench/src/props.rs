@@ -155,7 +155,7 @@ impl Bench {
                 local: Some(local),
                 declaration: input(
                     key,
-                    TypeInput::Enum,
+                    TypeInput::ENUM,
                     Cardinality::Set,
                     &["prefix", "address"],
                     true,

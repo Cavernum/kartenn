@@ -1840,6 +1840,46 @@ impl WriteTx for PgTx {
         Ok(Some(declaration))
     }
 
+    async fn declaration_by_key(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> Result<Option<(Uuid, Declaration)>, StoreError> {
+        let (at, _) = bounds(period)?;
+        let id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM property_declaration
+             WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(key)
+        .bind(at)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let Some(id) = id else {
+            return Ok(None);
+        };
+        Ok(self.declaration(id, period).await?.map(|d| (id, d)))
+    }
+
+    async fn borrowers_of(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> Result<Vec<String>, StoreError> {
+        let (at, _) = bounds(period)?;
+        sqlx::query_scalar(
+            "SELECT key FROM property_declaration
+             WHERE type_params->>'values_of' = $1
+               AND valid_period @> coalesce($2::timestamptz, now())
+             ORDER BY key",
+        )
+        .bind(key)
+        .bind(at)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
     async fn replace_declaration(
         &mut self,
         id: Uuid,
@@ -2068,7 +2108,7 @@ impl WriteTx for PgTx {
         .map_err(store_err)?;
         let enum_values: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT DISTINCT ON (key) key, id FROM property_enum_value
-             WHERE property_id = $1 AND valid_period && {}",
+             WHERE property_id = public.kartenn_values_owner($1) AND valid_period && {}",
             period_sql(2, 3)
         )))
         .bind(property)
@@ -2172,7 +2212,8 @@ impl WriteTx for PgTx {
         let (a, b) = bounds(period)?;
         let rows: Vec<(String, Uuid)> = sqlx::query_as(
             "SELECT key, id FROM property_enum_value
-             WHERE property_id = $1 AND key = ANY($2) GROUP BY key, id
+             WHERE property_id = public.kartenn_values_owner($1) AND key = ANY($2)
+             GROUP BY key, id
              HAVING range_agg(valid_period) @> tstzrange(coalesce($3::timestamptz, now()), $4::timestamptz)",
         )
         .bind(property)

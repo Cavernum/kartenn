@@ -187,6 +187,8 @@ rules! {
         "Un module déclare dans son espace, un administrateur dans l'espace custom avec les seuls types intégrés.";
     PROP_DUPLICATE_KEY = "prop.declaration.duplicate", Error, ["REQ-003-2"], "003/P8",
         "Une clé de propriété désigne une seule déclaration sur toute période.";
+    PROP_VALUES_OF = "prop.declaration.values_of", Error, ["REQ-016-2"], "016/G5",
+        "Une liste fermée n'emprunte les valeurs que d'une autre liste fermée du même déclarant, qui ne les emprunte à aucune.";
     PROP_ENUM_VALUE_INVALID = "prop.enum_value.invalid", Error, ["REQ-003-5", "REQ-003-7"], "003/P8",
         "Une valeur de liste fermée a une clé [a-z0-9-] unique dans sa propriété, de type liste fermée, valide sur sa période.";
     PROP_INCOMPATIBLE_CHANGE ="prop.declaration.incompatible", Error, ["REQ-003-6"], "003/P8",

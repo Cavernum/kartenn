@@ -31,7 +31,9 @@ fn invalid(message: String) -> Violation {
 
 fn type_spec(input: &TypeInput, modules: &ModuleRegistry) -> Result<TypeSpec, Violation> {
     Ok(match input {
-        TypeInput::Enum => TypeSpec::Enum,
+        TypeInput::Enum { values_of } => TypeSpec::Enum {
+            values_of: values_of.as_deref().map(PropertyKey::parse).transpose()?,
+        },
         TypeInput::Text {
             min_len,
             max_len,
@@ -166,7 +168,9 @@ pub(crate) fn plan(
 /// The input describing a declaration, the reverse of [`declaration`].
 fn input(declaration: &Declaration) -> DeclarationInput {
     let value_type = match &declaration.spec {
-        TypeSpec::Enum => TypeInput::Enum,
+        TypeSpec::Enum { values_of } => TypeInput::Enum {
+            values_of: values_of.as_ref().map(ToString::to_string),
+        },
         TypeSpec::Text {
             min_len,
             max_len,
@@ -265,6 +269,56 @@ async fn check_scopes<T: WriteTx>(
     Ok(())
 }
 
+/// A closed list that borrows its values (REQ-016-2) borrows them from a closed list
+/// valid at the start of `period` that borrows from no other, and is not itself a lender.
+async fn check_values_of<T: WriteTx>(
+    tx: &mut T,
+    declaration: &Declaration,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    let TypeSpec::Enum {
+        values_of: Some(owner),
+    } = &declaration.spec
+    else {
+        return Ok(());
+    };
+    let refused = |why: String| {
+        Err(WriteError::Rule(Violation::new(
+            &rules::PROP_VALUES_OF,
+            format!(
+                "{} cannot borrow the values of {owner}: {why}",
+                declaration.key
+            ),
+        )))
+    };
+    match tx.declaration_by_key(&owner.to_string(), period).await? {
+        None => return refused("it is not declared".into()),
+        Some((
+            _,
+            Declaration {
+                spec: TypeSpec::Enum { values_of: None },
+                ..
+            },
+        )) => {}
+        Some((
+            _,
+            Declaration {
+                spec: TypeSpec::Enum { values_of: Some(_) },
+                ..
+            },
+        )) => return refused("it borrows its own values".into()),
+        Some(_) => return refused("it is not a closed list".into()),
+    }
+    let borrowers = tx
+        .borrowers_of(&declaration.key.to_string(), period)
+        .await?;
+    if borrowers.is_empty() {
+        Ok(())
+    } else {
+        refused(format!("{} borrow its own values", borrowers.join(", ")))
+    }
+}
+
 /// Declares a property; refused if a scope of its obligations already holds objects,
 /// which have no value yet (REQ-003-16).
 pub(crate) async fn declare<T: WriteTx>(
@@ -275,6 +329,7 @@ pub(crate) async fn declare<T: WriteTx>(
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     check_scopes(tx, None, declaration, period).await?;
+    check_values_of(tx, declaration, period).await?;
     tx.insert_declaration(id, declaration, period, changeset)
         .await?;
     let missing: Vec<Uuid> = missing_values(tx, id, None, declaration, period)
@@ -357,6 +412,7 @@ pub(crate) async fn update<T: WriteTx>(
         return Ok(());
     }
     check_scopes(tx, Some(&old), new, period).await?;
+    check_values_of(tx, new, period).await?;
     let facts = tx.property_facts(id, old.spec.id(), period).await?;
     let missing = missing_values(tx, id, Some(&old), new, period).await?;
     match check_evolution(&old, new, &Usage(facts, missing)) {
@@ -378,10 +434,26 @@ pub(crate) async fn add_enum_value<T: WriteTx>(
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     match tx.declaration(property, period).await? {
-        Some(d) if d.spec == TypeSpec::Enum => {
+        Some(Declaration {
+            spec: TypeSpec::Enum { values_of: None },
+            ..
+        }) => {
             tx.insert_enum_value(id, property, key.as_str(), period, changeset)
                 .await
         }
+        Some(Declaration {
+            key: borrower,
+            spec: TypeSpec::Enum {
+                values_of: Some(owner),
+            },
+            ..
+        }) => Err(WriteError::Rule(
+            Violation::new(
+                &rules::PROP_VALUES_OF,
+                format!("{borrower} borrows the values of {owner}: add the value to {owner}"),
+            )
+            .with_subjects([id, property]),
+        )),
         Some(d) => Err(WriteError::Rule(
             Violation::new(
                 &rules::PROP_ENUM_VALUE_INVALID,

@@ -141,8 +141,13 @@ impl<'de> Deserialize<'de> for ObjectKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TypeInput {
-    /// Closed list.
-    Enum,
+    /// Closed list; `values_of` borrows the values of another closed list of the same
+    /// declarant (REQ-016-2).
+    Enum {
+        /// Key of the declaration that owns the values.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        values_of: Option<String>,
+    },
     /// Text.
     Text {
         /// Minimum length in code points.
@@ -178,6 +183,11 @@ pub enum TypeInput {
         /// Type identifier.
         id: String,
     },
+}
+
+impl TypeInput {
+    /// A closed list with values of its own.
+    pub const ENUM: Self = Self::Enum { values_of: None };
 }
 
 /// One raw value of an assignment, as received: text (closed-list key, text, host name,

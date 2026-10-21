@@ -290,7 +290,7 @@ impl Module for Machines {
             version: env!("CARGO_PKG_VERSION").into(),
             properties: vec![
                 (
-                    declaration(INTERFACE_ROLE, TypeSpec::Enum, INTERFACE),
+                    declaration(INTERFACE_ROLE, TypeSpec::ENUM, INTERFACE),
                     INTERFACE_ROLES.iter().map(|&v| v.to_owned()).collect(),
                 ),
                 (declaration(FQDN, TypeSpec::Fqdn, MACHINE), Vec::new()),

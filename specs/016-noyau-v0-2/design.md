@@ -38,7 +38,7 @@ implémentation par défaut : B passe en premier sur ce fichier, C s'y rebase.
   référence à la clé d'une déclaration de même déclarant ; la table des valeurs reste
   indexée par la déclaration **propriétaire** des valeurs. La résolution d'une clé de
   valeur passe par `coalesce(values_of, key)`.
-- Règle `core.declaration.values_of` : déclarant différent, cible absente, cible qui
+- Règle `prop.declaration.values_of` (catalogue des règles de propriétés) : déclarant différent, cible absente, cible qui
   emprunte elle-même, cible d'un autre type que liste fermée.
 - Où : `kartenn-core/src/properties.rs` (`PropertyDeclaration`), store `properties.rs`,
   `property_read::enum_values`, `declarations.rs`.

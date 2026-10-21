@@ -26,7 +26,14 @@ pub(crate) fn encode_type(spec: &TypeSpec) -> (String, String) {
         } => json!({ "min_len": min_len, "max_len": max_len, "pattern": pattern }),
         TypeSpec::Int { min, max } => json!({ "min": min, "max": max }),
         TypeSpec::Ref { target } => json!({ "target": target }),
-        TypeSpec::Enum | TypeSpec::Bool | TypeSpec::Date | TypeSpec::Fqdn | TypeSpec::Module(_) => {
+        TypeSpec::Enum {
+            values_of: Some(owner),
+        } => json!({ "values_of": owner.to_string() }),
+        TypeSpec::Enum { values_of: None }
+        | TypeSpec::Bool
+        | TypeSpec::Date
+        | TypeSpec::Fqdn
+        | TypeSpec::Module(_) => {
             json!({})
         }
     };
@@ -42,7 +49,13 @@ fn decode_type(id: &str, params: &str) -> Result<TypeSpec, StoreError> {
             .ok_or_else(|| decode_err(format!("{id}.{k}")))
     };
     Ok(match id {
-        "enum" => TypeSpec::Enum,
+        "enum" => TypeSpec::Enum {
+            values_of: p["values_of"]
+                .as_str()
+                .map(PropertyKey::parse)
+                .transpose()
+                .map_err(|_| decode_err("enum.values_of"))?,
+        },
         "text" => TypeSpec::Text {
             min_len: size("min_len")?,
             max_len: size("max_len")?,

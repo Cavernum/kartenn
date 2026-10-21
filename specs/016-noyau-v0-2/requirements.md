@@ -55,7 +55,7 @@ Acceptation :
 - `policy.declared_environment` emprunte les valeurs de `policy.environment` : une valeur
   créée pour l'une est affectable à l'autre dans le même changeset.
 - Une déclaration qui emprunte à une déclaration qui emprunte elle-même est refusée
-  (`core.declaration.values_of`).
+  (`prop.declaration.values_of`).
 
 #### REQ-016-3 — Type référence externe (N26 ; amende REQ-003-7, 8)
 kartenn doit fournir le type de valeur `external_ref` : système (valeur de la liste

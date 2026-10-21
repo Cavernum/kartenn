@@ -931,6 +931,22 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Option<Declaration>, StoreError>> + Send;
 
+    /// The declaration of the property `key` valid at the start of `period`, with its
+    /// identifier.
+    fn declaration_by_key(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Option<(Uuid, Declaration)>, StoreError>> + Send;
+
+    /// Keys of the closed lists that borrow the values of `key` at the start of `period`
+    /// (REQ-016-2), sorted.
+    fn borrowers_of(
+        &mut self,
+        key: &str,
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
+
     /// Replaces the version of a declaration valid at the start of `period`, from that
     /// start to the end of the version (REQ-003-6).
     fn replace_declaration(
