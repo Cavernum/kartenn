@@ -37,8 +37,10 @@ rules! {
         "Un flux dont l'issue n'est pas automatique ne s'applique qu'après instruction.";
     REVIEW_END_REQUIRED = "flow.review.end_required", Error, ["REQ-011-22"], "011/F17",
         "Un flux instruit a une date de fin, au plus au plafond de l'instruction.";
-    VERDICT_DENIED = "flow.verdict.denied", Error, ["REQ-011-8", "REQ-011-12"], "011/F6, F8",
-        "Un flux refusé par la politique ne s'enregistre qu'avec une dérogation ; refusé par un autre changement, il devient une anomalie.";
+    WAIVER_REQUIRED = "flow.waiver.required", Error, ["REQ-011-8", "REQ-011-9"], "011/F6",
+        "Un flux refusé par la politique ne s'enregistre ou ne se prolonge qu'avec une dérogation.";
+    VERDICT_DENIED = "flow.verdict.denied", Warning, ["REQ-011-12", "REQ-011-25"], "011/F8",
+        "Un flux enregistré que la politique refuse désormais, sans dérogation valide, est non conforme : anomalie, fermée quand il redevient conforme.";
     VERDICT_PARTIAL = "flow.verdict.partial", Warning, ["REQ-011-10"], "011/F6",
         "Une partie seulement des paires d'adresses du flux est autorisée.";
     WAIVER_INVALID = "flow.waiver.invalid", Error, ["REQ-011-9"], "011/F6, Q8",

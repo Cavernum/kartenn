@@ -81,7 +81,8 @@ spécification du module.
 | `flow.update.identity` | erreur | Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée. | REQ-011-4 | 011/F2 |
 | `flow.review.required` | erreur | Un flux dont l'issue n'est pas automatique ne s'applique qu'après instruction. | REQ-011-8, REQ-011-21 | 011/F5, F6 |
 | `flow.review.end_required` | erreur | Un flux instruit a une date de fin, au plus au plafond de l'instruction. | REQ-011-22 | 011/F17 |
-| `flow.verdict.denied` | erreur | Un flux refusé par la politique ne s'enregistre qu'avec une dérogation ; refusé par un autre changement, il devient une anomalie. | REQ-011-8, REQ-011-12 | 011/F6, F8 |
+| `flow.waiver.required` | erreur | Un flux refusé par la politique ne s'enregistre ou ne se prolonge qu'avec une dérogation. | REQ-011-8, REQ-011-9 | 011/F6 |
+| `flow.verdict.denied` | avertissement | Un flux enregistré que la politique refuse désormais, sans dérogation valide, est non conforme : anomalie, fermée quand il redevient conforme. | REQ-011-12, REQ-011-25 | 011/F8 |
 | `flow.verdict.partial` | avertissement | Une partie seulement des paires d'adresses du flux est autorisée. | REQ-011-10 | 011/F6 |
 | `flow.waiver.invalid` | erreur | Une dérogation a un motif et un risque accepté, une fin au plus tôt de celle du flux et du plafond, et un auteur autre que le demandeur. | REQ-011-9 | 011/F6, Q8 |
 | `flow.separation` | erreur | L'instructeur d'une demande n'en est pas le demandeur. | REQ-011-22 | 011/F17, C1 |

@@ -78,7 +78,8 @@ alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 | `flow.kind.reserved` | erreur | sorte `observed` en v0.2 |
 | `flow.review.required` | erreur | application d'un flux dont l'issue n'est pas automatique sans `approve_review` |
 | `flow.review.end_required` | erreur | flux instruit sans fin, ou au-delà de `review_max_months` |
-| `flow.verdict.denied` | erreur à l'enregistrement sans dérogation ; avertissement (anomalie) quand un autre changement le casse | REQ-011-8, 12 |
+| `flow.waiver.required` | erreur | enregistrement ou prolongation d'un flux refusé sans dérogation (REQ-011-8, 9) |
+| `flow.verdict.denied` | avertissement (anomalie) | flux enregistré qu'un autre changement casse, sans dérogation valide ; fermée quand il redevient conforme (REQ-011-12) |
 | `flow.verdict.partial` | avertissement | REQ-011-10 |
 | `flow.waiver.invalid` | erreur | motif ou risque vide, fin absente ou au-delà du plafond, auteur = demandeur |
 | `flow.separation` | erreur | instructeur = demandeur |

@@ -364,7 +364,7 @@ async fn acceptance_of_req_011_8_a_denied_direct_write_is_refused(pool: PgPool) 
         .await;
     let found = rules(&outcome);
     assert!(found.contains(&"flow.review.required"), "{found:?}");
-    assert!(found.contains(&"flow.verdict.denied"), "{found:?}");
+    assert!(found.contains(&"flow.waiver.required"), "{found:?}");
     assert_eq!(env.flows().await, 0);
 }
 

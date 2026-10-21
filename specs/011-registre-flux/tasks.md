@@ -29,7 +29,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     autorisant dans la synthèse (l'issue porte la réserve) ; deux règles ajoutées au
     tableau du design : `flow.field.invalid` (justification, identifiant externe) et
     `flow.update.identity` (REQ-011-4).
-- [ ] 2. Migrations du module : `flow`, `flow_waiver`, `flow_endpoint_address`,
+- [x] 2. Migrations du module : `flow`, `flow_waiver`, `flow_endpoint_address`,
   `flow_evaluation`, `flow_summary`, `flow_registration`, `flow_rejection`,
   `flow_notice` versionnées — REQ-011-16, 23 — verify : tests de contraintes ; lecture
   `as_of` passé
@@ -154,12 +154,24 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     les flux qui passent à `denied` (synthèse absente comprise), `heals` l'inverse ;
     héritiers d'une valeur à venir absents du différentiel des propriétés (fenêtre
     future) : rattrapés par l'index des origines ; anomalies et déclencheurs en tâche 6.
-- [ ] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
+- [x] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
   l'installation), `flow.waiver` ; anomalies `flow.verdict.denied` ouvertes et fermées ;
   crochet de rejet (N38) et `flow_rejection` — REQ-011-6, 12, 25 — verify : politique
   `flow.breaks ≥ 1` installée et active ; rejet motivé enregistré
   - où : déclencheurs de module (tâche 010-9), anomalies (ADR 0026 clause 7)
   - dépend de : 5
+  - fait : `src/approval.rs` (mesures `created`, `breaks`, `waiver` ; politique par défaut
+    `flow.breaks` = `breaks ≥ 1` ; anomalies des flux qui basculent, lues dans la section
+    `flow.flows`), `Handler::measure`, `Handler::check`, `Module::{measures,
+    default_policies}`, `pg::written_counts` ; crochet de rejet déjà en 011-3 ; tests
+    `tests/it/approval.rs` (politique installée, active, changeset cassant en attente
+    d'approbation ; anomalie ouverte, laissée par un changeset sans rapport, fermée à la
+    guérison), `requests.rs::a_rejected_request_is_a_nonconformity`.
+  - choix : `flow.verdict.denied` devient l'avertissement (anomalie) ; le refus à
+    l'enregistrement sans dérogation prend la règle d'erreur `flow.waiver.required` (une
+    règle n'a qu'une sévérité) ; seuls les flux dont l'évaluation bascule sont réévalués
+    sous cette règle (pas de parcours des anomalies ouvertes) ; la dérogation est lue à
+    l'instant du changeset.
 
 ## P3 — Lectures, échéances, événements, API
 
