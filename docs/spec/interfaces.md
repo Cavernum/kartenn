@@ -137,8 +137,9 @@ Installer un plugin revient à lui confier la session de chaque utilisateur ; un
 extension non fiable passe par l'API, comme un connecteur.
 
 **Chargement** (REQ-007-9, 10, 13) : compatibilité semver de la plage `sdk` ;
-catalogues lus avec leur empreinte ; un `modulepreload` avec `integrity` par module,
-puis le script d'entrée ; plugin écarté (`incompatible`, `load-failed`, `exception`,
+catalogues lus avec leur empreinte ; un `modulepreload` avec `integrity` par module
+JavaScript (`.js` seuls ; styles et catalogues sont lus par `fetch` avec leur
+`integrity`), puis le script d'entrée ; plugin écarté (`incompatible`, `load-failed`, `exception`,
 `timeout` à 5 s) sans bloquer le shell, motif affiché sur `/about`.
 
 **Points d'extension** (W5), déclarés au manifeste et filtrés par type d'objet et
