@@ -6,6 +6,7 @@
 //! its migrations and its handler in the write pipeline (the references of the endpoints;
 //! the operations come with task 011-3).
 
+pub mod evaluation;
 pub mod handler;
 pub mod model;
 pub mod module;

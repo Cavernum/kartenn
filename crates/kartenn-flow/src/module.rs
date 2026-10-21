@@ -7,7 +7,7 @@ use std::sync::Arc;
 use kartenn_core::authz::Permission;
 use kartenn_core::rules::Rule;
 use kartenn_service::module::{
-    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, Reference,
+    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
 };
 
 use crate::handler::Handler;
@@ -114,10 +114,52 @@ impl Module for Flows {
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS
     }
+    fn operations(&self) -> &'static [OperationType] {
+        OPERATIONS
+    }
+    fn review_operations(&self) -> &'static [&'static str] {
+        // The validator of a request joins its approval and, for a denied flow, its waiver
+        // (REQ-011-22, REQ-016-11).
+        &["approve_review", "waive"]
+    }
+    fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
+        // REQ-011-17, F12: requesting needs no read of the endpoints; the direct write of
+        // maintenance (`register`, `update`) is `flow.flow.write`, the default.
+        &[
+            ("request", "flow.flow.request"),
+            ("waive", "flow.flow.waive"),
+            ("approve_review", "flow.flow.review"),
+        ]
+    }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
     }
 }
+
+// The operations of the module (design 011 « Opérations et règles »); a flow is closed by
+// the generic `Close` of the core, its references by the cascade (REQ-011-3).
+static OPERATIONS: &[OperationType] = &[
+    OperationType {
+        name: "request",
+        defines: Some(FLOW),
+    },
+    OperationType {
+        name: "register",
+        defines: Some(FLOW),
+    },
+    OperationType {
+        name: "update",
+        defines: None,
+    },
+    OperationType {
+        name: "waive",
+        defines: None,
+    },
+    OperationType {
+        name: "approve_review",
+        defines: None,
+    },
+];
 
 #[cfg(test)]
 mod tests {

@@ -50,7 +50,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     et celles de la dérogation ; le module n'est pas encore monté par `kartenn-server`
     (opérations et gestionnaire en 011-3).
 
-- [ ] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
+- [x] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
   forcée et permission de validation, N39, amendement additif de la 004 et du contrat) ;
   instruction (`approve_review`, séparation des tâches) ; dérogation — REQ-011-1 à 4,
   8 à 10, 17, 21, 22 — verify : cas d'acceptation de REQ-011-8, 9, 21, 22 ; demande
@@ -66,6 +66,38 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     acteurs du changeset (`ModuleTx::actors` : auteur, demandeur, validateur, pour
     `requester_id`, `reviewed_by`, `granted_by`, `flow.separation`) sont l'amendement 3
     de l'ADR 0026 ; reste à attendre 010-12 et 010-13
+  - fait (2026-10-22) : `src/handler.rs` (opérations `request`, `register`, `update`,
+    `waive`, `approve_review` ; `prepare` complète l'opération — fin lue comme instant,
+    propriété `core.owner`, triage de la demande — et l'écrase à chaque préparation ;
+    `review` force la proposition d'une demande non conforme ou non automatique ; `reads`
+    exige la lecture des deux extrémités pour `register` ; `check` sur l'état final ;
+    `ended` alimente `flow_rejection` au rejet), `src/evaluation.rs` (évaluation dans la
+    transaction : extrémités développées par le port de lecture de la 009, valeurs des
+    axes lues sur les origines matérialisées, axes portés par la machine, dossier,
+    `kartenn_policy::evaluate` par paire, synthèse), `src/pg.rs` (insertion, portion,
+    marques du changeset `pg_temp.flow_written`, couverture des périodes, évaluations,
+    enregistrement figé, dérogation, rejet), `src/module.rs` (opérations, opérations de
+    revue `approve_review` et `waive`, permissions `flow.flow.request`, `.waive`,
+    `.review`). Tests `crates/kartenn-flow/tests/it/requests.rs` : REQ-011-21 (conforme
+    appliquée et figée ; refusée → proposition), REQ-011-8 (écriture directe refusée,
+    `flow.review.required` et `flow.verdict.denied`), REQ-011-22 et 9 (instruite et
+    dérogée par le validateur ; le demandeur, servi par un compte de service, n'instruit
+    pas sa demande ; plafonds de 12 et 6 mois), rejet → non-conformité, REQ-011-17
+    (demande sans lecture des extrémités ; écriture directe sans lecture refusée,
+    `core.object.forbidden`), REQ-011-1 (référence manquante), REQ-011-4 (identité).
+  - choix : la demande d'un flux exige aussi `prop.core.owner.write` sur l'entité (le
+    module ancre le flux par une affectation ordinaire de `core.owner`, contrôlée comme
+    telle) ; `register` est le nom de l'écriture directe de maintenance (le design ne la
+    nommait pas) ; le demandeur est l'identité pour le compte de laquelle le changeset est
+    soumis, sinon son auteur, jamais la parole du client ; le triage n'est fait que pour
+    des extrémités, un service et une entité donnés par identifiant (sinon la demande est
+    instruite) ; l'évaluation d'un flux créé couvre toute sa période en un segment (la
+    segmentation aux bornes de la politique et des rattachements vient avec la
+    réévaluation, tâche 5) ; un flux sans paire d'adresses compte comme refusé ;
+    l'évaluation dans la transaction recharge la politique sans le cache des requêtes
+    (une simulation lève une révision qu'elle annule) ; `update` ne fait que raccourcir la
+    période (`end`), la prolongation reste à faire ; les conditions non remplies sont
+    reliées aux conditions par leur clé.
 - [x] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
   clôture d'une adresse citée refusée ; cascade clôt le flux
   - où : références de module (ADR 0026 clause 12, tâche 008-7)
