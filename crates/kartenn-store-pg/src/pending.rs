@@ -187,6 +187,7 @@ type PolicyRow = (
     serde_json::Value,
     serde_json::Value,
     bool,
+    serde_json::Value,
 );
 
 /// Identifiers under `key` in a list of anchors such as `[{"domain": "…"}]`.
@@ -212,7 +213,7 @@ fn texts(array: &serde_json::Value, key: &str) -> Vec<String> {
 pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPolicy>, StoreError> {
     let rows: Vec<PolicyRow> = sqlx::query_as(
         "SELECT id, name, min_operations, min_diff_objects, property_keys, perimeters, authors,
-                enabled
+                enabled, module_triggers
          FROM approval_policy WHERE enabled ORDER BY name",
     )
     .fetch_all(conn)
@@ -230,6 +231,7 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                 perimeters,
                 authors,
                 enabled,
+                module_triggers,
             )| {
                 ApprovalPolicy {
                     id,
@@ -260,6 +262,12 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                                 g.get(1)?.as_str()?.to_owned(),
                             ))
                         })
+                        .collect(),
+                    module_triggers: module_triggers
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|t| Some((t.get(0)?.as_str()?.to_owned(), t.get(1)?.as_u64()?)))
                         .collect(),
                     enabled,
                 }
@@ -322,13 +330,15 @@ pub(crate) async fn set_policy(
         .collect();
     sqlx::query(
         "INSERT INTO approval_policy
-             (id, name, min_operations, min_diff_objects, property_keys, perimeters, authors, enabled)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             (id, name, min_operations, min_diff_objects, property_keys, perimeters, authors, enabled,
+              module_triggers)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
              min_operations = EXCLUDED.min_operations,
              min_diff_objects = EXCLUDED.min_diff_objects,
              property_keys = EXCLUDED.property_keys, perimeters = EXCLUDED.perimeters,
-             authors = EXCLUDED.authors, enabled = EXCLUDED.enabled",
+             authors = EXCLUDED.authors, enabled = EXCLUDED.enabled,
+             module_triggers = EXCLUDED.module_triggers",
     )
     .bind(policy.id)
     .bind(&policy.name)
@@ -338,8 +348,56 @@ pub(crate) async fn set_policy(
     .bind(serde_json::Value::Array(perimeters))
     .bind(serde_json::Value::Array(authors))
     .bind(policy.enabled)
+    .bind(serde_json::json!(policy.module_triggers))
     .execute(conn)
     .await
     .map_err(|e| WriteError::Store(store_err(e)))?;
     Ok(())
+}
+
+/// Installs the default approval policies of the modules of the build that were never
+/// installed (REQ-016-8): marked of module origin, enabled, recorded so that a policy an
+/// administrator disables, renames or removes never comes back. Returns their names.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn install_default_policies(
+    pool: &sqlx::PgPool,
+    modules: &kartenn_service::module::ModuleRegistry,
+) -> Result<Vec<String>, StoreError> {
+    let mut installed = Vec::new();
+    let mut tx = pool.begin().await.map_err(store_err)?;
+    for (module, policy) in modules.default_policies() {
+        let fresh: Option<String> = sqlx::query_scalar(
+            "INSERT INTO module_default_policy (module, name) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING RETURNING name",
+        )
+        .bind(module)
+        .bind(policy.name)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        if fresh.is_none() {
+            continue;
+        }
+        let triggers: Vec<(String, u64)> = policy
+            .triggers
+            .iter()
+            .map(|(measure, threshold)| (format!("{module}.{measure}"), *threshold))
+            .collect();
+        sqlx::query(
+            "INSERT INTO approval_policy (id, name, module_triggers, origin, enabled)
+             VALUES ($1, $2, $3, 'module', true) ON CONFLICT (name) DO NOTHING",
+        )
+        .bind(Uuid::now_v7())
+        .bind(policy.name)
+        .bind(serde_json::json!(triggers))
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        installed.push(policy.name.to_owned());
+    }
+    tx.commit().await.map_err(store_err)?;
+    Ok(installed)
 }

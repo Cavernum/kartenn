@@ -760,6 +760,7 @@ fn plan_policy(
         author_roles,
         author_groups,
         bound_roles,
+        module_triggers,
         enabled,
     } = op
     else {
@@ -780,6 +781,10 @@ fn plan_policy(
         author_roles: author_roles.clone(),
         author_groups: author_groups.clone(),
         bound_roles: bound_roles.iter().map(|r| r.trim().to_owned()).collect(),
+        module_triggers: module_triggers
+            .iter()
+            .map(|t| (t.measure.clone(), t.threshold))
+            .collect(),
         enabled: *enabled,
     };
     let mut policy = policy;
@@ -814,7 +819,8 @@ fn plan_policy(
         || !policy.authors.is_empty()
         || !policy.author_roles.is_empty()
         || !policy.author_groups.is_empty()
-        || !policy.bound_roles.is_empty();
+        || !policy.bound_roles.is_empty()
+        || !policy.module_triggers.is_empty();
     if policy.name.is_empty() || !triggers {
         return Err(Violation::new(
             &rules::POLICY_INVALID,
@@ -881,6 +887,25 @@ fn plan(
                 ids.insert(local, id);
             }
             let op = owned.inner();
+            // REQ-016-7: a policy names the measures of the modules of the build only.
+            if let Operation::SetApprovalPolicy {
+                name,
+                module_triggers,
+                ..
+            } = op
+            {
+                for trigger in module_triggers {
+                    if !modules.declares_measure(&trigger.measure) {
+                        violations.push(Violation::new(
+                            &rules::POLICY_TRIGGER,
+                            format!(
+                                "the policy '{name}': no module of the build measures '{}'",
+                                trigger.measure
+                            ),
+                        ));
+                    }
+                }
+            }
             match op {
                 Operation::Module(operation) => {
                     let Some((_, handler)) = modules.operation(&operation.module, &operation.name)
@@ -1233,10 +1258,11 @@ async fn check_modules<T: WriteTx>(
     touched: &[(ObjectKind, Uuid)],
     sections: &[crate::module::DiffSection],
     violations: &mut Vec<Violation>,
-) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
+) -> Result<ModuleFindings, StoreError> {
     // Each module once, in the order of the registry: a module that wrote nothing may
     // still have rules on the sections.
     let mut reevaluated = Vec::new();
+    let mut measures = std::collections::BTreeMap::new();
     for module in modules.modules() {
         let Some(handler) = module.handler() else {
             continue;
@@ -1272,8 +1298,28 @@ async fn check_modules<T: WriteTx>(
         let findings = handler.check(tx.module_tx(), &context).await?;
         violations.extend(findings.violations);
         reevaluated.extend(findings.reevaluated);
+        // Its measures, for the approval policies (REQ-016-7).
+        for (name, value) in handler.measure(tx.module_tx(), &context).await? {
+            if module.measures().contains(&name) {
+                measures.insert(format!("{}.{name}", module.name()), value);
+            } else {
+                return Err(StoreError(format!(
+                    "module `{}` measures `{name}`, which it does not declare",
+                    module.name()
+                )));
+            }
+        }
     }
-    Ok(reevaluated)
+    Ok(ModuleFindings {
+        reevaluated,
+        measures,
+    })
+}
+
+/// What the modules found on a changeset: objects re-evaluated, and their measures.
+struct ModuleFindings {
+    reevaluated: Vec<(Uuid, &'static str)>,
+    measures: std::collections::BTreeMap<String, u64>,
 }
 
 /// A write's refusal becomes a violation; an infrastructure failure stops everything.
@@ -1939,7 +1985,7 @@ async fn stages<S: Store, A: Authorizer>(
                 return Err(e.into());
             }
         };
-    let module_reevaluated = match check_modules(
+    let module_findings = match check_modules(
         &mut tx,
         modules,
         changeset,
@@ -1950,7 +1996,7 @@ async fn stages<S: Store, A: Authorizer>(
     )
     .await
     {
-        Ok(reevaluated) => reevaluated,
+        Ok(findings) => findings,
         Err(e) => {
             tx.rollback().await?;
             return Err(e.into());
@@ -1976,7 +2022,14 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => {
             let kind = if missing.is_empty() {
                 crate::review::holding_policy(
-                    &mut tx, &policies, req, author, &planned, &diff, &domains,
+                    &mut tx,
+                    &policies,
+                    req,
+                    author,
+                    &planned,
+                    &diff,
+                    &domains,
+                    &module_findings.measures,
                 )
                 .await?
                 .map(|policy| (PendingKind::Approval, Some(policy)))
@@ -2032,7 +2085,7 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Validation { .. } => {}
     }
     let mut reevaluated = reevaluated(&planned, &checked);
-    reevaluated.extend(module_reevaluated);
+    reevaluated.extend(module_findings.reevaluated);
     let (kind, validator) = match mode {
         Mode::Submission => ("direct", None),
         Mode::Validation {

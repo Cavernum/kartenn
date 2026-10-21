@@ -182,6 +182,7 @@ async fn approval_policy_counts_module_operations(pool: PgPool) {
         author_roles: Vec::new(),
         author_groups: Vec::new(),
         bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
         enabled: true,
     };
     let outcome = submit(

@@ -4241,6 +4241,27 @@
         ],
         "type": "object"
       },
+      "ModuleTrigger": {
+        "additionalProperties": false,
+        "description": "A trigger of an approval policy on a measure of a module (REQ-016-7).",
+        "properties": {
+          "measure": {
+            "description": "`<module>.<measure>`, declared by a module of the build.",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "The policy holds from this value up.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "measure",
+          "threshold"
+        ],
+        "type": "object"
+      },
       "ModuleVersion": {
         "description": "A version of an object of a module, on both axes (REQ-004-18).",
         "properties": {
@@ -5309,6 +5330,13 @@
                   "integer",
                   "null"
                 ]
+              },
+              "module_triggers": {
+                "description": "Measures of modules reach these thresholds (REQ-016-7).",
+                "items": {
+                  "$ref": "#/components/schemas/ModuleTrigger"
+                },
+                "type": "array"
               },
               "name": {
                 "description": "Unique name.",

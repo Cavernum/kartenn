@@ -377,6 +377,9 @@ pub struct ApprovalPolicy {
     /// The changeset binds one of these roles (005, REQ-005-25: a second administrator
     /// for any binding of the administrator role).
     pub bound_roles: Vec<String>,
+    /// Measures of modules and their thresholds (`<module>.<measure>`, REQ-016-7): each
+    /// reaches its threshold.
+    pub module_triggers: Vec<(String, u64)>,
     /// Disabled policies hold nothing.
     pub enabled: bool,
 }

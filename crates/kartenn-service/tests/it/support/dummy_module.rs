@@ -122,6 +122,15 @@ impl Module for Dummy {
     fn events(&self) -> &'static [&'static str] {
         &["created"]
     }
+    fn measures(&self) -> &'static [&'static str] {
+        &["things"]
+    }
+    fn default_policies(&self) -> &'static [kartenn_service::module::DefaultPolicy] {
+        &[kartenn_service::module::DefaultPolicy {
+            name: "dummy-many-things",
+            triggers: &[("things", 10)],
+        }]
+    }
 }
 
 /// `dummy.update_thing`, as received.
@@ -309,6 +318,16 @@ impl ModuleHandler for Handler {
             )
             .await
         })
+    }
+
+    fn measure<'a>(
+        &'a self,
+        _tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Vec<(&'static str, u64)>, StoreError>> {
+        // The things the changeset writes.
+        let things = context.touched.len() as u64;
+        Box::pin(std::future::ready(Ok(vec![("things", things)])))
     }
 
     fn run_job<'a>(

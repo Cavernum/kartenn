@@ -115,7 +115,7 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   (opération en erreur, transaction annulée) ; `id` CloudEvents propre à chaque événement
   de module (`gen_random_uuid`), `subject` facultatif ; `domain_ids` du changeset recopiés
   sur ses événements de module, pour les consommateurs de la v0.1.
-- [ ] 9. Mesures de module et politiques par défaut — REQ-016-7, 8 — verify :
+- [x] 9. Mesures de module et politiques par défaut — REQ-016-7, 8 — verify :
   `a_policy_on_a_module_measure_holds_the_changeset`, mesure inconnue refusée,
   `a_default_policy_is_installed_once`
   - où : `module.rs` (`measures`, `measure`, `default_policies`),
@@ -123,6 +123,27 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     `changesets.rs`, `modules.rs::deploy`, REST des politiques ; migration
   - dépend de : 8
   - débloque : 010-9, 011-6
+  — `module.rs` : `Module::measures`, `Module::default_policies` (`DefaultPolicy`),
+  `ModuleHandler::measure`, `ModuleRegistry::{declares_measure, default_policies}`,
+  `RegistryError::InvalidMeasure` ; `operations.rs` : `ModuleTrigger`,
+  `SetApprovalPolicy::module_triggers` ; `port.rs` : `ApprovalPolicy::module_triggers` ;
+  `pipeline.rs` : refus d'une mesure inconnue au plan (règle `core.approval_policy.trigger`,
+  catalogue régénéré), mesures lues dans `check_modules` ; `review.rs` : déclencheur de
+  mesures (`Exposure::measures`, une mesure absente vaut zéro) ; store `pending.rs`
+  (désormais public) : `module_triggers` lu et écrit, `install_default_policies` appelée
+  par `maintenance::deploy` ; migration `0053_module_policies.sql` (`module_triggers`,
+  `origin`, `module_default_policy`) ; REST : `ModuleTrigger` dans l'opération, contrat et
+  types du SDK régénérés (ajouts). Tests `kartenn-service/tests/it/module_measures.rs` :
+  `a_policy_on_a_module_measure_holds_the_changeset`, `an_unknown_measure_is_refused`,
+  `a_default_policy_is_installed_once` (désactivée puis supprimée, jamais réinstallée) ;
+  test unitaire de `holds` étendu.
+  choix : `measure` reçoit la transaction et le contexte (le design la donnait sur le seul
+  contexte) et rend des noms locaux, qualifiés par le noyau ; les mesures sont calculées
+  avant la branche de simulation, mais la simulation n'expose toujours pas la politique
+  qui retiendrait le changeset (pas de changement de sa réponse) ; la règle porte le nom du
+  design, `core.approval_policy.trigger` ; `origin` n'est pas dans `ApprovalPolicy` (lu
+  par personne pour l'instant), une politique par défaut modifiée par changeset garde
+  `origin = 'module'`.
 
 ## File C — Changesets et identités (004, 005, 006, 012)
 

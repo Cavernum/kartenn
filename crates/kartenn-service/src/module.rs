@@ -134,6 +134,16 @@ pub struct JobSpec {
     pub period: std::time::Duration,
 }
 
+/// An approval policy a module installs on its first deployment (REQ-016-8): never
+/// installed again, even disabled or closed by an administrator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultPolicy {
+    /// The name of the policy, unique among the policies.
+    pub name: &'static str,
+    /// Its triggers: a measure of the module (its local name) and a threshold.
+    pub triggers: &'static [(&'static str, u64)],
+}
+
 /// A future of a module, boxed so that its traits stay object-safe.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -479,6 +489,19 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 
+    /// The values of the module's [`Module::measures`] for the changeset of `context`
+    /// (local names), read after the sections of its differential; an approval policy
+    /// holds the changeset on them (REQ-016-7). Nothing by default: a measure not given
+    /// counts as zero.
+    fn measure<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Vec<(&'static str, u64)>, StoreError>> {
+        let _ = (tx, context);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
     /// Runs the background task `name` of the module's [`Module::jobs`], in one
     /// transaction of its own, committed when it ends well (REQ-016-16). Nothing by
     /// default.
@@ -547,6 +570,15 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn events(&self) -> &'static [&'static str] {
         &[]
     }
+    /// The names of its measures, `[a-z][a-z0-9_]*`, that an approval policy may name as
+    /// `<module>.<measure>` in its triggers (REQ-016-7).
+    fn measures(&self) -> &'static [&'static str] {
+        &[]
+    }
+    /// The approval policies it installs on its first deployment (REQ-016-8).
+    fn default_policies(&self) -> &'static [DefaultPolicy] {
+        &[]
+    }
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).
@@ -604,6 +636,15 @@ pub enum RegistryError {
         /// The event.
         name: String,
     },
+    /// A measure with an invalid or repeated name, or a default policy on a measure the
+    /// module does not declare.
+    #[error("module `{module}`: measure `{name}` must be named [a-z][a-z0-9_]* once and declared")]
+    InvalidMeasure {
+        /// The module.
+        module: String,
+        /// The measure.
+        name: String,
+    },
     /// A REST collection declared twice, or taken from the core.
     #[error("collection `/v1/{collection}` of module `{module}` is already served by `{owner}`")]
     DuplicateCollection {
@@ -622,8 +663,8 @@ pub struct ModuleRegistry {
     modules: Vec<Arc<dyn Module>>,
 }
 
-/// The background tasks and the events of `module` have valid names, each once
-/// (REQ-016-15, 16).
+/// The background tasks, the events and the measures of `module` have valid names, each
+/// once, and its default policies name its own measures (REQ-016-7, 8, 15, 16).
 fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
     let mut jobs = BTreeSet::new();
     for job in module.jobs() {
@@ -641,6 +682,21 @@ fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
                 module: module.name().to_owned(),
                 name: (*event).to_owned(),
             });
+        }
+    }
+    let invalid_measure = |name: &str| RegistryError::InvalidMeasure {
+        module: module.name().to_owned(),
+        name: name.to_owned(),
+    };
+    let mut measures = BTreeSet::new();
+    for measure in module.measures() {
+        if !valid_name(measure) || !measures.insert(*measure) {
+            return Err(invalid_measure(measure));
+        }
+    }
+    for policy in module.default_policies() {
+        if let Some((measure, _)) = policy.triggers.iter().find(|(m, _)| !measures.contains(m)) {
+            return Err(invalid_measure(measure));
         }
     }
     Ok(())
@@ -817,6 +873,25 @@ impl ModuleRegistry {
                     .iter()
                     .map(|j| (format!("{}.{}", m.name(), j.name), j.period))
             })
+            .collect()
+    }
+
+    /// Whether a module of the build declares the measure `measure` (`<module>.<name>`).
+    #[must_use]
+    pub fn declares_measure(&self, measure: &str) -> bool {
+        measure.split_once('.').is_some_and(|(module, name)| {
+            self.get(module)
+                .is_some_and(|m| m.measures().contains(&name))
+        })
+    }
+
+    /// The default policies of every module, with their module, in registry order
+    /// (REQ-016-8).
+    #[must_use]
+    pub fn default_policies(&self) -> Vec<(&'static str, &'static DefaultPolicy)> {
+        self.modules
+            .iter()
+            .flat_map(|m| m.default_policies().iter().map(|p| (m.name(), p)))
             .collect()
     }
 

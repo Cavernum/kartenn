@@ -67,6 +67,10 @@ pub async fn deploy(
     crate::jobs::declare_module_jobs(pool, &modules.jobs())
         .await
         .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.0)))?;
+    // Their default approval policies, on their first deployment only (REQ-016-8).
+    crate::pending::install_default_policies(pool, modules)
+        .await
+        .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.0)))?;
     history_partitions(pool, MONTHS_AHEAD).await?;
     // REQ-012-8: the migration job is audited, by the system.
     let event = kartenn_service::audit::RequestContext::system()

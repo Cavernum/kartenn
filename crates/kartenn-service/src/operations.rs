@@ -517,6 +517,9 @@ pub enum Operation {
         /// The changeset binds one of these roles (005, REQ-005-25).
         #[serde(default)]
         bound_roles: Vec<String>,
+        /// Measures of modules reach these thresholds (REQ-016-7).
+        #[serde(default)]
+        module_triggers: Vec<ModuleTrigger>,
         /// A disabled policy holds nothing.
         #[serde(default = "enabled")]
         enabled: bool,
@@ -903,6 +906,16 @@ pub enum BindingSubject {
         /// Issuer.
         issuer: String,
     },
+}
+
+/// A trigger of an approval policy on a measure of a module (REQ-016-7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleTrigger {
+    /// `<module>.<measure>`, declared by a module of the build.
+    pub measure: String,
+    /// The policy holds from this value up.
+    pub threshold: u64,
 }
 
 /// Where a binding acts (005, K14): its scope and what lies below.

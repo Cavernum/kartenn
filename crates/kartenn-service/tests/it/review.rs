@@ -209,6 +209,7 @@ fn policy(name: &str, min_diff_objects: u64) -> Operation {
         author_roles: Vec::new(),
         author_groups: Vec::new(),
         bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
         enabled: true,
     }
 }
@@ -234,6 +235,7 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
                 author_roles: Vec::new(),
                 author_groups: Vec::new(),
                 bound_roles: Vec::new(),
+                module_triggers: Vec::new(),
                 enabled: true,
             }],
         )
@@ -322,6 +324,7 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
         author_roles: Vec::new(),
         author_groups: Vec::new(),
         bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
         enabled: true,
     }])
     .await;
