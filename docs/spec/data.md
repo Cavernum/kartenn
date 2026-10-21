@@ -194,9 +194,16 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
     plage de VID) et `vlan` (groupe, VID 1–4094, nom, statut `active`/`reserved`/
     `deprecated` ; VID et nom uniques par groupe dans le temps, par exclusions GiST). Le
     lien d'un réseau à son VLAN est la propriété `vlan.vlan`.
-  - `machines` : `cluster`, `machine` (nom d'hôte, sorte, hébergement par une machine ou
-    un cluster, appartenance à un cluster), `interface` (machine, nom, MAC, mode 802.1Q
-    `none`/`access`/`trunk`), `attachment` (interface ↔ adresse, daté).
+  - `machines` (migrations du module 0001 à 0003) : `cluster` (slug unique dans le temps),
+    `machine` (nom d'hôte RFC 1123 en minuscules, unique par propriétaire résolu, contrôlé
+    par l'application ; sorte ; hébergement par une machine ou un cluster ; appartenance à
+    un cluster), `interface` (machine, nom unique par machine dans le temps, MAC EUI-48,
+    mode 802.1Q `none`/`access`/`trunk` avec VLAN natif, d'accès et étiquetés),
+    `attachment` (interface ↔ adresse, daté ; une adresse au plus une fois sauf usage
+    partagé, copie `shared` de l'usage de l'adresse ; une adresse principale par famille et
+    par interface ; exclusions GiST). Propriétés du module : `machines.interface_role`
+    (liste livrée, extensible) et `machines.fqdn`. Règles :
+    [catalogue des modules](regles-modules.md).
 
 ## Stockage PostgreSQL (D15, ADR 0004)
 

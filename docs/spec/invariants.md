@@ -66,6 +66,12 @@ une fois par changeset ou par lot.
 | INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc `bench-core` |
 | INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Bancs `bench-core` (import), `bench-http` (charge) |
 
+Les modules livrés tiennent INV-30, 31 et 34 sur le jeu de référence augmenté, mesurés
+par `bench-core` après les budgets du noyau : VLAN (008, REQ-008-25 : 2·10⁴ groupes,
+10⁵ VLAN ; banc complet tenu le 2026-10-21) et machines (009, REQ-009-21 : 10⁵
+machines, 10³ clusters, 3·10⁵ interfaces et rattachements, plus un import de 10⁴
+machines ; variante réduite tenue, banc complet encore à relancer, tâche 009-12).
+
 ## Audit et journalisation (spec 012, ADR 0019)
 
 | ID | Invariant | Garantie | Test |

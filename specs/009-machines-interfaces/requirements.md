@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-20
+status: implemented
+updated: 2026-10-21
 ---
 
 # 009 — Machines et interfaces : exigences

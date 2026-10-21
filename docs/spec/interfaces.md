@@ -33,7 +33,11 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 | Filtrage | Paramètres conjonctifs (`champ=…`, `prop.<clé>:<op>=…`), et méthode `QUERY` (RFC 10008) au corps JSON pour les filtres longs ; URL au-delà de 8 Kio → 414 | 003/REQ-003-25, REQ-006-9, 10 |
 | Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start`, `resume`, `cancel` ; exécution par une tâche de fond sous bail, reprise au premier lot non appliqué | 004/REQ-004-28 à 30, REQ-006-17 à 19 |
 | Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI (`ui_plugins` : nom, version, plage de SDK, `base`, `entry`, empreintes SRI par fichier, catalogues, points d'extension), limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35, REQ-007-7 |
-| Modules (ADR 0026) | Chaque module monte ses collections sous `/v1` (VLAN : `vlan-groups` avec `occupancy` et `next-free`, `vlans` avec `prefixes` ; machines : clusters, machines, interfaces et rattachements) aux conventions ci-dessus ; le noyau fournit à chaque type de module `history`, `properties`, `explanation` et `suggestion` ; `GET /v1/graph/edges` sert les arêtes des modules filtrées par les droits sur les deux extrémités ; `GET /v1/changesets/{id}/diff?section=<module>.<nom>` pagine une section de module ; contrat de référence écrit par `kartenn-server openapi` | 008/REQ-008-11, 19 à 22, 26 ; 009/REQ-009-15 à 18 |
+| Modules (ADR 0026) | Chaque module monte ses collections sous `/v1` (VLAN : `vlan-groups` avec `occupancy` et `next-free`, `vlans` avec `prefixes` ; machines : `clusters` avec `machines` (membres), `machines` avec `addresses` (adresses par
+interface) et `hosted` (machines hébergées), filtre `network` (machines dont une adresse est
+dans un réseau), `interfaces` (filtre `address` : interfaces qui portent une adresse) avec `attachments` (rattacher : `POST`, détacher :
+`DELETE …/attachments/{address}`), écriture de l'interface et lecture de l'adresse exigées,
+009/M16) aux conventions ci-dessus ; le noyau fournit à chaque type de module `history`, `properties`, `explanation` et `suggestion` ; `GET /v1/graph/edges` sert les arêtes des modules filtrées par les droits sur les deux extrémités ; `GET /v1/changesets/{id}/diff?section=<module>.<nom>` pagine une section de module ; contrat de référence écrit par `kartenn-server openapi` | 008/REQ-008-11, 19 à 22, 26 ; 009/REQ-009-15 à 18 |
 | Ajouts pour l'interface | `GET /v1/me` (identité, liaisons, permissions globales : masquer ou griser, le serveur reste seul juge) ; `GET /v1/domains/{id}/roots` (racines de l'arbre, mêmes curseurs que `prefixes/{id}/children`) ; `GET /v1/imports` (imports de l'appelant, du plus récent) ; `GET /v1/auth/issuers` publique (identifiants des émetteurs, ordre de la configuration) | REQ-007-39 à 41, 007/W17, W18 |
 | Protection | Quotas GCRA par identité (par adresse avant authentification) → 429, `Retry-After`, `RateLimit` ; délestage → 503 ; corps borné → 413 ; délai de requête → 503 | REQ-006-29 à 31 |
 | Corrélation | `Request-Id` (UUID v7 généré, jamais repris) en réponse, dans le problème, les logs et l'audit ; `traceparent` des proxys de confiance | REQ-006-37, REQ-012-7 |
@@ -161,6 +165,20 @@ sous un `as_of` passé (W9) ; modification rapide par la route de la ressource e
 brouillon local (IndexedDB) simulé en continu puis soumis en un changeset (W10) ; i18n
 FR et EN, erreurs traduites par leur `type` (W11) ; WCAG 2.2 AA, axe-core bloquant dans
 chaque parcours (W14).
+
+## Lectures pour les modules dépendants (spec 009)
+
+Le module `machines` offre aux modules qui en dépendent (la politique de flux, 010) un
+port de lecture daté, `kartenn_machines::read`, utilisable dans la transaction d'un
+changeset comme en lecture, à (`valid_at`, `as_of`) (REQ-009-22, 25 ; besoins M1 à M10 de
+la 010 et de la 011) : adresses d'une machine ou d'une interface avec l'interface et son
+rôle résolu (`machines.interface_role`) ; rattachements d'une adresse (interfaces et
+machines) ; machines dont une adresse est dans un réseau ; machines hébergées et membres
+d'un cluster ; valeurs de propriétés des machines d'un lot d'adresses, avec leur source ;
+arêtes du graphe (`machines.has_address`, `machines.hosted_on`, `machines.hosted_in`,
+`machines.member_of`). Le port ne filtre pas par les droits : ce sont les routes, ou le
+module appelant, qui le font. Le changeset publie la section de différentiel
+`machines.attachments` (rattachements ajoutés et retirés, REQ-009-23).
 
 ## Opérations d'un changeset (interface du service)
 

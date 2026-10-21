@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-20
+status: in-progress
+updated: 2026-10-21
 ---
 
 # 009 — Machines et interfaces : tâches
@@ -263,8 +263,22 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   ou accès ; le trunk reste à l'API) ; écritures sous l'`If-Match` de l'interface relu
   juste avant ; la colonne et l'onglet d'une adresse lisent `GET /v1/interfaces?address=`,
   l'onglet d'un réseau `GET /v1/machines?network=`.
-- [ ] 14. Synchronisation : `docs/spec/` (data : schéma `machines` ; interfaces : routes,
+- [x] 14. Synchronisation : `docs/spec/` (data : schéma `machines` ; interfaces : routes,
   opérations, port de lecture ; permissions), spec passée à `implemented` — verify :
   rapport `spec-keeper` sans écart bloquant
   où : skill `tech-specs` (mode sync)
   dépend de : 1 à 13
+  — `docs/spec/data.md` (schéma `machines` : tables, unicités, propriétés du module),
+  `interfaces.md` (routes et filtres des machines, section « Lectures pour les modules
+  dépendants » : port `kartenn_machines::read`, arêtes, section `machines.attachments`),
+  `invariants.md` (budgets des modules ; banc complet des machines à relancer),
+  catalogue généré `docs/spec/regles-modules.md` (règles du VLAN et des machines,
+  `kartenn_core::rules::modules_catalogue_markdown`, test
+  `the_published_module_rules_match_the_code` de `kartenn-server/src/modules.rs`),
+  `permissions.md` inchangé (déjà généré avec les machines), `specs/README.md`.
+  `requirements.md` et `design.md` passent à `implemented` ; `tasks.md` reste
+  `in-progress` tant que 12 n'est pas cochée. Relecture de la spec contre le code faite à
+  la main (un fork ne peut pas lancer spec-keeper) : chaque REQ-009 a son code et son test,
+  sauf REQ-009-21 dont le banc complet reste à relancer (12).
+  choix : catalogue des règles de modules généré par le serveur, seul à connaître les
+  modules du build, comme `permissions.md`.

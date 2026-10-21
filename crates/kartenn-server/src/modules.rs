@@ -80,4 +80,26 @@ mod tests {
             "docs/spec/permissions.md is stale: run `KARTENN_BLESS=1 cargo test -p kartenn-server modules`"
         );
     }
+
+    /// `docs/spec/regles-modules.md` is the catalogue of the rules of the modules of this
+    /// build (spec 008, REQ-008-8; spec 009, REQ-009-13).
+    #[test]
+    fn the_published_module_rules_match_the_code() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/spec/regles-modules.md"
+        );
+        let registry = super::registry().expect("the modules of the build");
+        let generated = kartenn_core::rules::modules_catalogue_markdown(
+            registry.modules().map(|m| (m.name(), m.rules())),
+        );
+        if std::env::var_os("KARTENN_BLESS").is_some() {
+            std::fs::write(path, &generated).expect("write the catalogue");
+        }
+        let published = std::fs::read_to_string(path).unwrap_or_default();
+        assert_eq!(
+            published, generated,
+            "docs/spec/regles-modules.md is stale: run `KARTENN_BLESS=1 cargo test -p kartenn-server modules`"
+        );
+    }
 }
