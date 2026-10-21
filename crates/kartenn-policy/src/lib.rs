@@ -41,6 +41,8 @@ mod pg;
 #[cfg(feature = "pg")]
 pub mod read;
 #[cfg(feature = "pg")]
+pub mod report;
+#[cfg(feature = "pg")]
 pub mod verdict;
 
 pub use module::Policy;

@@ -250,16 +250,31 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "inference_check",
         sql: include_str!("../migrations/0002_inference_check.sql"),
     },
+    ModuleMigration {
+        version: 3,
+        name: "report",
+        sql: include_str!("../migrations/0003_report.sql"),
+    },
 ];
 
 /// The background task that re-evaluates the deviations of the inference by origin node
 /// when its rules change (REQ-010-48): `policy.inference_check`.
 pub const INFERENCE_CHECK: &str = "inference_check";
 
-static JOBS: &[JobSpec] = &[JobSpec {
-    name: INFERENCE_CHECK,
-    period: std::time::Duration::from_secs(60),
-}];
+/// The background task that produces the audit report asked for (REQ-010-23):
+/// `policy.report`.
+pub const REPORT: &str = "report";
+
+static JOBS: &[JobSpec] = &[
+    JobSpec {
+        name: INFERENCE_CHECK,
+        period: std::time::Duration::from_secs(60),
+    },
+    JobSpec {
+        name: REPORT,
+        period: std::time::Duration::from_secs(5),
+    },
+];
 
 macro_rules! permissions {
     ($list:ident; $($name:ident = $id:literal, $global:literal, $summary:literal;)*) => {
