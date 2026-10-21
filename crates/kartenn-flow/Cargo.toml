@@ -1,0 +1,20 @@
+[package]
+name = "kartenn-flow"
+version.workspace = true
+description = "Flow registry module of kartenn: requested flows, their triage, evaluation, waivers and derived state"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-policy = { version = "0.1.0", path = "../kartenn-policy" }
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+# Calendar months of the review and waiver ceilings (REQ-011-9, 22).
+time = "0.3.55"
+unicode-normalization = "0.1.25"
+uuid = { version = "1.28.0", features = ["v7"] }
