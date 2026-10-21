@@ -94,7 +94,7 @@ fn warnings(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vlan_on_container_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -111,7 +111,7 @@ async fn vlan_on_container_refused(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn network_to_container_with_vlan_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -132,7 +132,7 @@ async fn network_to_container_with_vlan_refused(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn site_mismatch_is_an_anomaly(pool: PgPool) {
     let env = Env::new(&pool).await;
     let paris = env.id("site", "paris").await;
@@ -201,7 +201,7 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
     assert!(env.anomaly(network, "vlan.domain.mismatch").await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn site_mismatch_anomaly_closes_once_corrected(pool: PgPool) {
     let env = Env::new(&pool).await;
     let paris = env.id("site", "paris").await;
@@ -226,7 +226,7 @@ async fn site_mismatch_anomaly_closes_once_corrected(pool: PgPool) {
     assert!(!env.anomaly(network, "vlan.site.mismatch").await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn v4_and_v6_networks_on_one_vlan(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;

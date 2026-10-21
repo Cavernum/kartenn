@@ -85,9 +85,16 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   laissé en `#[sqlx::test]`), dev-dependency `kartenn-testing` ; nextest : 32, 30 et 20
   tests avant et après (mêmes noms). Exécution des suites : server 10,5 s → 9,0 s, auth
   2,3 s → 1,2 s, telemetry 0,7 s → 0,3 s (charge 10 à 15 avant, 5 à 7 après).
-- [ ] 6. kartenn-vlan, kartenn-machines (71 tests) — verify : commun
+- [x] 6. kartenn-vlan, kartenn-machines (71 tests) — verify : commun
   où : `crates/kartenn-vlan/tests/it/support/env.rs`, tests des deux modules, `Cargo.toml`
   dépend de : 1 ; 013 : 7
+  — 71 attributs remplacés (26 et 45, aucun laissé en `#[sqlx::test]`), dev-dependency
+  `kartenn-testing` ; `support/env.rs` inchangé (il déploie toujours les modules sur le
+  clone : la variante avec modules reste différée, décision 4). nextest : 35 et 54 tests
+  avant et après (mêmes noms). Exécution des suites, charge 3 : vlan 6,7 s → 6,1 s,
+  machines 9,7 s → 7,9 s (une première passe isolée à 40,4 s pour vlan, non reproduite :
+  6,1 s aux deux passes suivantes) ; le gain est faible, le déploiement des modules par
+  test domine.
 - [ ] 7. Règle et mesure finale : règle des futurs tests (`docs/practices/rust-build.md`
   §2.5 après la règle de l'ADR 0027, étape 3 de `.claude/commands/tache.md`) ; `k-check`
   complet à froid puis après une modification de kartenn-core, selon le protocole de

@@ -126,7 +126,7 @@ fn subjects(outcome: &Outcome, rule: &str) -> Vec<Uuid> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_vlan_on_a_network_lists_it(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -144,7 +144,7 @@ async fn closing_a_vlan_on_a_network_lists_it(pool: PgPool) {
     assert!(env.carries(network).await);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn cascade_unassigns_vlan_property(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -167,7 +167,7 @@ async fn cascade_unassigns_vlan_property(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_group_cascades_its_vlans(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -197,7 +197,7 @@ async fn closing_a_group_cascades_its_vlans(pool: PgPool) {
     assert_eq!(cascaded.len(), 2, "{cascaded:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_an_anchor_entity_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     env.applied(vec![Operation::CreateEntity {

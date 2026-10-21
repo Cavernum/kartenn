@@ -56,7 +56,7 @@ fn create(group: Uuid, vid: i64, name: &str) -> Operation {
     )
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn concurrent_same_vid_one_wins(pool: PgPool) {
     let env = Env::new(&pool).await;
     let group = env.group("edge", (1, 4094)).await;
@@ -98,7 +98,7 @@ async fn concurrent_same_vid_one_wins(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn same_vid_two_groups(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (a, b) = (
@@ -150,7 +150,7 @@ async fn same_vid_two_groups(pool: PgPool) {
     assert_eq!(parent, Some(fresh));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vid_reused_after_closure(pool: PgPool) {
     let env = Env::new(&pool).await;
     let group = env.group("edge", (1, 4094)).await;
@@ -182,7 +182,7 @@ async fn vid_reused_after_closure(pool: PgPool) {
     assert!(matches!(reused, Outcome::Applied { .. }), "{reused:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn move_to_group_with_taken_vid_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (a, b) = (
@@ -235,7 +235,7 @@ async fn move_to_group_with_taken_vid_refused(pool: PgPool) {
     assert_eq!(parent, Some(b));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn name_duplicate_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     let group = env.group("edge", (1, 4094)).await;

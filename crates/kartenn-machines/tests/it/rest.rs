@@ -379,7 +379,7 @@ fn ids(body: &Value, field: &str) -> Vec<String> {
         .collect()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn interfaces_by_address_at_a_date(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -427,7 +427,7 @@ async fn interfaces_by_address_at_a_date(pool: PgPool) {
     assert_eq!(now["items"][0]["machine"]["id"], json!(second));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn machine_card_with_interfaces(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -470,7 +470,7 @@ async fn machine_card_with_interfaces(pool: PgPool) {
     assert_eq!(addresses["items"][0]["value"], "10.0.0.20");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -504,7 +504,7 @@ async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     assert_eq!(names, ["app0", "app1", "app2", "app3", "app4"]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn graph_edge_address_to_interface(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -528,7 +528,7 @@ async fn graph_edge_address_to_interface(pool: PgPool) {
     assert_eq!(edges[0]["to"]["id"], json!(address));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn patch_interface_needs_if_match(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
@@ -583,7 +583,7 @@ async fn patch_interface_needs_if_match(pool: PgPool) {
     assert_eq!(read["name"], "uplink0");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn mac_canonical_over_http(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;

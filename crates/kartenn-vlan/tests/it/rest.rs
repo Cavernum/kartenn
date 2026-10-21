@@ -206,7 +206,7 @@ async fn call(
     (status, headers, value)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn vlans_filtered_by_vid_range(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -294,7 +294,7 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn occupancy_over_http(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -353,7 +353,7 @@ async fn occupancy_over_http(pool: PgPool) {
     assert_eq!(body["vid"], 6);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn next_free_404_when_exhausted(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
@@ -378,7 +378,7 @@ async fn next_free_404_when_exhausted(pool: PgPool) {
     assert_eq!(body["type"], "urn:kartenn:problem:exhausted", "{body}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (owner, acme, other) = (
@@ -482,7 +482,7 @@ async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn writer_on_other_entity_gets_403(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (
@@ -548,7 +548,7 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn patch_needs_if_match(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;

@@ -176,7 +176,7 @@ async fn count(pool: &PgPool, sql: &str) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn import_machines_interfaces_attachments_by_local_names(pool: PgPool) {
     let (store, author, acme, domain) = setup(&pool).await;
     let import = create_import(&store, author, SOURCE, items(acme, domain), 2_000)
