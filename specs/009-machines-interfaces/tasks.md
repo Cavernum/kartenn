@@ -121,12 +121,21 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   non partagée tenue par une autre interface ; un rattachement hors de la vie de son
   interface est refusé par `machines.operation.invalid` en attendant les cascades de la
   tâche 8 (une interface ou une adresse close avec des rattachements vivants est refusée).
-- [ ] 6. Propriétés du module : `machines.interface_role` (valeurs livrées, extensible),
+- [x] 6. Propriétés du module : `machines.interface_role` (valeurs livrées, extensible),
   `machines.fqdn` ; porteurs pour d'autres modules — REQ-009-8, 24 — verify :
   `interface_role_values`, `admin_adds_a_role_value`,
   `foreign_module_property_on_a_machine`
   où : design « Propriétés déclarées » ; `declarations.rs` (`ModuleDeclarations`)
   dépend de : 3
+  — `kartenn-machines/src/module.rs` : `Module::declarations` (`machines.interface_role`,
+  liste fermée simple portée par les interfaces, six valeurs livrées ;
+  `machines.fqdn`, FQDN porté par les machines ; ni héritage ni obligation),
+  `INTERFACE_ROLES`. Tests : `kartenn-machines/tests/machines.rs` (les trois du verify,
+  module de test `Inventory` portant deux listes fermées sur `machines.machine`) ;
+  l'environnement de test synchronise aussi les déclarations des modules.
+  choix : rien de propre au module pour REQ-009-24, les types de module étant porteurs
+  admissibles (008-5) ; une valeur ajoutée par l'administrateur survit à la
+  synchronisation (vérifié par le test).
 - [ ] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
   `machines.host.site_mismatch` en anomalies, ouvertes puis fermées — REQ-009-13 —
   verify : `each_warning_opens_and_closes`, `vlan_change_on_network_reevaluates`

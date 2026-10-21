@@ -2,10 +2,14 @@
 //! rules, operations and migrations, and its handler in the write pipeline (feature
 //! `pg`).
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::Permission;
+use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
+use kartenn_core::values::Cardinality;
+use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{Module, ModuleHandler, ModuleMigration, ObjectType, OperationType};
 
 use crate::rules::MACHINES_RULES;
@@ -16,6 +20,33 @@ pub const CLUSTER: &str = "machines.cluster";
 pub const MACHINE: &str = "machines.machine";
 /// The qualified type of an interface.
 pub const INTERFACE: &str = "machines.interface";
+/// The role of an interface (REQ-009-8).
+pub const INTERFACE_ROLE: &str = "machines.interface_role";
+/// The FQDN of a machine.
+pub const FQDN: &str = "machines.fqdn";
+/// The roles of an interface the module ships; an administrator adds others.
+pub const INTERFACE_ROLES: &[&str] = &[
+    "administration",
+    "backup",
+    "monitoring",
+    "storage",
+    "cluster",
+    "service",
+];
+
+/// A property of the module carried by `carrier`, single-valued and not inherited.
+fn declaration(key: &str, spec: TypeSpec, carrier: &str) -> Declaration {
+    Declaration {
+        key: PropertyKey::parse(key).expect("a valid key"),
+        declarant: Declarant::Module("machines".into()),
+        spec,
+        cardinality: Cardinality::Single,
+        carriers: BTreeSet::from([carrier.to_owned()]),
+        inherit: None,
+        obligations: BTreeSet::new(),
+        expected: None,
+    }
+}
 
 static TYPES: &[ObjectType] = &[
     // A cluster carries `core.owner` (required) and, optionally, `core.site`.
@@ -142,6 +173,21 @@ impl Module for Machines {
     }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
+    }
+    /// `machines.interface_role` (M10), a closed list an administrator extends, and
+    /// `machines.fqdn`. Machines and interfaces carry any other property too (REQ-009-24).
+    fn declarations(&self) -> Option<ModuleDeclarations> {
+        Some(ModuleDeclarations {
+            module: "machines".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            properties: vec![
+                (
+                    declaration(INTERFACE_ROLE, TypeSpec::Enum, INTERFACE),
+                    INTERFACE_ROLES.iter().map(|&v| v.to_owned()).collect(),
+                ),
+                (declaration(FQDN, TypeSpec::Fqdn, MACHINE), Vec::new()),
+            ],
+        })
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS
