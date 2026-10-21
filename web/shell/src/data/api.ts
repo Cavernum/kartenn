@@ -12,8 +12,10 @@ export interface Problem {
   status: number;
 }
 
+/** An answer: the body and its `ETag` (the `If-Match` of a later write), or the problem. */
 export type Read<T> =
-  { ok: true; status: number; body: T } | { ok: false; status: number; problem: Problem };
+  | { ok: true; status: number; body: T; etag?: string | null }
+  | { ok: false; status: number; problem: Problem };
 
 const NETWORK: Problem = { type: "about:blank", title: "network", detail: null, status: 0 };
 
@@ -43,7 +45,12 @@ export async function read<T>(url: string): Promise<Read<T>> {
   if (!response) return { ok: false, status: 0, problem: NETWORK };
   if (!response.ok)
     return { ok: false, status: response.status, problem: await problemOf(response) };
-  return { ok: true, status: response.status, body: (await response.json()) as T };
+  return {
+    ok: true,
+    status: response.status,
+    body: (await response.json()) as T,
+    etag: response.headers.get("ETag"),
+  };
 }
 
 /** A write of the API with a JSON body (`POST`), its problem kept. */

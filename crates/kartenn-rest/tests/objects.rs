@@ -719,6 +719,67 @@ async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
     );
 }
 
+/// A container with 10⁴ direct children (task 007-18): every page costs its own rows, the
+/// last as the first, and the pages together list each direct child once, in order.
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn the_children_of_a_wide_container_come_page_by_page(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let wide = prefix_of(&pool, lab, "10.3.0.0/16", "container").await;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                             valid_period, changeset_id)
+         SELECT gen_random_uuid(), $1::uuid,
+                set_masklen(('10.3.0.0'::inet + 4 * n), 30)::cidr, 'network', false, 'test',
+                {SINCE}
+         FROM generate_series(0, 9999) n"
+    )))
+    .bind(lab)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("ANALYZE prefix").execute(&pool).await.unwrap();
+    // Nodes between the children are children too; a node of a child is not.
+    let gap = address(&pool, lab, "10.3.200.1").await;
+    address(&pool, lab, "10.3.0.1").await;
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    let (mut seen, mut uri, mut times) = (
+        Vec::new(),
+        format!("/v1/prefixes/{wide}/children?page_size=100"),
+        Vec::new(),
+    );
+    loop {
+        let start = std::time::Instant::now();
+        let body = ok(&reader, &uri).await;
+        times.push(start.elapsed());
+        seen.extend(
+            body["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item["value"].as_str().unwrap().to_owned()),
+        );
+        match body["links"]["next"].as_str() {
+            Some(next) => next.clone_into(&mut uri),
+            None => break,
+        }
+    }
+    assert_eq!(seen.len(), 10_001);
+    assert_eq!(seen[0], "10.3.0.0/30");
+    assert_eq!(seen[1], "10.3.0.4/30");
+    assert_eq!(seen[9_999], "10.3.156.60/30");
+    assert_eq!(seen[10_000], "10.3.200.1");
+    // The last page ends with the address between the children.
+    assert!(ids_of(&ok(&reader, &uri).await).contains(&gap.to_string()));
+    // A page costs its own rows: the median of the 101 pages, through the router, stays
+    // far below the budget of `bench-core` (150 ms), even on a busy test machine; it was
+    // 160 ms when a page recomputed the whole subtree under a generic plan.
+    times.sort();
+    let median = times[times.len() / 2];
+    eprintln!("children of a wide container, page of 100: median {median:?}");
+    assert!(median < std::time::Duration::from_millis(100), "{median:?}");
+}
+
 async fn acknowledge(app: &Router, id: Uuid, body: &str) -> Response {
     app.clone()
         .oneshot(common::bearer(

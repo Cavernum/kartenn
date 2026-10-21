@@ -16,7 +16,7 @@ import DataTable from "../data/DataTable.vue";
 import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
 import { problemText } from "../i18n/index.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, useWrites } from "../time/index.ts";
 
 // A list of the core (REQ-007-17): filters in the URL, continuous scrolling by pages of
 // 100, the dates of the context.
@@ -33,6 +33,15 @@ const plugins = usePlugins();
 
 const collection = computed(() => String(route.params.collection) as Collection);
 const filters = computed(() => FILTERS[collection.value]);
+// Creation (REQ-007-25), where the present allows it and the rights suggest it.
+const writes = useWrites();
+const canCreate = computed(() => {
+  const type = TYPES[collection.value];
+  return (
+    writes.value.quickEdit &&
+    session.value.rights.hasAny([`core.${type}.write`, `core.${type}.propose`])
+  );
+});
 const draft = reactive<Record<string, string>>({});
 
 const first = computed(() => {
@@ -104,6 +113,9 @@ const href = (row: Row): string | null =>
 
 <template>
   <h1>{{ t(`nav.${collection}`) }}</h1>
+  <p v-if="canCreate" class="k-toolbar">
+    <RouterLink :to="`/${collection}/new`">{{ t("edit.create") }}</RouterLink>
+  </p>
   <form class="k-filters" role="search" :aria-label="t('list.filters')" @submit.prevent="apply">
     <label v-for="name in filters" :key="name">
       {{ t(`field.${name}`) }}

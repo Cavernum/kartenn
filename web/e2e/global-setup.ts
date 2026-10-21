@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "./fixtures/env.ts";
-import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS } from "./fixtures/data.ts";
+import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS, widePrefixes } from "./fixtures/data.ts";
 import { totp } from "./fixtures/totp.ts";
 
 /**
@@ -50,6 +50,29 @@ export default async function globalSetup(): Promise<void> {
       }
     }
     const entity = await created(api, "/v1/entities", { slug: DATA.entity });
+    // The group `redacteurs` (task 19): readers everywhere, able to read the roles (so that
+    // the interface knows its scoped role), editors of one entity only.
+    const confined = await created(api, "/v1/entities", { slug: DATA.confined });
+    const redacteurs = { kind: "group", issuer: ISSUER, group: "redacteurs" };
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end journeys",
+      operations: [
+        {
+          op: "set_role",
+          key: "e2e_rbac_reader",
+          label: "Lecture des droits",
+          entries: ["core.rbac.read"],
+        },
+        { op: "bind", subject: redacteurs, role: "reader", scope: { kind: "global" } },
+        { op: "bind", subject: redacteurs, role: "e2e_rbac_reader", scope: { kind: "global" } },
+        {
+          op: "bind",
+          subject: redacteurs,
+          role: "editor",
+          scope: { kind: "entity", id: { id: confined } },
+        },
+      ],
+    });
     // A domain carries its owner from its creation (`core.owner`, REQ-002-11): one changeset.
     const declarations = (await (await api.get("/v1/property-declarations")).json()) as {
       items: { id: string; key: string }[];
@@ -99,6 +122,26 @@ export default async function globalSetup(): Promise<void> {
         })),
       ],
     });
+    // The wide container of the tree (REQ-007-31): 10⁴ direct children, by changesets of
+    // 2 500 operations.
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end wide container",
+      operations: [
+        { op: "create_prefix", domain: production, prefix: DATA.wide.prefix, nature: "container" },
+      ],
+    });
+    const wide = widePrefixes();
+    for (let start = 0; start < wide.length; start += 2500) {
+      await expectOk(api, "POST", "/v1/changesets", {
+        motive: "end-to-end wide container",
+        operations: wide.slice(start, start + 2500).map((prefix) => ({
+          op: "create_prefix",
+          domain: production,
+          prefix,
+          nature: "network",
+        })),
+      });
+    }
   } finally {
     await api.dispose();
   }

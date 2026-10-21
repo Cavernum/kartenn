@@ -8,6 +8,7 @@ export { expect };
 export const USERS = {
   alice: "Alice Exemple",
   bob: "Bob Exemple",
+  carol: "Carol Exemple",
   refuse: "Refus d'accès",
 } as const;
 

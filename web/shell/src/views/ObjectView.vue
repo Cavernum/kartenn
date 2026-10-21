@@ -21,6 +21,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { read } from "../data/api.ts";
 import { cell, linkOf, nameOf, TYPES, type Collection } from "../data/collections.ts";
+import QuickEdit from "../edit/QuickEdit.vue";
 import ExtensionElement from "../plugins/ExtensionElement.vue";
 import { extensionsOf, pluginKey, usePlugins, type Placed } from "../plugins/registry.ts";
 import AnomaliesPanel from "../record/AnomaliesPanel.vue";
@@ -67,16 +68,42 @@ const actions = computed(() =>
 );
 const open = ref<Placed | null>(null);
 
-watch(
-  [object, () => time.value.validAt, () => time.value.asOf],
-  async () => {
-    const answer = await read<Item>(object.value.href + datedSearch(time.value));
-    missing.value = !answer.ok;
-    item.value = answer.ok ? answer.body : null;
-  },
-  { immediate: true },
+const etag = ref<string | null>(null);
+
+/** Reads the object, and the `ETag` a quick edit sends back (REQ-007-25). */
+async function load(): Promise<void> {
+  const answer = await read<Item>(object.value.href + datedSearch(time.value));
+  missing.value = !answer.ok;
+  item.value = answer.ok ? answer.body : null;
+  etag.value = answer.ok ? (answer.etag ?? null) : null;
+}
+
+watch([object, () => time.value.validAt, () => time.value.asOf], load, { immediate: true });
+watch(object, () => {
+  tab.value = "attributes";
+  editing.value = null;
+  applied.value = null;
+});
+
+// Quick edit: shown where the present allows it and the rights suggest it; the server
+// stays the judge (REQ-007-20).
+const editing = ref<"modify" | "close" | null>(null);
+const applied = ref<{ changeset: string | null } | null>(null);
+const canEdit = computed(
+  () =>
+    writes.value.quickEdit &&
+    item.value !== null &&
+    session.value.rights.hasAny([
+      `core.${object.value.type}.write`,
+      `core.${object.value.type}.propose`,
+    ]),
 );
-watch(object, () => (tab.value = "attributes"));
+
+async function done(_location: string | null, changeset: string | null): Promise<void> {
+  editing.value = null;
+  applied.value = { changeset };
+  await load();
+}
 
 const fields = computed(() =>
   item.value ? Object.keys(item.value).filter((key) => key !== "links" && key !== "id") : [],
@@ -160,6 +187,31 @@ const heading = computed(() =>
             <dt>{{ t("field.id") }}</dt>
             <dd>{{ object.id }}</dd>
           </dl>
+          <p v-if="applied" role="status">
+            {{ t("edit.applied") }}
+            <RouterLink v-if="applied.changeset" :to="`/changesets/${applied.changeset}`">
+              {{ t("edit.changeset") }}
+            </RouterLink>
+          </p>
+          <p v-if="canEdit && editing === null" class="k-toolbar">
+            <button type="button" @click="((editing = 'modify'), (applied = null))">
+              {{ t("edit.modify") }}
+            </button>
+            <button type="button" @click="((editing = 'close'), (applied = null))">
+              {{ t("edit.close") }}
+            </button>
+          </p>
+          <QuickEdit
+            v-if="editing && item"
+            :collection="collection"
+            :mode="editing"
+            :item="item"
+            :href="object.href"
+            :etag="etag"
+            @applied="done"
+            @reload="load"
+            @cancel="editing = null"
+          />
           <OccupancyPanel v-if="collection === 'prefixes' && item" :href="object.href" />
         </TabsContent>
         <TabsContent v-if="content" value="content">

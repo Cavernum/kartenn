@@ -39,7 +39,20 @@
   },
   "home": {
     "title": "Prefix tree",
-    "intro": "Choose a domain to browse its prefixes."
+    "domain": "Domain",
+    "noDomain": "No addressing domain to show."
+  },
+  "tree": {
+    "label": "Prefixes of the domain {domain}",
+    "empty": "This domain has no prefix.",
+    "more": "Load the next page",
+    "failed": "The page could not be read. Press Enter to try again.",
+    "kind": {
+      "container": "container",
+      "network": "network",
+      "range": "range",
+      "address": "address"
+    }
   },
   "admin": {
     "title": "Administration",
@@ -376,5 +389,37 @@
     "validAt": "Data valid at",
     "asOf": "as known at",
     "present": "Back to the present"
+  },
+  "edit": {
+    "create": "Create",
+    "modify": "Modify",
+    "close": "Close",
+    "new": "New object: {type}",
+    "off": "Writes are off outside the present.",
+    "title": {
+      "create": "Creation",
+      "modify": "Modification",
+      "close": "Closure"
+    },
+    "submit": {
+      "create": "Create",
+      "modify": "Save",
+      "close": "Close"
+    },
+    "cancel": "Cancel",
+    "motive": "Motive",
+    "applied": "Change applied.",
+    "pending": "Change waiting for an approval.",
+    "changeset": "See the changeset",
+    "yes": "yes",
+    "no": "no",
+    "stale": {
+      "title": "The object changed",
+      "detail": "Someone modified it since you read it. Your input is kept; resume on the new version before saving.",
+      "field": "Field",
+      "current": "Current value",
+      "yours": "Your input",
+      "resume": "Resume on the new version"
+    }
   }
 }
