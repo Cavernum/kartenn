@@ -22,6 +22,7 @@ import { useRoute } from "vue-router";
 import ExtensionElement from "../plugins/ExtensionElement.vue";
 import { extensionsOf, pluginKey, usePlugins, type Placed } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
+import { shellFetch } from "../session/index.ts";
 import { datedSearch, useTime, useWrites } from "../time/index.ts";
 
 // The record of an object, with the extension points of plugins (REQ-007-13): tabs,
@@ -67,7 +68,9 @@ const open = ref<Placed | null>(null);
 watch(
   [object, () => time.value.validAt, () => time.value.asOf],
   async () => {
-    const response = await fetch(object.value.href + datedSearch(time.value)).catch(() => null);
+    const response = await shellFetch(object.value.href + datedSearch(time.value)).catch(
+      () => null,
+    );
     if (!response) return;
     missing.value = !response.ok;
     const body = response.ok

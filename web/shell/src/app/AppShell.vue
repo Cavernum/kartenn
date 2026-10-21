@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { visibleEntries } from "../navigation.ts";
 import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
+import SessionDialog from "../session/SessionDialog.vue";
 import TimeBanner from "../time/TimeBanner.vue";
 import UserMenu from "./UserMenu.vue";
 
@@ -46,4 +47,5 @@ const views = computed(() =>
       <RouterView />
     </main>
   </div>
+  <SessionDialog />
 </template>

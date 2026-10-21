@@ -117,6 +117,25 @@
       "address": "Address"
     }
   },
+  "login": {
+    "title": "Log in",
+    "issuers": "With your identity provider",
+    "issuer": "Log in with {id}",
+    "none": "No identity provider is configured.",
+    "breakglass": "Break-glass account",
+    "breakglassHint": "For outages of the identity provider only; every use is audited.",
+    "name": "Account name",
+    "passphrase": "Passphrase",
+    "code": "One-time code",
+    "submit": "Log in",
+    "failed": "The login failed."
+  },
+  "session": {
+    "expired": "Session expired",
+    "text": "Log in again to go on: you will come back to this page, at the same dates.",
+    "reconnect": "Log in again",
+    "later": "Later"
+  },
   "time": {
     "validAt": "Data valid at",
     "asOf": "as known at",

@@ -9,6 +9,7 @@ export function createShellRouter(history: RouterHistory): Router {
       { path: "/", name: "home", component: () => import("./views/HomeView.vue") },
       { path: "/admin", name: "admin", component: () => import("./views/AdminView.vue") },
       { path: "/about", name: "about", component: () => import("./views/AboutView.vue") },
+      { path: "/login", name: "login", component: () => import("./views/LoginView.vue") },
       {
         path: "/:collection(entities|sites|domains|prefixes|ranges|addresses)/:id",
         name: "object",

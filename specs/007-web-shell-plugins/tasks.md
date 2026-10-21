@@ -318,12 +318,33 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   si ce droit manque ; menu de l'utilisateur non modal (un menu modal masque la page par
   `aria-hidden` en y laissant des liens focalisables) et nom accessible qui commence par
   le texte visible (WCAG 2.5.3)
-- [ ] 14. Session : page `/login` (émetteurs, secours), URL de retour, reconnexion sur
+- [x] 14. Session : page `/login` (émetteurs, secours), URL de retour, reconnexion sur
   401, déconnexion par formulaire — REQ-007-28 — verify : E2E : session expirée sur une
   fiche → reconnexion → même fiche et même contexte temporel ; déconnexion → retour à
   l'émetteur, préférences sensibles effacées
   où : design « Session » ; 006 design « Authentification et sessions » ;
   `kartenn-rest/src/auth.rs` (`callback` vers `/`, `logout`)
+  — `web/shell/src/session/` : `index.ts` (`internalPath` : chemin interne seulement,
+  ni `//`, ni `/\`, ni `/login`, ni `/v1/` ; `rememberReturn`/`takeReturn` en
+  `sessionStorage`, lue une fois ; `loginAt` garde l'émetteur en `localStorage` ;
+  `clearSensitive` : toute clé `kartenn.*` sauf langue, thème et émetteur, clés de
+  l'onglet, bases IndexedDB `kartenn*` ; `shellFetch` et `onUnauthorized` du SDK ouvrent
+  le dialogue ; `installSession` : la première navigation attend `/v1/me`, sans session
+  → `/login?return=…` hors `login` et `about`, puis retour à l'URL gardée),
+  `SessionDialog.vue` (`alertdialog` « Session expirée », « Se reconnecter » vers
+  l'émetteur gardé, sinon `/login`) ; `views/LoginView.vue` (émetteurs de
+  `GET /v1/auth/issuers`, formulaire de secours, problème traduit) ; route `login` ;
+  `main.ts` installe la session avant la première navigation ; déconnexion du menu
+  précédée de `clearSensitive` ; catalogues `login.*`, `session.*`. Tests : Vitest
+  `session/session.test.ts` (chemins refusés, retour lu une fois, émetteur gardé,
+  effacement sélectif, garde sans session puis retour après connexion) ; E2E
+  `journeys/session.spec.ts` (cookie retiré sur une fiche datée → `/login` → émetteur →
+  même fiche, même `valid_at` ; 401 en cours d'usage → dialogue → émetteur gardé → même
+  fiche ; déconnexion → `end-session` de l'émetteur, langue et émetteur gardés, recherches
+  récentes et URL de retour effacées), axe-core
+  choix : sans session, toute page sauf `/login` et `/about` renvoie à la connexion (l'API
+  n'a pas de lecture anonyme) ; le formulaire de secours n'a pas de parcours E2E (un code
+  TOTP n'est accepté qu'une fois par pas de 30 s, déjà pris par `global-setup.ts`)
 - [x] 15. Chargement des plugins par le shell et hôtes des quatre points d'extension,
   filtres par type et permission — REQ-007-9, 10, 13 — verify : E2E avec les plugins de
   test de `web/e2e/plugins/` : compatible actif ; `sdk: "^9"`, empreinte fausse,
