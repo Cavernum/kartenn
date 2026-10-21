@@ -1818,7 +1818,11 @@ dependencies = [
 name = "kartenn-machines"
 version = "0.0.0"
 dependencies = [
+ "axum",
+ "http-body-util",
+ "kartenn-auth",
  "kartenn-core",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-vlan",
@@ -1826,7 +1830,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "time",
  "tokio",
+ "tower",
+ "utoipa",
  "uuid",
 ]
 
@@ -2046,9 +2053,7 @@ dependencies = [
  "sha2 0.11.1",
  "slab",
  "smallvec",
- "sqlx",
  "sqlx-core",
- "sqlx-postgres",
  "subtle",
  "syn 2.0.119",
  "syn 3.0.9",

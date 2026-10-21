@@ -194,13 +194,27 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   avec l'origine pour explication (la chaîne complète reste à `explain`) ; le rôle se lit
   sur l'affectation de `machines.interface_role`, non héritable ; les droits sont laissés
   à l'appelant (les routes de la tâche 10 filtrent).
-- [ ] 10. Routes REST : clusters, machines, interfaces, rattachements, lectures
+- [x] 10. Routes REST : clusters, machines, interfaces, rattachements, lectures
   croisées, arêtes, filtres et `QUERY` — REQ-009-15, 16, 17, 18 — verify :
   `interfaces_by_address_at_a_date`, `machine_card_with_interfaces`,
   `machines_of_a_network_hide_unreadable`, `graph_edge_address_to_interface`,
   `patch_interface_needs_if_match`, `mac_canonical_over_http`
   où : design « Routes » ; routes du module VLAN (008, tâche 14)
   dépend de : 8, 9 ; 008 : 8
+  — Module : `rest.rs` (feature `rest`) : collections `clusters`, `machines`,
+  `interfaces` (lectures datées, filtres, curseurs, `QUERY`, création, Merge Patch,
+  clôture), fiche d'une machine avec ses interfaces et adresses lisibles,
+  `/machines/{id}/addresses`, `/machines/{id}/hosted`, `/clusters/{id}/machines`,
+  `POST /interfaces/{id}/attachments`, `DELETE /interfaces/{id}/attachments/{address}` ;
+  arêtes déclarées (`module.rs`) et lues par `read::edges_of` (`ModuleHandler::edges`).
+  REST : `kit::modify_nullable` (membres retirés par `null`) et `kit::act` (opération
+  sous l'`If-Match` d'un objet). Server : routes montées, feature `rest`. Contrat et
+  types du SDK régénérés. Tests : `kartenn-machines/tests/rest.rs` (les six du verify).
+  choix : une machine hébergée par un cluster est l'arête `machines.hosted_in`
+  (machine → cluster), un type d'arête n'ayant qu'un type d'extrémité ; propriétaire et
+  site lus par `kartenn_owner`/`kartenn_site` à la date ; un rattachement par la route
+  répond 200 (le changeset) ; une adresse n'apparaît, sur la fiche comme dans les
+  lectures croisées, que si l'appelant la lit.
 - [ ] 11. Imports — REQ-009-19 — verify :
   `import_machines_interfaces_attachments_by_local_names`
   où : 008 tâche 15

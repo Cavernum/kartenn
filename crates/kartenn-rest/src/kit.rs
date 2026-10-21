@@ -242,8 +242,42 @@ pub async fn modify(
     name: &str,
     allowed: &[&str],
 ) -> Result<Response, Problem> {
+    modify_nullable(
+        api,
+        principal,
+        context,
+        id,
+        headers,
+        raw,
+        ty,
+        (name, allowed, &[]),
+    )
+    .await
+}
+
+/// [`modify`], where the members of `nullable` may be `null`, which removes them (RFC 7396):
+/// `write` is the operation, the members it allows, and those it lets remove.
+///
+/// # Errors
+///
+/// As [`modify`].
+#[allow(clippy::too_many_arguments)] // the request, then what the route writes
+pub async fn modify_nullable(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    id: Uuid,
+    headers: &HeaderMap,
+    raw: &Bytes,
+    ty: &'static ObjectType,
+    write: (&str, &[&str], &[&str]),
+) -> Result<Response, Problem> {
+    let (name, allowed, nullable) = write;
     let (reserved, mut members) = written(headers, raw, MERGE_PATCH, allowed)?;
-    if let Some((member, _)) = members.iter().find(|(_, v)| v.is_null()) {
+    if let Some((member, _)) = members
+        .iter()
+        .find(|(n, v)| v.is_null() && !nullable.contains(&n.as_str()))
+    {
         return Err(invalid(
             &format!("/{member}"),
             format!("{member} cannot be removed"),
@@ -276,6 +310,73 @@ pub async fn modify(
     let answer = Answer {
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::OK,
+        location: None,
+        precondition: true,
+        shown: None,
+    };
+    submit_answered(api, context, &request, &answer).await
+}
+
+/// An operation `name` on the object `id` of `ty` under its `If-Match` (an attachment of an
+/// interface, REQ-009-9): the members of a JSON body, each one of `allowed`, completed by
+/// `fixed` (the object itself, a member of the path); an empty body has none. The guard
+/// of the version, then the operation; `applied` on success.
+///
+/// # Errors
+///
+/// 400, 415 for the body; 428, 412 for `If-Match`; 404; the problems of a changeset.
+#[allow(clippy::too_many_arguments)] // the request, then what the route writes
+pub async fn act(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    id: Uuid,
+    headers: &HeaderMap,
+    raw: &Bytes,
+    ty: &'static ObjectType,
+    write: (&str, &[&str], Map<String, Value>),
+    applied: StatusCode,
+) -> Result<Response, Problem> {
+    let (name, allowed, fixed) = write;
+    let (reserved, mut members) = if raw.is_empty() {
+        (
+            crate::resources::Reserved {
+                motive: String::new(),
+                valid_from: None,
+                valid_to: None,
+            },
+            Map::new(),
+        )
+    } else {
+        written(headers, raw, "application/json", allowed)?
+    };
+    let expected = if_match(headers)?;
+    existing(api, context, ty, id).await?;
+    members.extend(fixed);
+    let request = ChangesetRequest {
+        author: principal.identity,
+        motive: reserved.motive,
+        period: period(
+            api,
+            reserved.valid_from.as_deref(),
+            reserved.valid_to.as_deref(),
+        )
+        .await?,
+        operations: vec![
+            Operation::Expect {
+                kind: kind_of(ty),
+                id: Ref::Id(id),
+                expected,
+            },
+            operation(name, members)?,
+        ],
+        simulate: false,
+        idempotency_key: None,
+    };
+    let pointers = [WHOLE.to_owned(), WHOLE.to_owned()];
+    let answer = Answer {
+        pointers: Pointers::Members(&pointers),
+        applied,
         location: None,
         precondition: true,
         shown: None,

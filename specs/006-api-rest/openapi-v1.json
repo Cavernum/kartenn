@@ -268,6 +268,45 @@
         ],
         "description": "The body of an attachment."
       },
+      "AttachmentCreation": {
+        "description": "The body of the attachment of an address to an interface (REQ-009-9).",
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "The address of the core."
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "primary": {
+            "description": "The primary address of its family on the interface.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "address"
+        ],
+        "type": "object"
+      },
       "AttachmentItem": {
         "description": "The attachment of an issuer.",
         "properties": {
@@ -1060,6 +1099,156 @@
           },
           "valid_from": {
             "description": "The start of the closure, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "Cluster": {
+        "description": "A cluster of machines (REQ-009-3).",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug, unique among the living clusters.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "href"
+        ],
+        "type": "object"
+      },
+      "ClusterCreation": {
+        "description": "The body of the creation of a cluster.",
+        "properties": {
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "The owner (`core.owner`)."
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The site (`core.site`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "slug",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "ClusterPatch": {
+        "description": "The body of the modification of a cluster (JSON Merge Patch); `site: null` removes it.",
+        "properties": {
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
             "type": [
               "string",
               "null"
@@ -1940,6 +2129,261 @@
         ],
         "type": "object"
       },
+      "Interface": {
+        "description": "An interface of a machine (REQ-009-6).",
+        "properties": {
+          "enabled": {
+            "description": "Whether it is enabled.",
+            "type": "boolean"
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "mac": {
+            "description": "Its EUI-48, canonical (`aa:bb:cc:dd:ee:ff`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "machine": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "Its machine."
+          },
+          "name": {
+            "description": "Its name, unique on its machine.",
+            "type": "string"
+          },
+          "vlan": {
+            "$ref": "#/components/schemas/InterfaceVlan",
+            "description": "Its 802.1Q mode."
+          }
+        },
+        "required": [
+          "id",
+          "machine",
+          "name",
+          "enabled",
+          "vlan",
+          "href"
+        ],
+        "type": "object"
+      },
+      "InterfaceCreation": {
+        "description": "The body of the creation of an interface.",
+        "properties": {
+          "enabled": {
+            "description": "Enabled, by default.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "mac": {
+            "description": "Its EUI-48, any usual notation.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "machine": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "Its machine, fixed."
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vlan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InterfaceVlanInput",
+                "description": "Its 802.1Q mode, `none` by default."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "machine",
+          "name"
+        ],
+        "type": "object"
+      },
+      "InterfacePatch": {
+        "description": "The body of the modification of an interface (JSON Merge Patch); `mac: null` and\n`vlan: null` remove them.",
+        "properties": {
+          "enabled": {
+            "description": "Whether it is enabled.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "mac": {
+            "description": "Its EUI-48.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vlan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InterfaceVlanInput",
+                "description": "Its 802.1Q mode."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "InterfaceVlan": {
+        "description": "The 802.1Q mode of an interface (REQ-009-12).",
+        "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The VLAN of an access port."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "description": "`none`, `access` or `trunk`.",
+            "type": "string"
+          },
+          "native": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The untagged VLAN of a trunk."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tagged": {
+            "description": "The tagged VLANs of a trunk.",
+            "items": {
+              "$ref": "#/components/schemas/MachinesObjectRef"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "tagged"
+        ],
+        "type": "object"
+      },
+      "InterfaceVlanInput": {
+        "description": "The 802.1Q mode of an interface, as written.",
+        "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The VLAN of an access port."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "description": "`none`, `access` or `trunk`.",
+            "type": "string"
+          },
+          "native": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The untagged VLAN of a trunk."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tagged": {
+            "description": "The tagged VLANs of a trunk.",
+            "items": {
+              "$ref": "#/components/schemas/MachinesObjectRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
       "IssuerDto": {
         "description": "An issuer a browser logs in at, as the login page names it.",
         "properties": {
@@ -2334,6 +2778,27 @@
         ],
         "type": "object"
       },
+      "Listing_Cluster": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/Cluster"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_DeclarationItem": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -2649,6 +3114,69 @@
                 "links"
               ],
               "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_Interface": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/Interface"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_Machine": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/Machine"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_MachineAddress": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/MachineAddress"
             },
             "type": "array"
           },
@@ -3101,6 +3629,476 @@
           "output",
           "filter",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "Machine": {
+        "description": "A machine (REQ-009-2).",
+        "properties": {
+          "host": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachineHost",
+                "description": "Its host."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`physical`, `virtual`, `container` or `appliance`.",
+            "type": "string"
+          },
+          "member_of": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The cluster it is a member of."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Host name, lower case, unique per resolved owner.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "href"
+        ],
+        "type": "object"
+      },
+      "MachineAddress": {
+        "description": "An address attached to an interface (REQ-009-16).",
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "The address of the core."
+          },
+          "href": {
+            "description": "The URL of the address.",
+            "type": "string"
+          },
+          "interface": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "The interface that holds it."
+          },
+          "interface_name": {
+            "description": "The name of the interface.",
+            "type": "string"
+          },
+          "primary": {
+            "description": "Whether it is the primary address of its family on the interface.",
+            "type": "boolean"
+          },
+          "value": {
+            "description": "Its value, without prefix length.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "interface",
+          "interface_name",
+          "address",
+          "value",
+          "primary",
+          "href"
+        ],
+        "type": "object"
+      },
+      "MachineCard": {
+        "description": "The card of a machine: the machine, its interfaces and their addresses (REQ-009-15).",
+        "properties": {
+          "host": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachineHost",
+                "description": "Its host."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "interfaces": {
+            "description": "Its interfaces the caller may read, by name.",
+            "items": {
+              "$ref": "#/components/schemas/MachineCardInterface"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "Its kind.",
+            "type": "string"
+          },
+          "member_of": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The cluster it is a member of."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Host name.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Its resolved site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "interfaces",
+          "href"
+        ],
+        "type": "object"
+      },
+      "MachineCardAddress": {
+        "description": "An address on the card of a machine.",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "primary": {
+            "description": "Whether it is primary for its family.",
+            "type": "boolean"
+          },
+          "value": {
+            "description": "Its value.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "primary"
+        ],
+        "type": "object"
+      },
+      "MachineCardInterface": {
+        "description": "An interface on the card of its machine, with the addresses the caller may read.",
+        "properties": {
+          "addresses": {
+            "description": "Its addresses, `(identifier, value)`.",
+            "items": {
+              "$ref": "#/components/schemas/MachineCardAddress"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "description": "Whether it is enabled.",
+            "type": "boolean"
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "mac": {
+            "description": "Its EUI-48, canonical.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "Its name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "addresses",
+          "href"
+        ],
+        "type": "object"
+      },
+      "MachineCreation": {
+        "description": "The body of the creation of a machine.",
+        "properties": {
+          "host": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachineHost",
+                "description": "The host of a virtual machine or a container."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "description": "`physical`, `virtual`, `container` or `appliance`.",
+            "type": "string"
+          },
+          "member_of": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The cluster of a physical machine."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Host name.",
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/MachinesObjectRef",
+            "description": "The owner (`core.owner`)."
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "The site (`core.site`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "name",
+          "kind",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "MachineHost": {
+        "description": "The host of a virtual machine or a container (M5): a machine or a cluster.",
+        "oneOf": [
+          {
+            "description": "A machine.",
+            "properties": {
+              "machine": {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "A machine."
+              }
+            },
+            "required": [
+              "machine"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A cluster.",
+            "properties": {
+              "cluster": {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "A cluster."
+              }
+            },
+            "required": [
+              "cluster"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "MachinePatch": {
+        "description": "The body of the modification of a machine (JSON Merge Patch); `host: null` and\n`member_of: null` remove them. Its owner and site change by the operations of the core.",
+        "properties": {
+          "host": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachineHost",
+                "description": "Host."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "description": "Kind.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "member_of": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MachinesObjectRef",
+                "description": "Cluster."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Host name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "MachinesClosure": {
+        "description": "The optional body of the closure of an object of the module, or of a detachment.",
+        "properties": {
+          "cascade": {
+            "description": "Also close or detach what cites the object (REQ-009-14).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the closure, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "MachinesObjectRef": {
+        "description": "The identifier of an object, as the operations name it.",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -9424,6 +10422,386 @@
         ]
       }
     },
+    "/v1/clusters": {
+      "get": {
+        "operationId": "list_clusters",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "slug",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Cluster"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The clusters the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "post": {
+        "operationId": "create_cluster",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClusterCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates a cluster.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_clusters",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Cluster"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The clusters the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/clusters/{id}": {
+      "delete": {
+        "operationId": "close_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachinesClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the cluster.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "get": {
+        "operationId": "show_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cluster"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The cluster.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClusterPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the cluster (JSON Merge Patch).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
     "/v1/clusters/{id}/history": {
       "get": {
         "operationId": "machines_cluster_history",
@@ -9500,6 +10878,87 @@
           }
         },
         "summary": "The versions of the record of the machines.cluster, on both axes (REQ-004-18).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/clusters/{id}/machines": {
+      "get": {
+        "operationId": "cluster_machines",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Machine"
+                }
+              }
+            },
+            "description": "A page of machines."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The members of the cluster and the machines it hosts, those the caller may read.",
         "tags": [
           "machines"
         ]
@@ -11728,6 +13187,576 @@
         ]
       }
     },
+    "/v1/interfaces": {
+      "get": {
+        "operationId": "list_interfaces",
+        "parameters": [
+          {
+            "description": "Of this machine.",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "This EUI-48, any usual notation.",
+            "in": "query",
+            "name": "mac",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holding this address at the date.",
+            "in": "query",
+            "name": "address",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Carrying this VLAN, access, native or tagged.",
+            "in": "query",
+            "name": "vlan",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Interface"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The interfaces the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "post": {
+        "operationId": "create_interface",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterfaceCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates a interface.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_interfaces",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Interface"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The interfaces the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/interfaces/{id}": {
+      "delete": {
+        "operationId": "close_interface",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachinesClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the interface.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "get": {
+        "operationId": "show_interface",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interface"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The interface.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_interface",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterfacePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the interface (JSON Merge Patch).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/interfaces/{id}/attachments": {
+      "post": {
+        "operationId": "attach_address",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version of the interface read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Attached."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Attaches an address to the interface (REQ-009-9); the address is only read.",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/interfaces/{id}/attachments/{address}": {
+      "delete": {
+        "operationId": "detach_address",
+        "parameters": [
+          {
+            "description": "The interface.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The address.",
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version of the interface read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachinesClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Detached."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Detaches the address from the interface.",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
     "/v1/interfaces/{id}/history": {
       "get": {
         "operationId": "machines_interface_history",
@@ -12255,6 +14284,510 @@
         ]
       }
     },
+    "/v1/machines": {
+      "get": {
+        "operationId": "list_machines",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Starting with.",
+            "in": "query",
+            "name": "name_prefix",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`physical`, `virtual`, `container` or `appliance`.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Hosted by this machine or this cluster.",
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Hosted by or member of this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whose resolved owner is this entity.",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whose resolved site is this site.",
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holding an address of this network.",
+            "in": "query",
+            "name": "network",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Machine"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The machines the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "post": {
+        "operationId": "create_machine",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates a machine.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_machines",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Machine"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The machines the caller may read.",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/machines/{id}": {
+      "delete": {
+        "operationId": "close_machine",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachinesClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the machine.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "get": {
+        "operationId": "show_machine",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineCard"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The machine.",
+        "tags": [
+          "machines"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_machine",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachinePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the machine (JSON Merge Patch).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/machines/{id}/addresses": {
+      "get": {
+        "operationId": "machine_addresses",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_MachineAddress"
+                }
+              }
+            },
+            "description": "The addresses."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The addresses of the machine by interface, those the caller may read (REQ-009-16).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
     "/v1/machines/{id}/history": {
       "get": {
         "operationId": "machines_machine_history",
@@ -12331,6 +14864,87 @@
           }
         },
         "summary": "The versions of the record of the machines.machine, on both axes (REQ-004-18).",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/v1/machines/{id}/hosted": {
+      "get": {
+        "operationId": "machine_hosted",
+        "parameters": [
+          {
+            "description": "The machine.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Machine"
+                }
+              }
+            },
+            "description": "A page of machines."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The machines hosted by the machine, those the caller may read.",
         "tags": [
           "machines"
         ]

@@ -14,8 +14,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, DiffContext, DiffSection, Findings, ModuleHandler, ModuleObjectRow,
-    ModulePlan, ModuleTx, Reference,
+    BoxFuture, CheckContext, DiffContext, DiffSection, Edge, Findings, ModuleHandler,
+    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -930,6 +930,22 @@ impl ModuleHandler for Handler {
             }
             _ => None,
         }
+    }
+
+    /// The edges of the module at `object` (REQ-009-17), read by the port of reading.
+    fn edges<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        object: Uuid,
+    ) -> BoxFuture<'a, Result<Vec<Edge>, StoreError>> {
+        Box::pin(async move {
+            let (valid_at, as_of) = (read.valid_at(), read.as_of());
+            let conn = read
+                .connection()
+                .downcast_mut::<PgConnection>()
+                .ok_or_else(|| StoreError("not a PostgreSQL connection".into()))?;
+            crate::read::edges_of(conn, object, valid_at, as_of).await
+        })
     }
 
     /// `machines.attachments` (REQ-009-23): each attachment of an address to an interface

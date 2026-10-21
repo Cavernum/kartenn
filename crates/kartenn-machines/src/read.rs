@@ -395,6 +395,84 @@ pub async fn machine_values_of_addresses(
     Ok(out)
 }
 
+/// The edges of the module that start or end at `object` at (`valid_at`, `as_of`), each
+/// with the period of the version it comes from (REQ-009-17).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn edges_of(
+    conn: &mut PgConnection,
+    object: Uuid,
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<kartenn_service::module::Edge>, StoreError> {
+    type Row = (String, Uuid, Uuid, OffsetDateTime, Option<OffsetDateTime>);
+    let attachment = snapshot(
+        "machines.attachment",
+        "interface_id, address_id, valid_period",
+    );
+    let interface = snapshot(
+        "machines.interface",
+        "id, access_vlan_id, native_vlan_id, tagged_vlan_ids, valid_period",
+    );
+    let machine = snapshot(
+        "machines.machine",
+        "id, host_machine_id, host_cluster_id, member_cluster_id, valid_period",
+    );
+    let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH e (name, origin, target, period) AS (
+             SELECT 'machines.has_address', interface_id, address_id, valid_period
+               FROM {attachment} a
+             UNION ALL
+             SELECT 'machines.access', id, access_vlan_id, valid_period
+               FROM {interface} i WHERE access_vlan_id IS NOT NULL
+             UNION ALL
+             SELECT 'machines.native', id, native_vlan_id, valid_period
+               FROM {interface} i WHERE native_vlan_id IS NOT NULL
+             UNION ALL
+             SELECT 'machines.tagged', i.id, t.vlan, i.valid_period
+               FROM {interface} i, unnest(i.tagged_vlan_ids) AS t (vlan)
+             UNION ALL
+             SELECT 'machines.hosted_on', id, host_machine_id, valid_period
+               FROM {machine} m WHERE host_machine_id IS NOT NULL
+             UNION ALL
+             SELECT 'machines.hosted_in', id, host_cluster_id, valid_period
+               FROM {machine} m WHERE host_cluster_id IS NOT NULL
+             UNION ALL
+             SELECT 'machines.member_of', id, member_cluster_id, valid_period
+               FROM {machine} m WHERE member_cluster_id IS NOT NULL)
+         SELECT name, origin, target, lower(period), upper(period) FROM e
+          WHERE origin = $3 OR target = $3
+          ORDER BY name, origin, target"
+    )))
+    .bind(time(valid_at))
+    .bind(as_of.map(time))
+    .bind(object)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    let named = |name: &str| {
+        kartenn_service::module::Module::edges(&crate::module::Machines)
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| t.name)
+    };
+    Ok(rows
+        .into_iter()
+        .filter_map(|(name, from, to, start, end)| {
+            let period =
+                kartenn_core::period::Period::new(instant(start), end.map(instant)).ok()?;
+            Some(kartenn_service::module::Edge {
+                name: named(&name)?,
+                from,
+                to,
+                period,
+            })
+        })
+        .collect())
+}
+
 /// An instant of PostgreSQL as the core reads it.
 #[must_use]
 pub fn instant(t: OffsetDateTime) -> Instant {
