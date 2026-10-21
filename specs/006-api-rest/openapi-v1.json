@@ -7419,6 +7419,13 @@
       "Suggestion": {
         "description": "The value the source of a property expects for an object (REQ-003-23).",
         "properties": {
+          "candidates": {
+            "description": "Every candidate of the source, in its order (REQ-016-5).",
+            "items": {
+              "$ref": "#/components/schemas/Expected"
+            },
+            "type": "array"
+          },
           "links": {
             "$ref": "#/components/schemas/ObjectLinks",
             "description": "Links."
@@ -7431,7 +7438,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Expected",
-                "description": "The suggestion; `null` when the source has none."
+                "description": "The suggestion; `null` when the source has none, or more than one (REQ-016-5)."
               },
               {
                 "type": "null"
@@ -7441,6 +7448,7 @@
         },
         "required": [
           "property",
+          "candidates",
           "links"
         ],
         "type": "object"

@@ -4895,6 +4895,8 @@ export interface components {
     };
     /** @description The value the source of a property expects for an object (REQ-003-23). */
     Suggestion: {
+      /** @description Every candidate of the source, in its order (REQ-016-5). */
+      candidates: components["schemas"]["Expected"][];
       /** @description Links. */
       links: components["schemas"]["ObjectLinks"];
       /** @description The property. */

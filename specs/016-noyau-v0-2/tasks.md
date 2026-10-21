@@ -67,10 +67,21 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     `properties.rs`, `filter.rs`, `kartenn-rest` (types de valeur)
   - dépend de : 1
   - débloque : 011-1 (références externes F2), 010-3 (axe à référence externe)
-- [ ] 3. Sources de valeurs attendues v2 (contexte, candidats, lot, révision) —
+- [x] 3. Sources de valeurs attendues v2 (contexte, candidats, lot, révision) —
   REQ-016-4, 5 — verify : `two_candidates_no_default_no_mismatch`,
   `a_rule_written_in_the_changeset_applies_to_its_creations`,
   `ten_thousand_objects_in_batches` ; route de suggestion avec `candidates`
+  — service : `ExpectedValueSource` asynchrone (`revision`, `expected`, `expected_many`
+  par défaut en boucle) lisant par la transaction du changeset (`ModuleTx`) ;
+  `ExpectedContext` (date de validité) ; `Expected::{None, One, Candidates}`, seul un
+  candidat unique fait défaut ou écart ; `Suggestion::detail` dans la provenance
+  (`source:<id>@<révision>#<détail>`) ; défauts et contrôles d'un changeset en un appel
+  `expected_many` par propriété ; `suggest` et `suggest_for` rendent `Expected` ; REST :
+  `candidates` dans la suggestion (`suggestion` nulle s'il y en a plusieurs), contrat et
+  types du SDK régénérés (ajout) ; tests dans `kartenn-service/tests/it/expected.rs`.
+  choix : la transaction passe à part du contexte (contexte `Copy`, dates seules : un
+  emprunt mutable dans le contexte rendait les futures non `Send`) ; une règle écrite dans
+  le changeset se lit par `ModuleTx::connection` (rabattu sur `PgConnection`).
   - où : `kartenn-service/src/expected.rs`, `kartenn-rest/src/properties.rs`
     (`…/suggestion`), store `expected.rs` ; REQ-003-21 à 24
   - dépend de : 2, 4 (lecteur des ancêtres)

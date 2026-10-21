@@ -5,8 +5,12 @@ use std::sync::Arc;
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::properties::{Expected, ExpectedMode};
 use kartenn_core::values::Cardinality;
+use kartenn_service::StoreError;
 use kartenn_service::authz::Unrestricted;
-use kartenn_service::expected::{ExpectedValueSource, Sources, Suggestion};
+use kartenn_service::expected::{
+    Expected as Answer, ExpectedContext, ExpectedValueSource, Sources, Suggestion,
+};
+use kartenn_service::module::{BoxFuture, ModuleTx};
 use kartenn_service::operations::{DeclarationInput, PeriodSpec, RawInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ObjectView;
@@ -36,14 +40,31 @@ impl ExpectedValueSource for AddressesAreProd {
         "addresses"
     }
 
-    fn version(&self) -> &'static str {
-        "3"
+    fn revision<'a>(
+        &'a self,
+        _ctx: ExpectedContext,
+        _tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<String, StoreError>> {
+        Box::pin(async { Ok("3".to_owned()) })
     }
 
-    fn expected(&self, _property: &str, object: &ObjectView) -> Option<Suggestion> {
-        (object.kind == "address").then(|| Suggestion {
-            values: vec![RawInput::Text("prod".into())],
-            explanation: "addresses are prod".into(),
+    fn expected<'a>(
+        &'a self,
+        _property: &'a str,
+        object: &'a ObjectView,
+        _ctx: ExpectedContext,
+        _tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Answer, StoreError>> {
+        Box::pin(async move {
+            Ok(if object.kind == "address" {
+                Answer::One(Suggestion {
+                    values: vec![RawInput::Text("prod".into())],
+                    explanation: "addresses are prod".into(),
+                    detail: None,
+                })
+            } else {
+                Answer::None
+            })
         })
     }
 }

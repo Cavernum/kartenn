@@ -657,8 +657,10 @@ enum Expected {
 struct SuggestionDto {
     /// The property.
     property: String,
-    /// The suggestion; `null` when the source has none.
+    /// The suggestion; `null` when the source has none, or more than one (REQ-016-5).
     suggestion: Option<Expected>,
+    /// Every candidate of the source, in its order (REQ-016-5).
+    candidates: Vec<Expected>,
     /// Links.
     links: ObjectLinks,
 }
@@ -695,19 +697,22 @@ async fn suggestion(
         "valid_at": rfc3339(instant(moment.valid_at)),
     });
     audit_read(&api, &context, kind, id, criteria).await?;
-    let suggestion = match found {
-        Some(found) if discloses(&api, &context, &declaration, id).await? => {
-            Some(Expected::Shown {
-                values: found.values.iter().map(raw_value).collect(),
-                explanation: found.explanation,
-            })
+    let disclosed =
+        !found.candidates().is_empty() && discloses(&api, &context, &declaration, id).await?;
+    let shown = |s: &kartenn_service::expected::Suggestion| {
+        if disclosed {
+            Expected::Shown {
+                values: s.values.iter().map(raw_value).collect(),
+                explanation: s.explanation.clone(),
+            }
+        } else {
+            Expected::Masked { masked: true }
         }
-        Some(_) => Some(Expected::Masked { masked: true }),
-        None => None,
     };
     let body = SuggestionDto {
         property: declaration.key,
-        suggestion,
+        suggestion: found.single().map(shown),
+        candidates: found.candidates().iter().map(shown).collect(),
         links: ObjectLinks {
             object: kind.href(id),
         },
