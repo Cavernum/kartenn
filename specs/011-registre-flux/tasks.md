@@ -36,8 +36,19 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   - où : migrations de `crates/kartenn-vlan` (forme), forme de `property_origin`
     (`crates/kartenn-store-pg/migrations/0011_properties.sql`)
   - dépend de : 1
-
-## P2 — Pipeline
+  - fait : `crates/kartenn-flow/migrations/0001_flow.sql` (schéma `flow`), module `Flows`
+    (`src/module.rs` : type `flow.flow` ancré sur l'entité, permissions de REQ-011-17,
+    règles, migration) ; tests `crates/kartenn-flow/tests/it/schema.rs` (cible `flow_it`) :
+    contraintes de `flow` (référence, justification, sorte, plage), de `flow_waiver` (fin,
+    motif, risque), de `flow_summary` (accord synthèse et décomptes) et de
+    `flow_evaluation` (réserve), lecture `as_of` passé dans `flow_summary_history`,
+    `flow_registration` jamais réécrite par le rôle de l'application.
+  - choix : extrémités et service sans clé étrangère (polymorphes, contrôlés par les
+    règles du module) ; `flow_waiver`, `flow_endpoint_address`, `flow_evaluation`,
+    `flow_summary` versionnées ; `flow_registration`, `flow_rejection`, `flow_notice`
+    en ajout seul (`SELECT, INSERT`) ; `flow_notice.kind` distingue les échéances du flux
+    et celles de la dérogation ; le module n'est pas encore monté par `kartenn-server`
+    (opérations et gestionnaire en 011-3).
 
 - [ ] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
   forcée et permission de validation, N39, amendement additif de la 004 et du contrat) ;
