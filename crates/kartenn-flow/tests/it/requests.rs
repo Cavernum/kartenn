@@ -293,6 +293,32 @@ fn refusals(result: &Result<Outcome, RequestError>) -> Vec<&'static str> {
     }
 }
 
+/// A dated request (`end`) in a changeset of open period applies: the anchor of the flow
+/// and its defaults stop with it, never outliving the flow (REQ-011-5, REQ-002-11).
+#[kartenn_testing::pg_test]
+async fn a_dated_request_in_an_open_changeset_applies(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let requester = env.person().await;
+    let mut fields = env.fields(prod, dev).await;
+    fields["end"] = json!(later(30));
+    let outcome = env
+        .submit_as(
+            &grants(requester, REQUEST),
+            requester,
+            vec![flow("request", fields)],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let ends: bool =
+        sqlx::query_scalar("SELECT bool_and(NOT upper_inf(valid_period)) FROM flow.flow")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(ends, "the flow ends");
+}
+
 /// REQ-011-21: a compliant request, every condition met, is applied with its evaluation
 /// (summary `allowed`, outcome `automatic`), frozen at its registration (REQ-011-23).
 #[kartenn_testing::pg_test]

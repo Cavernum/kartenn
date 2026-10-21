@@ -865,13 +865,20 @@ async fn prepare<'r, T: WriteTx>(
 }
 
 /// Parses every operation and runs the local rules (no database): the planned writes, the
-/// index of the operation each comes from, and the violations found, each ascribed to its
-/// operation.
+/// index of the operation each comes from, the own period of a core operation a module
+/// operation adds (its `Within`, `None` otherwise), and the violations found, each ascribed
+/// to its operation.
 #[allow(clippy::too_many_lines)] // one arm per kind of operation
+#[allow(clippy::type_complexity)] // the four results of the planning, read side by side
 fn plan(
     req: &ChangesetRequest,
     modules: &ModuleRegistry,
-) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
+) -> (
+    Vec<Planned>,
+    Vec<usize>,
+    Vec<Option<PeriodSpec>>,
+    Vec<Violation>,
+) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
     let resolve = |r: Ref, ids: &HashMap<u32, Uuid>| match r {
         Ref::Id(id) => id,
@@ -879,13 +886,20 @@ fn plan(
     };
     let mut planned = Vec::with_capacity(req.operations.len());
     let mut origins = Vec::with_capacity(req.operations.len());
+    let mut derived = Vec::with_capacity(req.operations.len());
     let mut violations = Vec::new();
     for (index, requested) in req.operations.iter().enumerate() {
         let found = violations.len();
         // The operation, then the core operations a module operation adds (ADR 0026,
         // clause 6), planned in turn under the same index.
         let mut queue = std::collections::VecDeque::from([requested.clone()]);
+        let mut first = true;
         while let Some(owned) = queue.pop_front() {
+            // An added core operation keeps its own period (a `Within`), so that a module
+            // bounds it to the life of its object (REQ-004-2): the period of the requested
+            // operation is applied to the others.
+            let own = if first { None } else { owned.own_period() };
+            first = false;
             let id = Uuid::now_v7();
             if let Some(local) = owned.defines() {
                 ids.insert(local, id);
@@ -1033,11 +1047,12 @@ fn plan(
                     planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
                 }
             }
+            derived.resize(planned.len(), own);
         }
         origins.resize(planned.len(), index);
         ascribe(&mut violations[found..], index);
     }
-    (planned, origins, violations)
+    (planned, origins, derived, violations)
 }
 
 /// Ascribes `violations` to operation `index`, those not ascribed already.
@@ -1862,7 +1877,7 @@ async fn stages<S: Store, A: Authorizer>(
         }
     };
     let req: &ChangesetRequest = &prepared;
-    let (planned, origins, mut violations) = plan(req, modules);
+    let (planned, origins, derived, mut violations) = plan(req, modules);
     crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
@@ -1877,8 +1892,16 @@ async fn stages<S: Store, A: Authorizer>(
         .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
         .collect::<Result<_, _>>()?;
     let window = window(period, &periods);
-    // One period per planned operation: that of the operation it comes from.
-    let periods: Vec<Option<Period>> = origins.iter().map(|&o| periods[o]).collect();
+    // One period per planned operation: that of the operation it comes from, unless a core
+    // operation added by a module carries its own.
+    let periods: Vec<Option<Period>> = origins
+        .iter()
+        .zip(&derived)
+        .map(|(&o, own)| match own {
+            Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
+            None => Ok(periods[o]),
+        })
+        .collect::<Result<_, _>>()?;
     let (planned, origins, periods, cascaded) =
         crate::cascade::expand(&mut tx, modules, planned, origins, periods).await?;
     let (domains, public, keys) = lock_targets(&mut tx, &planned).await?;
@@ -2522,7 +2545,8 @@ mod tests {
 
     /// The planning of a build without modules.
     fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
-        super::plan(req, ModuleRegistry::empty())
+        let (planned, origins, _, violations) = super::plan(req, ModuleRegistry::empty());
+        (planned, origins, violations)
     }
 
     #[test]
