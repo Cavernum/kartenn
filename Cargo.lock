@@ -1844,6 +1844,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-policy"
+version = "0.1.0"
+dependencies = [
+ "kartenn-core",
+ "kartenn-workspace-hack",
+ "proptest",
+ "regex",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "kartenn-rest"
 version = "0.1.0"
 dependencies = [

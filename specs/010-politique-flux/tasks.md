@@ -30,7 +30,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P1 — Domaine pur
 
-- [ ] 3. Crate `kartenn-policy` : types `Axis`, `ValueAttributes`, `FlowType`,
+- [x] 3. Crate `kartenn-policy` : types `Axis`, `ValueAttributes`, `FlowType`,
   `Service`, `ServiceEntry`, `Rule` (termes, « même valeur », effet, motifs requis),
   `Pattern`, `Condition` et `Signal` (genres, paramètres), `Text` avec validation —
   REQ-010-4 à 9, 29, 30, 33 — verify : un test par cas refusé de REQ-010-5 et REQ-010-8 ;
@@ -38,7 +38,22 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : modèle de `crates/kartenn-core/src/values.rs` (validation), note
     `docs/reference/services-transports.md` ; crate à l'image de `crates/kartenn-vlan`
   - dépend de : —
-- [ ] 4. `PolicySnapshot` et `evaluate` (candidates, non classifié par axe,
+  — `crates/kartenn-policy` (domaine pur, sans base) : `model.rs` (`Key`, `Label`,
+  `AxisValue`, `Axis`, `Carrier`, `ValueAttributes`, `FlowType`, `Transport`,
+  `ServiceEntry`, `Service` avec `warnings` (> 1 024 ports d'un transport), `Selector`,
+  `FlowSelector`, `Effect`, `Rule::check`, `Pattern`, `DossierField`, `ConditionKind`,
+  `Condition`, `SignalKind`, `Signal`, `Locale`, `Text`, `Texts` avec repli sur la langue
+  par défaut), `rules.rs` (catalogue `POLICY_RULES`). Tests : `model::tests`
+  (`each_refused_case_of_req_010_5`, `each_refused_case_of_req_010_8`,
+  `a_deny_a_pattern_and_a_condition_need_a_text`, `a_service_over_1024_ports_warns…`).
+  choix : clés de la politique à la syntaxe des services (REQ-010-5) pour tous les objets ;
+  valeurs d'axe identifiées par leur clé (la base fera la correspondance avec les
+  identifiants) ; règles ajoutées `policy.key.syntax`, `policy.label.invalid`,
+  `policy.service.flow_type`, `policy.service.entries_empty`, `policy.rule.term_empty`,
+  `policy.text.invalid`, `policy.inference.criterion_invalid` (cas que la spec refuse sans
+  les nommer) ; un code ICMP exige un type ; genres des conditions et des signaux tirés de
+  REQ-010-36, 37 et Q20.
+- [x] 4. `PolicySnapshot` et `evaluate` (candidates, non classifié par axe,
   interdictions, autorisations, motifs, conditionnelles, issue, signaux, élément
   décisif le plus spécifique, explication) — REQ-010-10, 11, 12, 14, 15, 31, 32, 36,
   37 — verify : cas d'acceptation de REQ-010-11, 32, 36 ; proptest contre l'oracle
@@ -47,17 +62,58 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : `kartenn-policy/src/snapshot.rs`, `src/evaluate.rs` ; tests à l'image de
     `crates/kartenn-core/src/inheritance.rs`
   - dépend de : 3
-- [ ] 5. Différentiel de politique pur (candidats par combinaisons de valeurs, verdicts
+  — `snapshot.rs` (`Parts`, `PolicySnapshot` : index des règles par service, types
+  développés, et par motif ; `services_for_port`, `services_of_type`), `evaluate.rs`
+  (`Endpoint`, `Requested`, `Dossier`, `applies`, `verdict`, `evaluate`, `Decisive`,
+  `Discarded` (trois au plus), `ConditionState`, `Outcome`, signaux et score,
+  `synthesis`, `unknown_service`). Tests : `evaluate::tests` (`acceptance_of_req_010_11`,
+  `…_32`, `…_36`, `same_value_needs_a_shared_value`, `signals_add_up_without_deciding`,
+  `synthesis_of_req_010_15`) et quatre propriétés (`a_deny_wins`, `monotonic`,
+  `the_order_of_the_rules_has_no_effect`, `signals_change_neither_verdict_nor_outcome`).
+  choix : la combinaison citée prend, pour chaque terme, la première valeur de
+  l'intersection, et pour une « même valeur » une valeur commune admise par les deux
+  termes ; rang de comparaison = rang maximal de l'ensemble (union, D25) ; une condition
+  sans rang lisible est « non évaluée » (issue `review`) ; « non classifié » s'apprécie
+  sur l'union des axes cités par les candidates, des deux côtés ; les conditions ne sont
+  évaluées que pour un verdict `allowed`.
+- [x] 5. Différentiel de politique pur (candidats par combinaisons de valeurs, verdicts
   de principe avant et après) — REQ-010-18 — verify : égal aux basculements du produit
   cartésien sur politiques aléatoires
   - où : `kartenn-policy/src/diff.rs`
   - dépend de : 4
-- [ ] 6. Moteur d'inférence pur (critères, transmission, exceptions, départage,
+  — `diff.rs` (`diff`, `PolicyDiff` avec `opens`, `closes`, `pending`, `Flip`,
+  `Candidate`, `Slot`, `MAX_CANDIDATES`) : un service n'est examiné que si ses règles
+  candidates ou son type changent ; par axe cité, classes de valeurs (valeurs citées,
+  « autre valeur » distincte de chaque côté, « même valeur non citée » quand une règle
+  l'exige) ; candidats = ensembles d'une ou deux classes par axe et par côté ; verdict de
+  principe de `evaluate::verdict` sur les deux instantanés. Tests :
+  `acceptance_of_req_010_18` (ouverture, masquage par une interdiction sur
+  `{global, prod}`, rien sans changement) et la propriété
+  `equals_the_flips_of_the_cartesian_product` (produit d'extrémités à une ou deux valeurs
+  sur les valeurs citées et deux non citées).
+  choix : extrémités d'au plus deux valeurs par axe et par côté (`VALUES_PER_AXIS`) : le
+  masquage d'une autorisation par une interdiction (acceptation de REQ-010-18) exige deux
+  valeurs, et le décompte reste polynomial ; au-delà de 10⁵ candidats, décompte seul
+  (`truncated`) ; la propriété tourne 4 cas (environ 10⁵ paires par service affecté).
+- [x] 6. Moteur d'inférence pur (critères, transmission, exceptions, départage,
   candidats multiples, explication) — REQ-010-42 à 45, 47, 49 — verify : cas
   d'acceptation de REQ-010-42, 44, 45 ; oracle du départage sur arbres aléatoires
   - où : `kartenn-policy/src/inference.rs` ; crate `regex` (déjà dépendance de
     `kartenn-core`)
   - dépend de : 3
+  — `inference.rs` (`Node`, `NodeKind`, `Criterion` : préfixe englobant ou égal,
+  famille, domaine, type, site et entité avec ascendants, propriété (égalité,
+  appartenance, présence), nom par `NameRegex`, longueur ; `InferenceRule::check`
+  (profondeur ≤ 4, listes non vides), `expected` (correspondance la plus profonde dans la
+  chaîne des ancêtres transmise à la sous-branche, exceptions qui remplacent, priorité
+  puis profondeur, candidats multiples), `Expectation::{conflict, single}`, `mismatch`,
+  `Expected` avec observations par critère et trois règles plus faibles). Tests :
+  `acceptance_of_req_010_42`, `…_44`, `…_45`, `a_match_is_transmitted_to_the_sub_branch`,
+  `every_criterion_observes_what_it_saw` et la propriété `departage_matches_the_oracle`.
+  choix : expression régulière ancrée par `^…$` littéraux, compilée par `regex` (refuse
+  de lui-même les assertions de voisinage et les références arrière) ; une règle sans
+  critère vaut pour tout nœud ; entre exceptions sœurs, même départage que les règles ;
+  le nœud décrit son site et son entité avec leurs ascendants, fournis par le stockage.
 
 ## P2 — Stockage et pipeline
 
