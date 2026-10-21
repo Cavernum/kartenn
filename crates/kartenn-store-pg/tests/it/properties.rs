@@ -43,7 +43,7 @@ async fn assign(
     .await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn declarations_have_unique_well_formed_keys(pool: PgPool) -> sqlx::Result<()> {
     declare(&pool, "custom.environment", FOREVER).await?;
     assert!(
@@ -94,7 +94,7 @@ async fn declarations_have_unique_well_formed_keys(pool: PgPool) -> sqlx::Result
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closed_list_values_and_obligations(pool: PgPool) -> sqlx::Result<()> {
     let p = declare(&pool, "custom.environment", FOREVER).await?;
     let value = |key: &str| {
@@ -138,7 +138,7 @@ async fn closed_list_values_and_obligations(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn one_assignment_per_object_and_property(pool: PgPool) -> sqlx::Result<()> {
     let p = declare(&pool, "custom.environment", FOREVER).await?;
     let o = Uuid::now_v7();
@@ -227,7 +227,7 @@ async fn one_assignment_per_object_and_property(pool: PgPool) -> sqlx::Result<()
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn one_origin_per_object_property_and_segment(pool: PgPool) -> sqlx::Result<()> {
     let p = declare(&pool, "custom.environment", FOREVER).await?;
     let (o, origin) = (Uuid::now_v7(), Uuid::now_v7());
@@ -267,7 +267,7 @@ async fn one_origin_per_object_property_and_segment(pool: PgPool) -> sqlx::Resul
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn keyed_versioning_checks_its_key(pool: PgPool) -> sqlx::Result<()> {
     exec(
         &pool,

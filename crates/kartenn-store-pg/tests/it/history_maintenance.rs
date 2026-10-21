@@ -25,7 +25,7 @@ async fn month(pool: &PgPool, offset: i32) -> String {
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn partitions_are_kept_ahead_and_used(pool: PgPool) {
     // A month already holding rows in the default partition is skipped, not refused.
     let busy = month(&pool, 4).await;
@@ -78,7 +78,7 @@ async fn partitions_are_kept_ahead_and_used(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_history_has_its_system_period_index(pool: PgPool) {
     let missing: Vec<String> = sqlx::query_scalar(
         "SELECT h.relname::text FROM pg_class h

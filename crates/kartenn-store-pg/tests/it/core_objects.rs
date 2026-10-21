@@ -46,7 +46,7 @@ async fn address(
     .map(|_| ())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn prefixes_are_unique_per_domain_and_period(pool: PgPool) -> sqlx::Result<()> {
     let (d1, d2) = (Uuid::now_v7(), Uuid::now_v7());
     prefix(
@@ -91,7 +91,7 @@ async fn prefixes_are_unique_per_domain_and_period(pool: PgPool) -> sqlx::Result
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn only_networks_are_point_to_point(pool: PgPool) -> sqlx::Result<()> {
     let d = Uuid::now_v7();
     prefix(&pool, d, "192.0.2.0/31", "network", true, FOREVER).await?;
@@ -103,7 +103,7 @@ async fn only_networks_are_point_to_point(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn addresses_are_hosts_unique_per_domain_and_public_space(pool: PgPool) -> sqlx::Result<()> {
     let (d1, d2) = (Uuid::now_v7(), Uuid::now_v7());
     address(&pool, d1, "10.1.2.3", "host", false).await?;
@@ -134,7 +134,7 @@ async fn addresses_are_hosts_unique_per_domain_and_public_space(pool: PgPool) ->
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn slugs_are_unique_per_type_and_period(pool: PgPool) -> sqlx::Result<()> {
     let insert = |slug: &str, period: &str| {
         let pool = pool.clone();
@@ -164,7 +164,7 @@ async fn slugs_are_unique_per_type_and_period(pool: PgPool) -> sqlx::Result<()> 
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn external_ids_are_unique_per_source(pool: PgPool) -> sqlx::Result<()> {
     let q = "INSERT INTO external_id VALUES ('legacy-ipam', 'NET-42', $1, 'prefix')";
     sqlx::query(q).bind(Uuid::now_v7()).execute(&pool).await?;
@@ -198,7 +198,7 @@ async fn range(
     .map(|_| ())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ranges_are_disjoint_per_domain_and_single_family(pool: PgPool) -> sqlx::Result<()> {
     // Behaviour of variant A of spike 001, now in the real schema (002/A12).
     let (d1, d2) = (Uuid::now_v7(), Uuid::now_v7());
@@ -245,7 +245,7 @@ async fn ranges_are_disjoint_per_domain_and_single_family(pool: PgPool) -> sqlx:
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn only_networks_are_anycast_and_history_keeps_the_mark(pool: PgPool) -> sqlx::Result<()> {
     let insert = |value: &'static str, nature: &'static str| {
         sqlx::query(
