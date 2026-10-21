@@ -22,7 +22,7 @@ même crate.
 
 ## P1 — Règle
 
-- [ ] 1. Règle des futurs tests : nouvelle sous-section de §2.5 de
+- [x] 1. Règle des futurs tests : nouvelle sous-section de §2.5 de
   `docs/practices/rust-build.md` (module de `tests/it/`, helpers dans `tests/it/support/`,
   binaire à part seulement pour un test qui agit sur son propre processus, avec un
   commentaire ; `où :` cite `tests/it/<module>.rs`) et étape 3 de

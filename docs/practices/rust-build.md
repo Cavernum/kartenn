@@ -151,6 +151,30 @@ rustc parallélise surtout entre crates. Règles :
   conformément à l'architecture hexagonale ;
 - un changement dans un module métier ne doit recompiler que ce module et ses dépendants.
 
+#### Tests d'intégration : un binaire par crate (ADR 0027)
+
+Chaque fichier `tests/*.rs` est un binaire lié à part : avec une centaine de fichiers, le
+lien et le disque dominent la boucle de dev. Chaque crate a donc **un seul binaire
+d'intégration** ([ADR 0027](../adr/0027-un-binaire-de-tests-par-crate.md)) :
+
+- `Cargo.toml` : `autotests = false` et une cible `[[test]] name = "<crate sans
+  préfixe>_it"`, `path = "tests/it/main.rs"` (nom propre à la crate : il entre dans le
+  nom des bases `#[sqlx::test]`) ;
+- un test d'intégration est un **module de `tests/it/`**, déclaré dans `tests/it/main.rs`
+  (`mod rbac;`), jamais un nouveau fichier `tests/*.rs` ;
+- un helper partagé vit dans `tests/it/support/` (`pub(crate)`) ; pas de `#[path]` vers
+  les tests d'une autre crate : préférer une feature `test-support` de la crate qui
+  fournit le helper ;
+- un binaire à part (`[[test]]` explicite) n'est admis que pour un test qui agit sur son
+  propre processus de façon visible des autres tests sous `cargo test` (signal à son PID,
+  `set_var`, état global non local au fil), avec un commentaire qui le dit
+  (seul cas actuel : `kartenn-server/tests/http.rs`) ;
+- les lignes `où :` des tâches citent `tests/it/<module>.rs`, et les `verify` le nom de la
+  fonction de test (un filtre nextest par sous-chaîne le trouve sous son préfixe
+  `<module>::`).
+
+Source : [Cargo targets, « Integration tests »](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#integration-tests).
+
 ### 2.6 Profils de livraison et de mesure
 
 ```toml
