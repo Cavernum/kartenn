@@ -404,11 +404,20 @@ numérotées après coup.
   de module accepte `cascade` dans son corps ; un membre inconnu → 400, un `null` dans un
   Merge Patch → 422 `invalid-member` ; l'occupation et le prochain libre ont un `ETag`
   faible de contenu.
-- [ ] 15. Imports : opérations du module dans les imports par morceaux — REQ-008-23 —
+- [x] 15. Imports : opérations du module dans les imports par morceaux — REQ-008-23 —
   verify : `import_ten_thousand_vlans_resumes_without_duplicates`
   où : `kartenn-rest/src/imports.rs`, `kartenn-service/src/import.rs` ; test voisin
   `kartenn-rest/tests/imports.rs`
   dépend de : 14
+  — Service : `import.rs` (`uses` : les références locales d'une opération de module sont
+  les `{"local": n}` de son corps, pour l'ordre des éléments et la reprise ;
+  `created_module_kind` : une création de module est liée à son identifiant source sous
+  le type que déclare son opération). Les morceaux REST acceptaient déjà l'enveloppe de
+  module (008-8). Test : `kartenn-vlan/tests/imports.rs` (10⁴ VLAN dans 100 groupes,
+  donnés VLAN d'abord ; reprise après un arrêt où les lots appliqués n'ont pas été notés).
+  choix : référence locale d'un corps de module reconnue à sa forme `{"local": n}` (celle
+  de `Ref`), sans consulter le module ; le rang des opérations de module reste le dernier,
+  l'ordre venant des références.
 
 ## P3 — Budgets, interface, synchronisation
 
