@@ -3,14 +3,14 @@
 //! group, which inherit their anchors along the tree of the module. No table of its own:
 //! the objects live in `module_object`.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use kartenn_core::authz::Permission;
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
-    BoxFuture, Module, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRegistry, ModuleTx,
-    ObjectType, OperationType,
+    BoxFuture, Module, ModuleActors, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRegistry,
+    ModuleTx, ObjectType, OperationType,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::WriteError;
@@ -56,6 +56,12 @@ static OPERATIONS: &[OperationType] = &[
         name: "create_item",
         defines: Some("kit.item"),
     },
+    // An item created under `kit.item.request` rather than `kit.item.write` (ADR 0026,
+    // amendment 3).
+    OperationType {
+        name: "request_item",
+        defines: Some("kit.item"),
+    },
 ];
 
 static GROUP_READ: Permission = Permission {
@@ -73,7 +79,27 @@ static ITEM_READ: Permission = Permission {
     summary: "Lire les éléments du kit.",
     global_only: false,
 };
-static PERMISSIONS: &[&Permission] = &[&GROUP_READ, &GROUP_WRITE, &ITEM_READ];
+static ITEM_REQUEST: Permission = Permission {
+    name: "kit.item.request",
+    summary: "Demander un élément du kit.",
+    global_only: false,
+};
+static PERMISSIONS: &[&Permission] = &[&GROUP_READ, &GROUP_WRITE, &ITEM_READ, &ITEM_REQUEST];
+
+/// Who stood behind the changeset that wrote each object, as the module read it.
+static ACTORS: Mutex<Vec<(Uuid, ModuleActors)>> = Mutex::new(Vec::new());
+
+/// Who stood behind the changeset that wrote `object`, as the module read it last.
+#[allow(dead_code)] // read by the tests of amendment 3 only
+pub(crate) fn actors_of(object: Uuid) -> Option<ModuleActors> {
+    ACTORS
+        .lock()
+        .expect("a sound lock")
+        .iter()
+        .rev()
+        .find(|(id, _)| *id == object)
+        .map(|(_, actors)| *actors)
+}
 static RULES: &[&Rule] = &[&INVALID];
 
 /// The module.
@@ -98,6 +124,9 @@ impl Module for Kit {
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
+    }
+    fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
+        &[("request_item", "kit.item.request")]
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
@@ -168,6 +197,10 @@ impl ModuleHandler for Handler {
             parent: id("parent"),
             domain: id("domain"),
         };
+        ACTORS
+            .lock()
+            .expect("a sound lock")
+            .push((plan.object, tx.actors()));
         Box::pin(async move { tx.register(row, period, changeset).await })
     }
 }

@@ -42,6 +42,10 @@ impl kartenn_service::module::ModuleTx for PgTx {
         &mut *self.tx
     }
 
+    fn actors(&self) -> kartenn_service::module::ModuleActors {
+        self.actors
+    }
+
     fn emit(
         &mut self,
         event: &str,
@@ -307,6 +311,8 @@ pub struct PgTx {
     pub(crate) modules: std::sync::Arc<ModuleRegistry>,
     /// Events emitted by modules, written to the outbox with the transaction's journal.
     pub(crate) events: Vec<ModuleEvent>,
+    /// Who stands behind the changeset, as its modules read it (ADR 0026, amendment 3).
+    pub(crate) actors: kartenn_service::module::ModuleActors,
 }
 
 /// An event emitted by a module, waiting for the journal of its transaction.
@@ -556,6 +562,7 @@ impl Store for PgStore {
             instance: self.instance.clone(),
             modules: self.modules.clone(),
             events: Vec::new(),
+            actors: kartenn_service::module::ModuleActors::default(),
         })
     }
 
@@ -977,6 +984,10 @@ impl WriteTx for PgTx {
 
     fn module_tx(&mut self) -> &mut dyn kartenn_service::module::ModuleTx {
         self
+    }
+
+    fn set_module_actors(&mut self, actors: kartenn_service::module::ModuleActors) {
+        self.actors = actors;
     }
 
     async fn replay(&mut self, request: &ChangesetRequest) -> Result<Replay, StoreError> {

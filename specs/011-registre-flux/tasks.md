@@ -61,11 +61,11 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   - dépend de : 2 ; et, pour le triage, 010-12 (instantané de la politique lu en base) et
     010-13 (évaluation de deux extrémités : développement en adresses, axes portés,
     explication), absents au 2026-10-21
-  - à trancher avant : le contrat de module ne laisse pas une opération nommer la
-    permission qui autorise son écriture (`flow.flow.request` plutôt que
-    `flow.flow.write`, REQ-011-17, F12) ni ne donne au module l'identité de l'auteur, du
-    demandeur (`on_behalf_of`) et du validateur (`requester_id`, `reviewed_by`,
-    `granted_by`, `flow.separation`) ; ajouts au contrat (ADR 0026) à décider
+  - levé le 2026-10-21 : la permission propre à une opération
+    (`Module::operation_permissions`, `flow.flow.request`, REQ-011-17, F12) et les
+    acteurs du changeset (`ModuleTx::actors` : auteur, demandeur, validateur, pour
+    `requester_id`, `reviewed_by`, `granted_by`, `flow.separation`) sont l'amendement 3
+    de l'ADR 0026 ; reste à attendre 010-12 et 010-13
 - [x] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
   clôture d'une adresse citée refusée ; cascade clôt le flux
   - où : références de module (ADR 0026 clause 12, tâche 008-7)

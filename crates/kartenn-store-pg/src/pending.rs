@@ -41,6 +41,7 @@ fn decode(
                 perimeter: Vec::new(),
                 required: Vec::new(),
                 author: None,
+                on_behalf_of: None,
             }),
     })
 }

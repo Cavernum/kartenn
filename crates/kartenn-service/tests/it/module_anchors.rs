@@ -575,3 +575,67 @@ async fn ref_to_a_module_type(pool: PgPool) {
     )])
     .await;
 }
+
+impl Kit {
+    /// The outcome of `operations` submitted by `who`, under the rights the database
+    /// grants it.
+    async fn submit_by(&self, who: &Subject, operations: Vec<Operation>) -> Outcome {
+        sqlx::query(
+            "INSERT INTO person (id, display_name) VALUES ($1, 'w') ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(who.id)
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        let request = ChangesetRequest {
+            author: who.id,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+        };
+        submit(
+            &self.store,
+            &PgAuthorizer::new(self.pool.clone()),
+            &request,
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
+    }
+}
+
+/// ADR 0026, amendment 3: an operation of a module requires the permission its module
+/// declares for it, on the object it writes and under the same scopes as `<type>.write`;
+/// the module reads who stands behind the changeset.
+#[kartenn_testing::pg_test]
+async fn an_operation_requires_the_permission_its_module_declares(pool: PgPool) {
+    let k = Kit::new(&pool).await;
+    let request = |group: Uuid| {
+        vec![kit::op(
+            "request_item",
+            json!({"local": 1, "parent": {"id": group}}),
+        )]
+    };
+    let before = k.kit_objects().await.len();
+    // The declared permission on the entity of the group: applied.
+    let requester = k.reader(&["kit.item.request"], "entity", "branch").await;
+    let outcome = k.submit_by(&requester, request(k.ids["g-branch"])).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let created = k.kit_objects().await[before..].to_vec();
+    assert_eq!(created.len(), 1);
+    let actors = kit::actors_of(created[0]).expect("the module read its actors");
+    assert_eq!(actors.author, Some(requester.id));
+    assert_eq!(actors.on_behalf_of, None);
+    assert_eq!(actors.validator, None);
+    // Another permission of the module does not stand in for it.
+    let writer = k.reader(&["kit.group.write"], "entity", "branch").await;
+    let refused = k.submit_by(&writer, request(k.ids["g-branch"])).await;
+    assert_eq!(rules(&refused), ["core.object.forbidden"]);
+    // The declared permission out of scope: refused as `<type>.write` would be.
+    let elsewhere = k.reader(&["kit.item.request"], "entity", "vendor").await;
+    let refused = k.submit_by(&elsewhere, request(k.ids["g-branch"])).await;
+    assert_eq!(rules(&refused), ["core.object.forbidden"]);
+    assert_eq!(k.kit_objects().await.len(), before + 1);
+}
