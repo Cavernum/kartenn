@@ -2,10 +2,14 @@
 //! rules, operations and migrations, and its handler in the write pipeline (feature
 //! `pg`).
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::Permission;
+use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
+use kartenn_core::values::Cardinality;
+use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{Module, ModuleHandler, ModuleMigration, ObjectType, OperationType};
 
 use crate::rules::VLAN_RULES;
@@ -98,6 +102,27 @@ impl Module for Vlan {
     }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
+    }
+    /// `vlan.vlan` (V4): the VLAN of a network, a single reference carried by the
+    /// prefixes, not inherited; `vlan.prefix.not_network` keeps it off the containers.
+    fn declarations(&self) -> Option<ModuleDeclarations> {
+        Some(ModuleDeclarations {
+            module: "vlan".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            properties: vec![(
+                Declaration {
+                    key: PropertyKey::parse(VLAN).expect("a valid key"),
+                    declarant: Declarant::Module("vlan".into()),
+                    spec: TypeSpec::Ref { target: VLAN },
+                    cardinality: Cardinality::Single,
+                    carriers: BTreeSet::from(["prefix".to_owned()]),
+                    inherit: None,
+                    obligations: BTreeSet::new(),
+                    expected: None,
+                },
+                Vec::new(),
+            )],
+        })
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS

@@ -24,7 +24,9 @@ use uuid::Uuid;
 use crate::group::VidRange;
 use crate::module::{GROUP, VLAN};
 use crate::pg;
-use crate::rules::{GROUP_ANCHOR, VID_OUT_OF_RANGE};
+use crate::rules::{
+    DOMAIN_MISMATCH, GROUP_ANCHOR, PREFIX_NOT_NETWORK, SITE_MISMATCH, VID_OUT_OF_RANGE,
+};
 use crate::vlan::{Vid, VlanName, VlanStatus};
 
 /// The handler of the module.
@@ -665,17 +667,58 @@ impl ModuleHandler for Handler {
         context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
         Box::pin(async move {
-            let groups: Vec<Uuid> = context
-                .touched
+            let of = |wanted: ModuleKind| -> Vec<Uuid> {
+                context
+                    .touched
+                    .iter()
+                    .filter(|(kind, _)| *kind == wanted)
+                    .map(|(_, id)| *id)
+                    .collect()
+            };
+            let (groups, vlans) = (of(group_kind()), of(vlan_kind()));
+            let prefixes: Vec<Uuid> = context
+                .objects
                 .iter()
-                .filter(|(kind, _)| *kind == group_kind())
+                .filter(|(kind, _)| *kind == ObjectKind::Prefix)
                 .map(|(_, id)| *id)
                 .collect();
-            if groups.is_empty() {
+            if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() {
                 return Ok(Vec::new());
             }
             let conn = connection(tx)?;
             let mut found = Vec::new();
+            // REQ-008-17: `vlan.vlan` on a network only, assigned or kept through a change
+            // of nature.
+            for prefix in pg::vlan_off_network(conn, &prefixes).await? {
+                found.push(
+                    Violation::new(
+                        &PREFIX_NOT_NETWORK,
+                        "vlan.vlan is assigned to a prefix that is not a network",
+                    )
+                    .with_subjects([prefix]),
+                );
+            }
+            // REQ-008-18 (V9), warnings: the networks the changeset writes, and those
+            // that carry a VLAN it moves or a VLAN of a group it reanchors.
+            let mut networks = prefixes;
+            networks.extend(pg::networks_of(conn, &vlans, &groups).await?);
+            networks.sort_unstable();
+            networks.dedup();
+            for (network, kind) in pg::mismatches(conn, &networks).await? {
+                let (rule, message) = if kind == "site" {
+                    (
+                        &SITE_MISMATCH,
+                        "the VLAN of the network is in a group anchored on a site outside the \
+                         site of the network",
+                    )
+                } else {
+                    (
+                        &DOMAIN_MISMATCH,
+                        "the VLAN of the network is in a group anchored on another domain",
+                    )
+                };
+                found.push(Violation::new(rule, message).with_subjects([network]));
+            }
             // REQ-008-13: a range keeps the VLANs of its group, listed.
             let excluded = pg::excluded_vlans(conn, &groups).await?;
             for group in &groups {

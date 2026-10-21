@@ -341,13 +341,26 @@ numérotées après coup.
   choix : un VLAN dont le groupe ne vit pas sur sa période est refusé par
   `vlan.vid.out_of_range` (pas de règle nouvelle) ; un statut inconnu est une erreur de
   décodage de l'opération, comme les autres champs.
-- [ ] 12. Lien aux réseaux : déclaration `vlan.vlan`, règle `vlan.prefix.not_network`,
+- [x] 12. Lien aux réseaux : déclaration `vlan.vlan`, règle `vlan.prefix.not_network`,
   avertissements `vlan.site.mismatch`/`vlan.domain.mismatch` (anomalies) — REQ-008-17,
   18 — verify : `vlan_on_container_refused`, `network_to_container_with_vlan_refused`,
   `site_mismatch_is_an_anomaly`, `v4_and_v6_networks_on_one_vlan`
   où : design « Données du module » (propriété), « Règles » ; `declarations.rs`
   (`sync_modules`) ; anomalies `kartenn-store-pg/src/anomalies.rs`
   dépend de : 11
+  — Service : `CheckContext::objects` (les objets que le changeset écrit, de tout type,
+  ceux du différentiel), passé par `check_modules`. `kartenn-vlan` : `module.rs`
+  (`declarations` : `vlan.vlan`, référence simple vers `vlan.vlan`, portée par `prefix`,
+  non héritée), `handler.rs` (`check` : `vlan.prefix.not_network` sur les préfixes
+  écrits ; V9 sur ces préfixes et sur les réseaux qui portent un VLAN écrit ou un VLAN
+  d'un groupe écrit), `pg.rs` (`vlan_off_network`, `networks_of`, `mismatches` : site du
+  réseau par `kartenn_site`, ancêtres du site du groupe par une requête récursive).
+  Tests : `tests/networks.rs` (les quatre du verify) ; l'environnement de test synchronise
+  aussi les déclarations du module, comme le déploiement.
+  choix : V9 se lit au début de chaque affectation de `vlan.vlan`, ou maintenant si elle
+  a commencé avant (pas de découpe de la période) ; une anomalie V9 ne se ferme pas
+  d'elle-même quand l'écart disparaît, le pipeline ne réévaluant que les règles `core.`
+  (à reprendre avec N11, anomalies de module).
 - [ ] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,

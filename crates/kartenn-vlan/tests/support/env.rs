@@ -31,14 +31,14 @@ impl Env {
             .await
             .unwrap();
         let store = PgStore::new(pool.clone()).with_modules(registry.clone());
-        for outcome in sync_modules(
-            &store,
-            &Unrestricted,
-            &[core_declarations_for(&registry)],
-            MAX_OPERATIONS,
-        )
-        .await
-        .unwrap()
+        // As the deployment: the core completed by the types of the module, then the
+        // declarations of the module.
+        let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
+            .chain(registry.modules().filter_map(|m| m.declarations()))
+            .collect();
+        for outcome in sync_modules(&store, &Unrestricted, &declarations, MAX_OPERATIONS)
+            .await
+            .unwrap()
         {
             assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
         }

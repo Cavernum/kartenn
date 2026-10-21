@@ -495,3 +495,101 @@ pub(crate) async fn patch_vlan(
     }
     Ok(())
 }
+
+/// The prefixes among `ids` that carry `vlan.vlan` while not a network, on some part of
+/// the period of the assignment (REQ-008-17).
+pub(crate) async fn vlan_off_network(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT a.object_id
+           FROM public.property_assignment a
+           JOIN public.property_declaration d ON d.id = a.property_id AND d.key = 'vlan.vlan'
+           JOIN public.prefix p ON p.id = a.object_id AND p.valid_period && a.valid_period
+          WHERE a.object_id = ANY($1) AND a.kind = 'value' AND p.nature <> 'network'
+          ORDER BY 1",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The prefixes that carry, now or later, one of the VLANs `vlans` or a VLAN of one of the
+/// groups `groups`.
+pub(crate) async fn networks_of(
+    conn: &mut PgConnection,
+    vlans: &[Uuid],
+    groups: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if vlans.is_empty() && groups.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT a.object_id
+           FROM public.property_assignment a
+           JOIN public.property_declaration d ON d.id = a.property_id AND d.key = 'vlan.vlan'
+          WHERE a.kind = 'value'
+            AND (upper(a.valid_period) IS NULL OR upper(a.valid_period) > now())
+            AND (a.v_uuid = ANY($1)
+                 OR a.v_uuid IN (SELECT id FROM vlan.vlan WHERE group_id = ANY($2)))",
+    )
+    .bind(vlans)
+    .bind(groups)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The networks among `ids` whose VLAN is in a group anchored on a site outside the site
+/// of the network (`site`) or on another domain (`domain`), V9: each assignment of
+/// `vlan.vlan` is read at its start, or now when it started before.
+pub(crate) async fn mismatches(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "WITH links AS (
+             SELECT a.object_id AS network, a.v_uuid AS vlan,
+                    greatest(lower(a.valid_period), now()) AS t
+               FROM public.property_assignment a
+               JOIN public.property_declaration d
+                 ON d.id = a.property_id AND d.key = 'vlan.vlan'
+              WHERE a.object_id = ANY($1) AND a.kind = 'value'
+                AND (upper(a.valid_period) IS NULL OR upper(a.valid_period) > now())
+         ), anchored AS (
+             SELECT l.network, l.t, g.anchor_kind, g.anchor_id
+               FROM links l
+               JOIN vlan.vlan v ON v.id = l.vlan AND v.valid_period @> l.t
+               JOIN vlan.vlan_group g ON g.id = v.group_id AND g.valid_period @> l.t
+         )
+         SELECT x.network, 'site'
+           FROM anchored x
+          CROSS JOIN LATERAL (SELECT public.kartenn_site(x.network, x.t) AS site) s
+          WHERE x.anchor_kind = 'site' AND s.site IS NOT NULL
+            AND NOT EXISTS (
+                WITH RECURSIVE up(id) AS (
+                    SELECT x.anchor_id
+                    UNION
+                    SELECT st.parent_id FROM public.site st JOIN up ON st.id = up.id
+                     WHERE st.valid_period @> x.t AND st.parent_id IS NOT NULL)
+                SELECT 1 FROM up WHERE up.id = s.site)
+         UNION
+         SELECT x.network, 'domain'
+           FROM anchored x
+           JOIN public.prefix p ON p.id = x.network AND p.valid_period @> x.t
+          WHERE x.anchor_kind = 'domain' AND p.domain_id <> x.anchor_id
+         ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
