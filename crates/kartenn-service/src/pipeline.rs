@@ -827,6 +827,33 @@ fn plan_policy(
     Ok(Planned::Policy(policy))
 }
 
+/// Lets each operation of a module complete itself on the state of the transaction
+/// ([`ModuleHandler::prepare`]); the request itself when it has none.
+async fn prepare<'r, T: WriteTx>(
+    tx: &mut T,
+    req: &'r ChangesetRequest,
+    modules: &ModuleRegistry,
+    period: Option<Period>,
+) -> Result<std::borrow::Cow<'r, ChangesetRequest>, StoreError> {
+    if !req
+        .operations
+        .iter()
+        .any(|op| matches!(op.inner(), Operation::Module(_)))
+    {
+        return Ok(std::borrow::Cow::Borrowed(req));
+    }
+    let mut prepared = req.clone();
+    for op in &mut prepared.operations {
+        let own = to_period(op.own_period()).ok().flatten().or(period);
+        if let Operation::Module(operation) = op.inner_mut()
+            && let Some((_, handler)) = modules.operation(&operation.module, &operation.name)
+        {
+            handler.prepare(tx.module_tx(), operation, own).await?;
+        }
+    }
+    Ok(std::borrow::Cow::Owned(prepared))
+}
+
 /// Parses every operation and runs the local rules (no database): the planned writes, the
 /// index of the operation each comes from, and the violations found, each ascribed to its
 /// operation.
@@ -1750,6 +1777,14 @@ async fn stages<S: Store, A: Authorizer>(
             }
         }
     }
+    let prepared = match prepare(&mut tx, req, modules, period).await {
+        Ok(prepared) => prepared,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
+    };
+    let req: &ChangesetRequest = &prepared;
     let (planned, origins, mut violations) = plan(req, modules);
     crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
     if has_errors(&violations) {

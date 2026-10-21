@@ -291,6 +291,22 @@ pub trait ModuleRead: Send {
 
 /// The behaviour of a module inside the write pipeline (ADR 0026, clause 6).
 pub trait ModuleHandler: Send + Sync + fmt::Debug {
+    /// Completes `operation` on the state of the transaction, before the operations are
+    /// planned: the values the module defaults from existing objects (the resolved owner
+    /// of a domain, the identifier of a property of the core), which [`Self::plan`], on no
+    /// database, could not read. `period` is that of the operation, the changeset's when
+    /// `None`. The completed operation is the one the changeset records. Nothing by
+    /// default.
+    fn prepare<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operation: &'a mut ModuleOperation,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (tx, operation, period);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
     /// Decodes and checks `operation` locally; `object` is the identifier of the object it
     /// creates, if any; `resolve` gives the object of a reference (`None` for a local name
     /// no earlier operation defines).

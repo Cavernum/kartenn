@@ -8,7 +8,11 @@ use kartenn_service::module::{Module, ModuleRegistry};
 
 /// The modules of the build, before checking.
 fn compiled() -> Vec<Arc<dyn Module>> {
-    Vec::new()
+    let modules: Vec<Arc<dyn Module>> = vec![
+        #[cfg(feature = "vlan")]
+        Arc::new(kartenn_vlan::Vlan),
+    ];
+    modules
 }
 
 /// The routes of the modules of the build, mounted under `/v1` (ADR 0026, clause 9).

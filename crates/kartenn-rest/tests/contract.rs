@@ -39,9 +39,13 @@ fn reference() -> Value {
     serde_json::from_str(&text).unwrap()
 }
 
+/// The reference is the contract of the build, its modules included (spec 008,
+/// REQ-008-9): the core alone is a part of it.
 #[test]
 fn the_contract_keeps_its_reference() {
-    let (reference, produced) = (reference(), produced());
+    let registry = kartenn_server::modules::registry().unwrap();
+    let produced = kartenn_rest::openapi::json_with(&registry, kartenn_server::modules::routers());
+    let reference = reference();
     let found = breaches(&reference, &produced);
     assert!(
         found.is_empty(),

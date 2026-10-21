@@ -49,4 +49,12 @@ export const DATED_PATHS: ReadonlySet<string> = new Set([
   "/v1/sites/{id}/properties",
   "/v1/sites/{id}/properties/{key}/explanation",
   "/v1/sites/{id}/properties/{key}/suggestion",
+  "/v1/vlan-groups/{id}/history",
+  "/v1/vlan-groups/{id}/properties",
+  "/v1/vlan-groups/{id}/properties/{key}/explanation",
+  "/v1/vlan-groups/{id}/properties/{key}/suggestion",
+  "/v1/vlans/{id}/history",
+  "/v1/vlans/{id}/properties",
+  "/v1/vlans/{id}/properties/{key}/explanation",
+  "/v1/vlans/{id}/properties/{key}/suggestion",
 ]);
