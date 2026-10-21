@@ -33,6 +33,10 @@
         inherit (packages) kartenn kartenn-server kartenn-web;
       };
       oci = pkgs.callPackage ./nix/checks/oci.nix {inherit (packages) oci;};
+      # A virtual machine: needs KVM; `nix flake check` runs it, not k-check.
+      vm = pkgs.callPackage ./nix/checks/vm.nix {module = self.nixosModules.default;};
     });
+
+    nixosModules.default = import ./nix/module.nix self;
   };
 }

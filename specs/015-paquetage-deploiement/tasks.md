@@ -142,6 +142,36 @@ après l'autre.
   où : design « Module NixOS », « Mise à jour » ; `crates/kartenn-rest/src/health.rs` ;
   `kartenn-store-pg/migrations/0001_*.sql` (rôle `kartenn_app`)
   dépend de : 1, 2, 3, 4
+  — en cours (2026-10-21), **non cochée** : `nix/module.nix` (`nixosModules.default`,
+  `services.kartenn` : `settings`, `instances`, `databaseUrlFile`,
+  `migrationDatabaseUrlFile`, `credentials` en `LoadCredential=` désignés par `%d/<nom>`,
+  `plugins` joints aux livrés en fichiers réels, `openFirewall`,
+  `database.createLocally`) ; unités `kartenn-migrate` (oneshot, temporisateur mensuel),
+  `kartenn@<nom>` (`Requires`/`After` la migration, `ExecReload` = SIGHUP),
+  `kartenn-audit-purge` (temporisateur quotidien), `kartenn-db-setup` (rôle `kartenn_app`
+  avant les migrations, rôles propriétaire et d'instance membres) ; durcissement commun ;
+  commande `kartenn-breakglass <nom> <heures>` (005-19, sous le propriétaire, trousseau
+  par crédential). `nix/checks/vm.nix` (`checks.vm`, 29 s de script) : migration oneshot
+  avant deux instances, `/health/ready` 200 sur les deux, `kartenn-breakglass` puis
+  connexion TOTP et `/v1/me` administrateur, plugins `vlan`, `machines` et `notes`
+  (exploitant) publiés, aucune URL ni clé dans la ligne de commande, l'environnement,
+  `systemctl show` ni les fichiers de configuration, `UPDATE` d'historique refusé au rôle
+  d'instance par manque de droit (lecture permise), note `systemd-analyze security
+  kartenn@main` = **1,1**, migration en échec (rôle propriétaire sans `LOGIN`) qui
+  empêche le redémarrage d'une instance, puis reprise. **Reste** : base en retard → 503
+  puis 200 après migration, et migration interrompue puis rejouée.
+  Défaut trouvé : sqlx crée `_sqlx_migrations` pour le seul propriétaire ; le rôle
+  d'instance ne pouvait pas la lire et `/health/ready` restait à 503 en production
+  (question ouverte d'E7). Contourné dans le module (`ExecStartPost` de la migration :
+  `GRANT SELECT ON _sqlx_migrations TO kartenn_app`) ; le correctif durable est une
+  migration de `kartenn-store-pg`, hors du périmètre de cette tâche.
+  choix : rôle propriétaire `kartenn` et rôle d'instance `kartenn_server`, utilisateurs
+  dynamiques de même nom (authentification `peer`) ; URL locale
+  `postgresql:///kartenn?host=/run/postgresql&user=…` (sqlx refuse un hôte vide avant
+  `@`) ; `PrivateUsers`, `ProtectProc=invisible`, `SystemCallFilter=@system-service
+  ~@privileged ~@resources` en plus de E6 ; `/run/postgresql` en `ReadWritePaths`
+  (connect(2) sur le socket) ; PostgreSQL 18 posé en `mkOverride 900` (au-dessus du défaut
+  du module nixpkgs, sous le choix de l'exploitant).
 
 ## P3 — Exploitation
 
