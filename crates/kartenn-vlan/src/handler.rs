@@ -697,11 +697,10 @@ impl ModuleHandler for Handler {
                 .map(|(_, id)| *id)
                 .collect();
             let conn = connection(tx)?;
-            // V9 anomalies still open are evaluated again, so that they close once the cause
-            // is gone (REQ-008-18), whatever the changeset touched.
-            let mut open = pg::open_anomalies(conn, SITE_MISMATCH.id).await?;
-            open.extend(pg::open_anomalies(conn, DOMAIN_MISMATCH.id).await?);
-            if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() && open.is_empty() {
+            // Networks whose resolved site, owner or VLAN changed, by the changeset's
+            // differential: V9 may have changed there, its anomaly closes once corrected.
+            let changed = pg::diff_networks(conn).await?;
+            if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() && changed.is_empty() {
                 return Ok(Findings::default());
             }
             let mut found = Vec::new();
@@ -720,7 +719,7 @@ impl ModuleHandler for Handler {
             // that carry a VLAN it moves or a VLAN of a group it reanchors.
             let mut networks = prefixes;
             networks.extend(pg::networks_of(conn, &vlans, &groups).await?);
-            networks.extend(open);
+            networks.extend(changed);
             networks.sort_unstable();
             networks.dedup();
             for (network, kind) in pg::mismatches(conn, &networks).await? {

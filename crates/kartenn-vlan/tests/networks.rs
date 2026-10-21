@@ -173,17 +173,7 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
             env.assign(same, "vlan.vlan", vlan).await,
         ])
         .await;
-    // (The open anomaly of the first network is evaluated again, and raised again.)
-    let Outcome::Applied {
-        warnings: raised, ..
-    } = &applied
-    else {
-        panic!("not applied: {applied:?}")
-    };
-    assert!(
-        raised.iter().all(|w| !w.subjects.contains(&same)),
-        "{applied:?}"
-    );
+    assert!(warnings(&applied).is_empty(), "{applied:?}");
     // A group anchored on another domain: the domain does not match either.
     let owner = env.property("core.owner").await;
     let acme = env.id("entity", "acme").await;

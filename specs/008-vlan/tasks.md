@@ -359,10 +359,12 @@ numérotées après coup.
   aussi les déclarations du module, comme le déploiement.
   choix : V9 se lit au début de chaque affectation de `vlan.vlan`, ou maintenant si elle
   a commencé avant (pas de découpe de la période) ; une anomalie V9 se ferme quand
-  l'écart disparaît : `check` réévalue à chaque changeset les réseaux qui en portent une
-  ouverte et les rend dans `Findings::reevaluated` (contrat de 009-8), test
-  `site_mismatch_anomaly_closes_once_corrected`. Une anomalie V9 encore fondée est donc
-  relevée de nouveau, comme avertissement, dans un changeset qui ne la touche pas.
+  l'écart disparaît : `check` réévalue les seuls réseaux que le changeset touche (écrits,
+  ou dont `core.site`, `core.owner` ou `vlan.vlan` résolus changent sur eux ou un préfixe
+  qui les contient, lus dans le détail du différentiel `pg_temp.diff_detail` ; ou portant
+  un VLAN déplacé ou d'un groupe réancré) et les rend dans `Findings::reevaluated`
+  (contrat de 009-8), test `site_mismatch_anomaly_closes_once_corrected` ; un changeset
+  sans rapport ne relève rien.
 - [x] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,
