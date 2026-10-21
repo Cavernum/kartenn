@@ -351,8 +351,14 @@ async fn the_state_guards_the_actions(pool: PgPool) {
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn a_chunk_weighs_its_thousands_on_the_quota(pool: PgPool) {
-    // The default write quota: 20 at once; a chunk of 10 000 elements weighs 10.
-    let app = app_as(&pool, person(&pool).await, Rates::default());
+    // 20 writes at once, as by default; a chunk of 10 000 elements weighs 10. The bucket
+    // refills at 1/s rather than 10/s, so that a chunk slowed by a loaded machine does not
+    // earn back the weight of the next one.
+    let rates = Rates {
+        write: kartenn_rest::quota::Rate::new(1, 20).unwrap(),
+        ..Rates::default()
+    };
+    let app = app_as(&pool, person(&pool).await, rates);
     let import = open(&app).await;
     let mut statuses = Vec::new();
     for n in 0..3 {
