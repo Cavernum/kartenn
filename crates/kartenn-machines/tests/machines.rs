@@ -1,16 +1,19 @@
-//! Clusters and machines through the write pipeline (spec 009, REQ-009-1 to 5; task
-//! 009-2): the dependency on the VLAN module, a name unique per resolved owner, the
-//! hosting of a machine (M5) and a cluster slug unique at every instant.
+//! Clusters, machines and interfaces through the write pipeline (spec 009, REQ-009-1 to
+//! 7; tasks 009-2 and 009-3): the dependency on the VLAN module, a name unique per
+//! resolved owner, the hosting of a machine (M5), a cluster slug unique at every instant;
+//! interfaces tied to their machine, named once per machine, with an EUI-48 stored as
+//! `macaddr`, and inheriting the anchors of their machine.
 
 use std::sync::Arc;
 
 use kartenn_machines::Machines;
-use kartenn_service::authz::Unrestricted;
+use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations_for, sync_modules};
 use kartenn_service::module::ModuleRegistry;
 use kartenn_service::operations::{ModuleKind, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
+use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::write::PgStore;
 use kartenn_vlan::Vlan;
 use serde_json::{Value, json};
@@ -19,6 +22,7 @@ use sqlx::types::Uuid;
 
 struct Env {
     pool: PgPool,
+    registry: Arc<ModuleRegistry>,
     store: PgStore,
     author: Uuid,
 }
@@ -52,6 +56,7 @@ impl Env {
         .unwrap();
         let env = Self {
             pool: pool.clone(),
+            registry,
             store,
             author,
         };
@@ -134,6 +139,82 @@ impl Env {
         .fetch_one(&self.pool)
         .await
         .unwrap()
+    }
+
+    /// The interface named `name` of `machine`.
+    async fn interface(&self, machine: Uuid, name: &str) -> Uuid {
+        sqlx::query_scalar(
+            "SELECT id FROM machines.interface
+              WHERE machine_id = $1 AND name = $2 AND valid_period @> now()",
+        )
+        .bind(machine)
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The resolved owner of `object` now.
+    async fn owner(&self, object: Uuid) -> Option<Uuid> {
+        sqlx::query_scalar("SELECT kartenn_owner($1, now())")
+            .bind(object)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+
+    /// A person granted the reading of machines and interfaces on the entity `entity`.
+    async fn reader_on(&self, entity: Uuid) -> Uuid {
+        let identity: Uuid = sqlx::query_scalar(
+            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap();
+        let role = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO role (id, key, label, valid_period, changeset_id)
+             VALUES ($1, $2, 'r', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(format!("r_{}", role.simple()))
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        for permission in ["machines.machine.read", "machines.interface.read"] {
+            sqlx::query(
+                "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+                 VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            )
+            .bind(role)
+            .bind(permission)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
+                                  valid_period, changeset_id)
+             VALUES (gen_random_uuid(), 'identity', $1, $2, 'entity', $3,
+                     tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(identity)
+        .bind(role)
+        .bind(entity)
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        identity
+    }
+
+    /// Whether `reader` holds `permission` on `object`.
+    async fn reads(&self, reader: Uuid, permission: &str, object: Uuid) -> bool {
+        PgAuthorizer::new(self.pool.clone())
+            .with_modules(self.registry.clone())
+            .authorize_many(&Subject::from(reader), permission, &[object])
+            .await
+            .unwrap()
+            .is_empty()
     }
 
     /// Creates a machine of `kind` owned by `acme`, with extra fields, and returns it.
@@ -404,4 +485,169 @@ async fn cluster_slug_unique(pool: PgPool) {
     )])
     .await;
     env.applied(vec![cluster("prod")]).await;
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn interface_name_unique_per_machine(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (a, b) = (
+        env.create("a", "physical", json!({})).await,
+        env.create("b", "physical", json!({})).await,
+    );
+    let eth0 = |machine: Uuid| {
+        op(
+            "create_interface",
+            json!({"machine": {"id": machine}, "name": "eth0"}),
+        )
+    };
+    env.applied(vec![eth0(a)]).await;
+    env.refused(vec![eth0(a)], "machines.interface.duplicate")
+        .await;
+    // The same name on another machine: accepted.
+    env.applied(vec![eth0(b)]).await;
+    // Renaming into a taken name: refused; a name with a space or too long: refused.
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": a}, "name": "eth1"}),
+    )])
+    .await;
+    let eth1 = env.interface(a, "eth1").await;
+    env.refused(
+        vec![op(
+            "update_interface",
+            json!({"id": {"id": eth1}, "name": "eth0"}),
+        )],
+        "machines.interface.duplicate",
+    )
+    .await;
+    for bad in ["eth 2", "", &"x".repeat(65)] {
+        env.refused(
+            vec![op(
+                "create_interface",
+                json!({"machine": {"id": a}, "name": bad}),
+            )],
+            "machines.operation.invalid",
+        )
+        .await;
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn mac_stored_as_macaddr(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let m = env.create("m", "physical", json!({})).await;
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": m}, "name": "eth0", "mac": "0000.5e00.5301"}),
+    )])
+    .await;
+    let eth0 = env.interface(m, "eth0").await;
+    let (kind, value): (String, String) = sqlx::query_as(
+        "SELECT pg_typeof(mac)::text, mac::text FROM machines.interface WHERE id = $1",
+    )
+    .bind(eth0)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kind, "macaddr");
+    assert_eq!(value, "00:00:5e:00:53:01");
+    // A group address is refused; a locally administered one is accepted; `null` removes it.
+    env.refused(
+        vec![op(
+            "update_interface",
+            json!({"id": {"id": eth0}, "mac": "01-00-5E-00-00-01"}),
+        )],
+        "machines.mac.invalid",
+    )
+    .await;
+    env.applied(vec![op(
+        "update_interface",
+        json!({"id": {"id": eth0}, "mac": "02:00:5e:00:53:01", "enabled": false}),
+    )])
+    .await;
+    env.applied(vec![op(
+        "update_interface",
+        json!({"id": {"id": eth0}, "mac": null}),
+    )])
+    .await;
+    let mac: Option<String> = sqlx::query_scalar(
+        "SELECT mac::text FROM machines.interface WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(eth0)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(mac, None);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn interface_cannot_change_machine(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (a, b) = (
+        env.create("a", "physical", json!({})).await,
+        env.create("b", "physical", json!({})).await,
+    );
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": a}, "name": "eth0"}),
+    )])
+    .await;
+    let eth0 = env.interface(a, "eth0").await;
+    env.refused(
+        vec![op(
+            "update_interface",
+            json!({"id": {"id": eth0}, "machine": {"id": b}}),
+        )],
+        "machines.operation.invalid",
+    )
+    .await;
+    // Its machine is its parent in the tree of the module.
+    let parent: Option<Uuid> = sqlx::query_scalar(
+        "SELECT parent_id FROM module_object WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(eth0)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(parent, Some(a));
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn owner_change_moves_interface_scope(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    let m = env.create("m", "physical", json!({})).await;
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": m}, "name": "eth0"}),
+    )])
+    .await;
+    let eth0 = env.interface(m, "eth0").await;
+    assert_eq!(env.owner(eth0).await, Some(acme));
+    let (on_acme, on_other) = (env.reader_on(acme).await, env.reader_on(other).await);
+    assert!(env.reads(on_acme, "machines.machine.read", m).await);
+    assert!(env.reads(on_acme, "machines.interface.read", eth0).await);
+    assert!(!env.reads(on_other, "machines.interface.read", eth0).await);
+    // The machine to the other entity: its interface follows, in the differential too.
+    let owner = env.property("core.owner").await;
+    let moved = env
+        .applied(vec![Operation::AssignProperty {
+            object: Ref::Id(m),
+            kind: ObjectKind::Module(ModuleKind::parse("machines.machine").unwrap()),
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(other.to_string())],
+        }])
+        .await;
+    let Outcome::Applied { diff, .. } = moved else {
+        unreachable!()
+    };
+    let moved: u64 = diff
+        .iter()
+        .filter(|d| d.property == "core.owner")
+        .map(|d| d.count)
+        .sum();
+    assert_eq!(moved, 2, "the machine and its interface: {diff:?}");
+    assert_eq!(env.owner(eth0).await, Some(other));
+    assert!(!env.reads(on_acme, "machines.interface.read", eth0).await);
+    assert!(env.reads(on_other, "machines.interface.read", eth0).await);
 }

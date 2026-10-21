@@ -22,7 +22,8 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::hosting::{Host, MachineKind, check_host, check_membership};
-use crate::module::{CLUSTER, MACHINE};
+use crate::mac::Mac;
+use crate::module::{CLUSTER, INTERFACE, MACHINE};
 use crate::name::HostName;
 use crate::pg::{self, Hosting};
 use crate::rules::{HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID};
@@ -43,6 +44,11 @@ fn cluster_kind() -> ModuleKind {
 fn machine_kind() -> ModuleKind {
     static KIND: OnceLock<ModuleKind> = OnceLock::new();
     kind(MACHINE, &KIND)
+}
+
+fn interface_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(INTERFACE, &KIND)
 }
 
 fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
@@ -66,6 +72,9 @@ struct Completed {
     site_property: Option<Uuid>,
     #[serde(default)]
     owner: Option<Uuid>,
+    /// The machine of an interface a patch changes.
+    #[serde(default)]
+    machine: Option<Uuid>,
 }
 
 /// The host of a machine, as received.
@@ -115,6 +124,41 @@ struct CreateMachine {
 /// removes the site, the host or the membership.
 const CLUSTER_FIELDS: &[&str] = &["id", "slug", "owner", "site", "completed"];
 const MACHINE_FIELDS: &[&str] = &["id", "name", "kind", "host", "member_of", "completed"];
+/// The machine of an interface is fixed (REQ-009-6): it is not among the fields of a patch.
+const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "completed"];
+
+/// `machines.create_interface`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateInterface {
+    #[serde(default)]
+    local: Option<u32>,
+    machine: Ref,
+    name: String,
+    #[serde(default)]
+    mac: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    completed: Completed,
+}
+
+/// The name of an interface: 1 to 64 printable characters without space (REQ-009-6).
+fn interface_name(name: &str) -> Result<&str, Violation> {
+    let length = name.chars().count();
+    if (1..=64).contains(&length) && !name.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        Ok(name)
+    } else {
+        Err(invalid(format!(
+            "the name of an interface has 1 to 64 printable characters without space: {name:?}"
+        )))
+    }
+}
+
+/// The lock key of the interfaces of a machine.
+fn machine_key(machine: Uuid) -> String {
+    format!("machines.machine:{machine}")
+}
 
 fn decode<T: serde::de::DeserializeOwned>(value: Value, tag: &str) -> Result<T, Violation> {
     serde_json::from_value(value).map_err(|e| invalid(format!("{tag}: {e}")))
@@ -416,6 +460,81 @@ impl Handler {
     }
 }
 
+impl Handler {
+    fn plan_create_interface(
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        let create: CreateInterface =
+            decode(Value::Object(operation.body.clone()), &operation.tag())?;
+        let _ = (create.local, create.completed);
+        let machine = resolve(create.machine).ok_or_else(|| invalid("machine: unknown object"))?;
+        let name = interface_name(&create.name)?;
+        let mac = create.mac.as_deref().map(Mac::parse).transpose()?;
+        Ok(ModulePlan {
+            kind: interface_kind(),
+            object,
+            creates: true,
+            domains: Vec::new(),
+            keys: vec![machine_key(machine)],
+            core: Vec::new(),
+            data: json!({
+                "create": {
+                    "machine_id": machine,
+                    "name": name,
+                    "mac": mac.map(|m| m.to_string()),
+                    "enabled": create.enabled.unwrap_or(true),
+                }
+            }),
+        })
+    }
+
+    fn plan_update_interface(
+        operation: &ModuleOperation,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        let body = body(operation, INTERFACE_FIELDS)?;
+        let interface =
+            resolved(body.get("id"), "id", resolve)?.ok_or_else(|| invalid("id: required"))?;
+        let completed: Completed = decode(
+            body.get("completed").cloned().unwrap_or_default(),
+            "completed",
+        )
+        .unwrap_or_default();
+        let mut patch = Map::new();
+        if let Some(name) = body.get("name") {
+            let name = name.as_str().ok_or_else(|| invalid("name: a string"))?;
+            patch.insert("name".into(), interface_name(name)?.into());
+        }
+        match body.get("mac") {
+            None => {}
+            Some(Value::Null) => {
+                patch.insert("mac".into(), Value::Null);
+            }
+            Some(mac) => {
+                let mac = mac.as_str().ok_or_else(|| invalid("mac: a string"))?;
+                patch.insert("mac".into(), Mac::parse(mac)?.to_string().into());
+            }
+        }
+        if let Some(enabled) = body.get("enabled") {
+            let enabled = enabled
+                .as_bool()
+                .ok_or_else(|| invalid("enabled: a boolean"))?;
+            patch.insert("enabled".into(), enabled.into());
+        }
+        Ok(ModulePlan {
+            kind: interface_kind(),
+            object: interface,
+            creates: false,
+            domains: Vec::new(),
+            keys: completed.machine.map(machine_key).into_iter().collect(),
+            core: Vec::new(),
+            data: json!({ "update": patch }),
+        })
+    }
+}
+
 impl ModuleHandler for Handler {
     fn prepare<'a>(
         &'a self,
@@ -430,6 +549,7 @@ impl ModuleHandler for Handler {
                 owner_property: pg::property(conn, "core.owner", at).await?,
                 site_property: pg::property(conn, "core.site", at).await?,
                 owner: None,
+                machine: None,
             };
             if operation.name == "update_machine"
                 && let Some(Ok(Ref::Id(machine))) = operation
@@ -439,6 +559,15 @@ impl ModuleHandler for Handler {
                     .map(serde_json::from_value::<Ref>)
             {
                 completed.owner = pg::owner(conn, machine, at).await?;
+            }
+            if operation.name == "update_interface"
+                && let Some(Ok(Ref::Id(interface))) = operation
+                    .body
+                    .get("id")
+                    .cloned()
+                    .map(serde_json::from_value::<Ref>)
+            {
+                completed.machine = pg::machine_of(conn, interface).await?;
             }
             operation.body.insert(
                 "completed".into(),
@@ -459,6 +588,8 @@ impl ModuleHandler for Handler {
             "update_cluster" => Self::plan_update_cluster(operation, resolve),
             "create_machine" => Self::plan_create_machine(operation, object, resolve),
             "update_machine" => Self::plan_update_machine(operation, resolve),
+            "create_interface" => Self::plan_create_interface(operation, object, resolve),
+            "update_interface" => Self::plan_update_interface(operation, resolve),
             other => Err(invalid(format!("machines.{other}: unknown operation"))),
         }
     }
@@ -473,6 +604,46 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let id = plan.object;
             let conn = connection(tx)?;
+            if plan.kind == interface_kind() {
+                let machine = if let Some(create) = plan.data.get("create") {
+                    let machine: Uuid = create["machine_id"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .ok_or_else(|| StoreError("a planned machine".into()))?;
+                    pg::insert_interface(
+                        conn,
+                        id,
+                        machine,
+                        create["name"].as_str().unwrap_or_default(),
+                        create["mac"].as_str(),
+                        create["enabled"].as_bool().unwrap_or(true),
+                        period,
+                        changeset,
+                    )
+                    .await?;
+                    machine
+                } else {
+                    let machine = pg::machine_of(conn, id)
+                        .await?
+                        .ok_or(WriteError::NoVersion(id))?;
+                    pg::patch_interface(conn, id, machine, &plan.data["update"], period, changeset)
+                        .await?;
+                    machine
+                };
+                // Under its machine in the tree of the module: its anchors are inherited.
+                return tx
+                    .register(
+                        ModuleObjectRow {
+                            id,
+                            kind: plan.kind,
+                            parent: Some(machine),
+                            domain: None,
+                        },
+                        period,
+                        changeset,
+                    )
+                    .await;
+            }
             match (plan.kind == cluster_kind(), plan.data.get("create")) {
                 (true, Some(create)) => {
                     let slug = create["slug"].as_str().unwrap_or_default();
@@ -546,19 +717,30 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| *kind == machine_kind())
                 .map(|(_, id)| *id)
                 .collect();
-            let clusters: Vec<Uuid> = context
-                .touched
-                .iter()
-                .filter(|(kind, _)| *kind == cluster_kind())
-                .map(|(_, id)| *id)
-                .collect();
+            let of = |wanted: ModuleKind| -> Vec<Uuid> {
+                context
+                    .touched
+                    .iter()
+                    .filter(|(kind, _)| *kind == wanted)
+                    .map(|(_, id)| *id)
+                    .collect()
+            };
+            let (clusters, interfaces) = (of(cluster_kind()), of(interface_kind()));
             // A machine moved to another owner by an assignment of the core (M3).
             machines.extend(pg::owner_changed(conn).await?);
-            if machines.is_empty() && clusters.is_empty() {
+            if machines.is_empty() && clusters.is_empty() && interfaces.is_empty() {
                 return Ok(Vec::new());
             }
             let machines: Vec<Uuid> = machines.into_iter().collect();
             let mut found = Vec::new();
+            for (interface, machine) in pg::orphan_interfaces(conn, &interfaces).await? {
+                found.push(
+                    invalid(format!(
+                        "the machine {machine} does not live over the period of the interface"
+                    ))
+                    .with_subjects([interface, machine]),
+                );
+            }
             for (machine, other, name) in pg::name_duplicates(conn, &machines).await? {
                 found.push(
                     Violation::new(
@@ -609,6 +791,8 @@ impl ModuleHandler for Handler {
 fn table(kind: ModuleKind) -> &'static str {
     if kind == cluster_kind() {
         pg::CLUSTER_TABLE
+    } else if kind == interface_kind() {
+        pg::INTERFACE_TABLE
     } else {
         pg::MACHINE_TABLE
     }

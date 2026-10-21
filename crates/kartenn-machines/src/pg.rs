@@ -10,12 +10,14 @@ use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::hosting::{Host, MachineKind, check_host, check_membership};
-use crate::rules::{CLUSTER_DUPLICATE, HOST_INVALID};
+use crate::rules::{CLUSTER_DUPLICATE, HOST_INVALID, INTERFACE_DUPLICATE};
 
 /// The table of the clusters, as the generic writes of the core name it.
 pub(crate) const CLUSTER_TABLE: &str = "machines.cluster";
 /// The table of the machines.
 pub(crate) const MACHINE_TABLE: &str = "machines.machine";
+/// The table of the interfaces.
+pub(crate) const INTERFACE_TABLE: &str = "machines.interface";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -405,4 +407,122 @@ pub(crate) async fn owner(
         .fetch_one(conn)
         .await
         .map_err(|e| store(&e))
+}
+
+/// Whether another interface than `id` of `machine` is named `name` over `period`.
+async fn interface_name_taken(
+    conn: &mut PgConnection,
+    id: Uuid,
+    machine: Uuid,
+    name: &str,
+    period: Option<Period>,
+) -> Result<bool, StoreError> {
+    let (from, to) = bounds(period);
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM machines.interface
+                         WHERE machine_id = $1 AND name = $2 AND id <> $3
+                           AND valid_period && tstzrange(coalesce($4::timestamptz, now()), $5))",
+    )
+    .bind(machine)
+    .bind(name)
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .fetch_one(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+fn interface_taken(name: &str, id: Uuid) -> WriteError {
+    refused(
+        &INTERFACE_DUPLICATE,
+        format!("the machine already has an interface named {name} over the period"),
+        id,
+    )
+}
+
+/// A new interface over `period`; `mac` is the canonical text of an EUI-48.
+#[allow(clippy::too_many_arguments)] // the columns of an interface
+pub(crate) async fn insert_interface(
+    conn: &mut PgConnection,
+    id: Uuid,
+    machine: Uuid,
+    name: &str,
+    mac: Option<&str>,
+    enabled: bool,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    if interface_name_taken(conn, id, machine, name, period).await? {
+        return Err(interface_taken(name, id));
+    }
+    let (from, to) = bounds(period);
+    sqlx::query(
+        "INSERT INTO machines.interface (id, machine_id, name, mac, enabled, valid_period,
+                                         changeset_id)
+         VALUES ($1, $2, $3, $4::macaddr, $5, tstzrange(coalesce($6::timestamptz, now()), $7), $8)",
+    )
+    .bind(id)
+    .bind(machine)
+    .bind(name)
+    .bind(mac)
+    .bind(enabled)
+    .bind(from)
+    .bind(to)
+    .bind(changeset)
+    .execute(conn)
+    .await
+    .map(drop)
+    .map_err(|e| WriteError::Store(store(&e)))
+}
+
+/// The machine of the interface `id` (fixed for its life).
+pub(crate) async fn machine_of(
+    conn: &mut PgConnection,
+    id: Uuid,
+) -> Result<Option<Uuid>, StoreError> {
+    sqlx::query_scalar("SELECT machine_id FROM machines.interface WHERE id = $1 LIMIT 1")
+        .bind(id)
+        .fetch_optional(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// Applies `patch` to the interface `id` of `machine` over `period`.
+pub(crate) async fn patch_interface(
+    conn: &mut PgConnection,
+    id: Uuid,
+    machine: Uuid,
+    patch: &Value,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    if let Some(name) = patch.get("name").and_then(Value::as_str)
+        && interface_name_taken(conn, id, machine, name, period).await?
+    {
+        return Err(interface_taken(name, id));
+    }
+    portion(conn, INTERFACE_TABLE, id, patch, period, changeset).await
+}
+
+/// The interfaces among `ids` whose machine does not live over one of their versions:
+/// `(interface, machine)`.
+pub(crate) async fn orphan_interfaces(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT i.id, i.machine_id
+           FROM machines.interface i
+          WHERE i.id = ANY($1)
+            AND NOT EXISTS (
+                SELECT 1 FROM machines.machine m
+                 WHERE m.id = i.machine_id
+                 GROUP BY m.id
+                HAVING range_agg(m.valid_period) @> i.valid_period)",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
 }

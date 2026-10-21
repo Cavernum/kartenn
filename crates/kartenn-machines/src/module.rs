@@ -14,6 +14,8 @@ use crate::rules::MACHINES_RULES;
 pub const CLUSTER: &str = "machines.cluster";
 /// The qualified type of a machine.
 pub const MACHINE: &str = "machines.machine";
+/// The qualified type of an interface.
+pub const INTERFACE: &str = "machines.interface";
 
 static TYPES: &[ObjectType] = &[
     // A cluster carries `core.owner` (required) and, optionally, `core.site`.
@@ -32,6 +34,15 @@ static TYPES: &[ObjectType] = &[
         parent: None,
         owner_required: true,
         carries_site: true,
+        domain_anchored: false,
+    },
+    // An interface is tied to its machine, whose owner and site it inherits (REQ-009-7).
+    ObjectType {
+        kind: INTERFACE,
+        collection: "interfaces",
+        parent: Some(MACHINE),
+        owner_required: false,
+        carries_site: false,
         domain_anchored: false,
     },
 ];
@@ -53,13 +64,28 @@ static OPERATIONS: &[OperationType] = &[
         name: "update_machine",
         defines: None,
     },
+    OperationType {
+        name: "create_interface",
+        defines: Some(INTERFACE),
+    },
+    OperationType {
+        name: "update_interface",
+        defines: None,
+    },
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "machines",
-    sql: include_str!("../migrations/0001_machines.sql"),
-}];
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "machines",
+        sql: include_str!("../migrations/0001_machines.sql"),
+    },
+    ModuleMigration {
+        version: 2,
+        name: "interface",
+        sql: include_str!("../migrations/0002_interface.sql"),
+    },
+];
 
 macro_rules! permissions {
     ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {
@@ -82,6 +108,9 @@ permissions! {
     MACHINE_READ = "machines.machine.read", "Lire les machines.";
     MACHINE_WRITE = "machines.machine.write", "Créer, modifier ou clore une machine.";
     MACHINE_PROPOSE = "machines.machine.propose", "Proposer un changement d'une machine.";
+    INTERFACE_READ = "machines.interface.read", "Lire les interfaces.";
+    INTERFACE_WRITE = "machines.interface.write", "Créer, modifier ou clore une interface.";
+    INTERFACE_PROPOSE = "machines.interface.propose", "Proposer un changement d'une interface.";
 }
 
 /// The machines and interfaces module (spec 009).
