@@ -1683,6 +1683,81 @@
         ],
         "type": "object"
       },
+      "GraphEdge": {
+        "description": "An edge of the topology graph (ADR 0026, clause 11).",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/GraphNode",
+            "description": "Its origin."
+          },
+          "to": {
+            "$ref": "#/components/schemas/GraphNode",
+            "description": "Its end."
+          },
+          "type": {
+            "description": "Its type (`vlan.carries`).",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of its validity, RFC 3339.",
+            "type": "string"
+          },
+          "valid_to": {
+            "description": "The end of its validity, RFC 3339; `null` while open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "valid_from"
+        ],
+        "type": "object"
+      },
+      "GraphEdges": {
+        "description": "The edges of an object.",
+        "properties": {
+          "items": {
+            "description": "The edges, by type, origin then end.",
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "GraphNode": {
+        "description": "An end of an edge.",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Its kind of the core, or its qualified type.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "href"
+        ],
+        "type": "object"
+      },
       "HeldBinding": {
         "description": "A binding that serves the caller.",
         "properties": {
@@ -2588,6 +2663,27 @@
         ],
         "type": "object"
       },
+      "Listing_ModuleVersion": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/ModuleVersion"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_Node": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -3041,6 +3137,88 @@
         "required": [
           "name",
           "version"
+        ],
+        "type": "object"
+      },
+      "ModuleObject": {
+        "description": "The record of an object of a module (ADR 0026, clause 4); the module serves its own\nattributes.",
+        "properties": {
+          "domain": {
+            "description": "Its addressing domain, when its type is anchored in one.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Its qualified type (`vlan.vlan`).",
+            "type": "string"
+          },
+          "parent": {
+            "description": "Its parent in the tree of its module.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "href"
+        ],
+        "type": "object"
+      },
+      "ModuleVersion": {
+        "description": "A version of an object of a module, on both axes (REQ-004-18).",
+        "properties": {
+          "asserted_from": {
+            "description": "The start of its assertion, RFC 3339.",
+            "type": "string"
+          },
+          "asserted_to": {
+            "description": "The end of its assertion, RFC 3339; `null` while asserted.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeset": {
+            "$ref": "#/components/schemas/ChangesetRef",
+            "description": "The changeset that wrote it."
+          },
+          "object": {
+            "$ref": "#/components/schemas/ModuleObject",
+            "description": "The object, as it was."
+          },
+          "valid_from": {
+            "description": "The start of its validity, RFC 3339.",
+            "type": "string"
+          },
+          "valid_to": {
+            "description": "The end of its validity, RFC 3339; `null` while open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "valid_from",
+          "asserted_from",
+          "changeset",
+          "object"
         ],
         "type": "object"
       },
@@ -3520,7 +3698,7 @@
         "type": "string"
       },
       "Operation": {
-        "description": "An operation of a changeset (004, REQ-004-1 to 5), named by `op`.",
+        "description": "An operation of the core, named by `op`.",
         "oneOf": [
           {
             "description": "An operation on its own period instead of the changeset's (REQ-004-2).",
@@ -4901,6 +5079,21 @@
               "op"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": true,
+            "description": "An operation of a module (ADR 0026, clause 6): `op` is `<module>.<operation>`, the other members are those of the module.",
+            "properties": {
+              "op": {
+                "description": "The module, then the operation.",
+                "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -6174,7 +6367,7 @@
         "type": "object"
       },
       "TargetKind": {
-        "description": "The kind of the object of an operation.",
+        "description": "The kinds of object of the core an operation names: the schema of [`TargetKindDto`],\nto which the contract of a build adds the types of its modules.",
         "enum": [
           "domain",
           "prefix",
@@ -6183,7 +6376,9 @@
           "property",
           "enum_value",
           "entity",
-          "site"
+          "site",
+          "vlan.group",
+          "vlan.vlan"
         ],
         "type": "string"
       },
@@ -10049,6 +10244,67 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/graph/edges": {
+      "get": {
+        "operationId": "graph_edges",
+        "parameters": [
+          {
+            "description": "The object, at an end of the edges.",
+            "in": "query",
+            "name": "object",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphEdges"
+                }
+              }
+            },
+            "description": "The edges of the object."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/graph/edges?object=`: the edges the modules declare that start or end at the\nobject, at the dates of the read; only those whose two ends the caller may read now\n(REQ-008-11). 404 for an object absent at the dates or that the caller may not read.",
+        "tags": [
+          "graph"
         ]
       }
     },
@@ -13957,6 +14213,570 @@
         "parameters": [
           {
             "description": "The site.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The property.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            },
+            "description": "The suggestion."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The value the source of a property expects for the object (REQ-003-23).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/history": {
+      "get": {
+        "operationId": "vlan_group_history",
+        "parameters": [
+          {
+            "description": "The vlan.group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_ModuleVersion"
+                }
+              }
+            },
+            "description": "A page of versions."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The versions of the record of the vlan.group, on both axes (REQ-004-18).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/properties": {
+      "get": {
+        "operationId": "vlan_group_properties",
+        "parameters": [
+          {
+            "description": "The vlan.group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resolved"
+                }
+              }
+            },
+            "description": "The resolved values."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of the object.",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/properties/{key}/explanation": {
+      "get": {
+        "operationId": "vlan_group_property_explanation",
+        "parameters": [
+          {
+            "description": "The vlan.group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The property.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Explanation"
+                }
+              }
+            },
+            "description": "The explanation."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "How the value of a property resolves on the object (REQ-003-14).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/properties/{key}/suggestion": {
+      "get": {
+        "operationId": "vlan_group_property_suggestion",
+        "parameters": [
+          {
+            "description": "The vlan.group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The property.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            },
+            "description": "The suggestion."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The value the source of a property expects for the object (REQ-003-23).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlans/{id}/history": {
+      "get": {
+        "operationId": "vlan_vlan_history",
+        "parameters": [
+          {
+            "description": "The vlan.vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_ModuleVersion"
+                }
+              }
+            },
+            "description": "A page of versions."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The versions of the record of the vlan.vlan, on both axes (REQ-004-18).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlans/{id}/properties": {
+      "get": {
+        "operationId": "vlan_vlan_properties",
+        "parameters": [
+          {
+            "description": "The vlan.vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resolved"
+                }
+              }
+            },
+            "description": "The resolved values."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of the object.",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlans/{id}/properties/{key}/explanation": {
+      "get": {
+        "operationId": "vlan_vlan_property_explanation",
+        "parameters": [
+          {
+            "description": "The vlan.vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The property.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Explanation"
+                }
+              }
+            },
+            "description": "The explanation."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "How the value of a property resolves on the object (REQ-003-14).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/vlans/{id}/properties/{key}/suggestion": {
+      "get": {
+        "operationId": "vlan_vlan_property_suggestion",
+        "parameters": [
+          {
+            "description": "The vlan.vlan.",
             "in": "path",
             "name": "id",
             "required": true,

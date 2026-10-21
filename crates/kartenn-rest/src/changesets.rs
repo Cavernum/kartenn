@@ -24,7 +24,6 @@ use kartenn_service::{ChangesetRequest, ObjectKind, Outcome, submit_in};
 use kartenn_store_pg::idempotency;
 use kartenn_store_pg::list::{self, Kind};
 use kartenn_store_pg::property_read;
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::rbac_read;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
@@ -677,7 +676,7 @@ pub(crate) async fn submit_answered(
 ) -> Result<Response, Problem> {
     let outcome = submit_in(
         &write_store(api),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.sources,
         context,
         request,

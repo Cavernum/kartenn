@@ -762,7 +762,7 @@ impl Api {
             modules,
         };
         let app = kartenn_rest::router_with_web(
-            kartenn_rest::v1(objects),
+            kartenn_rest::v1_with(objects, crate::modules::routers()),
             Arc::new(kartenn_rest::health::PgReadiness::new(
                 pool.clone(),
                 audit.clone(),

@@ -10,7 +10,13 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["vlan"]
+# The business modules of the build (ADR 0026): each one a feature, on by default.
+vlan = ["dep:kartenn-vlan"]
+
 [dependencies]
+kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["pg"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
 figment = { version = "0.10.19", features = ["toml", "env"] }

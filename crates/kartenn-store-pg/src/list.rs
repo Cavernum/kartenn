@@ -460,8 +460,86 @@ pub async fn history_page(
     limit: Option<i64>,
 ) -> sqlx::Result<Vec<Version>> {
     let shape = kind.shape();
-    let versions = history_of(shape.table, shape.columns).map_err(|e| sql_err(&e))?;
-    let link = match shape.link {
+    versions_page(
+        pool,
+        shape.table,
+        shape.columns,
+        shape.link,
+        None,
+        id,
+        valid_at,
+        as_of,
+        after,
+        limit,
+    )
+    .await
+}
+
+/// The versions of the object `id` of the module type `kind` (`vlan.vlan`), by its record
+/// in `module_object` (ADR 0026, clause 4), as [`history_page`] reads those of the core:
+/// each changeset that writes the object leaves a version there (REQ-008-3). None for an
+/// object of another type.
+///
+/// # Errors
+///
+/// Database errors.
+#[allow(clippy::too_many_arguments)] // the history of the core, with the type
+#[tracing::instrument(name = "SELECT history", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT history",
+    kartenn.kind = kind,
+))]
+pub async fn module_history_page(
+    pool: &PgPool,
+    kind: &str,
+    id: Uuid,
+    valid_at: Option<OffsetDateTime>,
+    as_of: Option<OffsetDateTime>,
+    after: Option<(OffsetDateTime, OffsetDateTime)>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Version>> {
+    versions_page(
+        pool,
+        "module_object",
+        &["id", "kind", "parent_id", "domain_id"],
+        None,
+        Some(kind),
+        id,
+        valid_at,
+        as_of,
+        after,
+        limit,
+    )
+    .await
+}
+
+/// The versions of `id` in `table` (its `columns`), with the slug of the object `link`
+/// names, only those of `kind` when given.
+#[allow(clippy::too_many_arguments)] // the parts of a page of versions
+async fn versions_page(
+    pool: &PgPool,
+    table: &str,
+    columns: &[&str],
+    link: Option<(&str, &str)>,
+    kind: Option<&str>,
+    id: Uuid,
+    valid_at: Option<OffsetDateTime>,
+    as_of: Option<OffsetDateTime>,
+    after: Option<(OffsetDateTime, OffsetDateTime)>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Version>> {
+    type VersionRow = (
+        serde_json::Value,
+        Option<String>,
+        OffsetDateTime,
+        Option<OffsetDateTime>,
+        OffsetDateTime,
+        Option<OffsetDateTime>,
+        Uuid,
+    );
+    let versions = history_of(table, columns).map_err(|e| sql_err(&e))?;
+    let link = match link {
         Some((column, table)) => format!(
             "(SELECT l.slug FROM {table} l
               WHERE l.id = h.{column} AND l.valid_period @> lower(h.valid_period))"
@@ -476,20 +554,12 @@ pub async fn history_page(
          FROM ({}) h
          WHERE ($2::timestamptz IS NULL OR h.sys_start <= $2)
            AND ($6::timestamptz IS NULL OR h.valid_period @> $6::timestamptz)
+           AND ($7::text IS NULL OR to_jsonb(h) ->> 'kind' = $7)
            AND ($3::timestamptz IS NULL
                 OR (lower(h.valid_period), h.sys_start) > ($3::timestamptz, $4::timestamptz))
          ORDER BY lower(h.valid_period), h.sys_start
          LIMIT $5",
         versions.0
-    );
-    type VersionRow = (
-        serde_json::Value,
-        Option<String>,
-        OffsetDateTime,
-        Option<OffsetDateTime>,
-        OffsetDateTime,
-        Option<OffsetDateTime>,
-        Uuid,
     );
     let rows: Vec<VersionRow> = sqlx::query_as(AssertSqlSafe(sql))
         .bind(id)
@@ -498,6 +568,7 @@ pub async fn history_page(
         .bind(after.map(|(_, asserted_from)| asserted_from))
         .bind(limit)
         .bind(valid_at)
+        .bind(kind)
         .fetch_all(pool)
         .await?;
     Ok(rows

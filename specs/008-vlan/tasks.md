@@ -190,7 +190,7 @@ numérotées après coup.
   cascade, `Refuse` refuse encore, `Cascade` clôt, `Nullify` détache par une
   modification que le module construit (`nullify` sans plan : refus) ; le refus est
   vérifié sur l'état final, après les écritures.
-- [ ] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
+- [x] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
   transverses par type de module (`history`, `properties`, `explanation`,
   `suggestion`), enveloppe d'opération dans le contrat OpenAPI, `GET /v1/graph/edges`,
   contrat de référence régénéré — REQ-008-9, 11 — verify : `module_routes_are_mounted`,
@@ -199,6 +199,28 @@ numérotées après coup.
   où : design « Lectures et routes » ; `kartenn-rest/src/lib.rs` (`router`, `v1`),
   `resources.rs`, `properties.rs`, `versions.rs`, `contract.rs`, `openapi.rs`
   dépend de : 4, 5
+  — Service : `module.rs` (`Edge`, `ModuleRead`, `ModuleHandler::edges` sans effet par
+  défaut ; `graph` réservée au noyau), `reads.rs` (`read_permission` : `<type>.read` pour
+  un type de module). Store : `read.rs` (la lecture par identifiant voit
+  `module_object`), `property_read::kind_names`, `list::module_history_page`,
+  `modules::PgModuleRead`. REST : `lib.rs` (`api_with`, `v1_with`, `ModuleRouter`),
+  `modules.rs` (historique des types de module, `GET /v1/graph/edges`), `objects.rs`
+  (`Target`, `Api::authorizer` avec le registre, `gate_target`), `properties.rs`
+  (`object_routes` pour le noyau et les modules), `operation.rs` (enveloppe
+  `<module>.<op>` et `TargetKind` qui accepte un type de module), `openapi.rs`
+  (`document_with`, `json_with`, `write_with`, contrat servi par `/v1/openapi.json` celui
+  des routes montées, types des modules ajoutés à `TargetKind`). Server : `modules::routers`,
+  `v1_with` dans `app.rs`, sous-commande `kartenn-server openapi` (remplace le binaire
+  `openapi` de `kartenn-rest`), test `the_reference_contract_is_that_of_the_build`.
+  Tests : `kartenn-rest/tests/modules.rs` (les trois du verify), échantillon de module dans
+  `operation.rs` ; contrat de référence et types du SDK régénérés.
+  choix : l'historique d'un objet de module est celui de son enregistrement dans
+  `module_object` (type, parent, domaine), les attributs propres restant aux routes du
+  module ; les arêtes sont lues par le gestionnaire du module (`ModuleRead`, hors
+  changeset), sans pagination, triées par type, origine puis fin ; la seule rupture que
+  signale le comparateur est l'alternative ajoutée à `Operation` (l'enveloppe), additive
+  au sens de 006/H12 ; le contrat de référence est désormais écrit par le serveur, seul à
+  connaître les modules livrés.
 - [x] 19. Contributions au différentiel : `Module::diff`, `DiffContext` (différentiel des
   propriétés, objets touchés typés, sections précédentes), ordre du registre, table
   `changeset_diff_section` (migration), sections dans la réponse de simulation et
@@ -267,7 +289,7 @@ numérotées après coup.
   compris.
   choix : `deprecated` compte comme utilisé dans l'occupation ; le nom est normalisé
   NFC avant d'être compté ; macro `rules!` recopiée (privée dans `kartenn-core`).
-- [ ] 10. Groupes : migration `0001_vlan.sql` (schéma `vlan`, `group`), adaptateur `pg`,
+- [x] 10. Groupes : migration `0001_vlan.sql` (schéma `vlan`, `group`), adaptateur `pg`,
   gestionnaire `vlan.create_group`/`vlan.update_group` (ancres, `core.owner` et
   `core.site` ajoutés au plan, déplacement d'ancre), feature `vlan` de
   `kartenn-server` — REQ-008-12, 13 — verify : `group_requires_an_owner`,
@@ -276,6 +298,29 @@ numérotées après coup.
   où : design « Données du module », « Opérations » ; tâche 3 (module factice) comme
   modèle de gestionnaire
   dépend de : 2, 3, 5, 9
+  — `kartenn-vlan` : `migrations/0001_vlan.sql` (tables `vlan_group` et `vlan`, versionnées,
+  exclusions), `module.rs` (`Vlan` : types `vlan.group` et `vlan.vlan`, permissions
+  `read|write|propose`, règles, opérations, migrations ; gestionnaire avec la feature
+  `pg`), `handler.rs` (`create_group`, `update_group` en Merge Patch, ancres V3, `close`
+  et `restore` génériques, règles sur l'état final : plage qui exclut des VLAN, listés ;
+  ancre vivante), `pg.rs` (écritures, `kartenn_portion` pour la modification, refus
+  avant écriture de ce que les contraintes refuseraient). Contrat :
+  `ModuleHandler::prepare` (le module complète son opération sur l'état de la
+  transaction avant la planification ; appelé par `pipeline::prepare`) et
+  `Operation::inner_mut`. Server : feature `vlan` par défaut (`modules::compiled`),
+  contrat de référence, types du SDK et `docs/spec/permissions.md` régénérés ; le test
+  `the_contract_keeps_its_reference` compare la référence au contrat de la build.
+  Tests : `kartenn-vlan/tests/groups.rs` (les cinq du verify), `module::tests`.
+  choix : table `vlan.vlan_group` (et non `vlan."group"`, mot réservé que les écritures
+  génériques du noyau ne citent pas) ; la table `vlan.vlan` est créée dès `0001`, comme
+  au design, ses opérations venant avec la tâche 11 ; une ancre entité donne au groupe ce
+  propriétaire (un autre est refusé, V3) ; ancre site sans propriétaire : refus par
+  l'obligation du noyau (`prop.assignment.required`) ; l'identifiant des propriétés
+  `core.owner`, `core.site` et le propriétaire résolu d'un domaine sont lus par
+  `prepare`, qui les inscrit dans l'opération (`completed`, `owner`) enregistrée par le
+  changeset ; quitter un site retire `core.site` ; le différentiel des VLAN reclassés
+  par un déplacement d'ancre se vérifiera avec leurs opérations (tâche 11), le
+  différentiel du groupe nomme son `core.owner`.
 - [ ] 11. VLAN : table `vlan.vlan`, `vlan.create_vlan`/`vlan.update_vlan`, unicités
   (verrou consultatif par groupe, exclusion en dernier recours), clôture — REQ-008-14,
   15, 16 — verify : `concurrent_same_vid_one_wins`, `same_vid_two_groups`,

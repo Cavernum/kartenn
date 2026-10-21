@@ -805,6 +805,14 @@ impl Operation {
         }
     }
 
+    /// [`Operation::inner`], to change it.
+    pub fn inner_mut(&mut self) -> &mut Self {
+        match self {
+            Self::Within { operation, .. } => operation.inner_mut(),
+            other => other,
+        }
+    }
+
     /// The period of the operation, when it has its own (REQ-004-2); the innermost wins.
     #[must_use]
     pub fn own_period(&self) -> Option<PeriodSpec> {

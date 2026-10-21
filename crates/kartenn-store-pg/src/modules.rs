@@ -2,9 +2,61 @@
 //! module in its own schema, after the core and its dependencies, each migration once,
 //! tracked in `module_migration` with the SHA-256 of its SQL.
 
-use kartenn_service::module::{ModuleMigration, ModuleRegistry};
+use kartenn_core::period::Instant;
+use kartenn_service::module::{ModuleMigration, ModuleRead, ModuleRegistry};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+
+/// A read of a module at the dates of a request (ADR 0026, clauses 11 and 15), on a
+/// connection of the pool: the module downcasts [`ModuleRead::connection`] to a
+/// `sqlx::PgConnection`.
+pub struct PgModuleRead {
+    connection: sqlx::pool::PoolConnection<sqlx::Postgres>,
+    valid_at: Instant,
+    as_of: Option<Instant>,
+}
+
+impl PgModuleRead {
+    /// A read at `valid_at`, as asserted at `as_of` (now when `None`).
+    ///
+    /// # Errors
+    ///
+    /// When no connection is available.
+    pub async fn open(
+        pool: &PgPool,
+        valid_at: Instant,
+        as_of: Option<Instant>,
+    ) -> sqlx::Result<Self> {
+        Ok(Self {
+            connection: pool.acquire().await?,
+            valid_at,
+            as_of,
+        })
+    }
+}
+
+impl std::fmt::Debug for PgModuleRead {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgModuleRead")
+            .field("valid_at", &self.valid_at)
+            .field("as_of", &self.as_of)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ModuleRead for PgModuleRead {
+    fn connection(&mut self) -> &mut (dyn std::any::Any + Send) {
+        &mut *self.connection
+    }
+
+    fn valid_at(&self) -> Instant {
+        self.valid_at
+    }
+
+    fn as_of(&self) -> Option<Instant> {
+        self.as_of
+    }
+}
 
 /// Why the migrations of a module stop the job.
 #[derive(Debug, thiserror::Error)]

@@ -720,6 +720,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/graph/edges": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/graph/edges?object=`: the edges the modules declare that start or end at the
+     *     object, at the dates of the read; only those whose two ends the caller may read now
+     *     (REQ-008-11). 404 for an object absent at the dates or that the caller may not read.
+     */
+    get: operations["graph_edges"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/identities": {
     parameters: {
       query?: never;
@@ -1554,6 +1575,142 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/vlan-groups/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the vlan.group, on both axes (REQ-004-18). */
+    get: operations["vlan_group_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["vlan_group_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["vlan_group_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["vlan_group_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the vlan.vlan, on both axes (REQ-004-18). */
+    get: operations["vlan_vlan_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["vlan_vlan_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["vlan_vlan_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["vlan_vlan_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2167,6 +2324,36 @@ export interface components {
       /** @description The property. */
       property?: string | null;
     };
+    /** @description An edge of the topology graph (ADR 0026, clause 11). */
+    GraphEdge: {
+      /** @description Its origin. */
+      from: components["schemas"]["GraphNode"];
+      /** @description Its end. */
+      to: components["schemas"]["GraphNode"];
+      /** @description Its type (`vlan.carries`). */
+      type: string;
+      /** @description The start of its validity, RFC 3339. */
+      valid_from: string;
+      /** @description The end of its validity, RFC 3339; `null` while open. */
+      valid_to?: string | null;
+    };
+    /** @description The edges of an object. */
+    GraphEdges: {
+      /** @description The edges, by type, origin then end. */
+      items: components["schemas"]["GraphEdge"][];
+    };
+    /** @description An end of an edge. */
+    GraphNode: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its kind of the core, or its qualified type. */
+      kind: string;
+    };
     /** @description A binding that serves the caller. */
     HeldBinding: {
       /** @description Role key. */
@@ -2533,6 +2720,13 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_ModuleVersion: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["ModuleVersion"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_Node: {
       /** @description The elements of the page. */
       items: components["schemas"]["Node"][];
@@ -2692,6 +2886,46 @@ export interface components {
       name: string;
       /** @description The version of the build that serves it. */
       version: string;
+    };
+    /**
+     * @description The record of an object of a module (ADR 0026, clause 4); the module serves its own
+     *     attributes.
+     */
+    ModuleObject: {
+      /**
+       * Format: uuid
+       * @description Its addressing domain, when its type is anchored in one.
+       */
+      domain?: string | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its qualified type (`vlan.vlan`). */
+      kind: string;
+      /**
+       * Format: uuid
+       * @description Its parent in the tree of its module.
+       */
+      parent?: string | null;
+    };
+    /** @description A version of an object of a module, on both axes (REQ-004-18). */
+    ModuleVersion: {
+      /** @description The start of its assertion, RFC 3339. */
+      asserted_from: string;
+      /** @description The end of its assertion, RFC 3339; `null` while asserted. */
+      asserted_to?: string | null;
+      /** @description The changeset that wrote it. */
+      changeset: components["schemas"]["ChangesetRef"];
+      /** @description The object, as it was. */
+      object: components["schemas"]["ModuleObject"];
+      /** @description The start of its validity, RFC 3339. */
+      valid_from: string;
+      /** @description The end of its validity, RFC 3339; `null` while open. */
+      valid_to?: string | null;
     };
     /** @description The body of an action that needs a motive. */
     Motive: {
@@ -2867,7 +3101,7 @@ export interface components {
      * @enum {string}
      */
     Op: "eq" | "between" | "exists";
-    /** @description An operation of a changeset (004, REQ-004-1 to 5), named by `op`. */
+    /** @description An operation of the core, named by `op`. */
     Operation:
       | {
           /** @enum {string} */
@@ -3327,7 +3561,13 @@ export interface components {
           op: "update_range";
           /** @description New usage. */
           usage: components["schemas"]["RangeUsage"];
-        };
+        }
+      | ({
+          /** @description The module, then the operation. */
+          op: string;
+        } & {
+          [key: string]: unknown;
+        });
     /** @description A period, in microseconds since the epoch: `[start, end)`, unbounded without `end`. */
     Period: {
       /**
@@ -3811,11 +4051,21 @@ export interface components {
       slug?: string | null;
     };
     /**
-     * @description The kind of the object of an operation.
+     * @description The kinds of object of the core an operation names: the schema of [`TargetKindDto`],
+     *     to which the contract of a build adds the types of its modules.
      * @enum {string}
      */
     TargetKind:
-      "domain" | "prefix" | "range" | "address" | "property" | "enum_value" | "entity" | "site";
+      | "domain"
+      | "prefix"
+      | "range"
+      | "address"
+      | "property"
+      | "enum_value"
+      | "entity"
+      | "site"
+      | "vlan.group"
+      | "vlan.vlan";
     /** @description A node of the tree, as listed. */
     TreeNode:
       | {
@@ -6007,6 +6257,42 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  graph_edges: {
+    parameters: {
+      query: {
+        /** @description The object, at an end of the edges. */
+        object: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The edges of the object. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GraphEdges"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -8408,6 +8694,318 @@ export interface operations {
       header?: never;
       path: {
         /** @description The site. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.group. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.group. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_vlan_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.vlan. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_vlan_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.vlan. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_vlan_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.vlan. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_vlan_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan.vlan. */
         id: string;
         /** @description The property. */
         key: string;

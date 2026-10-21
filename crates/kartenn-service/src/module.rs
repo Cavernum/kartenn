@@ -9,7 +9,7 @@ use std::pin::Pin;
 use std::sync::{Arc, LazyLock};
 
 use kartenn_core::authz::Permission;
-use kartenn_core::period::Period;
+use kartenn_core::period::{Instant, Period};
 use kartenn_core::rules::{Rule, Violation};
 use uuid::Uuid;
 
@@ -32,6 +32,7 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "changesets",
     "domains",
     "entities",
+    "graph",
     "identities",
     "imports",
     "issuer-attachments",
@@ -96,6 +97,20 @@ pub struct EdgeType {
     pub from: &'static str,
     /// The type of its end.
     pub to: &'static str,
+}
+
+/// An edge of the topology graph at the dates of a read (ADR 0026, clause 11): its type,
+/// one of the module's [`EdgeType`]s, its ends and the period of validity it has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edge {
+    /// The type of edge (`vlan.carries`).
+    pub name: &'static str,
+    /// Its origin, of the type the [`EdgeType`] names.
+    pub from: Uuid,
+    /// Its end.
+    pub to: Uuid,
+    /// When it holds.
+    pub period: Period,
 }
 
 /// A SQL migration of a module, applied once in the schema of the module (REQ-008-2).
@@ -262,8 +277,36 @@ pub trait ModuleTx: Send {
     ) -> BoxFuture<'a, Result<(), WriteError>>;
 }
 
+/// A read of the state at the dates of a request, as a module reads (ADR 0026, clauses
+/// 11 and 15): outside any changeset, on the connection of the adapter.
+pub trait ModuleRead: Send {
+    /// The connection of the adapter: a module's own adapter downcasts it
+    /// (`sqlx::PgConnection` for `kartenn-store-pg`).
+    fn connection(&mut self) -> &mut (dyn Any + Send);
+    /// The valid time of the read.
+    fn valid_at(&self) -> Instant;
+    /// The system time of the read; `None` for now.
+    fn as_of(&self) -> Option<Instant>;
+}
+
 /// The behaviour of a module inside the write pipeline (ADR 0026, clause 6).
 pub trait ModuleHandler: Send + Sync + fmt::Debug {
+    /// Completes `operation` on the state of the transaction, before the operations are
+    /// planned: the values the module defaults from existing objects (the resolved owner
+    /// of a domain, the identifier of a property of the core), which [`Self::plan`], on no
+    /// database, could not read. `period` is that of the operation, the changeset's when
+    /// `None`. The completed operation is the one the changeset records. Nothing by
+    /// default.
+    fn prepare<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operation: &'a mut ModuleOperation,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (tx, operation, period);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
     /// Decodes and checks `operation` locally; `object` is the identifier of the object it
     /// creates, if any; `resolve` gives the object of a reference (`None` for a local name
     /// no earlier operation defines).
@@ -360,6 +403,18 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
         let _ = (tx, context);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// The edges of the module's [`Module::edges`] that start or end at `object`, valid at
+    /// the dates of `read` (REQ-008-11). None by default. The core filters them by the
+    /// rights of the caller on both ends.
+    fn edges<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        object: Uuid,
+    ) -> BoxFuture<'a, Result<Vec<Edge>, StoreError>> {
+        let _ = (read, object);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }

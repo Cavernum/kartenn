@@ -32,7 +32,6 @@ use kartenn_store_pg::changesets::{
 };
 use kartenn_store_pg::idempotency;
 use kartenn_store_pg::property_read;
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -74,7 +73,7 @@ fn internal(e: impl std::fmt::Display) -> Problem {
 
 /// 403 and its audit without `core.changeset.read`.
 async fn readable(api: &Api, context: &RequestContext) -> Result<(), Problem> {
-    changesets_readable(&PgAuthorizer::new(api.pool.clone()), &api.journal, context).await?;
+    changesets_readable(&api.authorizer(), &api.journal, context).await?;
     Ok(())
 }
 
@@ -292,7 +291,7 @@ async fn disclosed(
     context: &RequestContext,
     wanted: BTreeMap<String, Vec<Uuid>>,
 ) -> Result<BTreeSet<(String, Uuid)>, Problem> {
-    let authorizer = PgAuthorizer::new(api.pool.clone());
+    let authorizer = api.authorizer();
     let mut out = BTreeSet::new();
     for (key, objects) in wanted {
         for object in
@@ -826,12 +825,8 @@ pub(crate) async fn proposals(
     page.unfiltered()?;
     let after = after_key(&page)?;
     let moment = current(&api, &page).await?;
-    let pending = proposals_for(
-        &write_store(&api),
-        &PgAuthorizer::new(api.pool.clone()),
-        &principal.subject(),
-    )
-    .await?;
+    let pending =
+        proposals_for(&write_store(&api), &api.authorizer(), &principal.subject()).await?;
     let ids: Vec<Uuid> = pending.iter().map(|p| p.id).collect();
     let mut found = changesets::summaries(&api.pool, &ids).await?;
     found.sort_by_key(|c| (c.submitted_at, c.id));
@@ -924,7 +919,7 @@ pub(crate) async fn validation(
     expected(&api, id, &headers).await?;
     let outcome = validate_pending(
         &write_store(&api),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.sources,
         id,
         &principal.subject(),
@@ -958,7 +953,7 @@ pub(crate) async fn rejection(
     let motive = motive(&headers, &body, "a rejection needs a motive")?;
     reject(
         &write_store(&api),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         id,
         &principal.subject(),
         &motive,

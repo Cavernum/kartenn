@@ -200,6 +200,37 @@ pub async fn sensitive_ids(pool: &PgPool) -> sqlx::Result<BTreeMap<Uuid, String>
     Ok(rows.into_iter().collect())
 }
 
+/// The kind of each of `ids` at the dates, by name: those of the core as in [`kinds`],
+/// those of the modules by their qualified type (`vlan.vlan`, ADR 0026); absent ones are
+/// left out.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn kind_names(
+    pool: &PgPool,
+    ids: &[Uuid],
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<HashMap<Uuid, String>> {
+    let mut found: HashMap<Uuid, String> = kinds(pool, ids, valid_at, as_of)
+        .await?
+        .into_iter()
+        .map(|(id, kind)| (id, kind.as_str().to_owned()))
+        .collect();
+    let relation = snapshot("module_object", &["id", "kind"]).map_err(|e| sql_err(&e))?;
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(AssertSqlSafe(format!(
+        "SELECT x.id, x.kind FROM {relation} x WHERE x.id = ANY($3)"
+    )))
+    .bind(valid_at)
+    .bind(as_of)
+    .bind(ids)
+    .fetch_all(pool)
+    .await?;
+    found.extend(rows);
+    Ok(found)
+}
+
 /// The kind of each of `ids` that exists at `valid_at` as asserted at `as_of`.
 ///
 /// # Errors

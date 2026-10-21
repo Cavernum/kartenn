@@ -10,7 +10,25 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The handler in the write pipeline and the storage in PostgreSQL (design 008, « Crates »).
+pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:uuid"]
+
 [dependencies]
 kartenn-core = { path = "../kartenn-core" }
+kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+serde = { version = "1.0.229", features = ["derive"], optional = true }
+serde_json = { version = "1.0.154", optional = true }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"], optional = true }
 unicode-normalization = "0.1.25"
+uuid = { version = "1.28.0", features = ["v7", "serde"], optional = true }
+
+[[test]]
+name = "groups"
+required-features = ["pg"]
+
+[dev-dependencies]
+kartenn-store-pg = { path = "../kartenn-store-pg" }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time", "json"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

@@ -46,7 +46,7 @@ en dépendent, et leurs SDK sont générés de son contrat. Les instances sont s
   en HTTP/2, en clair et en TLS, est vérifié sur un vrai port (006-24).
 - Un proxy qui ne relaie pas `QUERY` laisse `GET` disponible jusqu'à 8 Kio d'URL.
 - Le contrat de référence (`specs/006-api-rest/openapi-v1.json`) est un fichier à
-  régénérer à chaque ajout (`cargo run -p kartenn-rest --bin openapi --all-features`) ;
+  régénérer à chaque ajout (`cargo run -p kartenn-server --all-features -- openapi`, depuis la 008 : le serveur connaît les modules livrés) ;
   le comparateur est interne, faute de crate mûr.
 - Les opérations d'un changeset sont lues par un DTO miroir (`OperationDto`) lié au type
   du service par une conversion exhaustive : le contrat ne suit pas le service à son

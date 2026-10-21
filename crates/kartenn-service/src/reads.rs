@@ -98,6 +98,17 @@ async fn record_all<J: AuditJournal>(
     Ok(())
 }
 
+/// The permission that reads an object of `kind`: `core.<kind>.read` for the core,
+/// `<module>.<type>.read` for a qualified type of a module (ADR 0026, clause 8).
+#[must_use]
+pub fn read_permission(kind: &str) -> String {
+    if kind.contains('.') {
+        format!("{kind}.read")
+    } else {
+        format!("core.{kind}.read")
+    }
+}
+
 /// The object `id` valid at `valid_at`, as asserted at `as_of`, read by `context`, under
 /// the rights of its subject (005): `core.<kind>.read` on the object, or the object is
 /// answered as absent and `authz.access.denied` recorded (its existence is not
@@ -122,7 +133,7 @@ pub async fn read_object<R: Reader, A: Authorizer, J: AuditJournal>(
 ) -> Result<Option<ObjectRead>, RequestError> {
     let mut read = reader.object(id, valid_at, as_of).await?;
     if let (Some(found), Some(subject)) = (read.as_mut(), context.subject()) {
-        let permission = format!("core.{}.read", found.kind);
+        let permission = read_permission(&found.kind);
         if !authorizer
             .authorize_many(&subject, &permission, &[id])
             .await?

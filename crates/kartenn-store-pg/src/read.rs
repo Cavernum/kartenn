@@ -18,7 +18,8 @@ fn sql_err(e: &TemporalError) -> sqlx::Error {
     sqlx::Error::Protocol(e.to_string())
 }
 
-/// Objects of every kind with their attributes, as a relation `(kind, id, fields)`.
+/// Objects of every kind, those of the modules by their record, with their attributes,
+/// as a relation `(kind, fields)`.
 fn objects_sql() -> Result<String, TemporalError> {
     let tables: [(&str, &str, &[&str]); 6] = [
         ("domain", "addressing_domain", &["id", "slug"]),
@@ -48,13 +49,18 @@ fn objects_sql() -> Result<String, TemporalError> {
         ("entity", "entity", &["id", "slug", "parent_id"]),
         ("site", "site", &["id", "slug", "parent_id"]),
     ];
-    let mut parts = Vec::with_capacity(tables.len());
+    let mut parts = Vec::with_capacity(tables.len() + 1);
     for (kind, table, columns) in tables {
         let relation = snapshot(table, columns)?;
         parts.push(format!(
             "SELECT '{kind}' AS kind, to_jsonb(x) AS fields FROM {relation} x WHERE x.id = $3"
         ));
     }
+    // An object of a module, by its record (ADR 0026, clause 4): its qualified type.
+    let modules = snapshot("module_object", &["id", "kind", "parent_id", "domain_id"])?;
+    parts.push(format!(
+        "SELECT x.kind, to_jsonb(x) - 'kind' AS fields FROM {modules} x WHERE x.id = $3"
+    ));
     Ok(parts.join(" UNION ALL "))
 }
 

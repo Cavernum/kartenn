@@ -18,7 +18,6 @@ use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::reads::objects_read;
 use kartenn_store_pg::list::Kind;
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
 use kartenn_store_pg::tree::{self, ChildKey, Node};
 use serde::Serialize;
@@ -259,7 +258,8 @@ async fn children(
     page.unfiltered()?;
     let after = page.after().map(child_key).transpose()?;
     let (moment, parent) = prefix(&api, &context, id, page.dates).await?;
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
@@ -322,7 +322,8 @@ async fn roots(
     {
         return Err(Problem::new(ProblemKind::NotFound));
     }
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
@@ -382,7 +383,8 @@ async fn ancestors(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let (moment, found) = prefix(&api, &context, id, dates).await?;
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let nodes = tree::ancestors_of(&api.pool, &found, moment.valid_at, moment.as_of, &scope)

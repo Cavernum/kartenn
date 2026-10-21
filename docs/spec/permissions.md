@@ -40,12 +40,18 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `core.audit.read` | — | Consulter ou exporter le journal d'audit. |
 | `core.identity.pseudonymise` | oui | Pseudonymiser sans délai les données d'identité d'une personne. |
 | `core.observability.admin` | oui | Changer à chaud le filtre d'une sortie technique. |
+| `vlan.group.read` | — | Lire les groupes de VLAN. |
+| `vlan.group.write` | — | Créer, modifier ou clore un groupe de VLAN. |
+| `vlan.group.propose` | — | Proposer un changement d'un groupe de VLAN. |
+| `vlan.vlan.read` | — | Lire les VLAN. |
+| `vlan.vlan.write` | — | Créer, modifier ou clore un VLAN. |
+| `vlan.vlan.propose` | — | Proposer un changement d'un VLAN. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read` |
 | Administrateur | `administrator` | `*` |

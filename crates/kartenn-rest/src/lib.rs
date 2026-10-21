@@ -18,6 +18,7 @@ pub mod error;
 pub mod filter;
 pub mod health;
 pub mod imports;
+pub mod modules;
 pub mod objects;
 pub mod openapi;
 mod operation;
@@ -49,11 +50,25 @@ use crate::health::Readiness;
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{InFlight, Quotas};
 use crate::transport::Settings;
+use kartenn_service::module::ModuleRegistry;
+
+/// The routes of a business module, mounted under `/v1` (ADR 0026, clause 9).
+pub type ModuleRouter = OpenApiRouter<objects::Api>;
 
 /// The routes under `/v1` but the login ones, with their contract: each module adds its
-/// routes and their schemas (design « Versions et contrat »).
+/// routes and their schemas (design « Versions et contrat »). Without business module.
 pub fn api() -> OpenApiRouter<objects::Api> {
-    objects::routes()
+    api_with(ModuleRegistry::empty(), Vec::new())
+}
+
+/// [`api`] for the business modules of `modules`: the transversal routes of their types
+/// of objects, and `routers`, the routes of the modules themselves, mounted under `/v1`
+/// (ADR 0026, clause 9; REQ-008-9).
+pub fn api_with(
+    modules: &ModuleRegistry,
+    routers: Vec<OpenApiRouter<objects::Api>>,
+) -> OpenApiRouter<objects::Api> {
+    let mut api = objects::routes()
         .merge(tree::routes())
         .merge(anomalies::routes())
         .merge(changesets::routes())
@@ -63,11 +78,30 @@ pub fn api() -> OpenApiRouter<objects::Api> {
         .merge(audit::routes())
         .merge(capabilities::routes())
         .merge(openapi::routes())
+        .merge(modules::graph())
+        .merge(modules::routes(modules));
+    for router in routers {
+        api = api.merge(router);
+    }
+    api
 }
 
-/// The routes under `/v1` but the login ones.
+/// The routes under `/v1` but the login ones, for the modules of `api` without routes of
+/// their own.
 pub fn v1(api: objects::Api) -> Router {
-    self::api().with_state(api).split_for_parts().0
+    v1_with(api, Vec::new())
+}
+
+/// The routes under `/v1` but the login ones, those of the modules (`routers`) included;
+/// `GET /v1/openapi.json` serves the contract of exactly these routes (REQ-006-34).
+pub fn v1_with(api: objects::Api, routers: Vec<OpenApiRouter<objects::Api>>) -> Router {
+    let modules = api.modules.clone();
+    let (router, document) = api_with(&modules, routers)
+        .with_state(api)
+        .split_for_parts();
+    router.layer(Extension(openapi::Served::of(&openapi::assemble(
+        document, &modules,
+    ))))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the
