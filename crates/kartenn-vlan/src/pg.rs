@@ -575,6 +575,38 @@ pub(crate) async fn networks_of(
     .map_err(|e| store(&e))
 }
 
+/// The networks that carry `vlan.vlan` and whose resolved `core.site`, `core.owner` or
+/// `vlan.vlan` the changeset changes, on them or on a prefix that contains them (the site of
+/// a network is that of its nearest ancestor): read from the detail of the differential of
+/// the properties, recorded in the transaction (REQ-003-19), so that V9 is evaluated again
+/// where it may have changed, and only there.
+pub(crate) async fn diff_networks(conn: &mut PgConnection) -> Result<Vec<Uuid>, StoreError> {
+    // The detail exists once the differential was computed; reading a missing table would
+    // abort the transaction.
+    let recorded: bool =
+        sqlx::query_scalar("SELECT to_regclass('pg_temp.diff_detail') IS NOT NULL")
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+    if !recorded {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT n.id
+           FROM (SELECT DISTINCT object_id FROM pg_temp.diff_detail
+                  WHERE property_key IN ('core.site', 'core.owner', 'vlan.vlan')) d
+           JOIN public.prefix c ON c.id = d.object_id
+           JOIN public.prefix n ON n.domain_id = c.domain_id AND n.prefix <<= c.prefix
+          WHERE EXISTS (SELECT 1 FROM public.property_assignment a
+                          JOIN public.property_declaration pd
+                            ON pd.id = a.property_id AND pd.key = 'vlan.vlan'
+                         WHERE a.object_id = n.id)",
+    )
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The networks among `ids` whose VLAN is in a group anchored on a site outside the site
 /// of the network (`site`) or on another domain (`domain`), V9: each assignment of
 /// `vlan.vlan` is read at its start, or now when it started before.

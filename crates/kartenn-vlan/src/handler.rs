@@ -696,10 +696,13 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| *kind == ObjectKind::Prefix)
                 .map(|(_, id)| *id)
                 .collect();
-            if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() {
+            let conn = connection(tx)?;
+            // Networks whose resolved site, owner or VLAN changed, by the changeset's
+            // differential: V9 may have changed there, its anomaly closes once corrected.
+            let changed = pg::diff_networks(conn).await?;
+            if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() && changed.is_empty() {
                 return Ok(Findings::default());
             }
-            let conn = connection(tx)?;
             let mut found = Vec::new();
             // REQ-008-17: `vlan.vlan` on a network only, assigned or kept through a change
             // of nature.
@@ -716,6 +719,7 @@ impl ModuleHandler for Handler {
             // that carry a VLAN it moves or a VLAN of a group it reanchors.
             let mut networks = prefixes;
             networks.extend(pg::networks_of(conn, &vlans, &groups).await?);
+            networks.extend(changed);
             networks.sort_unstable();
             networks.dedup();
             for (network, kind) in pg::mismatches(conn, &networks).await? {
@@ -760,7 +764,14 @@ impl ModuleHandler for Handler {
                     .with_subjects([group]),
                 );
             }
-            Ok(found.into())
+            let reevaluated = networks
+                .iter()
+                .flat_map(|n| [(*n, SITE_MISMATCH.id), (*n, DOMAIN_MISMATCH.id)])
+                .collect();
+            Ok(Findings {
+                violations: found,
+                reevaluated,
+            })
         })
     }
 }

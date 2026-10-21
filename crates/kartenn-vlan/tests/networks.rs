@@ -203,6 +203,31 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn site_mismatch_anomaly_closes_once_corrected(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let paris = env.id("site", "paris").await;
+    env.applied(vec![core(json!({"op": "create_site", "slug": "lyon"}))])
+        .await;
+    let lyon = env.id("site", "lyon").await;
+    let vlan = env
+        .vlan_in("dc-paris", json!({"site": {"id": paris}}), 10)
+        .await;
+    let network = env.prefix("10.2.0.0/24", "network").await;
+    env.applied(vec![
+        env.assign(network, "core.site", lyon).await,
+        env.assign(network, "vlan.vlan", vlan).await,
+    ])
+    .await;
+    assert!(env.anomaly(network, "vlan.site.mismatch").await);
+    // The network moves to Paris, a change of the core alone: the anomaly closes.
+    let applied = env
+        .applied(vec![env.assign(network, "core.site", paris).await])
+        .await;
+    assert!(warnings(&applied).is_empty(), "{applied:?}");
+    assert!(!env.anomaly(network, "vlan.site.mismatch").await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
 async fn v4_and_v6_networks_on_one_vlan(pool: PgPool) {
     let env = Env::new(&pool).await;
     let lab = env.id("addressing_domain", "lab").await;
