@@ -100,9 +100,10 @@ async fn event(
     Ok(())
 }
 
-/// Ends a pending changeset (`rejected` by `by`, or `withdrawn`), with its event.
+/// Ends a pending changeset (`rejected` by `by`, or `withdrawn`), with its event, in the
+/// transaction of `conn`.
 pub(crate) async fn close(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     id: Uuid,
     state: &str,
     by: Uuid,
@@ -110,7 +111,6 @@ pub(crate) async fn close(
     audit: &AuditEvent,
     instance: &Instance,
 ) -> Result<bool, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
     let author: Option<Uuid> = sqlx::query_scalar(
         "UPDATE changeset SET state = $2,
                 validator_id = CASE WHEN $2 = 'rejected' THEN $3 END, rejection = $4
@@ -120,39 +120,50 @@ pub(crate) async fn close(
     .bind(state)
     .bind(by)
     .bind(rejection)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(store_err)?;
     let Some(author) = author else {
         return Ok(false);
     };
-    event(&mut tx, id, state, author, Some(by), rejection).await?;
-    crate::audit_journal::insert(&mut *tx, audit, instance).await?;
-    tx.commit().await.map_err(store_err)?;
+    event(conn, id, state, author, Some(by), rejection).await?;
+    crate::audit_journal::insert(&mut *conn, audit, instance).await?;
     Ok(true)
 }
 
-/// Expires the changesets pending past their deadline, with their events.
-pub(crate) async fn expire(pool: &PgPool, instance: &Instance) -> Result<Vec<Uuid>, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
-    let expired: Vec<(Uuid, Uuid)> = sqlx::query_as(
+/// Expires the changesets pending past their deadline, with their events, in the
+/// transaction of `conn`.
+pub(crate) async fn expire(
+    conn: &mut PgConnection,
+    instance: &Instance,
+) -> Result<Vec<PendingChangeset>, StoreError> {
+    type Expired = (
+        Uuid,
+        serde_json::Value,
+        String,
+        String,
+        Option<serde_json::Value>,
+        Uuid,
+    );
+    let rows: Vec<Expired> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "UPDATE changeset SET state = 'expired'
-         WHERE state = 'pending' AND expires_at <= now() RETURNING id, author_id",
-    )
-    .fetch_all(&mut *tx)
+         WHERE state = 'pending' AND expires_at <= now() RETURNING {COLUMNS}, author_id"
+    )))
+    .fetch_all(&mut *conn)
     .await
     .map_err(store_err)?;
-    for (id, author) in &expired {
-        event(&mut tx, *id, "expired", *author, None, None).await?;
+    let mut expired = Vec::with_capacity(rows.len());
+    for (id, request, kind, state, required, author) in rows {
+        event(conn, id, "expired", author, None, None).await?;
         let audit = RequestContext::system()
             .event(&CHANGESET_EXPIRED, Outcome::Success)
             .map_err(store_err)?
-            .target("changeset", [*id])
-            .changeset(*id);
-        crate::audit_journal::insert(&mut *tx, &audit, instance).await?;
+            .target("changeset", [id])
+            .changeset(id);
+        crate::audit_journal::insert(&mut *conn, &audit, instance).await?;
+        expired.push(decode((id, request, kind, state, required))?);
     }
-    tx.commit().await.map_err(store_err)?;
-    Ok(expired.into_iter().map(|(id, _)| id).collect())
+    Ok(expired)
 }
 
 /// The event of a changeset journaled in a state other than `applied` and `refused`.

@@ -573,21 +573,6 @@ impl Store for PgStore {
         crate::pending::find(&self.pool, id).await
     }
 
-    async fn close_pending(
-        &self,
-        id: Uuid,
-        state: &'static str,
-        by: Uuid,
-        rejection: Option<&str>,
-        audit: &kartenn_core::audit::AuditEvent,
-    ) -> Result<bool, StoreError> {
-        crate::pending::close(&self.pool, id, state, by, rejection, audit, &self.instance).await
-    }
-
-    async fn expire_pending(&self) -> Result<Vec<Uuid>, StoreError> {
-        crate::pending::expire(&self.pool, &self.instance).await
-    }
-
     async fn pending_proposals(&self) -> Result<Vec<PendingChangeset>, StoreError> {
         crate::pending::proposals(&self.pool).await
     }
@@ -2672,6 +2657,35 @@ impl WriteTx for PgTx {
     async fn journal_job(&mut self, job: &str) -> Result<(), StoreError> {
         let key = job.replacen('.', ":", 1);
         self.write_events(None, &[], &[key]).await
+    }
+
+    async fn close_pending(
+        &mut self,
+        id: Uuid,
+        state: &'static str,
+        by: Uuid,
+        rejection: Option<&str>,
+        audit: &kartenn_core::audit::AuditEvent,
+    ) -> Result<bool, StoreError> {
+        crate::pending::close(
+            &mut self.tx,
+            id,
+            state,
+            by,
+            rejection,
+            audit,
+            &self.instance,
+        )
+        .await
+    }
+
+    async fn expire_pending(&mut self) -> Result<Vec<PendingChangeset>, StoreError> {
+        crate::pending::expire(&mut self.tx, &self.instance).await
+    }
+
+    async fn journal_ended(&mut self, changeset: Uuid) -> Result<(), StoreError> {
+        self.write_events(Some(changeset), &[], &[format!("changeset:{changeset}")])
+            .await
     }
 
     #[tracing::instrument(name = "COMMIT", skip_all, fields(

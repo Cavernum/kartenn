@@ -11,7 +11,8 @@ use crate::audit::{Outcome as AuditOutcome, RequestContext, denial};
 use crate::authz::{Authorizer, Subject};
 use crate::declarations::SYSTEM_AUTHOR;
 use crate::expected::Sources;
-use crate::operations::ChangesetRequest;
+use crate::module::{EndContext, Ending, ModuleRegistry};
+use crate::operations::{ChangesetRequest, ModuleOperation, Operation};
 use crate::pipeline::{APPROVE_PERMISSION, Mode, Outcome, PendingKind, Planned, RequestError, run};
 use crate::port::{ApprovalPolicy, DiffCount, PendingChangeset, Store, StoreError, WriteTx};
 
@@ -340,18 +341,96 @@ pub async fn reject<S: Store, A: Authorizer>(
         id,
         Some(motive),
     )?;
-    if store
-        .close_pending(id, "rejected", validator.id, Some(motive), &event)
+    let ended = Ended {
+        found: &found,
+        how: Ending::Rejected,
+        by: validator.id,
+        motive: Some(motive),
+    };
+    end(store, &ended, &event).await
+}
+
+/// A pending changeset that ends without being applied, as a decision.
+struct Ended<'a> {
+    found: &'a PendingChangeset,
+    how: Ending,
+    by: Uuid,
+    motive: Option<&'a str>,
+}
+
+/// Ends a pending changeset in one transaction: its state, its events, then the modules
+/// whose operations it holds, any failure of which rolls it all back (REQ-016-9).
+async fn end<S: Store>(
+    store: &S,
+    ended: &Ended<'_>,
+    event: &kartenn_core::audit::AuditEvent,
+) -> Result<(), RequestError> {
+    let id = ended.found.id;
+    let state = match ended.how {
+        Ending::Rejected => "rejected",
+        Ending::Withdrawn => "withdrawn",
+        Ending::Expired => "expired",
+    };
+    let mut tx = store.begin().await?;
+    if !tx
+        .close_pending(id, state, ended.by, ended.motive, event)
         .await?
     {
-        Ok(())
-    } else {
-        Err(refused(
+        tx.rollback().await?;
+        return Err(refused(
             &rules::CHANGESET_NOT_PENDING,
             format!("changeset {id} is not pending"),
             id,
-        ))
+        ));
     }
+    let notified = notify(
+        &mut tx,
+        store.modules(),
+        ended.found,
+        ended.how,
+        Some(ended.by),
+        ended.motive,
+    )
+    .await;
+    match notified {
+        Ok(()) => tx.commit().await.map_err(RequestError::from),
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e.into())
+        }
+    }
+}
+
+/// Tells the modules whose operations `found` holds that it ended (REQ-016-9), then
+/// writes the events they emitted.
+async fn notify<T: WriteTx>(
+    tx: &mut T,
+    modules: &ModuleRegistry,
+    found: &PendingChangeset,
+    how: Ending,
+    by: Option<Uuid>,
+    motive: Option<&str>,
+) -> Result<(), StoreError> {
+    let mut by_module: BTreeMap<&str, Vec<&ModuleOperation>> = BTreeMap::new();
+    for op in &found.request.operations {
+        if let Operation::Module(op) = op {
+            by_module.entry(op.module.as_str()).or_default().push(op);
+        }
+    }
+    for (module, operations) in by_module {
+        let Some(handler) = modules.get(module).and_then(|m| m.handler()) else {
+            continue;
+        };
+        let context = EndContext {
+            changeset: found.id,
+            how,
+            motive,
+            by,
+            operations,
+        };
+        handler.ended(tx.module_tx(), &context).await?;
+    }
+    tx.journal_ended(found.id).await
 }
 
 /// Withdraws a pending changeset, by its author only (REQ-004-23).
@@ -377,18 +456,13 @@ pub async fn withdraw<S: Store>(store: &S, id: Uuid, author: Uuid) -> Result<(),
         id,
         None,
     )?;
-    if store
-        .close_pending(id, "withdrawn", author, None, &event)
-        .await?
-    {
-        Ok(())
-    } else {
-        Err(refused(
-            &rules::CHANGESET_NOT_PENDING,
-            format!("changeset {id} is not pending"),
-            id,
-        ))
-    }
+    let ended = Ended {
+        found: &found,
+        how: Ending::Withdrawn,
+        by: author,
+        motive: None,
+    };
+    end(store, &ended, &event).await
 }
 
 /// The event of a decision on a pending changeset.
@@ -415,7 +489,24 @@ fn decision(
 ///
 /// [`StoreError`] on infrastructure failure.
 pub async fn expire_pending<S: Store>(store: &S) -> Result<Vec<Uuid>, StoreError> {
-    store.expire_pending().await
+    let mut tx = store.begin().await?;
+    let expired = match tx.expire_pending().await {
+        Ok(expired) => expired,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e);
+        }
+    };
+    // The modules learn of each expiry in the same transaction (REQ-016-9): a failure
+    // leaves every changeset pending, for the next run.
+    for found in &expired {
+        if let Err(e) = notify(&mut tx, store.modules(), found, Ending::Expired, None, None).await {
+            tx.rollback().await?;
+            return Err(e);
+        }
+    }
+    tx.commit().await?;
+    Ok(expired.into_iter().map(|found| found.id).collect())
 }
 
 /// The proposals `maintainer` may validate: every write permission they require is

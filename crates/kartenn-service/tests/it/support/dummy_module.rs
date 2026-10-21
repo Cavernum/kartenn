@@ -10,8 +10,9 @@ use std::sync::Arc;
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Findings, Module, ModuleHandler, ModuleMigration, ModuleObjectRow,
-    ModulePlan, ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType, Reference,
+    BoxFuture, CheckContext, EndContext, Findings, Module, ModuleHandler, ModuleMigration,
+    ModuleObjectRow, ModulePlan, ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType,
+    Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -59,15 +60,24 @@ static OPERATIONS: &[OperationType] = &[
     },
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "thing",
-    sql: "CREATE TABLE thing (id uuid NOT NULL, label text NOT NULL, prefix_id uuid, domain_ref uuid, \
-          valid_period tstzrange NOT NULL, sys_start timestamptz NOT NULL DEFAULT now(), \
-          changeset_id uuid NOT NULL, PRIMARY KEY (id, valid_period WITHOUT OVERLAPS), \
-          UNIQUE (label, valid_period WITHOUT OVERLAPS)); \
-          CALL kartenn_make_versioned('thing');",
-}];
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "thing",
+        sql: "CREATE TABLE thing (id uuid NOT NULL, label text NOT NULL, prefix_id uuid, domain_ref uuid, \
+              valid_period tstzrange NOT NULL, sys_start timestamptz NOT NULL DEFAULT now(), \
+              changeset_id uuid NOT NULL, PRIMARY KEY (id, valid_period WITHOUT OVERLAPS), \
+              UNIQUE (label, valid_period WITHOUT OVERLAPS)); \
+              CALL kartenn_make_versioned('thing');",
+    },
+    // What the module learned of the pending changesets that ended (016-10).
+    ModuleMigration {
+        version: 2,
+        name: "ending",
+        sql: "CREATE TABLE ending (changeset_id uuid NOT NULL, how text NOT NULL, motive text, \
+              by_id uuid, operations integer NOT NULL);",
+    },
+];
 
 /// The versioned table of the things.
 const TABLE: &str = "dummy.thing";
@@ -336,6 +346,33 @@ impl ModuleHandler for Handler {
         tx: &'a mut dyn ModuleTx,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move { tx.emit("dummy.created", None, serde_json::json!({"job": name})) })
+    }
+
+    fn ended<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a EndContext<'a>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let conn = connection(tx)?;
+            sqlx::query(
+                "INSERT INTO dummy.ending (changeset_id, how, motive, by_id, operations)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(context.changeset)
+            .bind(format!("{:?}", context.how))
+            .bind(context.motive)
+            .bind(context.by)
+            .bind(i32::try_from(context.operations.len()).unwrap_or(i32::MAX))
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StoreError(e.to_string()))?;
+            // A motive `fail` makes the module fail: the ending is rolled back.
+            if context.motive == Some("fail") {
+                return Err(StoreError("the module refuses this ending".into()));
+            }
+            Ok(())
+        })
     }
 
     fn close<'a>(

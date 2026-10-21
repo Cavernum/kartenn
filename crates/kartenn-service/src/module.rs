@@ -252,6 +252,33 @@ pub struct CheckContext<'a> {
     pub sections: &'a [DiffSection],
 }
 
+/// How a pending changeset ended without being applied (REQ-016-9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ending {
+    /// Rejected by a validator, with a motive.
+    Rejected,
+    /// Withdrawn by its author.
+    Withdrawn,
+    /// Pending past its deadline.
+    Expired,
+}
+
+/// What a module learns of a pending changeset that ends without being applied
+/// (REQ-016-9, G11).
+#[derive(Debug, Clone)]
+pub struct EndContext<'a> {
+    /// The changeset.
+    pub changeset: Uuid,
+    /// How it ended.
+    pub how: Ending,
+    /// The motive of a rejection.
+    pub motive: Option<&'a str>,
+    /// The identity that decided; `None` for an expiry.
+    pub by: Option<Uuid>,
+    /// The operations of the module in the changeset, in their order.
+    pub operations: Vec<&'a ModuleOperation>,
+}
+
 impl CheckContext<'_> {
     /// The section named `name`, if a module produced it.
     #[must_use]
@@ -511,6 +538,18 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         tx: &'a mut dyn ModuleTx,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         let _ = (name, tx);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    /// A pending changeset holding operations of the module ends without being applied
+    /// (rejected, withdrawn, expired), in the transaction that ends it: an error rolls the
+    /// ending back (REQ-016-9). Nothing by default.
+    fn ended<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a EndContext<'a>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (tx, context);
         Box::pin(std::future::ready(Ok(())))
     }
 }

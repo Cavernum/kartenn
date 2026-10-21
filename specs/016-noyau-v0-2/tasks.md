@@ -147,13 +147,28 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## File C — Changesets et identités (004, 005, 006, 012)
 
-- [ ] 10. Crochet de fin de proposition — REQ-016-9 — verify :
+- [x] 10. Crochet de fin de proposition — REQ-016-9 — verify :
   `a_rejection_calls_the_module_in_its_transaction`, retrait et expiration, échec du
   module annule le rejet
   - où : `module.rs` (`ModuleHandler::ended`), `review.rs` (`reject`, `withdraw`,
     `expire_pending`)
   - dépend de : 9 (rebase sur `module.rs`)
   - débloque : 011-6
+  — Service : `module.rs` (`Ending`, `EndContext { changeset, how, motive, by,
+  operations }`, `ModuleHandler::ended` sans effet par défaut), `review.rs` (`end` et
+  `notify` : la fin, ses événements et l'appel des modules dans une transaction ;
+  `expire_pending` dans une transaction, les modules appelés pour chaque changeset expiré),
+  `port.rs` (`close_pending` et `expire_pending` passent de `Store` à `WriteTx`,
+  `journal_ended`). Store : `pending.rs` (`close`, `expire` sur la connexion de la
+  transaction, `expire` rend les changesets), `write.rs`. Tests :
+  `kartenn-service/tests/it/module_ending.rs` (`a_rejection_calls_the_module_in_its_transaction`,
+  `a_withdrawal_and_an_expiry_call_the_module`, `a_failing_module_rolls_the_rejection_back`),
+  module factice `dummy` doté d'une table `ending` (migration 2) et de `ended`.
+  choix : le module reçoit ses opérations telles que soumises (`ModuleOperation`) et non
+  des plans (`plans` du design) : planifier demanderait l'état de la soumission ; un module
+  en échec à l'expiration laisse tous les changesets du passage en attente (relancés au
+  passage suivant) ; les événements émis par un module à la fin d'une proposition sont
+  ordonnés sous `changeset:<id>`.
 - [ ] 11. Proposition forcée, permission de validation, opérations de revue —
   REQ-016-10, 11 — verify : `a_reviewed_operation_makes_a_proposal_despite_write`,
   `validation_needs_the_review_permission`, `review_operations_apply_with_the_proposal`,
