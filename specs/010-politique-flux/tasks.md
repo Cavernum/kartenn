@@ -214,11 +214,23 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P3 — Lectures et requêtes
 
-- [ ] 12. Lectures datées des objets de politique et cache de l'instantané (révision,
+- [x] 12. Lectures datées des objets de politique et cache de l'instantané (révision,
   LRU des instantanés passés) — REQ-010-16, 26 — verify : cas d'acceptation de
   REQ-010-16
   - où : `crates/kartenn-service/src/reads.rs`
   - dépend de : 8
+  — `kartenn-policy/src/read.rs` (`parts` : une requête par table, table courante et
+  historique à `as_of` ; `revision` ; `stable_span` : dernière et prochaine borne d'une
+  version autour de `valid_at`), `src/cache.rs` (`SnapshotCache::snapshot` : présent gardé
+  sous la révision, relue à chaque demande ; passé immuable ; LRU de 16 entrées). Tests :
+  `tests/it/dated.rs` (`a_verdict_reads_the_policy_of_its_date`, cas d'acceptation de
+  REQ-010-16 ; `snapshots_are_kept_until_the_policy_changes`).
+  choix : un instantané est gardé pour tout l'intervalle de temps valide sans début ni fin
+  de version (une demande « maintenant » qui avance ne recharge pas) ; un instantané passé
+  cite la révision 0, le compteur n'étant pas versionné ; une citation d'un objet qui ne vit
+  pas à la date est omise de l'instantané, un service sans type vivant aussi ; une ligne
+  illisible est une erreur de stockage. Budget du chargement non mesuré ici : il revient au
+  banc 010-19.
 - [ ] 13. Requête de conformité : extrémités, axes portés par la machine (S27), objet,
   dossier, synthèse et issue, bornes, visibilité et explication réduite — REQ-010-13,
   14, 15, 25, 31, 38 — verify : cas d'acceptation de REQ-010-13, 14, 25, 31 ;
