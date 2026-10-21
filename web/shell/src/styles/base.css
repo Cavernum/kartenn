@@ -447,3 +447,56 @@ textarea {
   font: inherit;
   color: inherit;
 }
+
+/* The drawer of the draft (REQ-007-26): a non-modal column at the right of the page. */
+.k-layout:has(.k-draft) {
+  grid-template-columns: 14rem 1fr minmax(20rem, 28rem);
+}
+
+.k-draft {
+  grid-row: 2;
+  grid-column: 3;
+  padding: var(--k-space-3);
+  border-left: 1px solid var(--k-color-border);
+  background: var(--k-color-surface);
+  overflow-y: auto;
+  max-height: calc(100vh - 3.5rem);
+  position: sticky;
+  top: 0;
+}
+
+.k-draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-space-2);
+}
+
+.k-draft textarea {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  color: inherit;
+}
+
+.k-draft-operations {
+  padding-left: var(--k-space-3);
+}
+
+.k-draft-operations > li {
+  margin-bottom: var(--k-space-3);
+}
+
+.k-draft-operations label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-space-1);
+}
+
+.k-draft-violations {
+  margin: var(--k-space-1) 0;
+  padding-left: var(--k-space-3);
+}
+
+.k-warning {
+  font-style: italic;
+}

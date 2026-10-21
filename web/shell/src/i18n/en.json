@@ -421,5 +421,40 @@
       "yours": "Your input",
       "resume": "Resume on the new version"
     }
+  },
+  "draft": {
+    "toggle": "Draft ({count})",
+    "title": "Draft",
+    "close": "Close the draft",
+    "unavailable": "The draft is not available in this browser (local storage refused); the quick edit remains possible.",
+    "readonly": "Reading the past: the draft can be neither changed nor submitted.",
+    "empty": "The draft is empty.",
+    "operation": "Operation {n}",
+    "remove": "Remove operation {n}",
+    "invalidJson": "Invalid JSON: {detail}",
+    "notObject": "an operation is a JSON object",
+    "add": {
+      "label": "New operation (JSON of the contract)",
+      "button": "Add to the draft"
+    },
+    "motive": "Motive",
+    "validFrom": "Start of the period (RFC 3339, optional)",
+    "validTo": "End of the period (RFC 3339, optional)",
+    "simulation": {
+      "idle": "Not simulated yet.",
+      "running": "Simulating…",
+      "valid": "Valid simulation: {diff} line(s) of differential, {cascaded} closure(s) by cascade.",
+      "invalid": "Invalid simulation: {count} error(s).",
+      "failed": "Simulation impossible: {detail}",
+      "warnings": "{count} warning(s)."
+    },
+    "submit": "Submit the draft",
+    "retry": "Retry",
+    "clear": "Empty the draft",
+    "applied": "Changeset applied.",
+    "pending": "Changeset awaiting approval.",
+    "changeset": "See the changeset",
+    "network": "Network unavailable: the submission did not go through. “Retry” sends the same key, without duplicate.",
+    "failed": "Submission refused: {detail}"
   }
 }

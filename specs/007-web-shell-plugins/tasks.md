@@ -493,7 +493,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   le shell montre les deux comme un refus (« Vous n'avez pas le droit de faire cela. »),
   saisie gardée ; le lien du changeset vise `/changesets/<id>` (écran de la tâche 21) ;
   valeurs des listes fermées (nature, usage) affichées telles que le contrat les nomme
-- [ ] 20. Brouillon : magasin IndexedDB, onglets, simulation continue, soumission
+- [x] 20. Brouillon : magasin IndexedDB, onglets, simulation continue, soumission
   idempotente, identité, ajout par les plugins — REQ-007-26, 27 — verify : Vitest
   (`fake-indexeddb`) : clés par identité et onglet, onglet dupliqué, brouillons d'une
   autre identité effacés sans lecture, clé reprise tant que le contenu ne change pas ;
@@ -502,6 +502,23 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   → brouillon intact ; déconnexion → brouillon effacé
   où : design « Écriture » (brouillon), « Erreurs et cas limites » ; 004 REQ-004-9 ;
   `web/shell/src/draft/`
+  — `web/shell/src/draft/store.ts` (IndexedDB `kartenn-drafts`, clé
+  `<identité>:<onglet>`, index `identity`, purge des autres identités par curseur de clés,
+  purge à 30 jours, connexion fermée après chaque transaction), `tab.ts` (identifiant en
+  `sessionStorage`, onglet dupliqué détecté par `BroadcastChannel`), `index.ts`
+  (`DraftController` : simulation 500 ms après le dernier changement, précédente annulée ;
+  clé d'idempotence écrite avant l'envoi et reprise tant que `contentHash` ne change pas ;
+  201/202 efface, 422 garde, 409 réessaie, réseau → « Réessayer » ; `installDraft` suit
+  l'identité de la session et reçoit le `draft.add` des plugins), `DraftDrawer.vue`
+  (tiroir non modal), bouton « Brouillon (n) » dans `AppShell.vue`, catalogues `draft.*` ;
+  dépendance de développement `fake-indexeddb`. Tests : `draft/draft.test.ts` (les quatre
+  du verify, plus purge à 30 jours), `e2e/journeys/draft.spec.ts` (les trois parcours) ;
+  `example.spec.ts` admet les simulations parmi les requêtes du brouillon.
+  choix : une opération s'ajoute ou se corrige au JSON du contrat dans le tiroir (pas de
+  formulaire par type d'opération ; la modification rapide reste le parcours guidé) ; le
+  tiroir est une colonne non modale ; un brouillon est écrit en copie JSON (le proxy
+  réactif ne passe pas le clonage structuré d'IndexedDB) ; la déconnexion efface déjà les
+  bases `kartenn*` (tâche 14), sans code de plus.
 - [x] 21. Changesets : liste filtrée, fiche et différentiel, validation, rejet, retrait,
   annulation, propositions — REQ-007-18 — verify : E2E : proposition de Bob validée par
   Alice puis annulée, chaque étape visible

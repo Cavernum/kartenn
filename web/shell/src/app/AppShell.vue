@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import DraftDrawer from "../draft/DraftDrawer.vue";
+import { useDraft } from "../draft/index.ts";
 import { visibleEntries } from "../navigation.ts";
 import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
@@ -17,6 +19,9 @@ const entries = computed(() => visibleEntries(session.value.rights));
 const views = computed(() =>
   extensionsOf(plugins.value, "view", session.value.rights).filter((v) => v.nav),
 );
+// The draft (REQ-007-26): its count in the header, its drawer beside the page.
+const draft = useDraft().state;
+const drafted = computed(() => draft.record?.operations.length ?? 0);
 </script>
 
 <template>
@@ -25,6 +30,16 @@ const views = computed(() =>
     <header class="k-header">
       <RouterLink class="k-brand" to="/">{{ t("app.name") }}</RouterLink>
       <SearchBox />
+      <button
+        v-if="session.me"
+        type="button"
+        class="k-draft-toggle"
+        :aria-expanded="draft.open"
+        aria-controls="k-draft"
+        @click="draft.open = !draft.open"
+      >
+        {{ t("draft.toggle", { count: drafted }) }}
+      </button>
       <UserMenu />
     </header>
     <nav class="k-nav" :aria-label="t('app.navigation')">
@@ -48,6 +63,7 @@ const views = computed(() =>
       <TimeBanner />
       <RouterView />
     </main>
+    <DraftDrawer v-if="draft.open && session.me" />
   </div>
   <SessionDialog />
 </template>
