@@ -213,7 +213,7 @@ fn policy(name: &str, min_diff_objects: u64) -> Operation {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // REQ-004-39: no policy, no wait.
@@ -308,7 +308,7 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![Operation::SetApprovalPolicy {
@@ -433,7 +433,7 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
     assert_eq!(held_system, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let maintainer = person(&pool, "maintainer").await;
@@ -523,7 +523,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_approval_checks_the_author_with_the_groups_it_had(pool: PgPool) {
     // REQ-005-22: the author's groups live in its token; the pending changeset keeps them
     // so that the approval checks the author's rights again with them.

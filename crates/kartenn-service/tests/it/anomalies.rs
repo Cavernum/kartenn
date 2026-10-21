@@ -29,7 +29,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
@@ -142,7 +142,7 @@ async fn anomalies_are_recorded_acknowledged_and_closed(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_changeset_closes_only_the_anomalies_of_the_rules_it_evaluated(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
@@ -214,7 +214,7 @@ async fn a_changeset_closes_only_the_anomalies_of_the_rules_it_evaluated(pool: P
     assert_eq!(still_open[0].object_id, net);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn anomalies_are_listed_by_domain_and_entity_ranges_included(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",

@@ -57,8 +57,16 @@ fn expand(args: proc_macro2::TokenStream, input: ItemFn) -> syn::Result<proc_mac
         syn::ReturnType::Default => quote! { () },
         syn::ReturnType::Type(_, ty) => quote! { #ty },
     };
+    // `#[sqlx::test]` hid the test function from these style lints, which a scenario often
+    // trips (longer than 100 lines, `a1`/`a2`, `a`…`e`); this attribute does the same, so
+    // that the bodies do not change (ADR 0028).
     Ok(quote! {
         #[::core::prelude::v1::test]
+        #[allow(
+            clippy::too_many_lines,
+            clippy::similar_names,
+            clippy::many_single_char_names
+        )]
         #(#attrs)*
         #vis fn #name() -> #output {
             #sig #block

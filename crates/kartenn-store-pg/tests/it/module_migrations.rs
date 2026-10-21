@@ -58,7 +58,7 @@ async fn books(pool: &PgPool) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_migrations_apply_once(pool: PgPool) {
     migrate(&pool, &registry(FIRST)).await.unwrap();
     migrate(&pool, &registry(FIRST)).await.unwrap();
@@ -78,7 +78,7 @@ async fn module_migrations_apply_once(pool: PgPool) {
     assert!(!in_public);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_changed_migration_stops_the_job(pool: PgPool) {
     migrate(&pool, &registry(FIRST)).await.unwrap();
     let error = migrate(&pool, &registry(CHANGED)).await.unwrap_err();
@@ -93,7 +93,7 @@ async fn a_changed_migration_stops_the_job(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_build_without_the_module_leaves_its_schema(pool: PgPool) {
     migrate(&pool, &registry(FIRST)).await.unwrap();
     migrate(&pool, ModuleRegistry::empty()).await.unwrap();
@@ -106,7 +106,7 @@ async fn a_build_without_the_module_leaves_its_schema(pool: PgPool) {
     assert_eq!(tracked, 2);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_object_is_versioned(pool: PgPool) {
     let history: bool =
         sqlx::query_scalar("SELECT to_regclass('public.module_object_history') IS NOT NULL")

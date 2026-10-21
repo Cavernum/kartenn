@@ -27,7 +27,7 @@ async fn id_of(pool: &PgPool, value: &str) -> Uuid {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_tree_is_deduced_and_measured(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",

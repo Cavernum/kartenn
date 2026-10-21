@@ -7,7 +7,7 @@ use kartenn_store_pg::audit_journal::PgAuditJournal;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_event_of_the_catalogue_validates_the_schema(pool: PgPool) {
     let schema = jsonschema::draft202012::new(&event_schema()).expect("a valid schema");
     let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));

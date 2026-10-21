@@ -173,7 +173,7 @@ async fn node(pool: &PgPool, table: &str, slug: &str, parent: Option<Uuid>) -> U
     query.fetch_one(pool).await.unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_natural_key_is_a_filter(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let dmz = domain(&pool, "dmz").await;
@@ -211,7 +211,7 @@ async fn the_natural_key_is_a_filter(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_collection_reads_with_its_summaries(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     prefix(&pool, lab, "10.1.2.0/24").await;
@@ -255,7 +255,7 @@ async fn every_collection_reads_with_its_summaries(pool: PgPool) {
     assert_eq!(body["items"][0]["id"], site.to_string());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_rename_keeps_the_url_and_makes_history(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let id = prefix(&pool, lab, "10.1.2.0/24").await;
@@ -307,7 +307,7 @@ async fn address(pool: &PgPool, domain: Uuid, value: &str) -> Uuid {
     insert(pool, &sql, &[&domain.to_string(), value]).await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn children_and_history_page_by_cursor(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
@@ -367,7 +367,7 @@ async fn children_and_history_page_by_cursor(pool: PgPool) {
     assert_eq!(body["links"]["next"], Value::Null);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn history_keeps_the_versions_valid_at_and_known_as_of(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let now = || async {
@@ -440,7 +440,7 @@ async fn not_found(app: &Router, uri: &str) -> Value {
     body
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_invisible_object_answers_as_an_absent_one(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let dmz = domain(&pool, "dmz").await;
@@ -491,7 +491,7 @@ fn ids_of(body: &Value) -> Vec<String> {
         .collect()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_tree_shows_only_what_the_caller_may_read(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let top = prefix_of(&pool, lab, "10.0.0.0/8", "container").await;
@@ -609,7 +609,7 @@ async fn the_tree_shows_only_what_the_caller_may_read(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let dmz = domain(&pool, "dmz").await;
@@ -721,7 +721,7 @@ async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
 
 /// A container with 10⁴ direct children (task 007-18): every page costs its own rows, the
 /// last as the first, and the pages together list each direct child once, in order.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_children_of_a_wide_container_come_page_by_page(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let wide = prefix_of(&pool, lab, "10.3.0.0/16", "container").await;
@@ -815,7 +815,7 @@ async fn anomaly(pool: &PgPool, author: Uuid, object: Uuid, rule: &str) -> Uuid 
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn anomalies_follow_the_visibility_of_their_object(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let dmz = domain(&pool, "dmz").await;
@@ -956,7 +956,7 @@ fn query_date(at: time::OffsetDateTime) -> String {
         .replace('+', "%2B")
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn properties_resolve_explain_and_mask(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let top = prefix_of(&pool, lab, "10.0.0.0/8", "container").await;
@@ -1064,7 +1064,7 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let net = prefix(&pool, lab, "10.1.2.0/24").await;
@@ -1128,7 +1128,7 @@ async fn walk(app: &Router, uri: &str) -> Vec<String> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let dmz = domain(&pool, "dmz").await;

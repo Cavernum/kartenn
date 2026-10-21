@@ -135,7 +135,7 @@ fn close(kind: ObjectKind, id: Uuid) -> Operation {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn trees_refuse_cycles_and_missing_parents(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
@@ -203,7 +203,7 @@ async fn trees_refuse_cycles_and_missing_parents(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn anchors_in_use_stay_open(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.core().await;
@@ -314,7 +314,7 @@ async fn owned(f: &Fixture) {
         .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn sites_on_networks_and_fixed_domains(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     owned(&f).await;
@@ -361,7 +361,7 @@ async fn sites_on_networks_and_fixed_domains(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_owner_is_resolved_and_guarded(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     owned(&f).await;

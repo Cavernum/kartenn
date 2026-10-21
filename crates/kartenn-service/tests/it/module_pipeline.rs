@@ -49,7 +49,7 @@ fn rules(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_mixed_changeset_is_atomic(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -130,7 +130,7 @@ async fn a_mixed_changeset_is_atomic(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM module_object").await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_unknown_module_operation_is_refused_before_locks(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -167,7 +167,7 @@ async fn an_unknown_module_operation_is_refused_before_locks(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM changeset").await, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn approval_policy_counts_module_operations(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -211,7 +211,7 @@ async fn approval_policy_counts_module_operations(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Pending { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_write_needs_its_permission(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -233,7 +233,7 @@ async fn module_write_needs_its_permission(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_module_operation_plans_core_operations(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -269,7 +269,7 @@ async fn a_module_operation_plans_core_operations(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM dummy.thing").await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn named_lock_keys_do_not_deadlock(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -346,7 +346,7 @@ fn close(id: Uuid) -> Operation {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_object_has_etag_and_history(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -443,7 +443,7 @@ async fn module_object_has_etag_and_history(pool: PgPool) {
     assert_eq!(rules(&outcome), ["changeset.operation.no_version"]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn undo_closes_a_created_module_object(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -472,7 +472,7 @@ async fn undo_closes_a_created_module_object(pool: PgPool) {
     assert_eq!(current_label(&pool, id).await, None);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn undo_restores_a_modified_module_object(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let author = person(&pool).await;
@@ -561,7 +561,7 @@ fn subjects(outcome: &Outcome, rule: &str) -> Vec<Uuid> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_referenced_core_object_is_refused_with_dependents(pool: PgPool) {
     use kartenn_service::ObjectKind;
     let store = dummy::store(&pool).await;
@@ -585,7 +585,7 @@ async fn closing_a_referenced_core_object_is_refused_with_dependents(pool: PgPoo
     assert_eq!(current_label(&pool, thing).await.as_deref(), Some("a"));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn cascade_closes_module_dependents(pool: PgPool) {
     use kartenn_service::ObjectKind;
     let store = dummy::store(&pool).await;
@@ -612,7 +612,7 @@ async fn cascade_closes_module_dependents(pool: PgPool) {
     assert_eq!(live, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn nullify_policy_unassigns(pool: PgPool) {
     use kartenn_service::ObjectKind;
     let store = dummy::store(&pool).await;
@@ -669,7 +669,7 @@ async fn nullify_policy_unassigns(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn bind_external_on_module_object(pool: PgPool) {
     use kartenn_service::port::Store as _;
     let store = dummy::store(&pool).await;

@@ -162,7 +162,7 @@ fn update_prefix(id: Uuid, prefix: Option<&str>, nature: Option<Nature>) -> Oper
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_portion_splits_and_merges_back(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(
@@ -220,7 +220,7 @@ async fn a_portion_splits_and_merges_back(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_modification_is_checked_like_a_creation(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(
@@ -281,7 +281,7 @@ async fn a_modification_is_checked_like_a_creation(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn resizing_keeps_the_identifier_and_checks_the_content(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(
@@ -334,7 +334,7 @@ async fn resizing_keeps_the_identifier_and_checks_the_content(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_stale_modification_is_a_conflict(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let first = f
@@ -370,7 +370,7 @@ async fn a_stale_modification_is_a_conflict(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn resizing_moves_the_inheritance(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let declaration = DeclarationInput {
@@ -465,7 +465,7 @@ impl Rng {
 
 /// The splitting in the database matches the model of task 004-3 (REQ-004-14, 15) on
 /// random sequences of modifications and closures of one address.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_database_splits_like_the_model(pool: PgPool) {
     const USAGES: [AddressUsage; 3] = [
         AddressUsage::Host,
@@ -525,7 +525,7 @@ async fn the_database_splits_like_the_model(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_operation_may_have_its_own_period(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(

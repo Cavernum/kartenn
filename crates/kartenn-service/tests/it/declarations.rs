@@ -138,7 +138,7 @@ fn text(max_len: usize) -> TypeInput {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_administrator_declares_custom_properties(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // REQ-003-1, 2: `custom.*`, built-in types, closed-list values in the same changeset.
@@ -204,7 +204,7 @@ fn the_api_cannot_declare_on_behalf_of_a_module() {
     assert!(serde_json::from_str::<Operation>(module_type).is_err());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn declarations_evolve_only_compatibly(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![declare(1, input("custom.cost_centre", text(20)))])
@@ -260,7 +260,7 @@ async fn declarations_evolve_only_compatibly(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_values_and_properties(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
@@ -330,7 +330,7 @@ fn policy(values: &[&str], carriers: &[&str]) -> ModuleDeclarations {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_declarations_follow_the_code(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let sync = |module: ModuleDeclarations| {
@@ -403,7 +403,7 @@ async fn module_declarations_follow_the_code(pool: PgPool) {
     assert_eq!(current, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
@@ -461,7 +461,7 @@ async fn a_value_is_offered_only_from_its_opening(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn entity_and_site_trees_inherit_among_their_objects(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // 003-18: a carrier outside the tree is refused, the tree's own kind accepted.
@@ -528,7 +528,7 @@ async fn obligations(pool: &PgPool, property: Uuid) -> Vec<(String, Option<Uuid>
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn admin_obligation_survives_module_sync(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let sync = |module: ModuleDeclarations| {
@@ -579,7 +579,7 @@ async fn admin_obligation_survives_module_sync(pool: PgPool) {
     f.applied(vec![prefix_in(lab, "10.0.0.0/8")]).await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn incompatible_obligation_refused(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     sync_modules(

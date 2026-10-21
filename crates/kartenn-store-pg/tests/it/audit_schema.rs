@@ -12,7 +12,7 @@ const INSERT: &str = "INSERT INTO audit.event
     VALUES (gen_random_uuid(), 'authz.access.denied', 'WARN', $1, now(), $2, $3, $4, 'denied',
             '0.0.0', gen_random_uuid())";
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_application_only_inserts_and_reads(pool: PgPool) {
     let mut tx = pool.begin().await.unwrap();
     sqlx::query("SET LOCAL ROLE kartenn_app")
@@ -53,7 +53,7 @@ async fn the_application_only_inserts_and_reads(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_event_is_attributed(pool: PgPool) {
     let insert = |criticality: &'static str, kind: &'static str, claimed: Option<&'static str>| {
         let pool = pool.clone();
@@ -83,7 +83,7 @@ async fn every_event_is_attributed(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn partitions_by_criticality_and_month(pool: PgPool) {
     history_partitions(&pool, 3).await.unwrap();
     let month: String = sqlx::query_scalar(

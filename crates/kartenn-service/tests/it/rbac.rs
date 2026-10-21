@@ -205,7 +205,7 @@ impl Tree {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_object_has_its_owner_and_site(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let id = |name: &str| Some(t.ids[name]);
@@ -373,7 +373,7 @@ fn person(issuer: Option<&str>, groups: &[&str]) -> Subject {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn each_scope_reaches_its_subtree(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let reader = t.role("reader", &["core.address.read"]).await;
@@ -424,7 +424,7 @@ async fn each_scope_reaches_its_subtree(pool: PgPool) {
     assert!(t.allowed(&late, read, &OBJECTS).await.is_empty());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let reader = t.role("reader", &["core.address.read"]).await;
@@ -455,7 +455,7 @@ async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn patterns_and_global_permissions(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let editor = t.role("editor", &["prop.*.write"]).await;
@@ -513,7 +513,7 @@ fn now() -> OffsetDateTime {
     OffsetDateTime::now_utc()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn lists_hold_what_the_decision_allows(pool: PgPool) {
     // REQ-005-24: for every scope, a list keeps exactly the objects the unitary decision
     // allows, kind by kind.
@@ -611,7 +611,7 @@ async fn lists_hold_what_the_decision_allows(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_read_needs_its_right_and_masks_sensitive_values(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let authorizer = PgAuthorizer::new(pool.clone());
@@ -723,7 +723,7 @@ fn rules_of(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let editor = t
@@ -778,7 +778,7 @@ async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_right_to_propose_makes_a_proposal(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let proposer = t.role("proposer", &["core.address.propose"]).await;
@@ -812,7 +812,7 @@ fn set_role(key: &str, entries: &[&str]) -> Operation {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_delivered_roles_are_synchronised_once(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let first = sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
@@ -845,7 +845,7 @@ async fn the_delivered_roles_are_synchronised_once(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.role.builtin"]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_role_names_known_permissions_only(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -892,7 +892,7 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_administrator_binds_and_unbinds(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -956,7 +956,7 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
     assert!(audited[0].1.is_some() && audited[1].1.is_none());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_delegate_cannot_escalate(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -1015,7 +1015,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_undo_cannot_escalate(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -1073,7 +1073,7 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn issuers_and_identities_need_global_administration(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -1157,7 +1157,7 @@ async fn issuers_and_identities_need_global_administration(pool: PgPool) {
     assert_eq!(untouched, 2);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;
@@ -1221,7 +1221,7 @@ fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.identity().await;

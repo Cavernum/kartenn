@@ -28,7 +28,7 @@ async fn changeset(
     .await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
     let author = person(&pool).await?;
     assert!(changeset(&pool, author, "applied").await.is_ok());
@@ -76,7 +76,7 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn idempotency_keys_are_unique_per_identity(pool: PgPool) -> sqlx::Result<()> {
     let author = person(&pool).await?;
     let cs = changeset(&pool, author, "applied").await?;
@@ -98,7 +98,7 @@ async fn idempotency_keys_are_unique_per_identity(pool: PgPool) -> sqlx::Result<
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn outbox_records_the_writing_transaction(pool: PgPool) -> sqlx::Result<()> {
     let author = person(&pool).await?;
     let cs = changeset(&pool, author, "applied").await?;
@@ -121,7 +121,7 @@ async fn outbox_records_the_writing_transaction(pool: PgPool) -> sqlx::Result<()
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_application_role_never_deletes_audit(pool: PgPool) -> sqlx::Result<()> {
     let author = person(&pool).await?;
     let cs = changeset(&pool, author, "applied").await?;

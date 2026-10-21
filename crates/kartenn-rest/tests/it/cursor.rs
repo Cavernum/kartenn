@@ -204,7 +204,7 @@ async fn bind(pool: &PgPool, who: &Principal, domain: Uuid) -> Uuid {
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_cursor_is_signed_and_a_page_bounded(pool: PgPool) {
     let who = person(&pool).await;
     let lab = domain(&pool, 1).await;
@@ -240,7 +240,7 @@ async fn a_cursor_is_signed_and_a_page_bounded(pool: PgPool) {
     assert_eq!(last["links"]["next"], Value::Null);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn writes_between_pages_neither_skip_nor_repeat(pool: PgPool) {
     let who = person(&pool).await;
     let lab = domain(&pool, 1).await;
@@ -290,7 +290,7 @@ async fn writes_between_pages_neither_skip_nor_repeat(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_binding_removed_between_pages_closes_what_it_opened(pool: PgPool) {
     let who = person(&pool).await;
     let (lab, other) = (domain(&pool, 1).await, domain(&pool, 2).await);

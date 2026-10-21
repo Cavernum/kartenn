@@ -16,7 +16,7 @@ fn day(unix: i64) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp(unix).unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn slugs_resolve_at_a_date_and_follow_renames(pool: PgPool) -> sqlx::Result<()> {
     let id = Uuid::now_v7();
     sqlx::query(
@@ -48,7 +48,7 @@ async fn slugs_resolve_at_a_date_and_follow_renames(pool: PgPool) -> sqlx::Resul
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn addressing_keys_are_per_domain(pool: PgPool) -> sqlx::Result<()> {
     let (d1, d2, p1, a1) = (
         Uuid::now_v7(),
@@ -87,7 +87,7 @@ async fn addressing_keys_are_per_domain(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ranges_are_designated_by_both_bounds(pool: PgPool) -> sqlx::Result<()> {
     let (d1, d2, r1) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
     sqlx::query(
@@ -120,7 +120,7 @@ async fn ranges_are_designated_by_both_bounds(pool: PgPool) -> sqlx::Result<()> 
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn external_identifiers(pool: PgPool) -> sqlx::Result<()> {
     let (o1, o2) = (Uuid::now_v7(), Uuid::now_v7());
     bind_external(&pool, "legacy-ipam", "NET-42", o1, "prefix").await?;

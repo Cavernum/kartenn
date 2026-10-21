@@ -360,7 +360,7 @@ impl Kit {
 const GROUPS: [&str; 4] = ["g-branch", "g-vendor", "g-site", "g-lab"];
 const ITEMS: [&str; 3] = ["i-branch", "i-vendor", "i-site"];
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_reader_on_an_entity_sees_its_module_objects(pool: PgPool) {
     let k = Kit::new(&pool).await;
     let reads = ["kit.group.read", "kit.item.read"];
@@ -386,7 +386,7 @@ async fn a_reader_on_an_entity_sees_its_module_objects(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_site_binding_covers_module_objects_of_child_sites(pool: PgPool) {
     let k = Kit::new(&pool).await;
     let building = Some(k.ids["building"]);
@@ -402,7 +402,7 @@ async fn a_site_binding_covers_module_objects_of_child_sites(pool: PgPool) {
     assert_eq!(k.readable(&who, &ITEMS).await, ["i-site"]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_domain_anchored_module_object_is_in_the_domain_scope(pool: PgPool) {
     let k = Kit::new(&pool).await;
     let who = k.reader(&["kit.group.read"], "domain", "lab").await;
@@ -417,7 +417,7 @@ async fn a_domain_anchored_module_object_is_in_the_domain_scope(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_module_object_inherits_owner_from_its_parent(pool: PgPool) {
     let k = Kit::new(&pool).await;
     assert_eq!(
@@ -465,7 +465,7 @@ async fn a_module_object_inherits_owner_from_its_parent(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ref_to_a_module_type(pool: PgPool) {
     let k = Kit::new(&pool).await;
     let declare = |local, key: &str, value_type, carriers: &[&str]| Operation::DeclareProperty {

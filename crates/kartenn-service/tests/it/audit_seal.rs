@@ -33,7 +33,7 @@ async fn seals(pool: &PgPool) -> Vec<SealRow> {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn batches_are_chained_signed_and_stop_when_idle(pool: PgPool) {
     let key = SealKey::from_bytes(&[7; 32]);
     for _ in 0..3 {
@@ -73,7 +73,7 @@ async fn batches_are_chained_signed_and_stop_when_idle(pool: PgPool) {
     assert_eq!((events, sealed), (4, 4));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_event_committed_late_enters_the_next_batch(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     // A long transaction holds an event with a smaller sequence…

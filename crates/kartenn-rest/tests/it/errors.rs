@@ -408,7 +408,7 @@ fn start(path: &str) -> Request<Body> {
 }
 
 /// 400: invalid JSON, unknown parameter, date without offset; `invalid-cursor`.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_400_a_malformed_request(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = network(&app, "lab", "10.0.0.0/24").await;
@@ -428,7 +428,7 @@ async fn line_400_a_malformed_request(pool: PgPool) {
 }
 
 /// 401: no proof, a refused token.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_401_without_or_with_a_refused_authentication(pool: PgPool) {
     let app = admin(&pool).await;
     let anonymous = client(Request::get("/v1/prefixes").body(Body::empty()).unwrap());
@@ -446,7 +446,7 @@ async fn line_401_without_or_with_a_refused_authentication(pool: PgPool) {
 
 /// 403: a right missing for an action no changeset carries (the administration of the
 /// rights, a filter of an output); an unsafe method of a session from another site.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_403_a_right_missing_or_a_cross_site_request(pool: PgPool) {
     let admin = admin(&pool).await;
     let reader = app_as(&pool, person(&pool, &READ_ALL, ("global", None)).await);
@@ -483,7 +483,7 @@ async fn line_403_a_right_missing_or_a_cross_site_request(pool: PgPool) {
 }
 
 /// 404: an absent object, an invisible one answered alike (REQ-006-23).
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_404_an_absent_or_invisible_object(pool: PgPool) {
     let admin = admin(&pool).await;
     let (seen, _) = network(&admin, "lab", "10.0.0.0/24").await;
@@ -510,7 +510,7 @@ async fn line_404_an_absent_or_invisible_object(pool: PgPool) {
 
 /// 409: an action the state refuses (an import started twice, another chunk under the
 /// same number), an undo in conflict, an idempotency key in progress.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_409_a_conflict(pool: PgPool) {
     let app = admin(&pool).await;
     let path = import(&app, &[0]).await;
@@ -598,7 +598,7 @@ async fn line_409_a_conflict(pool: PgPool) {
 }
 
 /// 412: an `ETag` gone stale, on a write of a sensitive value.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_412_a_stale_etag(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = network(&app, "lab", "10.0.0.0/24").await;
@@ -627,7 +627,7 @@ async fn line_412_a_stale_etag(pool: PgPool) {
 }
 
 /// 413: a body over the limit.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_413_a_body_too_large(pool: PgPool) {
     let identity = person(&pool, &["*"], ("global", None)).await;
     let settings = Settings {
@@ -644,7 +644,7 @@ async fn line_413_a_body_too_large(pool: PgPool) {
 }
 
 /// 414: a URL over 8 KiB, refused before the routing with a minimal body.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_414_a_url_too_long(pool: PgPool) {
     let app = admin(&pool).await;
     let uri = format!("/v1/prefixes?q={}", "a".repeat(MAX_URL));
@@ -661,7 +661,7 @@ async fn line_414_a_url_too_long(pool: PgPool) {
 }
 
 /// 415: a media type the route does not take.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_415_an_unsupported_media_type(pool: PgPool) {
     let app = admin(&pool).await;
     let response = send(
@@ -676,7 +676,7 @@ async fn line_415_an_unsupported_media_type(pool: PgPool) {
 /// sensitive value against its rule, a motive missing, too
 /// many operations, a reused idempotency key, a member not written, an undeclared
 /// property, an invalid filter, an import that does not sort.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_422_a_request_the_service_refuses(pool: PgPool) {
     let app = admin(&pool).await;
     let refused = send(&app, post("/v1/changesets", &lab(&["10.1.2.5/24"]))).await;
@@ -768,7 +768,7 @@ async fn line_422_a_request_the_service_refuses(pool: PgPool) {
 }
 
 /// 428: a write by resource without `If-Match`.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_428_if_match_missing(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = network(&app, "lab", "10.0.0.0/24").await;
@@ -781,7 +781,7 @@ async fn line_428_if_match_missing(pool: PgPool) {
 }
 
 /// 429: the quota of the identity spent.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_429_the_quota_spent(pool: PgPool) {
     let identity = person(&pool, &["*"], ("global", None)).await;
     let rates = Rates {
@@ -801,7 +801,7 @@ async fn line_429_the_quota_spent(pool: PgPool) {
 
 /// 503: the ceiling of requests in flight, the delay, the audit journal down during a
 /// read, the database down.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_503_the_service_unavailable(pool: PgPool) {
     let identity = person(&pool, &["*"], ("global", None)).await;
     let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
@@ -874,7 +874,7 @@ async fn boom() -> StatusCode {
 }
 
 /// 500: a panic, its message kept from the client.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn line_500_a_panic(pool: PgPool) {
     let identity = person(&pool, &["*"], ("global", None)).await;
     let extra = Router::new().route("/boom", get(boom));
@@ -884,7 +884,7 @@ async fn line_500_a_panic(pool: PgPool) {
 }
 
 /// REQ-006-22: an unauthenticated and malformed request → 401, not 400.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_first_problem_in_the_order_of_http_wins(pool: PgPool) {
     let app = admin(&pool).await;
     let malformed = || {

@@ -112,7 +112,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_range_lies_in_a_single_network(pool: PgPool) {
     // REQ-002-21 acceptance.
     let f = Fixture::new(&pool).await;
@@ -151,7 +151,7 @@ async fn a_range_lies_in_a_single_network(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ranges_are_disjoint_and_avoid_reserved_positions(pool: PgPool) {
     // REQ-002-22, 23 acceptance.
     let f = Fixture::new(&pool).await;
@@ -190,7 +190,7 @@ async fn ranges_are_disjoint_and_avoid_reserved_positions(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn addresses_respect_the_usage_of_their_range(pool: PgPool) {
     // REQ-002-24, 28 acceptance, in both orders of creation.
     let f = Fixture::new(&pool).await;
@@ -233,7 +233,7 @@ async fn addresses_respect_the_usage_of_their_range(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_network_needs_its_ranges_closed(pool: PgPool) {
     // REQ-002-21 over time; closing a range (REQ-004-15).
     let f = Fixture::new(&pool).await;

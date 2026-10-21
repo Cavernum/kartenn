@@ -181,7 +181,7 @@ fn change(before: &str, after: &str, count: u64) -> DiffCount {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_container_above_4096_addresses_changes_them_all(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.addresses(4096).await;
@@ -275,7 +275,7 @@ async fn a_container_above_4096_addresses_changes_them_all(pool: PgPool) {
     assert_eq!(event, summary);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_effect_in_the_window_counts_and_only_existing_objects(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.addresses(2).await;

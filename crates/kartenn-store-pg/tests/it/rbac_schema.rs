@@ -26,7 +26,7 @@ type Case<'a> = (
     bool,
 );
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn bindings_name_their_subject_and_scope_consistently(pool: PgPool) {
     let insert = "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
                   scope_kind, scope_id, valid_period, changeset_id)
@@ -57,7 +57,7 @@ async fn bindings_name_their_subject_and_scope_consistently(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_service_account_holds_two_active_secrets_at_most(pool: PgPool) {
     let svc = account(&pool, "service_account").await;
     let add = || {
@@ -79,7 +79,7 @@ async fn a_service_account_holds_two_active_secrets_at_most(pool: PgPool) {
     add().await.unwrap();
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_application_cannot_create_a_break_glass_account(pool: PgPool) {
     let glass = account(&pool, "breakglass").await;
     sqlx::query(

@@ -69,7 +69,7 @@ async fn missed(pool: &PgPool) -> i64 {
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_floor_rises_behind_the_handled_rows(pool: PgPool) {
     let sink = Sink::default();
     record(&pool, 20).await;
@@ -113,7 +113,7 @@ async fn the_floor_rises_behind_the_handled_rows(pool: PgPool) {
     assert_eq!(unsealed, 0, "every event below the floor is sealed");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_running_transaction_holds_the_floor(pool: PgPool) {
     let sink = Sink::default();
     let store = PgStore::new(pool.clone());
@@ -147,7 +147,7 @@ async fn a_running_transaction_holds_the_floor(pool: PgPool) {
     assert_eq!(missed(&pool).await, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_sweep_catches_a_row_the_floor_passed(pool: PgPool) {
     let sink = Sink::default();
     record(&pool, 3).await;

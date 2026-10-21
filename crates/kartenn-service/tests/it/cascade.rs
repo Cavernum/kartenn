@@ -122,7 +122,7 @@ async fn network(f: &Fixture) -> Uuid {
     f.id("SELECT id FROM prefix").await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_network_closes_with_its_ranges_and_addresses(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let net = network(&f).await;
@@ -166,7 +166,7 @@ async fn a_network_closes_with_its_ranges_and_addresses(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn entity_trees_and_references_follow(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![

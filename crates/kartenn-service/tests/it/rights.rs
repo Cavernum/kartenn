@@ -194,7 +194,7 @@ fn sorted(mut ids: Vec<Uuid>) -> Vec<Uuid> {
     ids
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_assignment_needs_the_property_right_on_the_object_and_its_effects(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let net = f.id("10.5.0.0/24").await;
@@ -227,7 +227,7 @@ async fn an_assignment_needs_the_property_right_on_the_object_and_its_effects(po
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let none = Grants::new();
@@ -285,7 +285,7 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
         .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn new_objects_need_the_direct_right_only(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // Edge case: a changeset creating a network and its addresses and assigning the

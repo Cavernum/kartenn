@@ -47,7 +47,7 @@ fn store(pool: &PgPool) -> PgStore {
     PgStore::new(pool.clone()).with_modules(sections::registry())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn b_reads_the_section_of_a(pool: PgPool) {
     let author = person(&pool).await;
     let outcome = submit(
@@ -75,7 +75,7 @@ async fn b_reads_the_section_of_a(pool: PgPool) {
     assert_eq!(sections[1].rows[0].after, Some(json!({ "alpha_rows": 3 })));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn sections_in_simulation_and_after_application(pool: PgPool) {
     let author = person(&pool).await;
     let store = store(&pool);
@@ -122,7 +122,7 @@ async fn sections_in_simulation_and_after_application(pool: PgPool) {
     assert_eq!(echo[0].1.after, Some(json!({ "alpha_rows": 2 })));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_rule_of_b_reads_a_section(pool: PgPool) {
     let author = person(&pool).await;
     let mut operations = domains(&["lab"]);
@@ -158,7 +158,7 @@ async fn a_rule_of_b_reads_a_section(pool: PgPool) {
     assert_eq!(prefixes, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn sections_are_paginated(pool: PgPool) {
     let author = person(&pool).await;
     let applied = submit(

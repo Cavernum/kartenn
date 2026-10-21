@@ -7,7 +7,7 @@ use kartenn_store_pg::registry::{load, public_drift, rewrite_public};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn loading_is_idempotent(pool: PgPool) -> sqlx::Result<()> {
     let v4 = special_registry(IPV4).unwrap();
     assert_eq!(load(&pool, v4).await?, 26);
@@ -15,7 +15,7 @@ async fn loading_is_idempotent(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn sql_and_rust_agree_on_public_space(pool: PgPool) -> sqlx::Result<()> {
     for family in [IPV4, IPV6] {
         load(&pool, special_registry(family).unwrap()).await?;
@@ -58,7 +58,7 @@ async fn sql_and_rust_agree_on_public_space(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn drift_reports_objects_whose_flag_is_stale(pool: PgPool) -> sqlx::Result<()> {
     for family in [IPV4, IPV6] {
         load(&pool, special_registry(family).unwrap()).await?;
@@ -92,7 +92,7 @@ async fn drift_reports_objects_whose_flag_is_stale(pool: PgPool) -> sqlx::Result
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn drifting_flags_are_rewritten_by_system_changesets(pool: PgPool) -> sqlx::Result<()> {
     for family in [IPV4, IPV6] {
         load(&pool, special_registry(family).unwrap()).await?;
@@ -143,7 +143,7 @@ async fn drifting_flags_are_rewritten_by_system_changesets(pool: PgPool) -> sqlx
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_migration_job_loads_the_embedded_registries(pool: PgPool) -> sqlx::Result<()> {
     let count = |pool: PgPool| async move {
         sqlx::query_scalar::<_, i64>(

@@ -43,7 +43,7 @@ fn refused(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_renamed_object_keeps_its_uuid(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",

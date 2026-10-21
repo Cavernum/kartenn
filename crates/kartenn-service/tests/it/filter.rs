@@ -208,7 +208,7 @@ fn key(k: &str) -> String {
     k.to_owned()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn objects_are_found_by_resolved_value(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // Equality on a set: the sets containing the value, inherited ones included.
@@ -269,7 +269,7 @@ async fn objects_are_found_by_resolved_value(pool: PgPool) {
     ));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn pages_follow_a_cursor_and_origins_use_their_index(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let now = OffsetDateTime::now_utc();

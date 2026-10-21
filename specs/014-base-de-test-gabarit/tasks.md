@@ -49,17 +49,35 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   avec son runtime et sa connexion, plutôt que 8 processus ; `clean` n'a pas de test
   automatique (il supprimerait les bases des suites qui tournent en même temps) ; le nom
   d'une base de test est `_kt_test_` et 54 caractères hexadécimaux du SHA-256 du chemin.
-- [ ] 2. kartenn-store-pg : remplacement de l'attribut (46 tests), mesure de la suite de
+- [x] 2. kartenn-store-pg : remplacement de l'attribut (46 tests), mesure de la suite de
   la crate avant et après — ADR 0028 décision 1 — verify : commun, plus la durée de la
   suite avant et après
   où : `crates/kartenn-store-pg/tests/it/`, `Cargo.toml` (dev-dependency)
   dépend de : 1 ; 013 : 4
-- [ ] 3. kartenn-service (157 tests) — verify : commun
+  — 46 attributs remplacés dans `tests/it/` (aucun test laissé en `#[sqlx::test]`),
+  dev-dependency `kartenn-testing`, en-tête de `harness.rs` ; nextest : 50 tests avant,
+  50 après (mêmes noms). Exécution de la suite (`k-check -p kartenn-store-pg`, résumé
+  nextest) : 4,2 s avant (charge 14), 3,1 s après (charge 15 puis 7).
+- [x] 3. kartenn-service (157 tests) — verify : commun
   où : `crates/kartenn-service/tests/it/`, `Cargo.toml`
   dépend de : 1 ; 013 : 2
-- [ ] 4. kartenn-rest (97 tests) — verify : commun
+  — 157 attributs remplacés (aucun laissé en `#[sqlx::test]`), dev-dependency
+  `kartenn-testing` ; nextest : 177 tests avant, 177 après (mêmes noms). Exécution de la
+  suite : 21,4 s avant (charge 10 à 11), 14,3 s après (charge 4 à 5).
+  choix : l'attribut porte `#[allow(clippy::too_many_lines)]` (`kartenn-testing-macros`),
+  comme `#[sqlx::test]` qui masquait la fonction à ce lint : douze scénarios de plus de
+  100 lignes le déclenchaient, sans changer leur corps.
+- [x] 4. kartenn-rest (97 tests) — verify : commun
   où : `crates/kartenn-rest/tests/it/`, `tests/it/common/`, `Cargo.toml`
   dépend de : 1 ; 013 : 3
+  — 97 attributs remplacés (aucun laissé en `#[sqlx::test]`), dev-dependency
+  `kartenn-testing` ; nextest : 198 tests avant, 198 après (mêmes noms). Exécution de la
+  suite : 35,2 s avant (charge 8 à 13), 33,0 s après (charge 3 à 4) : les tests de la crate
+  passent leur temps ailleurs que dans la création des bases (attentes, chiffrement,
+  imports de 10⁶ éléments).
+  choix : l'attribut autorise aussi `clippy::similar_names` et
+  `clippy::many_single_char_names`, que `#[sqlx::test]` masquait de même (quatre tests de
+  `objects.rs`).
 - [ ] 5. kartenn-server, kartenn-auth, kartenn-telemetry (27 tests) — verify : commun
   où : `crates/kartenn-{server,auth,telemetry}/tests/`, `Cargo.toml`
   dépend de : 1 ; 013 : 5, 6, 8

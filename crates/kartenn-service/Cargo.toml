@@ -26,6 +26,8 @@ uuid = { version = "1.28.0", features = ["v7", "serde"] }
 tracing = "0.1.44"
 
 [dev-dependencies]
+# Test databases cloned from a migrated template (ADR 0028).
+kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
 jsonschema = { version = "0.59.0", default-features = false }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time"] }

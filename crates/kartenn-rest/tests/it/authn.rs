@@ -259,7 +259,7 @@ fn challenge(response: &Response) -> &str {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_token_gives_an_identity_just_in_time_without_a_login_event(pool: PgPool) {
     let f = Fixture::new(&pool, 20);
     let bearer = format!("Bearer {}", f.token(300));
@@ -293,7 +293,7 @@ async fn a_token_gives_an_identity_just_in_time_without_a_login_event(pool: PgPo
     assert_eq!(f.events("authn.login.succeeded").await, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_refused_token_is_an_invalid_token(pool: PgPool) {
     let f = Fixture::new(&pool, 20);
     for token in [f.token(-3600), "not.a.jwt".into()] {
@@ -323,7 +323,7 @@ async fn a_refused_token_is_an_invalid_token(pool: PgPool) {
     assert_eq!(reasons, ["expired", "malformed"]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn without_proof_401_without_error_and_two_proofs_400(pool: PgPool) {
     let f = Fixture::new(&pool, 20);
     let response = f.call(me("192.0.2.9", true, &[])).await;
@@ -348,7 +348,7 @@ async fn without_proof_401_without_error_and_two_proofs_400(pool: PgPool) {
     assert_eq!(probe.status(), StatusCode::OK, "the probes are public");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn basic_and_cookies_need_tls_after_the_trusted_proxies(pool: PgPool) {
     let f = Fixture::new(&pool, 100);
     let basic = f.service_account().await;
@@ -400,7 +400,7 @@ async fn basic_and_cookies_need_tls_after_the_trusted_proxies(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_failures_of_a_source_are_limited(pool: PgPool) {
     let f = Fixture::new(&pool, 3);
     let basic = f.service_account().await;

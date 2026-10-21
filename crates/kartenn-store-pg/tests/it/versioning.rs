@@ -29,7 +29,7 @@ async fn each(pool: &PgPool, statements: &[&str]) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn one_transaction_one_system_time(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
     each(
@@ -68,7 +68,7 @@ async fn one_transaction_one_system_time(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn manual_sql_cannot_bypass_history(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
     each(
@@ -99,7 +99,7 @@ async fn manual_sql_cannot_bypass_history(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn application_role_cannot_write_history(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
     let mut conn = pool.acquire().await?;
@@ -136,7 +136,7 @@ async fn application_role_cannot_write_history(pool: PgPool) -> sqlx::Result<()>
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn tables_without_versioning_columns_are_refused(pool: PgPool) -> sqlx::Result<()> {
     sqlx::raw_sql("CREATE TABLE plain (id uuid)")
         .execute(&pool)
@@ -152,7 +152,7 @@ async fn tables_without_versioning_columns_are_refused(pool: PgPool) -> sqlx::Re
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_added_column_is_historised_by_name(pool: PgPool) -> sqlx::Result<()> {
     demo_table(&pool).await?;
     each(
@@ -174,7 +174,7 @@ async fn an_added_column_is_historised_by_name(pool: PgPool) -> sqlx::Result<()>
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_version_replaced_in_its_own_transaction_is_not_history(
     pool: PgPool,
 ) -> sqlx::Result<()> {

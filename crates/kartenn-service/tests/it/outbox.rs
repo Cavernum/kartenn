@@ -40,7 +40,7 @@ async fn drain(pool: &PgPool, consumer: &str) -> Vec<Event> {
     got
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
     let author = person(&pool).await;
     let store = PgStore::new(pool.clone());
@@ -96,7 +96,7 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_running_transaction_is_never_skipped(pool: PgPool) {
     // The scenario that defeated a single last-delivered cursor.
     let author = person(&pool).await;
@@ -147,7 +147,7 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
     assert!(drain(&pool, "c").await.is_empty(), "each event once");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_refused_event_is_delivered_again(pool: PgPool) {
     let author = person(&pool).await;
     let store = PgStore::new(pool.clone());
@@ -170,7 +170,7 @@ async fn a_refused_event_is_delivered_again(pool: PgPool) {
     assert_eq!(drain(&pool, "flaky").await.len(), 1, "at least once");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn events_of_a_domain_follow_the_order_of_its_changesets(pool: PgPool) {
     // REQ-004-37, ADR 0018 amended: within a domain, the lock of ADR 0015 orders the
     // events; a changeset waiting for a running one of its domain comes after it.

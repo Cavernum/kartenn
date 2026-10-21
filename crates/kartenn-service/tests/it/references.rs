@@ -139,7 +139,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_referenced_object_cannot_be_closed(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let outcome = f.submit(vec![f.assign()]).await;
@@ -153,7 +153,7 @@ async fn a_referenced_object_cannot_be_closed(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_reference_needs_its_target_for_its_whole_period(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // Edge case: a reference to an object closed later in the same changeset → refused.

@@ -152,7 +152,7 @@ fn assign(object: Ref, kind: ObjectKind, property: Uuid, value: &str) -> Operati
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_domain_obligation_needs_a_value_everywhere(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let env = f
@@ -203,7 +203,7 @@ async fn a_domain_obligation_needs_a_value_everywhere(pool: PgPool) {
     .await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_object_type_obligation_and_declaring_obligations(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // Objects exist before the obligation.

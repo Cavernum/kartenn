@@ -117,7 +117,7 @@ fn get(uri: &str) -> Request<Body> {
     Request::get(uri).body(Body::empty()).unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_section_is_served_by_pages(pool: PgPool) {
     let identity = person(&pool, &["core.domain.write", "core.changeset.read"]).await;
     let app = app_as(&pool, identity);

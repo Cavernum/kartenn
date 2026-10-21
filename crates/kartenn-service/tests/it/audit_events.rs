@@ -63,7 +63,7 @@ async fn clear(pool: &PgPool) {
         .unwrap();
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn applied_and_refused_changesets_are_audited_with_their_author(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = person(&pool, "author").await;
@@ -118,7 +118,7 @@ async fn applied_and_refused_changesets_are_audited_with_their_author(pool: PgPo
     assert_eq!(rules, serde_json::json!(["core.slug.syntax"]));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn refusals_of_rights_and_administration_are_audited(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = person(&pool, "author").await;
@@ -192,7 +192,7 @@ async fn refusals_of_rights_and_administration_are_audited(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = person(&pool, "author").await;
@@ -294,7 +294,7 @@ async fn decisions_on_pending_changesets_are_audited(pool: PgPool) {
     assert_eq!(expired_by, "system");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_migration_job_and_module_sync_are_the_system(pool: PgPool) {
     kartenn_store_pg::maintenance::deploy(&pool, kartenn_service::module::ModuleRegistry::empty())
         .await
@@ -312,7 +312,7 @@ async fn the_migration_job_and_module_sync_are_the_system(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_changeset_whose_audit_fails_is_not_applied(pool: PgPool) {
     sqlx::raw_sql(
         "CREATE FUNCTION refuse() RETURNS trigger LANGUAGE plpgsql AS

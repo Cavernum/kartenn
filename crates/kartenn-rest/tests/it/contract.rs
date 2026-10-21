@@ -314,7 +314,7 @@ fn app_with(
 
 /// `ui_plugins` publishes, for each plugin of the directory, what the shell needs to load
 /// it (spec 007, REQ-007-7; task 007-5).
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
     let dir = std::env::temp_dir().join(format!("kartenn-capabilities-{}", Uuid::now_v7()));
     let version = dir.join("example/1.1.0");
@@ -396,7 +396,7 @@ impl Module for Inventory {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn capabilities_list_registered_modules(pool: PgPool) {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
@@ -451,7 +451,7 @@ fn core_collections_are_those_of_the_contract() {
     assert_eq!(served, reserved);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_contract_and_the_capabilities_are_served(pool: PgPool) {
     let settings = Settings {
         max_body_bytes: 4 * 1024 * 1024,

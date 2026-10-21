@@ -43,7 +43,7 @@ async fn usage_at(
     q.fetch_all(pool).await
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn as_of_sees_what_was_asserted(pool: PgPool) -> sqlx::Result<()> {
     setup(&pool).await?;
     let id = Uuid::now_v7();

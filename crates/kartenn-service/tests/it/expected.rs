@@ -205,7 +205,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn default_values_are_written_with_their_provenance(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Default, true).await;
     // REQ-003-22: created without a value, under an obligation: the default fills it.
@@ -247,7 +247,7 @@ async fn default_values_are_written_with_their_provenance(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_declared_source_must_exist(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Suggest, false).await;
     let declaration = DeclarationInput {
@@ -280,7 +280,7 @@ async fn a_declared_source_must_exist(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn deviations_become_anomalies(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Check, false).await;
     // REQ-003-24: declared `prod` where `dev` is expected → warning, anomaly on the object.
@@ -317,7 +317,7 @@ async fn deviations_become_anomalies(pool: PgPool) {
     assert_eq!(open().await.unwrap(), None);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn suggestions_write_nothing(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Suggest, false).await;
     f.applied(&sources("1"), vec![f.container(1, "10.66.0.0/16")])
@@ -347,7 +347,7 @@ async fn suggestions_write_nothing(pool: PgPool) {
     assert_eq!(s.values, vec![RawInput::Text("prod".into())]);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_new_source_version_reevaluates_the_deviations(pool: PgPool) {
     let f = Fixture::new(&pool, ExpectedMode::Check, false).await;
     // Version 1 expects `dev` under 10.66: both containers match their expectation.

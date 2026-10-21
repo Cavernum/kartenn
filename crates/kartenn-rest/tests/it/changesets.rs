@@ -167,7 +167,7 @@ fn lab(prefixes: &[&str]) -> Value {
     json!({"motive": "a lab", "operations": operations})
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_applied_changeset_answers_201_with_its_link(pool: PgPool) {
     let app = app(&pool).await;
     let body = lab(&["10.0.0.0/24"]).to_string();
@@ -209,7 +209,7 @@ async fn an_applied_changeset_answers_201_with_its_link(pool: PgPool) {
     assert_eq!(domains(&pool).await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_proposal_answers_202_with_its_link(pool: PgPool) {
     // REQ-004-41: an author who may only propose makes a pending changeset.
     let app = app_of(&pool, "propose").await;
@@ -238,7 +238,7 @@ async fn a_proposal_answers_202_with_its_link(pool: PgPool) {
     assert_eq!(domains(&pool).await, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn valid_to_alone_starts_at_the_time_of_the_database(pool: PgPool) {
     let app = app(&pool).await;
     let mut body = lab(&[]);
@@ -277,7 +277,7 @@ async fn valid_to_alone_starts_at_the_time_of_the_database(pool: PgPool) {
     assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_refused_changeset_lists_every_violation_in_one_422(pool: PgPool) {
     let app = app(&pool).await;
     // REQ-006-21: two violations of different rules, on operations 2 and 3.
@@ -330,7 +330,7 @@ async fn a_refused_changeset_lists_every_violation_in_one_422(pool: PgPool) {
     assert_eq!(domains(&pool).await, 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_problems_come_in_the_order_of_http(pool: PgPool) {
     let app = app(&pool).await;
     // REQ-006-22: unauthenticated and malformed → 401.
@@ -397,7 +397,7 @@ async fn parts(response: Response) -> (StatusCode, Option<String>, Option<String
     (status, location, link, bytes.to_vec())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_replay_answers_the_first_response_byte_for_byte(pool: PgPool) {
     let author = writer(&pool, "write").await;
     let app = app_as(&pool, author);
@@ -447,7 +447,7 @@ async fn a_replay_answers_the_first_response_byte_for_byte(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_replay_of_a_refusal_answers_the_same_problem(pool: PgPool) {
     let app = app(&pool).await;
     // The 422 serves errors, then warnings, as the journal keeps them.
@@ -467,7 +467,7 @@ async fn a_replay_of_a_refusal_answers_the_same_problem(pool: PgPool) {
     assert_eq!(replay, first);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_replay_of_a_proposal_answers_202(pool: PgPool) {
     let proposer = app_of(&pool, "propose").await;
     let first = parts(send(&proposer, keyed("p", &lab(&["10.0.0.0/24"]))).await).await;
@@ -476,7 +476,7 @@ async fn a_replay_of_a_proposal_answers_202(pool: PgPool) {
     assert_eq!(replay, first);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_key_in_progress_answers_409(pool: PgPool) {
     let app = app(&pool).await;
     let body = lab(&["10.0.0.0/24"]);

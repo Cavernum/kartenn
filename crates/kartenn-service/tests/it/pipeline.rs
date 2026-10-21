@@ -80,7 +80,7 @@ async fn new_domain(pool: &PgPool, author: Uuid, slug: &str) -> Uuid {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_changeset_creates_objects_through_local_references(pool: PgPool) {
     // REQ-004-4, 6.
     let author = person(&pool).await;
@@ -131,7 +131,7 @@ async fn a_changeset_creates_objects_through_local_references(pool: PgPool) {
     assert!(same_tx, "one system time for the whole changeset");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn one_error_refuses_everything_and_is_journaled(pool: PgPool) {
     // REQ-004-6 acceptance: 100 operations, the 73rd violates a rule.
     let author = person(&pool).await;
@@ -176,7 +176,7 @@ async fn one_error_refuses_everything_and_is_journaled(pool: PgPool) {
     assert_eq!(journaled[0]["rule"], "core.prefix.duplicate");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_database_violation_is_reported(pool: PgPool) {
     // REQ-004-7: savepoints keep the transaction usable after a refused write.
     let author = person(&pool).await;
@@ -200,7 +200,7 @@ async fn every_database_violation_is_reported(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn simulation_writes_nothing(pool: PgPool) {
     // REQ-004-9.
     let author = person(&pool).await;
@@ -234,7 +234,7 @@ async fn simulation_writes_nothing(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn concurrent_changesets_never_combine_into_an_invalid_state(pool: PgPool) {
     // REQ-004-12 acceptance: two simultaneous creations of the same prefix.
     let author = person(&pool).await;
@@ -256,7 +256,7 @@ async fn concurrent_changesets_never_combine_into_an_invalid_state(pool: PgPool)
     assert_eq!(count(&pool, "SELECT count(*) FROM prefix").await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
     // REQ-004-15.
     let author = person(&pool).await;
@@ -317,7 +317,7 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
     assert_eq!(violations[0].rule.id, "changeset.operation.no_version");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn public_space_is_unique_across_domains(pool: PgPool) {
     // REQ-002-32 (application rule and last line of defence). REQ-002-46 cannot be met
     // together with REQ-002-25 and REQ-002-32: see specs/002-noyau-adressage/implementation.md.
@@ -360,7 +360,7 @@ async fn public_space_is_unique_across_domains(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     // REQ-002-16, 25, 29.
     let author = person(&pool).await;
@@ -482,7 +482,7 @@ async fn networks_are_leaves_and_addresses_live_in_networks(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
     // REQ-004-10.
     let author = person(&pool).await;
@@ -542,7 +542,7 @@ async fn idempotency_keys_replay_or_conflict(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_stale_expected_version_is_a_conflict(pool: PgPool) {
     // REQ-004-11.
     let author = person(&pool).await;

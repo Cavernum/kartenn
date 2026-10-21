@@ -160,7 +160,7 @@ async fn the_same_identifier_is_in_the_response_the_log_and_the_audit() {
     assert_eq!(served.fields["status"], "403");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ready_follows_the_database_and_the_audit_outputs(pool: PgPool) {
     let audit = AuditStatus::default();
     let app = kartenn_rest::router(
