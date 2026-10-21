@@ -409,6 +409,22 @@ fn dated(table: &str, columns: &str) -> String {
     )
 }
 
+/// [`dated`] restricted by `condition` in each branch: correlated in a `LATERAL` join, it
+/// keeps the read on the indexes of `condition` even in a generic plan, where a join on
+/// the whole relation would scan every row valid at `$1`.
+fn dated_where(table: &str, columns: &str, condition: &str) -> String {
+    format!(
+        "(SELECT {columns} FROM {table}
+           WHERE {condition} AND valid_period @> $1::timestamptz
+             AND ($2::timestamptz IS NULL OR sys_start <= $2::timestamptz)
+          UNION ALL
+          SELECT {columns} FROM {table}_history
+           WHERE {condition} AND $2::timestamptz IS NOT NULL
+             AND valid_period @> $1::timestamptz
+             AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz)"
+    )
+}
+
 /// The condition that the row `x` of the type `kind` of the module is readable at `$1`
 /// under the scope `s`.
 fn visible(alias: &str, kind: &str) -> String {
@@ -1059,17 +1075,23 @@ async fn attached(
     let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT i.id, i.name, x.id, host(x.address), a.primary_for_family
-           FROM {} i
-           JOIN {} a ON a.interface_id = i.id
-           JOIN {} x ON x.id = a.address_id
-          WHERE i.id = ANY($4) AND ($3::jsonb IS NULL OR {})
+           FROM unnest($4::uuid[]) AS held(id)
+           CROSS JOIN LATERAL {} i
+           CROSS JOIN LATERAL {} a
+           CROSS JOIN LATERAL {} x
+          WHERE $3::jsonb IS NULL OR {}
           ORDER BY i.name, i.id, x.address",
-        dated("machines.interface", "id, name"),
-        dated(
+        dated_where("machines.interface", "id, name", "id = held.id"),
+        dated_where(
             "machines.attachment",
-            "interface_id, address_id, primary_for_family"
+            "interface_id, address_id, primary_for_family",
+            "interface_id = i.id"
         ),
-        dated("public.address", "id, domain_id, address"),
+        dated_where(
+            "public.address",
+            "id, domain_id, address",
+            "id = a.address_id"
+        ),
         address_visible("x"),
     )))
     .bind(moment.valid_at)

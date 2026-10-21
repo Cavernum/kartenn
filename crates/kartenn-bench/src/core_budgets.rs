@@ -624,6 +624,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
 
     // The VLAN module on the same dataset (spec 008, REQ-008-25).
     budgets.extend(crate::vlan_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
+    // The machines module beside it (spec 009, REQ-009-21).
+    budgets.extend(crate::machine_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
 
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);

@@ -237,6 +237,18 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   `bench-runner`)
   où : `kartenn-bench` ; 008 tâche 16
   dépend de : 10 ; 008 : 16
+  — banc écrit, non coché, **banc complet à relancer** : `kartenn-bench/src/machine_budgets.rs`,
+  appelé par `core_budgets::run` après les VLAN (10⁵ machines dont 60 % virtuelles hébergées
+  par 10³ clusters, trois interfaces rattachées chacune à une adresse du jeu, par un import ;
+  lectures par le routeur en processus, création par le pipeline), puis l'import de
+  l'acceptation de REQ-009-19 (10⁴ machines, deux interfaces et deux adresses nouvelles
+  chacune, par noms locaux). Variante réduite du 2026-10-21 (1 326 machines) : fiche 7,2 ms,
+  page filtrée 35 ms, machines d'un /24 24 ms, création 39 ms ; import de 10³ machines
+  en 8 s. Correctif trouvé par le banc : la fiche d'une machine prenait 91 ms, la requête
+  de ses adresses (`attached`, `kartenn-machines/src/rest.rs`) parcourant en plan générique
+  toutes les adresses et tous les rattachements valides ; elle est pilotée par les
+  interfaces en `LATERAL` (`dated_where`). Le banc complet a été arrêté pour libérer le
+  verrou PostgreSQL.
 - [x] 13. Plugin `web/plugins/machines` — REQ-009-20 — verify : parcours Playwright
   `web/e2e/journeys/machines.spec.ts` avec axe-core
   où : design « Interface » ; plugin VLAN (008, tâche 17)

@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 pub mod core_budgets;
 pub mod http;
+pub mod machine_budgets;
 pub mod props;
 pub mod rbac;
 pub mod telemetry;
