@@ -230,6 +230,32 @@ design.md` (§ « Exigences envers le noyau, le contrat de module et la 009 »).
 N9, N17 à N20 et N24 portent sur le noyau (002 à 004), hors de ce contrat ; M1 à M7
 sur la 009 (`specs/009-machines-interfaces/`).
 
+### Amendement 1 — 2026-10-21, à l'implémentation de la 008 et de la 009
+
+Ajouts faits en implémentant le VLAN et les machines, tous **additifs** (méthodes à
+défaut neutre, champs de contexte) ; aucun ne change une clause, ils en précisent la
+forme. Sources : `crates/kartenn-service/src/module.rs`, `kartenn-rest/src/kit.rs`.
+
+| Ajout | Clause | Tâche | Raison |
+|---|---|---|---|
+| `ModuleHandler::prepare` : complète une opération sur l'état de la transaction **avant** la planification ; l'opération complétée est celle que le changeset enregistre | 6 | 008-10 | `plan` ne lit aucune base ; un groupe ancré sur un domaine prend par défaut le propriétaire résolu du domaine |
+| `ModuleHandler::reads` : couples (permission, objet) exigés pour les objets qu'une opération **cite sans les écrire**, contrôlés comme une garde (`core.object.forbidden`), jamais comme une proposition | 6, 8 | 009-4, 009-5 | M16 : rattacher une adresse exige la seule lecture de l'adresse ; le VLAN d'une interface exige `vlan.vlan.read` |
+| `diff` et `check` portés par `ModuleHandler` (et non `Module`), avec `DiffContext` et `CheckContext` | 7, 13 | 008-19 | ils lisent la transaction, comme `apply` ; `Module` reste une description statique |
+| Les règles des modules s'évaluent **après** le différentiel des propriétés et les sections, chaque module une fois, dans l'ordre du registre | 7 | 008-19 | une règle lit les sections (clause 13) |
+| `CheckContext::objects` : objets de tout type écrits par le changeset (noyau compris) | 7 | 008-12 | règles d'un module sur des objets du noyau (`vlan.prefix.not_network`) |
+| `CheckContext::changeset` : identifiant du changeset | 7 | 009-5 | copies qu'un module réécrit sur l'état final (usage partagé d'une adresse) |
+| `check` rend des `Findings` : violations et objets réévalués par règle ; une anomalie ouverte d'un objet réévalué que rien ne relève est close | 7 | 009-8 | sans cela, une anomalie de module ne se fermait jamais ; la réévaluation se borne aux objets que le changeset touche (écrits, ou dont une valeur résolue utile change) |
+| Catalogues de permissions et de règles du **processus**, complétés une fois à la construction du registre (`authz::register`, `rules::register`), refus d'un nom hors de l'espace du module ou déjà pris | 7, 8 | 008-6 | les violations relues du journal et la portée d'une permission globale n'ont pas le registre sous la main |
+| Règle du noyau `core.object.dependents` (et non `core.dependents`) pour le refus de clôture d'un objet référencé | 12 | 008-7 | le catalogue impose trois segments |
+| Corps d'opération de module invalide : refusé par une **règle** du module (`machines.operation.invalid` ; le VLAN rapporte ses erreurs de décodage sous ses règles d'ancre), pas par un 400 structurel | 6 | 009-2 | l'enveloppe est libre au-delà de l'étiquette ; une opération inconnue reste un 400 `bad-request` |
+| Contrat OpenAPI de référence écrit par `kartenn-server openapi` (seul à connaître les modules livrés) ; `/v1/openapi.json` sert les routes réellement montées ; le binaire `openapi` de `kartenn-rest` est retiré | 9 | 008-8 | le contrat dépend des modules du build |
+| Kit REST `kartenn_rest::kit` : lectures datées, curseurs, ETag, `create`, `modify`, `modify_nullable` (retrait d'un membre par `null`), `act` (opération sous l'`If-Match` d'un objet), `close` | 9 | 008-14, 009-10 | un module sert ses routes aux conventions de la 006 sans dupliquer le socle |
+| Une arête a une seule extrémité par type : l'hébergement par un cluster est l'arête `machines.hosted_in` | 11 | 009-10 | forme de `EdgeType` |
+
+Écart ouvert : une écriture hors du périmètre d'un rôle répond **422**
+`core.object.forbidden`, comme pour le noyau, là où REQ-008-22 écrit 403 ; à trancher
+(aligner la 008 sur le noyau, ou passer noyau et modules à 403).
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

@@ -33,6 +33,7 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 | Filtrage | Paramètres conjonctifs (`champ=…`, `prop.<clé>:<op>=…`), et méthode `QUERY` (RFC 10008) au corps JSON pour les filtres longs ; URL au-delà de 8 Kio → 414 | 003/REQ-003-25, REQ-006-9, 10 |
 | Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start`, `resume`, `cancel` ; exécution par une tâche de fond sous bail, reprise au premier lot non appliqué | 004/REQ-004-28 à 30, REQ-006-17 à 19 |
 | Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI (`ui_plugins` : nom, version, plage de SDK, `base`, `entry`, empreintes SRI par fichier, catalogues, points d'extension), limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35, REQ-007-7 |
+| Modules (ADR 0026) | Chaque module monte ses collections sous `/v1` (VLAN : `vlan-groups` avec `occupancy` et `next-free`, `vlans` avec `prefixes` ; machines : clusters, machines, interfaces et rattachements) aux conventions ci-dessus ; le noyau fournit à chaque type de module `history`, `properties`, `explanation` et `suggestion` ; `GET /v1/graph/edges` sert les arêtes des modules filtrées par les droits sur les deux extrémités ; `GET /v1/changesets/{id}/diff?section=<module>.<nom>` pagine une section de module ; contrat de référence écrit par `kartenn-server openapi` | 008/REQ-008-11, 19 à 22, 26 ; 009/REQ-009-15 à 18 |
 | Ajouts pour l'interface | `GET /v1/me` (identité, liaisons, permissions globales : masquer ou griser, le serveur reste seul juge) ; `GET /v1/domains/{id}/roots` (racines de l'arbre, mêmes curseurs que `prefixes/{id}/children`) ; `GET /v1/imports` (imports de l'appelant, du plus récent) ; `GET /v1/auth/issuers` publique (identifiants des émetteurs, ordre de la configuration) | REQ-007-39 à 41, 007/W17, W18 |
 | Protection | Quotas GCRA par identité (par adresse avant authentification) → 429, `Retry-After`, `RateLimit` ; délestage → 503 ; corps borné → 413 ; délai de requête → 503 | REQ-006-29 à 31 |
 | Corrélation | `Request-Id` (UUID v7 généré, jamais repris) en réponse, dans le problème, les logs et l'audit ; `traceparent` des proxys de confiance | REQ-006-37, REQ-012-7 |
@@ -170,7 +171,11 @@ conservé) des entités, des sites et des domaines ; déclarations, valeurs de l
 affectations de propriétés ; liaison d'identifiants externes ; politiques d'approbation ;
 administration du RBAC (`SetRole`, `CloseRole`, `Bind`, `Unbind`, `AttachIssuer`,
 `DetachIssuer`, `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret`,
-`SetIdentityState`) ; `Within` pour donner sa propre période à une opération. L'API en
+`SetIdentityState`) ; obligations d'administrateur (`AddObligation`,
+`RemoveObligation`) ; `Within` pour donner sa propre période à une opération ; et
+`Operation::Module`, l'enveloppe des opérations d'un module (`{"op":
+"<module>.<op>", …}`, `vlan.create_vlan`, `machines.attach_address`), décodée et
+planifiée par le gestionnaire du module (ADR 0026, clause 6). L'API en
 lit un miroir (`OperationDto` de `kartenn-rest`, lié par une conversion exhaustive) :
 le DTO est le contrat public, le type du service reste libre d'évoluer.
 
