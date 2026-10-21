@@ -175,11 +175,27 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
 
 ## P3 — Lectures, échéances, événements, API
 
-- [ ] 7. Filtres, flux d'un objet, évaluations datées, non-conformités — REQ-011-14, 15,
+- [x] 7. Filtres, flux d'un objet, évaluations datées, non-conformités — REQ-011-14, 15,
   16, 25 — verify : un test par filtre ; sous-arbre d'un préfixe ; un demandeur voit ses
   non-conformités et pas celles d'un autre
   - où : `crates/kartenn-store-pg/src/filter.rs`
   - dépend de : 5, 6
+  - fait : `src/read.rs` — `flows` (tous les filtres de REQ-011-14, état dérivé par
+    `state::state_at`, datée `valid_at`/`as_of` sur les tables courantes et leur
+    historique), `of_object` (adresse, préfixe et sous-arbre, interface, machine par ses
+    interfaces et rattachements), `evaluations` (relues, jamais recalculées),
+    `nonconformities` (rejets, flux `noncompliant` et `waived`, règle, libellé et textes à
+    la date, filtres de REQ-011-25) ; tests `tests/it/reads.rs` (filtres par extrémité,
+    service, type, sorte, entité, demandeur, référence, état, synthèse, issue, règle
+    décisive, dérogation, échéance, sous-arbre, axe, machine ; évaluations à un `as_of`
+    passé ; non-conformités d'un demandeur et pas d'un autre).
+  - choix : lectures sans droits (le prédicat RBAC sur `entity_id` revient aux routes,
+    tâche 9) sauf le filtre `requester` des non-conformités ; les jointures du noyau
+    (adresses, préfixes, origines des valeurs, machines) sont lues à l'assertion courante,
+    seules les tables du module suivent `as_of` ; filtre d'état en mémoire après la
+    requête (la page est coupée après lui) ; `closed_early` = une version antérieure du
+    flux finissait plus tard ; les demandes en attente (`requested`) ne sont pas listées
+    ici (elles ne sont pas dans `flow.flow`).
 - [ ] 8. Tâche `flow.expiry` (flux datés, dérogations) et événements `expiring`,
   `expired`, `outcome_changed`, `closed` — REQ-011-7 — verify : J-30, J-7, terme ;
   prolongation sans doublon ; flux sans fin jamais notifié ; événement d'issue émis à la
