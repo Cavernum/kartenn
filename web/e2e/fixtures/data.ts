@@ -1,7 +1,17 @@
+/**
+ * A role of the journeys, defined by global-setup.ts: proposing changes of addresses and
+ * reading the changesets (a proposal of Bob validated by Alice, REQ-007-18).
+ */
+export const CONTRIBUTOR = {
+  key: "contributor",
+  label: "Contributeur",
+  entries: ["core.address.propose", "core.prefix.propose", "core.changeset.read"],
+};
+
 /** Roles bound to the groups of users.toml, on the whole organisation. */
-export const GROUPS: Record<string, string> = {
-  "kartenn-admins": "administrator",
-  lecteurs: "reader",
+export const GROUPS: Record<string, readonly string[]> = {
+  "kartenn-admins": ["administrator"],
+  lecteurs: ["reader", CONTRIBUTOR.key],
 };
 
 /** The data set of the journeys, loaded by global-setup.ts. */

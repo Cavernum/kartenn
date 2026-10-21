@@ -60,6 +60,33 @@ export async function write<T>(url: string, body: unknown): Promise<Read<T | nul
   return { ok: true, status: response.status, body: text ? (JSON.parse(text) as T) : null };
 }
 
+/** An answer of `send`, with the `ETag` of the response (the version to send in `If-Match`). */
+export type Answer<T> = Read<T | null> & { etag: string | null };
+
+/**
+ * A request of the API with any method: a JSON body when `body` is given (`content-type`
+ * overridable, `application/merge-patch+json` for `PATCH`), headers such as `If-Match`.
+ */
+export async function send<T>(
+  method: string,
+  url: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<Answer<T>> {
+  const init: RequestInit = { method, headers: { ...headers } };
+  if (body !== undefined) {
+    init.headers = { "content-type": "application/json", ...headers };
+    init.body = JSON.stringify(body);
+  }
+  const response = await shellFetch(url, init).catch(() => null);
+  if (!response) return { ok: false, status: 0, problem: NETWORK, etag: null };
+  const etag = response.headers.get("etag");
+  if (!response.ok)
+    return { ok: false, status: response.status, problem: await problemOf(response), etag };
+  const text = await response.text();
+  return { ok: true, status: response.status, body: text ? (JSON.parse(text) as T) : null, etag };
+}
+
 /** A page of a list of the contract (REQ-006-7). */
 export interface Listing<T> {
   items: T[];

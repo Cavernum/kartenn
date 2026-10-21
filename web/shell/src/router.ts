@@ -23,6 +23,21 @@ export function createShellRouter(history: RouterHistory): Router {
         component: () => import("./views/PropertiesView.vue"),
       },
       {
+        path: "/changesets",
+        name: "changesets",
+        component: () => import("./changesets/ChangesetsView.vue"),
+      },
+      {
+        path: "/changesets/:id",
+        name: "changeset",
+        component: () => import("./changesets/ChangesetView.vue"),
+      },
+      {
+        path: "/proposals",
+        name: "proposals",
+        component: () => import("./changesets/ProposalsView.vue"),
+      },
+      {
         path: `/:collection(${COLLECTION_PATTERN})`,
         name: "list",
         component: () => import("./views/ListView.vue"),

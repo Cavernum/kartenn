@@ -457,11 +457,26 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   → brouillon intact ; déconnexion → brouillon effacé
   où : design « Écriture » (brouillon), « Erreurs et cas limites » ; 004 REQ-004-9 ;
   `web/shell/src/draft/`
-- [ ] 21. Changesets : liste filtrée, fiche et différentiel, validation, rejet, retrait,
+- [x] 21. Changesets : liste filtrée, fiche et différentiel, validation, rejet, retrait,
   annulation, propositions — REQ-007-18 — verify : E2E : proposition de Bob validée par
   Alice puis annulée, chaque étape visible
   où : design « Écrans et routes du client » ; 006 design « Ressources et routes »
   (changesets) ; `web/e2e/users.toml`
+  — `web/shell/src/changesets/` : `changesets.ts` (états du journal, actions offertes
+  selon l'état, l'auteur et le contexte temporel : validation et rejet par un autre,
+  retrait par l'auteur, annulation d'un appliqué), `ChangesetsView.vue` (`/changesets`,
+  filtres état, auteur, période dans l'URL, « Mes changesets »), `ProposalsView.vue`
+  (`/proposals`, droits qui manquent à l'auteur), `ChangesetView.vue` (`/changesets/:id`
+  : état, opérations, violations, différentiel compté, actions envoyées avec l'`ETag` lu
+  en `If-Match`, lien vers le changeset d'annulation) ; `data/api.ts` (`send` : toute
+  méthode, en-têtes, `ETag` de la réponse) ; route et entrée « Changesets » sous
+  `core.changeset.read` ; catalogues `changeset.*`. Tests : `changesets.test.ts`,
+  `e2e/journeys/changesets.spec.ts` ; `global-setup.ts` définit le rôle `contributor`
+  (proposer adresses et préfixes, lire les changesets) lié au groupe de Bob.
+  choix : l'auteur est montré par son identifiant (« vous » pour l'appelant), sans lecture
+  des identités, réservée à `core.rbac.read` ; le différentiel montré est le décompte du
+  changeset, le détail paginé (`/diff`) reste à la demande des plugins ; pas de point
+  d'accroche du brouillon (007-20) : un changeset soumis n'en dépend pas.
 - [ ] 22. Administration : rôles, liaisons, rattachements d'émetteurs, comptes de service
   et secrets, identités et pseudonymisation, audit (recherche, export), suivi des imports
   — REQ-007-19 — verify : E2E : compte de service et secret affiché une seule fois ;
