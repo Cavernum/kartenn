@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
-    BoxFuture, CheckContext, DiffContext, DiffRow, DiffSection, Module, ModuleHandler, ModulePlan,
-    ModuleRegistry, ModuleTx,
+    BoxFuture, CheckContext, DiffContext, DiffRow, DiffSection, Findings, Module, ModuleHandler,
+    ModulePlan, ModuleRegistry, ModuleTx,
 };
 use kartenn_service::operations::{ModuleOperation, Ref};
 use kartenn_service::port::StoreError;
@@ -123,7 +123,7 @@ impl ModuleHandler for BetaHandler {
         &'a self,
         _tx: &'a mut dyn ModuleTx,
         context: &'a CheckContext<'a>,
-    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         let prefixes: Vec<Uuid> = context
             .section("alpha.objects")
             .map(|s| {
@@ -139,7 +139,7 @@ impl ModuleHandler for BetaHandler {
         } else {
             vec![Violation::new(&NO_PREFIX, "alpha.objects names a prefix").with_subjects(prefixes)]
         };
-        Box::pin(std::future::ready(Ok(violations)))
+        Box::pin(std::future::ready(Ok(violations.into())))
     }
 }
 

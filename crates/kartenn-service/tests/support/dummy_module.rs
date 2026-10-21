@@ -10,8 +10,8 @@ use std::sync::Arc;
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Module, ModuleHandler, ModuleMigration, ModuleObjectRow, ModulePlan,
-    ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType, Reference,
+    BoxFuture, CheckContext, Findings, Module, ModuleHandler, ModuleMigration, ModuleObjectRow,
+    ModulePlan, ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -354,7 +354,7 @@ impl ModuleHandler for Handler {
         &'a self,
         tx: &'a mut dyn ModuleTx,
         context: &'a CheckContext<'a>,
-    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         Box::pin(async move {
             let ids: Vec<Uuid> = context.touched.iter().map(|(_, id)| *id).collect();
             let forbidden: Vec<Uuid> = sqlx::query_scalar(
@@ -370,7 +370,8 @@ impl ModuleHandler for Handler {
                 .map(|id| {
                     Violation::new(&FORBIDDEN, "a thing is labelled forbidden").with_subjects([id])
                 })
-                .collect())
+                .collect::<Vec<_>>()
+                .into())
         })
     }
 }

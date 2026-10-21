@@ -11,10 +11,10 @@ use std::sync::OnceLock;
 
 use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
-use kartenn_core::rules::Violation;
+use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+    BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -29,7 +29,8 @@ use crate::module::{CLUSTER, INTERFACE, MACHINE};
 use crate::name::HostName;
 use crate::pg::{self, Hosting};
 use crate::rules::{
-    ADDRESS_CLOSED, ADDRESS_TAKEN, HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID, VLAN_MODE,
+    ADDRESS_CLOSED, ADDRESS_TAKEN, ADDRESS_VLAN_MISMATCH, HOST_INVALID, HOST_SITE_MISMATCH,
+    MAC_DUPLICATE, NAME_DUPLICATE, OPERATION_INVALID, VLAN_MODE,
 };
 use crate::vlan_mode::VlanMode;
 
@@ -881,7 +882,7 @@ impl ModuleHandler for Handler {
         &'a self,
         tx: &'a mut dyn ModuleTx,
         context: &'a CheckContext<'a>,
-    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         Box::pin(async move {
             let conn = connection(tx)?;
             let mut machines: BTreeSet<Uuid> = context
@@ -906,15 +907,40 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| matches!(kind, ObjectKind::Address))
                 .map(|(_, id)| *id)
                 .collect();
+            // Networks whose `vlan.vlan` may have changed (REQ-009-13).
+            let prefixes: Vec<Uuid> = context
+                .objects
+                .iter()
+                .filter(|(kind, _)| matches!(kind, ObjectKind::Prefix))
+                .map(|(_, id)| *id)
+                .collect();
+            // Machines whose properties the core assigned (`core.site`…).
+            let assigned: Vec<Uuid> = context
+                .objects
+                .iter()
+                .filter(|(kind, _)| *kind == ObjectKind::Module(machine_kind()))
+                .map(|(_, id)| *id)
+                .collect();
             // A machine moved to another owner by an assignment of the core (M3).
             machines.extend(pg::owner_changed(conn).await?);
             if machines.is_empty()
                 && clusters.is_empty()
                 && interfaces.is_empty()
                 && addresses.is_empty()
+                && prefixes.is_empty()
+                && assigned.is_empty()
             {
-                return Ok(Vec::new());
+                return Ok(Findings::default());
             }
+            let mut findings = warnings(
+                conn,
+                &machines,
+                &assigned,
+                &interfaces,
+                &addresses,
+                &prefixes,
+            )
+            .await?;
             let machines: Vec<Uuid> = machines.into_iter().collect();
             let mut found = Vec::new();
             for (interface, machine) in pg::orphan_interfaces(conn, &interfaces).await? {
@@ -967,9 +993,93 @@ impl ModuleHandler for Handler {
                     .with_subjects([machine]),
                 );
             }
-            Ok(found)
+            findings.violations.extend(found);
+            Ok(findings)
         })
     }
+}
+
+/// The warnings of REQ-009-13, evaluated on the objects the changeset touches and on those
+/// whose anomaly is open, so that a corrected case closes: a universal MAC on two living
+/// interfaces, a network carrying a VLAN foreign to the interface holding one of its
+/// addresses, a machine hosted on another site than its host.
+async fn warnings(
+    conn: &mut PgConnection,
+    machines: &BTreeSet<Uuid>,
+    assigned: &[Uuid],
+    interfaces: &[Uuid],
+    addresses: &[Uuid],
+    prefixes: &[Uuid],
+) -> Result<Findings, StoreError> {
+    let mut findings = Findings::default();
+    let mut warn = |rule: &'static Rule, subject: Uuid, message: String, other: Uuid| {
+        findings
+            .violations
+            .push(Violation::new(rule, message).with_subjects([subject, other]));
+    };
+    // A MAC follows its interfaces: evaluated with the interfaces that share it.
+    let mut evaluated: BTreeSet<Uuid> = interfaces.iter().copied().collect();
+    evaluated.extend(pg::open_anomalies(conn, MAC_DUPLICATE.id).await?);
+    let mut mac_evaluated = evaluated.clone();
+    let candidates: Vec<Uuid> = evaluated.iter().copied().collect();
+    for (interface, other, mac) in pg::mac_duplicates(conn, &candidates).await? {
+        mac_evaluated.insert(other);
+        for (subject, partner) in [(interface, other), (other, interface)] {
+            warn(
+                &MAC_DUPLICATE,
+                subject,
+                format!("the universal MAC {mac} is also on the interface {partner}"),
+                partner,
+            );
+        }
+    }
+    // The VLAN of a network against the interfaces that hold its addresses.
+    let mut vlan_evaluated: BTreeSet<Uuid> = interfaces.iter().copied().collect();
+    vlan_evaluated.extend(pg::interfaces_of_addresses(conn, addresses).await?);
+    vlan_evaluated.extend(pg::interfaces_in_networks(conn, prefixes).await?);
+    vlan_evaluated.extend(pg::open_anomalies(conn, ADDRESS_VLAN_MISMATCH.id).await?);
+    let candidates: Vec<Uuid> = vlan_evaluated.iter().copied().collect();
+    for (interface, address, vlan) in pg::vlan_mismatches(conn, &candidates).await? {
+        warn(
+            &ADDRESS_VLAN_MISMATCH,
+            interface,
+            format!(
+                "the network of the address {address} carries the VLAN {vlan}, which the interface does not"
+            ),
+            address,
+        );
+    }
+    // A machine against its host, both ways.
+    let mut site_evaluated: BTreeSet<Uuid> = machines.iter().copied().collect();
+    site_evaluated.extend(assigned);
+    site_evaluated.extend(pg::open_anomalies(conn, HOST_SITE_MISMATCH.id).await?);
+    let hosts: Vec<Uuid> = site_evaluated.iter().copied().collect();
+    site_evaluated.extend(pg::guests(conn, &hosts).await?);
+    let candidates: Vec<Uuid> = site_evaluated.iter().copied().collect();
+    for (guest, host) in pg::site_mismatches(conn, &candidates).await? {
+        warn(
+            &HOST_SITE_MISMATCH,
+            guest,
+            format!("the machine is hosted by {host}, on another site"),
+            host,
+        );
+    }
+    findings.reevaluated.extend(
+        mac_evaluated
+            .into_iter()
+            .map(|o| (o, MAC_DUPLICATE.id))
+            .chain(
+                vlan_evaluated
+                    .into_iter()
+                    .map(|o| (o, ADDRESS_VLAN_MISMATCH.id)),
+            )
+            .chain(
+                site_evaluated
+                    .into_iter()
+                    .map(|o| (o, HOST_SITE_MISMATCH.id)),
+            ),
+    );
+    Ok(findings)
 }
 
 /// Attaches (`attach`) or detaches the address of `attachment` to or from the interface

@@ -830,3 +830,176 @@ pub(crate) async fn orphan_interfaces(
     .await
     .map_err(|e| store(&e))
 }
+
+/// The objects with an open anomaly of `rule`.
+pub(crate) async fn open_anomalies(
+    conn: &mut PgConnection,
+    rule: &str,
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT object_id FROM public.anomaly WHERE rule_id = $1 AND closed_at IS NULL",
+    )
+    .bind(rule)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces among `ids` whose universal MAC (the local bit of the first octet at 0,
+/// RFC 9542 §2.1) another interface carries where their periods overlap, now or later:
+/// `(interface, other, mac)`.
+pub(crate) async fn mac_duplicates(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid, String)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "SELECT DISTINCT a.id, b.id, a.mac::text
+           FROM machines.interface a
+           JOIN machines.interface b
+             ON b.mac = a.mac AND b.id <> a.id AND b.valid_period && a.valid_period
+          WHERE a.id = ANY($1)
+            AND (a.mac & '02:00:00:00:00:00'::macaddr) = '00:00:00:00:00:00'::macaddr
+            AND (upper_inf(a.valid_period * b.valid_period)
+                 OR upper(a.valid_period * b.valid_period) > now())
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces that hold one of `addresses`, now or later.
+pub(crate) async fn interfaces_of_addresses(
+    conn: &mut PgConnection,
+    addresses: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if addresses.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT interface_id FROM machines.attachment
+          WHERE address_id = ANY($1)
+            AND (upper_inf(valid_period) OR upper(valid_period) > now())",
+    )
+    .bind(addresses)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces that hold, now or later, an address of one of the networks `prefixes`.
+pub(crate) async fn interfaces_in_networks(
+    conn: &mut PgConnection,
+    prefixes: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if prefixes.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT a.interface_id
+           FROM public.prefix p
+           JOIN public.address x
+             ON x.domain_id = p.domain_id AND x.address <<= p.prefix
+            AND x.valid_period && p.valid_period
+           JOIN machines.attachment a
+             ON a.address_id = x.id AND a.valid_period && x.valid_period
+          WHERE p.id = ANY($1) AND p.nature = 'network'
+            AND (upper_inf(a.valid_period) OR upper(a.valid_period) > now())",
+    )
+    .bind(prefixes)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The attachments of the interfaces among `ids`, in mode `access` or `trunk`, whose
+/// address lies in a network carrying a VLAN (`vlan.vlan`) the interface does not carry:
+/// `(interface, address, vlan)`. Each attachment is read at its start, or now when it
+/// started before.
+pub(crate) async fn vlan_mismatches(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid, Uuid)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "WITH att AS (
+             SELECT interface_id, address_id, greatest(lower(valid_period), now()) AS t
+               FROM machines.attachment
+              WHERE interface_id = ANY($1)
+                AND (upper_inf(valid_period) OR upper(valid_period) > now()))
+         SELECT DISTINCT att.interface_id, att.address_id, pa.v_uuid
+           FROM att
+           JOIN machines.interface i
+             ON i.id = att.interface_id AND i.valid_period @> att.t AND i.vlan_mode <> 'none'
+           JOIN public.address x ON x.id = att.address_id AND x.valid_period @> att.t
+           JOIN public.prefix p
+             ON p.domain_id = x.domain_id AND p.nature = 'network' AND x.address <<= p.prefix
+            AND p.valid_period @> att.t
+           JOIN public.property_assignment pa
+             ON pa.object_id = p.id AND pa.kind = 'value' AND pa.valid_period @> att.t
+           JOIN public.property_declaration d ON d.id = pa.property_id AND d.key = 'vlan.vlan'
+          WHERE pa.v_uuid IS DISTINCT FROM i.access_vlan_id
+            AND pa.v_uuid IS DISTINCT FROM i.native_vlan_id
+            AND NOT (pa.v_uuid = ANY(i.tagged_vlan_ids))
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The machines hosted by one of `hosts`, now or later.
+pub(crate) async fn guests(
+    conn: &mut PgConnection,
+    hosts: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if hosts.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT id FROM machines.machine
+          WHERE host_machine_id = ANY($1)
+            AND (upper_inf(valid_period) OR upper(valid_period) > now())",
+    )
+    .bind(hosts)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The machines among `ids` hosted by a machine of another resolved site, both sites known,
+/// read at the start of their common life or now when it started before: `(guest, host)`.
+pub(crate) async fn site_mismatches(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "SELECT DISTINCT g.id, h.id
+           FROM machines.machine g
+           JOIN machines.machine h
+             ON h.id = g.host_machine_id AND h.valid_period && g.valid_period
+          CROSS JOIN LATERAL (
+              SELECT greatest(lower(g.valid_period * h.valid_period), now()) AS t,
+                     g.valid_period * h.valid_period AS common) c
+          CROSS JOIN LATERAL (
+              SELECT public.kartenn_site(g.id, c.t) AS guest,
+                     public.kartenn_site(h.id, c.t) AS host) s
+          WHERE g.id = ANY($1) AND c.common @> c.t
+            AND s.guest IS NOT NULL AND s.host IS NOT NULL AND s.guest <> s.host
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}

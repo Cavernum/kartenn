@@ -136,11 +136,24 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   choix : rien de propre au module pour REQ-009-24, les types de module étant porteurs
   admissibles (008-5) ; une valeur ajoutée par l'administrateur survit à la
   synchronisation (vérifié par le test).
-- [ ] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
+- [x] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
   `machines.host.site_mismatch` en anomalies, ouvertes puis fermées — REQ-009-13 —
   verify : `each_warning_opens_and_closes`, `vlan_change_on_network_reevaluates`
   où : design « Règles » ; ADR 0026 clause 7 ; anomalies du noyau
   dépend de : 4, 5 ; 008 : 12
+  — Contrat : `ModuleHandler::check` rend des `Findings` (violations et objets réévalués
+  avec la règle réévaluée), que le pipeline ajoute aux réévaluations du journal : une
+  anomalie de module se ferme quand le module ne la retrouve plus (ADR 0026 clause 7
+  précisée ; VLAN et modules de test adaptés). Module : `handler.rs` (`warnings`),
+  `pg.rs` (`open_anomalies`, `mac_duplicates`, `interfaces_of_addresses`,
+  `interfaces_in_networks`, `vlan_mismatches`, `guests`, `site_mismatches`). Tests :
+  `kartenn-machines/tests/machines.rs` (les deux du verify).
+  choix : chaque avertissement est réévalué sur les objets touchés, ceux qu'ils
+  entraînent (interfaces de même MAC, interfaces tenant une adresse d'un réseau touché,
+  machines hébergées) et ceux dont l'anomalie est ouverte ; l'anomalie porte sur
+  l'interface (MAC, VLAN) ou la machine hébergée (site) ; un cas est lu au début de sa
+  période commune, ou maintenant s'il a commencé avant ; un site inconnu d'un côté ne
+  déclenche rien.
 - [ ] 8. Références et cascades ; section `machines.attachments` — REQ-009-14, 23 —
   verify : `closing_a_machine_lists_interfaces`, `cascade_machine_closes_attachments`,
   `cascade_cluster_nullifies_hosts`, `closing_an_attached_address_refused`,

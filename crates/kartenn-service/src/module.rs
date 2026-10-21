@@ -240,6 +240,26 @@ impl CheckContext<'_> {
     }
 }
 
+/// What the rules of a module found on the final state (ADR 0026, clause 7).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Findings {
+    /// The violations; the warnings become anomalies once the changeset is applied.
+    pub violations: Vec<Violation>,
+    /// The rules evaluated anew, as `(object, rule or prefix of rules)`: an open anomaly of
+    /// such a rule on such an object that no warning raises again is closed, so that an
+    /// anomaly of a module disappears once corrected (REQ-009-13).
+    pub reevaluated: Vec<(Uuid, &'static str)>,
+}
+
+impl From<Vec<Violation>> for Findings {
+    fn from(violations: Vec<Violation>) -> Self {
+        Self {
+            violations,
+            reevaluated: Vec::new(),
+        }
+    }
+}
+
 /// The transaction of a changeset, as a module writes in it (ADR 0026, clause 6).
 pub trait ModuleTx: Send {
     /// The connection of the adapter: a module's own adapter downcasts it
@@ -411,14 +431,15 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
 
     /// The rules of the module on the final state, once every operation is written and
     /// every section of the differential produced: the context lists the objects of the
-    /// module the changeset wrote, and the sections.
+    /// module the changeset wrote, and the sections. The findings name the objects whose
+    /// warnings were evaluated anew, so that their anomalies close once corrected.
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
         context: &'a CheckContext<'a>,
-    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         let _ = (tx, context);
-        Box::pin(std::future::ready(Ok(Vec::new())))
+        Box::pin(std::future::ready(Ok(Findings::default())))
     }
 
     /// The edges of the module's [`Module::edges`] that start or end at `object`, valid at

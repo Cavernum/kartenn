@@ -1431,3 +1431,190 @@ async fn foreign_module_property_on_a_machine(pool: PgPool) {
         .await;
     assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
 }
+
+impl Env {
+    /// Whether an anomaly of `rule` is open on `object`.
+    async fn anomaly(&self, object: Uuid, rule: &str) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM anomaly
+                             WHERE object_id = $1 AND rule_id = $2 AND closed_at IS NULL)",
+        )
+        .bind(object)
+        .bind(rule)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The rules of the warnings of a simulation of `operations`.
+    async fn simulated_warnings(&self, operations: Vec<Operation>) -> Vec<&'static str> {
+        let mut request = self.request(operations);
+        request.simulate = true;
+        match submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+        {
+            Outcome::Simulated { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),
+            other => panic!("not simulated: {other:?}"),
+        }
+    }
+
+    /// `vlan.vlan` of the network `network` set to `vlan`.
+    async fn network_vlan(&self, network: Uuid, vlan: Uuid) -> Operation {
+        Operation::AssignProperty {
+            object: Ref::Id(network),
+            kind: ObjectKind::Prefix,
+            property: Ref::Id(self.property("vlan.vlan").await),
+            values: vec![RawInput::Text(vlan.to_string())],
+        }
+    }
+
+    /// The network `prefix` of `domain`, living now.
+    async fn network(&self, domain: Uuid, prefix: &str) -> Uuid {
+        sqlx::query_scalar(
+            "SELECT id FROM prefix
+              WHERE domain_id = $1 AND prefix = $2::cidr AND valid_period @> now()",
+        )
+        .bind(domain)
+        .bind(prefix)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// `update_interface` of `interface` with `fields`.
+fn update_interface(interface: Uuid, fields: Value) -> Operation {
+    let mut object = fields;
+    object["id"] = json!({"id": interface});
+    op("update_interface", object)
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn each_warning_opens_and_closes(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    // A universal MAC on two interfaces: a warning in the simulation, then an anomaly on
+    // each, closed once one of them changes.
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![update_interface(
+        e1,
+        json!({"mac": "00:1b:21:0a:0b:0c"}),
+    )])
+    .await;
+    let same = update_interface(e2, json!({"mac": "00:1b:21:0a:0b:0c"}));
+    assert!(
+        env.simulated_warnings(vec![same.clone()])
+            .await
+            .contains(&"machines.mac.duplicate")
+    );
+    env.applied(vec![same]).await;
+    assert!(env.anomaly(e1, "machines.mac.duplicate").await);
+    assert!(env.anomaly(e2, "machines.mac.duplicate").await);
+    env.applied(vec![update_interface(
+        e2,
+        json!({"mac": "00:1b:21:0a:0b:0d"}),
+    )])
+    .await;
+    assert!(!env.anomaly(e1, "machines.mac.duplicate").await);
+    assert!(!env.anomaly(e2, "machines.mac.duplicate").await);
+    // A locally administered MAC may repeat (RFC 9542 §2.1).
+    env.applied(vec![
+        update_interface(e1, json!({"mac": "02:00:00:00:00:01"})),
+        update_interface(e2, json!({"mac": "02:00:00:00:00:01"})),
+    ])
+    .await;
+    assert!(!env.anomaly(e1, "machines.mac.duplicate").await);
+
+    // An address whose network carries a VLAN the interface does not.
+    let vlans = env.vlans(&[10, 20]).await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    env.applied(vec![
+        update_interface(
+            e1,
+            json!({"vlan": {"mode": "access", "access": {"id": vlans[1]}}}),
+        ),
+        attach(e1, address, false),
+    ])
+    .await;
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    env.applied(vec![update_interface(
+        e1,
+        json!({"vlan": {"mode": "access", "access": {"id": vlans[0]}}}),
+    )])
+    .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+
+    // A machine hosted on another site than its host.
+    let site = env.property("core.site").await;
+    env.applied(vec![Operation::CreateSite {
+        local: None,
+        slug: "lyon".into(),
+        parent: None,
+    }])
+    .await;
+    let (paris, lyon) = (
+        env.id("site", "slug", "paris").await,
+        env.id("site", "slug", "lyon").await,
+    );
+    let host = env
+        .create("host1", "physical", json!({"site": {"id": paris}}))
+        .await;
+    let vm = env
+        .create(
+            "vm1",
+            "virtual",
+            json!({"host": {"machine": {"id": host}}, "site": {"id": lyon}}),
+        )
+        .await;
+    assert!(env.anomaly(vm, "machines.host.site_mismatch").await);
+    // Corrected on the host: the anomaly of the guest closes.
+    env.applied(vec![assign(
+        host,
+        "machines.machine",
+        site,
+        &lyon.to_string(),
+    )])
+    .await;
+    assert!(!env.anomaly(vm, "machines.host.site_mismatch").await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn vlan_change_on_network_reevaluates(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let vlans = env.vlans(&[10, 20]).await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    env.applied(vec![
+        update_interface(
+            e1,
+            json!({"vlan": {"mode": "trunk", "tagged": [{"id": vlans[0]}]}}),
+        ),
+        attach(e1, address, false),
+    ])
+    .await;
+    // The network gets a VLAN the trunk carries: nothing; another: an anomaly, though the
+    // changeset touches no interface.
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    let change = env.network_vlan(network, vlans[1]).await;
+    assert!(
+        env.simulated_warnings(vec![change.clone()])
+            .await
+            .contains(&"machines.address.vlan_mismatch")
+    );
+    env.applied(vec![change]).await;
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    // Back to the VLAN of the trunk: closed.
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+}
