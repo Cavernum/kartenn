@@ -23,13 +23,15 @@ path = "tests/http.rs"
 workspace = true
 
 [features]
-default = ["vlan", "machines", "policy"]
+default = ["vlan", "machines", "policy", "flow"]
 # The business modules of the build (ADR 0026): each one a feature, on by default.
 vlan = ["dep:kartenn-vlan"]
 machines = ["vlan", "dep:kartenn-machines"]
 policy = ["machines", "dep:kartenn-policy"]
+flow = ["policy", "dep:kartenn-flow"]
 
 [dependencies]
+kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", optional = true }
 kartenn-vlan = { version = "0.1.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"], optional = true }
 kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["pg"], optional = true }

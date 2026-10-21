@@ -9,7 +9,14 @@ use sqlx::types::Uuid;
 use sqlx::{PgPool, Postgres, Transaction};
 
 async fn migrated(pool: &PgPool) {
-    let registry = ModuleRegistry::new(vec![Arc::new(Flows)]).unwrap();
+    // With the modules it depends on (policy, machines and vlan).
+    let registry = ModuleRegistry::new(vec![
+        Arc::new(kartenn_vlan::Vlan),
+        Arc::new(kartenn_machines::Machines),
+        Arc::new(kartenn_policy::Policy),
+        Arc::new(Flows),
+    ])
+    .unwrap();
     kartenn_store_pg::modules::migrate(pool, &registry)
         .await
         .unwrap();

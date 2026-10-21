@@ -58,11 +58,34 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   `flow.flow.write` vers un objet illisible → 404
   - où : opérations de `crates/kartenn-vlan`, `crates/kartenn-service/src/review.rs`
     (propositions, REQ-004-41, 42), `rights.rs`
-  - dépend de : 2
-- [ ] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
+  - dépend de : 2 ; et, pour le triage, 010-12 (instantané de la politique lu en base) et
+    010-13 (évaluation de deux extrémités : développement en adresses, axes portés,
+    explication), absents au 2026-10-21
+  - à trancher avant : le contrat de module ne laisse pas une opération nommer la
+    permission qui autorise son écriture (`flow.flow.request` plutôt que
+    `flow.flow.write`, REQ-011-17, F12) ni ne donne au module l'identité de l'auteur, du
+    demandeur (`on_behalf_of`) et du validateur (`requester_id`, `reviewed_by`,
+    `granted_by`, `flow.separation`) ; ajouts au contrat (ADR 0026) à décider
+- [x] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
   clôture d'une adresse citée refusée ; cascade clôt le flux
   - où : références de module (ADR 0026 clause 12, tâche 008-7)
   - dépend de : 3
+  - fait avant la 3, sur des flux écrits comme le module les écrira (ligne de `flow.flow`
+    et enregistrement dans `module_object`) : `src/module.rs` (références `flow.flow` →
+    `address`, `prefix`, `machines.interface`, `machines.machine`, en cascade ; dépend de
+    `policy` et `machines` ; gestionnaire), `src/handler.rs` (`referrers`, `close` qui clôt
+    aussi dérogation, extrémités développées et évaluations, `restore`), `src/pg.rs` ;
+    module monté par `kartenn-server` (feature `flow`, par défaut, qui active `policy`) ;
+    contrat de référence et types du SDK régénérés. Tests
+    `crates/kartenn-flow/tests/it/references.rs` :
+    `closing_a_cited_address_is_refused_with_its_flows`,
+    `the_cascade_closes_the_flow_with_its_endpoint`,
+    `an_ended_flow_does_not_hold_its_endpoint`.
+  - choix : le refus passe par la règle du noyau `core.object.dependents` (mécanisme
+    générique, 008-7), qui liste les flux, et non par `flow.referenced` ; un flux vit
+    s'il recouvre la période à partir du début de la clôture (actif ou à venir) ; la
+    restauration ne rétablit que la ligne du flux, pas ses tables dérivées (recalculées
+    par la réévaluation, 011-5).
 - [ ] 5. Réévaluation dans la transaction (flux touchés par les sections 003, 009, 010,
   recalcul segmenté avec dossier, écriture des seuls segments changés), évaluation figée
   à l'enregistrement, différentiel des flux — REQ-011-11, 12, 13, 23 — verify : cas

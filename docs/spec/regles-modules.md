@@ -66,3 +66,21 @@ spécification du module.
 | `policy.value.unknown` | erreur | Les attributs d'une valeur décrivent une valeur vivante d'un axe. | REQ-010-2, REQ-010-30 | 010/S2 |
 | `policy.key.duplicate` | erreur | La clé d'un objet de la politique est unique sur sa période parmi les objets de son type. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/design « Données » |
 | `policy.reference.closed` | erreur | Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période. | REQ-010-2, REQ-010-8 | 010/design « Opérations » |
+
+## `flow`
+
+| Identifiant | Sévérité | Règle | Exigences | Source |
+|---|---|---|---|---|
+| `flow.endpoint.invalid` | erreur | Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface ou une machine, valide sur toute la période du flux ; jamais une plage. | REQ-011-2 | 011/F3 |
+| `flow.service.closed` | erreur | Le service d'un flux est actif sur toute sa période. | REQ-011-1 | 011/F2 |
+| `flow.reference.missing` | erreur | Un flux porte au moins une référence externe. | REQ-011-1 | 011/F2, Q3 |
+| `flow.field.invalid` | erreur | Une justification a de 1 à 4 000 caractères ; une référence externe a un identifiant de 1 à 256 caractères ; sans caractère de contrôle. | REQ-011-1 | 011/F2 |
+| `flow.kind.reserved` | erreur | La sorte « constaté » est réservée à la v0.3. | REQ-011-20 | 011/F16, Q18 |
+| `flow.update.identity` | erreur | Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée. | REQ-011-4 | 011/F2 |
+| `flow.review.required` | erreur | Un flux dont l'issue n'est pas automatique ne s'applique qu'après instruction. | REQ-011-8, REQ-011-21 | 011/F5, F6 |
+| `flow.review.end_required` | erreur | Un flux instruit a une date de fin, au plus au plafond de l'instruction. | REQ-011-22 | 011/F17 |
+| `flow.verdict.denied` | erreur | Un flux refusé par la politique ne s'enregistre qu'avec une dérogation ; refusé par un autre changement, il devient une anomalie. | REQ-011-8, REQ-011-12 | 011/F6, F8 |
+| `flow.verdict.partial` | avertissement | Une partie seulement des paires d'adresses du flux est autorisée. | REQ-011-10 | 011/F6 |
+| `flow.waiver.invalid` | erreur | Une dérogation a un motif et un risque accepté, une fin au plus tôt de celle du flux et du plafond, et un auteur autre que le demandeur. | REQ-011-9 | 011/F6, Q8 |
+| `flow.separation` | erreur | L'instructeur d'une demande n'en est pas le demandeur. | REQ-011-22 | 011/F17, C1 |
+| `flow.referenced` | erreur | Un objet extrémité d'un flux actif ou à venir ne se clôt pas sans cascade explicite. | REQ-011-3 | 011/F3, D33 |

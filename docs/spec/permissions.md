@@ -83,12 +83,17 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `policy.exempt_role.read` | — | Lire les rôles d'interface exemptés. |
 | `policy.exempt_role.write` | oui | Exempter un rôle d'interface ou retirer l'exemption. |
 | `policy.exempt_role.propose` | oui | Proposer une exemption d'un rôle d'interface. |
+| `flow.flow.read` | — | Lire les flux. |
+| `flow.flow.request` | — | Demander un flux sans lire ses extrémités, et lire ses propres demandes. |
+| `flow.flow.review` | — | Instruire une demande de flux. |
+| `flow.flow.waive` | — | Accorder une dérogation à un flux refusé. |
+| `flow.flow.write` | — | Écrire directement un flux (maintenance), avec la lecture de ses deux extrémités. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read`, `flow.flow.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read`, `flow.flow.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read`, `policy.flow_type.read`, `policy.service.read`, `policy.pattern.read`, `policy.rule.read`, `policy.condition.read`, `policy.signal.read`, `policy.exempt_role.read`, `flow.flow.read` |
 | Administrateur | `administrator` | `*` |

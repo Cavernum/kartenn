@@ -1,13 +1,16 @@
 //! The flow registry module as the core sees it (ADR 0026): its type of object,
-//! permissions, rules and migrations. Its operations, references and handler in the
-//! write pipeline come with the tasks of phase P2.
+//! permissions, rules, migrations and the references of its endpoints (REQ-011-3). Its
+//! operations come with task 011-3.
 
 use std::sync::Arc;
 
 use kartenn_core::authz::Permission;
 use kartenn_core::rules::Rule;
-use kartenn_service::module::{Module, ModuleHandler, ModuleMigration, ObjectType};
+use kartenn_service::module::{
+    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, Reference,
+};
 
+use crate::handler::Handler;
 use crate::rules::FLOW_RULES;
 
 /// The qualified type of a flow.
@@ -22,6 +25,32 @@ static TYPES: &[ObjectType] = &[
         owner_required: true,
         carries_site: false,
         domain_anchored: false,
+    },
+];
+
+// REQ-011-3: an endpoint of a living flow is not closed; the cascade closes the flow
+// (D33). The interface and the machine come with the module Machines, a dependency of the
+// policy this module depends on.
+static REFERENCES: &[Reference] = &[
+    Reference {
+        from: FLOW,
+        to: "address",
+        on_close: OnClose::Cascade,
+    },
+    Reference {
+        from: FLOW,
+        to: "prefix",
+        on_close: OnClose::Cascade,
+    },
+    Reference {
+        from: FLOW,
+        to: "machines.interface",
+        on_close: OnClose::Cascade,
+    },
+    Reference {
+        from: FLOW,
+        to: "machines.machine",
+        on_close: OnClose::Cascade,
     },
 ];
 
@@ -67,8 +96,14 @@ impl Module for Flows {
     fn version(&self) -> &'static str {
         env!("CARGO_PKG_VERSION")
     }
+    fn depends_on(&self) -> &'static [&'static str] {
+        &["policy", "machines"]
+    }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
+    }
+    fn references(&self) -> &'static [Reference] {
+        REFERENCES
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS
@@ -80,25 +115,24 @@ impl Module for Flows {
         MIGRATIONS
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
-        None
+        Some(Arc::new(Handler))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use kartenn_service::module::ModuleRegistry;
-
     use super::*;
 
+    // The registry with the modules it depends on is checked by the integration tests.
     #[test]
-    fn the_module_registers() {
-        let registry = ModuleRegistry::new(vec![Arc::new(Flows)]).expect("a valid module");
-        assert_eq!(registry.object_types().count(), 1);
+    fn the_module_declares_its_namespace() {
+        assert_eq!(Flows.object_types().len(), 1);
         assert!(
-            registry
+            Flows
                 .permissions()
                 .iter()
                 .all(|p| p.name.starts_with("flow."))
         );
+        assert!(Flows.references().iter().all(|r| r.from == FLOW));
     }
 }
