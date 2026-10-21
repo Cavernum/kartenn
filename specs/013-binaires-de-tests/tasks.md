@@ -89,10 +89,15 @@ même crate.
   choix : dans un seul binaire, les blocs `impl Env` des fichiers se rejoignent ; l'aide
   `group` de `rest.rs` (autre signature que celle de `vlans.rs`) devient `seed_group`, nom
   d'aide et non de test. Aucune ligne `où :` de tâche ouverte ne citait ces tests.
-- [ ] 8. kartenn-auth, kartenn-core, syslog-sender : cibles `auth_it`, `core_it`,
+- [x] 8. kartenn-auth, kartenn-core, syslog-sender : cibles `auth_it`, `core_it`,
   `syslog_sender_it` — verify : nombre de tests identique
   où : `Cargo.toml` et `tests/` de chaque crate
   dépend de : 1
+  — kartenn-auth : 30 tests avant et après (mêmes noms hors préfixe), 6 binaires → 2 ;
+  kartenn-core : 107, 3 → 2 ; syslog-sender : 20, 3 → 2. `roundtrip.proptest-regressions`
+  suit `roundtrip.rs` (proptest lit ses régressions à côté du fichier source) ;
+  `tests/it/main.rs` de syslog-sender porte l'en-tête MPL-2.0. Aucune ligne `où :` de
+  tâche ouverte ne citait ces tests.
 
 ## P3 — Mesure
 
