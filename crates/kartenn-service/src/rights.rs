@@ -137,7 +137,9 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     Ok(missing)
 }
 
-/// A guard reveals the version of an object: it needs the right to read it (006-16).
+/// A guard reveals the version of an object: it needs the right to read it (006-16); so
+/// does an object an operation of a module cites without writing it (its handler's
+/// [`reads`](crate::module::ModuleHandler::reads), 009/M16).
 async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
@@ -154,6 +156,11 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
                 .entry(crate::reads::read_permission(kind.name()))
                 .or_default()
                 .push(*id);
+        }
+        if let Planned::Module { handler, plan } = p {
+            for (permission, object) in handler.reads(plan) {
+                guarded.entry(permission).or_default().push(object);
+            }
         }
     }
     for (permission, ids) in guarded {

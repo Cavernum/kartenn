@@ -81,12 +81,24 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   la tâche 2 ; colonnes 802.1Q créées dès maintenant (mode `none` par défaut), leurs règles
   restent à la tâche 4 ; nom d'interface mal formé et machine changée refusés par
   `machines.operation.invalid`.
-- [ ] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
+- [x] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
   `vlan.vlan.read` — REQ-009-12, 18 (VLAN) — verify : `access_needs_one_vlan`,
   `native_not_in_tagged`, `closed_vlan_refused`, `vlan_read_required`
   où : design « Opérations », « Routes » (droits) ; propriété et type `vlan.vlan` (008)
   dépend de : 3 ; 008 : 11
-- [ ] 5. Rattachements : table `attachment`, `attach_address`/`detach_address`, unicité
+  — Contrat : `ModuleHandler::reads` (droits sur les objets cités sans être écrits,
+  contrôlés comme une garde dans `rights::check_guards`, `core.object.forbidden`, jamais
+  en proposition). `kartenn-machines` : `handler.rs` (champ `vlan` `{mode, access,
+  native, tagged}` de `create_interface` et `update_interface`, `null` ou absent : `none` ;
+  `VlanMode::from_parts` ; colonnes 802.1Q ; `vlan.vlan.read` sur chaque VLAN cité ;
+  `check` : VLAN vivant sur chaque version de l'interface), `pg.rs` (`insert_interface`
+  depuis les colonnes planifiées, `dead_vlans`). Tests : `kartenn-machines/tests/machines.rs`
+  (les quatre du verify).
+  choix : droit de lecture d'un objet cité porté par le contrat de module
+  (`ModuleHandler::reads`, ajout additif à l'ADR 0026) plutôt qu'un contrôle dans le
+  gestionnaire, qui ne connaît pas le demandeur ; un patch de `vlan` remplace tout le
+  mode ; un VLAN inconnu est refusé par `machines.vlan.mode` (non vivant).
+- [x] 5. Rattachements : table `attachment`, `attach_address`/`detach_address`, unicité
   hors `vip`/`anycast`, recopie de l'usage (`shared`) et réévaluation sur changement
   d'usage, adresse principale par famille, droits M16 — REQ-009-9, 10, 11, 18 —
   verify : `two_concurrent_attachments_one_wins`, `vip_on_two_machines`,
@@ -95,12 +107,35 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   où : design « Données » (`shared`), « Opérations », « Routes » (droits) ; usage des
   adresses `kartenn-core/src/objects.rs::AddressUsage`
   dépend de : 3
-- [ ] 6. Propriétés du module : `machines.interface_role` (valeurs livrées, extensible),
+  — Contrat : `CheckContext::changeset` (le module réécrit sa recopie sous le changeset).
+  `kartenn-machines` : migration `0003_attachment.sql` (versionnée, exclusions de la
+  conception), `module.rs` (opérations `attach_address`, `detach_address`), `handler.rs`
+  (écriture de l'interface, clés `machines.address:<id>` et `machines.interface:<id>`,
+  `core.address.read` par `reads`, `apply_attachment`, `check_interfaces`, restauration des
+  rattachements à l'annulation), `pg.rs` (`attach` qui refuse avant d'écrire ce que les
+  contraintes refuseraient, `attachments`, `dead_addresses`, `attachments_outside`,
+  `reshare`). Tests : `kartenn-machines/tests/machines.rs` (les cinq du verify).
+  choix : un rattachement écrit l'interface (`machines.interface.write`, nouvelle
+  inscription pour l'historique et l'annulation) ; `shared` recopié portion par portion
+  des versions de l'adresse (`kartenn_portion`), le refus ne portant que sur une portion
+  non partagée tenue par une autre interface ; un rattachement hors de la vie de son
+  interface est refusé par `machines.operation.invalid` en attendant les cascades de la
+  tâche 8 (une interface ou une adresse close avec des rattachements vivants est refusée).
+- [x] 6. Propriétés du module : `machines.interface_role` (valeurs livrées, extensible),
   `machines.fqdn` ; porteurs pour d'autres modules — REQ-009-8, 24 — verify :
   `interface_role_values`, `admin_adds_a_role_value`,
   `foreign_module_property_on_a_machine`
   où : design « Propriétés déclarées » ; `declarations.rs` (`ModuleDeclarations`)
   dépend de : 3
+  — `kartenn-machines/src/module.rs` : `Module::declarations` (`machines.interface_role`,
+  liste fermée simple portée par les interfaces, six valeurs livrées ;
+  `machines.fqdn`, FQDN porté par les machines ; ni héritage ni obligation),
+  `INTERFACE_ROLES`. Tests : `kartenn-machines/tests/machines.rs` (les trois du verify,
+  module de test `Inventory` portant deux listes fermées sur `machines.machine`) ;
+  l'environnement de test synchronise aussi les déclarations des modules.
+  choix : rien de propre au module pour REQ-009-24, les types de module étant porteurs
+  admissibles (008-5) ; une valeur ajoutée par l'administrateur survit à la
+  synchronisation (vérifié par le test).
 - [ ] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
   `machines.host.site_mismatch` en anomalies, ouvertes puis fermées — REQ-009-13 —
   verify : `each_warning_opens_and_closes`, `vlan_change_on_network_reevaluates`

@@ -2,7 +2,9 @@
 //! the operations on clusters and machines (REQ-009-2 to 5). `owner` and `site` are
 //! assignments of `core.owner` and `core.site` that the handler adds to the changeset,
 //! ordinary operations of the core checked under their own rights; the name of a machine
-//! is unique per resolved owner, checked on the final state (M3).
+//! is unique per resolved owner, checked on the final state (M3). An address of the core
+//! is attached to an interface by a dated row of `machines.attachment`, a write of the
+//! interface that needs only the reading of the address (M16).
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -26,7 +28,10 @@ use crate::mac::Mac;
 use crate::module::{CLUSTER, INTERFACE, MACHINE};
 use crate::name::HostName;
 use crate::pg::{self, Hosting};
-use crate::rules::{HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID};
+use crate::rules::{
+    ADDRESS_CLOSED, ADDRESS_TAKEN, HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID, VLAN_MODE,
+};
+use crate::vlan_mode::VlanMode;
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -125,7 +130,90 @@ struct CreateMachine {
 const CLUSTER_FIELDS: &[&str] = &["id", "slug", "owner", "site", "completed"];
 const MACHINE_FIELDS: &[&str] = &["id", "name", "kind", "host", "member_of", "completed"];
 /// The machine of an interface is fixed (REQ-009-6): it is not among the fields of a patch.
-const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "completed"];
+const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "vlan", "completed"];
+
+/// The permission a VLAN cited by an interface needs (REQ-009-18).
+const VLAN_READ: &str = "vlan.vlan.read";
+/// The permission an address attached or detached needs, rather than its writing (M16).
+const ADDRESS_READ: &str = "core.address.read";
+
+/// `machines.attach_address` (REQ-009-9, 11).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Attach {
+    interface: Ref,
+    address: Ref,
+    #[serde(default)]
+    primary: bool,
+    #[serde(default)]
+    completed: Completed,
+}
+
+/// `machines.detach_address`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Detach {
+    interface: Ref,
+    address: Ref,
+    #[serde(default)]
+    completed: Completed,
+}
+
+/// The 802.1Q mode of an interface, as received (REQ-009-12): `null` or absent is `none`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VlanInput {
+    mode: String,
+    #[serde(default)]
+    access: Option<Ref>,
+    #[serde(default)]
+    native: Option<Ref>,
+    #[serde(default)]
+    tagged: Vec<Ref>,
+}
+
+/// The 802.1Q columns of the mode `value` (`null`: none), and the VLANs it cites.
+fn vlan_columns(
+    value: &Value,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<(Map<String, Value>, Vec<Uuid>), Violation> {
+    let input: VlanInput = if value.is_null() {
+        VlanInput {
+            mode: "none".into(),
+            access: None,
+            native: None,
+            tagged: Vec::new(),
+        }
+    } else {
+        decode(value.clone(), "vlan")?
+    };
+    let vlan = |r: Ref| resolve(r).ok_or_else(|| invalid("vlan: unknown VLAN"));
+    let access = input.access.map(vlan).transpose()?;
+    let native = input.native.map(vlan).transpose()?;
+    let tagged = input
+        .tagged
+        .into_iter()
+        .map(vlan)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mode = VlanMode::from_parts(&input.mode, access, native, &tagged)?;
+    let (access, native, tagged): (Option<Uuid>, Option<Uuid>, Vec<Uuid>) = match &mode {
+        VlanMode::None => (None, None, Vec::new()),
+        VlanMode::Access(vlan) => (Some(*vlan), None, Vec::new()),
+        VlanMode::Trunk { tagged, native } => (None, *native, tagged.iter().copied().collect()),
+    };
+    let mut columns = Map::new();
+    columns.insert("vlan_mode".into(), mode.name().into());
+    columns.insert("access_vlan_id".into(), json!(access));
+    columns.insert("native_vlan_id".into(), json!(native));
+    columns.insert("tagged_vlan_ids".into(), json!(tagged));
+    Ok((columns, mode.vlans().into_iter().collect()))
+}
+
+/// The rights an operation needs on the objects it cites: `[permission, object]` pairs,
+/// read back by [`ModuleHandler::reads`].
+fn reads(permission: &str, objects: &[Uuid]) -> Value {
+    objects.iter().map(|o| json!([permission, o])).collect()
+}
 
 /// `machines.create_interface`.
 #[derive(Debug, Deserialize)]
@@ -139,6 +227,8 @@ struct CreateInterface {
     mac: Option<String>,
     #[serde(default)]
     enabled: Option<bool>,
+    #[serde(default)]
+    vlan: Option<Value>,
     #[serde(default)]
     completed: Completed,
 }
@@ -158,6 +248,16 @@ fn interface_name(name: &str) -> Result<&str, Violation> {
 /// The lock key of the interfaces of a machine.
 fn machine_key(machine: Uuid) -> String {
     format!("machines.machine:{machine}")
+}
+
+/// The lock key of the attachments of an address (REQ-009-10).
+fn address_key(address: Uuid) -> String {
+    format!("machines.address:{address}")
+}
+
+/// The lock key of the attachments of an interface (its primary addresses, REQ-009-11).
+fn interface_key(interface: Uuid) -> String {
+    format!("machines.interface:{interface}")
 }
 
 fn decode<T: serde::de::DeserializeOwned>(value: Value, tag: &str) -> Result<T, Violation> {
@@ -472,6 +572,14 @@ impl Handler {
         let machine = resolve(create.machine).ok_or_else(|| invalid("machine: unknown object"))?;
         let name = interface_name(&create.name)?;
         let mac = create.mac.as_deref().map(Mac::parse).transpose()?;
+        let (vlan, vlans) = vlan_columns(create.vlan.as_ref().unwrap_or(&Value::Null), resolve)?;
+        let mut columns = json!({
+            "machine_id": machine,
+            "name": name,
+            "mac": mac.map(|m| m.to_string()),
+            "enabled": create.enabled.unwrap_or(true),
+        });
+        columns.as_object_mut().expect("an object").extend(vlan);
         Ok(ModulePlan {
             kind: interface_kind(),
             object,
@@ -479,14 +587,7 @@ impl Handler {
             domains: Vec::new(),
             keys: vec![machine_key(machine)],
             core: Vec::new(),
-            data: json!({
-                "create": {
-                    "machine_id": machine,
-                    "name": name,
-                    "mac": mac.map(|m| m.to_string()),
-                    "enabled": create.enabled.unwrap_or(true),
-                }
-            }),
+            data: json!({ "create": columns, "reads": reads(VLAN_READ, &vlans) }),
         })
     }
 
@@ -523,6 +624,12 @@ impl Handler {
                 .ok_or_else(|| invalid("enabled: a boolean"))?;
             patch.insert("enabled".into(), enabled.into());
         }
+        let mut vlans = Vec::new();
+        if let Some(vlan) = body.get("vlan") {
+            let (columns, cited) = vlan_columns(vlan, resolve)?;
+            patch.extend(columns);
+            vlans = cited;
+        }
         Ok(ModulePlan {
             kind: interface_kind(),
             object: interface,
@@ -530,7 +637,43 @@ impl Handler {
             domains: Vec::new(),
             keys: completed.machine.map(machine_key).into_iter().collect(),
             core: Vec::new(),
-            data: json!({ "update": patch }),
+            data: json!({ "update": patch, "reads": reads(VLAN_READ, &vlans) }),
+        })
+    }
+}
+
+impl Handler {
+    /// `attach_address` (`attach`) or `detach_address`: a write of the interface, keyed by
+    /// the address and the interface.
+    fn plan_attachment(
+        operation: &ModuleOperation,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        attach: bool,
+    ) -> Result<ModulePlan, Violation> {
+        let body = Value::Object(operation.body.clone());
+        let (interface, address, primary) = if attach {
+            let a: Attach = decode(body, &operation.tag())?;
+            let _ = a.completed;
+            (a.interface, a.address, a.primary)
+        } else {
+            let d: Detach = decode(body, &operation.tag())?;
+            let _ = d.completed;
+            (d.interface, d.address, false)
+        };
+        let interface = resolve(interface).ok_or_else(|| invalid("interface: unknown object"))?;
+        let address = resolve(address).ok_or_else(|| invalid("address: unknown object"))?;
+        let verb = if attach { "attach" } else { "detach" };
+        Ok(ModulePlan {
+            kind: interface_kind(),
+            object: interface,
+            creates: false,
+            domains: Vec::new(),
+            keys: vec![address_key(address), interface_key(interface)],
+            core: Vec::new(),
+            data: json!({
+                verb: { "address": address, "primary": primary },
+                "reads": reads(ADDRESS_READ, &[address]),
+            }),
         })
     }
 }
@@ -590,8 +733,24 @@ impl ModuleHandler for Handler {
             "update_machine" => Self::plan_update_machine(operation, resolve),
             "create_interface" => Self::plan_create_interface(operation, object, resolve),
             "update_interface" => Self::plan_update_interface(operation, resolve),
+            "attach_address" => Self::plan_attachment(operation, resolve, true),
+            "detach_address" => Self::plan_attachment(operation, resolve, false),
             other => Err(invalid(format!("machines.{other}: unknown operation"))),
         }
+    }
+
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        plan.data
+            .get("reads")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|pair| {
+                let permission = pair.get(0)?.as_str()?.to_owned();
+                let object = pair.get(1)?.as_str()?.parse().ok()?;
+                Some((permission, object))
+            })
+            .collect()
     }
 
     fn apply<'a>(
@@ -603,6 +762,12 @@ impl ModuleHandler for Handler {
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
             let id = plan.object;
+            let attachment = ["attach", "detach"]
+                .into_iter()
+                .find_map(|verb| plan.data.get(verb).map(|a| (verb == "attach", a)));
+            if let Some((attach, attachment)) = attachment {
+                return apply_attachment(tx, id, attach, attachment, period, changeset).await;
+            }
             let conn = connection(tx)?;
             if plan.kind == interface_kind() {
                 let machine = if let Some(create) = plan.data.get("create") {
@@ -610,17 +775,7 @@ impl ModuleHandler for Handler {
                         .as_str()
                         .and_then(|s| s.parse().ok())
                         .ok_or_else(|| StoreError("a planned machine".into()))?;
-                    pg::insert_interface(
-                        conn,
-                        id,
-                        machine,
-                        create["name"].as_str().unwrap_or_default(),
-                        create["mac"].as_str(),
-                        create["enabled"].as_bool().unwrap_or(true),
-                        period,
-                        changeset,
-                    )
-                    .await?;
+                    pg::insert_interface(conn, id, machine, create, period, changeset).await?;
                     machine
                 } else {
                     let machine = pg::machine_of(conn, id)
@@ -701,7 +856,25 @@ impl ModuleHandler for Handler {
         period: Option<Period>,
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
-        tx.restore_versioned(table(kind), id, before, period, changeset)
+        Box::pin(async move {
+            tx.restore_versioned(table(kind), id, before, period, changeset)
+                .await?;
+            // The attachments of an interface that `before` wrote.
+            if kind == interface_kind() {
+                let written = pg::attachments_written(connection(tx)?, id, before).await?;
+                for attachment in written {
+                    tx.restore_versioned(
+                        pg::ATTACHMENT_TABLE,
+                        attachment,
+                        before,
+                        period,
+                        changeset,
+                    )
+                    .await?;
+                }
+            }
+            Ok(())
+        })
     }
 
     fn check<'a>(
@@ -726,9 +899,20 @@ impl ModuleHandler for Handler {
                     .collect()
             };
             let (clusters, interfaces) = (of(cluster_kind()), of(interface_kind()));
+            // Addresses of the core whose usage may have changed (REQ-009-10).
+            let addresses: Vec<Uuid> = context
+                .objects
+                .iter()
+                .filter(|(kind, _)| matches!(kind, ObjectKind::Address))
+                .map(|(_, id)| *id)
+                .collect();
             // A machine moved to another owner by an assignment of the core (M3).
             machines.extend(pg::owner_changed(conn).await?);
-            if machines.is_empty() && clusters.is_empty() && interfaces.is_empty() {
+            if machines.is_empty()
+                && clusters.is_empty()
+                && interfaces.is_empty()
+                && addresses.is_empty()
+            {
                 return Ok(Vec::new());
             }
             let machines: Vec<Uuid> = machines.into_iter().collect();
@@ -741,6 +925,7 @@ impl ModuleHandler for Handler {
                     .with_subjects([interface, machine]),
                 );
             }
+            found.extend(check_interfaces(conn, &interfaces, &addresses, context.changeset).await?);
             for (machine, other, name) in pg::name_duplicates(conn, &machines).await? {
                 found.push(
                     Violation::new(
@@ -785,6 +970,105 @@ impl ModuleHandler for Handler {
             Ok(found)
         })
     }
+}
+
+/// Attaches (`attach`) or detaches the address of `attachment` to or from the interface
+/// `id` over `period`: a write of the interface, registered for its history and the undo.
+async fn apply_attachment(
+    tx: &mut dyn ModuleTx,
+    id: Uuid,
+    attach: bool,
+    attachment: &Value,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let conn = connection(tx)?;
+    let machine = pg::machine_of(conn, id)
+        .await?
+        .ok_or(WriteError::NoVersion(id))?;
+    let address: Uuid = attachment["address"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| StoreError("a planned address".into()))?;
+    if attach {
+        let primary = attachment["primary"].as_bool().unwrap_or(false);
+        pg::attach(conn, id, address, primary, period, changeset).await?;
+    } else {
+        let rows = pg::attachments(conn, id, address, period).await?;
+        if rows.is_empty() {
+            return Err(WriteError::Rule(
+                invalid(format!(
+                    "the address {address} is not attached to the interface over the period"
+                ))
+                .with_subjects([id, address]),
+            ));
+        }
+        for row in rows {
+            tx.close_versioned(pg::ATTACHMENT_TABLE, row, period, changeset)
+                .await?;
+        }
+    }
+    tx.register(
+        ModuleObjectRow {
+            id,
+            kind: interface_kind(),
+            parent: Some(machine),
+            domain: None,
+        },
+        period,
+        changeset,
+    )
+    .await
+}
+
+/// The rules on the final state of the interfaces `interfaces` and of the attachments of
+/// the addresses `addresses` (REQ-009-9, 10, 12), after copying the usage of these
+/// addresses into their attachments as `changeset`.
+async fn check_interfaces(
+    conn: &mut PgConnection,
+    interfaces: &[Uuid],
+    addresses: &[Uuid],
+    changeset: Uuid,
+) -> Result<Vec<Violation>, StoreError> {
+    let mut found = Vec::new();
+    for (address, interface, other) in pg::reshare(conn, addresses, changeset).await? {
+        found.push(
+            Violation::new(
+                &ADDRESS_TAKEN,
+                format!(
+                    "the address {address} is on the interfaces {interface} and {other}: its usage stays shared"
+                ),
+            )
+            .with_subjects([address, interface, other]),
+        );
+    }
+    for (interface, address) in pg::dead_addresses(conn, interfaces, addresses).await? {
+        found.push(
+            Violation::new(
+                &ADDRESS_CLOSED,
+                format!("the address {address} does not live over its attachment to {interface}"),
+            )
+            .with_subjects([interface, address]),
+        );
+    }
+    for (interface, address) in pg::attachments_outside(conn, interfaces).await? {
+        found.push(
+            invalid(format!(
+                "the interface {interface} does not live over its attachment of {address}"
+            ))
+            .with_subjects([interface, address]),
+        );
+    }
+    for (interface, vlan) in pg::dead_vlans(conn, interfaces).await? {
+        found.push(
+            Violation::new(
+                &VLAN_MODE,
+                format!("the VLAN {vlan} does not live over the period of the interface"),
+            )
+            .with_subjects([interface, vlan]),
+        );
+    }
+    Ok(found)
 }
 
 /// The table of the objects of `kind`.

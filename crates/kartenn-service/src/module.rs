@@ -220,6 +220,9 @@ impl DiffContext<'_> {
 /// What the rules of a module read on the final state (ADR 0026, clause 7).
 #[derive(Debug, Clone, Copy)]
 pub struct CheckContext<'a> {
+    /// The changeset, for the copies a module rewrites on the final state (the usage of an
+    /// address copied by its attachments, 009).
+    pub changeset: Uuid,
     /// The objects of the module the changeset wrote.
     pub touched: &'a [(ModuleKind, Uuid)],
     /// The objects the changeset writes, of every type (core and modules): the rules of a
@@ -323,6 +326,15 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         object: Uuid,
         resolve: &dyn Fn(Ref) -> Option<Uuid>,
     ) -> Result<ModulePlan, Violation>;
+
+    /// The rights `plan` needs besides the right to write its object: `(permission,
+    /// object)` pairs for the objects it cites without writing them, such as an address
+    /// of the core attached to an interface (009/M16). The core checks them like a guard,
+    /// never as a proposal (`core.object.forbidden`). None by default.
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        let _ = plan;
+        Vec::new()
+    }
 
     /// Writes a planned operation over `period` (the changeset's when `None`).
     fn apply<'a>(
