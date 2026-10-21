@@ -532,33 +532,6 @@ pub(crate) async fn check_admin_obligation<T: WriteTx>(
     Ok(declaration)
 }
 
-/// The objects of `scope` without a value once an administrator required the property
-/// there: refused, listed (REQ-003-16, REQ-008-28).
-pub(crate) async fn admin_obligation_held<T: WriteTx>(
-    tx: &mut T,
-    property: Uuid,
-    declaration: &Declaration,
-    scope: &ObligationScope,
-    period: Option<Period>,
-) -> Result<(), WriteError> {
-    let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
-    let missing = tx
-        .objects_without_value(
-            property,
-            &carriers,
-            declaration.inherit.is_some(),
-            scope,
-            None,
-            period,
-        )
-        .await?;
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        Err(WriteError::Rule(required(&declaration.key, missing)))
-    }
-}
-
 /// Declarations of a module, as its code describes them (P12).
 #[derive(Debug, Clone)]
 pub struct ModuleDeclarations {

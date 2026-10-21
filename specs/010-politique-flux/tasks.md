@@ -196,17 +196,49 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   citent types et services par clé dans leurs paramètres, sans référence bloquante ; un
   champ inconnu est refusé par `policy.operation.invalid` ; le verrou `policy` est pris
   par chaque plan (clé nommée, ADR 0026), sans test de concurrence dédié.
-- [ ] 9. Contributions au différentiel (`policy.combinations`, `policy.reclassified`) et
+- [x] 9. Contributions au différentiel (`policy.combinations`, `policy.reclassified`) et
   déclencheurs de module (point différé N5) `policy.write`, `opens`, `closes`,
   `reclassify` — REQ-010-18, 19, 20 — verify : cas d'acceptation de REQ-010-18 en
   simulation et à l'application ; politique d'approbation `policy.opens ≥ 1` met en
   attente
   - où : `Module::diff` (tâche 008-19), `crates/kartenn-service/src/review.rs`
   - dépend de : 5, 8
-- [ ] 10. Obligation par domaine et par axe — REQ-010-21, 22 — verify : cas
+  — `crates/kartenn-policy` : `load.rs` (instantané lu en base à un instant de validité,
+  état **après** les écritures du changeset ou **avant** elles : versions plus anciennes
+  que la transaction plus celles qu'elle a remplacées, dans l'historique ; conditions et
+  signaux non lus, ni le verdict de principe ni le différentiel n'en dépendent),
+  `contribution.rs` (section, mesures), `handler.rs` (`diff`, `measure`), `module.rs`
+  (`measures` : `write`, `opens`, `closes`, `reclassify`, qualifiées `policy.*` par le
+  noyau, aucune appliquée par défaut). Tests : `tests/it/differential.rs`
+  (`acceptance_of_req_010_18` en simulation et à l'application,
+  `a_policy_on_opens_holds_the_changeset`, `a_reclassified_node_counts_its_heirs`).
+  choix : le contrat donne une section par module : `policy.combinations` porte, par le
+  genre de ses lignes, le décompte (`policy.summary`, objet nul), les combinaisons qui
+  basculent (`policy.combination`, objet nul, avant et après : service, classes de
+  valeurs par axe — `*other`, `*same` —, verdict, élément décisif) et les nœuds reclassés
+  (`policy.reclassified`, objet = nœud, axe et nombre d'héritiers) ; verdicts de principe
+  au présent de la transaction (`now()`), pas à la date d'effet du changeset ; héritiers
+  groupés par l'origine de leur valeur **après** le changeset (un retrait d'affectation
+  compte les héritiers sous l'ancêtre qui la reprend) ; `policy.reclassify` mesure le plus
+  grand total d'héritiers reclassés sur un axe ; `policy.write` compte les objets de la
+  politique écrits ; la troncature au-delà de 10⁵ candidats garde le décompte seul
+  (`truncated`).
+- [x] 10. Obligation par domaine et par axe — REQ-010-21, 22 — verify : cas
   d'acceptation de REQ-010-21
   - où : `AddObligation` (tâche 008-20), `crates/kartenn-core/src/properties.rs`
   - dépend de : 7
+  — l'obligation d'un administrateur du noyau (008-20) sur la propriété de l'axe suffit,
+  sans opération du module ; un correctif du noyau était nécessaire : la tenue d'une
+  obligation ajoutée se contrôlait à l'application de l'opération, avant la résolution, si
+  bien qu'un nœud classé dans le même changeset comptait encore comme sans valeur. Elle se
+  contrôle maintenant sur l'état final, la portée entière, avec les obligations des
+  déclarations (`kartenn-service/src/resolution.rs::check_obligations`, `pipeline.rs`
+  ne vérifie plus que la portée ; `declarations::admin_obligation_held` retirée). Tests :
+  `kartenn-policy/tests/it/obligation.rs` (`acceptance_of_req_010_21_required_environment`
+  : refus listant les 12 adresses, accepté une fois classées dans le même changeset ;
+  `acceptance_of_req_010_21_required_exposure` : un réseau qui hérite l'exposition est
+  accepté sans environnement, un réseau qui l'arrête est refusé). REQ-010-22 (non
+  classifiés comptés) relève du rapport d'audit (tâche 16).
 - [ ] 11. Vue matricielle (`policy.matrix.set`, lecture) — REQ-010-34 — verify : cas
   d'acceptation ; aller-retour vue → règles → vue
   - où : `kartenn-policy/src/matrix.rs`

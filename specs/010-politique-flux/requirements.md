@@ -530,7 +530,7 @@ Acceptation :
 Le module doit déclarer les permissions globales `policy.axis.admin`,
 `policy.environment.admin`, `policy.flow_type.admin`, `policy.service.admin`,
 `policy.rule.admin` (règles, motifs, conditions, signaux) ; `policy.inference.admin`
-(portée par domaine, REQ-010-46) ; `policy.read`, `policy.verdict.read` ;
+(portée par domaine, REQ-010-46) ; `policy.catalogue.read`, `policy.verdict.read` ;
 `policy.flow.request`, portée par entité ; et la permission d'écriture de chaque axe
 portée par le périmètre du nœud ou de la machine (S15, REQ-003-17, Q17).
 

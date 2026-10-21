@@ -284,6 +284,13 @@ Machines et interfaces (009, en cours). Note de référence :
   (règles, motifs, conditions, signaux) et `policy.inference.admin` (par domaine, I7)
   remplacent `policy.matrix.admin` et `policy.guardrail.admin`.
 
+- Amendé le 2026-10-21 (tâche 010-8, réalignement) : `policy.read` devient
+  **`policy.catalogue.read`**. Le catalogue des permissions impose la forme
+  `<module>.<objet>.<action>` (K12, contrainte `role_permission_permission_check`) ; un
+  nom à deux segments ne peut pas entrer dans un rôle. Les objets de la politique se
+  lisent tous sous cette permission ; leur administration suit les familles ci-dessus.
+- Décidé par : Claude (délégation de l'utilisateur, 2026-10-21), à relire
+
 ## S16 — Temps
 - Décision : environnements, types de flux, services, garde-fous et cellules sont
   versionnés en bitemporel (D10) et écrits par changeset (D11) ; toute lecture et toute

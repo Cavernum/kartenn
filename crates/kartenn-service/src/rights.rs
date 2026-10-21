@@ -187,7 +187,7 @@ fn write_permission(kind: ObjectKind) -> String {
         ObjectKind::Entity => "core.entity.write".into(),
         ObjectKind::Site => "core.site.write".into(),
         ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin".into(),
-        ObjectKind::Module(kind) => format!("{kind}.write"),
+        ObjectKind::Module(kind) => kartenn_core::authz::type_write_permission(kind.as_str()),
     }
 }
 

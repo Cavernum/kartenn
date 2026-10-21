@@ -562,7 +562,7 @@ impl PgAuthorizer {
             .chain(
                 self.modules
                     .object_types()
-                    .map(|t| (t.kind, format!("{}.read", t.kind))),
+                    .map(|t| (t.kind, kartenn_core::authz::type_read_permission(t.kind))),
             )
             .collect();
         let permissions: Vec<&str> = reads.iter().map(|(_, p)| p.as_str()).collect();

@@ -6,3 +6,6 @@ mod support;
 mod axes;
 mod catalogue;
 mod dated;
+mod differential;
+mod obligation;
+mod rights;

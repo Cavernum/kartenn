@@ -20,7 +20,11 @@ mod checks;
 #[cfg(feature = "pg")]
 mod codec;
 #[cfg(feature = "pg")]
+mod contribution;
+#[cfg(feature = "pg")]
 pub mod handler;
+#[cfg(feature = "pg")]
+mod load;
 #[cfg(feature = "pg")]
 mod objects;
 #[cfg(feature = "pg")]

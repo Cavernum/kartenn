@@ -583,11 +583,29 @@ pub(crate) async fn check_obligations<T: WriteTx>(
             }
         )
     });
+    // An obligation an administrator adds is checked whole, on the final state: the
+    // objects the same changeset classifies count (REQ-008-28, REQ-010-21).
+    let added: Vec<(Uuid, &ObligationScope)> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Modify {
+                id,
+                change:
+                    Change::Obligation {
+                        scope,
+                        required: true,
+                    },
+                ..
+            } => Some((*id, scope)),
+            _ => None,
+        })
+        .collect();
     for (property, declaration) in obligated {
         let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
         let mut missing = BTreeSet::new();
         for scope in &declaration.obligations {
-            let whole = moved && matches!(scope, ObligationScope::Entity(_));
+            let whole = (moved && matches!(scope, ObligationScope::Entity(_)))
+                || added.contains(&(property, scope));
             missing.extend(
                 tx.objects_without_value(
                     property,

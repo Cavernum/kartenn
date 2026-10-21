@@ -260,7 +260,7 @@ matérialisés de la 011 quand elle est présente. Résultat stocké (`policy_re
 ### Droits (REQ-010-24, 25)
 
 Catalogue de permissions du module (ADR 0026 clause 8). Rôles livrés : lecteur +
-`policy.read`, `policy.verdict.read` ; demandeur + `policy.flow.request` ; éditeur +
+`policy.catalogue.read`, `policy.verdict.read` ; demandeur + `policy.flow.request` ; éditeur +
 écriture des axes ; administrateur de politique + `policy.*.admin`. La requête de
 conformité vérifie `policy.verdict.read` et la lecture des objets désignés (prédicat
 SQL de la 005), sinon `policy.flow.request` sur l'entité de la demande (champ du dossier,
