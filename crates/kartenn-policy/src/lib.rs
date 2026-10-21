@@ -26,6 +26,8 @@ mod coherence;
 mod contribution;
 #[cfg(feature = "pg")]
 pub mod handler;
+#[cfg(feature = "import")]
+pub mod import;
 #[cfg(feature = "pg")]
 pub mod infer;
 #[cfg(feature = "pg")]

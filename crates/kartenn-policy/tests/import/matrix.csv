@@ -1,0 +1,7 @@
+source,flow_type,destination,state
+prod,app,prod,allow
+prod,admin,prod,allow
+rec,bdd,prod,deny
+prod,fic,global,partial
+rec,app,rec,allow
+dev,admin,dev,allow

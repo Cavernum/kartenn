@@ -1,0 +1,9 @@
+id,parent,kind,name,prefix,site
+lab,,domain,lab,,
+c10,lab,container,,10.0.0.0/8,
+n205,c10,network,prd-labo,10.20.5.0/24,site-nord
+a1,n205,address,prd-web-01,10.20.5.10/32,site-nord
+n206,c10,network,prd-app,10.20.6.0/24,site-nord
+n30,c10,network,,10.30.1.0/24,site-sud
+n40,c10,network,web,10.40.0.0/24,site-ouest
+n50,c10,network,,10.50.0.0/24,autre-sud

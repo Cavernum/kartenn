@@ -1,0 +1,18 @@
+# Règles générales, lues en premier (jeu d'exemple inventé, Q10).
+
+[production-par-nom]
+labels = ["prod"]
+constraints = [{ name = "^prd" }]
+
+[production-par-nom.exception]
+name = "recette-du-labo"
+labels = ["rec"]
+constraints = [{ cidr = { subnet_of = "10.20.5.0/24" } }]
+
+[recette-par-reseau]
+labels = ["rec"]
+constraints = [{ cidr = { subnet_of = "10.30.0.0/16" } }]
+
+[proprietaire]
+labels = ["dev"]
+constraints = [{ owner = "equipe-x" }]

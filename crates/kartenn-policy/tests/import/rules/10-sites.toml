@@ -1,0 +1,5 @@
+# Règles par site, lues après les règles générales : elles l'emportent.
+
+[site-sud-en-dev]
+labels = ["dev"]
+constraints = [{ site = "sud$" }]

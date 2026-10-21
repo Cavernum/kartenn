@@ -8,6 +8,7 @@ mod catalogue;
 mod coherence;
 mod dated;
 mod differential;
+mod import;
 mod inference;
 mod matrix;
 mod mismatch;
