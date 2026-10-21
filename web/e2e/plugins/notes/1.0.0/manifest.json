@@ -1,0 +1,35 @@
+{
+  "name": "notes",
+  "version": "1.0.0",
+  "sdk": "^0.1",
+  "entry": "index.js",
+  "module": null,
+  "catalogs": { "fr": "i18n/fr.json", "en": "i18n/en.json" },
+  "extensions": [
+    { "point": "view", "id": "overview", "element": "notes-overview", "nav": "nav.overview" },
+    {
+      "point": "tab",
+      "id": "notes",
+      "element": "notes-tab",
+      "object_types": ["prefix"],
+      "label": "tab.notes",
+      "permission": "core.prefix.read"
+    },
+    { "point": "panel", "id": "summary", "element": "notes-summary", "object_types": ["prefix"] },
+    {
+      "point": "column",
+      "id": "flag",
+      "element": "notes-flag",
+      "object_types": ["address"],
+      "label": "column.flag"
+    },
+    {
+      "point": "action",
+      "id": "reserve",
+      "element": "notes-reserve",
+      "object_types": ["prefix"],
+      "label": "action.reserve",
+      "permission": "core.address.write"
+    }
+  ]
+}

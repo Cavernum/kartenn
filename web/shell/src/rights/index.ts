@@ -32,17 +32,21 @@ export async function rightsOf(me: Me, fetcher: typeof fetch = fetch): Promise<R
   const entries = [...me.global_permissions];
   await Promise.all(
     [...scoped].map(async (key) => {
-      const response = await fetcher(`/v1/roles/${encodeURIComponent(key)}`);
-      if (response.ok) entries.push(...((await response.json()) as { entries: string[] }).entries);
+      const response = await fetcher(`/v1/roles/${encodeURIComponent(key)}`).catch(() => null);
+      const role = response?.ok ? await response.json().catch(() => null) : null;
+      if (role) entries.push(...(role as { entries: string[] }).entries);
     }),
   );
   return new Rights(entries);
 }
 
-/** Reads `/v1/me` again; signed out on 401. Pushes the user to the SDK's context. */
+/**
+ * Reads `/v1/me` again; signed out on 401 or when the request fails (a navigation that
+ * interrupts it). Pushes the user to the SDK's context.
+ */
 export async function loadSession(fetcher: typeof fetch = fetch): Promise<Session> {
-  const response = await fetcher("/v1/me");
-  const me = response.ok ? ((await response.json()) as Me) : null;
+  const response = await fetcher("/v1/me").catch(() => null);
+  const me = response?.ok ? ((await response.json().catch(() => null)) as Me | null) : null;
   const rights = me ? await rightsOf(me, fetcher) : NO_RIGHTS;
   state.value = { me, rights };
   if (me) {

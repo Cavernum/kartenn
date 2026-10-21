@@ -1,0 +1,13 @@
+{
+  "nav": { "overview": "Notes" },
+  "view": {
+    "title": "Vue d'ensemble des notes",
+    "trying": "Appel d'un tiers…",
+    "reached": "Tiers joint",
+    "blocked": "Appel d'un tiers bloqué"
+  },
+  "tab": { "notes": "Notes", "body": "Notes de {type} {id}" },
+  "panel": { "title": "Résumé des notes" },
+  "column": { "flag": "Repère" },
+  "action": { "reserve": "Réserver", "body": "Réserver dans {id}", "close": "Fermer" }
+}

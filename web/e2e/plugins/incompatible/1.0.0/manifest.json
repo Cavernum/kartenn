@@ -1,0 +1,10 @@
+{
+  "name": "incompatible",
+  "version": "1.0.0",
+  "sdk": "^9",
+  "entry": "index.js",
+  "catalogs": { "en": "i18n/en.json" },
+  "extensions": [
+    { "point": "view", "id": "view", "element": "incompatible-view", "nav": "nav.view" }
+  ]
+}

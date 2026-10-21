@@ -2,12 +2,18 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { visibleEntries } from "../navigation.ts";
+import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
 import UserMenu from "./UserMenu.vue";
 
 const { t } = useI18n();
 const session = useSession();
+const plugins = usePlugins();
 const entries = computed(() => visibleEntries(session.value.rights));
+// The views of plugins, under « Extensions » (design « Chargement des plugins »).
+const views = computed(() =>
+  extensionsOf(plugins.value, "view", session.value.rights).filter((v) => v.nav),
+);
 </script>
 
 <template>
@@ -23,6 +29,16 @@ const entries = computed(() => visibleEntries(session.value.rights));
           <RouterLink :to="entry.to">{{ t(entry.label) }}</RouterLink>
         </li>
       </ul>
+      <template v-if="views.length > 0">
+        <h2 id="k-nav-extensions" class="k-nav-heading">{{ t("nav.extensions") }}</h2>
+        <ul aria-labelledby="k-nav-extensions">
+          <li v-for="view in views" :key="`${view.plugin}.${view.id}`">
+            <RouterLink :to="`/x/${view.plugin}/${view.id}`">
+              {{ t(pluginKey(view, view.nav)) }}
+            </RouterLink>
+          </li>
+        </ul>
+      </template>
     </nav>
     <main id="k-main" class="k-main" tabindex="-1">
       <RouterView />
