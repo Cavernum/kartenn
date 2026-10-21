@@ -358,9 +358,11 @@ numérotées après coup.
   Tests : `tests/networks.rs` (les quatre du verify) ; l'environnement de test synchronise
   aussi les déclarations du module, comme le déploiement.
   choix : V9 se lit au début de chaque affectation de `vlan.vlan`, ou maintenant si elle
-  a commencé avant (pas de découpe de la période) ; une anomalie V9 ne se ferme pas
-  d'elle-même quand l'écart disparaît, le pipeline ne réévaluant que les règles `core.`
-  (à reprendre avec N11, anomalies de module).
+  a commencé avant (pas de découpe de la période) ; une anomalie V9 se ferme quand
+  l'écart disparaît : `check` réévalue à chaque changeset les réseaux qui en portent une
+  ouverte et les rend dans `Findings::reevaluated` (contrat de 009-8), test
+  `site_mismatch_anomaly_closes_once_corrected`. Une anomalie V9 encore fondée est donc
+  relevée de nouveau, comme avertissement, dans un changeset qui ne la touche pas.
 - [x] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,

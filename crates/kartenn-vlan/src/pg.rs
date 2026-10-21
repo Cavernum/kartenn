@@ -575,6 +575,21 @@ pub(crate) async fn networks_of(
     .map_err(|e| store(&e))
 }
 
+/// The objects that carry an open anomaly of `rule`: evaluated again at each changeset, so
+/// that an anomaly closes once its cause is gone, whatever the changeset touched.
+pub(crate) async fn open_anomalies(
+    conn: &mut PgConnection,
+    rule: &str,
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT object_id FROM public.anomaly WHERE rule_id = $1 AND closed_at IS NULL",
+    )
+    .bind(rule)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The networks among `ids` whose VLAN is in a group anchored on a site outside the site
 /// of the network (`site`) or on another domain (`domain`), V9: each assignment of
 /// `vlan.vlan` is read at its start, or now when it started before.
