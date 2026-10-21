@@ -10,7 +10,9 @@ use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
-use kartenn_service::module::{Module, ModuleHandler, ModuleMigration, ObjectType, OperationType};
+use kartenn_service::module::{
+    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+};
 
 use crate::rules::MACHINES_RULES;
 
@@ -157,6 +159,53 @@ permissions! {
     INTERFACE_PROPOSE = "machines.interface.propose", "Proposer un changement d'une interface.";
 }
 
+/// An address of the core, as a reference names it.
+pub const ADDRESS: &str = "address";
+/// A VLAN of the module `vlan`.
+pub const VLAN: &str = "vlan.vlan";
+
+/// What closing an object does to the objects of the module that cite it (REQ-009-14;
+/// design « Références »).
+static REFERENCES: &[Reference] = &[
+    // An interface lives on its machine: closed with it.
+    Reference {
+        from: INTERFACE,
+        to: MACHINE,
+        on_close: OnClose::Cascade,
+    },
+    // The attachments of an interface, whose sources are the attached addresses: closing
+    // the interface detaches them.
+    Reference {
+        from: INTERFACE,
+        to: INTERFACE,
+        on_close: OnClose::Nullify,
+    },
+    // An address of the core attached to an interface: detached.
+    Reference {
+        from: INTERFACE,
+        to: ADDRESS,
+        on_close: OnClose::Nullify,
+    },
+    // A VLAN an interface carries: taken off the interface.
+    Reference {
+        from: INTERFACE,
+        to: VLAN,
+        on_close: OnClose::Nullify,
+    },
+    // A host machine: no longer the host.
+    Reference {
+        from: MACHINE,
+        to: MACHINE,
+        on_close: OnClose::Nullify,
+    },
+    // A host or member cluster: no longer the host, nor the cluster of its members.
+    Reference {
+        from: MACHINE,
+        to: CLUSTER,
+        on_close: OnClose::Nullify,
+    },
+];
+
 /// The machines and interfaces module (spec 009).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Machines;
@@ -197,6 +246,9 @@ impl Module for Machines {
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
+    }
+    fn references(&self) -> &'static [Reference] {
+        REFERENCES
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS

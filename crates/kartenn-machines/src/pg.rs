@@ -25,7 +25,7 @@ pub(crate) const INTERFACE_TABLE: &str = "machines.interface";
 pub(crate) const ATTACHMENT_TABLE: &str = "machines.attachment";
 
 /// An instant as PostgreSQL reads it.
-fn time(i: Instant) -> OffsetDateTime {
+pub(crate) fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")
 }
 
@@ -829,4 +829,414 @@ pub(crate) async fn orphan_interfaces(
     .fetch_all(conn)
     .await
     .map_err(|e| store(&e))
+}
+
+/// The objects with an open anomaly of `rule`.
+pub(crate) async fn open_anomalies(
+    conn: &mut PgConnection,
+    rule: &str,
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT object_id FROM public.anomaly WHERE rule_id = $1 AND closed_at IS NULL",
+    )
+    .bind(rule)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces among `ids` whose universal MAC (the local bit of the first octet at 0,
+/// RFC 9542 §2.1) another interface carries where their periods overlap, now or later:
+/// `(interface, other, mac)`.
+pub(crate) async fn mac_duplicates(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid, String)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "SELECT DISTINCT a.id, b.id, a.mac::text
+           FROM machines.interface a
+           JOIN machines.interface b
+             ON b.mac = a.mac AND b.id <> a.id AND b.valid_period && a.valid_period
+          WHERE a.id = ANY($1)
+            AND (a.mac & '02:00:00:00:00:00'::macaddr) = '00:00:00:00:00:00'::macaddr
+            AND (upper_inf(a.valid_period * b.valid_period)
+                 OR upper(a.valid_period * b.valid_period) > now())
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces that hold one of `addresses`, now or later.
+pub(crate) async fn interfaces_of_addresses(
+    conn: &mut PgConnection,
+    addresses: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if addresses.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT interface_id FROM machines.attachment
+          WHERE address_id = ANY($1)
+            AND (upper_inf(valid_period) OR upper(valid_period) > now())",
+    )
+    .bind(addresses)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The interfaces that hold, now or later, an address of one of the networks `prefixes`.
+pub(crate) async fn interfaces_in_networks(
+    conn: &mut PgConnection,
+    prefixes: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if prefixes.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT a.interface_id
+           FROM public.prefix p
+           JOIN public.address x
+             ON x.domain_id = p.domain_id AND x.address <<= p.prefix
+            AND x.valid_period && p.valid_period
+           JOIN machines.attachment a
+             ON a.address_id = x.id AND a.valid_period && x.valid_period
+          WHERE p.id = ANY($1) AND p.nature = 'network'
+            AND (upper_inf(a.valid_period) OR upper(a.valid_period) > now())",
+    )
+    .bind(prefixes)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The attachments of the interfaces among `ids`, in mode `access` or `trunk`, whose
+/// address lies in a network carrying a VLAN (`vlan.vlan`) the interface does not carry:
+/// `(interface, address, vlan)`. Each attachment is read at its start, or now when it
+/// started before.
+pub(crate) async fn vlan_mismatches(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid, Uuid)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "WITH att AS (
+             SELECT interface_id, address_id, greatest(lower(valid_period), now()) AS t
+               FROM machines.attachment
+              WHERE interface_id = ANY($1)
+                AND (upper_inf(valid_period) OR upper(valid_period) > now()))
+         SELECT DISTINCT att.interface_id, att.address_id, pa.v_uuid
+           FROM att
+           JOIN machines.interface i
+             ON i.id = att.interface_id AND i.valid_period @> att.t AND i.vlan_mode <> 'none'
+           JOIN public.address x ON x.id = att.address_id AND x.valid_period @> att.t
+           JOIN public.prefix p
+             ON p.domain_id = x.domain_id AND p.nature = 'network' AND x.address <<= p.prefix
+            AND p.valid_period @> att.t
+           JOIN public.property_assignment pa
+             ON pa.object_id = p.id AND pa.kind = 'value' AND pa.valid_period @> att.t
+           JOIN public.property_declaration d ON d.id = pa.property_id AND d.key = 'vlan.vlan'
+          WHERE pa.v_uuid IS DISTINCT FROM i.access_vlan_id
+            AND pa.v_uuid IS DISTINCT FROM i.native_vlan_id
+            AND NOT (pa.v_uuid = ANY(i.tagged_vlan_ids))
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The machines hosted by one of `hosts`, now or later.
+pub(crate) async fn guests(
+    conn: &mut PgConnection,
+    hosts: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    if hosts.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_scalar(
+        "SELECT DISTINCT id FROM machines.machine
+          WHERE host_machine_id = ANY($1)
+            AND (upper_inf(valid_period) OR upper(valid_period) > now())",
+    )
+    .bind(hosts)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The machines among `ids` hosted by a machine of another resolved site, both sites known,
+/// read at the start of their common life or now when it started before: `(guest, host)`.
+pub(crate) async fn site_mismatches(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as(
+        "SELECT DISTINCT g.id, h.id
+           FROM machines.machine g
+           JOIN machines.machine h
+             ON h.id = g.host_machine_id AND h.valid_period && g.valid_period
+          CROSS JOIN LATERAL (
+              SELECT greatest(lower(g.valid_period * h.valid_period), now()) AS t,
+                     g.valid_period * h.valid_period AS common) c
+          CROSS JOIN LATERAL (
+              SELECT public.kartenn_site(g.id, c.t) AS guest,
+                     public.kartenn_site(h.id, c.t) AS host) s
+          WHERE g.id = ANY($1) AND c.common @> c.t
+            AND s.guest IS NOT NULL AND s.host IS NOT NULL AND s.guest <> s.host
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The living objects that cite `target` by the reference `(from, to)` of the module, from
+/// `at` on (REQ-009-14). The attachments of an interface (`to` an interface) are given by
+/// their addresses.
+pub(crate) async fn referrers(
+    conn: &mut PgConnection,
+    from: &str,
+    to: &str,
+    target: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<Uuid>, StoreError> {
+    use crate::module::{ADDRESS, CLUSTER, INTERFACE, MACHINE, VLAN};
+    let sql = match (from, to) {
+        (INTERFACE, MACHINE) => {
+            "SELECT DISTINCT id FROM machines.interface WHERE machine_id = $1 AND {live} ORDER BY id"
+        }
+        (INTERFACE, INTERFACE) => {
+            "SELECT DISTINCT address_id FROM machines.attachment
+              WHERE interface_id = $1 AND {live} ORDER BY address_id"
+        }
+        (INTERFACE, ADDRESS) => {
+            "SELECT DISTINCT interface_id FROM machines.attachment
+              WHERE address_id = $1 AND {live} ORDER BY interface_id"
+        }
+        (INTERFACE, VLAN) => {
+            "SELECT DISTINCT id FROM machines.interface
+              WHERE (access_vlan_id = $1 OR native_vlan_id = $1 OR $1 = ANY(tagged_vlan_ids))
+                AND {live} ORDER BY id"
+        }
+        (MACHINE, MACHINE) => {
+            "SELECT DISTINCT id FROM machines.machine
+              WHERE host_machine_id = $1 AND {live} ORDER BY id"
+        }
+        (MACHINE, CLUSTER) => {
+            "SELECT DISTINCT id FROM machines.machine
+              WHERE (host_cluster_id = $1 OR member_cluster_id = $1) AND {live} ORDER BY id"
+        }
+        _ => return Ok(Vec::new()),
+    };
+    let sql = sql.replace(
+        "{live}",
+        "valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(target)
+        .bind(at)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// Applies to `table` over each of the given portions its patch: `(from, to, patch)`.
+async fn portions(
+    conn: &mut PgConnection,
+    table: &str,
+    id: Uuid,
+    found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    for (from, to, patch) in found {
+        sqlx::query("SELECT public.kartenn_portion($1::regclass, $2, $3, $4, $5::jsonb, $6)")
+            .bind(table)
+            .bind(id)
+            .bind(from)
+            .bind(to)
+            .bind(patch)
+            .bind(changeset)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| WriteError::Store(store(&e)))?;
+    }
+    Ok(())
+}
+
+/// Takes the VLAN `vlan` off the interface `id` over `period`, version by version: an
+/// access port without its VLAN, or a trunk without a tagged VLAN, has no 802.1Q mode left,
+/// unless the trunk keeps a native VLAN, which it then carries untagged (REQ-009-14).
+pub(crate) async fn unlink_vlan(
+    conn: &mut PgConnection,
+    id: Uuid,
+    vlan: Uuid,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (from, to) = bounds(period);
+    let found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)> = sqlx::query_as(
+        "SELECT greatest(lower(i.valid_period), coalesce($2::timestamptz, now())),
+                CASE WHEN $3::timestamptz IS NULL THEN upper(i.valid_period)
+                     WHEN upper_inf(i.valid_period) THEN $3
+                     ELSE least(upper(i.valid_period), $3) END,
+                jsonb_build_object('vlan_mode', m.mode, 'access_vlan_id', m.access,
+                                   'native_vlan_id', m.native, 'tagged_vlan_ids', to_jsonb(x.t))
+           FROM machines.interface i
+          CROSS JOIN LATERAL (SELECT nullif(i.access_vlan_id, $4) AS a,
+                                     nullif(i.native_vlan_id, $4) AS n,
+                                     array_remove(i.tagged_vlan_ids, $4) AS t) x
+          CROSS JOIN LATERAL (
+              SELECT i.vlan_mode = 'trunk' AND cardinality(x.t) = 0 AS emptied) e
+          CROSS JOIN LATERAL (
+              SELECT CASE WHEN i.vlan_mode = 'access' AND x.a IS NULL THEN 'none'
+                          WHEN e.emptied AND x.n IS NULL THEN 'none'
+                          WHEN e.emptied THEN 'access'
+                          ELSE i.vlan_mode END AS mode,
+                     CASE WHEN e.emptied THEN x.n ELSE x.a END AS access,
+                     CASE WHEN e.emptied THEN NULL ELSE x.n END AS native) m
+          WHERE i.id = $1 AND i.valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+            AND (i.access_vlan_id = $4 OR i.native_vlan_id = $4 OR $4 = ANY(i.tagged_vlan_ids))
+          ORDER BY 1",
+    )
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .bind(vlan)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    portions(conn, INTERFACE_TABLE, id, found, changeset).await
+}
+
+/// Clears the host machine, the host cluster or the cluster `target` of the machine `id`
+/// over `period`, version by version (REQ-009-14).
+pub(crate) async fn unlink_host(
+    conn: &mut PgConnection,
+    id: Uuid,
+    target: Uuid,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (from, to) = bounds(period);
+    let found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)> = sqlx::query_as(
+        "SELECT greatest(lower(valid_period), coalesce($2::timestamptz, now())),
+                CASE WHEN $3::timestamptz IS NULL THEN upper(valid_period)
+                     WHEN upper_inf(valid_period) THEN $3
+                     ELSE least(upper(valid_period), $3) END,
+                CASE WHEN host_machine_id = $4
+                     THEN jsonb_build_object('host_machine_id', NULL) ELSE '{}' END
+                || CASE WHEN host_cluster_id = $4
+                        THEN jsonb_build_object('host_cluster_id', NULL) ELSE '{}' END
+                || CASE WHEN member_cluster_id = $4
+                        THEN jsonb_build_object('member_cluster_id', NULL) ELSE '{}' END
+           FROM machines.machine
+          WHERE id = $1 AND valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+            AND $4 IN (host_machine_id, host_cluster_id, member_cluster_id)
+          ORDER BY 1",
+    )
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .bind(target)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    portions(conn, MACHINE_TABLE, id, found, changeset).await
+}
+
+/// The attachments the current transaction makes or ends, as rows of the section
+/// `machines.attachments` (REQ-009-23): per interface and address, each portion of time
+/// attached before and no longer, or attached now and not before. Before is read from the
+/// versions asserted before the transaction, after from the current ones.
+pub(crate) async fn attachment_changes(
+    conn: &mut PgConnection,
+) -> Result<Vec<kartenn_service::module::DiffRow>, StoreError> {
+    type Change = (
+        Uuid,
+        Uuid,
+        Uuid,
+        Option<bool>,
+        Option<bool>,
+        i64,
+        Option<i64>,
+    );
+    let found: Vec<Change> = sqlx::query_as(
+        "WITH touched AS (
+             SELECT id FROM machines.attachment WHERE sys_start = now()
+             UNION
+             SELECT id FROM machines.attachment_history WHERE sys_end = now()),
+         before AS (
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment_history
+              WHERE id IN (SELECT id FROM touched) AND sys_end = now() AND sys_start < now()
+             UNION ALL
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment
+              WHERE id IN (SELECT id FROM touched) AND sys_start < now()),
+         after AS (
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment WHERE id IN (SELECT id FROM touched)),
+         b AS (SELECT interface_id, address_id, bool_or(primary_for_family) AS p,
+                      range_agg(valid_period) AS r
+                 FROM before GROUP BY 1, 2),
+         f AS (SELECT interface_id, address_id, bool_or(primary_for_family) AS p,
+                      range_agg(valid_period) AS r
+                 FROM after GROUP BY 1, 2),
+         pairs AS (
+             SELECT coalesce(b.interface_id, f.interface_id) AS interface_id,
+                    coalesce(b.address_id, f.address_id) AS address_id,
+                    b.p AS bp, f.p AS fp,
+                    coalesce(b.r, '{}'::tstzmultirange) AS br,
+                    coalesce(f.r, '{}'::tstzmultirange) AS fr
+               FROM b FULL JOIN f USING (interface_id, address_id)),
+         portions AS (
+             SELECT interface_id, address_id, bp, NULL::boolean AS fp, x AS period
+               FROM pairs, unnest(br - fr) AS x
+             UNION ALL
+             SELECT interface_id, address_id, NULL, fp, x
+               FROM pairs, unnest(fr - br) AS x)
+         SELECT p.interface_id, i.machine_id, p.address_id, p.bp, p.fp,
+                (extract(epoch FROM lower(p.period)) * 1000000)::bigint,
+                (extract(epoch FROM upper(p.period)) * 1000000)::bigint
+           FROM portions p
+           JOIN LATERAL (SELECT machine_id FROM machines.interface
+                          WHERE id = p.interface_id LIMIT 1) i ON true
+          ORDER BY i.machine_id, p.interface_id, p.address_id, lower(p.period)",
+    )
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok(found
+        .into_iter()
+        .map(|(interface, machine, address, before, after, start, end)| {
+            let side = |primary: Option<bool>| {
+                primary.map(|primary| {
+                    serde_json::json!({
+                        "machine": machine, "address": address, "primary": primary,
+                    })
+                })
+            };
+            kartenn_service::module::DiffRow {
+                object: interface,
+                kind: crate::module::INTERFACE.to_owned(),
+                before: side(before),
+                after: side(after),
+                period: Period::new(Instant(start), end.map(Instant)).ok(),
+            }
+        })
+        .collect())
 }

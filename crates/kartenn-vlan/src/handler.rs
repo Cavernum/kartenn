@@ -12,7 +12,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx, Reference,
+    BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+    Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -678,7 +679,7 @@ impl ModuleHandler for Handler {
         &'a self,
         tx: &'a mut dyn ModuleTx,
         context: &'a CheckContext<'a>,
-    ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         Box::pin(async move {
             let of = |wanted: ModuleKind| -> Vec<Uuid> {
                 context
@@ -696,7 +697,7 @@ impl ModuleHandler for Handler {
                 .map(|(_, id)| *id)
                 .collect();
             if groups.is_empty() && vlans.is_empty() && prefixes.is_empty() {
-                return Ok(Vec::new());
+                return Ok(Findings::default());
             }
             let conn = connection(tx)?;
             let mut found = Vec::new();
@@ -759,7 +760,7 @@ impl ModuleHandler for Handler {
                     .with_subjects([group]),
                 );
             }
-            Ok(found)
+            Ok(found.into())
         })
     }
 }

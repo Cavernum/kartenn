@@ -1233,9 +1233,10 @@ async fn check_modules<T: WriteTx>(
     touched: &[(ObjectKind, Uuid)],
     sections: &[crate::module::DiffSection],
     violations: &mut Vec<Violation>,
-) -> Result<(), StoreError> {
+) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
     // Each module once, in the order of the registry: a module that wrote nothing may
     // still have rules on the sections.
+    let mut reevaluated = Vec::new();
     for module in modules.modules() {
         let Some(handler) = module.handler() else {
             continue;
@@ -1268,9 +1269,11 @@ async fn check_modules<T: WriteTx>(
             objects: touched,
             sections,
         };
-        violations.extend(handler.check(tx.module_tx(), &context).await?);
+        let findings = handler.check(tx.module_tx(), &context).await?;
+        violations.extend(findings.violations);
+        reevaluated.extend(findings.reevaluated);
     }
-    Ok(())
+    Ok(reevaluated)
 }
 
 /// A write's refusal becomes a violation; an infrastructure failure stops everything.
@@ -1936,7 +1939,7 @@ async fn stages<S: Store, A: Authorizer>(
                 return Err(e.into());
             }
         };
-    if let Err(e) = check_modules(
+    let module_reevaluated = match check_modules(
         &mut tx,
         modules,
         changeset,
@@ -1947,9 +1950,12 @@ async fn stages<S: Store, A: Authorizer>(
     )
     .await
     {
-        tx.rollback().await?;
-        return Err(e.into());
-    }
+        Ok(reevaluated) => reevaluated,
+        Err(e) => {
+            tx.rollback().await?;
+            return Err(e.into());
+        }
+    };
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
@@ -2025,7 +2031,8 @@ async fn stages<S: Store, A: Authorizer>(
         }
         Mode::Validation { .. } => {}
     }
-    let reevaluated = reevaluated(&planned, &checked);
+    let mut reevaluated = reevaluated(&planned, &checked);
+    reevaluated.extend(module_reevaluated);
     let (kind, validator) = match mode {
         Mode::Submission => ("direct", None),
         Mode::Validation {

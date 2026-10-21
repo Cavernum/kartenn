@@ -1431,3 +1431,969 @@ async fn foreign_module_property_on_a_machine(pool: PgPool) {
         .await;
     assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
 }
+
+impl Env {
+    /// Whether an anomaly of `rule` is open on `object`.
+    async fn anomaly(&self, object: Uuid, rule: &str) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM anomaly
+                             WHERE object_id = $1 AND rule_id = $2 AND closed_at IS NULL)",
+        )
+        .bind(object)
+        .bind(rule)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The rules of the warnings of a simulation of `operations`.
+    async fn simulated_warnings(&self, operations: Vec<Operation>) -> Vec<&'static str> {
+        let mut request = self.request(operations);
+        request.simulate = true;
+        match submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+        {
+            Outcome::Simulated { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),
+            other => panic!("not simulated: {other:?}"),
+        }
+    }
+
+    /// `vlan.vlan` of the network `network` set to `vlan`.
+    async fn network_vlan(&self, network: Uuid, vlan: Uuid) -> Operation {
+        Operation::AssignProperty {
+            object: Ref::Id(network),
+            kind: ObjectKind::Prefix,
+            property: Ref::Id(self.property("vlan.vlan").await),
+            values: vec![RawInput::Text(vlan.to_string())],
+        }
+    }
+
+    /// The network `prefix` of `domain`, living now.
+    async fn network(&self, domain: Uuid, prefix: &str) -> Uuid {
+        sqlx::query_scalar(
+            "SELECT id FROM prefix
+              WHERE domain_id = $1 AND prefix = $2::cidr AND valid_period @> now()",
+        )
+        .bind(domain)
+        .bind(prefix)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// `update_interface` of `interface` with `fields`.
+fn update_interface(interface: Uuid, fields: Value) -> Operation {
+    let mut object = fields;
+    object["id"] = json!({"id": interface});
+    op("update_interface", object)
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn each_warning_opens_and_closes(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    // A universal MAC on two interfaces: a warning in the simulation, then an anomaly on
+    // each, closed once one of them changes.
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![update_interface(
+        e1,
+        json!({"mac": "00:1b:21:0a:0b:0c"}),
+    )])
+    .await;
+    let same = update_interface(e2, json!({"mac": "00:1b:21:0a:0b:0c"}));
+    assert!(
+        env.simulated_warnings(vec![same.clone()])
+            .await
+            .contains(&"machines.mac.duplicate")
+    );
+    env.applied(vec![same]).await;
+    assert!(env.anomaly(e1, "machines.mac.duplicate").await);
+    assert!(env.anomaly(e2, "machines.mac.duplicate").await);
+    env.applied(vec![update_interface(
+        e2,
+        json!({"mac": "00:1b:21:0a:0b:0d"}),
+    )])
+    .await;
+    assert!(!env.anomaly(e1, "machines.mac.duplicate").await);
+    assert!(!env.anomaly(e2, "machines.mac.duplicate").await);
+    // A locally administered MAC may repeat (RFC 9542 §2.1).
+    env.applied(vec![
+        update_interface(e1, json!({"mac": "02:00:00:00:00:01"})),
+        update_interface(e2, json!({"mac": "02:00:00:00:00:01"})),
+    ])
+    .await;
+    assert!(!env.anomaly(e1, "machines.mac.duplicate").await);
+
+    // An address whose network carries a VLAN the interface does not.
+    let vlans = env.vlans(&[10, 20]).await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    env.applied(vec![
+        update_interface(
+            e1,
+            json!({"vlan": {"mode": "access", "access": {"id": vlans[1]}}}),
+        ),
+        attach(e1, address, false),
+    ])
+    .await;
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    env.applied(vec![update_interface(
+        e1,
+        json!({"vlan": {"mode": "access", "access": {"id": vlans[0]}}}),
+    )])
+    .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+
+    // A machine hosted on another site than its host.
+    let site = env.property("core.site").await;
+    env.applied(vec![Operation::CreateSite {
+        local: None,
+        slug: "lyon".into(),
+        parent: None,
+    }])
+    .await;
+    let (paris, lyon) = (
+        env.id("site", "slug", "paris").await,
+        env.id("site", "slug", "lyon").await,
+    );
+    let host = env
+        .create("host1", "physical", json!({"site": {"id": paris}}))
+        .await;
+    let vm = env
+        .create(
+            "vm1",
+            "virtual",
+            json!({"host": {"machine": {"id": host}}, "site": {"id": lyon}}),
+        )
+        .await;
+    assert!(env.anomaly(vm, "machines.host.site_mismatch").await);
+    // Corrected on the host: the anomaly of the guest closes.
+    env.applied(vec![assign(
+        host,
+        "machines.machine",
+        site,
+        &lyon.to_string(),
+    )])
+    .await;
+    assert!(!env.anomaly(vm, "machines.host.site_mismatch").await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn vlan_change_on_network_reevaluates(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let vlans = env.vlans(&[10, 20]).await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    env.applied(vec![
+        update_interface(
+            e1,
+            json!({"vlan": {"mode": "trunk", "tagged": [{"id": vlans[0]}]}}),
+        ),
+        attach(e1, address, false),
+    ])
+    .await;
+    // The network gets a VLAN the trunk carries: nothing; another: an anomaly, though the
+    // changeset touches no interface.
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    let change = env.network_vlan(network, vlans[1]).await;
+    assert!(
+        env.simulated_warnings(vec![change.clone()])
+            .await
+            .contains(&"machines.address.vlan_mismatch")
+    );
+    env.applied(vec![change]).await;
+    assert!(env.anomaly(e1, "machines.address.vlan_mismatch").await);
+    // Back to the VLAN of the trunk: closed.
+    env.applied(vec![env.network_vlan(network, vlans[0]).await])
+        .await;
+    assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
+}
+
+/// `Close` of the object `id` of the module type `kind`.
+fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
+    Operation::Close {
+        kind: ObjectKind::Module(ModuleKind::parse(kind).unwrap()),
+        id: Ref::Id(id),
+        expected: None,
+        cascade,
+    }
+}
+
+/// The subjects of the violations of `rule` in `outcome`.
+fn subjects(outcome: &Outcome, rule: &str) -> Vec<Uuid> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations
+            .iter()
+            .filter(|v| v.rule.id == rule)
+            .flat_map(|v| v.subjects.iter().copied())
+            .collect(),
+        other => panic!("not refused: {other:?}"),
+    }
+}
+
+impl Env {
+    /// Whether `id` lives now in `table`.
+    async fn lives(&self, table: &str, id: Uuid) -> bool {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT EXISTS (SELECT 1 FROM {table} WHERE id = $1 AND valid_period @> now())"
+        )))
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// A machine `name` with the interfaces `eth0` (`a1`, `a2`) and `eth1` (`a3`), the
+    /// three addresses of `lab`: `(machine, [eth0, eth1], [a1, a2, a3])`.
+    async fn wired(&self, name: &str, lab: Uuid) -> (Uuid, [Uuid; 2], [Uuid; 3]) {
+        let m = self.create(name, "physical", json!({})).await;
+        self.applied(vec![
+            interface(m, 0, Value::Null),
+            interface(m, 1, Value::Null),
+        ])
+        .await;
+        let (eth0, eth1) = (
+            self.interface(m, "eth0").await,
+            self.interface(m, "eth1").await,
+        );
+        let mut addresses = [Uuid::nil(); 3];
+        for (n, slot) in addresses.iter_mut().enumerate() {
+            *slot = self
+                .address(lab, &format!("192.0.2.{}", 20 + n), AddressUsage::Host)
+                .await;
+        }
+        self.applied(vec![
+            attach(eth0, addresses[0], true),
+            attach(eth0, addresses[1], false),
+            attach(eth1, addresses[2], false),
+        ])
+        .await;
+        (m, [eth0, eth1], addresses)
+    }
+
+    /// The rows of the section `section` recorded with `changeset`.
+    async fn section_rows(&self, changeset: Uuid, section: &str) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM changeset_diff_section WHERE changeset_id = $1 AND section = $2",
+        )
+        .bind(changeset)
+        .bind(section)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_a_machine_lists_interfaces(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let m = env.create("m1", "physical", json!({})).await;
+    env.applied(vec![
+        interface(m, 0, Value::Null),
+        interface(m, 1, Value::Null),
+    ])
+    .await;
+    let (eth0, eth1) = (
+        env.interface(m, "eth0").await,
+        env.interface(m, "eth1").await,
+    );
+    let refused = env.submit(vec![close("machines.machine", m, false)]).await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(
+        listed.contains(&eth0) && listed.contains(&eth1),
+        "{refused:?}"
+    );
+    assert!(env.lives("machines.machine", m).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn cascade_machine_closes_attachments(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, interfaces, addresses) = env.wired("m1", lab).await;
+    let outcome = env.applied(vec![close("machines.machine", m, true)]).await;
+    let Outcome::Applied { cascaded, .. } = &outcome else {
+        unreachable!()
+    };
+    for interface in interfaces {
+        assert!(
+            cascaded.iter().any(|(_, id)| *id == interface),
+            "{cascaded:?}"
+        );
+        assert!(!env.lives("machines.interface", interface).await);
+    }
+    for address in addresses {
+        assert!(env.attachments(address).await.is_empty());
+        // The addresses stay.
+        assert!(env.lives("address", address).await);
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn cascade_cluster_nullifies_hosts(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    env.applied(vec![op(
+        "create_cluster",
+        json!({"slug": "c1", "owner": {"id": acme}}),
+    )])
+    .await;
+    let cluster = env.id("machines.cluster", "slug", "c1").await;
+    let host = env
+        .create("host1", "physical", json!({"member_of": {"id": cluster}}))
+        .await;
+    let vm = env
+        .create(
+            "vm1",
+            "virtual",
+            json!({"host": {"cluster": {"id": cluster}}}),
+        )
+        .await;
+    let refused = env
+        .submit(vec![close("machines.cluster", cluster, false)])
+        .await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(
+        listed.contains(&host) && listed.contains(&vm),
+        "{refused:?}"
+    );
+    env.applied(vec![close("machines.cluster", cluster, true)])
+        .await;
+    let hosting: (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT (SELECT host_cluster_id FROM machines.machine WHERE id = $1 AND valid_period @> now()),
+                (SELECT member_cluster_id FROM machines.machine WHERE id = $2 AND valid_period @> now())",
+    )
+    .bind(vm)
+    .bind(host)
+    .fetch_one(&env.pool)
+    .await
+    .unwrap();
+    assert_eq!(hosting, (None, None));
+    assert!(env.lives("machines.machine", vm).await);
+    assert!(!env.lives("machines.cluster", cluster).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_an_attached_address_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    env.applied(vec![attach(e1, address, false)]).await;
+    let close_address = |cascade: bool| Operation::Close {
+        kind: ObjectKind::Address,
+        id: Ref::Id(address),
+        expected: None,
+        cascade,
+    };
+    let refused = env.submit(vec![close_address(false)]).await;
+    assert!(
+        subjects(&refused, "core.object.dependents").contains(&e1),
+        "{refused:?}"
+    );
+    // Closing the interface alone is refused too, naming the address it holds.
+    let refused = env
+        .submit(vec![close("machines.interface", e1, false)])
+        .await;
+    assert!(
+        subjects(&refused, "core.object.dependents").contains(&address),
+        "{refused:?}"
+    );
+    // With the cascade, the address is detached.
+    env.applied(vec![close_address(true)]).await;
+    assert!(env.attachments(address).await.is_empty());
+    assert!(env.lives("machines.interface", e1).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_a_used_vlan_cascades_to_interfaces(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let vlans = env.vlans(&[10, 20]).await;
+    let m = env.create("m1", "physical", json!({})).await;
+    env.applied(vec![
+        interface(m, 0, json!({"mode": "access", "access": {"id": vlans[0]}})),
+        interface(
+            m,
+            1,
+            json!({"mode": "trunk", "tagged": [{"id": vlans[0]}, {"id": vlans[1]}]}),
+        ),
+        interface(
+            m,
+            2,
+            json!({"mode": "trunk", "native": {"id": vlans[1]}, "tagged": [{"id": vlans[0]}]}),
+        ),
+    ])
+    .await;
+    let eth = [
+        env.interface(m, "eth0").await,
+        env.interface(m, "eth1").await,
+        env.interface(m, "eth2").await,
+    ];
+    let refused = env.submit(vec![vop_close(vlans[0], false)]).await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(eth.iter().all(|e| listed.contains(e)), "{refused:?}");
+    env.applied(vec![vop_close(vlans[0], true)]).await;
+    assert_eq!(
+        env.vlan_columns(eth[0]).await,
+        ("none".into(), None, None, Vec::new())
+    );
+    assert_eq!(
+        env.vlan_columns(eth[1]).await,
+        ("trunk".into(), None, None, vec![vlans[1]])
+    );
+    // A trunk left with its native VLAN only carries it untagged.
+    assert_eq!(
+        env.vlan_columns(eth[2]).await,
+        ("access".into(), Some(vlans[1]), None, Vec::new())
+    );
+}
+
+/// `Close` of the VLAN `vlan`.
+fn vop_close(vlan: Uuid, cascade: bool) -> Operation {
+    close("vlan.vlan", vlan, cascade)
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn attachments_section_in_simulation(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, [eth0, eth1], addresses) = env.wired("m1", lab).await;
+    let mut request = env.request(vec![close("machines.machine", m, true)]);
+    request.simulate = true;
+    let simulated = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    let Outcome::Simulated { sections, .. } = &simulated else {
+        panic!("{simulated:?}")
+    };
+    let section = sections
+        .iter()
+        .find(|s| s.name == "machines.attachments")
+        .expect("the section of the attachments");
+    assert_eq!(section.count, 3, "{section:?}");
+    for row in &section.rows {
+        assert!([eth0, eth1].contains(&row.object), "{row:?}");
+        assert_eq!(row.kind, "machines.interface");
+        let before = row.before.as_ref().expect("attached before");
+        assert_eq!(before["machine"], json!(m));
+        assert!(addresses.iter().any(|a| before["address"] == json!(a)));
+        assert!(row.after.is_none(), "{row:?}");
+        assert!(row.period.is_some());
+    }
+    // Applied, the section is recorded with the changeset.
+    let Outcome::Applied { changeset, .. } =
+        env.applied(vec![close("machines.machine", m, true)]).await
+    else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "machines.attachments").await, 3);
+    // An attachment makes one row too, after only.
+    let a = env.address(lab, "192.0.2.40", AddressUsage::Host).await;
+    let e = env.eth0("m2").await;
+    let Outcome::Applied { changeset, .. } = env.applied(vec![attach(e, a, false)]).await else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "machines.attachments").await, 1);
+}
+
+/// A module that depends on `machines` and reads its section before contributing its own
+/// (REQ-009-23, M5 of the 011).
+#[derive(Debug)]
+struct Reader;
+
+#[derive(Debug)]
+struct ReaderHandler;
+
+impl kartenn_service::module::ModuleHandler for ReaderHandler {
+    fn plan(
+        &self,
+        operation: &kartenn_service::operations::ModuleOperation,
+        _object: Uuid,
+        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
+        panic!("no operation: {operation:?}")
+    }
+
+    fn apply<'a>(
+        &'a self,
+        _tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        _plan: &'a kartenn_service::module::ModulePlan,
+        _period: Option<kartenn_core::period::Period>,
+        _changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), kartenn_service::port::WriteError>> {
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn diff<'a>(
+        &'a self,
+        _tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        context: &'a kartenn_service::module::DiffContext<'a>,
+    ) -> kartenn_service::module::BoxFuture<
+        'a,
+        Result<Option<kartenn_service::module::DiffSection>, kartenn_service::port::StoreError>,
+    > {
+        let rows = context
+            .section("machines.attachments")
+            .map(|s| s.rows.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| kartenn_service::module::DiffRow {
+                kind: "reader.seen".into(),
+                ..row
+            })
+            .collect();
+        Box::pin(std::future::ready(Ok(Some(
+            kartenn_service::module::DiffSection {
+                name: "reader.seen".into(),
+                rows,
+            },
+        ))))
+    }
+}
+
+impl Module for Reader {
+    fn name(&self) -> &'static str {
+        "reader"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+    fn depends_on(&self) -> &'static [&'static str] {
+        &["machines"]
+    }
+    fn handler(&self) -> Option<Arc<dyn kartenn_service::module::ModuleHandler>> {
+        Some(Arc::new(ReaderHandler))
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn dependent_module_reads_the_section(pool: PgPool) {
+    let env = Env::with(&pool, vec![Arc::new(Reader)]).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, ..) = env.wired("m1", lab).await;
+    let Outcome::Applied { changeset, .. } =
+        env.applied(vec![close("machines.machine", m, true)]).await
+    else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "reader.seen").await, 3);
+}
+
+impl Env {
+    /// The changeset of an applied outcome.
+    fn changeset(outcome: &Outcome) -> Uuid {
+        match outcome {
+            Outcome::Applied { changeset, .. } => *changeset,
+            other => panic!("not applied: {other:?}"),
+        }
+    }
+
+    /// Applies the undo of `changeset`.
+    async fn undo(&self, changeset: Uuid) {
+        let undo = kartenn_service::undo::inverse(&self.store, changeset, self.author)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            undo.conflicts.is_empty() && undo.unsupported.is_empty(),
+            "{undo:?}"
+        );
+        self.applied(undo.request.operations).await;
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn undo_restores_attachments(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    // Undoing an attachment detaches the address.
+    let attached = Env::changeset(&env.applied(vec![attach(e1, address, true)]).await);
+    env.undo(attached).await;
+    assert!(env.attachments(address).await.is_empty());
+    // Undoing a detachment attaches it back, as it was.
+    env.applied(vec![attach(e1, address, true)]).await;
+    let detached = Env::changeset(&env.applied(vec![detach(e1, address)]).await);
+    assert!(env.attachments(address).await.is_empty());
+    env.undo(detached).await;
+    assert_eq!(env.attachments(address).await, vec![(e1, false, true)]);
+}
+
+impl Env {
+    /// The instant of the database now, as the core reads it.
+    async fn now(&self) -> kartenn_core::period::Instant {
+        let now: sqlx::types::time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
+        kartenn_machines::read::instant(now)
+    }
+
+    /// The role `role` given to the interface `interface`.
+    async fn role(&self, interface: Uuid, role: &str) -> Operation {
+        assign(
+            interface,
+            "machines.interface",
+            self.property("machines.interface_role").await,
+            role,
+        )
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn addresses_of_machine_with_roles(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, [eth0, eth1], addresses) = env.wired("m1", lab).await;
+    env.applied(vec![
+        env.role(eth0, "administration").await,
+        env.role(eth1, "service").await,
+    ])
+    .await;
+    let now = env.now().await;
+    let mut conn = pool.acquire().await.unwrap();
+    let found = kartenn_machines::read::addresses_of_machine(&mut conn, m, now, None)
+        .await
+        .unwrap();
+    let seen: Vec<(Uuid, Option<&str>, Uuid, &str, bool)> = found
+        .iter()
+        .map(|a| {
+            (
+                a.interface,
+                a.role.as_deref(),
+                a.address,
+                a.value.as_str(),
+                a.primary,
+            )
+        })
+        .collect();
+    assert_eq!(
+        seen,
+        vec![
+            (
+                eth0,
+                Some("administration"),
+                addresses[0],
+                "192.0.2.20",
+                true
+            ),
+            (
+                eth0,
+                Some("administration"),
+                addresses[1],
+                "192.0.2.21",
+                false
+            ),
+            (eth1, Some("service"), addresses[2], "192.0.2.22", false),
+        ]
+    );
+    let of_eth1 = kartenn_machines::read::addresses_of_interface(&mut conn, eth1, now, None)
+        .await
+        .unwrap();
+    assert_eq!(of_eth1.len(), 1);
+    assert_eq!(of_eth1[0].interface_name, "eth1");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn attachments_of_address_as_of(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![
+        attach(e1, address, false),
+        env.role(e1, "backup").await,
+    ])
+    .await;
+    let then = env.now().await;
+    env.applied(vec![detach(e1, address), attach(e2, address, false)])
+        .await;
+    let now = env.now().await;
+    let (m1, m2) = (
+        env.machine("m1", env.entity("acme").await).await,
+        env.machine("m2", env.entity("acme").await).await,
+    );
+    let mut conn = pool.acquire().await.unwrap();
+    let read = kartenn_machines::read::attachments_of_address;
+    let current = read(&mut conn, address, now, None).await.unwrap();
+    assert_eq!(current.len(), 1);
+    assert_eq!((current[0].interface, current[0].machine), (e2, m2));
+    // As asserted then, at that time: the first interface, with its role.
+    let past = read(&mut conn, address, then, Some(then)).await.unwrap();
+    assert_eq!(past.len(), 1);
+    assert_eq!(
+        (past[0].interface, past[0].machine, past[0].role.as_deref()),
+        (e1, m1, Some("backup"))
+    );
+    // As asserted now, at that time: still the first interface (valid time), the detachment
+    // taking effect after it.
+    let at_then = read(&mut conn, address, then, None).await.unwrap();
+    assert_eq!(at_then.len(), 1);
+    assert_eq!(at_then[0].interface, e1);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn machines_in_network_paginated(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let network = env.network(lab, "192.0.2.0/24").await;
+    let mut machines = Vec::new();
+    for n in 0..7 {
+        let address = env
+            .address(lab, &format!("192.0.2.{}", 50 + n), AddressUsage::Host)
+            .await;
+        let interface = env.eth0(&format!("m{n}")).await;
+        env.applied(vec![attach(interface, address, false)]).await;
+        machines.push(
+            env.machine(&format!("m{n}"), env.entity("acme").await)
+                .await,
+        );
+    }
+    // A machine outside the network.
+    env.eth0("outside").await;
+    machines.sort();
+    let now = env.now().await;
+    let mut conn = pool.acquire().await.unwrap();
+    let mut seen = Vec::new();
+    let mut after = None;
+    loop {
+        let page =
+            kartenn_machines::read::machines_in_network(&mut conn, network, now, None, after, 3)
+                .await
+                .unwrap();
+        assert!(page.len() <= 3);
+        let Some(&last) = page.last() else { break };
+        seen.extend(page);
+        after = Some(last);
+    }
+    assert_eq!(seen, machines);
+}
+
+/// A module that depends on `machines` and reads, in the transaction of a changeset, the
+/// addresses of each machine it touches as the changeset leaves them and as they were
+/// before it (REQ-009-22).
+#[derive(Debug)]
+struct Probe;
+
+#[derive(Debug)]
+struct ProbeHandler;
+
+impl kartenn_service::module::ModuleHandler for ProbeHandler {
+    fn plan(
+        &self,
+        operation: &kartenn_service::operations::ModuleOperation,
+        _object: Uuid,
+        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
+        panic!("no operation: {operation:?}")
+    }
+
+    fn apply<'a>(
+        &'a self,
+        _tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        _plan: &'a kartenn_service::module::ModulePlan,
+        _period: Option<kartenn_core::period::Period>,
+        _changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), kartenn_service::port::WriteError>> {
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        context: &'a kartenn_service::module::DiffContext<'a>,
+    ) -> kartenn_service::module::BoxFuture<
+        'a,
+        Result<Option<kartenn_service::module::DiffSection>, kartenn_service::port::StoreError>,
+    > {
+        Box::pin(async move {
+            let conn = tx
+                .connection()
+                .downcast_mut::<sqlx::PgConnection>()
+                .expect("PostgreSQL");
+            let (now, before): (
+                sqlx::types::time::OffsetDateTime,
+                sqlx::types::time::OffsetDateTime,
+            ) = sqlx::query_as("SELECT now(), now() - interval '1 microsecond'")
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+            let (now, before) = (
+                kartenn_machines::read::instant(now),
+                kartenn_machines::read::instant(before),
+            );
+            let mut rows = Vec::new();
+            for (kind, machine) in context.touched {
+                if kind.name() != "machines.machine" {
+                    continue;
+                }
+                let read = kartenn_machines::read::addresses_of_machine;
+                let count = |found: Vec<kartenn_machines::read::AddressOf>| {
+                    json!(found.iter().map(|a| a.value.clone()).collect::<Vec<_>>())
+                };
+                let after = count(read(&mut *conn, *machine, now, None).await?);
+                let was = count(read(&mut *conn, *machine, now, Some(before)).await?);
+                rows.push(kartenn_service::module::DiffRow {
+                    object: *machine,
+                    kind: "probe.addresses".into(),
+                    before: Some(was),
+                    after: Some(after),
+                    period: None,
+                });
+            }
+            Ok(Some(kartenn_service::module::DiffSection {
+                name: "probe.addresses".into(),
+                rows,
+            }))
+        })
+    }
+}
+
+impl Module for Probe {
+    fn name(&self) -> &'static str {
+        "probe"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+    fn depends_on(&self) -> &'static [&'static str] {
+        &["machines"]
+    }
+    fn handler(&self) -> Option<Arc<dyn kartenn_service::module::ModuleHandler>> {
+        Some(Arc::new(ProbeHandler))
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn dependent_module_reads_in_transaction(pool: PgPool) {
+    let env = Env::with(&pool, vec![Arc::new(Probe)]).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let first = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let second = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    let m1 = env.machine("m1", env.entity("acme").await).await;
+    env.applied(vec![attach(e1, first, false)]).await;
+    // A changeset that attaches a second address and touches the machine: the module reads
+    // the addresses as it leaves them, and as they were before it.
+    let mut request = env.request(vec![
+        attach(e1, second, false),
+        op(
+            "update_machine",
+            json!({"id": {"id": m1}, "kind": "physical"}),
+        ),
+    ]);
+    request.simulate = true;
+    let simulated = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    let Outcome::Simulated { sections, .. } = &simulated else {
+        panic!("{simulated:?}")
+    };
+    let probe = sections
+        .iter()
+        .find(|s| s.name == "probe.addresses")
+        .expect("the section of the probe");
+    let row = probe
+        .rows
+        .iter()
+        .find(|r| r.object == m1)
+        .expect("the machine");
+    assert_eq!(row.before, Some(json!(["192.0.2.10"])));
+    assert_eq!(row.after, Some(json!(["192.0.2.10", "192.0.2.11"])));
+}
+
+/// A machine of an address: machine, interface, first value and its origin, second value.
+type Held = (Uuid, Uuid, Option<Value>, Option<Uuid>, Option<Value>);
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn machine_values_of_addresses_batch(pool: PgPool) {
+    let env = Env::with(&pool, vec![Arc::new(Inventory)]).await;
+    let sensitivity = env.property("inventory.sensitivity").await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let vip = env.address(lab, "192.0.2.10", AddressUsage::Vip).await;
+    let alone = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    let acme = env.entity("acme").await;
+    let (m1, m2) = (env.machine("m1", acme).await, env.machine("m2", acme).await);
+    env.applied(vec![
+        attach(e1, vip, false),
+        attach(e2, vip, false),
+        assign(m1, "machines.machine", sensitivity, "secret"),
+        assign(m2, "machines.machine", sensitivity, "public"),
+    ])
+    .await;
+    // A batch of 512: the two addresses and addresses that do not exist.
+    let mut batch = vec![vip, alone];
+    batch.extend((2..512).map(|_| Uuid::now_v7()));
+    let now = env.now().await;
+    let mut conn = pool.acquire().await.unwrap();
+    let found = kartenn_machines::read::machine_values_of_addresses(
+        &mut conn,
+        &batch,
+        &["inventory.sensitivity", "inventory.criticality"],
+        now,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(found.len(), 512);
+    assert_eq!(found[0].0, vip);
+    let held: Vec<Held> = found[0]
+        .1
+        .iter()
+        .map(|m| {
+            (
+                m.machine,
+                m.interface,
+                m.values[0].value.clone(),
+                m.values[0].origin,
+                m.values[1].value.clone(),
+            )
+        })
+        .collect();
+    let mut expected = vec![
+        (m1, e1, Some(json!("secret")), Some(m1), None),
+        (m2, e2, Some(json!("public")), Some(m2), None),
+    ];
+    expected.sort_by_key(|e| e.0);
+    assert_eq!(held, expected);
+    assert!(
+        found[0]
+            .1
+            .iter()
+            .all(|m| m.values[0].key == "inventory.sensitivity")
+    );
+    assert_eq!(found[1], (alone, Vec::new()));
+    assert!(found[2..].iter().all(|(_, machines)| machines.is_empty()));
+}

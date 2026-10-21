@@ -107,7 +107,9 @@ suivent.
    objets touchés et les sections de différentiel, clause 13). Les avertissements
    deviennent des **anomalies** par le chemin commun du noyau (REQ-002-36) : listables,
    filtrables, acquittables, et fermées quand une réévaluation par le module ne trouve
-   plus la cause. Une règle de module ne peut pas affaiblir une règle du noyau.
+   plus la cause : `check` rend ses constats (`Findings`), les violations et les objets
+   réévalués avec la règle ou le préfixe de règles réévalué (009-7). Une règle de module
+   ne peut pas affaiblir une règle du noyau.
 8. **Permissions.** Catalogue `<module>.<type>.<action>` (`read`, `write`, `propose`,
    et des actions propres déclarées), avec des permissions **globales** (sans périmètre,
    `global_only`) comme celles de l'administration du noyau ; fusionné au catalogue du

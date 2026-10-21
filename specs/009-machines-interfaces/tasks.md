@@ -136,19 +136,44 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   choix : rien de propre au module pour REQ-009-24, les types de module étant porteurs
   admissibles (008-5) ; une valeur ajoutée par l'administrateur survit à la
   synchronisation (vérifié par le test).
-- [ ] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
+- [x] 7. Cohérence : `machines.mac.duplicate`, `machines.address.vlan_mismatch`,
   `machines.host.site_mismatch` en anomalies, ouvertes puis fermées — REQ-009-13 —
   verify : `each_warning_opens_and_closes`, `vlan_change_on_network_reevaluates`
   où : design « Règles » ; ADR 0026 clause 7 ; anomalies du noyau
   dépend de : 4, 5 ; 008 : 12
-- [ ] 8. Références et cascades ; section `machines.attachments` — REQ-009-14, 23 —
+  — Contrat : `ModuleHandler::check` rend des `Findings` (violations et objets réévalués
+  avec la règle réévaluée), que le pipeline ajoute aux réévaluations du journal : une
+  anomalie de module se ferme quand le module ne la retrouve plus (ADR 0026 clause 7
+  précisée ; VLAN et modules de test adaptés). Module : `handler.rs` (`warnings`),
+  `pg.rs` (`open_anomalies`, `mac_duplicates`, `interfaces_of_addresses`,
+  `interfaces_in_networks`, `vlan_mismatches`, `guests`, `site_mismatches`). Tests :
+  `kartenn-machines/tests/machines.rs` (les deux du verify).
+  choix : chaque avertissement est réévalué sur les objets touchés, ceux qu'ils
+  entraînent (interfaces de même MAC, interfaces tenant une adresse d'un réseau touché,
+  machines hébergées) et ceux dont l'anomalie est ouverte ; l'anomalie porte sur
+  l'interface (MAC, VLAN) ou la machine hébergée (site) ; un cas est lu au début de sa
+  période commune, ou maintenant s'il a commencé avant ; un site inconnu d'un côté ne
+  déclenche rien.
+- [x] 8. Références et cascades ; section `machines.attachments` — REQ-009-14, 23 —
   verify : `closing_a_machine_lists_interfaces`, `cascade_machine_closes_attachments`,
   `cascade_cluster_nullifies_hosts`, `closing_an_attached_address_refused`,
   `closing_a_used_vlan_cascades_to_interfaces`, `attachments_section_in_simulation`,
   `dependent_module_reads_the_section`
   où : design « Références », « Section » ; 008 tâches 7, 13, 19
   dépend de : 5 ; 008 : 7, 19
-- [ ] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
+  — Module : `module.rs` (`REFERENCES` : interface → machine en cascade ; interface →
+  interface, adresse, `vlan.vlan`, machine → machine, cluster en mise à nul), `handler.rs`
+  (`referrers`, `nullify`, `diff`, `apply_unlink`), `pg.rs` (`referrers`, `unlink_vlan`,
+  `unlink_host`, `attachment_changes`). Tests : `kartenn-machines/tests/machines.rs` (les
+  sept du verify, module de test `Reader`, et `undo_restores_attachments`, l'annulation
+  des rattachements laissée sans test par la tâche 5).
+  choix : les rattachements d'une interface sont une référence d'elle-même, dont les
+  sources sont les adresses rattachées (le refus les liste ; la cascade les détache par
+  une écriture de l'interface) ; un trunk privé de son dernier VLAN étiqueté garde son
+  VLAN natif en mode `access`, sinon passe en `none` ; la section compare, dans la
+  transaction, les versions affirmées avant elle (historique) et les versions courantes,
+  par interface et adresse, et n'émet que les portions rattachées d'un seul côté.
+- [x] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
   d'un lot d'adresses — REQ-009-16, 22, 25 — verify :
   `addresses_of_machine_with_roles`, `attachments_of_address_as_of`,
   `machines_in_network_paginated`, `dependent_module_reads_in_transaction`,
@@ -157,6 +182,18 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   lecture groupée des valeurs résolues (tâche 010-2, N9) si elle existe, sinon lecture
   par machine
   dépend de : 6, 8
+  — Module : `read.rs` (`addresses_of_machine`, `addresses_of_interface`,
+  `attachments_of_address`, `machines_in_network`, `hosted_by`, `members_of`,
+  `machine_values_of_addresses`, `instant`), sur `&mut PgConnection` à (`valid_at`,
+  `as_of`), lu sur la table et son historique comme `temporal::snapshot`. Tests :
+  `kartenn-machines/tests/machines.rs` (les cinq du verify ; modules de test `Probe` et
+  `Inventory`).
+  choix : le port est `kartenn_machines::read` (et non `pg::read`, `pg` restant interne) ;
+  la lecture groupée n'existant pas encore (N9), les valeurs d'un lot se lisent en une
+  requête qui joint rattachements, déclarations, origines matérialisées et affectations,
+  avec l'origine pour explication (la chaîne complète reste à `explain`) ; le rôle se lit
+  sur l'affectation de `machines.interface_role`, non héritable ; les droits sont laissés
+  à l'appelant (les routes de la tâche 10 filtrent).
 - [ ] 10. Routes REST : clusters, machines, interfaces, rattachements, lectures
   croisées, arêtes, filtres et `QUERY` — REQ-009-15, 16, 17, 18 — verify :
   `interfaces_by_address_at_a_date`, `machine_card_with_interfaces`,
