@@ -13,7 +13,7 @@
 | [009-machines-interfaces](009-machines-interfaces/) | en cours | en cours | [tasks](009-machines-interfaces/tasks.md) |
 | [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | rédigées, révisées par l'expression du besoin (D28, D30 amendées) ; v0.2 | rédigée | [010](010-politique-flux/tasks.md), [011](011-registre-flux/tasks.md) (0) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
-| [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (0/9) |
+| [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (5/9) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
