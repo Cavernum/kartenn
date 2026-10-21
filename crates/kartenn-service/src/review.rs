@@ -330,6 +330,7 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
         id,
         validator: validator_id,
         kind: kind(&found),
+        requester: found.pending.on_behalf_of,
     };
     // An approval checks the author's rights again, with the groups it had when
     // submitting (REQ-005-22).
@@ -459,6 +460,12 @@ async fn end<S: Store>(
         Ending::Expired => "expired",
     };
     let mut tx = store.begin().await?;
+    // ADR 0026, amendment 3: the modules notified read who stood behind it.
+    tx.set_module_actors(crate::module::ModuleActors {
+        author: Some(ended.found.request.author),
+        on_behalf_of: ended.found.pending.on_behalf_of,
+        validator: matches!(ended.how, Ending::Rejected).then_some(ended.by),
+    });
     if !tx
         .close_pending(id, state, ended.by, ended.motive, event)
         .await?

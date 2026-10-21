@@ -157,7 +157,7 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
                 .or_default()
                 .push(*id);
         }
-        if let Planned::Module { handler, plan } = p {
+        if let Planned::Module { handler, plan, .. } = p {
             for (permission, object) in handler.reads(plan) {
                 guarded.entry(permission).or_default().push(object);
             }
@@ -238,7 +238,16 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
             _ => None,
         };
         if let Some((kind, id)) = target {
-            out.entry(write_permission(kind)).or_default().insert(id);
+            // An operation of a module may require its own permission in place of
+            // `<type>.write`, checked on the same object (ADR 0026, amendment 3).
+            let permission = match p {
+                Planned::Module {
+                    permission: Some(permission),
+                    ..
+                } => (*permission).to_owned(),
+                _ => write_permission(kind),
+            };
+            out.entry(permission).or_default().insert(id);
         }
     }
     out

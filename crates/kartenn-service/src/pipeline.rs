@@ -301,6 +301,10 @@ pub(crate) enum Planned {
     Module {
         handler: Arc<dyn ModuleHandler>,
         plan: Arc<ModulePlan>,
+        /// The permission its module requires on the object in place of `<type>.write`
+        /// (ADR 0026, amendment 3), from the declaration of the operation, never from the
+        /// plan.
+        permission: Option<&'static str>,
     },
 }
 
@@ -923,6 +927,8 @@ fn plan(
                             planned.push(Planned::Module {
                                 handler,
                                 plan: Arc::new(module_plan),
+                                permission: modules
+                                    .operation_permission(&operation.module, &operation.name),
                             });
                         }
                         Err(v) => violations.push(v),
@@ -1523,7 +1529,7 @@ async fn apply<T: WriteTx>(
             Planned::Assign { .. } | Planned::Unassign { .. } => {
                 assignment(tx, p, period, changeset).await
             }
-            Planned::Module { handler, plan } => {
+            Planned::Module { handler, plan, .. } => {
                 handler.apply(tx.module_tx(), plan, period, changeset).await
             }
         };
@@ -1623,6 +1629,8 @@ pub(crate) enum Mode {
         id: Uuid,
         validator: Uuid,
         kind: PendingKind,
+        /// The requester it was submitted for (REQ-016-12), for its modules.
+        requester: Option<Uuid>,
     },
 }
 
@@ -1802,6 +1810,23 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Validation { id, .. } => id,
     };
     let mut tx = store.begin().await?;
+    // ADR 0026, amendment 3: what the modules may read of who stands behind it.
+    tx.set_module_actors(match mode {
+        Mode::Submission => crate::module::ModuleActors {
+            author: Some(author.id),
+            on_behalf_of: context.on_behalf_of,
+            validator: None,
+        },
+        Mode::Validation {
+            validator,
+            requester,
+            ..
+        } => crate::module::ModuleActors {
+            author: Some(author.id),
+            on_behalf_of: requester,
+            validator: Some(validator),
+        },
+    });
     match mode {
         Mode::Submission if req.idempotency_key.is_some() && !req.simulate => {
             match tx.replay(req).await? {
@@ -2047,6 +2072,7 @@ async fn stages<S: Store, A: Authorizer>(
                     perimeter: perimeter.into_iter().collect(),
                     required: missing,
                     author: Some(author.clone()),
+                    on_behalf_of: context.on_behalf_of,
                 };
                 return hold(
                     store,
@@ -2173,7 +2199,7 @@ impl PendingKind {
 fn reviews(planned: &[Planned]) -> crate::rights::Missing {
     let mut by: std::collections::BTreeMap<String, Vec<Uuid>> = std::collections::BTreeMap::new();
     for p in planned {
-        if let Planned::Module { handler, plan } = p
+        if let Planned::Module { handler, plan, .. } = p
             && let Some(permission) = handler.review(plan)
         {
             by.entry(permission.to_owned())

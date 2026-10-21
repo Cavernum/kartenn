@@ -85,3 +85,111 @@ async fn unknown_module_permission_refused(pool: PgPool) {
     }
     assert!(kartenn_core::rules::rule("kit.object.invalid").is_none());
 }
+
+/// A module whose operation `ask` requires a permission, and whose types are read and
+/// written under others (ADR 0026, amendment 3).
+#[derive(Debug)]
+struct Requiring(
+    &'static [(&'static str, &'static str)],
+    &'static [kartenn_core::authz::TypePermissions],
+);
+
+static OWN_TYPES: &[kartenn_service::module::ObjectType] = &[kartenn_service::module::ObjectType {
+    kind: "req.thing",
+    collection: "req-things",
+    parent: None,
+    owner_required: false,
+    carries_site: false,
+    domain_anchored: false,
+}];
+
+static OWN: kartenn_core::authz::Permission = kartenn_core::authz::Permission {
+    name: "req.thing.request",
+    summary: "Demander une chose.",
+    global_only: false,
+};
+static OWN_PERMISSIONS: &[&kartenn_core::authz::Permission] = &[&OWN];
+static OWN_OPERATIONS: &[kartenn_service::module::OperationType] =
+    &[kartenn_service::module::OperationType {
+        name: "ask",
+        defines: None,
+    }];
+
+impl kartenn_service::module::Module for Requiring {
+    fn name(&self) -> &'static str {
+        "req"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.1"
+    }
+    fn permissions(&self) -> &'static [&'static kartenn_core::authz::Permission] {
+        OWN_PERMISSIONS
+    }
+    fn operations(&self) -> &'static [kartenn_service::module::OperationType] {
+        OWN_OPERATIONS
+    }
+    fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
+        self.0
+    }
+    fn object_types(&self) -> &'static [kartenn_service::module::ObjectType] {
+        OWN_TYPES
+    }
+    fn type_permissions(&self) -> &'static [kartenn_core::authz::TypePermissions] {
+        self.1
+    }
+}
+
+/// ADR 0026, amendment 3: a module requires only its own permissions, of its own
+/// operations; otherwise the registry, and the server, refuse to start.
+#[test]
+fn a_required_permission_must_be_the_module_own() {
+    use kartenn_service::module::{ModuleRegistry, RegistryError};
+    let registry = |declared: &'static [(&'static str, &'static str)]| {
+        ModuleRegistry::new(vec![std::sync::Arc::new(Requiring(declared, &[]))])
+    };
+    assert!(registry(&[("ask", "req.thing.request")]).is_ok());
+    let refused: [&'static [(&'static str, &'static str)]; 5] = [
+        // Absent from the catalogue of the module.
+        &[("ask", "req.thing.approve")],
+        // A permission of the core, or of another module.
+        &[("ask", "core.address.write")],
+        &[("ask", "kit.item.request")],
+        // An operation the module does not accept.
+        &[("forge", "req.thing.request")],
+        // The same operation twice.
+        &[("ask", "req.thing.request"), ("ask", "req.thing.request")],
+    ];
+    for declared in refused {
+        assert!(
+            matches!(
+                registry(declared),
+                Err(RegistryError::UnknownPermission { .. })
+            ),
+            "{declared:?}"
+        );
+    }
+    // The permissions of a type, likewise: of the module, for one of its types.
+    let typed = |kind, read, write| {
+        let types: &'static [kartenn_core::authz::TypePermissions] =
+            Box::leak(Box::new([kartenn_core::authz::TypePermissions {
+                kind,
+                read,
+                write,
+            }]));
+        ModuleRegistry::new(vec![std::sync::Arc::new(Requiring(&[], types))])
+    };
+    assert!(typed("req.thing", "req.thing.request", "req.thing.request").is_ok());
+    for (kind, read, write) in [
+        ("req.thing", "req.thing.request", "core.address.write"),
+        ("req.thing", "kit.item.read", "req.thing.request"),
+        ("req.other", "req.thing.request", "req.thing.request"),
+    ] {
+        assert!(
+            matches!(
+                typed(kind, read, write),
+                Err(RegistryError::UnknownPermission { .. })
+            ),
+            "{kind} {read} {write}"
+        );
+    }
+}

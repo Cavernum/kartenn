@@ -129,6 +129,7 @@ pub(crate) async fn expand<T: WriteTx>(
                         out.push(Planned::Module {
                             handler,
                             plan: Arc::new(plan),
+                            permission: None,
                         });
                         out_origins.push(origin);
                         out_periods.push(period);

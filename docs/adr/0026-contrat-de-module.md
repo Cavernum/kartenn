@@ -276,6 +276,36 @@ retiendrait le changeset ; l'en-tête `Kartenn-On-Behalf-Of` (hors contrat de mo
 audité par `authn.requester.created` (le catalogue impose trois segments) et
 `on_behalf_of` vit dans les `details` des événements, pas dans une colonne.
 
+### Amendement 3 — 2026-10-21, droits déclarés par un module (010 S15, 011 F12)
+
+Trois ajouts additifs, à défaut neutre : les droits d'un type (tâche 010-9, décision
+S15 de la 010), puis ceux d'une opération et les acteurs du changeset (tâche 011-3,
+décision F12 de la 011 et séparation des rôles). Source :
+`crates/kartenn-core/src/authz.rs`, `crates/kartenn-service/src/module.rs`, `rights.rs`,
+`reads.rs`, `pipeline.rs`, `review.rs`.
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `Module::type_permissions` (`TypePermissions { kind, read, write }`) : un type est lu et écrit sous des permissions déclarées **à la place de** `<type>.read` et `<type>.write` (plusieurs types peuvent partager une permission) ; le noyau les résout partout par `kartenn_core::authz::type_read_permission` et `type_write_permission` (lectures, écritures, portée des listes) ; la proposition implicite reste `<write sans .write>.propose` si le nom finit par `.write`. Le registre exige que le type soit du module et que les deux permissions soient déclarées par lui (`RegistryError::UnknownPermission`) | 5 | S15 : la politique se lit sous `policy.catalogue.read` et s'administre par famille (`policy.axis.admin`…) |
+| `Module::operation_permissions` : `(opération, permission)`, la permission exigée sur l'objet écrit **à la place de** l'écriture du type (`type_write_permission`) ; une opération absente de la liste exige celle-ci. La permission doit être une de celles que le module déclare (`Module::permissions`, donc dans son espace de noms et au catalogue), sur une opération qu'il accepte, une fois ; sinon `RegistryError::UnknownPermission` et le serveur ne démarre pas. Elle est lue de la déclaration, jamais du plan (`Planned::Module.permission`) | 5, 6 | F12 : une demande de flux s'écrit sous `flow.flow.request`, pas sous `flow.flow.write` |
+| `ModuleActors { author, on_behalf_of, validator }` et `ModuleTx::actors()` : qui se tient derrière le changeset, posé par le pipeline seul (`WriteTx::set_module_actors`, hors de la vue d'un module) — à la soumission l'auteur et le demandeur (`Kartenn-On-Behalf-Of`) ; à la validation l'auteur, le demandeur (gardé dans `Pending.on_behalf_of`) et le validateur ; à la fin d'une proposition l'auteur, le demandeur et, pour un rejet, celui qui rejette ; `None` hors changeset (tâche de fond) | 6 | `requester_id`, `reviewed_by`, `granted_by`, `flow.separation` de la 011 |
+
+Sécurité : une permission de type ou d'opération est vérifiée par le même
+`authorize_in`, sur les mêmes objets, que `<type>.write` : mêmes ancres, mêmes portées,
+même refus (`core.object.forbidden`). Elle déplace le droit exigé, elle ne retire aucun
+contrôle ; c'est la déclaration du module, revue avec lui, qui dit qu'un type ou une
+opération relève d'une autre permission que l'écriture, et le registre refuse toute
+permission que le module ne déclare pas lui-même (pas d'emprunt au noyau ni à un autre
+module). La permission d'une opération l'emporte sur celle du type. Une permission sans `.write` n'ouvre pas la voie
+de la proposition implicite (`<type>.propose`) : une opération qui doit pouvoir être
+proposée passe par `ModuleHandler::review` (amendement 2). Les acteurs ne sont jamais une
+source de droits ; ils servent au journal du module et à ses règles (séparation des
+rôles). Tests : `module_anchors::an_operation_requires_the_permission_its_module_declares`
+(permission déclarée accordée, autre permission du module, hors périmètre ; acteurs lus),
+`module_catalogues::a_required_permission_must_be_the_module_own` (permission absente,
+du noyau, d'un autre module, opération inconnue, doublon ; type étranger ou permissions de
+type non déclarées), `kartenn-policy` `rights.rs` (droits S15 de la politique).
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

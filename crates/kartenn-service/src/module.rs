@@ -307,8 +307,26 @@ impl From<Vec<Violation>> for Findings {
     }
 }
 
+/// Who stands behind the changeset a module writes in (ADR 0026, amendment 3): set by the
+/// pipeline, never by a module. `None` for kartenn itself, or outside a changeset (a
+/// background task).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ModuleActors {
+    /// The author of the changeset; the identity whose rights its writes use.
+    pub author: Option<Uuid>,
+    /// The requester a service account submitted it for (`Kartenn-On-Behalf-Of`,
+    /// REQ-016-12); never a source of rights.
+    pub on_behalf_of: Option<Uuid>,
+    /// The validator of a pending changeset, when it is being validated (REQ-016-11).
+    pub validator: Option<Uuid>,
+}
+
 /// The transaction of a changeset, as a module writes in it (ADR 0026, clause 6).
 pub trait ModuleTx: Send {
+    /// Who stands behind the changeset (ADR 0026, amendment 3): author, requester and
+    /// validator, as the pipeline set them.
+    fn actors(&self) -> ModuleActors;
+
     /// The connection of the adapter: a module's own adapter downcasts it
     /// (`sqlx::PgConnection` for `kartenn-store-pg`).
     fn connection(&mut self) -> &mut (dyn Any + Send);
@@ -615,6 +633,14 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn review_operations(&self) -> &'static [&'static str] {
         &[]
     }
+    /// The permission each listed operation requires on the object it writes, in place of
+    /// `<type>.write` (ADR 0026, amendment 3): `(operation, permission)`, the permission
+    /// one of [`Self::permissions`]. It is checked on the same objects, under the same
+    /// scopes, as `<type>.write` would be; an operation not listed requires
+    /// `<type>.write`. None by default.
+    fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
     /// Its handler in the write pipeline.
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         None
@@ -703,6 +729,19 @@ pub enum RegistryError {
         /// The measure.
         name: String,
     },
+    /// An operation or a type that requires a permission its module does not declare, or
+    /// that names an operation or a type the module does not have (ADR 0026, amendment 3).
+    #[error(
+        "module `{module}`: `{operation}` requires `{permission}`, which the module does not declare"
+    )]
+    UnknownPermission {
+        /// The module.
+        module: String,
+        /// The operation, or the qualified type.
+        operation: String,
+        /// The permission it requires.
+        permission: String,
+    },
     /// A REST collection declared twice, or taken from the core.
     #[error("collection `/v1/{collection}` of module `{module}` is already served by `{owner}`")]
     DuplicateCollection {
@@ -755,6 +794,40 @@ fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
     for policy in module.default_policies() {
         if let Some((measure, _)) = policy.triggers.iter().find(|(m, _)| !measures.contains(m)) {
             return Err(invalid_measure(measure));
+        }
+    }
+    Ok(())
+}
+
+/// Each permission `module` puts in place of `<type>.read` or `<type>.write` is one of its
+/// own: for one of its types ([`Module::type_permissions`]), or for one of its operations,
+/// each operation listed once ([`Module::operation_permissions`]) (ADR 0026, amendment 3).
+fn check_operation_permissions(module: &dyn Module) -> Result<(), RegistryError> {
+    let declared = |name: &str| module.permissions().iter().any(|p| p.name == name);
+    for ty in module.type_permissions() {
+        let own_type = module.object_types().iter().any(|t| t.kind == ty.kind);
+        if let Some(permission) = [ty.read, ty.write]
+            .into_iter()
+            .find(|p| !own_type || !declared(p))
+        {
+            return Err(RegistryError::UnknownPermission {
+                module: module.name().to_owned(),
+                operation: ty.kind.to_owned(),
+                permission: permission.to_owned(),
+            });
+        }
+    }
+    let mut seen = BTreeSet::new();
+    for (operation, permission) in module.operation_permissions() {
+        let known = module.operations().iter().any(|o| o.name == *operation)
+            && module.permissions().iter().any(|p| p.name == *permission)
+            && seen.insert(*operation);
+        if !known {
+            return Err(RegistryError::UnknownPermission {
+                module: module.name().to_owned(),
+                operation: (*operation).to_owned(),
+                permission: (*permission).to_owned(),
+            });
         }
     }
     Ok(())
@@ -818,6 +891,7 @@ impl ModuleRegistry {
                 }
             }
             check_jobs_and_events(module.as_ref())?;
+            check_operation_permissions(module.as_ref())?;
             for ty in module.object_types() {
                 if ty
                     .kind
@@ -907,6 +981,17 @@ impl ModuleRegistry {
     #[must_use]
     pub fn object_type(&self, kind: &str) -> Option<&'static ObjectType> {
         self.object_types().find(|t| t.kind == kind)
+    }
+
+    /// The permission the operation `name` of `module` requires in place of `<type>.write`,
+    /// if the module declares one (ADR 0026, amendment 3).
+    #[must_use]
+    pub fn operation_permission(&self, module: &str, name: &str) -> Option<&'static str> {
+        self.get(module)?
+            .operation_permissions()
+            .iter()
+            .find(|(o, _)| *o == name)
+            .map(|(_, p)| *p)
     }
 
     /// The operation `name` of `module`, with its handler, if the build has both.

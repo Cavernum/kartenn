@@ -216,6 +216,10 @@ pub struct Pending {
     /// checks the author's rights again with them, the groups living in the token.
     #[serde(default)]
     pub author: Option<crate::authz::Subject>,
+    /// The requester a service account submitted it for (REQ-016-12), given to the
+    /// modules again when it is validated (ADR 0026, amendment 3).
+    #[serde(default)]
+    pub on_behalf_of: Option<Uuid>,
 }
 
 /// A changeset journaled as pending, or decided since.
@@ -656,6 +660,10 @@ pub trait WriteTx {
 
     /// The transaction as a module writes in it (ADR 0026, clause 6).
     fn module_tx(&mut self) -> &mut dyn crate::module::ModuleTx;
+
+    /// Sets who stands behind the changeset of this transaction, as its modules read it
+    /// (ADR 0026, amendment 3); only the pipeline sets it.
+    fn set_module_actors(&mut self, actors: crate::module::ModuleActors);
 
     /// Holds the idempotency key for the transaction (advisory lock held until its end)
     /// without waiting: [`Replay::InProgress`] if another holds it; otherwise looks up a
