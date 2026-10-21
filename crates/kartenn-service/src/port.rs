@@ -1241,6 +1241,11 @@ pub trait WriteTx {
         journal: &Journal<'_>,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
+    /// Writes to the outbox the events emitted by the background task `job`
+    /// (`<module>.<task>`) in this transaction, ordered under the key `<module>:<task>`
+    /// (REQ-016-15).
+    fn journal_job(&mut self, job: &str) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// Commits.
     fn commit(self) -> impl Future<Output = Result<(), StoreError>> + Send;
 

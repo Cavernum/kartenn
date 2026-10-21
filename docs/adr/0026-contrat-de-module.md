@@ -265,6 +265,7 @@ et de la 011, ajoutés eux aussi à défaut neutre. Source :
 | Ajout | Clause | Tâche | Raison |
 |---|---|---|---|
 | `Module::jobs` (`JobSpec { name, period }`), `ModuleHandler::run_job(name, tx)` dans une transaction propre, validée si la tâche réussit ; `ModuleRegistry::jobs` ; le déploiement déclare `<module>.<tâche>` dans `job` (colonnes `module`, `enabled`) et désactive sans la supprimer une tâche que le build ne déclare plus ; l'ordonnanceur route un nom qualifié vers son module | 15 | 016-7 | N14 : tâches de fond d'un module sous le bail de l'ADR 0023 (REQ-016-16) |
+| `Module::events` (noms `[a-z][a-z0-9_]*`, une fois ; sinon `RegistryError::InvalidEvent` au démarrage), `ModuleTx::emit(event, subject, data)` : un nom que le build ne déclare pas échoue l'opération ; les événements attendent le journal de la transaction (`journal_applied` pour un changeset, sous ses clés d'ordre ; `WriteTx::journal_job` pour une tâche, sous `<module>:<tâche>`, sans changeset), de type `org.kartenn.<module>.<nom>`, chacun son `id` CloudEvents | 15 | 016-8 | N15 : un événement de module n'existe que si sa transaction aboutit (REQ-016-15) |
 
 ## Alternatives
 

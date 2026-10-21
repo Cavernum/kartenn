@@ -26,6 +26,7 @@ mod locks;
 mod module_anchors;
 mod module_catalogues;
 mod module_diff;
+mod module_events;
 mod module_pipeline;
 mod obligations;
 mod outbox;

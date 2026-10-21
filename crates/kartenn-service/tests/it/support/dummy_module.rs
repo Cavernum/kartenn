@@ -112,6 +112,16 @@ impl Module for Dummy {
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
     }
+    fn jobs(&self) -> &'static [kartenn_service::module::JobSpec] {
+        const JOBS: &[kartenn_service::module::JobSpec] = &[kartenn_service::module::JobSpec {
+            name: "tick",
+            period: std::time::Duration::from_secs(3_600),
+        }];
+        JOBS
+    }
+    fn events(&self) -> &'static [&'static str] {
+        &["created"]
+    }
 }
 
 /// `dummy.update_thing`, as received.
@@ -274,6 +284,19 @@ impl ModuleHandler for Handler {
                 .await
                 .map_err(|e| StoreError(e.to_string()))?;
             }
+            // A thing labelled `emits` emits `dummy.created`; `emits-undeclared`, an event
+            // the module does not declare (REQ-016-15).
+            match label {
+                Some("emits") => tx.emit(
+                    "dummy.created",
+                    Some(plan.object.to_string()),
+                    serde_json::json!({"label": label}),
+                )?,
+                Some("emits-undeclared") => {
+                    tx.emit("dummy.undeclared", None, serde_json::json!({}))?;
+                }
+                _ => {}
+            }
             tx.register(
                 ModuleObjectRow {
                     id: plan.object,
@@ -286,6 +309,14 @@ impl ModuleHandler for Handler {
             )
             .await
         })
+    }
+
+    fn run_job<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move { tx.emit("dummy.created", None, serde_json::json!({"job": name})) })
     }
 
     fn close<'a>(

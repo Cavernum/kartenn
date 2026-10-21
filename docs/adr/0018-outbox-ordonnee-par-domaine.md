@@ -67,7 +67,10 @@ l'ordre de validation, comme deux changesets d'un même domaine. Colonne
 l'existant), exposée au relais (`Event::order_keys`) ; la forme CloudEvents de
 l'événement ne change pas, et `domain_ids` reste lue par les consommateurs de la v0.1
 jusqu'à son retrait. Le relais lui-même ne change pas : il livre par numéro croissant
-(test `two_changesets_under_one_module_lock_are_delivered_in_order`).
+(test `two_changesets_under_one_module_lock_are_delivered_in_order`). Les événements
+des modules (tâche 016-8) passent par la même outbox, sous les clés de leur changeset ;
+ceux d'une tâche de fond, sans changeset (`changeset_id` nul, migration 0052), sous la clé
+`<module>:<tâche>`.
 
 ## Alternatives
 

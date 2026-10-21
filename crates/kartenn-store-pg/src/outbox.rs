@@ -21,8 +21,9 @@ use sqlx::types::Uuid;
 pub struct Event {
     /// Sequence number (delivery order).
     pub seq: i64,
-    /// Changeset that produced the event (CloudEvents `id`).
-    pub changeset: Uuid,
+    /// Changeset that produced the event (the CloudEvents `id` of its own event); none
+    /// for an event of a background task of a module (REQ-016-15).
+    pub changeset: Option<Uuid>,
     /// Addressing domains written by the changeset.
     pub domains: Vec<Uuid>,
     /// Ordering keys: `domain:<uuid>` for each domain, then the lock keys of its module
@@ -49,7 +50,7 @@ pub enum RelayError<E> {
 }
 
 /// A row of the outbox: sequence, changeset, domains, ordering keys, payload.
-type Row = (i64, Uuid, Vec<Uuid>, Vec<String>, serde_json::Value);
+type Row = (i64, Option<Uuid>, Vec<Uuid>, Vec<String>, serde_json::Value);
 
 /// The events a consumer has not received (from the floor of its relay, migration 0027).
 const UNDELIVERED: crate::floor::Rows = crate::floor::Rows {

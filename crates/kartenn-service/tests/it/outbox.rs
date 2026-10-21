@@ -80,7 +80,7 @@ async fn applied_changesets_emit_one_cloudevent_each(pool: PgPool) {
     let events = drain(&pool, "test").await;
     assert_eq!(events.len(), 1, "refused changesets emit nothing");
     let e = &events[0];
-    assert_eq!(e.changeset, changeset);
+    assert_eq!(e.changeset, Some(changeset));
     assert_eq!(e.payload["specversion"], "1.0");
     assert_eq!(e.payload["id"], changeset.to_string());
     assert_eq!(e.payload["type"], "org.kartenn.changeset.applied");
@@ -128,7 +128,7 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![c2],
         "committed events are not held back"
@@ -139,7 +139,7 @@ async fn a_running_transaction_is_never_skipped(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![c1],
         "delivered once committed"
@@ -255,7 +255,7 @@ async fn events_of_a_domain_follow_the_order_of_its_changesets(pool: PgPool) {
         drain(&pool, "c")
             .await
             .iter()
-            .map(|e| e.changeset)
+            .filter_map(|e| e.changeset)
             .collect::<Vec<_>>(),
         vec![earlier, changeset]
     );
@@ -314,7 +314,10 @@ async fn two_changesets_under_one_module_lock_are_delivered_in_order(pool: PgPoo
     };
     let events = drain(&pool, "k").await;
     assert_eq!(
-        events.iter().map(|e| e.changeset).collect::<Vec<_>>(),
+        events
+            .iter()
+            .filter_map(|e| e.changeset)
+            .collect::<Vec<_>>(),
         vec![earlier, changeset]
     );
     let event = &events[1];

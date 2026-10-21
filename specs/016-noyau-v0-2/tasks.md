@@ -90,13 +90,31 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   imports n'en ont pas) ; `run_job` n'a pas de journal d'audit en paramètre, une tâche qui
   en écrit le fait par sa transaction ; la reprise après arrêt d'une instance est celle des
   tâches du noyau (bail, test `a_stopped_holder_is_relieved_after_its_lease`).
-- [ ] 8. Événements de module — REQ-016-15 — verify :
+- [x] 8. Événements de module — REQ-016-15 — verify :
   `a_module_event_is_delivered_only_if_applied`, `an_undeclared_event_fails_the_registry`,
   événement émis par une tâche
   - où : `module.rs` (`Module::events`, `ModuleTx::emit`), store `write.rs`,
     `outbox.rs`
   - dépend de : 6, 7
   - débloque : 010-8, 011-8
+  — `module.rs` : `Module::events`, `ModuleTx::emit`, `ModuleRegistry::declares_event`,
+  `RegistryError::InvalidEvent` (contrôle des noms au démarrage), `run_job` écrit les
+  événements de la tâche avant de valider ; `port.rs` : `WriteTx::journal_job` ; store
+  `write.rs` : `PgTx` garde les événements émis (`modules`, `events`) et les écrit avec le
+  journal (`journal_applied` sous les clés du changeset, `journal_job` sous
+  `<module>:<tâche>`) ; migration `0052_outbox_task_events.sql` (`changeset_id` nul) ;
+  `outbox::Event::changeset` devient `Option<Uuid>`. Tests
+  `kartenn-service/tests/it/module_events.rs` :
+  `a_module_event_is_delivered_only_if_applied` (simulation et refus n'émettent rien),
+  `an_undeclared_event_fails_the_registry` (nom invalide refusé au démarrage, nom non
+  déclaré émis : le changeset échoue sans rien écrire), `a_background_task_emits_its_events` ;
+  module de test `dummy` doté d'un événement et d'une tâche. ADR 0026 amendement 2,
+  ADR 0018 amendement 4.
+  choix : le registre ne peut pas connaître à l'avance ce qu'un module émet ; il contrôle
+  les noms déclarés au démarrage, et l'émission d'un nom non déclaré échoue à l'exécution
+  (opération en erreur, transaction annulée) ; `id` CloudEvents propre à chaque événement
+  de module (`gen_random_uuid`), `subject` facultatif ; `domain_ids` du changeset recopiés
+  sur ses événements de module, pour les consommateurs de la v0.1.
 - [ ] 9. Mesures de module et politiques par défaut — REQ-016-7, 8 — verify :
   `a_policy_on_a_module_measure_holds_the_changeset`, mesure inconnue refusée,
   `a_default_policy_is_installed_once`

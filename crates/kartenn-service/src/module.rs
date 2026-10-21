@@ -311,6 +311,21 @@ pub trait ModuleTx: Send {
         period: Option<Period>,
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>>;
+
+    /// Emits the event `event` (`<module>.<name>`, declared by [`Module::events`]) of type
+    /// `org.kartenn.<module>.<name>`, with an optional CloudEvents `subject` (REQ-016-15).
+    /// It reaches the outbox only with the transaction: when the changeset is applied, or
+    /// when the background task ends well; a simulation or a refusal emits nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError`] for an event no module of the build declares.
+    fn emit(
+        &mut self,
+        event: &str,
+        subject: Option<String>,
+        data: serde_json::Value,
+    ) -> Result<(), StoreError>;
 }
 
 /// A read of the state at the dates of a request, as a module reads (ADR 0026, clauses
@@ -527,6 +542,11 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn jobs(&self) -> &'static [JobSpec] {
         &[]
     }
+    /// The names of the events it emits by [`ModuleTx::emit`], `[a-z][a-z0-9_]*`, typed
+    /// `org.kartenn.<module>.<name>` (REQ-016-15).
+    fn events(&self) -> &'static [&'static str] {
+        &[]
+    }
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).
@@ -576,6 +596,14 @@ pub enum RegistryError {
         /// The task.
         name: String,
     },
+    /// An event with an invalid or repeated name.
+    #[error("module `{module}`: event `{name}` must be named [a-z][a-z0-9_]* once")]
+    InvalidEvent {
+        /// The module.
+        module: String,
+        /// The event.
+        name: String,
+    },
     /// A REST collection declared twice, or taken from the core.
     #[error("collection `/v1/{collection}` of module `{module}` is already served by `{owner}`")]
     DuplicateCollection {
@@ -592,6 +620,30 @@ pub enum RegistryError {
 #[derive(Debug, Clone, Default)]
 pub struct ModuleRegistry {
     modules: Vec<Arc<dyn Module>>,
+}
+
+/// The background tasks and the events of `module` have valid names, each once
+/// (REQ-016-15, 16).
+fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
+    let mut jobs = BTreeSet::new();
+    for job in module.jobs() {
+        if !valid_name(job.name) || !jobs.insert(job.name) {
+            return Err(RegistryError::InvalidJob {
+                module: module.name().to_owned(),
+                name: job.name.to_owned(),
+            });
+        }
+    }
+    let mut events = BTreeSet::new();
+    for event in module.events() {
+        if !valid_name(event) || !events.insert(*event) {
+            return Err(RegistryError::InvalidEvent {
+                module: module.name().to_owned(),
+                name: (*event).to_owned(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn valid_name(name: &str) -> bool {
@@ -651,15 +703,7 @@ impl ModuleRegistry {
                     });
                 }
             }
-            let mut jobs = BTreeSet::new();
-            for job in module.jobs() {
-                if !valid_name(job.name) || !jobs.insert(job.name) {
-                    return Err(RegistryError::InvalidJob {
-                        module: module.name().to_owned(),
-                        name: job.name.to_owned(),
-                    });
-                }
-            }
+            check_jobs_and_events(module.as_ref())?;
             for ty in module.object_types() {
                 if ty
                     .kind
@@ -776,6 +820,14 @@ impl ModuleRegistry {
             .collect()
     }
 
+    /// Whether a module of the build declares the event `event` (`<module>.<name>`).
+    #[must_use]
+    pub fn declares_event(&self, event: &str) -> bool {
+        event.split_once('.').is_some_and(|(module, name)| {
+            self.get(module).is_some_and(|m| m.events().contains(&name))
+        })
+    }
+
     /// The handler of the module that declares the type `kind`, if any.
     #[must_use]
     pub fn handler_of(&self, kind: ModuleKind) -> Option<Arc<dyn ModuleHandler>> {
@@ -811,7 +863,12 @@ pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<boo
         return Ok(false);
     };
     let mut tx = store.begin().await?;
-    match handler.run_job(task, tx.module_tx()).await {
+    let outcome = match handler.run_job(task, tx.module_tx()).await {
+        // The events it emitted, with the task (REQ-016-15).
+        Ok(()) => tx.journal_job(name).await,
+        Err(e) => Err(e),
+    };
+    match outcome {
         Ok(()) => tx.commit().await.map(|()| true),
         Err(e) => {
             tx.rollback().await?;
