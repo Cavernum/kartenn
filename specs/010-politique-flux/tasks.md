@@ -53,7 +53,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   `policy.text.invalid`, `policy.inference.criterion_invalid` (cas que la spec refuse sans
   les nommer) ; un code ICMP exige un type ; genres des conditions et des signaux tirés de
   REQ-010-36, 37 et Q20.
-- [ ] 4. `PolicySnapshot` et `evaluate` (candidates, non classifié par axe,
+- [x] 4. `PolicySnapshot` et `evaluate` (candidates, non classifié par axe,
   interdictions, autorisations, motifs, conditionnelles, issue, signaux, élément
   décisif le plus spécifique, explication) — REQ-010-10, 11, 12, 14, 15, 31, 32, 36,
   37 — verify : cas d'acceptation de REQ-010-11, 32, 36 ; proptest contre l'oracle
@@ -62,6 +62,20 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : `kartenn-policy/src/snapshot.rs`, `src/evaluate.rs` ; tests à l'image de
     `crates/kartenn-core/src/inheritance.rs`
   - dépend de : 3
+  — `snapshot.rs` (`Parts`, `PolicySnapshot` : index des règles par service, types
+  développés, et par motif ; `services_for_port`, `services_of_type`), `evaluate.rs`
+  (`Endpoint`, `Requested`, `Dossier`, `applies`, `verdict`, `evaluate`, `Decisive`,
+  `Discarded` (trois au plus), `ConditionState`, `Outcome`, signaux et score,
+  `synthesis`, `unknown_service`). Tests : `evaluate::tests` (`acceptance_of_req_010_11`,
+  `…_32`, `…_36`, `same_value_needs_a_shared_value`, `signals_add_up_without_deciding`,
+  `synthesis_of_req_010_15`) et quatre propriétés (`a_deny_wins`, `monotonic`,
+  `the_order_of_the_rules_has_no_effect`, `signals_change_neither_verdict_nor_outcome`).
+  choix : la combinaison citée prend, pour chaque terme, la première valeur de
+  l'intersection, et pour une « même valeur » une valeur commune admise par les deux
+  termes ; rang de comparaison = rang maximal de l'ensemble (union, D25) ; une condition
+  sans rang lisible est « non évaluée » (issue `review`) ; « non classifié » s'apprécie
+  sur l'union des axes cités par les candidates, des deux côtés ; les conditions ne sont
+  évaluées que pour un verdict `allowed`.
 - [ ] 5. Différentiel de politique pur (candidats par combinaisons de valeurs, verdicts
   de principe avant et après) — REQ-010-18 — verify : égal aux basculements du produit
   cartésien sur politiques aléatoires
