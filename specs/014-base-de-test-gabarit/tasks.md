@@ -31,6 +31,24 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   (`scripts.k-check`) ; modèle : sqlx-postgres 0.9.0 `src/testing/mod.rs`,
   sqlx-macros-core 0.9.0 `src/test_attr.rs` ; `kartenn-store-pg/src/lib.rs` (`MIGRATOR`)
   dépend de : —
+  — fait (2026-10-21), sauf le câblage dans `k-check` : `kartenn-testing` (`run`,
+  `ensure_template`, `build_template`, `clone`, `clean`, `fingerprint`, `database_name`,
+  binaire `kartenn-testing-clean`) et `kartenn-testing-macros` (`pg_test`, argument
+  `migrator = "…"`, `kartenn_store_pg::MIGRATOR` par défaut) ; tests
+  `crates/kartenn-testing/tests/it/` (cible `testing_it`, ADR 0027) :
+  `eight_concurrent_builders_make_one_template`,
+  `a_migration_added_changes_the_fingerprint`,
+  `a_failed_test_keeps_its_database_a_passed_one_drops_it`,
+  `the_application_role_keeps_its_grants_on_a_clone`, plus l'attribut sur `()` et
+  `Result`, et `#[ignore]` conservé. `kartenn-testing-clean` essayé sous `k-heavy --pg`
+  (bases `_sqlx_test_` restantes supprimées, gabarit récent gardé). **Reste** : appeler
+  `cargo run -q -p kartenn-testing --bin kartenn-testing-clean` dans `scripts.k-check`
+  (devenv.nix), sous `k-heavy --pg`, avant nextest.
+  choix : le migrateur est passé par l'attribut (aucune dépendance de `kartenn-testing`
+  sur `kartenn-store-pg`) ; la construction concurrente est éprouvée par 8 fils, chacun
+  avec son runtime et sa connexion, plutôt que 8 processus ; `clean` n'a pas de test
+  automatique (il supprimerait les bases des suites qui tournent en même temps) ; le nom
+  d'une base de test est `_kt_test_` et 54 caractères hexadécimaux du SHA-256 du chemin.
 - [ ] 2. kartenn-store-pg : remplacement de l'attribut (46 tests), mesure de la suite de
   la crate avant et après — ADR 0028 décision 1 — verify : commun, plus la durée de la
   suite avant et après
