@@ -2,8 +2,7 @@
 //! (spec 008, REQ-008-8; task 008-6). Each test runs in its own process (nextest): the
 //! catalogue of a test without the module never saw it.
 
-#[path = "support/kit_module.rs"]
-mod kit;
+use crate::support::kit_module as kit;
 
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;

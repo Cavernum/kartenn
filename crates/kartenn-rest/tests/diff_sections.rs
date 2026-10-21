@@ -4,7 +4,7 @@
 
 mod common;
 
-#[path = "../../kartenn-service/tests/support/section_modules.rs"]
+#[path = "../../kartenn-service/tests/it/support/section_modules.rs"]
 mod sections;
 
 use std::sync::Arc;

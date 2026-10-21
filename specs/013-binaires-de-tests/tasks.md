@@ -33,11 +33,16 @@ même crate.
 
 ## P2 — Crates
 
-- [ ] 2. kartenn-service : `autotests = false`, cible `service_it` (`tests/it/main.rs`),
+- [x] 2. kartenn-service : `autotests = false`, cible `service_it` (`tests/it/main.rs`),
   `tests/*.rs` → `tests/it/`, `tests/support/` → `tests/it/support/`, `#[path]` remplacés
   par `mod support` — ADR 0027 points 1, 4 — verify : nombre de tests identique
   où : `crates/kartenn-service/Cargo.toml`, `crates/kartenn-service/tests/`
   dépend de : 1
+  — 177 tests avant et après (mêmes noms hors préfixe de module), 41 binaires → 2 (lib et
+  `service_it`) ; `tests/it/support/mod.rs` déclare les trois modules de test, appelés par
+  `use crate::support::… as …` ; le `#[path]` de `kartenn-rest/tests/diff_sections.rs`
+  suit le déplacement jusqu'à la tâche 3. Aucune ligne `où :` de tâche ouverte ne citait
+  un test de la crate.
 - [ ] 3. kartenn-rest : cible `rest_it`, `tests/*.rs`, `tests/common/`, `tests/wire/` →
   `tests/it/` ; `diff_sections.rs` : le `#[path]` vers les helpers de kartenn-service
   devient une copie locale ou une feature `test-support` — verify : nombre de tests
