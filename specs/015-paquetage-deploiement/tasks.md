@@ -86,9 +86,13 @@ après l'autre.
   implémentation ; cette ligne se coche avec elle). `breakglass create` lie `administrator`
   global jusqu'à `valid_until`, mention dans l'audit ; le mode d'écriture de la liaison
   (adaptateur direct ou changeset sous identité système) est celui du design de la 005
-  (K17) — REQ-015-10 — verify : test `kartenn-server/tests/it/` : base neuve,
-  `migrate`, `breakglass create`, connexion du compte, `POST /v1/bindings` accepté ;
-  après `valid_until`, refusé ; `web/e2e/serve.sh` cesse de poser le rôle en SQL
+  (K17) — REQ-015-10 — verify : `kartenn-auth/tests/it/breakglass.rs` :
+  `a_new_instance_is_bootstrapped_by_a_break_glass_account` (rôles livrés, compte créé,
+  audit avec rôle et portée, connexion de secours, liaison d'un groupe OIDC appliquée) et
+  `the_bootstrap_binding_ends_with_the_account` (la liaison finit avec le compte ; après
+  `valid_until`, la même liaison est refusée) ; de bout en bout dans `nix/checks/vm.nix`
+  (base neuve, migration, `kartenn-breakglass`, connexion TOTP, `/v1/me` administrateur) ;
+  `web/e2e/serve.sh` cesse de poser le rôle en SQL
   où : design « Premier administrateur » ; `crates/kartenn-server/src/main.rs`
   (`create_breakglass`) ; `kartenn-store-pg/src/breakglass.rs` ; spec 005
   (`requirements.md` REQ-005-14, `decisions.md` K9)
@@ -195,9 +199,12 @@ après l'autre.
   `checks.vm` : amorçage (`kartenn-breakglass`, connexion, `/v1/me`), mise à jour (base en
   retard, migration interrompue puis rejouée) et sauvegarde-restauration (`pg_dump`,
   `dropdb`, `pg_restore --no-owner --role=kartenn`, migration, instances prêtes, mêmes
-  personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : démarrer
-  `compose.yaml` avec l'image de la tâche 6 ; aucun moteur de conteneurs sur la machine
-  de développement.
+  personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : essai `compose.yaml`
+  à jouer, aucun moteur de conteneurs sur la machine de développement.
+  choix : `compose.yaml` est volontairement sous `docs/exploitation/` et non à la racine :
+  c'est un essai documenté de l'image, pas un déploiement ni un outil de développement ;
+  son service `migrate` monte aussi le trousseau, pour l'amorçage
+  (`compose run --rm migrate breakglass create …`, `oci.md`).
 - [x] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
   où : design « CI » ; `devenv.nix` (`enterTest`)
   dépend de : 6, 7
@@ -211,7 +218,7 @@ après l'autre.
   choix : les étapes de `devenv test` (`enterTest`) sont reprises une à une sous le
   sémaphore plutôt que `devenv test` lui-même, qui relance tous les tests hors `k-heavy`
   et sans le verrou PostgreSQL.
-- [ ] 10. Synchronisation : `docs/spec/architecture.md` § Déploiement (une image,
+- [x] 10. Synchronisation : `docs/spec/architecture.md` § Déploiement (une image,
   module), `interfaces.md` (CLI, `[database]`), D35 amendée dans
   `specs/001-cadrage/decisions.md`, ADR 0029 acceptée, statuts de la 015 — verify :
   audit `spec-keeper` de la 015 sans écart bloquant
@@ -223,6 +230,8 @@ après l'autre.
   sous-commandes à URL facultative, `breakglass create` lié à `administrator`,
   `openapi`) ; D35 amendée et ADR 0029 acceptée (déjà sur `main`) ; statuts : exigences
   et conception `implemented`, tâches `in-progress` ; ligne et point d'étape de la 015
-  dans `specs/README.md`. **Reste** : la tâche 8 (essai `compose.yaml`) et l'audit
-  `spec-keeper` de la 015, que ce sous-agent ne pouvait pas lancer (relecture faite à la
-  main : aucun écart trouvé hors de la tâche 8).
+  dans `specs/README.md`. Audit `spec-keeper` de la 015 (2026-10-21, sur 8cdd6ba) : aucun
+  écart bloquant, les 13 REQ ont code et vérification ; ses points mineurs repris
+  (chemins `/opt` de l'image suivis par `checks.oci` et testés côté serveur ; verify de la
+  tâche 4 aligné ; note de durcissement datée). Seule la tâche 8 reste ouverte (essai
+  `compose.yaml`).

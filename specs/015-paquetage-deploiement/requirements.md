@@ -5,6 +5,10 @@ updated: 2026-10-21
 
 # 015 — Paquetage et déploiement : exigences
 
+> Implémentées, avec une exception : REQ-015-13 n'est pas entièrement vérifiée, l'essai
+> `docs/exploitation/compose.yaml` restant à jouer (tâche 8 ; aucun moteur de conteneurs
+> sur la machine de développement). Les autres procédures sont jouées dans la VM.
+
 ## Résumé
 
 Rendre la v0.1 installable : un paquet Nix, une image OCI et un module NixOS, construits
