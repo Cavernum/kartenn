@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type JSHandle, type Page } from "@playwright/test";
 import { BASE_URL } from "./env.ts";
 
 export { expect };
@@ -26,6 +26,24 @@ type Guarded = {
  * shell sets it aside (REQ-007-10), and its exception is no failure of the journey.
  */
 const PLUGIN_THROWS = /e2e plugin throws while loading/;
+
+/** The arguments of a console message, an error by its name, message and first frames. */
+async function describeArgs(args: JSHandle[]): Promise<string> {
+  const parts = await Promise.all(
+    args.map((arg) =>
+      arg
+        .evaluate((value) =>
+          value instanceof Error
+            ? `${value.name}: ${value.message} @ ${(value.stack ?? "").split("\n").slice(0, 3).join(" | ")}`
+            : typeof value === "string"
+              ? value
+              : JSON.stringify(value),
+        )
+        .catch(() => "<gone>"),
+    ),
+  );
+  return parts.join(" ");
+}
 
 /**
  * A module of a plugin whose download the browser cut because the page was leaving:
@@ -57,6 +75,7 @@ export const test = base.extend<Guarded>({
       });
     });
     const errors: string[] = [];
+    const described: Promise<unknown>[] = [];
     page.on("pageerror", (error) => errors.push(`exception: ${error.message}`));
     page.on("console", (message) => {
       // Pages of kartenn only: the issuer's page is not under test (its favicon, its CSP).
@@ -65,12 +84,21 @@ export const test = base.extend<Guarded>({
         page.url().startsWith(BASE_URL) &&
         !/Failed to load resource/.test(message.text())
       ) {
-        // Firefox names an object argument `JSHandle@object`: say where it came from.
+        // Firefox names an object argument `JSHandle@object`: say where it came from, and
+        // what it holds (an error logged by Vue is an `Error`).
         const { url, lineNumber } = message.location();
-        errors.push(`console: ${message.text()} (${url}:${lineNumber})`);
+        const text = message.text();
+        if (/JSHandle@/.test(text))
+          described.push(
+            describeArgs(message.args()).then((args) =>
+              errors.push(`console: ${text} [${args}] (${url}:${lineNumber})`),
+            ),
+          );
+        else errors.push(`console: ${text} (${url}:${lineNumber})`);
       }
     });
     await use(page);
+    await Promise.all(described);
     await expectNoCspViolation(page, toleratedCsp);
     const tolerated = [PLUGIN_THROWS, CUT_SHORT, ...toleratedErrors];
     expect(

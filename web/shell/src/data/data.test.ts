@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { Pager, withQuery, type Read } from "./api.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Pager, read, send, withQuery, write, type Read } from "./api.ts";
 import { cell, linkOf, nameOf, pageOf, valueText } from "./collections.ts";
 
 const PROBLEM = {
@@ -131,5 +131,30 @@ describe("the fields of an object", () => {
     expect(valueText(null)).toBe("—");
     expect(valueText([])).toBe("—");
     expect(valueText(42)).toBe("42");
+  });
+});
+
+describe("a body cut short by a navigation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // Firefox rejects the read of a body when the page leaves: the screen gets a network
+  // problem, never an error that Vue would log as uncaught.
+  function cutShort(): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const response = new Response("{}", { status: 200 });
+        vi.spyOn(response, "text").mockRejectedValue(new TypeError("NetworkError"));
+        vi.spyOn(response, "json").mockRejectedValue(new TypeError("NetworkError"));
+        return response;
+      }),
+    );
+  }
+
+  it("is a network problem for a read, a write and a request", async () => {
+    cutShort();
+    await expect(read("/v1/domains")).resolves.toMatchObject({ ok: false, status: 0 });
+    await expect(write("/v1/changesets", {})).resolves.toMatchObject({ ok: false, status: 0 });
+    await expect(send("DELETE", "/v1/x")).resolves.toMatchObject({ ok: false, status: 0 });
   });
 });
