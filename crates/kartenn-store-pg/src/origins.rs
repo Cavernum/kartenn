@@ -1,5 +1,7 @@
 //! Materialised origins of heritable properties along the addressing tree (spec 003,
-//! task 003-8; ADR 0016, P9), and along the entity and site trees (task 003-18).
+//! task 003-8; ADR 0016, P9), along the entity and site trees (task 003-18), and along the
+//! tree of each module (spec 008, REQ-008-6): an object of a module inherits along the
+//! parents of `module_object`, whatever the tree of the declaration.
 //!
 //! The origin of a target over time is computed set-wise: its candidates are itself, the
 //! prefixes of its domain that contain it (strictly for a prefix; from its network up for
@@ -162,6 +164,7 @@ hit AS (
 
 const SEGMENTS_ENTITY: &str = segments_anchor!("entity");
 const SEGMENTS_SITE: &str = segments_anchor!("site");
+const SEGMENTS_MODULE: &str = segments_anchor!("module_object");
 
 /// From this many targets on, [`SEGMENTS_DOWN`] is used: on the reference dataset going
 /// up costs about 30 µs per target, going down about 7 µs per object below a carrier of
@@ -249,6 +252,63 @@ impl PgTx {
             .map_err(store_err)
     }
 
+    /// The origins of `targets` on each segment of `[from, ∞)`, before merging: the objects
+    /// of modules climb the tree of their module, the others the tree of the property.
+    async fn computed_origins(
+        &mut self,
+        property: Uuid,
+        tree: &InheritTree,
+        targets: &[Uuid],
+        from: OffsetDateTime,
+    ) -> Result<Vec<Row>, StoreError> {
+        let modular: Vec<Uuid> =
+            sqlx::query_scalar("SELECT DISTINCT id FROM module_object WHERE id = ANY($1)")
+                .bind(targets)
+                .fetch_all(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        let others: Vec<Uuid> = if modular.is_empty() {
+            targets.to_vec()
+        } else {
+            let modular: BTreeSet<Uuid> = modular.iter().copied().collect();
+            targets
+                .iter()
+                .filter(|t| !modular.contains(t))
+                .copied()
+                .collect()
+        };
+        let carriers: Vec<String> = tree.kinds().iter().map(|k| (*k).to_owned()).collect();
+        let mut computed: Vec<Row> = Vec::new();
+        for (segments, objects) in [
+            (
+                match tree {
+                    InheritTree::Entity => SEGMENTS_ENTITY,
+                    InheritTree::Site => SEGMENTS_SITE,
+                    InheritTree::Module(_) => SEGMENTS_MODULE,
+                    InheritTree::Addressing if others.len() >= self.down_from => SEGMENTS_DOWN,
+                    InheritTree::Addressing => SEGMENTS_UP,
+                },
+                &others,
+            ),
+            (SEGMENTS_MODULE, &modular),
+        ] {
+            if objects.is_empty() {
+                continue;
+            }
+            computed.extend(
+                sqlx::query_as::<_, Row>(segments)
+                    .bind(objects)
+                    .bind(property)
+                    .bind(from)
+                    .bind(&carriers)
+                    .fetch_all(&mut *self.tx)
+                    .await
+                    .map_err(store_err)?,
+            );
+        }
+        Ok(computed)
+    }
+
     /// Recomputes and writes the origins of `targets` from `start` on (see the module
     /// documentation); returns the number of objects whose stored rows changed.
     pub(crate) async fn refresh_origins_from(
@@ -263,21 +323,7 @@ impl PgTx {
             return Ok(0);
         }
         let from = self.window_start(start).await?;
-        let segments = match tree {
-            InheritTree::Entity => SEGMENTS_ENTITY,
-            InheritTree::Site => SEGMENTS_SITE,
-            _ if targets.len() >= self.down_from => SEGMENTS_DOWN,
-            _ => SEGMENTS_UP,
-        };
-        let carriers: Vec<String> = tree.kinds().iter().map(|k| (*k).to_owned()).collect();
-        let computed: Vec<Row> = sqlx::query_as(segments)
-            .bind(targets)
-            .bind(property)
-            .bind(from)
-            .bind(&carriers)
-            .fetch_all(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
+        let computed = self.computed_origins(property, tree, targets, from).await?;
         let stored: Vec<Row> = sqlx::query_as(
             "SELECT object_id, origin_object_id, lower(valid_period), upper(valid_period)
              FROM property_origin

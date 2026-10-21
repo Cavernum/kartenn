@@ -1960,7 +1960,8 @@ impl WriteTx for PgTx {
                  SELECT id, 'entity' AS kind FROM entity UNION ALL SELECT id, 'site' FROM site
                  UNION ALL SELECT id, 'domain' FROM addressing_domain
                  UNION ALL SELECT id, 'prefix' FROM prefix UNION ALL SELECT id, 'range' FROM ip_range
-                 UNION ALL SELECT id, 'address' FROM address) o
+                 UNION ALL SELECT id, 'address' FROM address
+                 UNION ALL SELECT id, kind FROM module_object) o
              WHERE id = ANY($1)",
         )
         .bind(referenced(&assignments))
@@ -2026,7 +2027,8 @@ impl WriteTx for PgTx {
             "SELECT kind FROM (
                  SELECT id, kind, valid_period FROM addressing_object
                  UNION ALL SELECT id, 'entity', valid_period FROM entity
-                 UNION ALL SELECT id, 'site', valid_period FROM site) o
+                 UNION ALL SELECT id, 'site', valid_period FROM site
+                 UNION ALL SELECT id, kind, valid_period FROM module_object) o
              WHERE id = $1 GROUP BY kind
              HAVING range_agg(valid_period) @> tstzrange(coalesce($2::timestamptz, now()), $3::timestamptz)",
         )
@@ -2225,7 +2227,7 @@ impl WriteTx for PgTx {
         let (a, _) = bounds(period)?;
         let rows: Vec<(Uuid, String)> = sqlx::query_as(
             "SELECT id, inherit_tree FROM property_declaration
-             WHERE inherit_tree IN ('addressing', 'entity', 'site')
+             WHERE inherit_tree IS NOT NULL
                AND valid_period @> coalesce($1::timestamptz, now())",
         )
         .bind(a)
@@ -2249,7 +2251,8 @@ impl WriteTx for PgTx {
                   o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
                         WHERE id = $1 AND valid_period && w.r),
                   anchor AS (SELECT id, parent_id, valid_period FROM entity
-                             UNION ALL SELECT id, parent_id, valid_period FROM site)
+                             UNION ALL SELECT id, parent_id, valid_period FROM site
+                             UNION ALL SELECT id, parent_id, valid_period FROM module_object)
              -- three branches rather than an OR, so that each uses its index
              SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
              UNION
@@ -2260,7 +2263,8 @@ impl WriteTx for PgTx {
              WHERE o.kind = 'prefix' AND x.domain_id = o.domain_id AND x.kind <> 'domain'
                AND x.value <<= o.value AND x.valid_period && w.r
              UNION
-             -- an entity or a site: its descendants at some time of the window
+             -- an entity, a site or an object of a module: its descendants at some time of
+             -- the window
              SELECT id FROM (
                  WITH RECURSIVE d(id, vp, depth) AS (
                      SELECT a.id, a.valid_period * w.r, 0 FROM anchor a, w

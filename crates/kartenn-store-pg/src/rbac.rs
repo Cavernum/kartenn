@@ -6,7 +6,9 @@
 use kartenn_core::addr::Prefix;
 use kartenn_service::StoreError;
 use kartenn_service::authz::{Authorizer, Subject};
+use kartenn_service::module::ModuleRegistry;
 use std::future::Future;
+use std::sync::Arc;
 
 use kartenn_service::WriteTx;
 use sqlx::types::Uuid;
@@ -205,6 +207,9 @@ impl ReadScope {
 #[derive(Debug, Clone)]
 pub struct PgAuthorizer {
     pool: PgPool,
+    /// The modules of the build: the types of their objects are read under
+    /// `<type>.read` (spec 008, REQ-008-6).
+    modules: Arc<ModuleRegistry>,
 }
 
 /// Whether the property of a property permission is sensitive (003/P17): the patterns
@@ -510,8 +515,18 @@ pub async fn outside_now(
 impl PgAuthorizer {
     /// On `pool`.
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool) -> Self {
+        Self {
+            pool,
+            modules: Arc::default(),
+        }
+    }
+
+    /// With the modules of the build, whose types of objects the read scope covers.
+    #[must_use]
+    pub fn with_modules(mut self, modules: Arc<ModuleRegistry>) -> Self {
+        self.modules = modules;
+        self
     }
 
     /// Where `subject` holds `permission` at `at`.
@@ -540,9 +555,18 @@ impl PgAuthorizer {
         at: OffsetDateTime,
     ) -> Result<ReadScope, StoreError> {
         let mut conn = self.pool.acquire().await.map_err(store_err)?;
-        let permissions: Vec<&str> = READ_PERMISSIONS.iter().map(|(_, p)| *p).collect();
+        let reads: Vec<(&'static str, String)> = READ_PERMISSIONS
+            .iter()
+            .map(|(kind, p)| (*kind, (*p).to_owned()))
+            .chain(
+                self.modules
+                    .object_types()
+                    .map(|t| (t.kind, format!("{}.read", t.kind))),
+            )
+            .collect();
+        let permissions: Vec<&str> = reads.iter().map(|(_, p)| p.as_str()).collect();
         let visibilities = visibilities_on(&mut conn, subject, &permissions, at).await?;
-        let kinds = READ_PERMISSIONS
+        let kinds = reads
             .iter()
             .map(|(kind, _)| *kind)
             .zip(visibilities)

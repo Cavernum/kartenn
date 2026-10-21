@@ -100,7 +100,7 @@ numérotées après coup.
   où : design « Enveloppe d'opération » (annulation) ; `pipeline.rs::{close, restore,
   conflict}`, `undo.rs`, store `undo.rs`, `temporal.rs`, `keys.rs` (external_id)
   dépend de : 3
-- [ ] 5. Ancres et RBAC des objets de module : porteurs et cibles de référence étendus
+- [x] 5. Ancres et RBAC des objets de module : porteurs et cibles de référence étendus
   par le registre, `core.owner`/`core.site` portés par les types de module, arbre
   `InheritTree::Module` le long de `parent_id` dans la résolution matérialisée,
   `carrier_object`, `kartenn_site`, `kartenn_visible`/`kartenn_readable` (migration
@@ -113,6 +113,26 @@ numérotées après coup.
   `resolution.rs`, store `origins.rs`, migrations `0022`, `0028` à `0030`, `0033` ;
   test voisin `kartenn-store-pg/tests/` (rbac)
   dépend de : 3
+  — Noyau : `properties.rs` (`is_module_kind`, `object_kind` : types de module internés
+  comme cibles de référence et porteurs). Service : `declarations.rs` (`declaration` et
+  `plan` reçoivent le registre : porteurs, cibles et arbres des modules du build ;
+  `core_declarations_for`, `core.owner` porté par tout type de module, obligatoire où le
+  type l'exige, `core.site` par les types qui le portent), `resolution.rs` (`tree_of`
+  et `inherits_along` : un objet de module hérite le long de l'arbre de son module ;
+  objet créé, objet modifié et sous-arbre, restauration), `module.rs`
+  (`ModuleRegistry::{object_types, object_type}`). Store : migration `0042`
+  (`carrier_object` avec `module_object`, `kartenn_site` qui remonte l'arbre du module),
+  `origins.rs` (`SEGMENTS_MODULE`, cibles de module séparées dans `computed_origins`),
+  `write.rs` (`heritable` sur tout arbre, `subtree` et `object_kind_covering` avec
+  `module_object`), `PgAuthorizer::with_modules` (lecture `<type>.read` dans
+  `read_scope`), `deploy` synchronise le noyau complété puis les déclarations des
+  modules. Tests : `kartenn-service/tests/module_anchors.rs` (les cinq du verify),
+  module de test `tests/support/kit_module.rs`.
+  choix : un objet de module hérite toute propriété héritable le long de l'arbre de son
+  module, quel que soit l'arbre déclaré (une déclaration n'a qu'un arbre) ; `core.site`
+  reste non héritée, et `kartenn_site` d'un objet de module prend le `core.site` le plus
+  proche dans ses ancêtres, comme une adresse prend celui de son réseau ; le branchement
+  de `with_modules` dans les routes de lecture revient à la tâche 8.
 - [ ] 6. Catalogues fusionnés : permissions (`valid_role_entry`, `grants`, rôles livrés
   de lecture), règles, génération de `docs/spec/permissions.md` avec les modules
   livrés — REQ-008-8 — verify : `a_role_with_a_module_permission`,

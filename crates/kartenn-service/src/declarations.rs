@@ -7,13 +7,14 @@ use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
 use kartenn_core::properties::{
     CORE_CARRIERS, CurrentAssignment, Declarant, Declaration, InheritTree, ObligationScope,
-    PropertyKey, PropertyUsage, REF_TARGETS, TypeSpec, check_evolution,
+    PropertyKey, PropertyUsage, REF_TARGETS, TypeSpec, check_evolution, is_module_kind,
 };
 use kartenn_core::rules::{self, Violation};
 use kartenn_core::values::{Cardinality, Scalar, Value, ValueContext, ValueType};
 use uuid::{Uuid, uuid};
 
 use crate::authz::Authorizer;
+use crate::module::ModuleRegistry;
 use crate::operations::{
     ChangesetRequest, DeclarationInput, ObjectKind, ObligationInput, Operation, Ref, TypeInput,
 };
@@ -28,7 +29,7 @@ fn invalid(message: String) -> Violation {
     Violation::new(&rules::PROP_INVALID_DECLARATION, message)
 }
 
-fn type_spec(input: &TypeInput) -> Result<TypeSpec, Violation> {
+fn type_spec(input: &TypeInput, modules: &ModuleRegistry) -> Result<TypeSpec, Violation> {
     Ok(match input {
         TypeInput::Enum => TypeSpec::Enum,
         TypeInput::Text {
@@ -47,10 +48,13 @@ fn type_spec(input: &TypeInput) -> Result<TypeSpec, Violation> {
         TypeInput::Bool => TypeSpec::Bool,
         TypeInput::Date => TypeSpec::Date,
         TypeInput::Fqdn => TypeSpec::Fqdn,
+        // A kind of the core, or a type of a module of the build (REQ-008-7).
         TypeInput::Ref { target } => TypeSpec::Ref {
             target: REF_TARGETS
                 .iter()
-                .find(|t| **t == target.as_str())
+                .copied()
+                .find(|t| *t == target.as_str())
+                .or_else(|| modules.object_type(target).map(|t| t.kind))
                 .ok_or_else(|| invalid(format!("{target} is not a kind a reference can target")))?,
         },
         TypeInput::Module { id } => TypeSpec::Module(id.clone()),
@@ -58,12 +62,16 @@ fn type_spec(input: &TypeInput) -> Result<TypeSpec, Violation> {
 }
 
 /// The input as a declaration, checked on its own (REQ-003-1 to 3). An administrator
-/// declares on core object kinds and core trees only, until modules register theirs.
+/// declares on the kinds of the core and the types of the modules of the build, along the
+/// trees of the core or of a module of the build (REQ-008-7).
 ///
 /// # Errors
 ///
 /// The first violation found.
-pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Violation> {
+pub(crate) fn declaration(
+    input: &DeclarationInput,
+    modules: &ModuleRegistry,
+) -> Result<Declaration, Violation> {
     let key = PropertyKey::parse(&input.key)?;
     let declarant = input
         .module
@@ -74,23 +82,26 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
     if declarant == Declarant::Administrator {
         if let Some(unknown) = carriers
             .iter()
-            .find(|c| !CORE_CARRIERS.contains(&c.as_str()))
+            .find(|c| !CORE_CARRIERS.contains(&c.as_str()) && modules.object_type(c).is_none())
         {
             return Err(invalid(format!(
                 "{key}: {unknown} is not a known object kind"
             )));
         }
-        if let Some(InheritTree::Module(tree)) = &inherit {
+        if let Some(InheritTree::Module(tree)) = &inherit
+            && modules.get(tree).is_none()
+        {
             return Err(invalid(format!("{key}: {tree} is not a known tree")));
         }
     }
     // Only the objects of a tree inherit along it (003-18): a carrier outside it would
-    // resolve nothing.
+    // resolve nothing. The objects of a module inherit along the tree of their module,
+    // whatever the tree declared (REQ-008-6).
     if let Some(tree @ (InheritTree::Addressing | InheritTree::Entity | InheritTree::Site)) =
         &inherit
         && let Some(outside) = carriers
             .iter()
-            .find(|c| !tree.kinds().contains(&c.as_str()))
+            .find(|c| !tree.kinds().contains(&c.as_str()) && !is_module_kind(c))
     {
         return Err(invalid(format!(
             "{key}: {outside} is not an object of the {} tree",
@@ -108,7 +119,7 @@ pub(crate) fn declaration(input: &DeclarationInput) -> Result<Declaration, Viola
     let declaration = Declaration {
         key,
         declarant,
-        spec: type_spec(&input.value_type)?,
+        spec: type_spec(&input.value_type, modules)?,
         cardinality: input.cardinality,
         carriers,
         inherit,
@@ -128,18 +139,19 @@ pub(crate) fn plan(
     op: &Operation,
     id: Uuid,
     resolve: impl Fn(Ref) -> Uuid,
+    modules: &ModuleRegistry,
 ) -> Result<Planned, Violation> {
     match op {
         Operation::DeclareProperty { declaration: d, .. } => Ok(Planned::Declare {
             id,
-            declaration: declaration(d)?,
+            declaration: declaration(d, modules)?,
         }),
         Operation::UpdateProperty {
             id: target,
             declaration: d,
         } => Ok(Planned::UpdateDeclaration {
             id: resolve(*target),
-            declaration: declaration(d)?,
+            declaration: declaration(d, modules)?,
         }),
         Operation::AddEnumValue { property, key, .. } => Slug::parse(key)
             .map(|key| Planned::EnumValue {
@@ -530,6 +542,18 @@ pub async fn sync_modules<S: Store, A: Authorizer>(
 /// Never: the keys are valid literals.
 #[must_use]
 pub fn core_declarations() -> ModuleDeclarations {
+    core_declarations_for(ModuleRegistry::empty())
+}
+
+/// [`core_declarations`] completed by the modules of the build (spec 008, REQ-008-6):
+/// every type of a module carries `core.owner`, inherited along the tree of its module
+/// and required where the type says so; the types that say so carry `core.site`.
+///
+/// # Panics
+///
+/// Never: the keys are valid literals.
+#[must_use]
+pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
     let core = || Declarant::Module("core".into());
     let key = |k| PropertyKey::parse(k).expect("core keys are valid literals");
     ModuleDeclarations {
@@ -542,9 +566,21 @@ pub fn core_declarations() -> ModuleDeclarations {
                     declarant: core(),
                     spec: TypeSpec::Ref { target: "entity" },
                     cardinality: Cardinality::Single,
-                    carriers: ["domain", "prefix"].map(String::from).into(),
+                    carriers: ["domain", "prefix"]
+                        .into_iter()
+                        .chain(modules.object_types().map(|t| t.kind))
+                        .map(String::from)
+                        .collect(),
                     inherit: Some(InheritTree::Addressing),
-                    obligations: [ObligationScope::ObjectType("domain".into())].into(),
+                    obligations: std::iter::once("domain")
+                        .chain(
+                            modules
+                                .object_types()
+                                .filter(|t| t.owner_required)
+                                .map(|t| t.kind),
+                        )
+                        .map(|k| ObligationScope::ObjectType(k.into()))
+                        .collect(),
                     expected: None,
                 },
                 Vec::new(),
@@ -555,7 +591,15 @@ pub fn core_declarations() -> ModuleDeclarations {
                     declarant: core(),
                     spec: TypeSpec::Ref { target: "site" },
                     cardinality: Cardinality::Single,
-                    carriers: ["prefix".to_owned()].into(),
+                    carriers: std::iter::once("prefix")
+                        .chain(
+                            modules
+                                .object_types()
+                                .filter(|t| t.carries_site)
+                                .map(|t| t.kind),
+                        )
+                        .map(String::from)
+                        .collect(),
                     inherit: None,
                     obligations: BTreeSet::new(),
                     expected: None,

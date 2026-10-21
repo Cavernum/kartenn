@@ -408,6 +408,17 @@ impl ModuleRegistry {
         self.modules.is_empty()
     }
 
+    /// The types of objects of every module, in registry order.
+    pub fn object_types(&self) -> impl Iterator<Item = &'static ObjectType> + '_ {
+        self.modules.iter().flat_map(|m| m.object_types().iter())
+    }
+
+    /// The type of objects of this qualified name, if a module of the build declares it.
+    #[must_use]
+    pub fn object_type(&self, kind: &str) -> Option<&'static ObjectType> {
+        self.object_types().find(|t| t.kind == kind)
+    }
+
     /// The operation `name` of `module`, with its handler, if the build has both.
     #[must_use]
     pub fn operation(
