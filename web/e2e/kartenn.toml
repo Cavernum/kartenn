@@ -14,7 +14,8 @@ key_file = "web/e2e/.state/key.pem"
 
 [web]
 root = "web/dist/shell"
-plugins_dir = "web/e2e/plugins"
+# The test plugins of web/e2e/plugins and the built example plugin, gathered by serve.sh.
+plugins_dir = "web/e2e/.state/plugins"
 
 [auth]
 key_file = "web/e2e/.state/kartenn-keys"

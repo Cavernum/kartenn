@@ -1,0 +1,26 @@
+{
+  "nav": { "overview": "Example" },
+  "view": {
+    "title": "Example plugin",
+    "body": "This plugin exercises the SDK without a framework: a view, a tab, a panel, a column and an action.",
+    "present": "You are looking at the repository in the present.",
+    "dated": "You are looking at the repository at another date than the present.",
+    "draft": "Operations in the draft: {n}"
+  },
+  "tab": {
+    "details": "Example",
+    "loading": "Reading the prefix…",
+    "value": "Prefix {value}, domain {domain}",
+    "failed": "Cannot read: {detail}"
+  },
+  "panel": { "title": "Example summary", "body": "Object {type} {id}" },
+  "column": { "usage": "Usage (example)", "reserved": "reserved", "other": "—" },
+  "action": {
+    "label": "Add an address to the draft",
+    "address": "Address",
+    "submit": "Add to the draft",
+    "added": "Operation added; the draft holds {n}.",
+    "failed": "Cannot add: {detail}",
+    "close": "Close"
+  }
+}

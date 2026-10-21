@@ -3,8 +3,18 @@ import { computed, reactive, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { PAGE_SIZE, Pager, withQuery } from "../data/api.ts";
-import { cell, COLUMNS, FILTERS, linkOf, pageOf, type Collection } from "../data/collections.ts";
+import {
+  cell,
+  COLUMNS,
+  FILTERS,
+  linkOf,
+  pageOf,
+  TYPES,
+  type Collection,
+} from "../data/collections.ts";
 import DataTable from "../data/DataTable.vue";
+import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
+import { useSession } from "../rights/index.ts";
 import { problemText } from "../i18n/index.ts";
 import { useTime } from "../time/index.ts";
 
@@ -18,6 +28,8 @@ const { t } = i18n;
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
+const session = useSession();
+const plugins = usePlugins();
 
 const collection = computed(() => String(route.params.collection) as Collection);
 const filters = computed(() => FILTERS[collection.value]);
@@ -50,6 +62,25 @@ watch(
 const columns = computed(() =>
   COLUMNS[collection.value].map((key) => ({ key, label: t(`field.${key}`) })),
 );
+// The columns of plugins for the type of the collection (REQ-007-13).
+const extensionColumns = computed(() =>
+  extensionsOf(plugins.value, "column", session.value.rights, TYPES[collection.value]).map(
+    (extension) => ({
+      key: `${extension.plugin}.${extension.id}`,
+      label: t(pluginKey(extension, extension.label)),
+      tag: extension.element,
+    }),
+  ),
+);
+const objectOf = (row: Row) =>
+  typeof row.id === "string"
+    ? {
+        type: TYPES[collection.value],
+        id: row.id,
+        href: (row.links as { self?: string } | undefined)?.self ?? "",
+      }
+    : undefined;
+
 const problem = computed(() => {
   const value = pager.value.problem.value;
   return value ? problemText(i18n, value) : null;
@@ -100,6 +131,8 @@ const href = (row: Row): string | null =>
     :href="href"
     :cell="cell"
     :link="linkOf"
+    :extensions="extensionColumns"
+    :object-of="objectOf"
     @more="pager.more()"
   />
 </template>

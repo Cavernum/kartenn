@@ -100,9 +100,16 @@ export async function expectNoCspViolation(page: Page, tolerated: RegExp[] = [])
   ).toEqual([]);
 }
 
-/** axe-core without violation of WCAG 2.2 A and AA (REQ-007-33, W14), blocking. */
+/**
+ * axe-core without violation of WCAG 2.2 A and AA (REQ-007-33, W14), blocking. Without its
+ * CSSOM preload: to read the style sheets of a shadow root (plugins, styles() of the SDK),
+ * axe copies them into `<style>` elements, which the CSP of the shell refuses; only the
+ * rule `css-orientation-lock` needs it, and the shell sets no orientation.
+ */
 export async function expectAccessible(page: Page): Promise<void> {
+  // `options` first: it replaces the options, `runOnly` of the tags included.
   const results = await new AxeBuilder({ page })
+    .options({ preload: false })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(

@@ -4,7 +4,8 @@ import prettier from "eslint-config-prettier";
 
 export default defineConfigWithVueTs(
   {
-    ignores: ["**/dist/**", "**/test-results/**", "**/playwright-report/**"],
+    // e2e/.state: generated material of the journeys, built plugins included.
+    ignores: ["**/dist/**", "**/test-results/**", "**/playwright-report/**", "e2e/.state/**"],
   },
   pluginVue.configs["flat/recommended"],
   vueTsConfigs.recommended,
