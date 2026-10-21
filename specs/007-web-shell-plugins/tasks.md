@@ -595,11 +595,19 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   où : design « Budgets » ; `devenv.nix` (`scripts.bench-http` à imiter) ;
   `kartenn-bench/src/main.rs` (sous-commandes), `lib.rs` (`Dataset`) ; agent
   `bench-runner`
-- [ ] 25. Accessibilité de bout en bout : parcours entier au clavier (arbre, table,
+- [x] 25. Accessibilité de bout en bout : parcours entier au clavier (arbre, table,
   dialogue, menu d'actions), axe dans chaque parcours vérifié par un test, revue des
   écrans des tâches 13 à 23 — REQ-007-33 — verify : `k-web-e2e` vert ; un fichier de
   `journeys/` sans `expectAccessible` fait échouer le test de couverture
   où : design « Thème, composants, arbre » ; `web/e2e/fixtures/`
+  — `web/e2e/journeys/accessibility.spec.ts` : test de couverture (`uncovered`, chaque
+  fichier de `journeys/` appelle `await expectAccessible(` ; vérifié sur un parcours sans
+  axe), axe sur les 26 écrans du shell et la page de connexion, parcours au clavier seul
+  (lien d'évitement, arbre, fiche, menu « Actions », dialogue d'un plugin fermé par
+  Échap, liste des adresses, ligne ouverte par Entrée) ; `k-web-e2e` vert (80 parcours).
+  choix : la revue des écrans est faite par axe sur chacun (aucune violation trouvée,
+  rien à corriger) ; le test de couverture lit les sources des parcours plutôt qu'il
+  n'instrumente l'exécution.
 - [ ] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (SDK de plugins
   UI, `[web]` et l'avertissement de confiance, ajouts à l'API), `architecture.md`,
   `invariants.md` (INV-23 et ses tests), ADR 0025 acceptée, `specs/README.md` — verify :
