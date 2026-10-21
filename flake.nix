@@ -19,7 +19,9 @@
   in {
     packages = forAll (pkgs: rec {
       kartenn-server = pkgs.callPackage ./nix/package/server.nix {};
-      default = kartenn-server;
+      kartenn-web = pkgs.callPackage ./nix/package/web.nix {};
+      kartenn = pkgs.callPackage ./nix/package {inherit kartenn-server kartenn-web;};
+      default = kartenn;
     });
 
     checks = forAll (pkgs: {
