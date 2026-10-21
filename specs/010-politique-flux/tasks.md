@@ -165,13 +165,37 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   la machine (S27) ; droits par type (`policy.<type>.write`, globale, S15) ; module
   dépendant de `machines` (axes portés par la machine, REQ-010-3) ; collection
   `policy-values` pour les attributs des valeurs.
-- [ ] 8. Opérations `policy.*` (types, services, règles, motifs, conditions, signaux,
+- [x] 8. Opérations `policy.*` (types, services, règles, motifs, conditions, signaux,
   textes, rôles exemptés), règles du tableau du design, verrou `policy`, révision,
   événements de module (point différé N15, ADR 0026) — REQ-010-4 à 9, 26, 33 — verify :
   chaque règle de validation a un test ; annulation d'un changeset de règles ; événement
   `org.kartenn.policy.revised`
   - où : opérations de `crates/kartenn-vlan` (forme), `kartenn-service/src/module.rs`
   - dépend de : 7
+  — `crates/kartenn-policy` : `objects.rs` (`flow_type`, `service`, `pattern`, `rule`,
+  `condition`, `signal` : `<type>.create` et `<type>.update` en Merge Patch ;
+  `exempt_role.create` ; clôture par le `Close` du noyau ; contrôles locaux : clé,
+  libellé, entrées d'un service, termes vides, sélecteur de flux, interdiction
+  conditionnelle, textes, genres et paramètres), `codec.rs` (formes JSON des entrées,
+  sélecteurs, textes, genres des conditions et des signaux), `checks.rs` (règles sur
+  l'état final : références à des objets ou valeurs non vivants au début de la version,
+  `Rule::check` contre les axes désignés à cette date, textes dans la langue par défaut,
+  paramètres des conditions et des signaux, `policy.service.wide_ports` en
+  avertissement), `handler.rs` (unicités vérifiées avant l'écriture, révision levée et
+  événement `policy.revised` émis une fois par changeset, y compris à la clôture et à la
+  restauration), `pg.rs` (référents des références du module : service → type, règle →
+  type, service, motif, valeur de liste, condition → règle, type) ; règle
+  `policy.key.duplicate`. Tests : `tests/it/catalogue.rs`
+  (`each_rule_of_validation_refuses_its_case` — 17 cas, un par règle, `a_wide_service_warns`,
+  `a_rule_is_written_modified_and_closed`, `the_undo_of_a_changeset_of_rules`,
+  `a_new_revision_is_announced`), `codec::tests`.
+  choix : pas d'opérations `policy.text.set | remove` : les textes se donnent à la
+  création et se remplacent en entier par `<type>.update` ; une condition et un signal
+  n'ont pas de libellé (design « Données ») ; langue par défaut `fr` en constante
+  (`codec::DEFAULT_LOCALE`) en attendant une configuration de l'instance ; les signaux
+  citent types et services par clé dans leurs paramètres, sans référence bloquante ; un
+  champ inconnu est refusé par `policy.operation.invalid` ; le verrou `policy` est pris
+  par chaque plan (clé nommée, ADR 0026), sans test de concurrence dédié.
 - [ ] 9. Contributions au différentiel (`policy.combinations`, `policy.reclassified`) et
   déclencheurs de module (point différé N5) `policy.write`, `opens`, `closes`,
   `reclassify` — REQ-010-18, 19, 20 — verify : cas d'acceptation de REQ-010-18 en

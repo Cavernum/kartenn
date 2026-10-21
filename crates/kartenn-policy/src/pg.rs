@@ -11,7 +11,6 @@ use uuid::Uuid;
 
 /// The versioned tables of the module, as the generic writes of the core name them.
 pub(crate) mod table {
-    pub(crate) const AXIS: &str = "policy.policy_axis";
     pub(crate) const VALUE: &str = "policy.policy_value";
 }
 
@@ -212,7 +211,8 @@ pub(crate) async fn bump(
 }
 
 /// The objects of the module living from `at` on that reference `target`, of type `to`
-/// (REQ-008-10): the axes of a property, the attributes of a closed-list value.
+/// (REQ-008-10): the axes of a property, the attributes of a closed-list value, and what
+/// services, rules and conditions cite.
 pub(crate) async fn referrers(
     conn: &mut PgConnection,
     from: &str,
@@ -220,7 +220,49 @@ pub(crate) async fn referrers(
     target: Uuid,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Uuid>, StoreError> {
+    use crate::module::{CONDITION, FLOW_TYPE, PATTERN, RULE, SERVICE};
+    // The citing table and its condition on `$1`, for the references between objects of
+    // the module.
+    let cited = match (from, to) {
+        (SERVICE, FLOW_TYPE) => Some(("policy_service", "flow_type_id = $1")),
+        (RULE, FLOW_TYPE) => Some(("policy_rule", "$1 = ANY (flow_type_ids)")),
+        (RULE, SERVICE) => Some(("policy_rule", "$1 = ANY (service_ids)")),
+        (RULE, PATTERN) => Some((
+            "policy_rule",
+            "(pattern_id = $1 OR $1 = ANY (required_pattern_ids))",
+        )),
+        (CONDITION, RULE) => Some(("policy_condition", "$1 = ANY (rule_ids)")),
+        (CONDITION, FLOW_TYPE) => Some(("policy_condition", "$1 = ANY (flow_type_ids)")),
+        _ => None,
+    };
+    if let Some((table, condition)) = cited {
+        let sql = format!(
+            "SELECT DISTINCT id FROM policy.{table}
+              WHERE {condition}
+                AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
+              ORDER BY id"
+        );
+        return sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(target)
+            .bind(at)
+            .fetch_all(conn)
+            .await
+            .map_err(|e| store(&e));
+    }
     let sql = match (from, to) {
+        // A value of a closed list a rule admits, on an axis whose list is that of the
+        // value or borrows it (REQ-016-2).
+        (RULE, "enum_value") => {
+            "SELECT DISTINCT r.id FROM policy.policy_rule r
+               JOIN public.property_enum_value v ON v.id = $1
+               JOIN public.property_declaration o ON o.id = v.property_id
+               JOIN public.property_declaration d
+                 ON coalesce(d.type_params->>'values_of', d.key) = o.key
+                AND d.valid_period @> greatest(lower(r.valid_period), coalesce($2::timestamptz, now()))
+              WHERE r.valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
+                AND (r.source->d.key ? v.key OR r.destination->d.key ? v.key)
+              ORDER BY r.id"
+        }
         (crate::module::AXIS, "property") => {
             "SELECT DISTINCT a.id FROM policy.policy_axis a
                JOIN public.property_declaration d ON d.key = a.property_key

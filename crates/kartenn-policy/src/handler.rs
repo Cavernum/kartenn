@@ -1,14 +1,15 @@
 //! The handler of the module in the write pipeline (feature `pg`; ADR 0026, clause 6): the
-//! operations on the axes and on the values of the axes (REQ-010-1 to 3, 29, 30). Every
-//! write takes the key `policy` (S17) and raises the revision of the policy once per
-//! changeset (REQ-010-26).
+//! operations on the axes and on the values of the axes (REQ-010-1 to 3, 29, 30) and on
+//! the objects of the catalogue (`objects`, REQ-010-4 to 9). Every write takes the key
+//! `policy` (S17) and raises the revision of the policy once per changeset (REQ-010-26),
+//! which the event `org.kartenn.policy.revised` announces.
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use kartenn_core::period::Period;
 use kartenn_core::properties::PropertyKey;
-use kartenn_core::rules::Violation;
+use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
@@ -21,13 +22,18 @@ use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
+use crate::checks;
 use crate::model::Label;
-use crate::module::{AXIS, ENVIRONMENT, EXAMPLES, VALUE};
+use crate::module::{AXIS, ENVIRONMENT, EXAMPLES, KINDS, VALUE};
+use crate::objects::{plan_object, unique_columns};
 use crate::pg::{self, table};
-use crate::rules::{AXIS_INVALID, OPERATION_INVALID, VALUE_UNKNOWN};
+use crate::rules::{AXIS_INVALID, KEY_DUPLICATE, OPERATION_INVALID, VALUE_UNKNOWN};
 
 /// The key that serialises the writes on the policy (S17), after the domains.
 pub(crate) const LOCK: &str = "policy";
+
+/// The event of a new revision of the policy (N15).
+const REVISED: &str = "policy.revised";
 
 /// The longest description of an axis value, in characters.
 const DESCRIPTION_MAX_CHARS: usize = 4000;
@@ -37,22 +43,31 @@ const DESCRIPTION_MAX_CHARS: usize = 4000;
 pub struct Handler;
 
 /// The qualified kinds of the module, parsed once.
-fn kind(name: &'static str) -> ModuleKind {
-    static KINDS: OnceLock<BTreeMap<&'static str, ModuleKind>> = OnceLock::new();
-    KINDS.get_or_init(|| {
-        [AXIS, VALUE]
-            .into_iter()
-            .map(|k| (k, ModuleKind::parse(k).expect("a valid kind")))
+fn kind(name: &str) -> ModuleKind {
+    static PARSED: OnceLock<BTreeMap<&'static str, ModuleKind>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        KINDS
+            .iter()
+            .map(|(k, _)| (*k, ModuleKind::parse(k).expect("a valid kind")))
             .collect()
     })[name]
 }
 
-/// The versioned table of the objects of `kind`, and its name in the module.
-fn table_of(kind: ModuleKind) -> &'static str {
-    if kind.as_str() == AXIS {
-        table::AXIS
-    } else {
-        table::VALUE
+/// The versioned table of the objects of `kind`: `policy.policy_<type>`.
+fn table_of(kind: ModuleKind) -> String {
+    let name = kind.as_str();
+    format!(
+        "policy.policy_{}",
+        name.strip_prefix("policy.").unwrap_or(name)
+    )
+}
+
+/// The rule that refuses a second object of `kind` with the same unique columns.
+fn duplicate_rule(kind: &str) -> &'static Rule {
+    match kind {
+        AXIS => &AXIS_INVALID,
+        VALUE => &VALUE_UNKNOWN,
+        _ => &KEY_DUPLICATE,
     }
 }
 
@@ -62,7 +77,8 @@ fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
         .ok_or_else(|| StoreError("not a PostgreSQL transaction".into()))
 }
 
-fn invalid(operation: &ModuleOperation, why: impl std::fmt::Display) -> Violation {
+/// A refusal of `operation` by `policy.operation.invalid`.
+pub(crate) fn invalid(operation: &ModuleOperation, why: impl std::fmt::Display) -> Violation {
     Violation::new(&OPERATION_INVALID, format!("{}: {why}", operation.tag()))
 }
 
@@ -206,13 +222,30 @@ fn attribute_columns(
     Ok(columns)
 }
 
+/// The row of new attributes of `value` of `property`: every column given (REQ-010-30).
+fn value_row(
+    object: Uuid,
+    property: &str,
+    value: &str,
+    mut columns: Map<String, Value>,
+) -> Map<String, Value> {
+    for column in ["label", "description", "rank"] {
+        columns.entry(column).or_insert(Value::Null);
+    }
+    columns.entry("transverse").or_insert(false.into());
+    columns.insert("id".into(), object.to_string().into());
+    columns.insert("property_key".into(), property.into());
+    columns.insert("value_key".into(), value.into());
+    columns
+}
+
 /// The key of a property, checked.
 fn property_key(operation: &ModuleOperation, key: &str) -> Result<PropertyKey, Violation> {
     PropertyKey::parse(key).map_err(|_| invalid(operation, format!("{key}: not a property key")))
 }
 
 /// A plan of the module: every write takes the key of the policy (S17).
-fn plan(kind: &'static str, object: Uuid, creates: bool, data: Value) -> ModulePlan {
+pub(crate) fn plan(kind: &'static str, object: Uuid, creates: bool, data: Value) -> ModulePlan {
     ModulePlan {
         kind: self::kind(kind),
         object,
@@ -285,11 +318,7 @@ impl Handler {
         if let Some(existing) = describe.completed.existing {
             return Ok(plan(VALUE, existing, false, json!({ "update": columns })));
         }
-        let mut row = columns;
-        row.insert("id".into(), object.to_string().into());
-        row.insert("property_key".into(), key.to_string().into());
-        row.insert("value_key".into(), describe.value.into());
-        row.entry("transverse").or_insert(false.into());
+        let row = value_row(object, &key.to_string(), &describe.value, columns);
         Ok(plan(VALUE, object, true, json!({ "create": row })))
     }
 
@@ -303,11 +332,8 @@ impl Handler {
             .completed
             .property
             .ok_or_else(|| invalid(operation, "policy.environment is not declared"))?;
-        let mut row = attribute_columns(operation, &create.attributes)?;
-        row.insert("id".into(), object.to_string().into());
-        row.insert("property_key".into(), ENVIRONMENT.into());
-        row.insert("value_key".into(), create.key.as_str().into());
-        row.entry("transverse").or_insert(false.into());
+        let columns = attribute_columns(operation, &create.attributes)?;
+        let row = value_row(object, ENVIRONMENT, &create.key, columns);
         let mut planned = plan(VALUE, object, true, json!({ "create": row }));
         // The value of the closed list, an ordinary operation of the core (REQ-003-5).
         planned.core.push(Operation::AddEnumValue {
@@ -420,6 +446,14 @@ impl Handler {
         Ok(())
     }
 
+    /// Raises the revision of the policy once per changeset, and announces it.
+    async fn revised(tx: &mut dyn ModuleTx, changeset: Uuid) -> Result<(), StoreError> {
+        if let Some(revision) = pg::bump(connection(tx)?, "policy", changeset).await? {
+            tx.emit(REVISED, None, json!({ "revision": revision }))?;
+        }
+        Ok(())
+    }
+
     /// Writes a planned operation, then its record in `module_object`, and raises the
     /// revision of the policy.
     async fn write(
@@ -429,37 +463,32 @@ impl Handler {
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let id = planned.object;
+        let name = planned.kind.as_str();
         let table = table_of(planned.kind);
-        let conn = connection(tx)?;
-        if let Some(row) = planned.data.get("create") {
-            let columns: Vec<(&str, &str)> = if planned.kind.as_str() == AXIS {
-                vec![(
-                    "property_key",
-                    row["property_key"].as_str().unwrap_or_default(),
-                )]
-            } else {
-                vec![
-                    (
-                        "property_key",
-                        row["property_key"].as_str().unwrap_or_default(),
-                    ),
-                    ("value_key", row["value_key"].as_str().unwrap_or_default()),
-                ]
-            };
-            let rule = if planned.kind.as_str() == AXIS {
-                &AXIS_INVALID
-            } else {
-                &VALUE_UNKNOWN
-            };
-            pg::unique(conn, table, id, &columns, period, rule).await?;
-            pg::insert(conn, table, row, period, changeset).await?;
+        let (columns, written) = if let Some(row) = planned.data.get("create") {
+            (row, true)
         } else if let Some(patch) = planned.data.get("update") {
-            pg::patch(conn, table, id, patch, period, changeset).await?;
+            (patch, false)
         } else {
             // `environment.close`: the core closes the value and its attributes.
             return Ok(());
+        };
+        // The unique columns it writes, checked before the write: a violated exclusion
+        // would abort the whole transaction.
+        let unique: Vec<(&str, &str)> = unique_columns(name)
+            .iter()
+            .filter_map(|c| columns.get(*c).and_then(Value::as_str).map(|v| (*c, v)))
+            .collect();
+        let conn = connection(tx)?;
+        if !unique.is_empty() {
+            pg::unique(conn, &table, id, &unique, period, duplicate_rule(name)).await?;
         }
-        pg::bump(connection(tx)?, "policy", changeset).await?;
+        if written {
+            pg::insert(conn, &table, columns, period, changeset).await?;
+        } else {
+            pg::patch(conn, &table, id, columns, period, changeset).await?;
+        }
+        Self::revised(tx, changeset).await?;
         tx.register(
             ModuleObjectRow {
                 id,
@@ -500,7 +529,8 @@ impl ModuleHandler for Handler {
             "environment.create" => Self::plan_create_environment(operation, object),
             "environment.close" => Self::plan_close_environment(operation),
             "examples.install" => Self::plan_examples(operation, object),
-            _ => Err(invalid(operation, "unknown operation")),
+            _ => plan_object(operation, object, resolve)
+                .unwrap_or_else(|| Err(invalid(operation, "unknown operation"))),
         }
     }
 
@@ -523,9 +553,9 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
-            tx.close_versioned(table_of(kind), id, period, changeset)
+            tx.close_versioned(&table_of(kind), id, period, changeset)
                 .await?;
-            pg::bump(connection(tx)?, "policy", changeset).await?;
+            Self::revised(tx, changeset).await?;
             Ok(())
         })
     }
@@ -540,9 +570,9 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
-            tx.restore_versioned(table_of(kind), id, before, period, changeset)
+            tx.restore_versioned(&table_of(kind), id, before, period, changeset)
                 .await?;
-            pg::bump(connection(tx)?, "policy", changeset).await?;
+            Self::revised(tx, changeset).await?;
             Ok(())
         })
     }
@@ -583,6 +613,7 @@ impl ModuleHandler for Handler {
                     .with_subjects([value]),
                 );
             }
+            found.extend(checks::catalogue(conn, context.changeset).await?);
             Ok(found.into())
         })
     }

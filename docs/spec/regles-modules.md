@@ -64,4 +64,5 @@ spécification du module.
 | `policy.operation.invalid` | erreur | Une opération de la politique a un corps conforme à son schéma et cite des objets connus. | REQ-010-26 | ADR 0026 clause 6 |
 | `policy.axis.invalid` | erreur | Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé. | REQ-010-29 | 010/S22 |
 | `policy.value.unknown` | erreur | Les attributs d'une valeur décrivent une valeur vivante d'un axe. | REQ-010-2, REQ-010-30 | 010/S2 |
+| `policy.key.duplicate` | erreur | La clé d'un objet de la politique est unique sur sa période parmi les objets de son type. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/design « Données » |
 | `policy.reference.closed` | erreur | Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période. | REQ-010-2, REQ-010-8 | 010/design « Opérations » |

@@ -25,6 +25,33 @@ pub const DECLARED_ENVIRONMENT: &str = "policy.declared_environment";
 pub const AXIS: &str = "policy.axis";
 /// The qualified type of the attributes of a value of an axis (REQ-010-2, 30).
 pub const VALUE: &str = "policy.value";
+/// The qualified type of a flow type (REQ-010-4).
+pub const FLOW_TYPE: &str = "policy.flow_type";
+/// The qualified type of a service (REQ-010-5).
+pub const SERVICE: &str = "policy.service";
+/// The qualified type of an architecture pattern (REQ-010-9).
+pub const PATTERN: &str = "policy.pattern";
+/// The qualified type of a rule (REQ-010-8).
+pub const RULE: &str = "policy.rule";
+/// The qualified type of an admissibility condition (REQ-010-36).
+pub const CONDITION: &str = "policy.condition";
+/// The qualified type of a signal (REQ-010-37).
+pub const SIGNAL: &str = "policy.signal";
+/// The qualified type of a role of interface exempt from S10.
+pub const EXEMPT_ROLE: &str = "policy.exempt_role";
+
+/// Every type of the module, with its collection under `/v1` (REQ-010-27).
+pub(crate) const KINDS: &[(&str, &str)] = &[
+    (AXIS, "policy-axes"),
+    (VALUE, "policy-values"),
+    (FLOW_TYPE, "flow-types"),
+    (SERVICE, "services"),
+    (PATTERN, "policy-patterns"),
+    (RULE, "policy-rules"),
+    (CONDITION, "admissibility-conditions"),
+    (SIGNAL, "risk-signals"),
+    (EXEMPT_ROLE, "policy-exempt-roles"),
+];
 
 /// The axes the module declares as examples, designated only by
 /// `policy.examples.install` (REQ-010-29): carried by the tree and the machine (S27),
@@ -55,23 +82,28 @@ const TREE: [&str; 3] = ["domain", "prefix", "address"];
 /// The type of the machines (009).
 pub(crate) const MACHINE: &str = "machines.machine";
 
+/// A type of the module: no anchor, no parent (S15).
+const fn global(kind: &'static str, collection: &'static str) -> ObjectType {
+    ObjectType {
+        kind,
+        collection,
+        parent: None,
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: false,
+    }
+}
+
 static TYPES: &[ObjectType] = &[
-    ObjectType {
-        kind: AXIS,
-        collection: "policy-axes",
-        parent: None,
-        owner_required: false,
-        carries_site: false,
-        domain_anchored: false,
-    },
-    ObjectType {
-        kind: VALUE,
-        collection: "policy-values",
-        parent: None,
-        owner_required: false,
-        carries_site: false,
-        domain_anchored: false,
-    },
+    global(KINDS[0].0, KINDS[0].1),
+    global(KINDS[1].0, KINDS[1].1),
+    global(KINDS[2].0, KINDS[2].1),
+    global(KINDS[3].0, KINDS[3].1),
+    global(KINDS[4].0, KINDS[4].1),
+    global(KINDS[5].0, KINDS[5].1),
+    global(KINDS[6].0, KINDS[6].1),
+    global(KINDS[7].0, KINDS[7].1),
+    global(KINDS[8].0, KINDS[8].1),
 ];
 
 static OPERATIONS: &[OperationType] = &[
@@ -99,21 +131,86 @@ static OPERATIONS: &[OperationType] = &[
         name: "examples.install",
         defines: Some(AXIS),
     },
+    OperationType {
+        name: "flow_type.create",
+        defines: Some(FLOW_TYPE),
+    },
+    OperationType {
+        name: "flow_type.update",
+        defines: None,
+    },
+    OperationType {
+        name: "service.create",
+        defines: Some(SERVICE),
+    },
+    OperationType {
+        name: "service.update",
+        defines: None,
+    },
+    OperationType {
+        name: "pattern.create",
+        defines: Some(PATTERN),
+    },
+    OperationType {
+        name: "pattern.update",
+        defines: None,
+    },
+    OperationType {
+        name: "rule.create",
+        defines: Some(RULE),
+    },
+    OperationType {
+        name: "rule.update",
+        defines: None,
+    },
+    OperationType {
+        name: "condition.create",
+        defines: Some(CONDITION),
+    },
+    OperationType {
+        name: "condition.update",
+        defines: None,
+    },
+    OperationType {
+        name: "signal.create",
+        defines: Some(SIGNAL),
+    },
+    OperationType {
+        name: "signal.update",
+        defines: None,
+    },
+    OperationType {
+        name: "exempt_role.create",
+        defines: Some(EXEMPT_ROLE),
+    },
 ];
 
-/// The references of the module (D33): an axis keeps its property; the attributes of a
-/// value go with it when the value is closed with the cascade (REQ-010-2).
-static REFERENCES: &[Reference] = &[
+/// A reference refused while its source lives (D33).
+const fn refuse(from: &'static str, to: &'static str) -> Reference {
     Reference {
-        from: AXIS,
-        to: "property",
+        from,
+        to,
         on_close: OnClose::Refuse,
-    },
+    }
+}
+
+/// The references of the module (D33): an axis keeps its property; the attributes of a
+/// value go with it when the value is closed with the cascade (REQ-010-2); what a service,
+/// a rule or a condition cites, and the value a rule admits, cannot be closed under it.
+static REFERENCES: &[Reference] = &[
+    refuse(AXIS, "property"),
     Reference {
         from: VALUE,
         to: "enum_value",
         on_close: OnClose::Cascade,
     },
+    refuse(SERVICE, FLOW_TYPE),
+    refuse(RULE, FLOW_TYPE),
+    refuse(RULE, SERVICE),
+    refuse(RULE, PATTERN),
+    refuse(RULE, "enum_value"),
+    refuse(CONDITION, RULE),
+    refuse(CONDITION, FLOW_TYPE),
 ];
 
 static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
@@ -145,7 +242,31 @@ permissions! {
     VALUE_READ = "policy.value.read", false, "Lire les attributs des valeurs des axes.";
     VALUE_WRITE = "policy.value.write", true, "Décrire une valeur d'axe, créer ou clore un environnement.";
     VALUE_PROPOSE = "policy.value.propose", true, "Proposer un changement des attributs d'une valeur d'axe.";
+    FLOW_TYPE_READ = "policy.flow_type.read", false, "Lire les types de flux.";
+    FLOW_TYPE_WRITE = "policy.flow_type.write", true, "Créer, modifier ou clore un type de flux.";
+    FLOW_TYPE_PROPOSE = "policy.flow_type.propose", true, "Proposer un changement d'un type de flux.";
+    SERVICE_READ = "policy.service.read", false, "Lire le catalogue de services.";
+    SERVICE_WRITE = "policy.service.write", true, "Créer, modifier ou clore un service.";
+    SERVICE_PROPOSE = "policy.service.propose", true, "Proposer un changement d'un service.";
+    PATTERN_READ = "policy.pattern.read", false, "Lire les motifs d'architecture.";
+    PATTERN_WRITE = "policy.pattern.write", true, "Créer, modifier ou clore un motif d'architecture.";
+    PATTERN_PROPOSE = "policy.pattern.propose", true, "Proposer un changement d'un motif d'architecture.";
+    RULE_READ = "policy.rule.read", false, "Lire les règles de la politique.";
+    RULE_WRITE = "policy.rule.write", true, "Créer, modifier ou clore une règle de la politique.";
+    RULE_PROPOSE = "policy.rule.propose", true, "Proposer un changement d'une règle de la politique.";
+    CONDITION_READ = "policy.condition.read", false, "Lire les conditions d'admissibilité.";
+    CONDITION_WRITE = "policy.condition.write", true, "Créer, modifier ou clore une condition d'admissibilité.";
+    CONDITION_PROPOSE = "policy.condition.propose", true, "Proposer un changement d'une condition d'admissibilité.";
+    SIGNAL_READ = "policy.signal.read", false, "Lire les signaux de risque.";
+    SIGNAL_WRITE = "policy.signal.write", true, "Créer, modifier ou clore un signal de risque.";
+    SIGNAL_PROPOSE = "policy.signal.propose", true, "Proposer un changement d'un signal de risque.";
+    EXEMPT_ROLE_READ = "policy.exempt_role.read", false, "Lire les rôles d'interface exemptés.";
+    EXEMPT_ROLE_WRITE = "policy.exempt_role.write", true, "Exempter un rôle d'interface ou retirer l'exemption.";
+    EXEMPT_ROLE_PROPOSE = "policy.exempt_role.propose", true, "Proposer une exemption d'un rôle d'interface.";
 }
+
+/// The events of the module (N15, ADR 0026): a new revision of the policy.
+static EVENTS: &[&str] = &["revised"];
 
 /// A declaration of the module, from its key, type, carriers and inheritance.
 fn declaration(
@@ -255,6 +376,9 @@ impl Module for Policy {
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS
+    }
+    fn events(&self) -> &'static [&'static str] {
+        EVENTS
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         #[cfg(feature = "pg")]

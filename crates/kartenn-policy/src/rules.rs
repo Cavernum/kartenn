@@ -63,6 +63,8 @@ rules! {
         "Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé.";
     VALUE_UNKNOWN = "policy.value.unknown", Error, ["REQ-010-2", "REQ-010-30"], "010/S2",
         "Les attributs d'une valeur décrivent une valeur vivante d'un axe.";
+    KEY_DUPLICATE = "policy.key.duplicate", Error, ["REQ-010-4", "REQ-010-5", "REQ-010-8"], "010/design « Données »",
+        "La clé d'un objet de la politique est unique sur sa période parmi les objets de son type.";
     REFERENCE_CLOSED = "policy.reference.closed", Error, ["REQ-010-2", "REQ-010-8"], "010/design « Opérations »",
         "Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période.";
 }

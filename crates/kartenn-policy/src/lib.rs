@@ -14,7 +14,13 @@ pub mod rules;
 pub mod snapshot;
 
 #[cfg(feature = "pg")]
+mod checks;
+#[cfg(feature = "pg")]
+mod codec;
+#[cfg(feature = "pg")]
 pub mod handler;
+#[cfg(feature = "pg")]
+mod objects;
 #[cfg(feature = "pg")]
 mod pg;
 
