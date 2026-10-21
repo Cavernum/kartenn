@@ -192,6 +192,21 @@ async fn nothing_outside_the_root_nor_hidden_is_served() {
     );
 }
 
+/// The OCI image points `[web] root` at a link into the store (`/opt/kartenn/shell`,
+/// spec 015): the root is canonicalized, its files are served.
+#[tokio::test]
+async fn a_root_that_is_a_link_is_served_through() {
+    let real = shell();
+    let link = std::env::temp_dir().join(format!("kartenn-web-link-{}", Uuid::now_v7()));
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let app = app(Some(&link));
+    assert_eq!(send(&app, "GET", "/").await.status(), StatusCode::OK);
+    assert_eq!(
+        send(&app, "GET", "/assets/index-3f2a.js").await.status(),
+        StatusCode::OK
+    );
+}
+
 #[tokio::test]
 async fn only_get_and_head_are_served() {
     let root = shell();
