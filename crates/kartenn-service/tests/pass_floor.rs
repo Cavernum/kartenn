@@ -78,8 +78,9 @@ async fn the_floor_rises_behind_the_handled_rows(pool: PgPool) {
         .await
         .unwrap();
     // The floor rises once the transactions of the whole server that could hold a lower
-    // number have ended: other tests run beside this one.
-    for _ in 0..200 {
+    // number have ended: other tests run beside this one, some for tens of seconds (a
+    // million-element import), hence up to a minute.
+    for _ in 0..1200 {
         relay_once(&pool, &sink, 500).await.unwrap();
         while seal_once(&pool, None, &Instance::new("test"))
             .await
