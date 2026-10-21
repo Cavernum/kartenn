@@ -1,5 +1,7 @@
+import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory } from "vue-router";
+import { DATABASE, emptyDraft, save } from "../draft/store.ts";
 import { NO_RIGHTS, Rights } from "../rights/permissions.ts";
 import type { Session } from "../rights/index.ts";
 import { createShellRouter } from "../router.ts";
@@ -102,6 +104,22 @@ describe("the logout (REQ-007-28)", () => {
     expect(localStorage.getItem("kartenn.recent.searches")).toBeNull();
     expect(localStorage.getItem("other.app")).toBe("kept");
     expect(sessionStorage.getItem(RETURN_KEY)).toBeNull();
+  });
+
+  it("deletes the drafts before it returns, even past a connection still open", async () => {
+    const factory = new IDBFactory();
+    vi.stubGlobal("indexedDB", factory);
+    await save(factory, emptyDraft("0193a3f2-0000-7000-8000-000000000009", "tab-1"));
+    // Another tab holding the database: it closes on `versionchange`, as the shell's do.
+    const held = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = factory.open(DATABASE, 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    held.onversionchange = () => held.close();
+    await clearSensitive();
+    const left = await factory.databases();
+    expect(left.map(({ name }) => name)).not.toContain(DATABASE);
   });
 });
 

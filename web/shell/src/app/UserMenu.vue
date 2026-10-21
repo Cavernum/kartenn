@@ -37,7 +37,13 @@ function chooseTheme(value: unknown): void {
 // What is sensitive goes first, then a top-level form POST, which follows the redirection
 // to the issuer (design « Session », REQ-007-28).
 async function logout(): Promise<void> {
-  await clearSensitive();
+  try {
+    await clearSensitive();
+  } catch (error) {
+    // A deletion held by another tab must not keep the session open: the server logout
+    // still goes, the deletion request stays queued.
+    console.warn("logout: local data not cleared", error);
+  }
   logoutForm.value?.submit();
 }
 </script>

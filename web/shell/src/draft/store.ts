@@ -59,7 +59,11 @@ function open(factory: IDBFactory): Promise<IDBDatabase> {
     const store = request.result.createObjectStore(STORE);
     store.createIndex(BY_IDENTITY, "identity");
   };
-  return done(request);
+  return done(request).then((db) => {
+    // A logout in another tab deletes the database: let it through (REQ-007-28).
+    db.onversionchange = () => db.close();
+    return db;
+  });
 }
 
 /** Runs `work` in one transaction on the store, then closes the database. */
