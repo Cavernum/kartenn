@@ -237,9 +237,18 @@ in {
       # `-p <crate>` narrows the run: --workspace would add every other crate back.
       ws=--workspace
       for a in "$@"; do case $a in -p | -p* | --package | --package=*) ws= ;; esac; done
+      # The build takes the package selection only: run options (--no-fail-fast, filters…)
+      # are refused next to --no-run.
+      pkgs=()
+      prev=
+      for a in "$@"; do
+        case $prev in -p | --package) pkgs+=("$prev" "$a") ;; esac
+        case $a in -p?* | --package=*) pkgs+=("$a") ;; esac
+        prev=$a
+      done
       # Build the test binaries before taking the PostgreSQL lock: another worktree only
       # waits for our test run, not for our compilation.
-      if ! k-heavy cargo nextest run --no-run $ws --all-features "$@" >"$log/build" 2>&1; then
+      if ! k-heavy cargo nextest run --no-run $ws --all-features "''${pkgs[@]}" >"$log/build" 2>&1; then
         echo "KO build ($log/build)"; grep -E '^error|^ *--> ' "$log/build" | head -40; exit 1
       fi
       # Stale test databases and templates (ADR 0028), dropped under the lock: no other
