@@ -10,7 +10,9 @@ use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
-use kartenn_service::module::{Module, ModuleHandler, ModuleMigration, ObjectType, OperationType};
+use kartenn_service::module::{
+    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+};
 
 use crate::rules::VLAN_RULES;
 
@@ -41,6 +43,18 @@ static TYPES: &[ObjectType] = &[
     },
 ];
 
+/// The type of the groups, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn group_type() -> &'static ObjectType {
+    &TYPES[0]
+}
+
+/// The type of the VLANs, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn vlan_type() -> &'static ObjectType {
+    &TYPES[1]
+}
+
 static OPERATIONS: &[OperationType] = &[
     OperationType {
         name: "create_group",
@@ -57,6 +71,33 @@ static OPERATIONS: &[OperationType] = &[
     OperationType {
         name: "update_vlan",
         defines: None,
+    },
+];
+
+/// The references of the module (REQ-008-10; design « Références »): a VLAN to its group,
+/// closed with it under the cascade; a group to its anchor, refused until it moves. The
+/// property `vlan.vlan` of a network is a reference of the core (REQ-003-10): the closure
+/// of its VLAN is refused, and the cascade removes the assignment.
+static REFERENCES: &[Reference] = &[
+    Reference {
+        from: VLAN,
+        to: GROUP,
+        on_close: OnClose::Cascade,
+    },
+    Reference {
+        from: GROUP,
+        to: "entity",
+        on_close: OnClose::Refuse,
+    },
+    Reference {
+        from: GROUP,
+        to: "site",
+        on_close: OnClose::Refuse,
+    },
+    Reference {
+        from: GROUP,
+        to: "domain",
+        on_close: OnClose::Refuse,
     },
 ];
 
@@ -132,6 +173,9 @@ impl Module for Vlan {
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
+    }
+    fn references(&self) -> &'static [Reference] {
+        REFERENCES
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS

@@ -157,7 +157,8 @@ impl Visibility {
 /// arrays are built once per query, not per row. A scalar subquery, which the planner
 /// keeps per candidate row: an `EXISTS` would be flattened into a semi-join that tests
 /// every object of the base (bench 005-16).
-pub(crate) fn readable(id: &str, kind: &str, domain: &str, value: &str, at: &str) -> String {
+#[must_use]
+pub fn readable(id: &str, kind: &str, domain: &str, value: &str, at: &str) -> String {
     format!(
         "coalesce((SELECT bool_or(kartenn_visible({id}, {domain}, {value}, {at}, s.global,
                                                  s.entities, s.sites, s.domains, s.prefix_domains,

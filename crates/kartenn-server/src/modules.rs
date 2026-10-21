@@ -20,7 +20,11 @@ fn compiled() -> Vec<Arc<dyn Module>> {
 /// The routes of the modules of the build, mounted under `/v1` (ADR 0026, clause 9).
 #[must_use]
 pub fn routers() -> Vec<kartenn_rest::ModuleRouter> {
-    Vec::new()
+    let routers: Vec<kartenn_rest::ModuleRouter> = vec![
+        #[cfg(feature = "vlan")]
+        kartenn_vlan::rest::routes(),
+    ];
+    routers
 }
 
 /// The registry of the modules of the build.

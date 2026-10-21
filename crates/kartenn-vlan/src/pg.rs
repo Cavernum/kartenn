@@ -13,6 +13,36 @@ pub(crate) const GROUP_TABLE: &str = "vlan.vlan_group";
 /// The table of the VLANs, as the generic writes of the core name it.
 pub(crate) const VLAN_TABLE: &str = "vlan.vlan";
 
+/// The objects of the module living from `at` on that reference `target`, of type `to`
+/// (REQ-008-10): the VLANs of a group, the groups anchored on an entity, a site or a
+/// domain.
+pub(crate) async fn referrers(
+    conn: &mut PgConnection,
+    to: &str,
+    target: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<Uuid>, StoreError> {
+    let sql = if to == crate::module::GROUP {
+        "SELECT DISTINCT id FROM vlan.vlan
+          WHERE group_id = $1
+            AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
+            AND $3::text IS NOT NULL
+          ORDER BY id"
+    } else {
+        "SELECT DISTINCT id FROM vlan.vlan_group
+          WHERE anchor_id = $1 AND anchor_kind = $3
+            AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
+          ORDER BY id"
+    };
+    sqlx::query_scalar(sql)
+        .bind(target)
+        .bind(at)
+        .bind(to)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")

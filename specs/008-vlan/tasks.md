@@ -361,13 +361,23 @@ numérotées après coup.
   a commencé avant (pas de découpe de la période) ; une anomalie V9 ne se ferme pas
   d'elle-même quand l'écart disparaît, le pipeline ne réévaluant que les règles `core.`
   (à reprendre avec N11, anomalies de module).
-- [ ] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
+- [x] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,
   `closing_an_anchor_entity_refused`
   où : design « Références »
   dépend de : 7, 12
-- [ ] 14. Routes REST du module : groupes et VLAN (liste filtrée, `QUERY`, création,
+  — Module : `module.rs` (`REFERENCES` : VLAN → groupe en cascade, groupe → entité, site
+  ou domaine en refus), `handler.rs` (`referrers`), `pg.rs` (`referrers`). Noyau : la
+  référence dangereuse de la 003 (`prop.assignment.dangling_reference`) vaut aussi pour un
+  objet de module clos (`global.rs::check_references`, `dangling_references` lit
+  `module_object`) ; la cascade retirait déjà l'affectation. Tests :
+  `kartenn-vlan/tests/references.rs` (les quatre du verify ; l'ancre domaine dans le
+  quatrième).
+  choix : clore une entité ou un site d'ancrage est refusé d'abord par
+  `core.anchor.in_use` (le groupe porte `core.owner`/`core.site`), qui liste le groupe ;
+  la référence du module refuse seule la clôture d'un domaine d'ancrage.
+- [x] 14. Routes REST du module : groupes et VLAN (liste filtrée, `QUERY`, création,
   Merge Patch, clôture), occupation, prochain libre, réseaux d'un VLAN, permissions —
   REQ-008-19, 20, 21, 22 — verify : `vlans_filtered_by_vid_range`,
   `occupancy_over_http`, `next_free_404_when_exhausted`,
@@ -376,6 +386,24 @@ numérotées après coup.
   où : design « Lectures et routes » ; `kartenn-rest/src/objects.rs`, `tree.rs`
   (occupation, prochain libre), `filter.rs`, `dated.rs`, `cursor.rs`
   dépend de : 8, 11, 12
+  — Module : `kartenn-vlan/src/rest.rs` (feature `rest`) : `/vlan-groups`,
+  `/vlan-groups/{id}` (+ `occupancy`, `next-free?from=`), `/vlans`, `/vlans/{id}`
+  (+ `prefixes`), lectures datées sur les tables du module et leur historique, prédicat
+  de lecture du noyau (`rbac::readable`, rendu public) avec le domaine de
+  `module_object`, curseurs `(slug, id)` et `(groupe, VID, id)`, réseaux par
+  `list::objects`. REST : `kartenn_rest::kit` (ce qu'il faut à un module pour servir ses
+  routes : `create`/`modify`/`close` par changeset, `gate`, `scope`, `record_read`,
+  `version`, constructeurs du contrat rendus publics), `Location::Module`, problème
+  `exhausted` (404). Store : `read::version` voit `module_object` (ETag d'un objet de
+  module). Service : la garde `Expect` d'un objet de module exige `<type>.read` (elle
+  demandait `core.<type>.read`). Server : `modules::routers` monte les routes du VLAN ;
+  contrat de référence et types du SDK régénérés (ajouts seulement). Tests :
+  `kartenn-vlan/tests/rest.rs` (les six du verify).
+  choix : un écrivain hors de son périmètre reçoit, comme pour le noyau, un 422
+  `changeset-refused` (règle `core.object.forbidden`), non un 403 ; la clôture d'un objet
+  de module accepte `cascade` dans son corps ; un membre inconnu → 400, un `null` dans un
+  Merge Patch → 422 `invalid-member` ; l'occupation et le prochain libre ont un `ETag`
+  faible de contenu.
 - [ ] 15. Imports : opérations du module dans les imports par morceaux — REQ-008-23 —
   verify : `import_ten_thousand_vlans_resumes_without_duplicates`
   où : `kartenn-rest/src/imports.rs`, `kartenn-service/src/import.rs` ; test voisin

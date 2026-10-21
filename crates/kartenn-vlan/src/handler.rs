@@ -12,7 +12,7 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+    BoxFuture, CheckContext, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -659,6 +659,19 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         tx.restore_versioned(table_of(kind), id, before, period, changeset)
+    }
+
+    fn referrers<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        Box::pin(async move {
+            let (at, _) = pg::bounds(period);
+            pg::referrers(connection(tx)?, reference.to, target, at).await
+        })
     }
 
     fn check<'a>(

@@ -13,5 +13,7 @@ pub mod vlan;
 pub mod handler;
 #[cfg(feature = "pg")]
 mod pg;
+#[cfg(feature = "rest")]
+pub mod rest;
 
 pub use module::Vlan;

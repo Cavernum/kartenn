@@ -454,7 +454,7 @@ async fn check_references<T: WriteTx>(
 ) -> Result<(), StoreError> {
     for p in planned {
         if let Planned::Close { kind, id, .. } = p
-            && kind.is_addressing()
+            && (kind.is_addressing() || matches!(kind, ObjectKind::Module(_)))
         {
             let referring = tx.dangling_references(*id).await?;
             if !referring.is_empty() {

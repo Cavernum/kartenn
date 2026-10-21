@@ -151,7 +151,7 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
             && !matches!(kind, ObjectKind::Property | ObjectKind::EnumValue)
         {
             guarded
-                .entry(format!("core.{}.read", kind.name()))
+                .entry(crate::reads::read_permission(kind.name()))
                 .or_default()
                 .push(*id);
         }

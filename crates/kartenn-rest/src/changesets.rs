@@ -189,6 +189,8 @@ pub(crate) enum Location<'a> {
     Changeset,
     /// The object of this kind the changeset created.
     Created(Kind),
+    /// The object of this type of a module the changeset created.
+    Module(&'static kartenn_service::module::ObjectType),
     /// This path, known before the changeset.
     Fixed(&'a str),
     /// The binding the changeset created.
@@ -568,6 +570,15 @@ async fn location(
             .await
             .map_err(|e| store(&e))?
             .map(|id| objects::href(kind, id)),
+        Some(Location::Module(ty)) => sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM module_object WHERE changeset_id = $1 AND kind = $2 LIMIT 1",
+        )
+        .bind(changeset)
+        .bind(ty.kind)
+        .fetch_optional(&api.pool)
+        .await
+        .map_err(|e| store(&e))?
+        .map(|id| format!("/v1/{}/{id}", ty.collection)),
         Some(Location::Fixed(path)) => Some((*path).to_owned()),
         Some(Location::Binding) => rbac_read::created_binding(&api.pool, changeset)
             .await?

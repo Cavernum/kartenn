@@ -17,7 +17,7 @@ vlan = ["dep:kartenn-vlan"]
 machines = ["vlan", "dep:kartenn-machines"]
 
 [dependencies]
-kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["pg"], optional = true }
+kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
 kartenn-machines = { version = "0.0.0", path = "../kartenn-machines", features = ["pg"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"

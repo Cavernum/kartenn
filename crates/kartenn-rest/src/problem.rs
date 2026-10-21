@@ -65,11 +65,13 @@ pub enum ProblemKind {
     Unavailable,
     /// Panic or unexpected error.
     Internal,
+    /// Nothing is free from there in the space asked (REQ-008-20).
+    Exhausted,
 }
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -94,6 +96,7 @@ impl ProblemKind {
         Self::RateLimited,
         Self::Unavailable,
         Self::Internal,
+        Self::Exhausted,
     ];
 
     /// The last segment of the `type`.
@@ -124,6 +127,7 @@ impl ProblemKind {
             Self::RateLimited => "rate-limited",
             Self::Unavailable => "unavailable",
             Self::Internal => "internal",
+            Self::Exhausted => "exhausted",
         }
     }
 
@@ -134,7 +138,7 @@ impl ProblemKind {
             Self::BadRequest | Self::InvalidCursor => StatusCode::BAD_REQUEST,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::CrossSiteRequest => StatusCode::FORBIDDEN,
-            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::NotFound | Self::Exhausted => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict | Self::UndoConflict | Self::IdempotencyInProgress => {
                 StatusCode::CONFLICT
@@ -184,6 +188,7 @@ impl ProblemKind {
             Self::RateLimited => "Too many requests",
             Self::Unavailable => "The service is unavailable",
             Self::Internal => "Internal error",
+            Self::Exhausted => "Nothing is free",
         }
     }
 }
