@@ -93,9 +93,39 @@ export async function clearSensitive(): Promise<void> {
   if (databases && typeof databases.databases === "function") {
     const names = await databases.databases().catch(() => []);
     for (const { name } of names) {
-      if (name?.startsWith("kartenn")) databases.deleteDatabase(name);
+      if (name?.startsWith("kartenn")) await deleteDatabase(databases, name);
     }
   }
+}
+
+/** How long a deletion may stay blocked by connections of other tabs. */
+export const DELETE_BLOCKED_MS = 5000;
+
+/**
+ * Deletes one database and waits for it. A connection still open (a draft being written in
+ * another tab) blocks the deletion until it closes, which every connection of the shell does
+ * on `versionchange`; past `DELETE_BLOCKED_MS` the deletion fails rather than hold the
+ * logout.
+ */
+function deleteDatabase(factory: IDBFactory, name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = factory.deleteDatabase(name);
+    let blocked: ReturnType<typeof setTimeout> | undefined;
+    request.onsuccess = () => {
+      clearTimeout(blocked);
+      resolve();
+    };
+    request.onerror = () => {
+      clearTimeout(blocked);
+      reject(request.error ?? new Error(`deleting ${name} failed`));
+    };
+    request.onblocked = () => {
+      blocked ??= setTimeout(
+        () => reject(new Error(`deleting ${name} stays blocked`)),
+        DELETE_BLOCKED_MS,
+      );
+    };
+  });
 }
 
 /** True while a 401 waits for the user to log in again. */

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 updated: 2026-10-20
 ---
 
@@ -97,7 +97,7 @@ Acceptation :
 kartenn doit poser, sur toute réponse servie hors de `/v1` et `/health`, une CSP stricte
 (`script-src 'self'` plus l'empreinte de l'import map du shell, sans `unsafe-inline` ni
 `unsafe-eval` ; `connect-src 'self'` ; `frame-ancestors 'none'` ; aucun cadre ni objet),
-`X-Content-Type-Options: nosniff` et des en-têtes de cache : `immutable` pour les fichiers
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` et des en-têtes de cache : `immutable` pour les fichiers
 à empreinte du build, revalidation pour `index.html` et les fichiers des plugins.
 [W2, W4, W17, CSP3, RFC 8246]
 

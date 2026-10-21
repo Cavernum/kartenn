@@ -848,7 +848,8 @@ impl Api {
     }
 }
 
-/// Resolves at each `SIGHUP` when the API terminates TLS; never otherwise.
+/// Resolves at each `SIGHUP` when the API terminates TLS (its certificate read again) or
+/// serves plugins (their directory read again, spec 007); never otherwise.
 async fn hangup(api: Option<&mut Api>) {
     #[cfg(unix)]
     if let Some(signal) = api.and_then(|api| api.hangup.as_mut()) {
