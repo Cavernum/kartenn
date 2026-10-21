@@ -67,9 +67,17 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   choix : l'attribut porte `#[allow(clippy::too_many_lines)]` (`kartenn-testing-macros`),
   comme `#[sqlx::test]` qui masquait la fonction à ce lint : douze scénarios de plus de
   100 lignes le déclenchaient, sans changer leur corps.
-- [ ] 4. kartenn-rest (97 tests) — verify : commun
+- [x] 4. kartenn-rest (97 tests) — verify : commun
   où : `crates/kartenn-rest/tests/it/`, `tests/it/common/`, `Cargo.toml`
   dépend de : 1 ; 013 : 3
+  — 97 attributs remplacés (aucun laissé en `#[sqlx::test]`), dev-dependency
+  `kartenn-testing` ; nextest : 198 tests avant, 198 après (mêmes noms). Exécution de la
+  suite : 35,2 s avant (charge 8 à 13), 33,0 s après (charge 3 à 4) : les tests de la crate
+  passent leur temps ailleurs que dans la création des bases (attentes, chiffrement,
+  imports de 10⁶ éléments).
+  choix : l'attribut autorise aussi `clippy::similar_names` et
+  `clippy::many_single_char_names`, que `#[sqlx::test]` masquait de même (quatre tests de
+  `objects.rs`).
 - [ ] 5. kartenn-server, kartenn-auth, kartenn-telemetry (27 tests) — verify : commun
   où : `crates/kartenn-{server,auth,telemetry}/tests/`, `Cargo.toml`
   dépend de : 1 ; 013 : 5, 6, 8

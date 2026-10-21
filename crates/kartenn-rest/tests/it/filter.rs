@@ -195,7 +195,7 @@ async fn seed(pool: &PgPool) -> (Uuid, Vec<Uuid>) {
     (domain, ids)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn get_and_query_read_the_same_elements(pool: PgPool) {
     let (domain, wanted) = seed(&pool).await;
     let app = app(pool);
@@ -228,7 +228,7 @@ async fn get_and_query_read_the_same_elements(pool: PgPool) {
     assert_eq!(texts, wanted, "prod and test sort after dev");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_wrong_search_is_refused(pool: PgPool) {
     let (domain, _) = seed(&pool).await;
     let app = app(pool);

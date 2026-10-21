@@ -102,7 +102,7 @@ fn rfc3339(at: OffsetDateTime) -> String {
     at.format(&Rfc3339).unwrap().replace('+', "%2B")
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_date_without_offset_is_refused(pool: PgPool) -> sqlx::Result<()> {
     let app = app(pool.clone(), Duration::from_secs(60));
     let id = Uuid::now_v7();
@@ -131,7 +131,7 @@ async fn a_date_without_offset_is_refused(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn not_modified_until_a_changeset(pool: PgPool) -> sqlx::Result<()> {
     let app = app(pool.clone(), Duration::from_secs(60));
     let id = Uuid::now_v7();
@@ -161,7 +161,7 @@ async fn not_modified_until_a_changeset(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn immutable_only_beyond_the_bound(pool: PgPool) -> sqlx::Result<()> {
     // No bound on the writes: only the clock margin (1 s) separates the past from the
     // frozen past.

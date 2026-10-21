@@ -141,7 +141,7 @@ async fn refusals(app: &Router) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_consultation_without_permission_is_refused_and_audited(pool: PgPool) {
     let outsider = person(&pool, &["core.rbac.read"]).await;
     let app = app_as(&pool, outsider);
@@ -173,7 +173,7 @@ async fn a_consultation_without_permission_is_refused_and_audited(pool: PgPool) 
     assert!(recorded(&pool, "audit.events.read").await.is_empty());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_journal_reads_by_pages_and_by_query(pool: PgPool) {
     let outsider = person(&pool, &[]).await;
     refusals(&app_as(&pool, outsider)).await;
@@ -242,7 +242,7 @@ async fn the_journal_reads_by_pages_and_by_query(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_export_is_whole_and_audited_once(pool: PgPool) {
     let outsider = person(&pool, &[]).await;
     refusals(&app_as(&pool, outsider)).await;
@@ -309,7 +309,7 @@ async fn an_export_is_whole_and_audited_once(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_person_is_pseudonymised_at_once(pool: PgPool) {
     let target = person(&pool, &[]).await;
     let path = format!("/v1/identities/{target}/pseudonymisation");
@@ -381,7 +381,7 @@ async fn a_person_is_pseudonymised_at_once(pool: PgPool) {
     assert_eq!(events[0].1["motive"], "right to erasure");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_log_filter_returns_to_the_configuration(pool: PgPool) {
     let put =
         |output: &str, body: Value| with_body("PUT", &format!("/v1/log-filters/{output}"), &body);

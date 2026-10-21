@@ -145,7 +145,7 @@ async fn open(app: &Router) -> String {
     location
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
     let app = app_as(&pool, person(&pool).await, generous());
     let import = open(&app).await;
@@ -204,7 +204,7 @@ async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
     assert!(due);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_import_is_its_authors(pool: PgPool) {
     let app = app_as(&pool, person(&pool).await, generous());
     let import = open(&app).await;
@@ -225,7 +225,7 @@ async fn an_import_is_its_authors(pool: PgPool) {
     assert_eq!(shown["chunks"], 0);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_imports_of_the_caller_list_the_most_recent_first(pool: PgPool) {
     let app = app_as(&pool, person(&pool).await, generous());
     let outsider = app_as(&pool, person(&pool).await, generous());
@@ -268,7 +268,7 @@ async fn the_imports_of_the_caller_list_the_most_recent_first(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_state_guards_the_actions(pool: PgPool) {
     let author = person(&pool).await;
     let app = app_as(&pool, author, generous());
@@ -349,7 +349,7 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     assert_eq!(again.status(), StatusCode::CONFLICT);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_chunk_weighs_its_thousands_on_the_quota(pool: PgPool) {
     // 20 writes at once, as by default; a chunk of 10 000 elements weighs 10. The bucket
     // refills at 1/s rather than 10/s, so that a chunk slowed by a loaded machine does not

@@ -166,7 +166,7 @@ async fn lab(app: &Router) -> (String, String) {
     (domain, prefix)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_creation_links_to_its_changeset(pool: PgPool) {
     let author = person(&pool, &["*"]).await;
     let app = app_as(&pool, author);
@@ -231,7 +231,7 @@ async fn a_creation_links_to_its_changeset(pool: PgPool) {
     assert!(problem["violations"][0].get("operation").is_none());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_creation_replays_its_first_response(pool: PgPool) {
     let app = admin(&pool).await;
     let request = || {
@@ -257,7 +257,7 @@ async fn a_creation_replays_its_first_response(pool: PgPool) {
     assert_eq!(domains, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_lost_update_is_prevented(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = lab(&app).await;
@@ -317,7 +317,7 @@ async fn a_lost_update_is_prevented(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_patch_is_a_merge_patch(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = lab(&app).await;
@@ -391,7 +391,7 @@ async fn a_patch_is_a_merge_patch(pool: PgPool) {
     assert_eq!(absent.status(), StatusCode::NOT_FOUND);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn removing_and_clearing_a_property_differ(pool: PgPool) {
     let app = admin(&pool).await;
     let (domain, prefix) = lab(&app).await;
@@ -510,7 +510,7 @@ async fn removing_and_clearing_a_property_differ(pool: PgPool) {
     assert_eq!(zone["custom.zone"], Value::Null);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_deletion_closes_the_object(pool: PgPool) {
     let app = admin(&pool).await;
     let (_, prefix) = lab(&app).await;
@@ -546,7 +546,7 @@ async fn a_deletion_closes_the_object(pool: PgPool) {
     assert_eq!(gone.status(), StatusCode::NOT_FOUND);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_approval_policy_answers_202(pool: PgPool) {
     let app = admin(&pool).await;
     let (domain, _) = lab(&app).await;
@@ -585,7 +585,7 @@ async fn an_approval_policy_answers_202(pool: PgPool) {
     assert_eq!(unchanged["slug"], "lab");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_patch_renames_and_moves(pool: PgPool) {
     let app = admin(&pool).await;
     let root = created(&app, "entities", &json!({"motive": "m", "slug": "root"})).await;

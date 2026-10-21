@@ -1861,6 +1861,7 @@ dependencies = [
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-telemetry",
+ "kartenn-testing",
  "kartenn-workspace-hack",
  "p256",
  "percent-encoding",

@@ -154,7 +154,7 @@ async fn refused_by(response: Response) -> Vec<String> {
         .collect()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_delegate_binds_without_escalation(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let response = send(
@@ -269,7 +269,7 @@ async fn shown_secret(response: Response) -> (Option<String>, Value) {
     (location, body["secret"].clone())
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_secret_is_never_compressed(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let response = send(
@@ -330,7 +330,7 @@ async fn a_secret_is_never_compressed(pool: PgPool) {
     assert_eq!(account["secrets"][1]["revoked"], true);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_replay_does_not_show_the_secret_again(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let create = || {
@@ -352,7 +352,7 @@ async fn a_replay_does_not_show_the_secret_again(pool: PgPool) {
     assert!(body.get("secret").is_none());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn reading_the_rights_needs_core_rbac_read(pool: PgPool) {
     let reader = app_as(&pool, person(&pool, &["core.rbac.read"]).await);
     let nobody = app_as(&pool, person(&pool, &["core.entity.read"]).await);
@@ -389,7 +389,7 @@ async fn reading_the_rights_needs_core_rbac_read(pool: PgPool) {
     assert!(roles["links"]["next"].is_string());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn attachments_and_identities_are_administered(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let issuer = "https://idp.example.invalid/realm";

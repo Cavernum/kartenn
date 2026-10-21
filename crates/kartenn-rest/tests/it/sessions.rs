@@ -359,7 +359,7 @@ async fn json(response: Response) -> Value {
     serde_json::from_slice(&body).unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -486,7 +486,7 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     assert_eq!(cause, "logout");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_callback_is_played_once(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -534,7 +534,7 @@ async fn a_callback_is_played_once(pool: PgPool) {
     assert_eq!(f.events("authn.login.succeeded").await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_groups_are_refreshed_when_the_token_of_the_issuer_expires(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -593,7 +593,7 @@ fn secret_of(uri: &str) -> Vec<u8> {
     out
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_breakglass_session_is_refused_after_one_hour(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -663,7 +663,7 @@ async fn a_breakglass_session_is_refused_after_one_hour(pool: PgPool) {
     assert_eq!(cause, "absolute");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn no_cookie_is_set_without_tls(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -683,7 +683,7 @@ async fn no_cookie_is_set_without_tls(pool: PgPool) {
     assert!(set_cookies(&unknown).is_empty());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_issuers_of_the_login_are_public(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::of_issuers(&pool, &idp, Settings::default(), &["main", "backup"]);
@@ -758,7 +758,7 @@ async fn me_over(
 
 /// REQ-006-25, 32: the cookies of a login cross a real TLS connection in HTTP/1.1 and
 /// HTTP/2, and the session they open is recognised on a new connection.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_login_crosses_a_local_port_over_tls(pool: PgPool) {
     let idp = idp().await;
     let f = Fixture::new(&pool, &idp);
@@ -778,7 +778,7 @@ async fn a_login_crosses_a_local_port_over_tls(pool: PgPool) {
 /// REQ-006-27: behind a trusted proxy on clear HTTP, the cookies follow its
 /// `Forwarded: proto`; from an address not configured, `proto=https` is not believed; a
 /// session cookie or a password arriving in clear → 401.
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_cookies_follow_forwarded_on_a_local_port(pool: PgPool) {
     const HTTPS: Option<&str> = Some("for=198.51.100.1;proto=https");
     const HTTP: Option<&str> = Some("for=198.51.100.1;proto=http");

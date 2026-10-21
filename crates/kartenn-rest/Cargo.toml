@@ -48,6 +48,8 @@ percent-encoding = "2.3.2"
 semver = "1.0.28"
 
 [dev-dependencies]
+# Test databases cloned from a migrated template (ADR 0028).
+kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
 jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }

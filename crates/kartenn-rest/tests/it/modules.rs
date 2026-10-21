@@ -286,7 +286,7 @@ async fn read(app: &Router, path: &str) -> (StatusCode, Value) {
     )
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn module_routes_are_mounted(pool: PgPool) {
     let identity = person_on(&pool, &["*"], None).await;
     let app = app(&pool, identity, Kit::default());
@@ -326,7 +326,7 @@ async fn module_routes_are_mounted(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn transversal_routes_for_module_types(pool: PgPool) {
     let id = thing(&pool).await;
     label(&pool, id, "shelf").await;
@@ -369,7 +369,7 @@ async fn transversal_routes_for_module_types(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn graph_edges_filtered_by_rights(pool: PgPool) {
     let a = entity(&pool, "a", None).await;
     let child = entity(&pool, "a-child", Some(a)).await;

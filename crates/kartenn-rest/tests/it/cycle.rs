@@ -206,7 +206,7 @@ async fn slug_of(pool: &PgPool, id: &str) -> String {
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_author_who_validates_gets_403(pool: PgPool) {
     let author = app_as(&pool, person(&pool, &["*"]).await);
     let approver = app_as(&pool, person(&pool, &["*"]).await);
@@ -256,7 +256,7 @@ async fn an_author_who_validates_gets_403(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_undo_in_conflict_answers_409_with_the_list(pool: PgPool) {
     let app = app_as(&pool, person(&pool, &["*"]).await);
     let (id, creation) = domain(&app, &pool, "lab").await;
@@ -309,7 +309,7 @@ async fn an_undo_in_conflict_answers_409_with_the_list(pool: PgPool) {
     assert_eq!(slug_of(&pool, &id).await, "lab");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn reading_needs_core_changeset_read(pool: PgPool) {
     let author = person(&pool, &["*"]).await;
     let app = app_as(&pool, author);
@@ -350,7 +350,7 @@ async fn reading_needs_core_changeset_read(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_list_filters_by_state_and_author_by_pages(pool: PgPool) {
     let author = person(&pool, &["*"]).await;
     let app = app_as(&pool, author);
@@ -408,7 +408,7 @@ async fn listed(app: &Router, uri: &str) -> Vec<String> {
         .collect()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_list_searches_by_object_period_and_retroactivity(pool: PgPool) {
     let app = app_as(&pool, person(&pool, &["*"]).await);
     let (lab, created) = domain(&app, &pool, "lab").await;
@@ -473,7 +473,7 @@ async fn the_list_searches_by_object_period_and_retroactivity(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn rejection_and_withdrawal_close_a_pending_changeset(pool: PgPool) {
     let author = app_as(&pool, person(&pool, &["*"]).await);
     let approver = app_as(&pool, person(&pool, &["*"]).await);
@@ -539,7 +539,7 @@ async fn rejection_and_withdrawal_close_a_pending_changeset(pool: PgPool) {
     assert_eq!(slug_of(&pool, &id).await, "lab");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_proposals_are_those_the_caller_may_validate(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let proposer = app_as(
@@ -564,7 +564,7 @@ async fn the_proposals_are_those_the_caller_may_validate(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_sensitive_value_is_masked_without_its_right(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let auditor = app_as(
