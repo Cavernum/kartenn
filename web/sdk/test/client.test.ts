@@ -171,7 +171,9 @@ describe("client of the API (REQ-007-15, 24)", () => {
   });
 });
 
-describe("types drawn from the contract (REQ-007-15)", () => {
+// Generating the types of the whole contract takes seconds, more with each module mounted
+// and on a loaded machine: well beyond the default 5 s.
+describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () => {
   it("the versioned files are those the contract generates", async () => {
     const fresh = await generate(readContract());
     expect(fresh.schema).toBe(readFileSync(SCHEMA, "utf8"));
