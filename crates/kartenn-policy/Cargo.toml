@@ -1,0 +1,22 @@
+[package]
+name = "kartenn-policy"
+version.workspace = true
+description = "Flow policy module of kartenn: classification axes, services, rules by attributes, verdicts and inference"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+# Inference criteria on names: linear-time engine, no backtracking (REQ-010-42).
+regex = "1.13.1"
+unicode-normalization = "0.1.25"
+uuid = { version = "1.28.0", features = ["v7"] }
+
+[dev-dependencies]
+proptest = "1.12.0"

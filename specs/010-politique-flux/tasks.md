@@ -30,7 +30,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P1 — Domaine pur
 
-- [ ] 3. Crate `kartenn-policy` : types `Axis`, `ValueAttributes`, `FlowType`,
+- [x] 3. Crate `kartenn-policy` : types `Axis`, `ValueAttributes`, `FlowType`,
   `Service`, `ServiceEntry`, `Rule` (termes, « même valeur », effet, motifs requis),
   `Pattern`, `Condition` et `Signal` (genres, paramètres), `Text` avec validation —
   REQ-010-4 à 9, 29, 30, 33 — verify : un test par cas refusé de REQ-010-5 et REQ-010-8 ;
@@ -38,6 +38,21 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : modèle de `crates/kartenn-core/src/values.rs` (validation), note
     `docs/reference/services-transports.md` ; crate à l'image de `crates/kartenn-vlan`
   - dépend de : —
+  — `crates/kartenn-policy` (domaine pur, sans base) : `model.rs` (`Key`, `Label`,
+  `AxisValue`, `Axis`, `Carrier`, `ValueAttributes`, `FlowType`, `Transport`,
+  `ServiceEntry`, `Service` avec `warnings` (> 1 024 ports d'un transport), `Selector`,
+  `FlowSelector`, `Effect`, `Rule::check`, `Pattern`, `DossierField`, `ConditionKind`,
+  `Condition`, `SignalKind`, `Signal`, `Locale`, `Text`, `Texts` avec repli sur la langue
+  par défaut), `rules.rs` (catalogue `POLICY_RULES`). Tests : `model::tests`
+  (`each_refused_case_of_req_010_5`, `each_refused_case_of_req_010_8`,
+  `a_deny_a_pattern_and_a_condition_need_a_text`, `a_service_over_1024_ports_warns…`).
+  choix : clés de la politique à la syntaxe des services (REQ-010-5) pour tous les objets ;
+  valeurs d'axe identifiées par leur clé (la base fera la correspondance avec les
+  identifiants) ; règles ajoutées `policy.key.syntax`, `policy.label.invalid`,
+  `policy.service.flow_type`, `policy.service.entries_empty`, `policy.rule.term_empty`,
+  `policy.text.invalid`, `policy.inference.criterion_invalid` (cas que la spec refuse sans
+  les nommer) ; un code ICMP exige un type ; genres des conditions et des signaux tirés de
+  REQ-010-36, 37 et Q20.
 - [ ] 4. `PolicySnapshot` et `evaluate` (candidates, non classifié par axe,
   interdictions, autorisations, motifs, conditionnelles, issue, signaux, élément
   décisif le plus spécifique, explication) — REQ-010-10, 11, 12, 14, 15, 31, 32, 36,
