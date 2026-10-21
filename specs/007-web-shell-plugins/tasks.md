@@ -608,10 +608,21 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   choix : la revue des écrans est faite par axe sur chacun (aucune violation trouvée,
   rien à corriger) ; le test de couverture lit les sources des parcours plutôt qu'il
   n'instrumente l'exécution.
-- [ ] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (SDK de plugins
+- [x] 26. Synchronisation de la spec système : `docs/spec/interfaces.md` (SDK de plugins
   UI, `[web]` et l'avertissement de confiance, ajouts à l'API), `architecture.md`,
   `invariants.md` (INV-23 et ses tests), ADR 0025 acceptée, `specs/README.md` — verify :
   `spec-keeper` sur `specs/007-web-shell-plugins`
   où : `docs/spec/interfaces.md` (« SDK de plugins UI », « Capacités »),
   `docs/spec/architecture.md`, `docs/spec/invariants.md`, `docs/adr/0025-*`,
   `specs/README.md` ; agent `spec-keeper`
+  — `interfaces.md` (section « Shell Web et plugins UI », capacités et ajouts à l'API,
+  « Configuration du shell » avec l'avertissement de confiance), `architecture.md`
+  (composant, arborescence `web/`, `kartenn-dev-idp`, déploiement sans serveur statique
+  dédié, contrat écrit par `kartenn-server openapi`), `invariants.md` (INV-23 et ses
+  tests), ADR 0025 acceptée, `specs/README.md` (tableau et point d'étape) ; dérive
+  corrigée : relais Vite de `/v1` et `/plugins` (REQ-007-36) absent de
+  `web/shell/vite.config.ts`.
+  choix : audit de dérive fait par lecture ciblée du code face au design (pas d'agent
+  `spec-keeper` disponible dans ce contexte) ; budgets du banc web laissés à la tâche 24 ;
+  écarts restants listés au point d'étape de `specs/README.md` (422 hors périmètre,
+  premier administrateur, `plugins_dir` de développement).

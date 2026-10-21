@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 
 # Invariants
@@ -37,7 +37,7 @@ concurrence).
 | INV-20 | Aucun secret Basic n'est accepté hors TLS ; aucun secret n'est stocké en clair (comptes de service : HMAC-SHA-256 sous le trousseau ; secours : Argon2id) | App (couche de transport : TLS direct ou `Forwarded` d'un proxy de confiance) | `auth/tests/service_accounts.rs` (secret absent de la base et de l'audit) ; `rest/tests/authn.rs` (`basic_and_cookies_need_tls_after_the_trusted_proxies`), `sessions.rs` (`no_cookie_is_set_without_tls`) |
 | INV-21 | Un jeton OIDC n'est accepté que d'un émetteur configuré, avec `iss`, `aud`, signature par une clé de l'émetteur et un algorithme de sa liste fermée (clé publique seulement, jamais `none`), expiration valide | App + Config | `auth/tests/access_tokens.rs`, `oidc.rs` (RFC 8725, RFC 9068) |
 | INV-22 | Toute écriture exige le droit sur les objets visés **et** sur chaque changement de valeur résolue d'une propriété (effets indirects compris) | App | REQ-003-17, REQ-003-18 |
-| INV-23 | Un plugin UI n'obtient jamais plus de droits que l'utilisateur | Architecture (accès par l'API seulement) + CSP | Revue, tests E2E |
+| INV-23 | Un plugin UI n'obtient jamais plus de droits que l'utilisateur | Architecture (accès par l'API seulement, avec la session de l'utilisateur) + CSP (`connect-src 'self'`, pas de cadre tiers) + SRI de chaque module | `web/e2e/journeys/plugins.spec.ts` (`may not reach another origin`, module altéré écarté avant d'exécuter son code, action absente sans sa permission) ; toute violation CSP fait échouer un parcours (`web/e2e/fixtures/index.ts`) ; `rest/tests/web.rs` (CSP) |
 | INV-24 | Les décisions de flux (v0.2) se fondent sur la valeur résolue, jamais sur la valeur attendue | App | REQ-003-24 |
 | INV-25 | Refus par défaut : sans liaison qui l'accorde, aucune lecture ni écriture ; un objet non lisible est répondu absent (même 404 que l'objet absent) ; une liste ne contient que ce que la décision unitaire autorise | App + prédicat SQL | `service/tests/rbac.rs` (`lists_hold_what_the_decision_allows`) ; `rest/tests/objects.rs` (`an_invisible_object_answers_as_an_absent_one`), `errors.rs` (`line_404_an_absent_or_invisible_object`) |
 | INV-26 | Un émetteur confiné n'accorde rien hors des sous-arbres des entités qui lui sont rattachées, quelles que soient les liaisons | Prédicat SQL | `an_issuer_is_confined_to_its_entities` |

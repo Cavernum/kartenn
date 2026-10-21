@@ -1,12 +1,12 @@
 ---
 status: approved
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 
 # Interfaces
 
 Les détails normatifs de l'API sont dans la spec 006 (conventions REST, contrat
-`specs/006-api-rest/openapi-v1.json`), ceux du shell et des plugins viendront de la 007 ;
+`specs/006-api-rest/openapi-v1.json`), ceux du shell et des plugins dans la 007 ;
 l'authentification et le RBAC sont fixés par la spec 005. Ce document fixe les principes
 décidés.
 
@@ -32,7 +32,8 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 | Pagination | Curseur opaque signé (HMAC, clé du trousseau `Purpose::Cursor`), droits réévalués à chaque page, sans total ; tri stable | REQ-006-7, 8 |
 | Filtrage | Paramètres conjonctifs (`champ=…`, `prop.<clé>:<op>=…`), et méthode `QUERY` (RFC 10008) au corps JSON pour les filtres longs ; URL au-delà de 8 Kio → 414 | 003/REQ-003-25, REQ-006-9, 10 |
 | Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start`, `resume`, `cancel` ; exécution par une tâche de fond sous bail, reprise au premier lot non appliqué | 004/REQ-004-28 à 30, REQ-006-17 à 19 |
-| Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI, limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35 |
+| Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI (`ui_plugins` : nom, version, plage de SDK, `base`, `entry`, empreintes SRI par fichier, catalogues, points d'extension), limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35, REQ-007-7 |
+| Ajouts pour l'interface | `GET /v1/me` (identité, liaisons, permissions globales : masquer ou griser, le serveur reste seul juge) ; `GET /v1/domains/{id}/roots` (racines de l'arbre, mêmes curseurs que `prefixes/{id}/children`) ; `GET /v1/imports` (imports de l'appelant, du plus récent) ; `GET /v1/auth/issuers` publique (identifiants des émetteurs, ordre de la configuration) | REQ-007-39 à 41, 007/W17, W18 |
 | Protection | Quotas GCRA par identité (par adresse avant authentification) → 429, `Retry-After`, `RateLimit` ; délestage → 503 ; corps borné → 413 ; délai de requête → 503 | REQ-006-29 à 31 |
 | Corrélation | `Request-Id` (UUID v7 généré, jamais repris) en réponse, dans le problème, les logs et l'audit ; `traceparent` des proxys de confiance | REQ-006-37, REQ-012-7 |
 
@@ -110,14 +111,54 @@ son corps.
   `core.approval_policy.admin`.
 - Budgets : tenus avec 1 000 liaisons et 50 groupes (banc `bench-rbac`, 005/K15).
 
-## SDK de plugins UI (D17, ADR 0011)
+## Shell Web et plugins UI (D17, ADR 0011, ADR 0025 ; spec 007)
 
-- Plugin = module ES chargé dynamiquement, qui enregistre des Custom Elements.
-- Le SDK TypeScript versionné fournit : client API généré, contexte (utilisateur,
-  `valid_at`, `as_of`, objet courant), points d'extension (onglets, vues, panneaux
-  d'objet).
-- Un plugin n'a que les droits de l'utilisateur ; chargement soumis à CSP et SRI.
-- Licence du SDK : question ouverte Q-ouv-1.
+**Service** (REQ-007-1 à 3) : kartenn-server sert le shell depuis `[web] root` sur la
+même origine que l'API (cookie `__Host-`, CSRF par `Sec-Fetch-Site`). Ordre : `/v1` et
+`/health` inchangés ; `/plugins/<nom>/<version>/…` (fichiers relevés seulement) ;
+fichier du shell (chemins canoniques sous `root`, `..`, fichiers cachés et liens
+sortants refusés) ; repli sur `index.html` pour un chemin sans extension. `GET` et
+`HEAD` seulement. Cache : `/assets/*` `immutable`, le reste `no-cache` avec `ETag`.
+En-têtes hors `/v1` : CSP `default-src 'none'; script-src 'self' 'sha256-<import map>';
+style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self';
+manifest-src 'self'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'`,
+`nosniff`, `Referrer-Policy: same-origin`. Les quotas ne comptent que `/v1`.
+
+**Plugins** (REQ-007-4 à 11) : répertoire de l'exploitant `[web] plugins_dir`,
+`<nom>/<version>/manifest.json` + modules ES ; manifeste validé (nom, version semver
+égaux au répertoire, plage `sdk`, `entry`, catalogues dont `en`, extensions, `module`
+facultatif) ; empreintes `sha384` ; version publiée = la plus haute valide ; relecture
+toutes les 10 s et sur `SIGHUP`, journaux `web.plugin.loaded`, `web.plugin.rejected`,
+`web.plugins.unreadable`. Un plugin dont le module manque au build n'est pas publié.
+
+**Confiance** (W4) : un plugin est du code de confiance de l'exploitant, dans le même
+document que le shell, avec tous les droits de l'utilisateur et jamais plus (INV-23).
+Installer un plugin revient à lui confier la session de chaque utilisateur ; une
+extension non fiable passe par l'API, comme un connecteur.
+
+**Chargement** (REQ-007-9, 10, 13) : compatibilité semver de la plage `sdk` ;
+catalogues lus avec leur empreinte ; un `modulepreload` avec `integrity` par module,
+puis le script d'entrée ; plugin écarté (`incompatible`, `load-failed`, `exception`,
+`timeout` à 5 s) sans bloquer le shell, motif affiché sur `/about`.
+
+**Points d'extension** (W5), déclarés au manifeste et filtrés par type d'objet et
+permission : `view` (route `/x/<plugin>/<id>`, entrée de navigation), `tab` (onglet de
+fiche), `panel` (colonne latérale de fiche), `column` (colonne des listes), `action`
+(menu d'actions, ouverte dans un dialogue).
+
+**SDK** `@kartenn/sdk` (MPL-2.0, Q-ouv-1 close ; W7, W8) : instance unique désignée par
+l'import map du shell, `external` au build des plugins ; `SDK_VERSION`, `context`
+(utilisateur, `valid_at`/`as_of`, langue), `definePlugin`, `api` (types tirés du contrat
+par openapi-typescript, couche `fetch` propre : `QUERY`, `If-Match` exigé par le type,
+`Idempotency-Key`, Problem Details, pages), `draft` (opérations du brouillon local),
+`tokens` (jetons CSS) ; `@kartenn/sdk/host` réservé au shell ; bac à sable
+`@kartenn/sdk/testing`.
+
+**Interface** : contexte temporel dans l'URL avec bandeau hors présent, écritures coupées
+sous un `as_of` passé (W9) ; modification rapide par la route de la ressource et
+brouillon local (IndexedDB) simulé en continu puis soumis en un changeset (W10) ; i18n
+FR et EN, erreurs traduites par leur `type` (W11) ; WCAG 2.2 AA, axe-core bloquant dans
+chaque parcours (W14).
 
 ## Opérations d'un changeset (interface du service)
 
@@ -192,6 +233,20 @@ derrière un proxy) ; `[http.rate]` `read`, `write`, `anonymous` en
   (`kartenn_server::config`).
 - Les limites sont par instance : avec N instances, le plafond réel est N fois la
   limite (006/H11).
+
+## Configuration du shell (spec 007)
+
+**Réglages** (`[web]`, facultatif) : `root` (build du shell ; sans lui, pas de shell) et
+`plugins_dir` (répertoire des plugins ; sans lui, `ui_plugins` est vide).
+
+- Champ inconnu, `root` sans `index.html` ou sans import map, `plugins_dir` inexistant
+  ou illisible refusent le démarrage ; un répertoire de plugins devenu illisible garde
+  l'instantané précédent.
+- **Avertissement d'exploitation** : déposer un plugin dans `plugins_dir` revient à lui
+  confier la session de chaque utilisateur (W4) ; seul l'exploitant y écrit.
+- Développement : le processus devenv `web` (Vite) relaie `/v1` et `/plugins` vers le
+  processus `kartenn` (`dev/kartenn.toml`), qui fait confiance à l'émetteur de
+  développement `kartenn-dev-idp` (`dev/idp.toml`) ; ni l'un ni l'autre n'est livré.
 
 ## Configuration de l'authentification (spec 005)
 

@@ -8,9 +8,10 @@
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (18/18) |
 | [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (26/26) |
-| [007-web-shell-plugins](007-web-shell-plugins/) | rédigées, à valider | rédigée, à valider | [tasks](007-web-shell-plugins/tasks.md) (0/26) |
-| 008-vlan, 009-machines-interfaces | à écrire | — | — |
-| 010-politique-flux, 011-registre-flux | à écrire avant de figer le noyau (D31) | — | — |
+| [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
+| [008-vlan](008-vlan/) | en cours (contrat de module, ADR 0026) | en cours | [tasks](008-vlan/tasks.md) |
+| [009-machines-interfaces](009-machines-interfaces/) | en cours | en cours | [tasks](009-machines-interfaces/tasks.md) |
+| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | rédigées, révisées par l'expression du besoin (D28, D30 amendées) ; v0.2 | rédigée | [010](010-politique-flux/tasks.md), [011](011-registre-flux/tasks.md) (0) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
@@ -130,3 +131,35 @@ une page filtrée à 3 s, ramenée à 52 ms. `docs/spec/` synchronisée (spec-ke
 Reste hors de la 006 : la `source` des CloudEvents, encore `urn:kartenn:instance`, que
 la 004 renvoyait à la configuration de la 006 ; elle rejoint le transport des
 événements sortants, non-objectif de la 006.
+
+## Point d'étape — 2026-10-21 : spec 007
+
+Shell Web et plugins implémentés (25/26) : kartenn-server sert le shell et les plugins
+sur la même origine que l'API, CSP avec l'empreinte de l'import map, SRI par
+`modulepreload` (ADR 0025 acceptée) ; SDK `@kartenn/sdk` (MPL-2.0) partagé par import
+map, client tiré du contrat ; quatre points d'extension et une colonne de liste, plugin
+d'exemple sans framework et plugin VLAN de première partie ; contexte temporel dans
+l'URL, modification rapide, brouillon local simulé en continu, changesets,
+administration, arbre virtualisé ; i18n FR et EN ; WCAG 2.2 AA avec axe-core bloquant ;
+émetteur de développement `kartenn-dev-idp` ; parcours Playwright contre le vrai
+serveur sur Chromium et Firefox (82 parcours, 154 tests Vitest, 708 tests Rust).
+Ajouts additifs à l'API : `GET /v1/domains/{id}/roots`, `GET /v1/imports`,
+`GET /v1/auth/issuers`.
+
+Reste : le banc `bench-web` (007-24, budgets REQ-007-32), en cours ; ses chiffres
+rejoindront la spec système à sa clôture.
+
+Corrigés en route : enfants d'un préfixe relus en entier avant le curseur (17 s par page
+à 10⁴ enfants, ramenés à 7 ms) ; garde `Expect` d'un objet de module sur une permission
+inexistante ; relais Vite de `/v1` et `/plugins` absent (REQ-007-36), ajouté à la
+synchronisation.
+
+Écarts restants, à arbitrer :
+- une écriture hors du périmètre répond 422 `core.object.forbidden` (comportement du
+  noyau), que le shell traite comme un refus ; la 007 et la 008 (REQ-008-22) parlaient
+  de 403 ;
+- aucune opération ne lie le premier administrateur d'une instance neuve : les parcours
+  de bout en bout le posent en SQL (`web/e2e/serve.sh`) ;
+- `dev/kartenn.toml` n'a pas de `[web] plugins_dir` : la validation exige un répertoire
+  existant, relatif au répertoire courant, ce que le test de la configuration de
+  développement, lancé depuis le crate, ne tient pas.

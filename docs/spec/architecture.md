@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 
 # Architecture
@@ -54,7 +54,7 @@ flowchart LR
 | Authentification (`kartenn-auth`) | Trousseau de clés (HKDF par usage), cookies scellés, flux OIDC du BFF, jetons d'accès RFC 9068, secrets des comptes de service, comptes de secours (Argon2id, TOTP) ; derrière les ports `Identities`, `SecretHasher`, `BreakglassVerifier` de la couche service | — |
 | Autorisation (service et adaptateur) | Port `Authorizer` ; décisions et administration dans la couche service ; visibilités et prédicats SQL dans l'adaptateur PostgreSQL (`PgAuthorizer`, ADR 0021) | Identités, rôles, liaisons, rattachements, secrets |
 | Workers | Relais outbox (webhooks, invalidations), jobs longs (imports, rapports) ; répartis sans doublon | État des jobs |
-| Shell Web | Navigation, vues du noyau, hôte des plugins UI ; client de l'API | — |
+| Shell Web | Navigation, vues du noyau, changesets et brouillon local, administration ; hôte des plugins UI ; client de l'API ; servi par kartenn-server sur la même origine que l'API (spec 007, ADR 0025) | Brouillon et préférences dans le navigateur (IndexedDB, `localStorage`), effacés à la déconnexion |
 | Connecteurs | Import / synchronisation depuis des sources externes via l'API | Correspondances d'identifiants (dans kartenn) |
 
 ## Pipeline d'écriture
@@ -125,17 +125,24 @@ crates/
   kartenn-service/     cas d'usage, pipeline d'écriture, différentiel
   kartenn-store-pg/    adaptateur PostgreSQL (sqlx), migrations du noyau
   kartenn-rest/        adaptateur REST (axum) : routes, DTO, problèmes, curseurs,
-                       quotas, CSRF ; OpenAPI (utoipa, binaire `openapi`)
+                       quotas, CSRF ; OpenAPI (utoipa) ; service du shell et
+                       registre des plugins (`web`, spec 007)
   kartenn-auth/        trousseau, OIDC, jetons, secrets, comptes de secours
   kartenn-server/      binaire : composition, configuration, observabilité
   kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26,
                        REQ-005-29)
   kartenn-<module>/    un module métier (vlan, machines, policy…)
+  kartenn-dev-idp/     émetteur OIDC de développement et de test, jamais livré (007/W16)
   kartenn-workspace-hack/
-web/
-  shell/               Vue 3 + TypeScript
-  sdk/                 SDK de plugins (TypeScript)
+web/                   espace pnpm (ADR 0024)
+  shell/               Vue 3 + TypeScript (AGPL-3.0)
+  sdk/                 SDK de plugins `@kartenn/sdk` (TypeScript, MPL-2.0)
+  plugins/<nom>/       plugins de première partie (example, vlan…), MPL-2.0
+  e2e/                 parcours Playwright contre le vrai serveur
 ```
+
+Le contrat de référence de l'API (`specs/006-api-rest/openapi-v1.json`) est écrit par
+`kartenn-server openapi`, seul à connaître les modules du build (008-8).
 
 Règle de dépendance : `kartenn-core` ne dépend d'aucun adaptateur ni d'aucune crate
 d'infrastructure (HTTP, SQL).
@@ -148,8 +155,13 @@ flowchart TB
   s1 & s2 & sn --> pgp[(PostgreSQL primaire)]
   s1 & s2 & sn -.lectures.-> pgr[(Réplicas)]
   mig[Job de migration] --> pgp
-  static[Web statique + plugins] --> lb
+  web[(Shell construit + répertoire des plugins)] -.lus par.-> s1 & s2 & sn
 ```
+
+- Chaque instance sert le shell (`[web] root`) et les plugins (`[web] plugins_dir`) sur
+  la même origine que l'API, avec la CSP et les en-têtes de cache (spec 007, ADR 0025) ;
+  le répertoire est le même partout (même paquet ou volume partagé). Un serveur statique
+  derrière le même répartiteur reste possible ; il pose alors lui-même ces en-têtes.
 
 - Instances **sans état** ; sessions portées par un cookie chiffré (ADR 0020) ; aucun
   cache local faisant autorité : l'état des identités est gardé 5 s au plus par
@@ -167,5 +179,6 @@ flowchart TB
   les crée trois mois à l'avance, et se relance au moins chaque mois (004-25).
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur
   le primaire après un changeset).
-- Livrables : images OCI (serveur, migration, web statique), module NixOS ;
+- Livrables : images OCI (serveur avec le shell construit et les plugins de première
+  partie, migration), module NixOS ;
   configuration 12-factor ; OpenTelemetry (OTLP) ; sondes `/health/live`, `/health/ready`.
