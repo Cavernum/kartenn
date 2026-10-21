@@ -1,5 +1,10 @@
 //! kartenn server binary: composition, configuration, observability.
 //!
+//! The URL of the database is the first argument, or, without it, the content of the file
+//! `[database] url_file` of the configuration (spec 015, REQ-015-4), which keeps the URL
+//! off the command line; `migrate` and `breakglass create` read that configuration with
+//! `--config <file>`. `kartenn-server --version` prints the version.
+//!
 //! - `kartenn-server migrate <database-url>`: the migration job (D9), run once per
 //!   deployment before the instances, with the owner of the schema: migrations, history
 //!   partitions ahead of time, declarations of the core (004-25, 003/P12).
@@ -101,10 +106,55 @@ async fn connect_bounded(
         .with_context(|| format!("connecting to {}", redacted()))
 }
 
+/// A database URL given as an argument, rather than a file name.
+fn is_url(argument: &str) -> bool {
+    argument.starts_with("postgres://") || argument.starts_with("postgresql://")
+}
+
+/// `[<database-url>] [<config-file>]`: the URL when the first is one, then the file.
+fn url_and_file(rest: &[String]) -> Option<(Option<&str>, Option<&str>)> {
+    match rest {
+        [] => Some((None, None)),
+        [one] if is_url(one) => Some((Some(one), None)),
+        [one] => Some((None, Some(one))),
+        [url, file] if is_url(url) => Some((Some(url), Some(file))),
+        _ => None,
+    }
+}
+
+/// `args` without `--config <file>`, and that file.
+fn config_option(args: &[String]) -> anyhow::Result<(Vec<String>, Option<String>)> {
+    let mut rest = Vec::new();
+    let mut file = None;
+    let mut args = args.iter();
+    while let Some(argument) = args.next() {
+        if argument == "--config" {
+            let Some(path) = args.next() else {
+                bail!("--config needs a file");
+            };
+            file = Some(path.clone());
+        } else {
+            rest.push(argument.clone());
+        }
+    }
+    Ok((rest, file))
+}
+
+/// The configuration of `file` and the URL of the database: `argument` or `[database]
+/// url_file` (spec 015, REQ-015-4).
+fn configured(
+    file: Option<&str>,
+    argument: Option<&str>,
+) -> anyhow::Result<(kartenn_server::config::Config, String)> {
+    let config = kartenn_server::config::load(file.map(Path::new))?;
+    let url = config.database_url(argument)?;
+    Ok((config, url))
+}
+
 #[tokio::main]
 #[allow(clippy::too_many_lines)] // one arm per subcommand
 async fn main() -> anyhow::Result<ExitCode> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (args, config_file) = config_option(&std::env::args().skip(1).collect::<Vec<_>>())?;
     let connect = |database: &str| {
         let database = database.to_owned();
         async move {
@@ -117,27 +167,39 @@ async fn main() -> anyhow::Result<ExitCode> {
         }
     };
     match args.as_slice() {
-        [command, database] if command == "migrate" => {
-            let pool = connect(database).await?;
+        [flag] if flag == "--version" || flag == "-V" => {
+            println!("kartenn-server {}", env!("CARGO_PKG_VERSION"));
+            Ok(ExitCode::SUCCESS)
+        }
+        [command, rest @ ..] if command == "migrate" && rest.len() <= 1 => {
+            let (_, database) =
+                configured(config_file.as_deref(), rest.first().map(String::as_str))?;
+            let pool = connect(&database).await?;
             let modules = kartenn_server::modules::registry()?;
             kartenn_store_pg::maintenance::deploy(&pool, &modules).await?;
             println!("kartenn {}: deployed", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
-        [command, database, rest @ ..] if command == "run" && rest.len() <= 1 => {
-            let config = kartenn_server::config::load(rest.first().map(Path::new))?;
-            let pool = connect_bounded(database, config.write_transaction_timeout()).await?;
+        [command, rest @ ..] if command == "run" && config_file.is_none() => {
+            let Some((argument, file)) = url_and_file(rest) else {
+                bail!("usage: kartenn-server run [<database-url>] [<config-file>]");
+            };
+            let (config, database) = configured(file, argument)?;
+            let pool = connect_bounded(&database, config.write_transaction_timeout()).await?;
             let report = kartenn_server::app::run(pool, &config, shutdown()).await?;
             if report.lost_technical > 0 {
                 eprintln!("kartenn: {} technical records lost", report.lost_technical);
             }
             Ok(ExitCode::SUCCESS)
         }
-        [audit, purge, database, rest @ ..]
-            if audit == "audit" && purge == "purge" && rest.len() <= 1 =>
+        [audit, purge, rest @ ..]
+            if audit == "audit" && purge == "purge" && config_file.is_none() =>
         {
-            let config = kartenn_server::config::load(rest.first().map(Path::new))?;
-            let pool = connect(database).await?;
+            let Some((argument, file)) = url_and_file(rest) else {
+                bail!("usage: kartenn-server audit purge [<database-url>] [<config-file>]");
+            };
+            let (config, database) = configured(file, argument)?;
+            let pool = connect(&database).await?;
             let sinks: Vec<&str> = config
                 .audit
                 .sinks
@@ -198,14 +260,20 @@ async fn main() -> anyhow::Result<ExitCode> {
                 .with_context(|| format!("writing {}", path.display()))?;
             Ok(ExitCode::SUCCESS)
         }
-        [bg, create, database, name, hours, key_file]
-            if bg == "breakglass" && create == "create" =>
+        [bg, create, rest @ ..]
+            if bg == "breakglass" && create == "create" && matches!(rest.len(), 3 | 4) =>
         {
-            create_breakglass(&connect(database).await?, name, hours, key_file).await?;
+            let (argument, [name, hours, key_file]) = match rest {
+                [url, name, hours, key_file] => (Some(url.as_str()), [name, hours, key_file]),
+                [name, hours, key_file] => (None, [name, hours, key_file]),
+                _ => unreachable!("three or four arguments"),
+            };
+            let (_, database) = configured(config_file.as_deref(), argument)?;
+            create_breakglass(&connect(&database).await?, name, hours, key_file).await?;
             Ok(ExitCode::SUCCESS)
         }
         _ => bail!(
-            "usage: kartenn-server migrate <database-url>\n       kartenn-server run <database-url> [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge <database-url> [<config-file>]\n       kartenn-server openapi [<path>]\n       kartenn-server breakglass create <database-url> <name> <hours> <key-file>"
+            "usage: kartenn-server --version\n       kartenn-server migrate [<database-url>] [--config <file>]\n       kartenn-server run [<database-url>] [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge [<database-url>] [<config-file>]\n       kartenn-server openapi [<path>]\n       kartenn-server breakglass create [<database-url>] <name> <hours> <key-file> [--config <file>]\n(without <database-url>, `[database] url_file` of the configuration names a file holding it)"
         ),
     }
 }

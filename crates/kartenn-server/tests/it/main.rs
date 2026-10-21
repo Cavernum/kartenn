@@ -2,6 +2,7 @@
 //! module per subject. `tests/http.rs` stays a binary of its own: it sends SIGHUP to its
 //! own process, which would reach every test of a shared binary.
 
+mod database_file;
 mod dev_idp;
 mod jobs;
 mod overrides;

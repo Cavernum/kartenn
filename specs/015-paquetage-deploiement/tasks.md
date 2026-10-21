@@ -31,7 +31,7 @@ après l'autre.
   `web/plugins/*/package.json` ; `crates/kartenn-rest/src/web/plugins.rs` (structure
   attendue du répertoire)
   dépend de : —
-- [ ] 3. URL de la base par fichier et `--version` : section `[database] url_file`,
+- [x] 3. URL de la base par fichier et `--version` : section `[database] url_file`,
   argument facultatif, `--config` pour `migrate` et `breakglass create` — REQ-015-4 —
   verify : tests de `config.rs` (champ inconnu, fichier vide, illisible, ambiguïté
   argument et fichier) ; test dans `kartenn-server/tests/it/` : `run` démarre sur
@@ -39,6 +39,21 @@ après l'autre.
   où : design « Configuration de la base » ; `crates/kartenn-server/src/config.rs`
   (`Config`, tests en fin de fichier), `src/main.rs` (dispatch des sous-commandes)
   dépend de : —
+  — `config.rs` : section `[database]` (`Database { url_file }`, champs inconnus refusés),
+  `Config::database_url` (argument ou fichier, exactement un ; fin de ligne retirée ;
+  fichier vide, illisible ou double source refusés, le message nomme le fichier, jamais
+  l'URL) ; `main.rs` : `--version`/`-V`, `<database-url>` facultatif pour `run`,
+  `audit purge`, `migrate` et `breakglass create`, `--config <fichier>` pour les deux
+  derniers. Tests : `config::tests::the_database_comes_from_the_argument_or_its_file_once`
+  (champ inconnu, argument seul, fichier seul, aucune, deux, vide, illisible, le secret
+  jamais dans l'erreur) ; `server_it database_file::{the_server_tells_its_version,
+  an_instance_starts_on_the_url_of_its_file}` (`migrate --config`, double source refusée
+  sans l'URL, `run` sans URL en argument démarre, l'URL absente du fichier de logs et de
+  la sortie d'erreur).
+  choix : pour `run` et `audit purge`, le premier argument est l'URL s'il commence par
+  `postgres://` ou `postgresql://`, sinon le fichier de configuration (pas de nouvelle
+  option sur ces deux sous-commandes) ; `audit verify` garde son URL en argument (hors de
+  REQ-015-4) ; la variable `KARTENN_DATABASE__URL_FILE` marche aussi (figment).
 - [x] 4. Premier administrateur : réalisé par la tâche **005-19** (même travail, une seule
   implémentation ; cette ligne se coche avec elle). `breakglass create` lie `administrator`
   global jusqu'à `valid_until`, mention dans l'audit ; le mode d'écriture de la liaison
