@@ -51,7 +51,7 @@ const VLANS: usize = 100_000;
 const ENTITIES: usize = 20;
 
 /// Any `Bearer` token is this principal.
-struct As(Principal);
+pub(crate) struct As(pub(crate) Principal);
 
 impl Authenticator for As {
     fn authenticate(&self, proof: Proof, _: Source) -> Answer<'_, Authenticated> {
@@ -71,7 +71,7 @@ fn op(name: &str, fields: Value) -> anyhow::Result<Operation> {
 }
 
 /// Runs `items` as one import, which must end.
-async fn import(
+pub(crate) async fn import(
     store: &PgStore,
     author: Uuid,
     source: &str,
@@ -88,7 +88,10 @@ async fn import(
 }
 
 /// Brings the stored declarations in line with `declarations`.
-async fn sync(store: &PgStore, declarations: &[ModuleDeclarations]) -> anyhow::Result<()> {
+pub(crate) async fn sync(
+    store: &PgStore,
+    declarations: &[ModuleDeclarations],
+) -> anyhow::Result<()> {
     for outcome in sync_modules(store, &Unrestricted, declarations, MAX_OPERATIONS).await? {
         if !matches!(outcome, Outcome::Applied { .. }) {
             bail!("module declarations not applied: {outcome:?}");
@@ -97,10 +100,10 @@ async fn sync(store: &PgStore, declarations: &[ModuleDeclarations]) -> anyhow::R
     Ok(())
 }
 
-/// A reader of everything the module serves, everywhere.
-async fn reader(pool: &PgPool) -> anyhow::Result<Uuid> {
+/// A reader of `entries`, everywhere.
+pub(crate) async fn reader(pool: &PgPool, entries: &[&str]) -> anyhow::Result<Uuid> {
     let identity: Uuid = sqlx::query_scalar(
-        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench-vlan') RETURNING id",
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench-module') RETURNING id",
     )
     .fetch_one(pool)
     .await?;
@@ -113,7 +116,7 @@ async fn reader(pool: &PgPool) -> anyhow::Result<Uuid> {
     .bind(format!("bench_{}", role.simple()))
     .execute(pool)
     .await?;
-    for entry in ["vlan.group.read", "vlan.vlan.read", "core.prefix.read"] {
+    for entry in entries {
         sqlx::query(
             "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
              VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
@@ -136,8 +139,14 @@ async fn reader(pool: &PgPool) -> anyhow::Result<Uuid> {
     Ok(identity)
 }
 
-/// The router of an instance with the module, as `identity`, without quotas in the way.
-fn app(pool: &PgPool, registry: Arc<ModuleRegistry>, identity: Uuid) -> anyhow::Result<Router> {
+/// The router of an instance with the modules of `registry` and their `routes`, as
+/// `identity`, without quotas in the way.
+pub(crate) fn app(
+    pool: &PgPool,
+    registry: Arc<ModuleRegistry>,
+    routes: Vec<kartenn_rest::ModuleRouter>,
+    identity: Uuid,
+) -> anyhow::Result<Router> {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1"))?,
@@ -150,7 +159,7 @@ fn app(pool: &PgPool, registry: Arc<ModuleRegistry>, identity: Uuid) -> anyhow::
     };
     let unlimited = Rate::new(1_000_000, 1_000_000).context("non-zero literals")?;
     Ok(kartenn_rest::router(
-        kartenn_rest::v1_with(api, vec![kartenn_vlan::rest::routes()]),
+        kartenn_rest::v1_with(api, routes),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
         Settings::default(),
         Arc::new(Quotas::new(Rates {
@@ -169,7 +178,7 @@ fn app(pool: &PgPool, registry: Arc<ModuleRegistry>, identity: Uuid) -> anyhow::
 }
 
 /// `GET uri`, timed to the last byte of the body, which must be a 200.
-async fn get(app: &Router, uri: &str) -> anyhow::Result<(Duration, Value)> {
+pub(crate) async fn get(app: &Router, uri: &str) -> anyhow::Result<(Duration, Value)> {
     let request = Request::builder()
         .uri(uri)
         .header(
@@ -357,8 +366,12 @@ pub(crate) async fn run(
     )
     .fetch_all(pool)
     .await?;
-    let identity = reader(pool).await?;
-    let app = app(pool, registry, identity)?;
+    let identity = reader(
+        pool,
+        &["vlan.group.read", "vlan.vlan.read", "core.prefix.read"],
+    )
+    .await?;
+    let app = app(pool, registry, vec![kartenn_vlan::rest::routes()], identity)?;
     let mut budgets = Vec::new();
 
     // Warm-up of the connections and statements.

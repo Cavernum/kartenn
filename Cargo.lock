@@ -1755,6 +1755,7 @@ dependencies = [
  "jsonwebtoken",
  "kartenn-auth",
  "kartenn-core",
+ "kartenn-machines",
  "kartenn-rest",
  "kartenn-server",
  "kartenn-service",
