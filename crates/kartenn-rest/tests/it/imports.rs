@@ -40,6 +40,10 @@ async fn person(pool: &PgPool) -> Uuid {
 }
 
 fn app_as(pool: &PgPool, identity: Uuid, rates: Rates) -> Router {
+    app_with(pool, identity, rates, Settings::default())
+}
+
+fn app_with(pool: &PgPool, identity: Uuid, rates: Rates, settings: Settings) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
@@ -53,7 +57,7 @@ fn app_as(pool: &PgPool, identity: Uuid, rates: Rates) -> Router {
     kartenn_rest::router(
         kartenn_rest::v1(api),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
-        Settings::default(),
+        settings,
         Arc::new(Quotas::new(rates)),
         Arc::new(common::As(Principal {
             identity,
@@ -147,7 +151,15 @@ async fn open(app: &Router) -> String {
 
 #[kartenn_testing::pg_test]
 async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
-    let app = app_as(&pool, person(&pool).await, generous());
+    // `start` sorts the million elements into batches inside the request (design 006,
+    // « Imports et tâches de fond ») : about 11 s on a quiet machine, past the 30 s delay
+    // of the transport layer once the whole suite loads the machine, which then answers
+    // 503. The delay is not what this test checks (see the test below), hence a long one.
+    let settings = Settings {
+        request_timeout: Duration::from_secs(300),
+        ..Settings::default()
+    };
+    let app = app_with(&pool, person(&pool).await, generous(), settings);
     let import = open(&app).await;
     for n in 0..100_u32 {
         let body = chunk(n * 10_000..(n + 1) * 10_000);
@@ -368,4 +380,38 @@ async fn a_chunk_weighs_its_thousands_on_the_quota(pool: PgPool) {
     }
     assert_eq!(statuses[0], StatusCode::CREATED);
     assert_eq!(statuses[2], StatusCode::TOO_MANY_REQUESTS, "{statuses:?}");
+}
+
+/// A `start` cut by the delay of the transport layer answers 503 and changes nothing:
+/// its transaction is dropped, the import is still `uploading`, and a new `start`
+/// succeeds.
+#[kartenn_testing::pg_test]
+async fn a_start_cut_by_the_delay_leaves_the_import_uploading(pool: PgPool) {
+    let author = person(&pool).await;
+    let app = app_as(&pool, author, generous());
+    let hasty = app_with(
+        &pool,
+        author,
+        generous(),
+        Settings {
+            request_timeout: Duration::from_millis(1),
+            ..Settings::default()
+        },
+    );
+    let import = open(&app).await;
+    for n in 0..3_u32 {
+        let body = chunk(n * 10_000..(n + 1) * 10_000);
+        let response = send(
+            &app,
+            with_body("PUT", &format!("{import}/chunks/{n}"), &body),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED, "{n}");
+    }
+    let cut = send(&hasty, post(&format!("{import}/start"))).await;
+    assert_eq!(cut.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let shown = json_of(send(&app, get(&import)).await).await;
+    assert_eq!(shown["state"], "uploading");
+    let started = send(&app, post(&format!("{import}/start"))).await;
+    assert_eq!(started.status(), StatusCode::ACCEPTED);
 }
