@@ -59,6 +59,8 @@ rules! {
         "Les adresses d'une machine, hors interfaces d'un rôle exempté, résolvent l'environnement qu'elle déclare, ou, sans déclaration, un même environnement.";
     INFERENCE_CONFLICT = "policy.inference.conflict", Warning, ["REQ-010-45"], "010/I6 adouci",
         "Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents.";
+    INFERENCE_MISMATCH = "policy.inference.mismatch", Warning, ["REQ-010-48"], "010/I9, Q13",
+        "Les héritiers d'une valeur déclarée de policy.environment portent la valeur que l'inférence attend ; l'anomalie, sur le nœud d'origine, compte les héritiers en écart.";
     OPERATION_INVALID = "policy.operation.invalid", Error, ["REQ-010-26"], "ADR 0026 clause 6",
         "Une opération de la politique a un corps conforme à son schéma et cite des objets connus.";
     AXIS_INVALID = "policy.axis.invalid", Error, ["REQ-010-29"], "010/S22",

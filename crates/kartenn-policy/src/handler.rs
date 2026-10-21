@@ -668,6 +668,22 @@ impl ModuleHandler for Handler {
         ))))
     }
 
+    /// `policy.inference_check`: the deviations of the inference by origin node, re-evaluated
+    /// by batches once its rules change (REQ-010-48; ADR 0026, amendment 4).
+    fn run_job_findings<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
+        Box::pin(async move {
+            if name == crate::module::INFERENCE_CHECK {
+                crate::mismatch::run(tx).await
+            } else {
+                Ok(Findings::default())
+            }
+        })
+    }
+
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,

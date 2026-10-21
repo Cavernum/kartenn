@@ -31,6 +31,8 @@ pub mod infer;
 #[cfg(feature = "pg")]
 mod load;
 #[cfg(feature = "pg")]
+pub mod mismatch;
+#[cfg(feature = "pg")]
 mod objects;
 #[cfg(feature = "pg")]
 mod pg;
