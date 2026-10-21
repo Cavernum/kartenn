@@ -321,13 +321,26 @@ numérotées après coup.
   changeset ; quitter un site retire `core.site` ; le différentiel des VLAN reclassés
   par un déplacement d'ancre se vérifiera avec leurs opérations (tâche 11), le
   différentiel du groupe nomme son `core.owner`.
-- [ ] 11. VLAN : table `vlan.vlan`, `vlan.create_vlan`/`vlan.update_vlan`, unicités
+- [x] 11. VLAN : table `vlan.vlan`, `vlan.create_vlan`/`vlan.update_vlan`, unicités
   (verrou consultatif par groupe, exclusion en dernier recours), clôture — REQ-008-14,
   15, 16 — verify : `concurrent_same_vid_one_wins`, `same_vid_two_groups`,
   `vid_reused_after_closure`, `move_to_group_with_taken_vid_refused`,
   `name_duplicate_refused`
   où : design « Opérations », « Erreurs et cas limites »
   dépend de : 10
+  — `kartenn-vlan` : `module.rs` (opérations `create_vlan`, `update_vlan`), `handler.rs`
+  (`prepare` complète le groupe courant et les domaines des groupes ; `plan` valide VID,
+  nom NFC et statut, et nomme les clés `vlan.group:<uuid>` du groupe quitté et du groupe
+  rejoint ; `apply` écrit puis inscrit le VLAN dans `module_object`, parent = groupe,
+  domaine = celui du groupe ; `close`/`restore` choisissent la table selon le type),
+  `pg.rs` (`insert_vlan`, `patch_vlan` par `kartenn_portion`, `admissible_vlan` : VID et
+  nom pris, VID hors de la plage d'un groupe qui vit sur la période, version par version
+  avant d'écrire ; contraintes `vlan_vid_unique`/`vlan_name_unique` traduites en
+  `vlan.vid.duplicate`/`vlan.name.duplicate`). Tests : `tests/vlans.rs` (les cinq du
+  verify), environnement commun `tests/support/env.rs` (repris de `groups.rs`).
+  choix : un VLAN dont le groupe ne vit pas sur sa période est refusé par
+  `vlan.vid.out_of_range` (pas de règle nouvelle) ; un statut inconnu est une erreur de
+  décodage de l'opération, comme les autres champs.
 - [ ] 12. Lien aux réseaux : déclaration `vlan.vlan`, règle `vlan.prefix.not_network`,
   avertissements `vlan.site.mismatch`/`vlan.domain.mismatch` (anomalies) — REQ-008-17,
   18 — verify : `vlan_on_container_refused`, `network_to_container_with_vlan_refused`,

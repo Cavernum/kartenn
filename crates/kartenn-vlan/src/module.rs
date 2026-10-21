@@ -46,6 +46,14 @@ static OPERATIONS: &[OperationType] = &[
         name: "update_group",
         defines: None,
     },
+    OperationType {
+        name: "create_vlan",
+        defines: Some(VLAN),
+    },
+    OperationType {
+        name: "update_vlan",
+        defines: None,
+    },
 ];
 
 static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
