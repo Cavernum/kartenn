@@ -816,6 +816,40 @@ fn check_http(http: &Http) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// The operator reference (`docs/exploitation/configuration.md`, spec 015 task 8) names
+    /// every field of this file, and its complete example is a valid configuration (parsed
+    /// alone: the files it names do not exist here).
+    #[test]
+    fn the_operator_reference_covers_every_field() {
+        let doc = include_str!("../../../docs/exploitation/configuration.md");
+        let missing: Vec<&str> = include_str!("config.rs")
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("pub "))
+            .filter(|rest| {
+                !["fn ", "struct ", "enum ", "const ", "use ", "mod ", "type "]
+                    .iter()
+                    .any(|item| rest.starts_with(item))
+            })
+            .filter_map(|rest| rest.split_once(':').map(|(name, _)| name.trim()))
+            // A field as `name`, a section as `[name]`.
+            .filter(|name| {
+                !doc.contains(&format!("`{name}`")) && !doc.contains(&format!("`[{name}]`"))
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "fields absent from the reference: {missing:?}"
+        );
+        let example = doc
+            .split("```toml\n")
+            .nth(1)
+            .and_then(|rest| rest.split("```").next())
+            .expect("the reference has a TOML example");
+        let config: Config = Figment::from(Toml::string(example)).extract().unwrap();
+        assert!(config.http.is_some() && config.auth.is_some() && config.web.is_some());
+        assert_eq!(config.telemetry.outputs.len(), 3);
+    }
+
     #[test]
     fn without_telemetry_logs_go_to_stdout_in_json() {
         let config = from_toml("").unwrap();

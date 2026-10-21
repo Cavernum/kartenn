@@ -175,6 +175,8 @@ in
               "| grep -qx 1",
               timeout=30,
           )
+          # The subtests restart the unit often: stay below systemd's start limit.
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
           machine.succeed("systemctl restart --no-block kartenn-migrate.service")
           machine.wait_until_succeeds(
               "sudo -u postgres psql -d kartenn -tA -c "
@@ -192,10 +194,38 @@ in
           machine.succeed("systemctl stop kartenn-lock.service || true")
           # Killed before its commit: nothing of the migration remains.
           assert sql(f"SELECT count(*) FROM _sqlx_migrations WHERE version = {latest}") == "0"
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
           machine.succeed("systemctl restart kartenn-migrate.service")
           assert sql(f"SELECT count(*) FROM _sqlx_migrations WHERE version = {latest} AND success") == "1"
           machine.succeed("systemctl restart kartenn@main.service kartenn@second.service")
           for port in (8443, 8444):
               machine.wait_until_succeeds(f"curl -sfk https://127.0.0.1:{port}/health/ready", timeout=60)
+
+      with subtest("the backup and restore procedure of docs/exploitation/sauvegarde.md"):
+          persons = sql("SELECT count(*) FROM person")
+          events = sql("SELECT count(*) FROM audit.event")
+          machine.succeed("systemctl stop kartenn@main.service kartenn@second.service")
+          machine.succeed("sudo -u postgres pg_dump --format=custom --file=/tmp/kartenn.dump --dbname=kartenn")
+          machine.succeed("sudo -u postgres dropdb kartenn")
+          machine.succeed("sudo -u postgres createdb --owner=kartenn kartenn")
+          machine.succeed(
+              "sudo -u postgres pg_restore --exit-on-error --no-owner --role=kartenn "
+              "--dbname=kartenn /tmp/kartenn.dump"
+          )
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
+          machine.succeed("systemctl restart kartenn-migrate.service")
+          machine.succeed("systemctl start kartenn@main.service kartenn@second.service")
+          for port in (8443, 8444):
+              machine.wait_until_succeeds(f"curl -sfk https://127.0.0.1:{port}/health/ready", timeout=60)
+          assert sql("SELECT count(*) FROM person") == persons
+          assert int(sql("SELECT count(*) FROM audit.event")) >= int(events)
+          server = find(
+              r"(/nix/store/\S+/bin/kartenn-server)",
+              machine.succeed("systemctl show -p ExecStart --value kartenn-migrate.service"),
+          )
+          print(machine.succeed(
+              f"sudo -u postgres {server} audit verify "
+              "'postgresql:///kartenn?host=/run/postgresql&user=postgres'"
+          ))
     '';
   }

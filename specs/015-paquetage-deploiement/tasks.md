@@ -186,6 +186,18 @@ après l'autre.
   `compose.yaml` démarré une fois avec l'image de la tâche 6
   où : design « Documentation » ; ADR 0019 (audit exporté) ; spec 007 W4
   dépend de : 6, 7
+  — en cours (2026-10-21), **non cochée** : `docs/exploitation/` (`README.md`,
+  `nixos.md`, `oci.md`, `configuration.md`, `amorcage.md`, `plugins.md` avec
+  l'avertissement W4, `mise-a-jour.md`, `sauvegarde.md`, `observabilite.md`,
+  `versions.md`), `compose.yaml` et `initdb.sql` d'essai. `configuration.md` est tenue à
+  la main et vérifiée par `config::tests::the_operator_reference_covers_every_field`
+  (chaque champ public de `config.rs` cité, exemple complet chargé). Procédures jouées par
+  `checks.vm` : amorçage (`kartenn-breakglass`, connexion, `/v1/me`), mise à jour (base en
+  retard, migration interrompue puis rejouée) et sauvegarde-restauration (`pg_dump`,
+  `dropdb`, `pg_restore --no-owner --role=kartenn`, migration, instances prêtes, mêmes
+  personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : démarrer
+  `compose.yaml` avec l'image de la tâche 6 ; aucun moteur de conteneurs sur la machine
+  de développement.
 - [ ] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
   où : design « CI » ; `devenv.nix` (`enterTest`)
   dépend de : 6, 7
