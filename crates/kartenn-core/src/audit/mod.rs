@@ -323,6 +323,16 @@ impl AuditEvent {
         Ok(self)
     }
 
+    /// Names the requester a service account acted for (REQ-016-13): the detail
+    /// [`ON_BEHALF_OF`], allowed on every kind. Kept in the details rather than in a column
+    /// of its own, so that the seals of the events recorded before stay valid.
+    #[must_use]
+    pub fn on_behalf_of(mut self, requester: Uuid) -> Self {
+        self.details
+            .insert(ON_BEHALF_OF.to_owned(), Value::from(requester.to_string()));
+        self
+    }
+
     /// Sets the target.
     #[must_use]
     pub fn target(mut self, kind: impl Into<String>, ids: impl IntoIterator<Item = Uuid>) -> Self {

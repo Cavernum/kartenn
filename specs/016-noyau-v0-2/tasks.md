@@ -212,14 +212,29 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
 
 ## File C — Changesets et identités (004, 005, 006, 012)
 
-- [ ] 10. Crochet de fin de proposition — REQ-016-9 — verify :
+- [x] 10. Crochet de fin de proposition — REQ-016-9 — verify :
   `a_rejection_calls_the_module_in_its_transaction`, retrait et expiration, échec du
   module annule le rejet
   - où : `module.rs` (`ModuleHandler::ended`), `review.rs` (`reject`, `withdraw`,
     `expire_pending`)
   - dépend de : 9 (rebase sur `module.rs`)
   - débloque : 011-6
-- [ ] 11. Proposition forcée, permission de validation, opérations de revue —
+  — Service : `module.rs` (`Ending`, `EndContext { changeset, how, motive, by,
+  operations }`, `ModuleHandler::ended` sans effet par défaut), `review.rs` (`end` et
+  `notify` : la fin, ses événements et l'appel des modules dans une transaction ;
+  `expire_pending` dans une transaction, les modules appelés pour chaque changeset expiré),
+  `port.rs` (`close_pending` et `expire_pending` passent de `Store` à `WriteTx`,
+  `journal_ended`). Store : `pending.rs` (`close`, `expire` sur la connexion de la
+  transaction, `expire` rend les changesets), `write.rs`. Tests :
+  `kartenn-service/tests/it/module_ending.rs` (`a_rejection_calls_the_module_in_its_transaction`,
+  `a_withdrawal_and_an_expiry_call_the_module`, `a_failing_module_rolls_the_rejection_back`),
+  module factice `dummy` doté d'une table `ending` (migration 2) et de `ended`.
+  choix : le module reçoit ses opérations telles que soumises (`ModuleOperation`) et non
+  des plans (`plans` du design) : planifier demanderait l'état de la soumission ; un module
+  en échec à l'expiration laisse tous les changesets du passage en attente (relancés au
+  passage suivant) ; les événements émis par un module à la fin d'une proposition sont
+  ordonnés sous `changeset:<id>`.
+- [x] 11. Proposition forcée, permission de validation, opérations de revue —
   REQ-016-10, 11 — verify : `a_reviewed_operation_makes_a_proposal_despite_write`,
   `validation_needs_the_review_permission`, `review_operations_apply_with_the_proposal`,
   opération non « de revue » jointe → 422
@@ -228,7 +243,29 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
     (`review_permission`)
   - dépend de : 10
   - débloque : 011-3
-- [ ] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :
+  — Service : `module.rs` (`ModuleHandler::review(plan) -> Option<&'static str>`,
+  `Module::review_operations`), `pipeline.rs` (`reviews` : à la soumission, les
+  permissions de revue s'ajoutent aux droits requis et font une proposition même avec
+  l'écriture ; à la validation d'une proposition, la permission est vérifiée dans la
+  transaction sur les objets écrits), `review.rs` (`validate_pending_with` : opérations
+  jointes, refus `core.review.operation` hors des opérations « de revue » ou hors d'une
+  proposition, le changeset reste en attente). Noyau : règle `core.review.operation`
+  (`docs/spec/regles-noyau.md` régénéré). REST : `POST /v1/changesets/{id}/validation`
+  accepte un corps facultatif `{"operations": […]}` (ajout ; contrat de référence et types
+  du SDK régénérés). Store : `write.rs` (la validation d'un changeset en attente
+  réécrit sa requête, opérations jointes comprises). Tests :
+  `kartenn-service/tests/it/module_review.rs` (les trois du verify, le 422 compris), module factice `dummy` (revue des choses `review-…`,
+  `update_thing` de revue).
+  choix : la permission de revue est enregistrée dans les droits requis de la proposition
+  (`required_rights`, déjà persistés) et redemandée au module à la validation, au lieu
+  d'une colonne `review_permission` : pas de migration ; `Module::review_operations` (liste
+  de noms) au lieu d'un champ `OperationType::review_only`, pour ne pas changer la forme
+  littérale des types d'opération de tous les modules ; la route existante de validation
+  porte les opérations jointes (le design la nomme `approve`) ; une opération jointe hors
+  revue rend 422 `changeset-refused` avec la violation, sans journal ; un module disparu
+  du build (`core.review.module` du design) n'a pas de traitement propre : ses opérations
+  ne se planifient plus et la validation est refusée par la règle d'opération inconnue.
+- [x] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :
   `a_service_account_writes_on_behalf_of_a_requester`, sans permission → 403, droits du
   seul compte de service, audit validé par le schéma, pseudonymisation du demandeur
   - où : `kartenn-rest/src/authn.rs`, `kartenn-service/src/authn.rs`, identités (005),
@@ -237,6 +274,38 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   - dépend de : 11
   - débloque : 011-3 (demandes venues d'un outil de tickets), 010-13 (pré-vérification au
     nom d'un demandeur)
+  — Noyau : permission globale `core.identity.act_on_behalf` (`authz.rs`), événement
+  `authn.requester.created`, détail `on_behalf_of` admis sur tout événement
+  (`AuditEvent::on_behalf_of`, schéma `docs/spec/evenements-audit.schema.json` et
+  catalogue régénérés). Service : `RequestContext::on_behalf_of` (repris par chaque
+  événement de la requête), `Journal::on_behalf_of`, `Identities::requester`,
+  `authn::{Requester, act_on_behalf}` (compte de service seul, permission globale, identité
+  `requester` créée si inconnue, une personne connue gardée telle quelle). Store : migration
+  `0055_on_behalf.sql` (genre `requester`, `changeset.on_behalf_of`, droit
+  `UPDATE (request)` sur `changeset` pour la tâche 11), `identities.rs` (`requester`),
+  `write.rs`, `changesets.rs`, `audit.rs` (la pseudonymisation
+  accepte un `requester`). REST : `on_behalf.rs` (dictionnaire RFC 9651 : `sub`, `iss`,
+  `name`, chaînes ou jetons, sans paramètres), `authn.rs` (couche 6 : 400 sur une lecture,
+  un en-tête mal formé ou répété ; 403 `core.identity.act_on_behalf` hors d'un compte de
+  service autorisé ; `Authenticator::on_behalf_of`, refusé par défaut), fiche du changeset
+  (`on_behalf_of`, ajout ; contrat et types du SDK régénérés). Tests :
+  `kartenn-service/tests/it/on_behalf.rs` (`a_service_account_writes_on_behalf_of_a_requester`,
+  `without_the_permission_or_as_a_person_it_is_refused`, `the_requester_lends_no_right`,
+  `the_requester_is_pseudonymised_like_a_person`), `kartenn-rest/tests/it/on_behalf.rs`
+  (en-tête dans la couche : succès, lecture, mal formé, personne, refus), unitaires de
+  `on_behalf.rs`.
+  choix : `on_behalf_of` est un détail de l'événement (`details.on_behalf_of`) et non une
+  colonne de `audit.event` : une colonne changerait le `to_jsonb` des événements déjà
+  scellés et casserait leur vérification ; l'événement de création s'appelle
+  `authn.requester.created` (le catalogue impose trois segments, le design disait
+  `authn.on_behalf`) ; sans `iss`, l'émetteur du demandeur est
+  `urn:kartenn:service-account:<id>` (l'espace du compte de service) ; un `sub` déjà connu
+  à cet émetteur (personne qui s'est connectée) est repris sans changer de genre, et un
+  demandeur qui se connecte plus tard par son émetteur garde son genre `requester`
+  (l'application n'a pas le droit de changer un genre, `rbac_schema` ; le genre du
+  principal vient de l'authentification, non de cette colonne) ; le
+  contexte, et non `ChangesetRequest`, porte le demandeur (aucun changement de la forme des
+  requêtes enregistrées).
 
 ## Synchronisation
 

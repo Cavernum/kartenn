@@ -252,6 +252,33 @@ pub struct CheckContext<'a> {
     pub sections: &'a [DiffSection],
 }
 
+/// How a pending changeset ended without being applied (REQ-016-9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ending {
+    /// Rejected by a validator, with a motive.
+    Rejected,
+    /// Withdrawn by its author.
+    Withdrawn,
+    /// Pending past its deadline.
+    Expired,
+}
+
+/// What a module learns of a pending changeset that ends without being applied
+/// (REQ-016-9, G11).
+#[derive(Debug, Clone)]
+pub struct EndContext<'a> {
+    /// The changeset.
+    pub changeset: Uuid,
+    /// How it ended.
+    pub how: Ending,
+    /// The motive of a rejection.
+    pub motive: Option<&'a str>,
+    /// The identity that decided; `None` for an expiry.
+    pub by: Option<Uuid>,
+    /// The operations of the module in the changeset, in their order.
+    pub operations: Vec<&'a ModuleOperation>,
+}
+
 impl CheckContext<'_> {
     /// The section named `name`, if a module produced it.
     #[must_use]
@@ -513,6 +540,27 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         let _ = (name, tx);
         Box::pin(std::future::ready(Ok(())))
     }
+
+    /// The permission whose holder validates `plan`, when the module requires a review of
+    /// it: the changeset becomes a proposal even if its author may write it, and only an
+    /// identity that holds this permission on the object validates it (REQ-016-10, 11,
+    /// G12). `None` by default.
+    fn review(&self, plan: &ModulePlan) -> Option<&'static str> {
+        let _ = plan;
+        None
+    }
+
+    /// A pending changeset holding operations of the module ends without being applied
+    /// (rejected, withdrawn, expired), in the transaction that ends it: an error rolls the
+    /// ending back (REQ-016-9). Nothing by default.
+    fn ended<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a EndContext<'a>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (tx, context);
+        Box::pin(std::future::ready(Ok(())))
+    }
 }
 
 /// A business module compiled in the build (ADR 0026).
@@ -555,6 +603,11 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     }
     /// The operations it accepts in a changeset.
     fn operations(&self) -> &'static [OperationType] {
+        &[]
+    }
+    /// The names of its operations a validator may join to the validation of a proposal
+    /// (REQ-016-11, operations « de revue »); none by default.
+    fn review_operations(&self) -> &'static [&'static str] {
         &[]
     }
     /// Its handler in the write pipeline.

@@ -216,6 +216,82 @@ pub trait Identities: Send + Sync {
 
     /// A summary of the rights of `subject` now (`GET /v1/me`, 006).
     fn rights(&self, subject: &Subject) -> impl Future<Output = Result<Rights, StoreError>> + Send;
+
+    /// The identity (`issuer`, `subject`) a service account names as its requester, an
+    /// identity `requester` created if unknown (REQ-016-12): its identifier and whether it
+    /// was created. A person already known keeps its identity and its kind.
+    fn requester(
+        &self,
+        issuer: &str,
+        subject: &str,
+        name: Option<&str>,
+    ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
+}
+
+/// The requester a service account names in `Kartenn-On-Behalf-Of` (REQ-016-12).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Requester {
+    /// Its subject at its issuer.
+    pub sub: String,
+    /// Its issuer; the namespace of the service account when absent.
+    pub iss: Option<String>,
+    /// Its display name.
+    pub name: Option<String>,
+}
+
+/// The identity of the requester `principal` acts for (REQ-016-12, 13; G10): only a
+/// service account that holds `core.identity.act_on_behalf` on the global scope names one;
+/// unknown, it becomes an identity `requester`, recorded by `authn.requester.created`. The rights
+/// of the request stay those of the service account alone.
+///
+/// # Errors
+///
+/// [`AuthnError::Refused`] when `principal` may not act on behalf of another;
+/// [`AuthnError::Store`] or [`AuthnError::Audit`] on infrastructure failure.
+pub async fn act_on_behalf<I: Identities, J: AuditJournal>(
+    identities: &I,
+    journal: &J,
+    principal: &Principal,
+    requester: &Requester,
+    source: kartenn_core::audit::Source,
+) -> Result<Uuid, AuthnError> {
+    if principal.kind != IdentityKind::ServiceAccount {
+        return Err(AuthnError::Refused);
+    }
+    let rights = identities
+        .rights(&principal.subject())
+        .await
+        .map_err(AuthnError::Store)?;
+    let permission = kartenn_core::authz::IDENTITY_ACT_ON_BEHALF.name;
+    if !rights
+        .global_permissions
+        .iter()
+        .any(|entry| kartenn_core::authz::grants(entry, permission, false))
+    {
+        return Err(AuthnError::Refused);
+    }
+    // Without an issuer, the subject is the service account's own: its namespace.
+    let issuer = requester
+        .iss
+        .clone()
+        .unwrap_or_else(|| format!("urn:kartenn:service-account:{}", principal.identity));
+    let (id, created) = identities
+        .requester(&issuer, &requester.sub, requester.name.as_deref())
+        .await
+        .map_err(AuthnError::Store)?;
+    if created {
+        let event = principal
+            .context(source)
+            .event(
+                &kartenn_core::audit::AUTHN_ON_BEHALF,
+                crate::audit::Outcome::Success,
+            )
+            .map_err(|e| AuthnError::Audit(StoreError(e.to_string())))?
+            .target("person", [id])
+            .on_behalf_of(id);
+        journal.record(&event).await.map_err(AuthnError::Audit)?;
+    }
+    Ok(id)
 }
 
 /// A summary of the rights of a subject now (`GET /v1/me`; 006, design « Droits »).

@@ -21,6 +21,7 @@ pub mod imports;
 pub mod kit;
 pub mod modules;
 pub mod objects;
+pub mod on_behalf;
 pub mod openapi;
 mod operation;
 pub mod problem;

@@ -199,6 +199,8 @@ pub struct Journal<'a> {
     pub cascaded: &'a [(ObjectKind, Uuid)],
     /// Audit events written with the journal, in its transaction (REQ-012-8, 11).
     pub audit: &'a [kartenn_core::audit::AuditEvent],
+    /// The requester a service account wrote for (REQ-016-12), an identity `requester`.
+    pub on_behalf_of: Option<Uuid>,
 }
 
 /// What a pending changeset waits for (004/design, § Approbation et propositions).
@@ -524,21 +526,6 @@ pub trait Store: Send + Sync {
         &self,
         id: Uuid,
     ) -> impl Future<Output = Result<Option<PendingChangeset>, StoreError>> + Send;
-
-    /// Ends a pending changeset without applying it (`rejected`, `withdrawn`), with the
-    /// motive of a rejection and its event; `false` if it is no longer pending.
-    fn close_pending(
-        &self,
-        id: Uuid,
-        state: &'static str,
-        by: Uuid,
-        rejection: Option<&str>,
-        audit: &kartenn_core::audit::AuditEvent,
-    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
-
-    /// Expires the changesets pending past their deadline, with their events (outbox and
-    /// audit, the latter attributed to the system).
-    fn expire_pending(&self) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
     /// Proposals pending, oldest first.
     fn pending_proposals(
@@ -1298,6 +1285,31 @@ pub trait WriteTx {
     /// (`<module>.<task>`) in this transaction, ordered under the key `<module>:<task>`
     /// (REQ-016-15).
     fn journal_job(&mut self, job: &str) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Ends a pending changeset without applying it (`rejected`, `withdrawn`), with the
+    /// motive of a rejection and its events (outbox, audit); `false` if it is no longer
+    /// pending. The modules learn of it in this transaction (REQ-016-9).
+    fn close_pending(
+        &mut self,
+        id: Uuid,
+        state: &'static str,
+        by: Uuid,
+        rejection: Option<&str>,
+        audit: &kartenn_core::audit::AuditEvent,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Expires the changesets pending past their deadline, with their events (outbox and
+    /// audit, the latter attributed to the system).
+    fn expire_pending(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<PendingChangeset>, StoreError>> + Send;
+
+    /// Writes to the outbox the events the modules emitted when the pending changeset
+    /// `changeset` ended (REQ-016-9, 15), ordered under `changeset:<id>`.
+    fn journal_ended(
+        &mut self,
+        changeset: Uuid,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Commits.
     fn commit(self) -> impl Future<Output = Result<(), StoreError>> + Send;

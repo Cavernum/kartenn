@@ -23,7 +23,7 @@ use kartenn_service::authn::Principal;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::{DiffItem, RbacRow};
 use kartenn_service::reads::{changesets_readable, objects_read, sensitive_disclosed};
-use kartenn_service::review::{proposals_for, reject, validate_pending, withdraw};
+use kartenn_service::review::{proposals_for, reject, validate_pending_with, withdraw};
 use kartenn_service::undo::inverse;
 use kartenn_service::{Operation, Ref, RequestError};
 use kartenn_store_pg::audit::diff_page;
@@ -33,7 +33,7 @@ use kartenn_store_pg::changesets::{
 use kartenn_store_pg::idempotency;
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::read;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -415,6 +415,10 @@ pub(crate) struct ChangesetDto {
     author: Uuid,
     /// Who validated it.
     validator: Option<Uuid>,
+    /// The requester a service account wrote it for (`Kartenn-On-Behalf-Of`,
+    /// REQ-016-12); absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    on_behalf_of: Option<Uuid>,
     /// Why.
     motive: String,
     /// The start of its period, RFC 3339.
@@ -466,6 +470,7 @@ async fn represent(
         kind: s.kind.clone(),
         author: s.author,
         validator: found.validator,
+        on_behalf_of: found.on_behalf_of,
         motive: s.motive.clone(),
         valid_from: time(found.valid_from),
         valid_to: found.valid_to.map(time),
@@ -897,8 +902,36 @@ fn decided(id: Uuid, state: &'static str) -> Response {
     )
 }
 
+/// The optional body of a validation: operations of review the validator joins
+/// (REQ-016-11).
+#[derive(Debug, Default, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct Validation {
+    /// Operations a module declares « of review », applied with the proposal.
+    #[serde(default)]
+    operations: Vec<OperationDto>,
+}
+
+/// The body of a validation: none, or JSON (another media type → 415, invalid → 400).
+fn validation_body(headers: &HeaderMap, body: &[u8]) -> Result<Validation, Problem> {
+    if body.is_empty() {
+        return Ok(Validation::default());
+    }
+    let json = headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"));
+    if !json {
+        return Err(Problem::new(ProblemKind::UnsupportedMediaType));
+    }
+    serde_json::from_slice(body).map_err(|e| bad(format!("the body is not a validation: {e}")))
+}
+
 /// `POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current
-/// state (REQ-004-21, 22, 42); 200, or 422 when it no longer holds.
+/// state (REQ-004-21, 22, 42), with the operations of review its validator joins
+/// (REQ-016-11); 200, or 422 when it no longer holds or an operation joined is not one
+/// of review.
 #[utoipa::path(
     post,
     path = "/changesets/{id}/validation",
@@ -908,6 +941,7 @@ fn decided(id: Uuid, state: &'static str) -> Response {
         ("id" = Uuid, Path, description = "The changeset."),
         ("If-Match" = String, Header, description = "Its state, as its ETag."),
     ),
+    request_body(content = Option<Validation>, content_type = "application/json"),
     responses((status = 200, description = "Applied.", body = ChangesetApplied))
 )]
 pub(crate) async fn validation(
@@ -915,14 +949,17 @@ pub(crate) async fn validation(
     Extension(principal): Extension<Principal>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
+    body: Bytes,
 ) -> Result<Response, Problem> {
     expected(&api, id, &headers).await?;
-    let outcome = validate_pending(
+    let joined = validation_body(&headers, &body)?;
+    let outcome = validate_pending_with(
         &write_store(&api),
         &api.authorizer(),
         &api.sources,
         id,
         &principal.subject(),
+        joined.operations.into_iter().map(Into::into).collect(),
         MAX_OPERATIONS,
     )
     .await?;

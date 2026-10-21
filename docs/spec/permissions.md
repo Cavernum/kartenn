@@ -39,6 +39,7 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `core.account.admin` | oui | Gérer les comptes de service, désactiver une identité, révoquer ses sessions. |
 | `core.audit.read` | — | Consulter ou exporter le journal d'audit. |
 | `core.identity.pseudonymise` | oui | Pseudonymiser sans délai les données d'identité d'une personne. |
+| `core.identity.act_on_behalf` | oui | Pour un compte de service : écrire pour le compte d'un demandeur nommé par l'en-tête Kartenn-On-Behalf-Of, sous ses propres droits. |
 | `core.observability.admin` | oui | Changer à chaud le filtre d'une sortie technique. |
 | `vlan.group.read` | — | Lire les groupes de VLAN. |
 | `vlan.group.write` | — | Créer, modifier ou clore un groupe de VLAN. |

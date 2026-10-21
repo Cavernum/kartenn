@@ -562,6 +562,7 @@ pub async fn reevaluate_outdated<S: Store>(
                 diff: &[],
                 cascaded: &[],
                 audit: &[],
+                on_behalf_of: None,
             };
             tx.journal_applied(&journal).await?;
             tx.commit().await?;

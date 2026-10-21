@@ -7,6 +7,10 @@ use std::fmt::Write as _;
 
 use super::{Criticality, Severity};
 
+/// The detail naming the requester a service account acted for, allowed on every kind of
+/// event (REQ-016-13).
+pub const ON_BEHALF_OF: &str = "on_behalf_of";
+
 /// A kind of audit event.
 #[derive(Debug, PartialEq, Eq)]
 pub struct EventKind {
@@ -71,6 +75,9 @@ events! {
     AUTHN_BREAKGLASS_USED = "authn.breakglass.used", Warn, High, ["method"], ["REQ-005-15"],
         "Authentication 3002 / Logon", "authentication",
         "Un compte de secours a ouvert une session.";
+    AUTHN_ON_BEHALF = "authn.requester.created", Info, Normal, [], ["REQ-016-12", "REQ-016-13"],
+        "Account Change 3001 / Create", "iam",
+        "Un compte de service a nommé un demandeur inconnu jusque-là : son identité « requester » est créée.";
     // Authorisation.
     AUTHZ_DENIED = "authz.access.denied", Warn, High, ["permission"], ["REQ-012-8"],
         "Authorize Session 3003 / Assign Privileges", "iam",
@@ -235,11 +242,16 @@ pub fn event_schema() -> serde_json::Value {
     let branches: Vec<serde_json::Value> = EVENTS
         .iter()
         .map(|e| {
-            let details: serde_json::Map<String, serde_json::Value> = e
+            let mut details: serde_json::Map<String, serde_json::Value> = e
                 .details
                 .iter()
                 .map(|d| ((*d).to_owned(), json!({})))
                 .collect();
+            // The requester of a request made on its behalf, on any event (REQ-016-13).
+            details.insert(
+                ON_BEHALF_OF.to_owned(),
+                json!({ "type": "string", "format": "uuid" }),
+            );
             json!({
                 "properties": {
                     "name": { "const": e.name },

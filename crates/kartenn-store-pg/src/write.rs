@@ -573,21 +573,6 @@ impl Store for PgStore {
         crate::pending::find(&self.pool, id).await
     }
 
-    async fn close_pending(
-        &self,
-        id: Uuid,
-        state: &'static str,
-        by: Uuid,
-        rejection: Option<&str>,
-        audit: &kartenn_core::audit::AuditEvent,
-    ) -> Result<bool, StoreError> {
-        crate::pending::close(&self.pool, id, state, by, rejection, audit, &self.instance).await
-    }
-
-    async fn expire_pending(&self) -> Result<Vec<Uuid>, StoreError> {
-        crate::pending::expire(&self.pool, &self.instance).await
-    }
-
     async fn pending_proposals(&self) -> Result<Vec<PendingChangeset>, StoreError> {
         crate::pending::proposals(&self.pool).await
     }
@@ -734,6 +719,7 @@ fn cascaded_json(cascaded: &[(ObjectKind, Uuid)]) -> serde_json::Value {
         .collect()
 }
 
+#[allow(clippy::too_many_lines)] // one statement per table of the journal
 async fn write_journal(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
@@ -760,14 +746,17 @@ async fn write_journal(
     sqlx::query(
         "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at,
                                 violations, anomalies, diff_summary, validator_id, expires_at, policy_id,
-                                required_rights, request, cascaded)
+                                required_rights, request, cascaded, on_behalf_of)
          VALUES ($1, $2, $3, $4, $10, tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
                  coalesce($16::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
-                 $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14, $17)
+                 $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14, $17,
+                 $19)
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
              anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary,
-             cascaded = EXCLUDED.cascaded",
+             cascaded = EXCLUDED.cascaded,
+             -- A validated changeset records the operations of review joined (REQ-016-11).
+             request = CASE WHEN changeset.request IS NULL THEN NULL ELSE $18 END",
     )
     .bind(journal.id)
     .bind(journal.request.author)
@@ -798,6 +787,8 @@ async fn write_journal(
     .bind(crate::pending::PENDING_DAYS)
     .bind(earliest(journal.request)?)
     .bind(cascaded_json(journal.cascaded))
+    .bind(serde_json::to_value(journal.request).map_err(store_err)?)
+    .bind(journal.on_behalf_of)
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
@@ -2718,6 +2709,35 @@ impl WriteTx for PgTx {
     async fn journal_job(&mut self, job: &str) -> Result<(), StoreError> {
         let key = job.replacen('.', ":", 1);
         self.write_events(None, &[], &[key]).await
+    }
+
+    async fn close_pending(
+        &mut self,
+        id: Uuid,
+        state: &'static str,
+        by: Uuid,
+        rejection: Option<&str>,
+        audit: &kartenn_core::audit::AuditEvent,
+    ) -> Result<bool, StoreError> {
+        crate::pending::close(
+            &mut self.tx,
+            id,
+            state,
+            by,
+            rejection,
+            audit,
+            &self.instance,
+        )
+        .await
+    }
+
+    async fn expire_pending(&mut self) -> Result<Vec<PendingChangeset>, StoreError> {
+        crate::pending::expire(&mut self.tx, &self.instance).await
+    }
+
+    async fn journal_ended(&mut self, changeset: Uuid) -> Result<(), StoreError> {
+        self.write_events(Some(changeset), &[], &[format!("changeset:{changeset}")])
+            .await
     }
 
     #[tracing::instrument(name = "COMMIT", skip_all, fields(

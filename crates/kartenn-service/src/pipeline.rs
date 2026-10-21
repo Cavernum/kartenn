@@ -2020,6 +2020,9 @@ async fn stages<S: Store, A: Authorizer>(
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
     match mode {
         Mode::Submission => {
+            // REQ-016-10: an operation the module requires a review of makes a proposal,
+            // even for an author who may write it; its validator needs the permission.
+            missing.extend(reviews(&planned));
             let kind = if missing.is_empty() {
                 crate::review::holding_policy(
                     &mut tx,
@@ -2082,7 +2085,24 @@ async fn stages<S: Store, A: Authorizer>(
                 return Err(crate::review::audited(store, context, error, changeset).await);
             }
         }
-        Mode::Validation { .. } => {}
+        // REQ-016-11: the review permission the module names, on objects that now exist
+        // in the transaction; the validator's write permissions were checked above.
+        Mode::Validation {
+            validator,
+            kind: PendingKind::Proposal,
+            ..
+        } => {
+            for (permission, objects) in reviews(&planned) {
+                let denied = authorizer
+                    .authorize_in(&mut tx, subject, &permission, &objects)
+                    .await?;
+                if !denied.is_empty() {
+                    tx.rollback().await?;
+                    let error = RequestError::Review(forbidden(validator, denied));
+                    return Err(crate::review::audited(store, context, error, changeset).await);
+                }
+            }
+        }
     }
     let mut reevaluated = reevaluated(&planned, &checked);
     reevaluated.extend(module_findings.reevaluated);
@@ -2107,6 +2127,7 @@ async fn stages<S: Store, A: Authorizer>(
         diff: &diff,
         cascaded: &cascaded,
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &planned)?;
     let journal = Journal {
@@ -2146,6 +2167,22 @@ impl PendingKind {
             Self::Proposal => "proposal",
         }
     }
+}
+
+/// The review permissions the modules require on the objects of `planned` (REQ-016-10),
+/// with the objects each covers.
+fn reviews(planned: &[Planned]) -> crate::rights::Missing {
+    let mut by: std::collections::BTreeMap<String, Vec<Uuid>> = std::collections::BTreeMap::new();
+    for p in planned {
+        if let Planned::Module { handler, plan } = p
+            && let Some(permission) = handler.review(plan)
+        {
+            by.entry(permission.to_owned())
+                .or_default()
+                .push(plan.object);
+        }
+    }
+    by.into_iter().collect()
 }
 
 fn not_pending(id: Uuid) -> Violation {
@@ -2209,6 +2246,7 @@ async fn hold<S: Store>(
         diff: &diff,
         cascaded: &[],
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;
     let journal = Journal {
@@ -2373,6 +2411,7 @@ async fn refuse<S: Store>(
         diff: &[],
         cascaded: &[],
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;
     let journal = Journal {

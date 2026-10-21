@@ -37,6 +37,9 @@ pub struct RequestContext {
     pub correlation: Correlation,
     /// Groups of the actor at its issuer, read from its token (005/K4); empty otherwise.
     pub groups: Vec<String>,
+    /// The requester a service account acts for (`Kartenn-On-Behalf-Of`, REQ-016-12):
+    /// named in every event of the request and on its changeset; never a source of rights.
+    pub on_behalf_of: Option<Uuid>,
 }
 
 impl RequestContext {
@@ -68,6 +71,7 @@ impl RequestContext {
             source: Source::default(),
             correlation: Correlation::default(),
             groups: Vec::new(),
+            on_behalf_of: None,
         }
     }
 
@@ -79,6 +83,7 @@ impl RequestContext {
             source: Source::default(),
             correlation: Correlation::default(),
             groups: Vec::new(),
+            on_behalf_of: None,
         }
     }
 
@@ -92,9 +97,13 @@ impl RequestContext {
         kind: &'static EventKind,
         outcome: Outcome,
     ) -> Result<AuditEvent, AuditError> {
-        Ok(AuditEvent::new(kind, self.actor.clone(), outcome, now())?
+        let event = AuditEvent::new(kind, self.actor.clone(), outcome, now())?
             .source(self.source.clone())
-            .correlation(self.correlation.clone()))
+            .correlation(self.correlation.clone());
+        Ok(match self.on_behalf_of {
+            Some(requester) => event.on_behalf_of(requester),
+            None => event,
+        })
     }
 }
 

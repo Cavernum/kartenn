@@ -95,6 +95,37 @@ impl Identities for PgStore {
         .map_err(store_err)
     }
 
+    async fn requester(
+        &self,
+        issuer: &str,
+        subject: &str,
+        name: Option<&str>,
+    ) -> Result<(Uuid, bool), StoreError> {
+        // Known (a person who logged in, a requester named before): kept as it is.
+        let created: Option<Uuid> = sqlx::query_scalar(
+            "INSERT INTO person (id, display_name, issuer, subject, kind)
+             VALUES ($1, $2, $3, $4, 'requester')
+             ON CONFLICT (issuer, subject) DO NOTHING RETURNING id",
+        )
+        .bind(Uuid::now_v7())
+        .bind(name.unwrap_or(subject))
+        .bind(issuer)
+        .bind(subject)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(store_err)?;
+        if let Some(id) = created {
+            return Ok((id, true));
+        }
+        let id = sqlx::query_scalar("SELECT id FROM person WHERE issuer = $1 AND subject = $2")
+            .bind(issuer)
+            .bind(subject)
+            .fetch_one(self.pool())
+            .await
+            .map_err(store_err)?;
+        Ok((id, false))
+    }
+
     async fn identity_state(&self, identity: Uuid) -> Result<Option<IdentityState>, StoreError> {
         let row: Option<(bool, Option<OffsetDateTime>)> = sqlx::query_as(
             "SELECT disabled_at IS NOT NULL, revoked_after FROM person WHERE id = $1",
