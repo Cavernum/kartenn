@@ -1,0 +1,55 @@
+{
+  "nav": { "groups": "Groupes de VLAN", "vlans": "VLAN" },
+  "loading": "Lecture…",
+  "failed": "Échec : {detail}",
+  "motive": "Motif",
+  "status": { "active": "actif", "reserved": "réservé", "deprecated": "obsolète" },
+  "vlan": {
+    "vid": "VID",
+    "name": "Nom",
+    "status": "Statut",
+    "group": "Groupe",
+    "vlan": "VLAN",
+    "named": "VLAN {vid} · {name}"
+  },
+  "groups": {
+    "title": "Groupes de VLAN",
+    "caption": "Groupes de VLAN lisibles",
+    "none": "Aucun groupe de VLAN.",
+    "slug": "Identifiant",
+    "range": "Plage de VID",
+    "vids": "{min} à {max}",
+    "details": "Détail",
+    "show": "Occupation de {slug}",
+    "of": "Groupe {slug}",
+    "occupancy": "{used} VID utilisés, {reserved} réservés, {free} libres",
+    "vlans": "VLAN du groupe {slug}"
+  },
+  "create": {
+    "group": "Créer un groupe",
+    "entity": "Entité d'ancrage",
+    "min": "Premier VID",
+    "max": "Dernier VID",
+    "submit": "Créer le groupe"
+  },
+  "vlans": {
+    "title": "VLAN",
+    "caption": "VLAN lisibles",
+    "none": "Aucun VLAN."
+  },
+  "tab": {
+    "label": "VLAN",
+    "title": "VLAN du réseau",
+    "current": "Ce réseau porte le {vlan}.",
+    "none": "Ce réseau ne porte aucun VLAN.",
+    "set": "Poser sur ce réseau",
+    "remove": "Retirer le VLAN"
+  },
+  "column": { "label": "VLAN" },
+  "action": {
+    "label": "Créer un VLAN pour ce réseau",
+    "submit": "Créer et poser",
+    "done": "{vlan} créé et posé sur le réseau.",
+    "close": "Fermer"
+  }
+}

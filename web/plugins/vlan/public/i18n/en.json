@@ -1,0 +1,55 @@
+{
+  "nav": { "groups": "VLAN groups", "vlans": "VLANs" },
+  "loading": "Reading…",
+  "failed": "Failed: {detail}",
+  "motive": "Motive",
+  "status": { "active": "active", "reserved": "reserved", "deprecated": "deprecated" },
+  "vlan": {
+    "vid": "VID",
+    "name": "Name",
+    "status": "Status",
+    "group": "Group",
+    "vlan": "VLAN",
+    "named": "VLAN {vid} · {name}"
+  },
+  "groups": {
+    "title": "VLAN groups",
+    "caption": "Readable VLAN groups",
+    "none": "No VLAN group.",
+    "slug": "Slug",
+    "range": "VID range",
+    "vids": "{min} to {max}",
+    "details": "Detail",
+    "show": "Occupancy of {slug}",
+    "of": "Group {slug}",
+    "occupancy": "{used} VIDs used, {reserved} reserved, {free} free",
+    "vlans": "VLANs of the group {slug}"
+  },
+  "create": {
+    "group": "Create a group",
+    "entity": "Anchor entity",
+    "min": "First VID",
+    "max": "Last VID",
+    "submit": "Create the group"
+  },
+  "vlans": {
+    "title": "VLANs",
+    "caption": "Readable VLANs",
+    "none": "No VLAN."
+  },
+  "tab": {
+    "label": "VLAN",
+    "title": "VLAN of the network",
+    "current": "This network carries the {vlan}.",
+    "none": "This network carries no VLAN.",
+    "set": "Set on this network",
+    "remove": "Remove the VLAN"
+  },
+  "column": { "label": "VLAN" },
+  "action": {
+    "label": "Create a VLAN for this network",
+    "submit": "Create and set",
+    "done": "{vlan} created and set on the network.",
+    "close": "Close"
+  }
+}

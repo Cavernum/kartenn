@@ -1,0 +1,48 @@
+{
+  "name": "vlan",
+  "version": "1.0.0",
+  "sdk": "^0.1",
+  "entry": "index.js",
+  "module": "vlan",
+  "catalogs": { "fr": "i18n/fr.json", "en": "i18n/en.json" },
+  "extensions": [
+    {
+      "point": "view",
+      "id": "groups",
+      "element": "vlan-groups",
+      "nav": "nav.groups",
+      "permission": "vlan.group.read"
+    },
+    {
+      "point": "view",
+      "id": "vlans",
+      "element": "vlan-vlans",
+      "nav": "nav.vlans",
+      "permission": "vlan.vlan.read"
+    },
+    {
+      "point": "tab",
+      "id": "network",
+      "element": "vlan-network",
+      "object_types": ["prefix"],
+      "label": "tab.label",
+      "permission": "vlan.vlan.read"
+    },
+    {
+      "point": "column",
+      "id": "vlan",
+      "element": "vlan-column",
+      "object_types": ["prefix"],
+      "label": "column.label",
+      "permission": "vlan.vlan.read"
+    },
+    {
+      "point": "action",
+      "id": "create-vlan",
+      "element": "vlan-create",
+      "object_types": ["prefix"],
+      "label": "action.label",
+      "permission": "vlan.vlan.write"
+    }
+  ]
+}

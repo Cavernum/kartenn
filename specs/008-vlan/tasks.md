@@ -426,13 +426,27 @@ numérotées après coup.
   REQ-008-25 — verify : `bench-core` vert en CI (sous-agent `bench-runner`)
   où : `kartenn-bench` (jeu, `core`), 002/A14
   dépend de : 14
-- [ ] 17. Plugin `web/plugins/vlan` : vues groupes et VLAN, onglet et colonne sur
+- [x] 17. Plugin `web/plugins/vlan` : vues groupes et VLAN, onglet et colonne sur
   `prefix`, action « créer un VLAN », catalogues FR/EN — REQ-008-24 — verify :
   parcours Playwright `web/e2e/journeys/vlan.spec.ts` avec axe-core ; plugin absent
   d'une build sans module
   où : design « Interface » ; plugin d'exemple `web/plugins/example` (007, tâche 23),
   007/design « Plugins côté serveur »
   dépend de : 14 ; 007 : 10, 12, 15, 23
+  — Plugin `web/plugins/vlan/` (MPL-2.0, `"module": "vlan"`) : vues `groups` (liste,
+  occupation et VLAN d'un groupe, création d'un groupe ancré sur une entité) et `vlans`,
+  onglet `network` et colonne `vlan` sur `prefix` (valeur de `vlan.vlan` lue par les
+  propriétés résolues), action `create-vlan` (VID proposé par `next-free`, création par
+  `POST /v1/vlans`, VLAN relu par groupe et VID, posé par un changeset
+  `assign_property`) ; écritures proposées au présent seulement (W9). Tests :
+  `test/vlan.test.ts` (Vitest), parcours `e2e/journeys/vlan.spec.ts` (Chromium et
+  Firefox, axe-core), `kartenn-rest/tests/plugins.rs`
+  (`the_vlan_plugin_is_published_only_with_its_module`, sur le manifeste et les
+  catalogues du dépôt). `serve.sh` construit le plugin ; projet Vitest ajouté.
+  choix : la liste des onglets de la fiche passe à la ligne (`flex-wrap`) : avec les
+  onglets de trois plugins, elle passait sous les panneaux latéraux qui captaient les
+  clics ; l'onglet a l'identifiant `network`, unique dans le manifeste ; la colonne lit
+  les propriétés de chaque ligne visible (pas de lecture groupée dans l'API).
 - [ ] 18. Synchronisation : `docs/spec/` (architecture : contrat de module ; data :
   `module_object`, schéma `vlan` ; interfaces : routes et opérations ; permissions),
   ADR 0026 acceptée, matrice CI serveur sans module et avec, spec passée à
