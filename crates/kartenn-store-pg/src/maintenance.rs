@@ -63,6 +63,10 @@ pub async fn deploy(
 ) -> Result<(), DeployError> {
     crate::MIGRATOR.run(pool).await?;
     crate::modules::migrate(pool, modules).await?;
+    // The background tasks of the modules (REQ-016-16).
+    crate::jobs::declare_module_jobs(pool, &modules.jobs())
+        .await
+        .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.0)))?;
     history_partitions(pool, MONTHS_AHEAD).await?;
     // REQ-012-8: the migration job is audited, by the system.
     let event = kartenn_service::audit::RequestContext::system()

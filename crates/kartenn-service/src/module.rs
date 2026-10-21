@@ -124,6 +124,16 @@ pub struct ModuleMigration {
     pub sql: &'static str,
 }
 
+/// A background task of a module (REQ-016-16): run under the lease of the core's tasks
+/// (ADR 0023) by one instance at a time, every `period`, as `<module>.<name>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JobSpec {
+    /// Its name within the module, `[a-z][a-z0-9_]*`.
+    pub name: &'static str,
+    /// The time between two runs.
+    pub period: std::time::Duration,
+}
+
 /// A future of a module, boxed so that its traits stay object-safe.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -453,6 +463,18 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         let _ = (read, object);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
+
+    /// Runs the background task `name` of the module's [`Module::jobs`], in one
+    /// transaction of its own, committed when it ends well (REQ-016-16). Nothing by
+    /// default.
+    fn run_job<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (name, tx);
+        Box::pin(std::future::ready(Ok(())))
+    }
 }
 
 /// A business module compiled in the build (ADR 0026).
@@ -501,6 +523,10 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         None
     }
+    /// Its background tasks, run by [`ModuleHandler::run_job`] (REQ-016-16).
+    fn jobs(&self) -> &'static [JobSpec] {
+        &[]
+    }
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).
@@ -540,6 +566,14 @@ pub enum RegistryError {
         /// The module.
         module: String,
         /// The permission or the rule.
+        name: String,
+    },
+    /// A background task with an invalid or repeated name.
+    #[error("module `{module}`: background task `{name}` must be named [a-z][a-z0-9_]* once")]
+    InvalidJob {
+        /// The module.
+        module: String,
+        /// The task.
         name: String,
     },
     /// A REST collection declared twice, or taken from the core.
@@ -614,6 +648,15 @@ impl ModuleRegistry {
                     return Err(RegistryError::ForeignName {
                         module: module.name().to_owned(),
                         name: name.to_owned(),
+                    });
+                }
+            }
+            let mut jobs = BTreeSet::new();
+            for job in module.jobs() {
+                if !valid_name(job.name) || !jobs.insert(job.name) {
+                    return Err(RegistryError::InvalidJob {
+                        module: module.name().to_owned(),
+                        name: job.name.to_owned(),
                     });
                 }
             }
@@ -719,6 +762,20 @@ impl ModuleRegistry {
         Some((operation, found.handler()?))
     }
 
+    /// The background tasks of every module, qualified (`<module>.<task>`), with their
+    /// period, in registry order (REQ-016-16).
+    #[must_use]
+    pub fn jobs(&self) -> Vec<(String, std::time::Duration)> {
+        self.modules
+            .iter()
+            .flat_map(|m| {
+                m.jobs()
+                    .iter()
+                    .map(|j| (format!("{}.{}", m.name(), j.name), j.period))
+            })
+            .collect()
+    }
+
     /// The handler of the module that declares the type `kind`, if any.
     #[must_use]
     pub fn handler_of(&self, kind: ModuleKind) -> Option<Arc<dyn ModuleHandler>> {
@@ -729,6 +786,37 @@ impl ModuleRegistry {
             .any(|t| t.kind == kind.as_str())
             .then(|| found.handler())
             .flatten()
+    }
+}
+
+/// Runs the background task `name` (`<module>.<task>`) of a module of `store`'s build, in
+/// one transaction committed when the task ends well (REQ-016-16). `false` when no module
+/// of the build declares the task: the scheduler then knows it is not a module's.
+///
+/// # Errors
+///
+/// [`StoreError`] of the task or of the transaction; the transaction is rolled back.
+pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<bool, StoreError> {
+    use crate::port::WriteTx as _;
+    let Some((module, task)) = name.split_once('.') else {
+        return Ok(false);
+    };
+    let Some(found) = store.modules().get(module) else {
+        return Ok(false);
+    };
+    if !found.jobs().iter().any(|j| j.name == task) {
+        return Ok(false);
+    }
+    let Some(handler) = found.handler() else {
+        return Ok(false);
+    };
+    let mut tx = store.begin().await?;
+    match handler.run_job(task, tx.module_tx()).await {
+        Ok(()) => tx.commit().await.map(|()| true),
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
     }
 }
 
@@ -830,6 +918,40 @@ mod tests {
         assert!(
             message.contains("machines") && message.contains("vlan"),
             "{message}"
+        );
+    }
+
+    #[test]
+    fn registry_refuses_a_repeated_job() {
+        #[derive(Debug)]
+        struct Jobs;
+        impl Module for Jobs {
+            fn name(&self) -> &'static str {
+                "jobs"
+            }
+            fn version(&self) -> &'static str {
+                "0.0.0"
+            }
+            fn jobs(&self) -> &'static [JobSpec] {
+                const PERIOD: std::time::Duration = std::time::Duration::from_secs(60);
+                &[
+                    JobSpec {
+                        name: "expiry",
+                        period: PERIOD,
+                    },
+                    JobSpec {
+                        name: "expiry",
+                        period: PERIOD,
+                    },
+                ]
+            }
+        }
+        assert_eq!(
+            ModuleRegistry::new(vec![Arc::new(Jobs)]).map(|_| ()),
+            Err(RegistryError::InvalidJob {
+                module: "jobs".into(),
+                name: "expiry".into()
+            })
         );
     }
 

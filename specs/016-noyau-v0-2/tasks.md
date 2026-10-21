@@ -70,13 +70,26 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   choix : migration numérotée 0050 (0045 à 0049 laissés à la file A, qui ajoute ses
   migrations en parallèle) ; le relais ne change pas, l'ordre par clé découlant du verrou
   nommé ; clés de module brutes (déjà qualifiées par leur module, ex. `vlan.group:<uuid>`).
-- [ ] 7. Tâches de fond de module — REQ-016-16 — verify :
+- [x] 7. Tâches de fond de module — REQ-016-16 — verify :
   `a_module_job_runs_once_per_due_time_across_instances`, tâche retirée désactivée
   - où : `kartenn-service/src/module.rs` (`Module::jobs`, `ModuleHandler::run_job`),
     `kartenn-server/src/jobs.rs`, store `jobs.rs`, `modules.rs::deploy` ; migration
     (`job.enabled`)
   - dépend de : 6
   - débloque : 010-14, 010-16, 011-8
+  — `module.rs` : `JobSpec`, `Module::jobs`, `ModuleHandler::run_job`,
+  `ModuleRegistry::jobs`, `RegistryError::InvalidJob`, `run_job(store, name)` (une
+  transaction par exécution, annulée sur erreur) ; store `jobs.rs` : `claim` ne prend que
+  les tâches `enabled`, `declare_module_jobs` ; migration `0051_job_module.sql` (`enabled`,
+  `module`) ; `maintenance::deploy` déclare les tâches ; `kartenn-server/src/jobs.rs`
+  route un nom qualifié vers son module. Tests : `kartenn-server/tests/it/jobs.rs`
+  `a_module_job_runs_once_per_due_time_across_instances` (trois ordonnanceurs, une
+  exécution par échéance, tâche retirée désactivée et conservée) ; test unitaire
+  `registry_refuses_a_repeated_job`. ADR 0026, amendement 2.
+  choix : la colonne `module` repère les tâches d'un module (les tâches du noyau et des
+  imports n'en ont pas) ; `run_job` n'a pas de journal d'audit en paramètre, une tâche qui
+  en écrit le fait par sa transaction ; la reprise après arrêt d'une instance est celle des
+  tâches du noyau (bail, test `a_stopped_holder_is_relieved_after_its_lease`).
 - [ ] 8. Événements de module — REQ-016-15 — verify :
   `a_module_event_is_delivered_only_if_applied`, `an_undeclared_event_fails_the_registry`,
   événement émis par une tâche
