@@ -364,6 +364,16 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Décidé par : Claude (délégation, « continue au maximum ») ; approuvé par l'utilisateur
   avec les exigences (2026-10-18)
 
+## H17 — Le délestage ne compte que `/v1` (précise H11, REQ-006-30)
+- Constat (2026-10-21) : le délestage comptait toutes les requêtes en cours sous un
+  plafond de 2 × la taille du pool ; le shell et ses plugins chargent des dizaines de
+  fichiers à la fois en HTTP/2, et un module de plugin pouvait recevoir 503
+  `application/problem+json`, que le navigateur refuse d'exécuter.
+- Décision : seules les requêtes sous `/v1` comptent pour le délestage, comme pour les
+  quotas (007/W18) ; les fichiers du shell et des plugins ne sollicitent pas la base.
+  REQ-006-30 est précisée en ce sens.
+- Décidé par : l'utilisateur (2026-10-21), sur la proposition de Claude
+
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
 routes de connexion, déconnexion et secours, variante de `logged_in` sans événement,
