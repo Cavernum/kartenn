@@ -12,12 +12,23 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
 
 ## P1 — Domaine et stockage
 
-- [ ] 1. Crate `kartenn-flow` : type `Flow` (sorte, dossier, références externes),
+- [x] 1. Crate `kartenn-flow` : type `Flow` (sorte, dossier, références externes),
   extrémités, dérogation, validation ; état dérivé et validité dérivée — REQ-011-1, 2, 4,
   5, 9, 20, 24 — verify : un test par état de REQ-011-5 ; cas refusés de REQ-011-1, 9,
   20
   - où : modèle de `kartenn-policy` (010-3) ; crate à l'image de `crates/kartenn-vlan`
   - dépend de : —
+  - fait : `crates/kartenn-flow` (`model.rs` : `Flow`, `Endpoint`, `Facts`, `check`,
+    `check_update`, `Waiver`, `check_waiver`, `check_review`, `add_months` ;
+    `state.rs` : `summarize`, `state_at`, `holds` ; `rules.rs` : les règles du design et
+    `flow.field.invalid`, `flow.update.identity`) ; 20 tests unitaires (un par état de
+    REQ-011-5, refus de REQ-011-1, 2, 4, 9, 20, séparation et fin d'instruction de
+    REQ-011-22).
+  - choix : mois calendaires en UTC, jour borné à la fin du mois ; un flux sans paire
+    d'adresses est `denied` et `noncompliant` ; `allowed` sous réserve compte comme
+    autorisant dans la synthèse (l'issue porte la réserve) ; deux règles ajoutées au
+    tableau du design : `flow.field.invalid` (justification, identifiant externe) et
+    `flow.update.identity` (REQ-011-4).
 - [ ] 2. Migrations du module : `flow`, `flow_waiver`, `flow_endpoint_address`,
   `flow_evaluation`, `flow_summary`, `flow_registration`, `flow_rejection`,
   `flow_notice` versionnées — REQ-011-16, 23 — verify : tests de contraintes ; lecture
@@ -25,8 +36,19 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   - où : migrations de `crates/kartenn-vlan` (forme), forme de `property_origin`
     (`crates/kartenn-store-pg/migrations/0011_properties.sql`)
   - dépend de : 1
-
-## P2 — Pipeline
+  - fait : `crates/kartenn-flow/migrations/0001_flow.sql` (schéma `flow`), module `Flows`
+    (`src/module.rs` : type `flow.flow` ancré sur l'entité, permissions de REQ-011-17,
+    règles, migration) ; tests `crates/kartenn-flow/tests/it/schema.rs` (cible `flow_it`) :
+    contraintes de `flow` (référence, justification, sorte, plage), de `flow_waiver` (fin,
+    motif, risque), de `flow_summary` (accord synthèse et décomptes) et de
+    `flow_evaluation` (réserve), lecture `as_of` passé dans `flow_summary_history`,
+    `flow_registration` jamais réécrite par le rôle de l'application.
+  - choix : extrémités et service sans clé étrangère (polymorphes, contrôlés par les
+    règles du module) ; `flow_waiver`, `flow_endpoint_address`, `flow_evaluation`,
+    `flow_summary` versionnées ; `flow_registration`, `flow_rejection`, `flow_notice`
+    en ajout seul (`SELECT, INSERT`) ; `flow_notice.kind` distingue les échéances du flux
+    et celles de la dérogation ; le module n'est pas encore monté par `kartenn-server`
+    (opérations et gestionnaire en 011-3).
 
 - [ ] 3. Opérations `flow.flow.*`, verrou `flow`, règles du design ; triage (proposition
   forcée et permission de validation, N39, amendement additif de la 004 et du contrat) ;

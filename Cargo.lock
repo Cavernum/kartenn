@@ -1820,6 +1820,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "kartenn-flow"
+version = "0.1.0"
+dependencies = [
+ "kartenn-core",
+ "kartenn-policy",
+ "kartenn-service",
+ "kartenn-store-pg",
+ "kartenn-testing",
+ "kartenn-workspace-hack",
+ "sqlx",
+ "time",
+ "tokio",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "kartenn-machines"
 version = "0.1.0"
 dependencies = [
