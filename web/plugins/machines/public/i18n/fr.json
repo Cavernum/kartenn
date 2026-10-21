@@ -1,0 +1,64 @@
+{
+  "nav": { "machines": "Machines", "clusters": "Clusters", "interfaces": "Interfaces" },
+  "loading": "Lecture…",
+  "failed": "Échec : {detail}",
+  "motive": "Motif",
+  "kind": {
+    "physical": "physique",
+    "virtual": "virtuelle",
+    "container": "conteneur",
+    "appliance": "appliance"
+  },
+  "mode": { "none": "aucun", "access": "accès", "trunk": "trunk" },
+  "machines": {
+    "title": "Machines",
+    "caption": "Machines lisibles",
+    "none": "Aucune machine.",
+    "name": "Nom",
+    "kind": "Nature",
+    "details": "Détail",
+    "show": "Interfaces de {name}",
+    "of": "Machine {name}",
+    "create": "Créer une machine",
+    "owner": "Entité propriétaire",
+    "submit": "Créer la machine"
+  },
+  "interfaces": {
+    "title": "Interfaces",
+    "caption": "Interfaces lisibles",
+    "of": "Interfaces de {name}",
+    "none": "Aucune interface.",
+    "name": "Nom",
+    "mac": "MAC",
+    "mode": "Mode 802.1Q",
+    "addresses": "Adresses",
+    "create": "Ajouter une interface",
+    "submit": "Ajouter l'interface",
+    "vlan": "VLAN de {name}",
+    "access": "VLAN d'accès",
+    "set": "Poser le mode"
+  },
+  "clusters": {
+    "title": "Clusters",
+    "caption": "Clusters lisibles",
+    "none": "Aucun cluster.",
+    "slug": "Identifiant"
+  },
+  "tab": {
+    "label": "Machines",
+    "title": "Machines",
+    "none": "Aucune machine ne la porte.",
+    "holds": "{machine} par {interface}",
+    "caption": "Machines du réseau"
+  },
+  "column": { "label": "Machine" },
+  "action": {
+    "label": "Rattacher à une interface",
+    "machine": "Machine",
+    "interface": "Interface",
+    "primary": "Adresse principale de sa famille",
+    "submit": "Rattacher",
+    "done": "Rattachée à {interface} de {machine}.",
+    "close": "Fermer"
+  }
+}

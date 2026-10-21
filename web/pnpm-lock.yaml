@@ -225,6 +225,16 @@ importers:
         specifier: ^21.0.3
         version: 21.0.3
 
+  plugins/machines:
+    dependencies:
+      '@kartenn/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      happy-dom:
+        specifier: ^21.0.3
+        version: 21.0.3
+
   plugins/vlan:
     dependencies:
       '@kartenn/sdk':

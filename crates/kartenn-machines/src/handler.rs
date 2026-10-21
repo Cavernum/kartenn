@@ -995,20 +995,24 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| matches!(kind, ObjectKind::Address))
                 .map(|(_, id)| *id)
                 .collect();
-            // Networks whose `vlan.vlan` may have changed (REQ-009-13).
-            let prefixes: Vec<Uuid> = context
+            // Networks whose `vlan.vlan` may have changed (REQ-009-13): written, or whose
+            // resolved value the differential of the properties changes.
+            let mut prefixes: Vec<Uuid> = context
                 .objects
                 .iter()
                 .filter(|(kind, _)| matches!(kind, ObjectKind::Prefix))
                 .map(|(_, id)| *id)
                 .collect();
-            // Machines whose properties the core assigned (`core.site`…).
-            let assigned: Vec<Uuid> = context
+            prefixes.extend(pg::diff_objects(conn, &["vlan.vlan"]).await?);
+            // Machines whose properties the core assigned, and objects whose resolved
+            // `core.site` changes: the site of a guest or of a host may have moved.
+            let mut assigned: Vec<Uuid> = context
                 .objects
                 .iter()
                 .filter(|(kind, _)| *kind == ObjectKind::Module(machine_kind()))
                 .map(|(_, id)| *id)
                 .collect();
+            assigned.extend(pg::diff_objects(conn, &["core.site"]).await?);
             // A machine moved to another owner by an assignment of the core (M3).
             machines.extend(pg::owner_changed(conn).await?);
             if machines.is_empty()
@@ -1087,10 +1091,10 @@ impl ModuleHandler for Handler {
     }
 }
 
-/// The warnings of REQ-009-13, evaluated on the objects the changeset touches and on those
-/// whose anomaly is open, so that a corrected case closes: a universal MAC on two living
-/// interfaces, a network carrying a VLAN foreign to the interface holding one of its
-/// addresses, a machine hosted on another site than its host.
+/// The warnings of REQ-009-13, evaluated on the objects the changeset touches only (their
+/// anomaly closes once corrected there; an unrelated changeset raises nothing): a universal
+/// MAC on two living interfaces, a network carrying a VLAN foreign to the interface holding
+/// one of its addresses, a machine hosted on another site than its host.
 async fn warnings(
     conn: &mut PgConnection,
     machines: &BTreeSet<Uuid>,
@@ -1105,9 +1109,10 @@ async fn warnings(
             .violations
             .push(Violation::new(rule, message).with_subjects([subject, other]));
     };
-    // A MAC follows its interfaces: evaluated with the interfaces that share it.
+    // A MAC follows its interfaces: evaluated with the interfaces that share it, before or
+    // after the changeset.
     let mut evaluated: BTreeSet<Uuid> = interfaces.iter().copied().collect();
-    evaluated.extend(pg::open_anomalies(conn, MAC_DUPLICATE.id).await?);
+    evaluated.extend(pg::mac_partners(conn, interfaces, MAC_DUPLICATE.id).await?);
     let mut mac_evaluated = evaluated.clone();
     let candidates: Vec<Uuid> = evaluated.iter().copied().collect();
     for (interface, other, mac) in pg::mac_duplicates(conn, &candidates).await? {
@@ -1125,7 +1130,6 @@ async fn warnings(
     let mut vlan_evaluated: BTreeSet<Uuid> = interfaces.iter().copied().collect();
     vlan_evaluated.extend(pg::interfaces_of_addresses(conn, addresses).await?);
     vlan_evaluated.extend(pg::interfaces_in_networks(conn, prefixes).await?);
-    vlan_evaluated.extend(pg::open_anomalies(conn, ADDRESS_VLAN_MISMATCH.id).await?);
     let candidates: Vec<Uuid> = vlan_evaluated.iter().copied().collect();
     for (interface, address, vlan) in pg::vlan_mismatches(conn, &candidates).await? {
         warn(
@@ -1140,7 +1144,6 @@ async fn warnings(
     // A machine against its host, both ways.
     let mut site_evaluated: BTreeSet<Uuid> = machines.iter().copied().collect();
     site_evaluated.extend(assigned);
-    site_evaluated.extend(pg::open_anomalies(conn, HOST_SITE_MISMATCH.id).await?);
     let hosts: Vec<Uuid> = site_evaluated.iter().copied().collect();
     site_evaluated.extend(pg::guests(conn, &hosts).await?);
     let candidates: Vec<Uuid> = site_evaluated.iter().copied().collect();

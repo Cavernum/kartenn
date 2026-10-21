@@ -24,8 +24,10 @@ idp)
 kartenn)
   pnpm -C web --filter @kartenn/shell build >/dev/null
   # The plugins directory of the instance: the test plugins, the example plugin and the
-  # plugin of the VLAN module, built as an operator would install them (web/dist/plugins).
-  pnpm -C web --filter @kartenn/plugin-example --filter @kartenn/plugin-vlan build >/dev/null
+  # plugins of the VLAN and machines modules, built as an operator would install them
+  # (web/dist/plugins).
+  pnpm -C web --filter @kartenn/plugin-example --filter @kartenn/plugin-vlan \
+    --filter @kartenn/plugin-machines build >/dev/null
   rm -rf "$state/plugins"
   mkdir -p "$state/plugins"
   cp -R web/e2e/plugins/. web/dist/plugins/. "$state/plugins/"

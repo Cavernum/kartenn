@@ -1,0 +1,18 @@
+{
+  "name": "@kartenn/plugin-machines",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugin of the machines and interfaces module of kartenn, Custom Elements without a framework",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kartenn/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.3"
+  }
+}

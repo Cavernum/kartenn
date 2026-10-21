@@ -1,0 +1,64 @@
+{
+  "nav": { "machines": "Machines", "clusters": "Clusters", "interfaces": "Interfaces" },
+  "loading": "Reading…",
+  "failed": "Failed: {detail}",
+  "motive": "Motive",
+  "kind": {
+    "physical": "physical",
+    "virtual": "virtual",
+    "container": "container",
+    "appliance": "appliance"
+  },
+  "mode": { "none": "none", "access": "access", "trunk": "trunk" },
+  "machines": {
+    "title": "Machines",
+    "caption": "Readable machines",
+    "none": "No machine.",
+    "name": "Name",
+    "kind": "Kind",
+    "details": "Detail",
+    "show": "Interfaces of {name}",
+    "of": "Machine {name}",
+    "create": "Create a machine",
+    "owner": "Owner entity",
+    "submit": "Create the machine"
+  },
+  "interfaces": {
+    "title": "Interfaces",
+    "caption": "Readable interfaces",
+    "of": "Interfaces of {name}",
+    "none": "No interface.",
+    "name": "Name",
+    "mac": "MAC",
+    "mode": "802.1Q mode",
+    "addresses": "Addresses",
+    "create": "Add an interface",
+    "submit": "Add the interface",
+    "vlan": "VLAN of {name}",
+    "access": "Access VLAN",
+    "set": "Set the mode"
+  },
+  "clusters": {
+    "title": "Clusters",
+    "caption": "Readable clusters",
+    "none": "No cluster.",
+    "slug": "Slug"
+  },
+  "tab": {
+    "label": "Machines",
+    "title": "Machines",
+    "none": "No machine holds it.",
+    "holds": "{machine} through {interface}",
+    "caption": "Machines of the network"
+  },
+  "column": { "label": "Machine" },
+  "action": {
+    "label": "Attach to an interface",
+    "machine": "Machine",
+    "interface": "Interface",
+    "primary": "Primary address of its family",
+    "submit": "Attach",
+    "done": "Attached to {interface} of {machine}.",
+    "close": "Close"
+  }
+}
