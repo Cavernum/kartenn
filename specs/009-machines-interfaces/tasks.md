@@ -154,13 +154,25 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   l'interface (MAC, VLAN) ou la machine hébergée (site) ; un cas est lu au début de sa
   période commune, ou maintenant s'il a commencé avant ; un site inconnu d'un côté ne
   déclenche rien.
-- [ ] 8. Références et cascades ; section `machines.attachments` — REQ-009-14, 23 —
+- [x] 8. Références et cascades ; section `machines.attachments` — REQ-009-14, 23 —
   verify : `closing_a_machine_lists_interfaces`, `cascade_machine_closes_attachments`,
   `cascade_cluster_nullifies_hosts`, `closing_an_attached_address_refused`,
   `closing_a_used_vlan_cascades_to_interfaces`, `attachments_section_in_simulation`,
   `dependent_module_reads_the_section`
   où : design « Références », « Section » ; 008 tâches 7, 13, 19
   dépend de : 5 ; 008 : 7, 19
+  — Module : `module.rs` (`REFERENCES` : interface → machine en cascade ; interface →
+  interface, adresse, `vlan.vlan`, machine → machine, cluster en mise à nul), `handler.rs`
+  (`referrers`, `nullify`, `diff`, `apply_unlink`), `pg.rs` (`referrers`, `unlink_vlan`,
+  `unlink_host`, `attachment_changes`). Tests : `kartenn-machines/tests/machines.rs` (les
+  sept du verify, module de test `Reader`, et `undo_restores_attachments`, l'annulation
+  des rattachements laissée sans test par la tâche 5).
+  choix : les rattachements d'une interface sont une référence d'elle-même, dont les
+  sources sont les adresses rattachées (le refus les liste ; la cascade les détache par
+  une écriture de l'interface) ; un trunk privé de son dernier VLAN étiqueté garde son
+  VLAN natif en mode `access`, sinon passe en `none` ; la section compare, dans la
+  transaction, les versions affirmées avant elle (historique) et les versions courantes,
+  par interface et adresse, et n'émet que les portions rattachées d'un seul côté.
 - [ ] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
   d'un lot d'adresses — REQ-009-16, 22, 25 — verify :
   `addresses_of_machine_with_roles`, `attachments_of_address_as_of`,

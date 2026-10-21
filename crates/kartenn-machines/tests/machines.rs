@@ -1618,3 +1618,424 @@ async fn vlan_change_on_network_reevaluates(pool: PgPool) {
         .await;
     assert!(!env.anomaly(e1, "machines.address.vlan_mismatch").await);
 }
+
+/// `Close` of the object `id` of the module type `kind`.
+fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
+    Operation::Close {
+        kind: ObjectKind::Module(ModuleKind::parse(kind).unwrap()),
+        id: Ref::Id(id),
+        expected: None,
+        cascade,
+    }
+}
+
+/// The subjects of the violations of `rule` in `outcome`.
+fn subjects(outcome: &Outcome, rule: &str) -> Vec<Uuid> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations
+            .iter()
+            .filter(|v| v.rule.id == rule)
+            .flat_map(|v| v.subjects.iter().copied())
+            .collect(),
+        other => panic!("not refused: {other:?}"),
+    }
+}
+
+impl Env {
+    /// Whether `id` lives now in `table`.
+    async fn lives(&self, table: &str, id: Uuid) -> bool {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT EXISTS (SELECT 1 FROM {table} WHERE id = $1 AND valid_period @> now())"
+        )))
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// A machine `name` with the interfaces `eth0` (`a1`, `a2`) and `eth1` (`a3`), the
+    /// three addresses of `lab`: `(machine, [eth0, eth1], [a1, a2, a3])`.
+    async fn wired(&self, name: &str, lab: Uuid) -> (Uuid, [Uuid; 2], [Uuid; 3]) {
+        let m = self.create(name, "physical", json!({})).await;
+        self.applied(vec![
+            interface(m, 0, Value::Null),
+            interface(m, 1, Value::Null),
+        ])
+        .await;
+        let (eth0, eth1) = (
+            self.interface(m, "eth0").await,
+            self.interface(m, "eth1").await,
+        );
+        let mut addresses = [Uuid::nil(); 3];
+        for (n, slot) in addresses.iter_mut().enumerate() {
+            *slot = self
+                .address(lab, &format!("192.0.2.{}", 20 + n), AddressUsage::Host)
+                .await;
+        }
+        self.applied(vec![
+            attach(eth0, addresses[0], true),
+            attach(eth0, addresses[1], false),
+            attach(eth1, addresses[2], false),
+        ])
+        .await;
+        (m, [eth0, eth1], addresses)
+    }
+
+    /// The rows of the section `section` recorded with `changeset`.
+    async fn section_rows(&self, changeset: Uuid, section: &str) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM changeset_diff_section WHERE changeset_id = $1 AND section = $2",
+        )
+        .bind(changeset)
+        .bind(section)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_a_machine_lists_interfaces(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let m = env.create("m1", "physical", json!({})).await;
+    env.applied(vec![
+        interface(m, 0, Value::Null),
+        interface(m, 1, Value::Null),
+    ])
+    .await;
+    let (eth0, eth1) = (
+        env.interface(m, "eth0").await,
+        env.interface(m, "eth1").await,
+    );
+    let refused = env.submit(vec![close("machines.machine", m, false)]).await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(
+        listed.contains(&eth0) && listed.contains(&eth1),
+        "{refused:?}"
+    );
+    assert!(env.lives("machines.machine", m).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn cascade_machine_closes_attachments(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, interfaces, addresses) = env.wired("m1", lab).await;
+    let outcome = env.applied(vec![close("machines.machine", m, true)]).await;
+    let Outcome::Applied { cascaded, .. } = &outcome else {
+        unreachable!()
+    };
+    for interface in interfaces {
+        assert!(
+            cascaded.iter().any(|(_, id)| *id == interface),
+            "{cascaded:?}"
+        );
+        assert!(!env.lives("machines.interface", interface).await);
+    }
+    for address in addresses {
+        assert!(env.attachments(address).await.is_empty());
+        // The addresses stay.
+        assert!(env.lives("address", address).await);
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn cascade_cluster_nullifies_hosts(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    env.applied(vec![op(
+        "create_cluster",
+        json!({"slug": "c1", "owner": {"id": acme}}),
+    )])
+    .await;
+    let cluster = env.id("machines.cluster", "slug", "c1").await;
+    let host = env
+        .create("host1", "physical", json!({"member_of": {"id": cluster}}))
+        .await;
+    let vm = env
+        .create(
+            "vm1",
+            "virtual",
+            json!({"host": {"cluster": {"id": cluster}}}),
+        )
+        .await;
+    let refused = env
+        .submit(vec![close("machines.cluster", cluster, false)])
+        .await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(
+        listed.contains(&host) && listed.contains(&vm),
+        "{refused:?}"
+    );
+    env.applied(vec![close("machines.cluster", cluster, true)])
+        .await;
+    let hosting: (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT (SELECT host_cluster_id FROM machines.machine WHERE id = $1 AND valid_period @> now()),
+                (SELECT member_cluster_id FROM machines.machine WHERE id = $2 AND valid_period @> now())",
+    )
+    .bind(vm)
+    .bind(host)
+    .fetch_one(&env.pool)
+    .await
+    .unwrap();
+    assert_eq!(hosting, (None, None));
+    assert!(env.lives("machines.machine", vm).await);
+    assert!(!env.lives("machines.cluster", cluster).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_an_attached_address_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    env.applied(vec![attach(e1, address, false)]).await;
+    let close_address = |cascade: bool| Operation::Close {
+        kind: ObjectKind::Address,
+        id: Ref::Id(address),
+        expected: None,
+        cascade,
+    };
+    let refused = env.submit(vec![close_address(false)]).await;
+    assert!(
+        subjects(&refused, "core.object.dependents").contains(&e1),
+        "{refused:?}"
+    );
+    // Closing the interface alone is refused too, naming the address it holds.
+    let refused = env
+        .submit(vec![close("machines.interface", e1, false)])
+        .await;
+    assert!(
+        subjects(&refused, "core.object.dependents").contains(&address),
+        "{refused:?}"
+    );
+    // With the cascade, the address is detached.
+    env.applied(vec![close_address(true)]).await;
+    assert!(env.attachments(address).await.is_empty());
+    assert!(env.lives("machines.interface", e1).await);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closing_a_used_vlan_cascades_to_interfaces(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let vlans = env.vlans(&[10, 20]).await;
+    let m = env.create("m1", "physical", json!({})).await;
+    env.applied(vec![
+        interface(m, 0, json!({"mode": "access", "access": {"id": vlans[0]}})),
+        interface(
+            m,
+            1,
+            json!({"mode": "trunk", "tagged": [{"id": vlans[0]}, {"id": vlans[1]}]}),
+        ),
+        interface(
+            m,
+            2,
+            json!({"mode": "trunk", "native": {"id": vlans[1]}, "tagged": [{"id": vlans[0]}]}),
+        ),
+    ])
+    .await;
+    let eth = [
+        env.interface(m, "eth0").await,
+        env.interface(m, "eth1").await,
+        env.interface(m, "eth2").await,
+    ];
+    let refused = env.submit(vec![vop_close(vlans[0], false)]).await;
+    let listed = subjects(&refused, "core.object.dependents");
+    assert!(eth.iter().all(|e| listed.contains(e)), "{refused:?}");
+    env.applied(vec![vop_close(vlans[0], true)]).await;
+    assert_eq!(
+        env.vlan_columns(eth[0]).await,
+        ("none".into(), None, None, Vec::new())
+    );
+    assert_eq!(
+        env.vlan_columns(eth[1]).await,
+        ("trunk".into(), None, None, vec![vlans[1]])
+    );
+    // A trunk left with its native VLAN only carries it untagged.
+    assert_eq!(
+        env.vlan_columns(eth[2]).await,
+        ("access".into(), Some(vlans[1]), None, Vec::new())
+    );
+}
+
+/// `Close` of the VLAN `vlan`.
+fn vop_close(vlan: Uuid, cascade: bool) -> Operation {
+    close("vlan.vlan", vlan, cascade)
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn attachments_section_in_simulation(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, [eth0, eth1], addresses) = env.wired("m1", lab).await;
+    let mut request = env.request(vec![close("machines.machine", m, true)]);
+    request.simulate = true;
+    let simulated = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    let Outcome::Simulated { sections, .. } = &simulated else {
+        panic!("{simulated:?}")
+    };
+    let section = sections
+        .iter()
+        .find(|s| s.name == "machines.attachments")
+        .expect("the section of the attachments");
+    assert_eq!(section.count, 3, "{section:?}");
+    for row in &section.rows {
+        assert!([eth0, eth1].contains(&row.object), "{row:?}");
+        assert_eq!(row.kind, "machines.interface");
+        let before = row.before.as_ref().expect("attached before");
+        assert_eq!(before["machine"], json!(m));
+        assert!(addresses.iter().any(|a| before["address"] == json!(a)));
+        assert!(row.after.is_none(), "{row:?}");
+        assert!(row.period.is_some());
+    }
+    // Applied, the section is recorded with the changeset.
+    let Outcome::Applied { changeset, .. } =
+        env.applied(vec![close("machines.machine", m, true)]).await
+    else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "machines.attachments").await, 3);
+    // An attachment makes one row too, after only.
+    let a = env.address(lab, "192.0.2.40", AddressUsage::Host).await;
+    let e = env.eth0("m2").await;
+    let Outcome::Applied { changeset, .. } = env.applied(vec![attach(e, a, false)]).await else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "machines.attachments").await, 1);
+}
+
+/// A module that depends on `machines` and reads its section before contributing its own
+/// (REQ-009-23, M5 of the 011).
+#[derive(Debug)]
+struct Reader;
+
+#[derive(Debug)]
+struct ReaderHandler;
+
+impl kartenn_service::module::ModuleHandler for ReaderHandler {
+    fn plan(
+        &self,
+        operation: &kartenn_service::operations::ModuleOperation,
+        _object: Uuid,
+        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
+        panic!("no operation: {operation:?}")
+    }
+
+    fn apply<'a>(
+        &'a self,
+        _tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        _plan: &'a kartenn_service::module::ModulePlan,
+        _period: Option<kartenn_core::period::Period>,
+        _changeset: Uuid,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), kartenn_service::port::WriteError>> {
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn diff<'a>(
+        &'a self,
+        _tx: &'a mut dyn kartenn_service::module::ModuleTx,
+        context: &'a kartenn_service::module::DiffContext<'a>,
+    ) -> kartenn_service::module::BoxFuture<
+        'a,
+        Result<Option<kartenn_service::module::DiffSection>, kartenn_service::port::StoreError>,
+    > {
+        let rows = context
+            .section("machines.attachments")
+            .map(|s| s.rows.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| kartenn_service::module::DiffRow {
+                kind: "reader.seen".into(),
+                ..row
+            })
+            .collect();
+        Box::pin(std::future::ready(Ok(Some(
+            kartenn_service::module::DiffSection {
+                name: "reader.seen".into(),
+                rows,
+            },
+        ))))
+    }
+}
+
+impl Module for Reader {
+    fn name(&self) -> &'static str {
+        "reader"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+    fn depends_on(&self) -> &'static [&'static str] {
+        &["machines"]
+    }
+    fn handler(&self) -> Option<Arc<dyn kartenn_service::module::ModuleHandler>> {
+        Some(Arc::new(ReaderHandler))
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn dependent_module_reads_the_section(pool: PgPool) {
+    let env = Env::with(&pool, vec![Arc::new(Reader)]).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let (m, ..) = env.wired("m1", lab).await;
+    let Outcome::Applied { changeset, .. } =
+        env.applied(vec![close("machines.machine", m, true)]).await
+    else {
+        unreachable!()
+    };
+    assert_eq!(env.section_rows(changeset, "reader.seen").await, 3);
+}
+
+impl Env {
+    /// The changeset of an applied outcome.
+    fn changeset(outcome: &Outcome) -> Uuid {
+        match outcome {
+            Outcome::Applied { changeset, .. } => *changeset,
+            other => panic!("not applied: {other:?}"),
+        }
+    }
+
+    /// Applies the undo of `changeset`.
+    async fn undo(&self, changeset: Uuid) {
+        let undo = kartenn_service::undo::inverse(&self.store, changeset, self.author)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            undo.conflicts.is_empty() && undo.unsupported.is_empty(),
+            "{undo:?}"
+        );
+        self.applied(undo.request.operations).await;
+    }
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn undo_restores_attachments(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    // Undoing an attachment detaches the address.
+    let attached = Env::changeset(&env.applied(vec![attach(e1, address, true)]).await);
+    env.undo(attached).await;
+    assert!(env.attachments(address).await.is_empty());
+    // Undoing a detachment attaches it back, as it was.
+    env.applied(vec![attach(e1, address, true)]).await;
+    let detached = Env::changeset(&env.applied(vec![detach(e1, address)]).await);
+    assert!(env.attachments(address).await.is_empty());
+    env.undo(detached).await;
+    assert_eq!(env.attachments(address).await, vec![(e1, false, true)]);
+}

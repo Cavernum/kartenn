@@ -14,7 +14,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+    BoxFuture, CheckContext, DiffContext, DiffSection, Findings, ModuleHandler, ModuleObjectRow,
+    ModulePlan, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -25,7 +26,7 @@ use uuid::Uuid;
 
 use crate::hosting::{Host, MachineKind, check_host, check_membership};
 use crate::mac::Mac;
-use crate::module::{CLUSTER, INTERFACE, MACHINE};
+use crate::module::{ADDRESS, CLUSTER, INTERFACE, MACHINE, VLAN};
 use crate::name::HostName;
 use crate::pg::{self, Hosting};
 use crate::rules::{
@@ -367,6 +368,9 @@ fn name_key(owner: Uuid) -> String {
 
 /// The global lock key of the hosting, taken when a host changes (M5).
 const HOSTING_KEY: &str = "machines.hosting";
+
+/// The section of the differential of the attachments (REQ-009-23).
+pub const ATTACHMENTS_SECTION: &str = "machines.attachments";
 
 impl Handler {
     fn plan_create_cluster(
@@ -769,6 +773,9 @@ impl ModuleHandler for Handler {
             if let Some((attach, attachment)) = attachment {
                 return apply_attachment(tx, id, attach, attachment, period, changeset).await;
             }
+            if let Some(target) = plan.data.get("unlink") {
+                return apply_unlink(tx, plan, target, period, changeset).await;
+            }
             let conn = connection(tx)?;
             if plan.kind == interface_kind() {
                 let machine = if let Some(create) = plan.data.get("create") {
@@ -878,6 +885,71 @@ impl ModuleHandler for Handler {
         })
     }
 
+    fn referrers<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        Box::pin(async move {
+            let (at, _) = pg::bounds(period);
+            pg::referrers(connection(tx)?, reference.from, reference.to, target, at).await
+        })
+    }
+
+    fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
+        let detach = |interface: Uuid, address: Uuid| ModulePlan {
+            kind: interface_kind(),
+            object: interface,
+            creates: false,
+            domains: Vec::new(),
+            keys: vec![address_key(address), interface_key(interface)],
+            core: Vec::new(),
+            data: json!({
+                "detach": { "address": address, "primary": false },
+                "reads": reads(ADDRESS_READ, &[address]),
+            }),
+        };
+        let unlink = |kind: ModuleKind, keys: Vec<String>| ModulePlan {
+            kind,
+            object: source,
+            creates: false,
+            domains: Vec::new(),
+            keys,
+            core: Vec::new(),
+            data: json!({ "unlink": target }),
+        };
+        match (reference.from, reference.to) {
+            // The sources of the attachments of an interface are its addresses.
+            (INTERFACE, INTERFACE) => Some(detach(target, source)),
+            (INTERFACE, ADDRESS) => Some(detach(source, target)),
+            (INTERFACE, VLAN) => Some(unlink(interface_kind(), vec![interface_key(source)])),
+            (MACHINE, MACHINE | CLUSTER) => {
+                Some(unlink(machine_kind(), vec![HOSTING_KEY.to_owned()]))
+            }
+            _ => None,
+        }
+    }
+
+    /// `machines.attachments` (REQ-009-23): each attachment of an address to an interface
+    /// that the changeset makes or ends, with its machine and period.
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        Box::pin(async move {
+            let _ = context;
+            let rows = pg::attachment_changes(connection(tx)?).await?;
+            Ok((!rows.is_empty()).then(|| DiffSection {
+                name: ATTACHMENTS_SECTION.into(),
+                rows,
+            }))
+        })
+    }
+
+    #[allow(clippy::too_many_lines)] // one rule after the other, on the final state
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -1080,6 +1152,41 @@ async fn warnings(
             ),
     );
     Ok(findings)
+}
+
+/// Clears in the object of `plan` the reference to `target` (a VLAN of an interface, a
+/// host or cluster of a machine), for the cascade of a closure (`ModuleHandler::nullify`).
+async fn apply_unlink(
+    tx: &mut dyn ModuleTx,
+    plan: &ModulePlan,
+    target: &Value,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let id = plan.object;
+    let target: Uuid = target
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| StoreError("a planned target".into()))?;
+    let conn = connection(tx)?;
+    let parent = if plan.kind == interface_kind() {
+        pg::unlink_vlan(conn, id, target, period, changeset).await?;
+        pg::machine_of(conn, id).await?
+    } else {
+        pg::unlink_host(conn, id, target, period, changeset).await?;
+        None
+    };
+    tx.register(
+        ModuleObjectRow {
+            id,
+            kind: plan.kind,
+            parent,
+            domain: None,
+        },
+        period,
+        changeset,
+    )
+    .await
 }
 
 /// Attaches (`attach`) or detaches the address of `attachment` to or from the interface

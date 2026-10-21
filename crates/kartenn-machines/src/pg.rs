@@ -1003,3 +1003,240 @@ pub(crate) async fn site_mismatches(
     .await
     .map_err(|e| store(&e))
 }
+
+/// The living objects that cite `target` by the reference `(from, to)` of the module, from
+/// `at` on (REQ-009-14). The attachments of an interface (`to` an interface) are given by
+/// their addresses.
+pub(crate) async fn referrers(
+    conn: &mut PgConnection,
+    from: &str,
+    to: &str,
+    target: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<Uuid>, StoreError> {
+    use crate::module::{ADDRESS, CLUSTER, INTERFACE, MACHINE, VLAN};
+    let sql = match (from, to) {
+        (INTERFACE, MACHINE) => {
+            "SELECT DISTINCT id FROM machines.interface WHERE machine_id = $1 AND {live} ORDER BY id"
+        }
+        (INTERFACE, INTERFACE) => {
+            "SELECT DISTINCT address_id FROM machines.attachment
+              WHERE interface_id = $1 AND {live} ORDER BY address_id"
+        }
+        (INTERFACE, ADDRESS) => {
+            "SELECT DISTINCT interface_id FROM machines.attachment
+              WHERE address_id = $1 AND {live} ORDER BY interface_id"
+        }
+        (INTERFACE, VLAN) => {
+            "SELECT DISTINCT id FROM machines.interface
+              WHERE (access_vlan_id = $1 OR native_vlan_id = $1 OR $1 = ANY(tagged_vlan_ids))
+                AND {live} ORDER BY id"
+        }
+        (MACHINE, MACHINE) => {
+            "SELECT DISTINCT id FROM machines.machine
+              WHERE host_machine_id = $1 AND {live} ORDER BY id"
+        }
+        (MACHINE, CLUSTER) => {
+            "SELECT DISTINCT id FROM machines.machine
+              WHERE (host_cluster_id = $1 OR member_cluster_id = $1) AND {live} ORDER BY id"
+        }
+        _ => return Ok(Vec::new()),
+    };
+    let sql = sql.replace(
+        "{live}",
+        "valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(target)
+        .bind(at)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// Applies to `table` over each of the given portions its patch: `(from, to, patch)`.
+async fn portions(
+    conn: &mut PgConnection,
+    table: &str,
+    id: Uuid,
+    found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    for (from, to, patch) in found {
+        sqlx::query("SELECT public.kartenn_portion($1::regclass, $2, $3, $4, $5::jsonb, $6)")
+            .bind(table)
+            .bind(id)
+            .bind(from)
+            .bind(to)
+            .bind(patch)
+            .bind(changeset)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| WriteError::Store(store(&e)))?;
+    }
+    Ok(())
+}
+
+/// Takes the VLAN `vlan` off the interface `id` over `period`, version by version: an
+/// access port without its VLAN, or a trunk without a tagged VLAN, has no 802.1Q mode left,
+/// unless the trunk keeps a native VLAN, which it then carries untagged (REQ-009-14).
+pub(crate) async fn unlink_vlan(
+    conn: &mut PgConnection,
+    id: Uuid,
+    vlan: Uuid,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (from, to) = bounds(period);
+    let found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)> = sqlx::query_as(
+        "SELECT greatest(lower(i.valid_period), coalesce($2::timestamptz, now())),
+                CASE WHEN $3::timestamptz IS NULL THEN upper(i.valid_period)
+                     WHEN upper_inf(i.valid_period) THEN $3
+                     ELSE least(upper(i.valid_period), $3) END,
+                jsonb_build_object('vlan_mode', m.mode, 'access_vlan_id', m.access,
+                                   'native_vlan_id', m.native, 'tagged_vlan_ids', to_jsonb(x.t))
+           FROM machines.interface i
+          CROSS JOIN LATERAL (SELECT nullif(i.access_vlan_id, $4) AS a,
+                                     nullif(i.native_vlan_id, $4) AS n,
+                                     array_remove(i.tagged_vlan_ids, $4) AS t) x
+          CROSS JOIN LATERAL (
+              SELECT i.vlan_mode = 'trunk' AND cardinality(x.t) = 0 AS emptied) e
+          CROSS JOIN LATERAL (
+              SELECT CASE WHEN i.vlan_mode = 'access' AND x.a IS NULL THEN 'none'
+                          WHEN e.emptied AND x.n IS NULL THEN 'none'
+                          WHEN e.emptied THEN 'access'
+                          ELSE i.vlan_mode END AS mode,
+                     CASE WHEN e.emptied THEN x.n ELSE x.a END AS access,
+                     CASE WHEN e.emptied THEN NULL ELSE x.n END AS native) m
+          WHERE i.id = $1 AND i.valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+            AND (i.access_vlan_id = $4 OR i.native_vlan_id = $4 OR $4 = ANY(i.tagged_vlan_ids))
+          ORDER BY 1",
+    )
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .bind(vlan)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    portions(conn, INTERFACE_TABLE, id, found, changeset).await
+}
+
+/// Clears the host machine, the host cluster or the cluster `target` of the machine `id`
+/// over `period`, version by version (REQ-009-14).
+pub(crate) async fn unlink_host(
+    conn: &mut PgConnection,
+    id: Uuid,
+    target: Uuid,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (from, to) = bounds(period);
+    let found: Vec<(OffsetDateTime, Option<OffsetDateTime>, Value)> = sqlx::query_as(
+        "SELECT greatest(lower(valid_period), coalesce($2::timestamptz, now())),
+                CASE WHEN $3::timestamptz IS NULL THEN upper(valid_period)
+                     WHEN upper_inf(valid_period) THEN $3
+                     ELSE least(upper(valid_period), $3) END,
+                CASE WHEN host_machine_id = $4
+                     THEN jsonb_build_object('host_machine_id', NULL) ELSE '{}' END
+                || CASE WHEN host_cluster_id = $4
+                        THEN jsonb_build_object('host_cluster_id', NULL) ELSE '{}' END
+                || CASE WHEN member_cluster_id = $4
+                        THEN jsonb_build_object('member_cluster_id', NULL) ELSE '{}' END
+           FROM machines.machine
+          WHERE id = $1 AND valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+            AND $4 IN (host_machine_id, host_cluster_id, member_cluster_id)
+          ORDER BY 1",
+    )
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .bind(target)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    portions(conn, MACHINE_TABLE, id, found, changeset).await
+}
+
+/// The attachments the current transaction makes or ends, as rows of the section
+/// `machines.attachments` (REQ-009-23): per interface and address, each portion of time
+/// attached before and no longer, or attached now and not before. Before is read from the
+/// versions asserted before the transaction, after from the current ones.
+pub(crate) async fn attachment_changes(
+    conn: &mut PgConnection,
+) -> Result<Vec<kartenn_service::module::DiffRow>, StoreError> {
+    type Change = (
+        Uuid,
+        Uuid,
+        Uuid,
+        Option<bool>,
+        Option<bool>,
+        i64,
+        Option<i64>,
+    );
+    let found: Vec<Change> = sqlx::query_as(
+        "WITH touched AS (
+             SELECT id FROM machines.attachment WHERE sys_start = now()
+             UNION
+             SELECT id FROM machines.attachment_history WHERE sys_end = now()),
+         before AS (
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment_history
+              WHERE id IN (SELECT id FROM touched) AND sys_end = now() AND sys_start < now()
+             UNION ALL
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment
+              WHERE id IN (SELECT id FROM touched) AND sys_start < now()),
+         after AS (
+             SELECT interface_id, address_id, primary_for_family, valid_period
+               FROM machines.attachment WHERE id IN (SELECT id FROM touched)),
+         b AS (SELECT interface_id, address_id, bool_or(primary_for_family) AS p,
+                      range_agg(valid_period) AS r
+                 FROM before GROUP BY 1, 2),
+         f AS (SELECT interface_id, address_id, bool_or(primary_for_family) AS p,
+                      range_agg(valid_period) AS r
+                 FROM after GROUP BY 1, 2),
+         pairs AS (
+             SELECT coalesce(b.interface_id, f.interface_id) AS interface_id,
+                    coalesce(b.address_id, f.address_id) AS address_id,
+                    b.p AS bp, f.p AS fp,
+                    coalesce(b.r, '{}'::tstzmultirange) AS br,
+                    coalesce(f.r, '{}'::tstzmultirange) AS fr
+               FROM b FULL JOIN f USING (interface_id, address_id)),
+         portions AS (
+             SELECT interface_id, address_id, bp, NULL::boolean AS fp, x AS period
+               FROM pairs, unnest(br - fr) AS x
+             UNION ALL
+             SELECT interface_id, address_id, NULL, fp, x
+               FROM pairs, unnest(fr - br) AS x)
+         SELECT p.interface_id, i.machine_id, p.address_id, p.bp, p.fp,
+                (extract(epoch FROM lower(p.period)) * 1000000)::bigint,
+                (extract(epoch FROM upper(p.period)) * 1000000)::bigint
+           FROM portions p
+           JOIN LATERAL (SELECT machine_id FROM machines.interface
+                          WHERE id = p.interface_id LIMIT 1) i ON true
+          ORDER BY i.machine_id, p.interface_id, p.address_id, lower(p.period)",
+    )
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok(found
+        .into_iter()
+        .map(|(interface, machine, address, before, after, start, end)| {
+            let side = |primary: Option<bool>| {
+                primary.map(|primary| {
+                    serde_json::json!({
+                        "machine": machine, "address": address, "primary": primary,
+                    })
+                })
+            };
+            kartenn_service::module::DiffRow {
+                object: interface,
+                kind: crate::module::INTERFACE.to_owned(),
+                before: side(before),
+                after: side(after),
+                period: Period::new(Instant(start), end.map(Instant)).ok(),
+            }
+        })
+        .collect())
+}
