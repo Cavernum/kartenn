@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use kartenn_core::authz::Permission;
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
@@ -57,6 +58,24 @@ static OPERATIONS: &[OperationType] = &[
     },
 ];
 
+static GROUP_READ: Permission = Permission {
+    name: "kit.group.read",
+    summary: "Lire les groupes du kit.",
+    global_only: false,
+};
+static GROUP_WRITE: Permission = Permission {
+    name: "kit.group.write",
+    summary: "Créer ou modifier un groupe du kit.",
+    global_only: false,
+};
+static ITEM_READ: Permission = Permission {
+    name: "kit.item.read",
+    summary: "Lire les éléments du kit.",
+    global_only: false,
+};
+static PERMISSIONS: &[&Permission] = &[&GROUP_READ, &GROUP_WRITE, &ITEM_READ];
+static RULES: &[&Rule] = &[&INVALID];
+
 /// The module.
 #[derive(Debug)]
 pub(crate) struct Kit;
@@ -70,6 +89,12 @@ impl Module for Kit {
     }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
+    }
+    fn permissions(&self) -> &'static [&'static Permission] {
+        PERMISSIONS
+    }
+    fn rules(&self) -> &'static [&'static Rule] {
+        RULES
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
@@ -158,6 +183,7 @@ pub(crate) fn store(pool: &PgPool) -> PgStore {
 }
 
 /// `kit.<name>` from its JSON fields.
+#[allow(dead_code)] // the tests of the catalogues create no object
 pub(crate) fn op(name: &str, fields: serde_json::Value) -> Operation {
     let mut object = fields;
     object["op"] = format!("kit.{name}").into();

@@ -431,11 +431,17 @@ pub async fn sync_roles<S: crate::port::Store>(
     max_operations: usize,
 ) -> Result<Option<crate::Outcome>, crate::RequestError> {
     let mut operations = Vec::new();
+    // The delivered roles that read read the objects of the modules too (REQ-008-8).
+    let modules = store.modules().permissions();
     for role in BUILTIN_ROLES {
         let mut tx = store.begin().await?;
         let stored = tx.role_entries(role.key).await?;
         tx.rollback().await?;
-        let mut wanted: Vec<String> = role.entries.iter().map(|e| (*e).to_owned()).collect();
+        let mut wanted: Vec<String> = role
+            .entries_with(&modules)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
         wanted.sort();
         if stored.as_ref() != Some(&wanted) {
             operations.push(Operation::SetRole {

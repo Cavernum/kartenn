@@ -133,13 +133,28 @@ numérotées après coup.
   reste non héritée, et `kartenn_site` d'un objet de module prend le `core.site` le plus
   proche dans ses ancêtres, comme une adresse prend celui de son réseau ; le branchement
   de `with_modules` dans les routes de lecture revient à la tâche 8.
-- [ ] 6. Catalogues fusionnés : permissions (`valid_role_entry`, `grants`, rôles livrés
+- [x] 6. Catalogues fusionnés : permissions (`valid_role_entry`, `grants`, rôles livrés
   de lecture), règles, génération de `docs/spec/permissions.md` avec les modules
   livrés — REQ-008-8 — verify : `a_role_with_a_module_permission`,
   `unknown_module_permission_refused`, test de génération existant étendu
   où : design « Registre de modules » ; `kartenn-core/src/authz.rs` (`PERMISSIONS`,
   `BuiltinRole`), `rbac.rs::check`, test de `docs/spec/permissions.md`
   dépend de : 1
+  — Noyau : `authz.rs` (`register`, `module_permissions`, `permission` qui les voit,
+  `BuiltinRole::entries_with`, `catalogue_markdown_with`), `rules.rs` (`register`,
+  `rule` qui voit les règles des modules, lues depuis le journal des changesets).
+  Service : `ModuleRegistry::new` enregistre permissions et règles, et refuse un nom hors
+  de l'espace du module ou déjà pris (`RegistryError::ForeignName`) ;
+  `ModuleRegistry::permissions` ; `sync_roles` donne aux rôles livrés de lecture les
+  permissions `.read` des modules. Server : le test de `docs/spec/permissions.md` passe
+  dans `modules.rs`, avec le registre du build. Tests :
+  `kartenn-service/tests/module_catalogues.rs` (les deux du verify), module de test
+  `kit` doté de permissions et d'une règle.
+  choix : catalogue du processus complété à la construction du registre, plutôt qu'un
+  paramètre à chaque lecture (les violations relues du journal et la portée d'une
+  permission globale n'ont pas le registre sous la main) ; seuls lecteur, éditeur et
+  approbateur gagnent les `.read` des modules (non globales), jamais d'écriture ; refus
+  d'une entrée inconnue par la règle existante `core.role.invalid`.
 - [ ] 7. Références et suppression : `Reference` des modules interrogées à la clôture de
   tout objet, refus listant les dépendants, cascade (clôture ou mise à nul) sous les
   droits de chaque dépendant — REQ-008-10 — verify (module factice) :

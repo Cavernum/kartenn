@@ -237,7 +237,23 @@ rules! {
         "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
 }
 
-/// Every rule, all groups, in catalogue order.
+/// The rules the modules of the build added (spec 008, REQ-008-8).
+static MODULE_RULES: std::sync::RwLock<Vec<&'static Rule>> = std::sync::RwLock::new(Vec::new());
+
+/// Adds the rules of a module to the catalogue, so that the violations and anomalies it
+/// journals read back like the core's; an identifier already there is kept once.
+pub fn register(rules: &[&'static Rule]) {
+    let mut known = MODULE_RULES
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for r in rules {
+        if !known.iter().any(|k| k.id == r.id) {
+            known.push(r);
+        }
+    }
+}
+
+/// Every rule of the core, all groups, in catalogue order.
 pub fn all_rules() -> impl Iterator<Item = &'static Rule> {
     CORE_RULES
         .iter()
@@ -246,10 +262,17 @@ pub fn all_rules() -> impl Iterator<Item = &'static Rule> {
         .copied()
 }
 
-/// The rule of `id`, if defined.
+/// The rule of `id`, of the core or of a module of the build, if defined.
 #[must_use]
 pub fn rule(id: &str) -> Option<&'static Rule> {
-    all_rules().find(|r| r.id == id)
+    all_rules().find(|r| r.id == id).or_else(|| {
+        MODULE_RULES
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .copied()
+            .find(|r| r.id == id)
+    })
 }
 
 /// Serialisable view of a rule, for interfaces (REQ-002-37).
