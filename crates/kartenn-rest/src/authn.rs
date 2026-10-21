@@ -765,6 +765,11 @@ async fn on_behalf(
         .map_err(|_| Refusal::BadOnBehalf("Kartenn-On-Behalf-Of is not ASCII"))?;
     let requester = crate::on_behalf::parse(value).map_err(Refusal::BadOnBehalf)?;
     if principal.kind != IdentityKind::ServiceAccount {
+        // Refused whatever the authenticator answers; asked all the same, so that it
+        // records the attempt (INV-60: a refused attempt to act for another is audited).
+        let _ = authenticator
+            .on_behalf_of(principal.clone(), requester, source)
+            .await;
         return Err(Refusal::OnBehalfForbidden);
     }
     authenticator
