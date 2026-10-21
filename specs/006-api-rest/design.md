@@ -538,7 +538,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - Routeur `/v1` construit par features : chaque module ajoute ses routes et ses schémas
   (`OpenApiRouter` d'utoipa-axum). `GET /v1/openapi.json` sert le document de la build.
 - Contrat de référence : `specs/006-api-rest/openapi-v1.json`, régénéré par
-  `cargo run -p kartenn-rest --bin openapi --all-features`. Test : le document produit
+  `cargo run -p kartenn-server --all-features -- openapi` (depuis la 008). Test : le document produit
   est comparé au fichier par un comparateur interne (chemins, opérations, paramètres
   requis, schémas : un retrait, un champ requis ajouté en entrée, un type changé →
   échec) ; un ajout demande de régénérer le fichier.

@@ -190,7 +190,7 @@ numérotées après coup.
   cascade, `Refuse` refuse encore, `Cascade` clôt, `Nullify` détache par une
   modification que le module construit (`nullify` sans plan : refus) ; le refus est
   vérifié sur l'état final, après les écritures.
-- [ ] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
+- [x] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
   transverses par type de module (`history`, `properties`, `explanation`,
   `suggestion`), enveloppe d'opération dans le contrat OpenAPI, `GET /v1/graph/edges`,
   contrat de référence régénéré — REQ-008-9, 11 — verify : `module_routes_are_mounted`,
@@ -199,6 +199,28 @@ numérotées après coup.
   où : design « Lectures et routes » ; `kartenn-rest/src/lib.rs` (`router`, `v1`),
   `resources.rs`, `properties.rs`, `versions.rs`, `contract.rs`, `openapi.rs`
   dépend de : 4, 5
+  — Service : `module.rs` (`Edge`, `ModuleRead`, `ModuleHandler::edges` sans effet par
+  défaut ; `graph` réservée au noyau), `reads.rs` (`read_permission` : `<type>.read` pour
+  un type de module). Store : `read.rs` (la lecture par identifiant voit
+  `module_object`), `property_read::kind_names`, `list::module_history_page`,
+  `modules::PgModuleRead`. REST : `lib.rs` (`api_with`, `v1_with`, `ModuleRouter`),
+  `modules.rs` (historique des types de module, `GET /v1/graph/edges`), `objects.rs`
+  (`Target`, `Api::authorizer` avec le registre, `gate_target`), `properties.rs`
+  (`object_routes` pour le noyau et les modules), `operation.rs` (enveloppe
+  `<module>.<op>` et `TargetKind` qui accepte un type de module), `openapi.rs`
+  (`document_with`, `json_with`, `write_with`, contrat servi par `/v1/openapi.json` celui
+  des routes montées, types des modules ajoutés à `TargetKind`). Server : `modules::routers`,
+  `v1_with` dans `app.rs`, sous-commande `kartenn-server openapi` (remplace le binaire
+  `openapi` de `kartenn-rest`), test `the_reference_contract_is_that_of_the_build`.
+  Tests : `kartenn-rest/tests/modules.rs` (les trois du verify), échantillon de module dans
+  `operation.rs` ; contrat de référence et types du SDK régénérés.
+  choix : l'historique d'un objet de module est celui de son enregistrement dans
+  `module_object` (type, parent, domaine), les attributs propres restant aux routes du
+  module ; les arêtes sont lues par le gestionnaire du module (`ModuleRead`, hors
+  changeset), sans pagination, triées par type, origine puis fin ; la seule rupture que
+  signale le comparateur est l'alternative ajoutée à `Operation` (l'enveloppe), additive
+  au sens de 006/H12 ; le contrat de référence est désormais écrit par le serveur, seul à
+  connaître les modules livrés.
 - [x] 19. Contributions au différentiel : `Module::diff`, `DiffContext` (différentiel des
   propriétés, objets touchés typés, sections précédentes), ordre du registre, table
   `changeset_diff_section` (migration), sections dans la réponse de simulation et

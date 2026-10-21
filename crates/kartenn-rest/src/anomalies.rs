@@ -19,7 +19,6 @@ use kartenn_service::authz::Authorizer;
 use kartenn_service::reads::objects_read;
 use kartenn_store_pg::anomalies::{self, Anomaly, AnomalyFilter};
 use kartenn_store_pg::list::Kind;
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -149,7 +148,8 @@ async fn list(
     let (rule, domain, entity) = filter(query.as_deref())?;
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let moment = Dates::default().at(now, api.bound)?;
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let wanted = AnomalyFilter {
@@ -230,7 +230,8 @@ async fn acknowledge(
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     gate(&api, &context, kind, anomaly.object_id).await?;
     let permission = ANOMALY_ACKNOWLEDGE.name;
-    let denied = PgAuthorizer::new(api.pool.clone())
+    let denied = api
+        .authorizer()
         .authorize_many(&principal.subject(), permission, &[anomaly.object_id])
         .await?;
     if !denied.is_empty() {

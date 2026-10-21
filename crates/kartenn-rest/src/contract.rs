@@ -3,7 +3,7 @@
 //! repository. `/v1` only grows (H12): a path, an operation, a parameter, a member or a
 //! schema removed, a type changed, a member made required in a request, or no longer
 //! guaranteed in a response, is a breach. What is added is not: it only asks for the
-//! reference to be written again (`cargo run -p kartenn-rest --bin openapi`).
+//! reference to be written again (`cargo run -p kartenn-server --all-features -- openapi`).
 //!
 //! No mature Rust crate compares two OpenAPI documents (design « Crates et
 //! dépendances »): this one reads them as JSON.

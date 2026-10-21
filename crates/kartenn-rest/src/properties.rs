@@ -28,7 +28,6 @@ use kartenn_store_pg::anomalies::{self, Anomaly, AnomalyFilter};
 use kartenn_store_pg::explain::explain;
 use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::property_read::{self, DeclarationRead};
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::Serialize;
@@ -42,7 +41,7 @@ use uuid::Uuid;
 use crate::anomalies::ObjectRef;
 use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
-use crate::objects::{Api, audited, bad, collection, gate, href, instant, store};
+use crate::objects::{Api, Target, audited, bad, instant, store};
 use crate::openapi::{documented, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 
@@ -53,91 +52,99 @@ pub fn routes() -> OpenApiRouter<Api> {
         .routes(routes!(values))
         .routes(routes!(gaps));
     for kind in Kind::ALL {
-        let name = collection(kind);
-        let object = format!("The {}.", kind.as_str());
-        let mut schemas = Vec::new();
-        schemas_of::<Resolved>(&mut schemas);
-        schemas_of::<ExplanationDto>(&mut schemas);
-        schemas_of::<SuggestionDto>(&mut schemas);
-        router = router
-            .routes(documented(
-                &format!("/{name}/{{id}}/properties"),
-                vec![(
-                    HttpMethod::Get,
-                    op(
-                        &format!("{}_properties", kind.as_str()),
-                        "properties",
-                        "The resolved values of the properties of the object.",
-                    )
-                    .path("id", &object, true)
-                    .params::<DatesParams>()
-                    .answers("200", "The resolved values.", "Resolved")
-                    .build(),
-                )],
-                schemas.clone(),
-                get(
-                    move |state: State<Api>,
-                          context: Extension<RequestContext>,
-                          id: Path<Uuid>,
-                          dates: Dates,
-                          headers: HeaderMap| {
-                        resolved(kind, state, context, id, dates, headers)
-                    },
-                ),
-            ))
-            .routes(documented(
-                &format!("/{name}/{{id}}/properties/{{key}}/explanation"),
-                vec![(
-                    HttpMethod::Get,
-                    op(
-                        &format!("{}_property_explanation", kind.as_str()),
-                        "properties",
-                        "How the value of a property resolves on the object (REQ-003-14).",
-                    )
-                    .path("id", &object, true)
-                    .path("key", "The property.", false)
-                    .params::<DatesParams>()
-                    .answers("200", "The explanation.", "Explanation")
-                    .build(),
-                )],
-                Vec::new(),
-                get(
-                    move |state: State<Api>,
-                          context: Extension<RequestContext>,
-                          path: Path<(Uuid, String)>,
-                          dates: Dates,
-                          headers: HeaderMap| {
-                        explanation(kind, state, context, path, dates, headers)
-                    },
-                ),
-            ))
-            .routes(documented(
-                &format!("/{name}/{{id}}/properties/{{key}}/suggestion"),
-                vec![(
-                    HttpMethod::Get,
-                    op(
-                        &format!("{}_property_suggestion", kind.as_str()),
-                        "properties",
-                        "The value the source of a property expects for the object (REQ-003-23).",
-                    )
-                    .path("id", &object, true)
-                    .path("key", "The property.", false)
-                    .params::<DatesParams>()
-                    .answers("200", "The suggestion.", "Suggestion")
-                    .build(),
-                )],
-                Vec::new(),
-                get(
-                    move |state: State<Api>,
-                          context: Extension<RequestContext>,
-                          path: Path<(Uuid, String)>,
-                          dates: Dates,
-                          headers: HeaderMap| {
-                        suggestion(kind, state, context, path, dates, headers)
-                    },
-                ),
-            ));
+        router = object_routes(router, Target::Core(kind));
     }
+    router
+}
+
+/// The properties of the objects of `target`, their explanation and their suggestion
+/// (REQ-003-14, 23), added to `router`: for the kinds of the core and the types of the
+/// modules (REQ-008-9).
+pub(crate) fn object_routes(mut router: OpenApiRouter<Api>, target: Target) -> OpenApiRouter<Api> {
+    let name = target.collection();
+    let object = format!("The {}.", target.as_str());
+    let mut schemas = Vec::new();
+    schemas_of::<Resolved>(&mut schemas);
+    schemas_of::<ExplanationDto>(&mut schemas);
+    schemas_of::<SuggestionDto>(&mut schemas);
+    router = router
+        .routes(documented(
+            &format!("/{name}/{{id}}/properties"),
+            vec![(
+                HttpMethod::Get,
+                op(
+                    &format!("{}_properties", target.operation_name()),
+                    "properties",
+                    "The resolved values of the properties of the object.",
+                )
+                .path("id", &object, true)
+                .params::<DatesParams>()
+                .answers("200", "The resolved values.", "Resolved")
+                .build(),
+            )],
+            schemas.clone(),
+            get(
+                move |state: State<Api>,
+                      context: Extension<RequestContext>,
+                      id: Path<Uuid>,
+                      dates: Dates,
+                      headers: HeaderMap| {
+                    resolved(target, state, context, id, dates, headers)
+                },
+            ),
+        ))
+        .routes(documented(
+            &format!("/{name}/{{id}}/properties/{{key}}/explanation"),
+            vec![(
+                HttpMethod::Get,
+                op(
+                    &format!("{}_property_explanation", target.operation_name()),
+                    "properties",
+                    "How the value of a property resolves on the object (REQ-003-14).",
+                )
+                .path("id", &object, true)
+                .path("key", "The property.", false)
+                .params::<DatesParams>()
+                .answers("200", "The explanation.", "Explanation")
+                .build(),
+            )],
+            Vec::new(),
+            get(
+                move |state: State<Api>,
+                      context: Extension<RequestContext>,
+                      path: Path<(Uuid, String)>,
+                      dates: Dates,
+                      headers: HeaderMap| {
+                    explanation(target, state, context, path, dates, headers)
+                },
+            ),
+        ))
+        .routes(documented(
+            &format!("/{name}/{{id}}/properties/{{key}}/suggestion"),
+            vec![(
+                HttpMethod::Get,
+                op(
+                    &format!("{}_property_suggestion", target.operation_name()),
+                    "properties",
+                    "The value the source of a property expects for the object (REQ-003-23).",
+                )
+                .path("id", &object, true)
+                .path("key", "The property.", false)
+                .params::<DatesParams>()
+                .answers("200", "The suggestion.", "Suggestion")
+                .build(),
+            )],
+            Vec::new(),
+            get(
+                move |state: State<Api>,
+                      context: Extension<RequestContext>,
+                      path: Path<(Uuid, String)>,
+                      dates: Dates,
+                      headers: HeaderMap| {
+                    suggestion(target, state, context, path, dates, headers)
+                },
+            ),
+        ));
     router
 }
 
@@ -351,7 +358,7 @@ struct Resolved {
 /// `GET /v1/<collection>/{id}/properties`: the resolved values of the object, those the
 /// caller may not see named in `masked`; 404 as the object.
 async fn resolved(
-    kind: Kind,
+    kind: Target,
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
@@ -361,7 +368,7 @@ async fn resolved(
     let moment = moment_of(&api, dates).await?;
     let found = read_object(
         &PgStore::new(api.pool.clone()),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.journal,
         &context,
         id,
@@ -376,8 +383,8 @@ async fn resolved(
         properties: found.properties,
         masked: found.masked,
         links: ResolvedLinks {
-            this: format!("{}/properties", href(kind, id)),
-            object: href(kind, id),
+            this: format!("{}/properties", kind.href(id)),
+            object: kind.href(id),
         },
     };
     Ok(respond_json(&headers, &moment, &body))
@@ -388,18 +395,18 @@ async fn resolved(
 async fn object_and_declaration(
     api: &Api,
     context: &RequestContext,
-    kind: Kind,
+    kind: Target,
     id: Uuid,
     key: &str,
     moment: &Moment,
 ) -> Result<DeclarationRead, Problem> {
-    let kinds = property_read::kinds(&api.pool, &[id], moment.valid_at, moment.as_of)
+    let kinds = property_read::kind_names(&api.pool, &[id], moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))?;
-    if kinds.get(&id) != Some(&kind) {
+    if kinds.get(&id).map(String::as_str) != Some(kind.as_str()) {
         return Err(Problem::new(ProblemKind::NotFound));
     }
-    gate(api, context, kind, id).await?;
+    crate::objects::gate_target(api, context, kind, id).await?;
     property_read::declaration(&api.pool, key, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))?
@@ -418,7 +425,7 @@ async fn discloses(
         return Ok(true);
     }
     let disclosed = sensitive_disclosed(
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.journal,
         context,
         &declaration.key,
@@ -432,7 +439,7 @@ async fn discloses(
 async fn audit_read(
     api: &Api,
     context: &RequestContext,
-    kind: Kind,
+    kind: Target,
     id: Uuid,
     criteria: Value,
 ) -> Result<(), Problem> {
@@ -465,10 +472,14 @@ async fn visible_nodes(
     ids: &[Uuid],
     moment: &Moment,
 ) -> Result<BTreeMap<Uuid, Node>, Problem> {
-    let kinds = property_read::kinds(&api.pool, ids, moment.valid_at, moment.as_of)
+    let kinds = property_read::kind_names(&api.pool, ids, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))?;
-    let mut by_kind: BTreeMap<&'static str, (Kind, Vec<Uuid>)> = BTreeMap::new();
+    let kinds: Vec<(Uuid, Target)> = kinds
+        .into_iter()
+        .filter_map(|(id, name)| Target::named(&name, &api.modules).map(|t| (id, t)))
+        .collect();
+    let mut by_kind: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
     for (id, kind) in &kinds {
         by_kind
             .entry(kind.as_str())
@@ -478,11 +489,11 @@ async fn visible_nodes(
     }
     let mut denied = BTreeSet::new();
     if let Some(subject) = context.subject() {
-        let authorizer = PgAuthorizer::new(api.pool.clone());
-        for (name, (_, ids)) in &by_kind {
+        let authorizer = api.authorizer();
+        for (kind, ids) in by_kind.values() {
             denied.extend(
                 authorizer
-                    .authorize_many(&subject, &format!("core.{name}.read"), ids)
+                    .authorize_many(&subject, &kind.read_permission(), ids)
                     .await?,
             );
         }
@@ -494,7 +505,7 @@ async fn visible_nodes(
             let node = Node {
                 kind: kind.as_str(),
                 id,
-                href: href(kind, id),
+                href: kind.href(id),
             };
             (id, node)
         })
@@ -552,7 +563,7 @@ struct ExplanationDto {
 /// `GET /v1/<collection>/{id}/properties/{key}/explanation`: how the value of `key`
 /// resolves on the object at the dates of the read (REQ-003-14, 15).
 async fn explanation(
-    kind: Kind,
+    kind: Target,
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
     Path((id, key)): Path<(Uuid, String)>,
@@ -604,7 +615,7 @@ async fn explanation(
         provenance: found.provenance,
         replaces,
         links: ObjectLinks {
-            object: href(kind, id),
+            object: kind.href(id),
         },
     };
     Ok(respond_json(&headers, &moment, &body))
@@ -653,7 +664,7 @@ struct SuggestionDto {
 /// property expects for the object at `valid_at`, written nowhere (REQ-003-23); computed
 /// on the current state, so `as_of` is refused.
 async fn suggestion(
-    kind: Kind,
+    kind: Target,
     State(api): State<Api>,
     Extension(context): Extension<RequestContext>,
     Path((id, key)): Path<(Uuid, String)>,
@@ -695,7 +706,7 @@ async fn suggestion(
         property: declaration.key,
         suggestion,
         links: ObjectLinks {
-            object: href(kind, id),
+            object: kind.href(id),
         },
     };
     Ok(respond_json(&headers, &moment, &body))
@@ -730,7 +741,7 @@ pub(crate) async fn mask_gaps(
                 .push(anomaly.object_id);
         }
     }
-    let authorizer = PgAuthorizer::new(api.pool.clone());
+    let authorizer = api.authorizer();
     for (key, objects) in sensitive {
         let disclosed =
             sensitive_disclosed(&authorizer, &api.journal, context, &key, &objects).await?;
@@ -814,7 +825,8 @@ async fn gaps(
 ) -> Result<Response, Problem> {
     let (property, domain, entity) = gap_filter(query.as_deref())?;
     let moment = moment_of(&api, Dates::default()).await?;
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let wanted = AnomalyFilter {

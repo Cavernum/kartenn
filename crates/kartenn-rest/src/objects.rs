@@ -23,7 +23,8 @@ use kartenn_service::audit::{AuditJournal, Outcome, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::expected::Sources;
-use kartenn_service::reads::{ReadAudit, objects_read, read_object};
+use kartenn_service::module::{ModuleRegistry, ObjectType};
+use kartenn_service::reads::{ReadAudit, objects_read, read_object, read_permission};
 use kartenn_service::{RequestError, StoreError};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{self as engine, Condition, FilterError};
@@ -72,6 +73,79 @@ pub struct Api {
     pub outputs: std::sync::Arc<[String]>,
     /// The modules of the build (ADR 0026, REQ-008-1).
     pub modules: std::sync::Arc<kartenn_service::module::ModuleRegistry>,
+}
+
+impl Api {
+    /// The authorizer of the requests, which knows the types of the modules of the build
+    /// (REQ-008-6).
+    #[must_use]
+    pub fn authorizer(&self) -> PgAuthorizer {
+        PgAuthorizer::new(self.pool.clone()).with_modules(self.modules.clone())
+    }
+}
+
+/// What a route by object serves: a kind of the core, or a type of object of a module
+/// (ADR 0026, clause 9), whose transversal routes the core provides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Target {
+    /// A kind of the core.
+    Core(Kind),
+    /// A type of object of a module.
+    Module(&'static ObjectType),
+}
+
+impl Target {
+    /// Its name: the kind of the core, or the qualified type (`vlan.vlan`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Core(kind) => kind.as_str(),
+            Self::Module(ty) => ty.kind,
+        }
+    }
+
+    /// Its collection under `/v1`.
+    #[must_use]
+    pub const fn collection(self) -> &'static str {
+        match self {
+            Self::Core(kind) => collection(kind),
+            Self::Module(ty) => ty.collection,
+        }
+    }
+
+    /// The URL of its object `id`.
+    #[must_use]
+    pub fn href(self, id: Uuid) -> String {
+        format!("/v1/{}/{id}", self.collection())
+    }
+
+    /// The permission that reads its objects.
+    #[must_use]
+    pub fn read_permission(self) -> String {
+        read_permission(self.as_str())
+    }
+
+    /// Its name in an operation identifier (`vlan_vlan`).
+    #[must_use]
+    pub fn operation_name(self) -> String {
+        self.as_str().replace('.', "_")
+    }
+
+    /// The kind or the type named `name`, among the core and the modules of the build.
+    #[must_use]
+    pub fn named(name: &str, modules: &ModuleRegistry) -> Option<Self> {
+        Kind::ALL
+            .into_iter()
+            .find(|kind| kind.as_str() == name)
+            .map(Self::Core)
+            .or_else(|| modules.object_type(name).map(Self::Module))
+    }
+}
+
+impl From<Kind> for Target {
+    fn from(kind: Kind) -> Self {
+        Self::Core(kind)
+    }
 }
 
 /// The collection of each kind.
@@ -811,7 +885,8 @@ async fn list(
     let page = Page::from_query(&query, &api.ring, name)?;
     let wanted = wanted(kind, &page.filters)?;
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-    let scope = PgAuthorizer::new(api.pool.clone())
+    let scope = api
+        .authorizer()
         .read_scope(&principal.subject(), now)
         .await?;
     let size = usize::from(page.size);
@@ -914,7 +989,7 @@ async fn object(
     let moment: Moment = dates.at(now, api.bound)?;
     let found = read_object(
         &PgStore::new(api.pool.clone()),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.journal,
         &context,
         id,
@@ -983,9 +1058,20 @@ pub(crate) async fn gate(
     kind: Kind,
     id: Uuid,
 ) -> Result<(), Problem> {
+    gate_target(api, context, Target::Core(kind), id).await
+}
+
+/// [`gate`], for a kind of the core or a type of a module.
+pub(crate) async fn gate_target(
+    api: &Api,
+    context: &RequestContext,
+    target: Target,
+    id: Uuid,
+) -> Result<(), Problem> {
     if let Some(subject) = context.subject() {
-        let permission = format!("core.{}.read", kind.as_str());
-        let denied = PgAuthorizer::new(api.pool.clone())
+        let permission = target.read_permission();
+        let denied = api
+            .authorizer()
             .authorize_many(&subject, &permission, &[id])
             .await?;
         if !denied.is_empty() {
@@ -1008,9 +1094,9 @@ pub(crate) async fn gate(
 
 /// The key of a version as written in a cursor by [`history`], with the `valid_at` the
 /// first page asked for: the cursor freezes a valid time even when none was given.
-type VersionKey = ((OffsetDateTime, OffsetDateTime), Option<OffsetDateTime>);
+pub(crate) type VersionKey = ((OffsetDateTime, OffsetDateTime), Option<OffsetDateTime>);
 
-fn version_key(key: &Value) -> Result<VersionKey, Problem> {
+pub(crate) fn version_key(key: &Value) -> Result<VersionKey, Problem> {
     let invalid = || Problem::new(ProblemKind::InvalidCursor);
     let parse = |t: &str| OffsetDateTime::parse(t, &Rfc3339).map_err(|_| invalid());
     let (valid, asserted, valid_at) =

@@ -55,7 +55,7 @@ fn the_contract_keeps_its_reference() {
     assert!(
         produced == reference,
         "the contract grew: write its reference again with \
-         `cargo run -p kartenn-rest --bin openapi --all-features`"
+         `cargo run -p kartenn-server --all-features -- openapi`"
     );
 }
 

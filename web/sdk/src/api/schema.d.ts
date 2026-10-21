@@ -720,6 +720,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/graph/edges": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/graph/edges?object=`: the edges the modules declare that start or end at the
+     *     object, at the dates of the read; only those whose two ends the caller may read now
+     *     (REQ-008-11). 404 for an object absent at the dates or that the caller may not read.
+     */
+    get: operations["graph_edges"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/identities": {
     parameters: {
       query?: never;
@@ -2167,6 +2188,36 @@ export interface components {
       /** @description The property. */
       property?: string | null;
     };
+    /** @description An edge of the topology graph (ADR 0026, clause 11). */
+    GraphEdge: {
+      /** @description Its origin. */
+      from: components["schemas"]["GraphNode"];
+      /** @description Its end. */
+      to: components["schemas"]["GraphNode"];
+      /** @description Its type (`vlan.carries`). */
+      type: string;
+      /** @description The start of its validity, RFC 3339. */
+      valid_from: string;
+      /** @description The end of its validity, RFC 3339; `null` while open. */
+      valid_to?: string | null;
+    };
+    /** @description The edges of an object. */
+    GraphEdges: {
+      /** @description The edges, by type, origin then end. */
+      items: components["schemas"]["GraphEdge"][];
+    };
+    /** @description An end of an edge. */
+    GraphNode: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its kind of the core, or its qualified type. */
+      kind: string;
+    };
     /** @description A binding that serves the caller. */
     HeldBinding: {
       /** @description Role key. */
@@ -2867,7 +2918,7 @@ export interface components {
      * @enum {string}
      */
     Op: "eq" | "between" | "exists";
-    /** @description An operation of a changeset (004, REQ-004-1 to 5), named by `op`. */
+    /** @description An operation of the core, named by `op`. */
     Operation:
       | {
           /** @enum {string} */
@@ -3327,7 +3378,13 @@ export interface components {
           op: "update_range";
           /** @description New usage. */
           usage: components["schemas"]["RangeUsage"];
-        };
+        }
+      | ({
+          /** @description The module, then the operation. */
+          op: string;
+        } & {
+          [key: string]: unknown;
+        });
     /** @description A period, in microseconds since the epoch: `[start, end)`, unbounded without `end`. */
     Period: {
       /**
@@ -3811,7 +3868,8 @@ export interface components {
       slug?: string | null;
     };
     /**
-     * @description The kind of the object of an operation.
+     * @description The kinds of object of the core an operation names: the schema of [`TargetKindDto`],
+     *     to which the contract of a build adds the types of its modules.
      * @enum {string}
      */
     TargetKind:
@@ -6007,6 +6065,42 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  graph_edges: {
+    parameters: {
+      query: {
+        /** @description The object, at an end of the edges. */
+        object: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The edges of the object. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GraphEdges"];
         };
       };
       /** @description A problem (RFC 9457). */

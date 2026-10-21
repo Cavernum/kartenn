@@ -7,6 +7,7 @@
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
 use kartenn_core::properties::{Expected, ExpectedMode};
 use kartenn_core::values::Cardinality;
+use kartenn_service::operations::ModuleOperation;
 use kartenn_service::operations::{
     BindingScope, BindingSubject, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput,
     SecretRecord, TypeInput,
@@ -64,11 +65,13 @@ impl From<NamedDto> for Named {
     }
 }
 
-/// The kind of the object of an operation.
-#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+/// The kinds of object of the core an operation names: the schema of [`TargetKindDto`],
+/// to which the contract of a build adds the types of its modules.
+#[derive(Debug, Clone, Copy, serde::Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schema(as = TargetKind)]
-pub(crate) enum TargetKindDto {
+#[allow(dead_code)]
+pub(crate) enum TargetKindSchema {
     Domain,
     Prefix,
     Range,
@@ -79,18 +82,39 @@ pub(crate) enum TargetKindDto {
     Site,
 }
 
+/// The kind of the object of an operation: a kind of the core, or the qualified type of an
+/// object of a module (`vlan.vlan`, REQ-008-5), which the registry checks when it plans.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TargetKindDto(ObjectKind);
+
+impl<'de> Deserialize<'de> for TargetKindDto {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        ObjectKind::from_name(&name).map(Self).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "unknown variant `{name}`, expected one of `domain`, `prefix`, `range`, \
+                 `address`, `property`, `enum_value`, `entity`, `site` or the type of an \
+                 object of a module"
+            ))
+        })
+    }
+}
+
+impl utoipa::PartialSchema for TargetKindDto {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        <TargetKindSchema as utoipa::PartialSchema>::schema()
+    }
+}
+
+impl ToSchema for TargetKindDto {
+    fn name() -> std::borrow::Cow<'static, str> {
+        <TargetKindSchema as ToSchema>::name()
+    }
+}
+
 impl From<TargetKindDto> for ObjectKind {
     fn from(k: TargetKindDto) -> Self {
-        match k {
-            TargetKindDto::Domain => Self::Domain,
-            TargetKindDto::Prefix => Self::Prefix,
-            TargetKindDto::Range => Self::Range,
-            TargetKindDto::Address => Self::Address,
-            TargetKindDto::Property => Self::Property,
-            TargetKindDto::EnumValue => Self::EnumValue,
-            TargetKindDto::Entity => Self::Entity,
-            TargetKindDto::Site => Self::Site,
-        }
+        k.0
     }
 }
 
@@ -423,11 +447,94 @@ const fn enabled() -> bool {
     true
 }
 
-/// An operation of a changeset (004, REQ-004-1 to 5), named by `op`.
+/// An operation of a changeset (004, REQ-004-1 to 5), named by `op`: one of the core, or
+/// one of a module in its envelope, `<module>.<operation>` (REQ-008-4), whose other
+/// members the module reads when it plans it.
+#[derive(Debug, Clone)]
+pub(crate) enum OperationDto {
+    /// An operation of the core.
+    Core(CoreOperationDto),
+    /// An operation of a module.
+    Module(ModuleOperation),
+}
+
+impl<'de> Deserialize<'de> for OperationDto {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let qualified = value
+            .get("op")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|tag| tag.split_once('.'))
+            .map(|(module, name)| (module.to_owned(), name.to_owned()));
+        match (qualified, value) {
+            (Some((module, name)), serde_json::Value::Object(mut body)) => {
+                body.remove("op");
+                Ok(Self::Module(ModuleOperation { module, name, body }))
+            }
+            (_, value) => CoreOperationDto::deserialize(value)
+                .map(Self::Core)
+                .map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+impl utoipa::PartialSchema for OperationDto {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
+        let mut schema = <CoreOperationDto as utoipa::PartialSchema>::schema();
+        if let utoipa::openapi::RefOr::T(Schema::OneOf(one_of)) = &mut schema {
+            one_of.items.push(
+                ObjectBuilder::new()
+                    .description(Some(
+                        "An operation of a module (ADR 0026, clause 6): `op` is \
+                         `<module>.<operation>`, the other members are those of the module.",
+                    ))
+                    .property(
+                        "op",
+                        ObjectBuilder::new()
+                            .schema_type(Type::String)
+                            .pattern(Some("^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"))
+                            .description(Some("The module, then the operation.")),
+                    )
+                    .required("op")
+                    .additional_properties(Some(
+                        utoipa::openapi::schema::AdditionalProperties::FreeForm(true),
+                    ))
+                    .into(),
+            );
+        }
+        schema
+    }
+}
+
+impl ToSchema for OperationDto {
+    fn name() -> std::borrow::Cow<'static, str> {
+        "Operation".into()
+    }
+
+    fn schemas(
+        schemas: &mut Vec<(
+            String,
+            utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+        )>,
+    ) {
+        <CoreOperationDto as ToSchema>::schemas(schemas);
+    }
+}
+
+impl From<OperationDto> for Operation {
+    fn from(o: OperationDto) -> Self {
+        match o {
+            OperationDto::Core(core) => core.into(),
+            OperationDto::Module(module) => Self::Module(module),
+        }
+    }
+}
+
+/// An operation of the core, named by `op`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
-#[schema(as = Operation)]
-pub(crate) enum OperationDto {
+pub(crate) enum CoreOperationDto {
     /// An operation on its own period instead of the changeset's (REQ-004-2).
     Within {
         /// The period of the operation.
@@ -834,16 +941,16 @@ pub(crate) enum OperationDto {
     },
 }
 
-impl From<OperationDto> for Operation {
+impl From<CoreOperationDto> for Operation {
     #[allow(clippy::too_many_lines)]
-    fn from(o: OperationDto) -> Self {
+    fn from(o: CoreOperationDto) -> Self {
         match o {
-            OperationDto::Within { period, operation } => Self::Within {
+            CoreOperationDto::Within { period, operation } => Self::Within {
                 period: period.into(),
                 operation: Box::new((*operation).into()),
             },
-            OperationDto::CreateDomain { local, slug } => Self::CreateDomain { local, slug },
-            OperationDto::CreatePrefix {
+            CoreOperationDto::CreateDomain { local, slug } => Self::CreateDomain { local, slug },
+            CoreOperationDto::CreatePrefix {
                 local,
                 domain,
                 prefix,
@@ -858,7 +965,7 @@ impl From<OperationDto> for Operation {
                 point_to_point,
                 anycast,
             },
-            OperationDto::CreateRange {
+            CoreOperationDto::CreateRange {
                 local,
                 domain,
                 first,
@@ -871,7 +978,7 @@ impl From<OperationDto> for Operation {
                 last,
                 usage,
             },
-            OperationDto::CreateAddress {
+            CoreOperationDto::CreateAddress {
                 local,
                 domain,
                 address,
@@ -882,7 +989,7 @@ impl From<OperationDto> for Operation {
                 address,
                 usage,
             },
-            OperationDto::SetRole {
+            CoreOperationDto::SetRole {
                 key,
                 label,
                 entries,
@@ -891,8 +998,8 @@ impl From<OperationDto> for Operation {
                 label,
                 entries,
             },
-            OperationDto::CloseRole { key } => Self::CloseRole { key },
-            OperationDto::Bind {
+            CoreOperationDto::CloseRole { key } => Self::CloseRole { key },
+            CoreOperationDto::Bind {
                 local,
                 subject,
                 role,
@@ -903,16 +1010,16 @@ impl From<OperationDto> for Operation {
                 role,
                 scope: scope.into(),
             },
-            OperationDto::Unbind { id } => Self::Unbind { id },
-            OperationDto::AttachIssuer { issuer, entity } => Self::AttachIssuer {
+            CoreOperationDto::Unbind { id } => Self::Unbind { id },
+            CoreOperationDto::AttachIssuer { issuer, entity } => Self::AttachIssuer {
                 issuer,
                 entity: opt(entity),
             },
-            OperationDto::DetachIssuer { issuer, entity } => Self::DetachIssuer {
+            CoreOperationDto::DetachIssuer { issuer, entity } => Self::DetachIssuer {
                 issuer,
                 entity: opt(entity),
             },
-            OperationDto::SetIdentityState {
+            CoreOperationDto::SetIdentityState {
                 identity,
                 disabled,
                 revoke_sessions,
@@ -921,7 +1028,7 @@ impl From<OperationDto> for Operation {
                 disabled,
                 revoke_sessions,
             },
-            OperationDto::CreateServiceAccount {
+            CoreOperationDto::CreateServiceAccount {
                 local,
                 name,
                 secret,
@@ -930,14 +1037,14 @@ impl From<OperationDto> for Operation {
                 name,
                 secret: secret.into(),
             },
-            OperationDto::AddServiceSecret { account, secret } => Self::AddServiceSecret {
+            CoreOperationDto::AddServiceSecret { account, secret } => Self::AddServiceSecret {
                 account,
                 secret: secret.into(),
             },
-            OperationDto::RevokeServiceSecret { account, secret } => {
+            CoreOperationDto::RevokeServiceSecret { account, secret } => {
                 Self::RevokeServiceSecret { account, secret }
             }
-            OperationDto::SetApprovalPolicy {
+            CoreOperationDto::SetApprovalPolicy {
                 name,
                 min_operations,
                 min_diff_objects,
@@ -962,7 +1069,7 @@ impl From<OperationDto> for Operation {
                 bound_roles,
                 enabled,
             },
-            OperationDto::Restore {
+            CoreOperationDto::Restore {
                 kind,
                 id,
                 property,
@@ -973,7 +1080,7 @@ impl From<OperationDto> for Operation {
                 property,
                 before,
             },
-            OperationDto::BindExternal {
+            CoreOperationDto::BindExternal {
                 object,
                 kind,
                 source,
@@ -984,7 +1091,7 @@ impl From<OperationDto> for Operation {
                 source,
                 external_id,
             },
-            OperationDto::CreateEntity {
+            CoreOperationDto::CreateEntity {
                 local,
                 slug,
                 parent,
@@ -993,7 +1100,7 @@ impl From<OperationDto> for Operation {
                 slug,
                 parent: opt(parent),
             },
-            OperationDto::CreateSite {
+            CoreOperationDto::CreateSite {
                 local,
                 slug,
                 parent,
@@ -1002,7 +1109,7 @@ impl From<OperationDto> for Operation {
                 slug,
                 parent: opt(parent),
             },
-            OperationDto::MoveEntity {
+            CoreOperationDto::MoveEntity {
                 id,
                 parent,
                 expected,
@@ -1011,7 +1118,7 @@ impl From<OperationDto> for Operation {
                 parent: opt(parent),
                 expected,
             },
-            OperationDto::MoveSite {
+            CoreOperationDto::MoveSite {
                 id,
                 parent,
                 expected,
@@ -1020,22 +1127,22 @@ impl From<OperationDto> for Operation {
                 parent: opt(parent),
                 expected,
             },
-            OperationDto::SetSensitivity {
+            CoreOperationDto::SetSensitivity {
                 property,
                 sensitive,
             } => Self::SetSensitivity {
                 property: property.into(),
                 sensitive,
             },
-            OperationDto::AddObligation { property, scope } => Self::AddObligation {
+            CoreOperationDto::AddObligation { property, scope } => Self::AddObligation {
                 property: property.into(),
                 scope: scope.into(),
             },
-            OperationDto::RemoveObligation { property, scope } => Self::RemoveObligation {
+            CoreOperationDto::RemoveObligation { property, scope } => Self::RemoveObligation {
                 property: property.into(),
                 scope: scope.into(),
             },
-            OperationDto::Rename {
+            CoreOperationDto::Rename {
                 kind,
                 id,
                 slug,
@@ -1046,15 +1153,15 @@ impl From<OperationDto> for Operation {
                 slug,
                 expected,
             },
-            OperationDto::DeclareProperty { local, declaration } => Self::DeclareProperty {
+            CoreOperationDto::DeclareProperty { local, declaration } => Self::DeclareProperty {
                 local,
                 declaration: declaration.into(),
             },
-            OperationDto::UpdateProperty { id, declaration } => Self::UpdateProperty {
+            CoreOperationDto::UpdateProperty { id, declaration } => Self::UpdateProperty {
                 id: id.into(),
                 declaration: declaration.into(),
             },
-            OperationDto::AddEnumValue {
+            CoreOperationDto::AddEnumValue {
                 local,
                 property,
                 key,
@@ -1063,7 +1170,7 @@ impl From<OperationDto> for Operation {
                 property: property.into(),
                 key,
             },
-            OperationDto::AssignProperty {
+            CoreOperationDto::AssignProperty {
                 object,
                 kind,
                 property,
@@ -1074,7 +1181,7 @@ impl From<OperationDto> for Operation {
                 property: property.into(),
                 values: values.into_iter().map(Into::into).collect(),
             },
-            OperationDto::ClearProperty {
+            CoreOperationDto::ClearProperty {
                 object,
                 kind,
                 property,
@@ -1083,7 +1190,7 @@ impl From<OperationDto> for Operation {
                 kind: kind.into(),
                 property: property.into(),
             },
-            OperationDto::UnassignProperty {
+            CoreOperationDto::UnassignProperty {
                 object,
                 kind,
                 property,
@@ -1092,12 +1199,12 @@ impl From<OperationDto> for Operation {
                 kind: kind.into(),
                 property: property.into(),
             },
-            OperationDto::Expect { kind, id, expected } => Self::Expect {
+            CoreOperationDto::Expect { kind, id, expected } => Self::Expect {
                 kind: kind.into(),
                 id: id.into(),
                 expected,
             },
-            OperationDto::Close {
+            CoreOperationDto::Close {
                 kind,
                 id,
                 expected,
@@ -1108,7 +1215,7 @@ impl From<OperationDto> for Operation {
                 expected,
                 cascade,
             },
-            OperationDto::UpdatePrefix {
+            CoreOperationDto::UpdatePrefix {
                 id,
                 domain,
                 prefix,
@@ -1125,7 +1232,7 @@ impl From<OperationDto> for Operation {
                 anycast,
                 expected,
             },
-            OperationDto::UpdateAddress {
+            CoreOperationDto::UpdateAddress {
                 id,
                 domain,
                 usage,
@@ -1136,7 +1243,7 @@ impl From<OperationDto> for Operation {
                 usage,
                 expected,
             },
-            OperationDto::UpdateRange {
+            CoreOperationDto::UpdateRange {
                 id,
                 domain,
                 usage,
@@ -1292,6 +1399,8 @@ mod tests {
                 "anycast": true, "expected": other}),
             json!({"op": "update_address", "id": {"id": id}, "usage": "vip", "expected": other}),
             json!({"op": "update_range", "id": {"id": id}, "domain": {"id": other}, "usage": "static"}),
+            json!({"op": "kit.make_thing", "local": 1, "name": "x"}),
+            json!({"op": "close", "kind": "kit.thing", "id": {"id": id}}),
         ]
     }
 
@@ -1304,7 +1413,7 @@ mod tests {
             assert_eq!(Operation::from(mirrored), direct, "{sample}");
             named.insert(name(&direct));
         }
-        assert_eq!(named.len(), 35, "one sample per operation of the service");
+        assert_eq!(named.len(), 36, "one sample per operation of the service");
         let item = json!({"external_id": "x", "operation": samples()[1]});
         let direct: ImportItem = serde_json::from_value(item.clone()).unwrap();
         let mirrored: ImportItemDto = serde_json::from_value(item).unwrap();

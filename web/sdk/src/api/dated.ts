@@ -24,6 +24,7 @@ export const DATED_PATHS: ReadonlySet<string> = new Set([
   "/v1/entities/{id}/properties",
   "/v1/entities/{id}/properties/{key}/explanation",
   "/v1/entities/{id}/properties/{key}/suggestion",
+  "/v1/graph/edges",
   "/v1/prefixes",
   "/v1/prefixes/{id}",
   "/v1/prefixes/{id}/ancestors",

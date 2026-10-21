@@ -10,10 +10,6 @@ publish.workspace = true
 [lints]
 workspace = true
 
-[[bin]]
-name = "openapi"
-path = "src/bin/openapi.rs"
-
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 kartenn-auth = { version = "0.0.0", path = "../kartenn-auth" }

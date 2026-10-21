@@ -1683,6 +1683,81 @@
         ],
         "type": "object"
       },
+      "GraphEdge": {
+        "description": "An edge of the topology graph (ADR 0026, clause 11).",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/GraphNode",
+            "description": "Its origin."
+          },
+          "to": {
+            "$ref": "#/components/schemas/GraphNode",
+            "description": "Its end."
+          },
+          "type": {
+            "description": "Its type (`vlan.carries`).",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of its validity, RFC 3339.",
+            "type": "string"
+          },
+          "valid_to": {
+            "description": "The end of its validity, RFC 3339; `null` while open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "valid_from"
+        ],
+        "type": "object"
+      },
+      "GraphEdges": {
+        "description": "The edges of an object.",
+        "properties": {
+          "items": {
+            "description": "The edges, by type, origin then end.",
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "GraphNode": {
+        "description": "An end of an edge.",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Its kind of the core, or its qualified type.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "href"
+        ],
+        "type": "object"
+      },
       "HeldBinding": {
         "description": "A binding that serves the caller.",
         "properties": {
@@ -3520,7 +3595,7 @@
         "type": "string"
       },
       "Operation": {
-        "description": "An operation of a changeset (004, REQ-004-1 to 5), named by `op`.",
+        "description": "An operation of the core, named by `op`.",
         "oneOf": [
           {
             "description": "An operation on its own period instead of the changeset's (REQ-004-2).",
@@ -4901,6 +4976,21 @@
               "op"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": true,
+            "description": "An operation of a module (ADR 0026, clause 6): `op` is `<module>.<operation>`, the other members are those of the module.",
+            "properties": {
+              "op": {
+                "description": "The module, then the operation.",
+                "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -6174,7 +6264,7 @@
         "type": "object"
       },
       "TargetKind": {
-        "description": "The kind of the object of an operation.",
+        "description": "The kinds of object of the core an operation names: the schema of [`TargetKindDto`],\nto which the contract of a build adds the types of its modules.",
         "enum": [
           "domain",
           "prefix",
@@ -10049,6 +10139,67 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/graph/edges": {
+      "get": {
+        "operationId": "graph_edges",
+        "parameters": [
+          {
+            "description": "The object, at an end of the edges.",
+            "in": "query",
+            "name": "object",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphEdges"
+                }
+              }
+            },
+            "description": "The edges of the object."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/graph/edges?object=`: the edges the modules declare that start or end at the\nobject, at the dates of the read; only those whose two ends the caller may read now\n(REQ-008-11). 404 for an object absent at the dates or that the caller may not read.",
+        "tags": [
+          "graph"
         ]
       }
     },

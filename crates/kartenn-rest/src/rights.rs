@@ -20,7 +20,6 @@ use kartenn_service::authn::Principal;
 use kartenn_service::operations::{BindingScope, Ref};
 use kartenn_service::reads::{objects_read, rbac_readable};
 use kartenn_service::{ChangesetRequest, Operation, RequestError};
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::rbac_read::{
     self, AccountRead, AttachmentRead, BindingRead, IdentityRead, RoleRead,
 };
@@ -71,7 +70,7 @@ fn time(at: OffsetDateTime) -> String {
 
 /// 403 and its audit without `core.rbac.read`.
 async fn readable(api: &Api, context: &RequestContext) -> Result<(), Problem> {
-    rbac_readable(&PgAuthorizer::new(api.pool.clone()), &api.journal, context).await?;
+    rbac_readable(&api.authorizer(), &api.journal, context).await?;
     Ok(())
 }
 

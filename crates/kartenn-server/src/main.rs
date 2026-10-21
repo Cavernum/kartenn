@@ -11,6 +11,9 @@
 //!   or Ctrl-C (specs 012, 006); SIGHUP reads the TLS certificate again.
 //! - `kartenn-server audit purge <database-url> [<config-file>]`: retention of the audit
 //!   by criticality, with the owner of the schema (REQ-012-16), for a daily timer.
+//! - `kartenn-server openapi [<path>]`: writes the OpenAPI contract of this build, its
+//!   modules included, to the reference of the repository or to `path` (spec 006,
+//!   REQ-006-34; spec 008, REQ-008-9).
 //! - `kartenn-server breakglass create <database-url> <name> <hours> <key-file>`: a
 //!   break-glass account valid `hours` (24 at most), with the owner of the schema (spec
 //!   005, REQ-005-14); prints its passphrase and TOTP URI once.
@@ -98,6 +101,7 @@ async fn connect_bounded(
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // one arm per subcommand
 async fn main() -> anyhow::Result<ExitCode> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let connect = |database: &str| {
@@ -183,6 +187,16 @@ async fn main() -> anyhow::Result<ExitCode> {
                 }
             })
         }
+        [command, rest @ ..] if command == "openapi" && rest.len() <= 1 => {
+            let path = rest.first().map_or_else(
+                || Path::new(env!("CARGO_MANIFEST_DIR")).join(kartenn_rest::openapi::REFERENCE),
+                std::path::PathBuf::from,
+            );
+            let registry = kartenn_server::modules::registry()?;
+            kartenn_rest::openapi::write_with(&path, &registry, kartenn_server::modules::routers())
+                .with_context(|| format!("writing {}", path.display()))?;
+            Ok(ExitCode::SUCCESS)
+        }
         [bg, create, database, name, hours, key_file]
             if bg == "breakglass" && create == "create" =>
         {
@@ -190,7 +204,7 @@ async fn main() -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         _ => bail!(
-            "usage: kartenn-server migrate <database-url>\n       kartenn-server run <database-url> [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge <database-url> [<config-file>]\n       kartenn-server breakglass create <database-url> <name> <hours> <key-file>"
+            "usage: kartenn-server migrate <database-url>\n       kartenn-server run <database-url> [<config-file>]\n       kartenn-server audit verify <database-url> [<public-key-hex>]\n       kartenn-server audit purge <database-url> [<config-file>]\n       kartenn-server openapi [<path>]\n       kartenn-server breakglass create <database-url> <name> <hours> <key-file>"
         ),
     }
 }

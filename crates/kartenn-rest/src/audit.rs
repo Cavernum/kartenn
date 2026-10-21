@@ -19,7 +19,6 @@ use kartenn_service::observability::set_log_filter;
 use kartenn_service::port::{AuditQuery, Reader};
 use kartenn_service::reads::{export_audit, pseudonymisable, read_audit};
 use kartenn_store_pg::audit::{Pseudonymisation, pseudonymise_identity};
-use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::rbac_read;
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
@@ -183,7 +182,7 @@ async fn events(
     let moment = Dates::default().at(now, api.bound)?;
     let (found, more) = read_audit(
         &pg_store(&api),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.journal,
         &context,
         &wanted,
@@ -218,14 +217,7 @@ async fn export(api: &Api, context: &RequestContext, query: &str) -> Result<Resp
     }
     let wanted = criteria(&params)?;
     let reader = pg_store(api);
-    let bounded = export_audit(
-        &reader,
-        &PgAuthorizer::new(api.pool.clone()),
-        &api.journal,
-        context,
-        &wanted,
-    )
-    .await?;
+    let bounded = export_audit(&reader, &api.authorizer(), &api.journal, context, &wanted).await?;
     let batches = stream::try_unfold(Some(bounded), move |next| {
         let reader = reader.clone();
         async move {
@@ -291,7 +283,7 @@ async fn pseudonymise(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, Problem> {
-    pseudonymisable(&PgAuthorizer::new(api.pool.clone()), &api.journal, &context).await?;
+    pseudonymisable(&api.authorizer(), &api.journal, &context).await?;
     let motive = motive(&headers, &body, "a pseudonymisation needs a motive")?;
     match pseudonymise_identity(&api.pool, id, &context, &motive, api.journal.instance())
         .await
@@ -366,7 +358,7 @@ async fn log_filter(
     };
     let set = set_log_filter(
         &pg_store(&api),
-        &PgAuthorizer::new(api.pool.clone()),
+        &api.authorizer(),
         &api.journal,
         &context,
         &output,

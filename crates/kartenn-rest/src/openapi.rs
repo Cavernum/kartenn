@@ -27,6 +27,7 @@ use utoipa_axum::routes;
 
 use crate::objects::Api;
 use crate::problem::Problem;
+use kartenn_service::module::ModuleRegistry;
 
 /// The reference contract, from the directory of this crate (design « Versions et
 /// contrat »).
@@ -51,10 +52,55 @@ const PUBLIC: [&str; 6] = [
     "/health/ready",
 ];
 
-/// The document of the build: the routes of `/v1`, those of the login, the probes.
+/// The document of the core without business module: the routes of `/v1`, those of the
+/// login, the probes.
 #[must_use]
 pub fn document() -> OpenApi {
-    let mut v1 = crate::api().into_openapi();
+    assemble(crate::api().into_openapi(), ModuleRegistry::empty())
+}
+
+/// The document of a build: the core, the modules of `modules` and their routes,
+/// `routers` (ADR 0026, clause 9).
+#[must_use]
+pub fn document_with(modules: &ModuleRegistry, routers: Vec<OpenApiRouter<Api>>) -> OpenApi {
+    assemble(crate::api_with(modules, routers).into_openapi(), modules)
+}
+
+/// Writes the contract of a build, [`json_with`], to `path`: the reference of the
+/// repository is that of the server with every module (`kartenn-server openapi`).
+///
+/// # Errors
+///
+/// When the file cannot be written.
+///
+/// # Panics
+///
+/// Never: an OpenAPI document serialises.
+pub fn write_with(
+    path: &std::path::Path,
+    modules: &ModuleRegistry,
+    routers: Vec<OpenApiRouter<Api>>,
+) -> std::io::Result<()> {
+    let mut text = serde_json::to_string_pretty(&json_with(modules, routers))
+        .expect("an OpenAPI document serialises");
+    text.push('\n');
+    std::fs::write(path, text)
+}
+
+/// [`document_with`] as JSON, the form of the reference contract.
+///
+/// # Panics
+///
+/// Never: an OpenAPI document serialises.
+#[must_use]
+pub fn json_with(modules: &ModuleRegistry, routers: Vec<OpenApiRouter<Api>>) -> Value {
+    serde_json::to_value(document_with(modules, routers)).expect("an OpenAPI document serialises")
+}
+
+/// The whole document around `v1`, the contract of the routes under `/v1`: the login
+/// routes, the probes, the security; the operations name the types of the modules among
+/// their kinds of object (REQ-008-5).
+pub(crate) fn assemble(mut v1: OpenApi, modules: &ModuleRegistry) -> OpenApi {
     v1.merge(crate::auth::routes().into_openapi());
     let mut document = OpenApiBuilder::new()
         .info(
@@ -68,7 +114,43 @@ pub fn document() -> OpenApi {
         .nest("/v1", v1)
         .merge_from(crate::health::routes().into_openapi());
     finish(&mut document);
+    module_kinds(&mut document, modules);
     document
+}
+
+/// Adds the types of objects of `modules` to the kinds an operation names.
+fn module_kinds(document: &mut OpenApi, modules: &ModuleRegistry) {
+    let Some(RefOr::T(Schema::Object(kinds))) = document
+        .components
+        .as_mut()
+        .and_then(|components| components.schemas.get_mut("TargetKind"))
+    else {
+        return;
+    };
+    let values = kinds.enum_values.get_or_insert_default();
+    for ty in modules.object_types() {
+        values.push(Value::from(ty.kind));
+    }
+}
+
+/// The contract a router of `/v1` serves at `GET /v1/openapi.json`, its own routes.
+#[derive(Debug, Clone)]
+pub struct Served(axum::body::Bytes);
+
+impl Served {
+    /// The served form of `document`.
+    ///
+    /// # Panics
+    ///
+    /// Never: an OpenAPI document serialises.
+    #[must_use]
+    pub fn of(document: &OpenApi) -> Self {
+        Self(
+            serde_json::to_vec(document)
+                .expect("an OpenAPI document serialises")
+                .into(),
+        )
+    }
 }
 
 /// The document as JSON, its members sorted: the form of the reference contract.
@@ -372,8 +454,13 @@ static DOCUMENT: LazyLock<Vec<u8>> =
     tag = "operations",
     responses((status = 200, description = "The OpenAPI 3.1 document of the build.", body = Object))
 )]
-async fn openapi() -> Response {
-    ([(CONTENT_TYPE, "application/json")], DOCUMENT.as_slice()).into_response()
+async fn openapi(served: Option<axum::Extension<Served>>) -> Response {
+    match served {
+        Some(axum::Extension(Served(bytes))) => {
+            ([(CONTENT_TYPE, "application/json")], bytes).into_response()
+        }
+        None => ([(CONTENT_TYPE, "application/json")], DOCUMENT.as_slice()).into_response(),
+    }
 }
 
 /// The route of the document, under `/v1`.
