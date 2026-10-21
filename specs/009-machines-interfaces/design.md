@@ -190,7 +190,7 @@ clôture des rattachements, donc par la section.
 
 ### Port de lecture (REQ-009-16, 22, 25)
 
-`kartenn_machines::pg::read` (fonctions publiques, `&mut PgConnection`, donc utilisables
+`kartenn_machines::read` (fonctions publiques, `&mut PgConnection`, donc utilisables
 via `ModuleTx` dans la transaction ou sur une connexion de lecture) :
 
 | Fonction | Rend |

@@ -25,7 +25,7 @@ pub(crate) const INTERFACE_TABLE: &str = "machines.interface";
 pub(crate) const ATTACHMENT_TABLE: &str = "machines.attachment";
 
 /// An instant as PostgreSQL reads it.
-fn time(i: Instant) -> OffsetDateTime {
+pub(crate) fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")
 }
 

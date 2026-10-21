@@ -173,7 +173,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   VLAN natif en mode `access`, sinon passe en `none` ; la section compare, dans la
   transaction, les versions affirmées avant elle (historique) et les versions courantes,
   par interface et adresse, et n'émet que les portions rattachées d'un seul côté.
-- [ ] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
+- [x] 9. Port de lecture daté et lectures croisées ; valeurs de propriétés des machines
   d'un lot d'adresses — REQ-009-16, 22, 25 — verify :
   `addresses_of_machine_with_roles`, `attachments_of_address_as_of`,
   `machines_in_network_paginated`, `dependent_module_reads_in_transaction`,
@@ -182,6 +182,18 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   lecture groupée des valeurs résolues (tâche 010-2, N9) si elle existe, sinon lecture
   par machine
   dépend de : 6, 8
+  — Module : `read.rs` (`addresses_of_machine`, `addresses_of_interface`,
+  `attachments_of_address`, `machines_in_network`, `hosted_by`, `members_of`,
+  `machine_values_of_addresses`, `instant`), sur `&mut PgConnection` à (`valid_at`,
+  `as_of`), lu sur la table et son historique comme `temporal::snapshot`. Tests :
+  `kartenn-machines/tests/machines.rs` (les cinq du verify ; modules de test `Probe` et
+  `Inventory`).
+  choix : le port est `kartenn_machines::read` (et non `pg::read`, `pg` restant interne) ;
+  la lecture groupée n'existant pas encore (N9), les valeurs d'un lot se lisent en une
+  requête qui joint rattachements, déclarations, origines matérialisées et affectations,
+  avec l'origine pour explication (la chaîne complète reste à `explain`) ; le rôle se lit
+  sur l'affectation de `machines.interface_role`, non héritable ; les droits sont laissés
+  à l'appelant (les routes de la tâche 10 filtrent).
 - [ ] 10. Routes REST : clusters, machines, interfaces, rattachements, lectures
   croisées, arêtes, filtres et `QUERY` — REQ-009-15, 16, 17, 18 — verify :
   `interfaces_by_address_at_a_date`, `machine_card_with_interfaces`,
