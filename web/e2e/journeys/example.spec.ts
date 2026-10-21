@@ -88,8 +88,10 @@ test("its action adds an operation to the draft without sending it", async ({ pa
   await page.getByRole("menuitem", { name: "Ajouter une adresse au brouillon" }).click();
   const dialog = page.getByRole("dialog", { name: "Ajouter une adresse au brouillon" });
   const writes: string[] = [];
+  // Simulations of the draft may leave (REQ-007-26), never a submission.
   page.on("request", (request) => {
-    if (request.method() !== "GET") writes.push(`${request.method()} ${request.url()}`);
+    if (request.method() !== "GET" && !request.url().includes("simulate=true"))
+      writes.push(`${request.method()} ${request.url()}`);
   });
   await dialog.getByRole("textbox", { name: "Adresse" }).fill("10.1.0.200");
   await dialog.getByRole("button", { name: "Ajouter au brouillon" }).click();

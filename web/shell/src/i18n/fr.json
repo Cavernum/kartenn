@@ -421,5 +421,40 @@
       "yours": "Votre saisie",
       "resume": "Reprendre sur la nouvelle version"
     }
+  },
+  "draft": {
+    "toggle": "Brouillon ({count})",
+    "title": "Brouillon",
+    "close": "Fermer le brouillon",
+    "unavailable": "Le brouillon n'est pas disponible dans ce navigateur (stockage local refusé) ; la modification rapide reste possible.",
+    "readonly": "Lecture dans le passé : le brouillon ne peut être ni modifié ni soumis.",
+    "empty": "Le brouillon est vide.",
+    "operation": "Opération {n}",
+    "remove": "Retirer l'opération {n}",
+    "invalidJson": "JSON invalide : {detail}",
+    "notObject": "une opération est un objet JSON",
+    "add": {
+      "label": "Nouvelle opération (JSON du contrat)",
+      "button": "Ajouter au brouillon"
+    },
+    "motive": "Motif",
+    "validFrom": "Début de la période (RFC 3339, facultatif)",
+    "validTo": "Fin de la période (RFC 3339, facultative)",
+    "simulation": {
+      "idle": "Pas encore simulé.",
+      "running": "Simulation en cours…",
+      "valid": "Simulation valide : {diff} ligne(s) de différentiel, {cascaded} clôture(s) en cascade.",
+      "invalid": "Simulation invalide : {count} erreur(s).",
+      "failed": "Simulation impossible : {detail}",
+      "warnings": "{count} avertissement(s)."
+    },
+    "submit": "Soumettre le brouillon",
+    "retry": "Réessayer",
+    "clear": "Vider le brouillon",
+    "applied": "Changeset appliqué.",
+    "pending": "Changeset en attente d'approbation.",
+    "changeset": "Voir le changeset",
+    "network": "Réseau indisponible : la soumission n'a pas abouti. « Réessayer » renvoie la même clé, sans doublon.",
+    "failed": "Soumission refusée : {detail}"
   }
 }
