@@ -88,7 +88,7 @@ après l'autre.
   (`create_breakglass`) ; `kartenn-store-pg/src/breakglass.rs` ; spec 005
   (`requirements.md` REQ-005-14, `decisions.md` K9)
   dépend de : —
-- [ ] 5. Versionnement : version `0.1.0` du workspace et des paquets web,
+- [x] 5. Versionnement : version `0.1.0` du workspace et des paquets web,
   `CHANGELOG.md`, test de cohérence des versions — REQ-015-12 — verify :
   `version.rs` compare Cargo, `web/*/package.json` et la version du flake
   où : design « Versionnement » ; `Cargo.toml`, `crates/*/Cargo.toml`, `web/*/package.json`
@@ -98,8 +98,11 @@ après l'autre.
   `Cargo.lock` ; contrat de référence régénéré (`info.version`) ; `web/sdk`, `web/shell`,
   `web/e2e` déjà en `0.1.0` ; `CHANGELOG.md` (entrée `[0.1.0] — à publier`) ; test
   `kartenn-server/tests/it/version.rs` (crates, paquets web, journal des changements).
-  **Reste** : la comparaison avec la version du flake, à ajouter à `version.rs` par la
-  tâche 1 (`flake.nix` absent de cette base).
+  Version du flake (2026-10-21) : `nix/checks/version.nix` (`checks.version`) exige
+  la même version de `kartenn`, `kartenn-server` (lue dans Cargo) et `kartenn-web` (lue
+  dans `web/shell/package.json`) ; `version.rs`
+  (`the_flake_takes_its_versions_from_cargo_and_the_web_packages`) vérifie que les
+  paquets Nix n'écrivent aucune version littérale et que le flake déclare ce check.
   choix : `syslog-sender` (bibliothèque à part, MPL-2.0, 012/L24) et
   `kartenn-workspace-hack` (géré par hakari) gardent leur propre version ; les plugins de
   `web/plugins/*` gardent la leur (version publiée dans leur manifeste, servie sous

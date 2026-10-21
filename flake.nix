@@ -24,8 +24,13 @@
       default = kartenn;
     });
 
-    checks = forAll (pkgs: {
+    checks = forAll (pkgs: let
+      packages = self.packages.${pkgs.stdenv.hostPlatform.system};
+    in {
       lock-sync = pkgs.callPackage ./nix/checks/lock-sync.nix {};
+      version = pkgs.callPackage ./nix/checks/version.nix {
+        inherit (packages) kartenn kartenn-server kartenn-web;
+      };
     });
   };
 }

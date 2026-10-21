@@ -43,6 +43,34 @@ fn the_web_packages_carry_the_workspace_version() {
     }
 }
 
+/// The flake writes no version of its own: the server package reads Cargo's, the web
+/// package the shell's; `checks.version` of the flake checks that they agree.
+#[test]
+fn the_flake_takes_its_versions_from_cargo_and_the_web_packages() {
+    for (file, source) in [
+        ("nix/package/server.nix", "lib.importTOML"),
+        ("nix/package/web.nix", "lib.importJSON"),
+    ] {
+        let nix = std::fs::read_to_string(root().join(file)).expect(file);
+        assert!(
+            nix.contains(source),
+            "{file}: the version comes from {source}"
+        );
+        assert!(
+            !nix.lines().any(|l| {
+                let l = l.trim_start();
+                l.starts_with("version = \"") || l.starts_with("version=\"")
+            }),
+            "{file}: no literal version"
+        );
+    }
+    let flake = std::fs::read_to_string(root().join("flake.nix")).expect("flake.nix");
+    assert!(
+        flake.contains("nix/checks/version.nix"),
+        "flake.nix: checks.version"
+    );
+}
+
 #[test]
 fn the_changelog_has_an_entry_for_the_version() {
     let changelog = std::fs::read_to_string(root().join("CHANGELOG.md")).expect("CHANGELOG.md");
