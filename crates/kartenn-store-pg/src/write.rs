@@ -2464,10 +2464,17 @@ impl WriteTx for PgTx {
         period: Option<Period>,
     ) -> Result<Vec<(Uuid, InheritTree)>, StoreError> {
         let (a, _) = bounds(period)?;
+        // Every declaration alive at some time of the window, not only at its start: the
+        // window of a changeset whose operations carry their own periods opens a minute
+        // before the transaction, before a property declared just now (found by the oracle
+        // of task 011-5). A declaration whose tree changed in the window: the version in
+        // force at its start, else the first after.
         let rows: Vec<(Uuid, String)> = sqlx::query_as(
-            "SELECT id, inherit_tree FROM property_declaration
+            "SELECT DISTINCT ON (id) id, inherit_tree FROM property_declaration
              WHERE inherit_tree IS NOT NULL
-               AND valid_period @> coalesce($1::timestamptz, now())",
+               AND valid_period && tstzrange(coalesce($1::timestamptz, now()), NULL)
+             ORDER BY id, lower(valid_period) <= coalesce($1::timestamptz, now()) DESC,
+                      lower(valid_period)",
         )
         .bind(a)
         .fetch_all(&mut *self.tx)
