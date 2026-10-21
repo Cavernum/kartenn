@@ -133,7 +133,7 @@ après l'autre.
   fichier monté) : `[web] root` et `plugins_dir` se posent dans la configuration de
   l'exploitant, vers les chemins fixes `/opt/kartenn/…` ; image non lancée par le check
   (configuration et contenu seulement, comme le prévoit le design).
-- [ ] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
+- [x] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
   `checks.vm` — REQ-015-5, 6, 7, 8, 9, 11 — verify : `checks.vm` (sondes de deux
   instances, migration en échec bloquante, secrets absents du magasin, de `systemctl
   show` et de l'environnement, note `systemd-analyze security` ≤ 2,0, refus d'`UPDATE`
@@ -142,7 +142,7 @@ après l'autre.
   où : design « Module NixOS », « Mise à jour » ; `crates/kartenn-rest/src/health.rs` ;
   `kartenn-store-pg/migrations/0001_*.sql` (rôle `kartenn_app`)
   dépend de : 1, 2, 3, 4
-  — en cours (2026-10-21), **non cochée** : `nix/module.nix` (`nixosModules.default`,
+  — fait (2026-10-21) : `nix/module.nix` (`nixosModules.default`,
   `services.kartenn` : `settings`, `instances`, `databaseUrlFile`,
   `migrationDatabaseUrlFile`, `credentials` en `LoadCredential=` désignés par `%d/<nom>`,
   `plugins` joints aux livrés en fichiers réels, `openFirewall`,
@@ -158,13 +158,18 @@ après l'autre.
   `systemctl show` ni les fichiers de configuration, `UPDATE` d'historique refusé au rôle
   d'instance par manque de droit (lecture permise), note `systemd-analyze security
   kartenn@main` = **1,1**, migration en échec (rôle propriétaire sans `LOGIN`) qui
-  empêche le redémarrage d'une instance, puis reprise. **Reste** : base en retard → 503
-  puis 200 après migration, et migration interrompue puis rejouée.
+  empêche le redémarrage d'une instance, puis reprise ; base en retard d'une migration
+  (dernière ligne de `_sqlx_migrations` retirée) → 503 ; migration bloquée sur un verrou
+  `SHARE` de `_sqlx_migrations` (SQL exécuté, version pas encore inscrite), tuée par
+  SIGKILL, rien d'inscrit, puis rejouée → succès et 200 sur les deux instances.
   Défaut trouvé : sqlx crée `_sqlx_migrations` pour le seul propriétaire ; le rôle
   d'instance ne pouvait pas la lire et `/health/ready` restait à 503 en production
-  (question ouverte d'E7). Contourné dans le module (`ExecStartPost` de la migration :
-  `GRANT SELECT ON _sqlx_migrations TO kartenn_app`) ; le correctif durable est une
-  migration de `kartenn-store-pg`, hors du périmètre de cette tâche.
+  (question ouverte d'E7). Corrigé par la migration `0054_migrations_readable.sql`
+  (`SELECT` seul à `kartenn_app`, test `store_pg_it harness::the_application_reads_the_applied_migrations_and_nothing_more`) ;
+  le contournement `ExecStartPost` du module est retiré.
+  choix : le cas « base en retard » rejoue la dernière migration, qui doit pouvoir
+  repasser sur une base migrée (0054 : un `GRANT`) ; une migration future qui ne le peut
+  pas devra être accompagnée ici de ce qui l'annule.
   choix : rôle propriétaire `kartenn` et rôle d'instance `kartenn_server`, utilisateurs
   dynamiques de même nom (authentification `peer`) ; URL locale
   `postgresql:///kartenn?host=/run/postgresql&user=…` (sqlx refuse un hôte vide avant
