@@ -22,10 +22,21 @@
       kartenn-web = pkgs.callPackage ./nix/package/web.nix {};
       kartenn = pkgs.callPackage ./nix/package {inherit kartenn-server kartenn-web;};
       default = kartenn;
+      oci = pkgs.callPackage ./nix/oci.nix {inherit kartenn;};
     });
 
-    checks = forAll (pkgs: {
+    checks = forAll (pkgs: let
+      packages = self.packages.${pkgs.stdenv.hostPlatform.system};
+    in {
       lock-sync = pkgs.callPackage ./nix/checks/lock-sync.nix {};
+      version = pkgs.callPackage ./nix/checks/version.nix {
+        inherit (packages) kartenn kartenn-server kartenn-web;
+      };
+      oci = pkgs.callPackage ./nix/checks/oci.nix {inherit (packages) oci;};
+      # A virtual machine: needs KVM; `nix flake check` runs it, not k-check.
+      vm = pkgs.callPackage ./nix/checks/vm.nix {module = self.nixosModules.default;};
     });
+
+    nixosModules.default = import ./nix/module.nix self;
   };
 }

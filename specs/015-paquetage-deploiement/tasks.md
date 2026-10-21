@@ -54,6 +54,11 @@ après l'autre.
   `pnpm.fetchDeps` et `pnpm.configHook` cités par le design ; le manifeste de build
   `.vite/` (banc de taille) est retiré du paquet ; source = `web/` hors `node_modules`,
   `dist` et état des parcours.
+  correctif (tâche 6, 2026-10-21) : le paquet `kartenn` était un `symlinkJoin` dont
+  chaque fichier du shell et des plugins était un lien vers `kartenn-web` ; le registre
+  des plugins refuse les liens et le shell ne sert que sous sa racine canonique. Le
+  paquet copie désormais `bin/` et `share/` (fichiers réels, `passthru` vers les deux
+  paquets) ; `checks.oci` refuse tout lien dans `share/kartenn/{web,plugins}`.
 - [x] 3. URL de la base par fichier et `--version` : section `[database] url_file`,
   argument facultatif, `--config` pour `migrate` et `breakglass create` — REQ-015-4 —
   verify : tests de `config.rs` (champ inconnu, fichier vide, illisible, ambiguïté
@@ -88,7 +93,7 @@ après l'autre.
   (`create_breakglass`) ; `kartenn-store-pg/src/breakglass.rs` ; spec 005
   (`requirements.md` REQ-005-14, `decisions.md` K9)
   dépend de : —
-- [ ] 5. Versionnement : version `0.1.0` du workspace et des paquets web,
+- [x] 5. Versionnement : version `0.1.0` du workspace et des paquets web,
   `CHANGELOG.md`, test de cohérence des versions — REQ-015-12 — verify :
   `version.rs` compare Cargo, `web/*/package.json` et la version du flake
   où : design « Versionnement » ; `Cargo.toml`, `crates/*/Cargo.toml`, `web/*/package.json`
@@ -98,8 +103,11 @@ après l'autre.
   `Cargo.lock` ; contrat de référence régénéré (`info.version`) ; `web/sdk`, `web/shell`,
   `web/e2e` déjà en `0.1.0` ; `CHANGELOG.md` (entrée `[0.1.0] — à publier`) ; test
   `kartenn-server/tests/it/version.rs` (crates, paquets web, journal des changements).
-  **Reste** : la comparaison avec la version du flake, à ajouter à `version.rs` par la
-  tâche 1 (`flake.nix` absent de cette base).
+  Version du flake (2026-10-21) : `nix/checks/version.nix` (`checks.version`) exige
+  la même version de `kartenn`, `kartenn-server` (lue dans Cargo) et `kartenn-web` (lue
+  dans `web/shell/package.json`) ; `version.rs`
+  (`the_flake_takes_its_versions_from_cargo_and_the_web_packages`) vérifie que les
+  paquets Nix n'écrivent aucune version littérale et que le flake déclare ce check.
   choix : `syslog-sender` (bibliothèque à part, MPL-2.0, 012/L24) et
   `kartenn-workspace-hack` (géré par hakari) gardent leur propre version ; les plugins de
   `web/plugins/*` gardent la leur (version publiée dans leur manifeste, servie sous
@@ -107,11 +115,24 @@ après l'autre.
 
 ## P2 — Livrables
 
-- [ ] 6. Image OCI : `nix/oci.nix`, `checks.oci` — REQ-015-3 — verify : `nix build
+- [x] 6. Image OCI : `nix/oci.nix`, `checks.oci` — REQ-015-3 — verify : `nix build
   .#oci` ; `checks.oci` (utilisateur, point d'entrée, absence de `bin/sh`) ; taille
   relevée dans la note de la tâche
   où : design « Image OCI »
   dépend de : 1, 2, 3
+  — `nix/oci.nix` (`dockerTools.buildLayeredImage`, `packages.oci`) : clôture du paquet
+  seule, sans `/bin` ; `User = "65532:65532"`, `Entrypoint` = `kartenn-server` du paquet,
+  `Cmd = ["run"]`, `SSL_CERT_FILE` vers `cacert`, port 8443, étiquettes OCI (titre,
+  version, licence) ; `/etc/kartenn/` vide, `/tmp` en 1777, `/opt/kartenn/shell` et
+  `/opt/kartenn/plugins` liés au shell et aux plugins livrés. `nix/checks/oci.nix`
+  (`checks.oci`) : lit `manifest.json` et la configuration de l'image (utilisateur,
+  point d'entrée, commande, certificats) et toutes les couches (aucun `bin/sh`, `bash`,
+  `dash`, `ash`, `zsh` ni `busybox` ; certificats, shell et plugins présents). Image
+  compressée : **32 Mo** (31 936 Kio), 1 387 entrées.
+  choix : aucune variable `KARTENN_*` par défaut dans l'image (elles écraseraient le
+  fichier monté) : `[web] root` et `plugins_dir` se posent dans la configuration de
+  l'exploitant, vers les chemins fixes `/opt/kartenn/…` ; image non lancée par le check
+  (configuration et contenu seulement, comme le prévoit le design).
 - [ ] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
   `checks.vm` — REQ-015-5, 6, 7, 8, 9, 11 — verify : `checks.vm` (sondes de deux
   instances, migration en échec bloquante, secrets absents du magasin, de `systemctl
@@ -121,6 +142,36 @@ après l'autre.
   où : design « Module NixOS », « Mise à jour » ; `crates/kartenn-rest/src/health.rs` ;
   `kartenn-store-pg/migrations/0001_*.sql` (rôle `kartenn_app`)
   dépend de : 1, 2, 3, 4
+  — en cours (2026-10-21), **non cochée** : `nix/module.nix` (`nixosModules.default`,
+  `services.kartenn` : `settings`, `instances`, `databaseUrlFile`,
+  `migrationDatabaseUrlFile`, `credentials` en `LoadCredential=` désignés par `%d/<nom>`,
+  `plugins` joints aux livrés en fichiers réels, `openFirewall`,
+  `database.createLocally`) ; unités `kartenn-migrate` (oneshot, temporisateur mensuel),
+  `kartenn@<nom>` (`Requires`/`After` la migration, `ExecReload` = SIGHUP),
+  `kartenn-audit-purge` (temporisateur quotidien), `kartenn-db-setup` (rôle `kartenn_app`
+  avant les migrations, rôles propriétaire et d'instance membres) ; durcissement commun ;
+  commande `kartenn-breakglass <nom> <heures>` (005-19, sous le propriétaire, trousseau
+  par crédential). `nix/checks/vm.nix` (`checks.vm`, 29 s de script) : migration oneshot
+  avant deux instances, `/health/ready` 200 sur les deux, `kartenn-breakglass` puis
+  connexion TOTP et `/v1/me` administrateur, plugins `vlan`, `machines` et `notes`
+  (exploitant) publiés, aucune URL ni clé dans la ligne de commande, l'environnement,
+  `systemctl show` ni les fichiers de configuration, `UPDATE` d'historique refusé au rôle
+  d'instance par manque de droit (lecture permise), note `systemd-analyze security
+  kartenn@main` = **1,1**, migration en échec (rôle propriétaire sans `LOGIN`) qui
+  empêche le redémarrage d'une instance, puis reprise. **Reste** : base en retard → 503
+  puis 200 après migration, et migration interrompue puis rejouée.
+  Défaut trouvé : sqlx crée `_sqlx_migrations` pour le seul propriétaire ; le rôle
+  d'instance ne pouvait pas la lire et `/health/ready` restait à 503 en production
+  (question ouverte d'E7). Contourné dans le module (`ExecStartPost` de la migration :
+  `GRANT SELECT ON _sqlx_migrations TO kartenn_app`) ; le correctif durable est une
+  migration de `kartenn-store-pg`, hors du périmètre de cette tâche.
+  choix : rôle propriétaire `kartenn` et rôle d'instance `kartenn_server`, utilisateurs
+  dynamiques de même nom (authentification `peer`) ; URL locale
+  `postgresql:///kartenn?host=/run/postgresql&user=…` (sqlx refuse un hôte vide avant
+  `@`) ; `PrivateUsers`, `ProtectProc=invisible`, `SystemCallFilter=@system-service
+  ~@privileged ~@resources` en plus de E6 ; `/run/postgresql` en `ReadWritePaths`
+  (connect(2) sur le socket) ; PostgreSQL 18 posé en `mkOverride 900` (au-dessus du défaut
+  du module nixpkgs, sous le choix de l'exploitant).
 
 ## P3 — Exploitation
 
