@@ -457,18 +457,50 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   → brouillon intact ; déconnexion → brouillon effacé
   où : design « Écriture » (brouillon), « Erreurs et cas limites » ; 004 REQ-004-9 ;
   `web/shell/src/draft/`
-- [ ] 21. Changesets : liste filtrée, fiche et différentiel, validation, rejet, retrait,
+- [x] 21. Changesets : liste filtrée, fiche et différentiel, validation, rejet, retrait,
   annulation, propositions — REQ-007-18 — verify : E2E : proposition de Bob validée par
   Alice puis annulée, chaque étape visible
   où : design « Écrans et routes du client » ; 006 design « Ressources et routes »
   (changesets) ; `web/e2e/users.toml`
-- [ ] 22. Administration : rôles, liaisons, rattachements d'émetteurs, comptes de service
+  — `web/shell/src/changesets/` : `changesets.ts` (états du journal, actions offertes
+  selon l'état, l'auteur et le contexte temporel : validation et rejet par un autre,
+  retrait par l'auteur, annulation d'un appliqué), `ChangesetsView.vue` (`/changesets`,
+  filtres état, auteur, période dans l'URL, « Mes changesets »), `ProposalsView.vue`
+  (`/proposals`, droits qui manquent à l'auteur), `ChangesetView.vue` (`/changesets/:id`
+  : état, opérations, violations, différentiel compté, actions envoyées avec l'`ETag` lu
+  en `If-Match`, lien vers le changeset d'annulation) ; `data/api.ts` (`send` : toute
+  méthode, en-têtes, `ETag` de la réponse) ; route et entrée « Changesets » sous
+  `core.changeset.read` ; catalogues `changeset.*`. Tests : `changesets.test.ts`,
+  `e2e/journeys/changesets.spec.ts` ; `global-setup.ts` définit le rôle `contributor`
+  (proposer adresses et préfixes, lire les changesets) lié au groupe de Bob.
+  choix : l'auteur est montré par son identifiant (« vous » pour l'appelant), sans lecture
+  des identités, réservée à `core.rbac.read` ; le différentiel montré est le décompte du
+  changeset, le détail paginé (`/diff`) reste à la demande des plugins ; pas de point
+  d'accroche du brouillon (007-20) : un changeset soumis n'en dépend pas.
+- [x] 22. Administration : rôles, liaisons, rattachements d'émetteurs, comptes de service
   et secrets, identités et pseudonymisation, audit (recherche, export), suivi des imports
   — REQ-007-19 — verify : E2E : compte de service et secret affiché une seule fois ;
   recherche d'audit qui retrouve sa création ; export NDJSON enregistré ; import suivi,
   repris, annulé
   où : design « Écrans et routes du client » ; 006 design « Ressources et routes »
   (droits, audit, imports) ; route de la tâche 7
+  — `web/shell/src/admin/` : `admin.ts` (sections et permissions qui les ouvrent, issue
+  d'une écriture par changeset : appliquée, en attente, refusée, secret montré une fois),
+  `write.ts` (`useAdminWrite`), `PagedTable.vue`, `WriteOutcome.vue`, `SecretDialog.vue`
+  (secret dans un dialogue, oublié à sa fermeture), `RolesView`, `BindingsView`,
+  `IssuersView`, `ServiceAccountsView` et `ServiceAccountView` (secrets sans valeur,
+  nouveau secret, révocation), `IdentitiesView` et `IdentityView` (désactivation,
+  révocation des sessions en Merge Patch, pseudonymisation confirmée), `AuditView`
+  (filtres, export `application/x-ndjson` enregistré comme fichier), `ImportsView` et
+  `ImportView` (relu chaque seconde tant qu'il est prêt ou en cours, rapport, reprise,
+  annulation) ; `views/AdminView.vue` (sections selon les droits) ; routes `/admin/*`,
+  `/imports[/:id]`, entrée « Imports » ; catalogues `admin.*`, `imports.*`. Tests :
+  `admin.test.ts`, `e2e/journeys/admin.spec.ts` (compte de service et secret, audit et
+  export, import en pause repris puis annulé, sections accessibles, lecteur refusé).
+  choix : les écritures portent leur motif dans le formulaire et désactivent les boutons
+  hors du présent ; clore un rôle, une liaison, un rattachement ou un secret réutilise le
+  motif saisi dans le formulaire de la page ; l'entrée « Imports » est montrée à tous
+  (chacun ne voit que les siens) ; dates saisies en RFC 3339 dans des champs texte.
 
 ## P6 — Plugin d'exemple, budgets, synchronisation
 

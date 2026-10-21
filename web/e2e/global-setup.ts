@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "./fixtures/env.ts";
-import { bulkAddresses, DATA, GROUPS } from "./fixtures/data.ts";
+import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS } from "./fixtures/data.ts";
 import { totp } from "./fixtures/totp.ts";
 
 /**
@@ -34,13 +34,20 @@ export default async function globalSetup(): Promise<void> {
       motive: "end-to-end journeys",
       issuer: ISSUER,
     });
-    for (const [group, role] of Object.entries(GROUPS)) {
-      await expectOk(api, "POST", "/v1/bindings", {
-        motive: "end-to-end journeys",
-        subject: { kind: "group", issuer: ISSUER, group },
-        role,
-        scope: { kind: "global" },
-      });
+    await expectOk(api, "PUT", `/v1/roles/${CONTRIBUTOR.key}`, {
+      motive: "end-to-end journeys",
+      label: CONTRIBUTOR.label,
+      entries: CONTRIBUTOR.entries,
+    });
+    for (const [group, roles] of Object.entries(GROUPS)) {
+      for (const role of roles) {
+        await expectOk(api, "POST", "/v1/bindings", {
+          motive: "end-to-end journeys",
+          subject: { kind: "group", issuer: ISSUER, group },
+          role,
+          scope: { kind: "global" },
+        });
+      }
     }
     const entity = await created(api, "/v1/entities", { slug: DATA.entity });
     // A domain carries its owner from its creation (`core.owner`, REQ-002-11): one changeset.
@@ -99,7 +106,7 @@ export default async function globalSetup(): Promise<void> {
 
 async function expectOk(
   api: APIRequestContext,
-  method: "POST",
+  method: "POST" | "PUT",
   path: string,
   body: object,
   ...statuses: number[]

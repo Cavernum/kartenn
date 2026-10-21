@@ -21,6 +21,8 @@ export const NAVIGATION: readonly NavEntry[] = [
   { to: "/sites", label: "nav.sites" },
   { to: "/anomalies", label: "nav.anomalies" },
   { to: "/properties", label: "nav.properties" },
+  { to: "/changesets", label: "nav.changesets", anyOf: ["core.changeset.read"] },
+  { to: "/imports", label: "nav.imports" },
   { to: "/admin", label: "nav.admin", anyOf: ADMIN_PERMISSIONS },
   { to: "/about", label: "nav.about" },
 ];
