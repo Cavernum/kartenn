@@ -153,6 +153,7 @@ Acceptation :
   attribués à son identifiant interne et ne contiennent plus son nom ni son courriel.
 
 #### REQ-012-10 — Contenu d'un événement d'audit
+*Amendée par la 016 (REQ-016-13, 2026-10-21) : `on_behalf_of` dans les `details`.*
 kartenn doit inclure dans chaque événement d'audit : identifiant unique, numéro de
 séquence, nom, sévérité, horodatages (REQ-012-3), acteur, source (adresse IP du client
 derrière les mandataires de confiance, agent utilisateur borné), action, cible (type et

@@ -24,7 +24,8 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 | Ressources | Collections à plat (`entities`, `sites`, `domains`, `prefixes`, `ranges`, `addresses`…), un objet par UUID canonique ; clé naturelle en filtre ; objets complets avec un résumé des objets liés ; ni `fields=` ni `expand=` | 002/A9, REQ-006-1, 2 |
 | Écriture | `POST /v1/changesets` (opérations multiples, atomiques) ; routes de ressource (`POST`, `PATCH` en JSON Merge Patch RFC 7396, `DELETE`) qui enveloppent un changeset d'une opération ; réponses 201, 200 ou 202 (en attente d'approbation) | D11, REQ-006-11 à 13 |
 | Simulation | `POST /v1/changesets?simulate=true` → validation, anomalies, différentiel, sans écriture | 003/REQ-003-20 |
-| Cycle d'un changeset | Actions en sous-ressources `POST` (`validation`, `rejection`, `withdrawal`, `undo`) ; lecture sous `core.changeset.read` ; `GET /v1/proposals` | REQ-006-16 |
+| Cycle d'un changeset | Actions en sous-ressources `POST` (`validation`, `rejection`, `withdrawal`, `undo`) ; lecture sous `core.changeset.read` ; `GET /v1/proposals`. Une opération dont le module exige une revue devient une proposition même si l'auteur peut écrire ; `validation` accepte un corps facultatif d'opérations « de revue » (`Module::review_operations`) appliquées avec la proposition, toute autre opération jointe → 422 `core.review.operation` ; le valideur doit détenir les droits requis de la proposition, dont la permission que nomme `ModuleHandler::review` (vérifiés dans la transaction) | REQ-006-16, REQ-016-10, 11 |
+| Pour le compte d'un demandeur | En-tête `Kartenn-On-Behalf-Of`, dictionnaire RFC 9651 (`sub` exigé, `iss` et `name` facultatifs) : accepté d'un compte de service détenteur de `core.identity.act_on_behalf` sur une écriture ; en-tête mal formé ou sur une lecture → 400 ; tout autre appelant → 403. Le demandeur inconnu devient une identité `requester` (audit `authn.requester.created`) ; les droits restent ceux du seul compte de service ; `on_behalf_of` est porté par le changeset et par chaque événement d'audit de la requête | REQ-016-12, 13 |
 | Temps | Paramètres `valid_at` (temps applicatif) et `as_of` (temps système), RFC 3339 avec décalage, « maintenant » par défaut ; passé figé `immutable`, le reste `no-cache` et ETag | D10, REQ-006-5, 6 |
 | Concurrence | ETag / `If-Match` (RFC 9110 §13) obligatoire sur `PATCH`, `DELETE` et les actions d'un changeset : absent → 428, périmé → 412 | REQ-006-14 |
 | Idempotence | `Idempotency-Key` sur les `POST` d'écriture : rejeu → même réponse ; contenu différent → 422 ; requête en cours → 409 | REQ-006-15 |
@@ -200,9 +201,11 @@ le DTO est le contrat public, le type du service reste libre d'évoluer.
 ## Événements sortants (D11, ADR 0018)
 
 CloudEvents 1.0 en JSON, relayés depuis l'outbox au moins une fois, dans l'ordre par
-domaine d'adressage : `org.kartenn.changeset.applied` (changeset, domaines, objets,
-auteur, valideur, résumé du différentiel) et `org.kartenn.changeset.<état>` pour les
-changesets en attente. Le transport (webhook, file de messages) et une `source` propre
+clé d'ordre (domaines d'adressage et clés de verrou des opérations de module ; ADR 0018,
+amendement 4) : `org.kartenn.changeset.applied` (changeset, domaines, objets,
+auteur, valideur, résumé du différentiel), `org.kartenn.changeset.<état>` pour les
+changesets en attente, et `org.kartenn.<module>.<nom>` pour les événements que déclare
+un module (REQ-016-15). Le transport (webhook, file de messages) et une `source` propre
 à chaque déploiement (aujourd'hui `urn:kartenn:instance`) restent à spécifier : la 006
 les a exclus (événements sortants).
 

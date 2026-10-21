@@ -88,6 +88,7 @@ Acceptation :
 ### B. Types et valeurs
 
 #### REQ-003-7 — Types intégrés
+*Amendée par la 016 (REQ-016-3, 2026-10-21) : type `external_ref`.*
 kartenn doit fournir les types : liste fermée, texte, entier, booléen, date, FQDN et
 référence (P2), chacun en valeur unique ou en ensemble.
 
@@ -219,11 +220,13 @@ kartenn doit permettre d'obtenir le différentiel d'un changeset sans l'applique
 ### G. Valeurs attendues (inférence)
 
 #### REQ-003-21 — Contrat de source de valeurs attendues
+*Amendée par la 016 (REQ-016-4, 2026-10-21) : contexte daté et lecture dans la transaction du changeset.*
 kartenn doit permettre à un module d'associer à une propriété une source de valeurs
 attendues, qui calcule pour un objet une valeur attendue (ou aucune) à partir des seuls
 objets du noyau et de leurs propriétés, avec une explication (P5).
 
 #### REQ-003-22 — Valeur par défaut
+*Amendée par la 016 (REQ-016-5, 2026-10-21) : défaut seulement pour un candidat unique.*
 Quand un objet est créé sans affectation d'une propriété qui a une source de valeurs
 attendues configurée comme défaut, kartenn doit y affecter la valeur attendue, avec la
 provenance « source X, version Y », dans le même changeset (D24).
@@ -233,10 +236,12 @@ Acceptation :
   change pas cette affectation.
 
 #### REQ-003-23 — Suggestion
+*Amendée par la 016 (REQ-016-5, 2026-10-21) : plusieurs candidats (`candidates`).*
 kartenn doit restituer, à la demande, la valeur attendue d'une propriété pour un objet
 existant ou en cours de saisie, sans rien écrire.
 
 #### REQ-003-24 — Écart déclaré / attendu
+*Amendée par la 016 (REQ-016-5, 2026-10-21) : écart seulement pour un candidat unique.*
 Quand la valeur résolue d'une propriété diffère de sa valeur attendue, kartenn doit
 produire une anomalie (avertissement) qui cite la propriété, les deux valeurs et
 l'explication de la source (D23). Les verdicts et contrôles utilisent toujours la valeur

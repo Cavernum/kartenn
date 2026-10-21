@@ -16,7 +16,7 @@
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
 | [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (9/10 : reste l'essai `compose.yaml`) |
-| [016-noyau-v0-2](016-noyau-v0-2/) | validées (2026-10-21) | rédigée | [tasks](016-noyau-v0-2/tasks.md) (0/13) |
+| [016-noyau-v0-2](016-noyau-v0-2/) | implémentées (N9 à remesurer au calme) | implémentée | [tasks](016-noyau-v0-2/tasks.md) (13/13) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
@@ -245,3 +245,30 @@ refusée par un autovacuum (`kartenn-testing`).
 Reste : démarrer l'essai `compose.yaml` avec l'image (aucun moteur de conteneurs sur la
 machine de développement) et l'audit `spec-keeper` de la 015. Question ouverte : registre
 et signature de l'image (E13).
+
+## Point d'étape — 2026-10-21 : spec 016
+
+Amendements du noyau pour la v0.2 implémentés (13/13), en trois files : propriétés
+(listes partagées, type `external_ref`, lecture groupée expliquée `resolved_many`,
+sources de valeurs attendues dans la transaction avec candidats multiples, axe déclaré
+par l'administrateur) ; contrat de module et outbox (clés d'ordre, tâches de fond,
+événements et mesures de module, politiques par défaut installées une fois) ;
+changesets et identités (fin de proposition notifiée au module, proposition forcée et
+opérations de revue, écriture pour le compte d'un demandeur sous
+`Kartenn-On-Behalf-Of`). Migrations 0045 à 0047 et 0050 à 0055 ; ADR 0026
+(amendement 2) et ADR 0018 (amendement 4) ; INV-60 et INV-61.
+
+Écarts au design retenus, le code faisant foi (design corrigé) : `on_behalf_of` dans les
+`details` des événements d'audit et non dans une colonne (scellement) ; événement
+`authn.requester.created` (trois segments) ; permission de revue portée par les droits
+requis de la proposition (pas de colonne `review_permission`) ;
+`Module::review_operations` au lieu d'`OperationType::review_only` ; `measure` reçoit la
+transaction. Corrigé en route : un droit `UPDATE (kind)` sur `person`, qui aurait permis
+au rôle applicatif de changer la sorte d'un compte de secours, retiré avant fusion
+(`rbac_schema`).
+
+Reste : le budget N9 (512 objets × 6 propriétés < 30 ms) mesuré à 25,4 ms au banc réduit
+avant l'index partiel 0047, à remesurer au calme ; clore une liste fermée dont une autre
+emprunte les valeurs n'est pas refusé ; la simulation n'expose pas la politique qui
+retiendrait le changeset. Relecture spec ↔ code faite à la main (pas d'audit
+`spec-keeper` lancé depuis la tâche).

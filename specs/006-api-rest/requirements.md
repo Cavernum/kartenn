@@ -423,6 +423,7 @@ dans tout problème, et appliquer les règles de contexte de trace entrant de la
 [012/REQ-012-6, 7]
 
 #### REQ-006-38 — Tâches de fond
+*Amendée par la 016 (REQ-016-16, 2026-10-21) : tâches de fond des modules.*
 kartenn doit exécuter chaque tâche de fond (imports, expiration des changesets en
 attente, réévaluation des valeurs attendues, réécriture de l'indicateur `public` après
 une mise à jour des registres, purge des clés d'idempotence) sur une seule instance à la
