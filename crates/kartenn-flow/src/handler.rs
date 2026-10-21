@@ -810,6 +810,13 @@ impl ModuleHandler for Handler {
                 .await?;
             let (at, _) = pg::bounds(period);
             pg::close_dependents(connection(tx)?, id, at, changeset).await?;
+            // REQ-011-7: with the changeset, never written into the flow.
+            tx.emit(
+                "flow.closed",
+                Some(id.to_string()),
+                json!({ "flow": id, "changeset": changeset }),
+            )
+            .map_err(WriteError::Store)?;
             Ok(())
         })
     }
@@ -861,11 +868,26 @@ impl ModuleHandler for Handler {
                     Self::check_flow(tx, *id, context.changeset, &mut out).await?;
                 }
             }
+            crate::expiry::outcome_changed(tx, context)?;
             let conn = connection(tx)?;
             let now = now(conn).await?;
             let mut findings = crate::approval::anomalies(conn, context, now).await?;
             findings.violations.extend(out);
             Ok(findings)
+        })
+    }
+
+    fn run_job_findings<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
+        Box::pin(async move {
+            if name == crate::expiry::EXPIRY {
+                crate::expiry::run(tx).await
+            } else {
+                Ok(Findings::default())
+            }
         })
     }
 

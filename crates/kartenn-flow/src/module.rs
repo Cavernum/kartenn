@@ -7,8 +7,8 @@ use std::sync::Arc;
 use kartenn_core::authz::Permission;
 use kartenn_core::rules::Rule;
 use kartenn_service::module::{
-    DefaultPolicy, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType,
-    Reference,
+    DefaultPolicy, JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose,
+    OperationType, Reference,
 };
 
 use crate::handler::Handler;
@@ -134,6 +134,12 @@ impl Module for Flows {
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
+    }
+    fn jobs(&self) -> &'static [JobSpec] {
+        crate::expiry::JOBS
+    }
+    fn events(&self) -> &'static [&'static str] {
+        crate::expiry::EVENTS
     }
     fn measures(&self) -> &'static [&'static str] {
         crate::approval::MEASURES

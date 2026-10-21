@@ -8,6 +8,7 @@
 
 pub mod approval;
 pub mod evaluation;
+pub mod expiry;
 pub mod handler;
 pub mod model;
 pub mod module;

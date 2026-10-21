@@ -196,12 +196,31 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     requête (la page est coupée après lui) ; `closed_early` = une version antérieure du
     flux finissait plus tard ; les demandes en attente (`requested`) ne sont pas listées
     ici (elles ne sont pas dans `flow.flow`).
-- [ ] 8. Tâche `flow.expiry` (flux datés, dérogations) et événements `expiring`,
+- [x] 8. Tâche `flow.expiry` (flux datés, dérogations) et événements `expiring`,
   `expired`, `outcome_changed`, `closed` — REQ-011-7 — verify : J-30, J-7, terme ;
   prolongation sans doublon ; flux sans fin jamais notifié ; événement d'issue émis à la
   bascule
   - où : tâches de fond et événements de module (tâches 010-8, 010-14)
   - dépend de : 5
+  - fait : `src/expiry.rs` — tâche `flow.expiry` quotidienne (`Module::jobs`), avis
+    inscrits dans `flow_notice` (un par flux, sorte et fin : sans doublon, une nouvelle fin
+    est annoncée à nouveau), événements `org.kartenn.flow.expiring` (`days` 30 ou 7, la
+    fenêtre la plus étroite) et `expired`, pour le flux (`of: flow`) et sa dérogation
+    (`of: waiver`) ; l'échéance d'une dérogation d'un flux encore refusé ouvre l'anomalie
+    `flow.verdict.denied` (constats de la tâche, ADR 0026 amendement 4, REQ-011-9) ;
+    `outcome_changed` émis par `check` pour chaque ligne de `flow.flows` dont la synthèse
+    ou l'issue bascule ; `closed` émis par `Handler::close` ; tests
+    `tests/it/expiry.rs` (J-30, J-7 seul, pas de doublon à la relance, flux sans fin
+    jamais annoncé, terme une fois ; `outcome_changed` et `closed`).
+  - choix : fenêtres 30 et 7 jours en constantes (le réglage `[flow]
+    expiry_notice_days` demande une configuration de module, absente du contrat) ; un
+    flux clos avant sa fin n'est pas annoncé `expired` (il a eu `closed`) ; au premier
+    passage, une fin déjà passée est annoncée une fois.
+  - constat hors périmètre : une demande datée (`end`) soumise dans un changeset à période
+    ouverte est refusée (`changeset.operation.no_version`) : l'ancre `core.owner` et les
+    valeurs par défaut (`expected::defaults`) sont posées sur la période ouverte du
+    changeset, au-delà de la fin du flux ; les tests soumettent les flux datés dans un
+    changeset dont la période finit avec eux.
 - [ ] 9. Routes `/v1/flows`, `/v1/flows/{id}/evaluations`, `/v1/flow-nonconformities`,
   `/v1/{collection}/{id}/flows`, contrat OpenAPI — REQ-011-18 — verify : contrat
   comparé ; tests de routes ; `POST /v1/flows` rend l'évaluation et l'état
