@@ -81,11 +81,23 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   la tâche 2 ; colonnes 802.1Q créées dès maintenant (mode `none` par défaut), leurs règles
   restent à la tâche 4 ; nom d'interface mal formé et machine changée refusés par
   `machines.operation.invalid`.
-- [ ] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
+- [x] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
   `vlan.vlan.read` — REQ-009-12, 18 (VLAN) — verify : `access_needs_one_vlan`,
   `native_not_in_tagged`, `closed_vlan_refused`, `vlan_read_required`
   où : design « Opérations », « Routes » (droits) ; propriété et type `vlan.vlan` (008)
   dépend de : 3 ; 008 : 11
+  — Contrat : `ModuleHandler::reads` (droits sur les objets cités sans être écrits,
+  contrôlés comme une garde dans `rights::check_guards`, `core.object.forbidden`, jamais
+  en proposition). `kartenn-machines` : `handler.rs` (champ `vlan` `{mode, access,
+  native, tagged}` de `create_interface` et `update_interface`, `null` ou absent : `none` ;
+  `VlanMode::from_parts` ; colonnes 802.1Q ; `vlan.vlan.read` sur chaque VLAN cité ;
+  `check` : VLAN vivant sur chaque version de l'interface), `pg.rs` (`insert_interface`
+  depuis les colonnes planifiées, `dead_vlans`). Tests : `kartenn-machines/tests/machines.rs`
+  (les quatre du verify).
+  choix : droit de lecture d'un objet cité porté par le contrat de module
+  (`ModuleHandler::reads`, ajout additif à l'ADR 0026) plutôt qu'un contrôle dans le
+  gestionnaire, qui ne connaît pas le demandeur ; un patch de `vlan` remplace tout le
+  mode ; un VLAN inconnu est refusé par `machines.vlan.mode` (non vivant).
 - [ ] 5. Rattachements : table `attachment`, `attach_address`/`detach_address`, unicité
   hors `vip`/`anycast`, recopie de l'usage (`shared`) et réévaluation sur changement
   d'usage, adresse principale par famille, droits M16 — REQ-009-9, 10, 11, 18 —

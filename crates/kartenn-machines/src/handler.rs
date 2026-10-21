@@ -26,7 +26,8 @@ use crate::mac::Mac;
 use crate::module::{CLUSTER, INTERFACE, MACHINE};
 use crate::name::HostName;
 use crate::pg::{self, Hosting};
-use crate::rules::{HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID};
+use crate::rules::{HOST_INVALID, NAME_DUPLICATE, OPERATION_INVALID, VLAN_MODE};
+use crate::vlan_mode::VlanMode;
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -125,7 +126,66 @@ struct CreateMachine {
 const CLUSTER_FIELDS: &[&str] = &["id", "slug", "owner", "site", "completed"];
 const MACHINE_FIELDS: &[&str] = &["id", "name", "kind", "host", "member_of", "completed"];
 /// The machine of an interface is fixed (REQ-009-6): it is not among the fields of a patch.
-const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "completed"];
+const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "vlan", "completed"];
+
+/// The permission a VLAN cited by an interface needs (REQ-009-18).
+const VLAN_READ: &str = "vlan.vlan.read";
+
+/// The 802.1Q mode of an interface, as received (REQ-009-12): `null` or absent is `none`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VlanInput {
+    mode: String,
+    #[serde(default)]
+    access: Option<Ref>,
+    #[serde(default)]
+    native: Option<Ref>,
+    #[serde(default)]
+    tagged: Vec<Ref>,
+}
+
+/// The 802.1Q columns of the mode `value` (`null`: none), and the VLANs it cites.
+fn vlan_columns(
+    value: &Value,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<(Map<String, Value>, Vec<Uuid>), Violation> {
+    let input: VlanInput = if value.is_null() {
+        VlanInput {
+            mode: "none".into(),
+            access: None,
+            native: None,
+            tagged: Vec::new(),
+        }
+    } else {
+        decode(value.clone(), "vlan")?
+    };
+    let vlan = |r: Ref| resolve(r).ok_or_else(|| invalid("vlan: unknown VLAN"));
+    let access = input.access.map(vlan).transpose()?;
+    let native = input.native.map(vlan).transpose()?;
+    let tagged = input
+        .tagged
+        .into_iter()
+        .map(vlan)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mode = VlanMode::from_parts(&input.mode, access, native, &tagged)?;
+    let (access, native, tagged): (Option<Uuid>, Option<Uuid>, Vec<Uuid>) = match &mode {
+        VlanMode::None => (None, None, Vec::new()),
+        VlanMode::Access(vlan) => (Some(*vlan), None, Vec::new()),
+        VlanMode::Trunk { tagged, native } => (None, *native, tagged.iter().copied().collect()),
+    };
+    let mut columns = Map::new();
+    columns.insert("vlan_mode".into(), mode.name().into());
+    columns.insert("access_vlan_id".into(), json!(access));
+    columns.insert("native_vlan_id".into(), json!(native));
+    columns.insert("tagged_vlan_ids".into(), json!(tagged));
+    Ok((columns, mode.vlans().into_iter().collect()))
+}
+
+/// The rights an operation needs on the objects it cites: `[permission, object]` pairs,
+/// read back by [`ModuleHandler::reads`].
+fn reads(permission: &str, objects: &[Uuid]) -> Value {
+    objects.iter().map(|o| json!([permission, o])).collect()
+}
 
 /// `machines.create_interface`.
 #[derive(Debug, Deserialize)]
@@ -139,6 +199,8 @@ struct CreateInterface {
     mac: Option<String>,
     #[serde(default)]
     enabled: Option<bool>,
+    #[serde(default)]
+    vlan: Option<Value>,
     #[serde(default)]
     completed: Completed,
 }
@@ -472,6 +534,14 @@ impl Handler {
         let machine = resolve(create.machine).ok_or_else(|| invalid("machine: unknown object"))?;
         let name = interface_name(&create.name)?;
         let mac = create.mac.as_deref().map(Mac::parse).transpose()?;
+        let (vlan, vlans) = vlan_columns(create.vlan.as_ref().unwrap_or(&Value::Null), resolve)?;
+        let mut columns = json!({
+            "machine_id": machine,
+            "name": name,
+            "mac": mac.map(|m| m.to_string()),
+            "enabled": create.enabled.unwrap_or(true),
+        });
+        columns.as_object_mut().expect("an object").extend(vlan);
         Ok(ModulePlan {
             kind: interface_kind(),
             object,
@@ -479,14 +549,7 @@ impl Handler {
             domains: Vec::new(),
             keys: vec![machine_key(machine)],
             core: Vec::new(),
-            data: json!({
-                "create": {
-                    "machine_id": machine,
-                    "name": name,
-                    "mac": mac.map(|m| m.to_string()),
-                    "enabled": create.enabled.unwrap_or(true),
-                }
-            }),
+            data: json!({ "create": columns, "reads": reads(VLAN_READ, &vlans) }),
         })
     }
 
@@ -523,6 +586,12 @@ impl Handler {
                 .ok_or_else(|| invalid("enabled: a boolean"))?;
             patch.insert("enabled".into(), enabled.into());
         }
+        let mut vlans = Vec::new();
+        if let Some(vlan) = body.get("vlan") {
+            let (columns, cited) = vlan_columns(vlan, resolve)?;
+            patch.extend(columns);
+            vlans = cited;
+        }
         Ok(ModulePlan {
             kind: interface_kind(),
             object: interface,
@@ -530,7 +599,7 @@ impl Handler {
             domains: Vec::new(),
             keys: completed.machine.map(machine_key).into_iter().collect(),
             core: Vec::new(),
-            data: json!({ "update": patch }),
+            data: json!({ "update": patch, "reads": reads(VLAN_READ, &vlans) }),
         })
     }
 }
@@ -594,6 +663,20 @@ impl ModuleHandler for Handler {
         }
     }
 
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        plan.data
+            .get("reads")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|pair| {
+                let permission = pair.get(0)?.as_str()?.to_owned();
+                let object = pair.get(1)?.as_str()?.parse().ok()?;
+                Some((permission, object))
+            })
+            .collect()
+    }
+
     fn apply<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -610,17 +693,7 @@ impl ModuleHandler for Handler {
                         .as_str()
                         .and_then(|s| s.parse().ok())
                         .ok_or_else(|| StoreError("a planned machine".into()))?;
-                    pg::insert_interface(
-                        conn,
-                        id,
-                        machine,
-                        create["name"].as_str().unwrap_or_default(),
-                        create["mac"].as_str(),
-                        create["enabled"].as_bool().unwrap_or(true),
-                        period,
-                        changeset,
-                    )
-                    .await?;
+                    pg::insert_interface(conn, id, machine, create, period, changeset).await?;
                     machine
                 } else {
                     let machine = pg::machine_of(conn, id)
@@ -739,6 +812,15 @@ impl ModuleHandler for Handler {
                         "the machine {machine} does not live over the period of the interface"
                     ))
                     .with_subjects([interface, machine]),
+                );
+            }
+            for (interface, vlan) in pg::dead_vlans(conn, &interfaces).await? {
+                found.push(
+                    Violation::new(
+                        &VLAN_MODE,
+                        format!("the VLAN {vlan} does not live over the period of the interface"),
+                    )
+                    .with_subjects([interface, vlan]),
                 );
             }
             for (machine, other, name) in pg::name_duplicates(conn, &machines).await? {

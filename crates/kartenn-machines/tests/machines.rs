@@ -2,7 +2,8 @@
 //! 7; tasks 009-2 and 009-3): the dependency on the VLAN module, a name unique per
 //! resolved owner, the hosting of a machine (M5), a cluster slug unique at every instant;
 //! interfaces tied to their machine, named once per machine, with an EUI-48 stored as
-//! `macaddr`, and inheriting the anchors of their machine.
+//! `macaddr`, and inheriting the anchors of their machine; the 802.1Q mode of an
+//! interface and its VLANs (task 009-4).
 
 use std::sync::Arc;
 
@@ -165,6 +166,15 @@ impl Env {
 
     /// A person granted the reading of machines and interfaces on the entity `entity`.
     async fn reader_on(&self, entity: Uuid) -> Uuid {
+        self.granted(
+            entity,
+            &["machines.machine.read", "machines.interface.read"],
+        )
+        .await
+    }
+
+    /// A person granted `permissions` on the entity `entity`.
+    async fn granted(&self, entity: Uuid, permissions: &[&str]) -> Uuid {
         let identity: Uuid = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
         )
@@ -181,7 +191,7 @@ impl Env {
         .execute(&self.pool)
         .await
         .unwrap();
-        for permission in ["machines.machine.read", "machines.interface.read"] {
+        for permission in permissions {
             sqlx::query(
                 "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
                  VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
@@ -217,6 +227,72 @@ impl Env {
             .is_empty()
     }
 
+    /// `operations` submitted by `identity`, under the RBAC of the store.
+    async fn submit_as(&self, identity: Uuid, operations: Vec<Operation>) -> Outcome {
+        let request = ChangesetRequest {
+            author: identity,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+        };
+        let authorizer = PgAuthorizer::new(self.pool.clone()).with_modules(self.registry.clone());
+        submit(&self.store, &authorizer, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+    }
+
+    /// A group of VLANs anchored on `acme` and its VLANs `vids`, living now.
+    async fn vlans(&self, vids: &[i16]) -> Vec<Uuid> {
+        let acme = self.entity("acme").await;
+        self.applied(vec![vop(
+            "create_group",
+            json!({"slug": "edge", "anchor": {"entity": {"id": acme}},
+                   "vid_min": 1, "vid_max": 4094}),
+        )])
+        .await;
+        let group = self.id("vlan.vlan_group", "slug", "edge").await;
+        self.applied(
+            vids.iter()
+                .map(|vid| {
+                    vop(
+                        "create_vlan",
+                        json!({"group": {"id": group}, "vid": vid, "name": format!("v{vid}")}),
+                    )
+                })
+                .collect(),
+        )
+        .await;
+        let mut ids = Vec::new();
+        for vid in vids {
+            ids.push(
+                sqlx::query_scalar(
+                    "SELECT id FROM vlan.vlan
+                      WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
+                )
+                .bind(group)
+                .bind(vid)
+                .fetch_one(&self.pool)
+                .await
+                .unwrap(),
+            );
+        }
+        ids
+    }
+
+    /// The 802.1Q columns of the interface `id` now.
+    async fn vlan_columns(&self, id: Uuid) -> (String, Option<Uuid>, Option<Uuid>, Vec<Uuid>) {
+        sqlx::query_as(
+            "SELECT vlan_mode, access_vlan_id, native_vlan_id, tagged_vlan_ids
+               FROM machines.interface WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
     /// Creates a machine of `kind` owned by `acme`, with extra fields, and returns it.
     async fn create(&self, name: &str, kind: &str, extra: Value) -> Uuid {
         let acme = self.entity("acme").await;
@@ -237,6 +313,13 @@ fn merge(into: &mut Value, extra: Value) {
 fn op(name: &str, fields: Value) -> Operation {
     let mut object = fields;
     object["op"] = format!("machines.{name}").into();
+    serde_json::from_value(object).unwrap()
+}
+
+/// `vlan.<name>` from its JSON fields.
+fn vop(name: &str, fields: Value) -> Operation {
+    let mut object = fields;
+    object["op"] = format!("vlan.{name}").into();
     serde_json::from_value(object).unwrap()
 }
 
@@ -650,4 +733,192 @@ async fn owner_change_moves_interface_scope(pool: PgPool) {
     assert_eq!(env.owner(eth0).await, Some(other));
     assert!(!env.reads(on_acme, "machines.interface.read", eth0).await);
     assert!(env.reads(on_other, "machines.interface.read", eth0).await);
+}
+
+/// An interface `eth<n>` of `machine` in the 802.1Q mode `vlan`.
+fn interface(machine: Uuid, n: u32, vlan: Value) -> Operation {
+    op(
+        "create_interface",
+        json!({"machine": {"id": machine}, "name": format!("eth{n}"), "vlan": vlan}),
+    )
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn access_needs_one_vlan(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let [a, b, c] = env.vlans(&[10, 20, 30]).await[..] else {
+        unreachable!()
+    };
+    let m = env.create("m", "physical", json!({})).await;
+    for bad in [
+        json!({"mode": "access"}),
+        json!({"mode": "access", "access": {"id": a}, "tagged": [{"id": b}]}),
+        json!({"mode": "none", "tagged": [{"id": a}]}),
+        json!({"mode": "hybrid"}),
+    ] {
+        env.refused(vec![interface(m, 0, bad)], "machines.vlan.mode")
+            .await;
+    }
+    // No mode: none.
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": m}, "name": "lo"}),
+    )])
+    .await;
+    let lo = env.interface(m, "lo").await;
+    assert_eq!(
+        env.vlan_columns(lo).await,
+        ("none".into(), None, None, vec![])
+    );
+    env.applied(vec![interface(
+        m,
+        0,
+        json!({"mode": "access", "access": {"id": a}}),
+    )])
+    .await;
+    let eth0 = env.interface(m, "eth0").await;
+    assert_eq!(
+        env.vlan_columns(eth0).await,
+        ("access".into(), Some(a), None, vec![])
+    );
+    // A patch replaces the whole mode; `null` comes back to none.
+    env.applied(vec![op(
+        "update_interface",
+        json!({"id": {"id": eth0},
+               "vlan": {"mode": "trunk", "native": {"id": c}, "tagged": [{"id": b}, {"id": a}]}}),
+    )])
+    .await;
+    let (mode, access, native, mut tagged) = env.vlan_columns(eth0).await;
+    tagged.sort();
+    let mut expected = vec![a, b];
+    expected.sort();
+    assert_eq!(
+        (mode.as_str(), access, native, tagged),
+        ("trunk", None, Some(c), expected)
+    );
+    env.applied(vec![op(
+        "update_interface",
+        json!({"id": {"id": eth0}, "vlan": null}),
+    )])
+    .await;
+    assert_eq!(
+        env.vlan_columns(eth0).await,
+        ("none".into(), None, None, vec![])
+    );
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn native_not_in_tagged(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let [a, b] = env.vlans(&[10, 20]).await[..] else {
+        unreachable!()
+    };
+    let m = env.create("m", "physical", json!({})).await;
+    for bad in [
+        json!({"mode": "trunk", "native": {"id": a}, "tagged": [{"id": a}, {"id": b}]}),
+        json!({"mode": "trunk", "native": {"id": a}}),
+        json!({"mode": "trunk", "access": {"id": a}, "tagged": [{"id": b}]}),
+    ] {
+        env.refused(vec![interface(m, 0, bad)], "machines.vlan.mode")
+            .await;
+    }
+    env.applied(vec![interface(
+        m,
+        0,
+        json!({"mode": "trunk", "native": {"id": a}, "tagged": [{"id": b}]}),
+    )])
+    .await;
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn closed_vlan_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let [a, b] = env.vlans(&[10, 20]).await[..] else {
+        unreachable!()
+    };
+    let m = env.create("m", "physical", json!({})).await;
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::Module(ModuleKind::parse("vlan.vlan").unwrap()),
+        id: Ref::Id(a),
+        expected: None,
+        cascade: false,
+    }])
+    .await;
+    env.refused(
+        vec![interface(
+            m,
+            0,
+            json!({"mode": "access", "access": {"id": a}}),
+        )],
+        "machines.vlan.mode",
+    )
+    .await;
+    env.refused(
+        vec![interface(
+            m,
+            0,
+            json!({"mode": "trunk", "tagged": [{"id": b}, {"id": a}]}),
+        )],
+        "machines.vlan.mode",
+    )
+    .await;
+    // An unknown VLAN neither.
+    env.refused(
+        vec![interface(
+            m,
+            0,
+            json!({"mode": "access", "access": {"id": Uuid::now_v7()}}),
+        )],
+        "machines.vlan.mode",
+    )
+    .await;
+    env.applied(vec![interface(
+        m,
+        0,
+        json!({"mode": "access", "access": {"id": b}}),
+    )])
+    .await;
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn vlan_read_required(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let [a] = env.vlans(&[10]).await[..] else {
+        unreachable!()
+    };
+    let acme = env.entity("acme").await;
+    let m = env.create("m", "physical", json!({})).await;
+    let writer = [
+        "machines.machine.read",
+        "machines.interface.read",
+        "machines.interface.write",
+    ];
+    // A writer of the interfaces of `acme` who does not read the VLAN.
+    let blind = env.granted(acme, &writer).await;
+    let access = json!({"mode": "access", "access": {"id": a}});
+    let refused = env
+        .submit_as(blind, vec![interface(m, 0, access.clone())])
+        .await;
+    assert!(
+        rules(&refused).contains(&"core.object.forbidden"),
+        "{refused:?}"
+    );
+    // Without a VLAN, the same writer creates the interface; reading the VLAN, too.
+    let applied = env
+        .submit_as(blind, vec![interface(m, 1, Value::Null)])
+        .await;
+    assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
+    let seeing = env
+        .granted(
+            acme,
+            &[
+                "machines.machine.read",
+                "machines.interface.read",
+                "machines.interface.write",
+                "vlan.vlan.read",
+            ],
+        )
+        .await;
+    let applied = env.submit_as(seeing, vec![interface(m, 0, access)]).await;
+    assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
 }

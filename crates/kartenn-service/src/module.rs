@@ -324,6 +324,15 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         resolve: &dyn Fn(Ref) -> Option<Uuid>,
     ) -> Result<ModulePlan, Violation>;
 
+    /// The rights `plan` needs besides the right to write its object: `(permission,
+    /// object)` pairs for the objects it cites without writing them, such as an address
+    /// of the core attached to an interface (009/M16). The core checks them like a guard,
+    /// never as a proposal (`core.object.forbidden`). None by default.
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        let _ = plan;
+        Vec::new()
+    }
+
     /// Writes a planned operation over `period` (the changeset's when `None`).
     fn apply<'a>(
         &'a self,

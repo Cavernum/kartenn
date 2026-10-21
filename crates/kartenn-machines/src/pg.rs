@@ -441,32 +441,44 @@ fn interface_taken(name: &str, id: Uuid) -> WriteError {
     )
 }
 
-/// A new interface over `period`; `mac` is the canonical text of an EUI-48.
-#[allow(clippy::too_many_arguments)] // the columns of an interface
+/// A new interface over `period`, from its planned columns: `name`, `mac` (the canonical
+/// text of an EUI-48), `enabled` and the 802.1Q columns.
 pub(crate) async fn insert_interface(
     conn: &mut PgConnection,
     id: Uuid,
     machine: Uuid,
-    name: &str,
-    mac: Option<&str>,
-    enabled: bool,
+    create: &Value,
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
+    let name = create["name"].as_str().unwrap_or_default();
     if interface_name_taken(conn, id, machine, name, period).await? {
         return Err(interface_taken(name, id));
     }
+    let uuid = |field: &str| create[field].as_str().and_then(|s| s.parse::<Uuid>().ok());
+    let tagged: Vec<Uuid> = create["tagged_vlan_ids"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_str()?.parse().ok())
+        .collect();
     let (from, to) = bounds(period);
     sqlx::query(
-        "INSERT INTO machines.interface (id, machine_id, name, mac, enabled, valid_period,
-                                         changeset_id)
-         VALUES ($1, $2, $3, $4::macaddr, $5, tstzrange(coalesce($6::timestamptz, now()), $7), $8)",
+        "INSERT INTO machines.interface (id, machine_id, name, mac, enabled, vlan_mode,
+                                         access_vlan_id, native_vlan_id, tagged_vlan_ids,
+                                         valid_period, changeset_id)
+         VALUES ($1, $2, $3, $4::macaddr, $5, $6, $7, $8, $9,
+                 tstzrange(coalesce($10::timestamptz, now()), $11), $12)",
     )
     .bind(id)
     .bind(machine)
     .bind(name)
-    .bind(mac)
-    .bind(enabled)
+    .bind(create["mac"].as_str())
+    .bind(create["enabled"].as_bool().unwrap_or(true))
+    .bind(create["vlan_mode"].as_str().unwrap_or("none"))
+    .bind(uuid("access_vlan_id"))
+    .bind(uuid("native_vlan_id"))
+    .bind(tagged)
     .bind(from)
     .bind(to)
     .bind(changeset)
@@ -503,6 +515,30 @@ pub(crate) async fn patch_interface(
         return Err(interface_taken(name, id));
     }
     portion(conn, INTERFACE_TABLE, id, patch, period, changeset).await
+}
+
+/// The VLANs the interfaces among `ids` carry where they do not live over the version
+/// that carries them (REQ-009-12): `(interface, vlan)`.
+pub(crate) async fn dead_vlans(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT i.id, v.vlan_id
+           FROM machines.interface i
+          CROSS JOIN LATERAL unnest(array_remove(ARRAY[i.access_vlan_id, i.native_vlan_id], NULL)
+                                    || i.tagged_vlan_ids) AS v(vlan_id)
+          WHERE i.id = ANY($1)
+            AND NOT EXISTS (
+                SELECT 1 FROM vlan.vlan x
+                 WHERE x.id = v.vlan_id
+                 GROUP BY x.id
+                HAVING range_agg(x.valid_period) @> i.valid_period)",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
 }
 
 /// The interfaces among `ids` whose machine does not live over one of their versions:
