@@ -361,12 +361,22 @@ numérotées après coup.
   a commencé avant (pas de découpe de la période) ; une anomalie V9 ne se ferme pas
   d'elle-même quand l'écart disparaît, le pipeline ne réévaluant que les règles `core.`
   (à reprendre avec N11, anomalies de module).
-- [ ] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
+- [x] 13. Références du module : groupe → VLAN, `vlan.vlan` → VLAN, ancre → objets du
   noyau ; cascade — REQ-008-10 — verify : `closing_a_vlan_on_a_network_lists_it`,
   `cascade_unassigns_vlan_property`, `closing_a_group_cascades_its_vlans`,
   `closing_an_anchor_entity_refused`
   où : design « Références »
   dépend de : 7, 12
+  — Module : `module.rs` (`REFERENCES` : VLAN → groupe en cascade, groupe → entité, site
+  ou domaine en refus), `handler.rs` (`referrers`), `pg.rs` (`referrers`). Noyau : la
+  référence dangereuse de la 003 (`prop.assignment.dangling_reference`) vaut aussi pour un
+  objet de module clos (`global.rs::check_references`, `dangling_references` lit
+  `module_object`) ; la cascade retirait déjà l'affectation. Tests :
+  `kartenn-vlan/tests/references.rs` (les quatre du verify ; l'ancre domaine dans le
+  quatrième).
+  choix : clore une entité ou un site d'ancrage est refusé d'abord par
+  `core.anchor.in_use` (le groupe porte `core.owner`/`core.site`), qui liste le groupe ;
+  la référence du module refuse seule la clôture d'un domaine d'ancrage.
 - [ ] 14. Routes REST du module : groupes et VLAN (liste filtrée, `QUERY`, création,
   Merge Patch, clôture), occupation, prochain libre, réseaux d'un VLAN, permissions —
   REQ-008-19, 20, 21, 22 — verify : `vlans_filtered_by_vid_range`,

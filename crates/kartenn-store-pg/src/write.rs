@@ -1887,7 +1887,8 @@ impl WriteTx for PgTx {
                  SELECT range_agg(valid_period) AS m FROM (
                      SELECT valid_period FROM addressing_object WHERE id = $1
                      UNION ALL SELECT valid_period FROM entity WHERE id = $1
-                     UNION ALL SELECT valid_period FROM site WHERE id = $1) x)
+                     UNION ALL SELECT valid_period FROM site WHERE id = $1
+                     UNION ALL SELECT valid_period FROM module_object WHERE id = $1) x)
              SELECT DISTINCT a.object_id FROM property_assignment a
              JOIN property_declaration d ON d.id = a.property_id AND d.value_type = 'ref'
              WHERE a.kind = 'value' AND (a.v_uuid = $1 OR $1 = ANY(a.v_uuids))
