@@ -481,17 +481,24 @@ async fn list_vlans(
         .transpose()
         .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
+    // The read predicate above the filtered rows in their order (`OFFSET 0` keeps it out of
+    // the subquery): the limit stops it after the page. Beside the filters, it ran on every
+    // row they keep before the sort (task 008-16: 654 ms for a page of 100 at 10⁵ VLANs,
+    // 19 ms after).
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT x.id, x.group_id, x.vid, x.name, x.status
-           FROM {} x
-          WHERE ($4::uuid IS NULL OR x.group_id = $4)
-            AND ($5::smallint IS NULL OR x.vid BETWEEN $5 AND $6)
-            AND ($7::text IS NULL OR x.name = $7)
-            AND ($8::text IS NULL OR starts_with(x.name, $8))
-            AND ($9::text IS NULL OR x.status = $9)
-            AND ($10::uuid IS NULL OR (x.group_id, x.vid, x.id) > ($10, $11::smallint, $12::uuid))
-            AND ($3::jsonb IS NULL OR {})
+           FROM (SELECT x.* FROM {} x
+                  WHERE ($4::uuid IS NULL OR x.group_id = $4)
+                    AND ($5::smallint IS NULL OR x.vid BETWEEN $5 AND $6)
+                    AND ($7::text IS NULL OR x.name = $7)
+                    AND ($8::text IS NULL OR starts_with(x.name, $8))
+                    AND ($9::text IS NULL OR x.status = $9)
+                    AND ($10::uuid IS NULL
+                         OR (x.group_id, x.vid, x.id) > ($10, $11::smallint, $12::uuid))
+                  ORDER BY x.group_id, x.vid, x.id
+                  OFFSET 0) x
+          WHERE ($3::jsonb IS NULL OR {})
           ORDER BY x.group_id, x.vid, x.id
           LIMIT $13",
         dated("vlan.vlan", VLAN_COLUMNS),
