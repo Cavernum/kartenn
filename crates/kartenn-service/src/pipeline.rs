@@ -1228,6 +1228,7 @@ async fn assignment<T: WriteTx>(
 async fn check_modules<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
+    changeset: Uuid,
     planned: &[Planned],
     touched: &[(ObjectKind, Uuid)],
     sections: &[crate::module::DiffSection],
@@ -1262,6 +1263,7 @@ async fn check_modules<T: WriteTx>(
             }
         }
         let context = crate::module::CheckContext {
+            changeset,
             touched: &objects,
             objects: touched,
             sections,
@@ -1937,6 +1939,7 @@ async fn stages<S: Store, A: Authorizer>(
     if let Err(e) = check_modules(
         &mut tx,
         modules,
+        changeset,
         &planned,
         &touched,
         &sections,

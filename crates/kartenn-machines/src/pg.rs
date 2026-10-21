@@ -10,7 +10,10 @@ use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::hosting::{Host, MachineKind, check_host, check_membership};
-use crate::rules::{CLUSTER_DUPLICATE, HOST_INVALID, INTERFACE_DUPLICATE};
+use crate::rules::{
+    ADDRESS_CLOSED, ADDRESS_PRIMARY, ADDRESS_TAKEN, CLUSTER_DUPLICATE, HOST_INVALID,
+    INTERFACE_DUPLICATE,
+};
 
 /// The table of the clusters, as the generic writes of the core name it.
 pub(crate) const CLUSTER_TABLE: &str = "machines.cluster";
@@ -18,6 +21,8 @@ pub(crate) const CLUSTER_TABLE: &str = "machines.cluster";
 pub(crate) const MACHINE_TABLE: &str = "machines.machine";
 /// The table of the interfaces.
 pub(crate) const INTERFACE_TABLE: &str = "machines.interface";
+/// The table of the attachments of addresses (migration `0003_attachment.sql`).
+pub(crate) const ATTACHMENT_TABLE: &str = "machines.attachment";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -515,6 +520,269 @@ pub(crate) async fn patch_interface(
         return Err(interface_taken(name, id));
     }
     portion(conn, INTERFACE_TABLE, id, patch, period, changeset).await
+}
+
+/// A refusal of the module before writing, naming `subjects`.
+fn refused_on(
+    rule: &'static kartenn_core::rules::Rule,
+    message: String,
+    subjects: [Uuid; 2],
+) -> WriteError {
+    WriteError::Rule(Violation::new(rule, message).with_subjects(subjects))
+}
+
+/// Attaches `address` to `interface` over `period` (REQ-009-9 to 11), after refusing what
+/// the constraints of `machines.attachment` would refuse: an address that does not live
+/// then, already on the interface, held by another interface unless both rows are shared,
+/// or a second primary address of its family on the interface.
+pub(crate) async fn attach(
+    conn: &mut PgConnection,
+    interface: Uuid,
+    address: Uuid,
+    primary: bool,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (from, to) = bounds(period);
+    let found: Option<(i16, bool)> = sqlx::query_as(
+        "SELECT family(address)::smallint, bool_and(usage IN ('vip', 'anycast'))
+           FROM public.address
+          WHERE id = $1 AND valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+          GROUP BY family(address)",
+    )
+    .bind(address)
+    .bind(from)
+    .bind(to)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    let Some((family, shared)) = found else {
+        return Err(refused_on(
+            &ADDRESS_CLOSED,
+            format!("the address {address} does not live over the period"),
+            [address, interface],
+        ));
+    };
+    let holder: Option<Uuid> = sqlx::query_scalar(
+        "SELECT interface_id FROM machines.attachment
+          WHERE address_id = $1 AND valid_period && tstzrange(coalesce($2::timestamptz, now()), $3)
+            AND (interface_id = $4 OR NOT shared OR NOT $5)
+          ORDER BY interface_id = $4 DESC
+          LIMIT 1",
+    )
+    .bind(address)
+    .bind(from)
+    .bind(to)
+    .bind(interface)
+    .bind(shared)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store(&e)))?;
+    if let Some(holder) = holder {
+        let message = if holder == interface {
+            "the address is already attached to this interface over the period".to_owned()
+        } else {
+            format!("the address is attached to the interface {holder}")
+        };
+        return Err(refused_on(&ADDRESS_TAKEN, message, [address, holder]));
+    }
+    if primary {
+        let other: Option<Uuid> = sqlx::query_scalar(
+            "SELECT address_id FROM machines.attachment
+              WHERE interface_id = $1 AND family = $2 AND primary_for_family
+                AND valid_period && tstzrange(coalesce($3::timestamptz, now()), $4)
+              LIMIT 1",
+        )
+        .bind(interface)
+        .bind(family)
+        .bind(from)
+        .bind(to)
+        .fetch_optional(&mut *conn)
+        .await
+        .map_err(|e| WriteError::Store(store(&e)))?;
+        if let Some(other) = other {
+            return Err(refused_on(
+                &ADDRESS_PRIMARY,
+                format!("the interface already has the primary IPv{family} address {other}"),
+                [interface, other],
+            ));
+        }
+    }
+    sqlx::query(
+        "INSERT INTO machines.attachment (id, interface_id, address_id, primary_for_family,
+                                          family, shared, valid_period, changeset_id)
+         VALUES ($1, $2, $3, $4, $5, $6, tstzrange(coalesce($7::timestamptz, now()), $8), $9)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(interface)
+    .bind(address)
+    .bind(primary)
+    .bind(family)
+    .bind(shared)
+    .bind(from)
+    .bind(to)
+    .bind(changeset)
+    .execute(conn)
+    .await
+    .map(drop)
+    .map_err(|e| WriteError::Store(store(&e)))
+}
+
+/// The attachments of `address` to `interface` over `period`.
+pub(crate) async fn attachments(
+    conn: &mut PgConnection,
+    interface: Uuid,
+    address: Uuid,
+    period: Option<Period>,
+) -> Result<Vec<Uuid>, StoreError> {
+    let (from, to) = bounds(period);
+    sqlx::query_scalar(
+        "SELECT DISTINCT id FROM machines.attachment
+          WHERE interface_id = $1 AND address_id = $2
+            AND valid_period && tstzrange(coalesce($3::timestamptz, now()), $4)",
+    )
+    .bind(interface)
+    .bind(address)
+    .bind(from)
+    .bind(to)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The attachments of `interface` the changeset `changeset` wrote, current or replaced
+/// since (undo).
+pub(crate) async fn attachments_written(
+    conn: &mut PgConnection,
+    interface: Uuid,
+    changeset: Uuid,
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT id FROM machines.attachment WHERE interface_id = $1 AND changeset_id = $2
+         UNION
+         SELECT id FROM machines.attachment_history WHERE interface_id = $1 AND changeset_id = $2",
+    )
+    .bind(interface)
+    .bind(changeset)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The attachments of the interfaces `interfaces` or of the addresses `addresses` whose
+/// address does not live over their period (REQ-009-9): `(interface, address)`.
+pub(crate) async fn dead_addresses(
+    conn: &mut PgConnection,
+    interfaces: &[Uuid],
+    addresses: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT a.interface_id, a.address_id
+           FROM machines.attachment a
+          WHERE (a.interface_id = ANY($1) OR a.address_id = ANY($2))
+            AND NOT EXISTS (
+                SELECT 1 FROM public.address x
+                 WHERE x.id = a.address_id
+                 GROUP BY x.id
+                HAVING range_agg(x.valid_period) @> a.valid_period)",
+    )
+    .bind(interfaces)
+    .bind(addresses)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The attachments of the interfaces `interfaces` outside the life of their interface:
+/// `(interface, address)`.
+pub(crate) async fn attachments_outside(
+    conn: &mut PgConnection,
+    interfaces: &[Uuid],
+) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT a.interface_id, a.address_id
+           FROM machines.attachment a
+          WHERE a.interface_id = ANY($1)
+            AND NOT EXISTS (
+                SELECT 1 FROM machines.interface i
+                 WHERE i.id = a.interface_id
+                 GROUP BY i.id
+                HAVING range_agg(i.valid_period) @> a.valid_period)",
+    )
+    .bind(interfaces)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// Copies the usage of the addresses `addresses` into their attachments (`shared`,
+/// REQ-009-10), portion by portion of each version of the address, as `changeset`: a
+/// portion no longer shared while another interface holds the address then is refused,
+/// `(address, interface, other)`, once per address; the others are rewritten.
+pub(crate) async fn reshare(
+    conn: &mut PgConnection,
+    addresses: &[Uuid],
+    changeset: Uuid,
+) -> Result<Vec<(Uuid, Uuid, Uuid)>, StoreError> {
+    type Portion = (
+        Uuid,
+        OffsetDateTime,
+        Option<OffsetDateTime>,
+        Uuid,
+        Uuid,
+        bool,
+    );
+    if addresses.is_empty() {
+        return Ok(Vec::new());
+    }
+    let portions: Vec<Portion> = sqlx::query_as(
+        "SELECT a.id, lower(q.p), upper(q.p), a.address_id, a.interface_id, q.shared
+           FROM machines.attachment a
+           JOIN public.address x ON x.id = a.address_id AND x.valid_period && a.valid_period
+          CROSS JOIN LATERAL (SELECT a.valid_period * x.valid_period AS p,
+                                     x.usage IN ('vip', 'anycast') AS shared) q
+          WHERE a.address_id = ANY($1) AND q.shared <> a.shared",
+    )
+    .bind(addresses)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    let mut refused: Vec<(Uuid, Uuid, Uuid)> = Vec::new();
+    for (id, from, to, address, interface, shared) in portions {
+        if refused.iter().any(|(a, ..)| *a == address) {
+            continue;
+        }
+        if !shared {
+            let other: Option<Uuid> = sqlx::query_scalar(
+                "SELECT interface_id FROM machines.attachment
+                  WHERE address_id = $1 AND id <> $2
+                    AND valid_period && tstzrange($3::timestamptz, $4::timestamptz)
+                  LIMIT 1",
+            )
+            .bind(address)
+            .bind(id)
+            .bind(from)
+            .bind(to)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+            if let Some(other) = other {
+                refused.push((address, interface, other));
+                continue;
+            }
+        }
+        sqlx::query("SELECT public.kartenn_portion($1::regclass, $2, $3, $4, $5::jsonb, $6)")
+            .bind(ATTACHMENT_TABLE)
+            .bind(id)
+            .bind(from)
+            .bind(to)
+            .bind(serde_json::json!({ "shared": shared }))
+            .bind(changeset)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+    }
+    Ok(refused)
 }
 
 /// The VLANs the interfaces among `ids` carry where they do not live over the version

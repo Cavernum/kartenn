@@ -3,10 +3,14 @@
 //! resolved owner, the hosting of a machine (M5), a cluster slug unique at every instant;
 //! interfaces tied to their machine, named once per machine, with an EUI-48 stored as
 //! `macaddr`, and inheriting the anchors of their machine; the 802.1Q mode of an
-//! interface and its VLANs (task 009-4).
+//! interface and its VLANs (task 009-4); addresses of the core attached to interfaces,
+//! once unless shared, one primary per family, under the reading of the address (task
+//! 009-5).
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_machines::Machines;
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations_for, sync_modules};
@@ -293,6 +297,80 @@ impl Env {
         .unwrap()
     }
 
+    /// A domain `slug` owned by `owner`, with the network `network`.
+    async fn domain(&self, slug: &str, owner: Uuid, network: &str) -> Uuid {
+        let property = self.property("core.owner").await;
+        self.applied(vec![
+            Operation::CreateDomain {
+                local: Some(1),
+                slug: slug.into(),
+            },
+            Operation::AssignProperty {
+                object: Ref::Local(1),
+                kind: ObjectKind::Domain,
+                property: Ref::Id(property),
+                values: vec![RawInput::Text(owner.to_string())],
+            },
+            network_op(Ref::Local(1), network),
+        ])
+        .await;
+        self.id("addressing_domain", "slug", slug).await
+    }
+
+    /// The address `value` of `domain`, of `usage`, created now.
+    async fn address(&self, domain: Uuid, value: &str, usage: AddressUsage) -> Uuid {
+        self.applied(vec![Operation::CreateAddress {
+            local: None,
+            domain: Ref::Id(domain),
+            address: value.into(),
+            usage,
+        }])
+        .await;
+        sqlx::query_scalar(
+            "SELECT id FROM address
+              WHERE domain_id = $1 AND address = $2::inet AND valid_period @> now()",
+        )
+        .bind(domain)
+        .bind(value)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The interface `eth0` of a new machine `name` owned by `acme`.
+    async fn eth0(&self, name: &str) -> Uuid {
+        let m = self.create(name, "physical", json!({})).await;
+        self.applied(vec![op(
+            "create_interface",
+            json!({"machine": {"id": m}, "name": "eth0"}),
+        )])
+        .await;
+        self.interface(m, "eth0").await
+    }
+
+    /// The living attachments of `address`: `(interface, shared, primary)`.
+    async fn attachments(&self, address: Uuid) -> Vec<(Uuid, bool, bool)> {
+        sqlx::query_as(
+            "SELECT interface_id, shared, primary_for_family FROM machines.attachment
+              WHERE address_id = $1 AND valid_period @> now() ORDER BY interface_id",
+        )
+        .bind(address)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    fn request(&self, operations: Vec<Operation>) -> ChangesetRequest {
+        ChangesetRequest {
+            author: self.author,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+        }
+    }
+
     /// Creates a machine of `kind` owned by `acme`, with extra fields, and returns it.
     async fn create(&self, name: &str, kind: &str, extra: Value) -> Uuid {
         let acme = self.entity("acme").await;
@@ -315,6 +393,47 @@ fn op(name: &str, fields: Value) -> Operation {
     object["op"] = format!("machines.{name}").into();
     serde_json::from_value(object).unwrap()
 }
+
+/// The network `network` of `domain`.
+fn network_op(domain: Ref, network: &str) -> Operation {
+    Operation::CreatePrefix {
+        local: None,
+        domain,
+        prefix: network.into(),
+        nature: Nature::Network,
+        point_to_point: false,
+        anycast: false,
+    }
+}
+
+/// `machines.attach_address` of `address` to `interface`.
+fn attach(interface: Uuid, address: Uuid, primary: bool) -> Operation {
+    op(
+        "attach_address",
+        json!({"interface": {"id": interface}, "address": {"id": address}, "primary": primary}),
+    )
+}
+
+/// `machines.detach_address` of `address` from `interface`.
+fn detach(interface: Uuid, address: Uuid) -> Operation {
+    op(
+        "detach_address",
+        json!({"interface": {"id": interface}, "address": {"id": address}}),
+    )
+}
+
+/// `UpdateAddress` to `usage`.
+fn usage(address: Uuid, usage: AddressUsage) -> Operation {
+    Operation::UpdateAddress {
+        id: Ref::Id(address),
+        domain: None,
+        usage,
+        expected: None,
+    }
+}
+
+/// The class of the named locks of the store (`write.rs`, REQ-008-27).
+const NAMED_LOCK_CLASS: i32 = 0x6b61_726b;
 
 /// `vlan.<name>` from its JSON fields.
 fn vop(name: &str, fields: Value) -> Operation {
@@ -737,10 +856,9 @@ async fn owner_change_moves_interface_scope(pool: PgPool) {
 
 /// An interface `eth<n>` of `machine` in the 802.1Q mode `vlan`.
 fn interface(machine: Uuid, n: u32, vlan: Value) -> Operation {
-    op(
-        "create_interface",
-        json!({"machine": {"id": machine}, "name": format!("eth{n}"), "vlan": vlan}),
-    )
+    let mut fields = json!({"machine": {"id": machine}, "name": format!("eth{n}")});
+    fields["vlan"] = vlan;
+    op("create_interface", fields)
 }
 
 #[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
@@ -921,4 +1039,165 @@ async fn vlan_read_required(pool: PgPool) {
         .await;
     let applied = env.submit_as(seeing, vec![interface(m, 0, access)]).await;
     assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn two_concurrent_attachments_one_wins(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    // Hold the key of the address, as the store takes it, so that both submissions queue
+    // behind it; then release them together.
+    let mut holder = pool.begin().await.unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2))")
+        .bind(NAMED_LOCK_CLASS)
+        .bind(format!("machines.address:{address}"))
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let spawn = |interface: Uuid| {
+        let store = env.store.clone();
+        let request = env.request(vec![attach(interface, address, false)]);
+        tokio::spawn(async move {
+            submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        })
+    };
+    let (first, second) = (spawn(e1), spawn(e2));
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(!first.is_finished() && !second.is_finished());
+    holder.rollback().await.unwrap();
+    let outcomes = [first.await.unwrap(), second.await.unwrap()];
+    let applied = outcomes
+        .iter()
+        .filter(|o| matches!(o, Outcome::Applied { .. }))
+        .count();
+    assert_eq!(applied, 1, "{outcomes:?}");
+    let refused = outcomes
+        .iter()
+        .find(|o| !matches!(o, Outcome::Applied { .. }))
+        .unwrap();
+    assert!(
+        rules(refused).contains(&"machines.address.taken"),
+        "{refused:?}"
+    );
+    assert_eq!(env.attachments(address).await.len(), 1);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn vip_on_two_machines(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let vip = env.address(lab, "192.0.2.10", AddressUsage::Vip).await;
+    let host = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![attach(e1, vip, false), attach(e2, vip, false)])
+        .await;
+    let both = env.attachments(vip).await;
+    assert_eq!(both.len(), 2, "{both:?}");
+    assert!(both.iter().all(|(_, shared, _)| *shared), "{both:?}");
+    // Twice on the same interface: refused.
+    env.refused(vec![attach(e1, vip, false)], "machines.address.taken")
+        .await;
+    // A host address once only; detached, it moves.
+    env.applied(vec![attach(e1, host, false)]).await;
+    env.refused(vec![attach(e2, host, false)], "machines.address.taken")
+        .await;
+    env.refused(vec![detach(e2, host)], "machines.operation.invalid")
+        .await;
+    env.applied(vec![detach(e1, host), attach(e2, host, false)])
+        .await;
+    assert_eq!(env.attachments(host).await, vec![(e2, false, false)]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn usage_back_to_host_refused_when_shared(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    let vip = env.address(lab, "192.0.2.10", AddressUsage::Vip).await;
+    let single = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let (e1, e2) = (env.eth0("m1").await, env.eth0("m2").await);
+    env.applied(vec![
+        attach(e1, vip, false),
+        attach(e2, vip, false),
+        attach(e1, single, false),
+    ])
+    .await;
+    env.refused(
+        vec![usage(vip, AddressUsage::Host)],
+        "machines.address.taken",
+    )
+    .await;
+    assert!(env.attachments(vip).await.iter().all(|(_, s, _)| *s));
+    // On one interface, the usage changes both ways and the copy follows.
+    env.applied(vec![usage(single, AddressUsage::Vip)]).await;
+    assert_eq!(env.attachments(single).await, vec![(e1, true, false)]);
+    env.applied(vec![attach(e2, single, false)]).await;
+    env.applied(vec![detach(e2, single)]).await;
+    env.applied(vec![usage(single, AddressUsage::Host)]).await;
+    assert_eq!(env.attachments(single).await, vec![(e1, false, false)]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn two_primary_v4_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env
+        .domain("lab", env.entity("acme").await, "192.0.2.0/24")
+        .await;
+    env.applied(vec![network_op(Ref::Id(lab), "2001:db8::/64")])
+        .await;
+    let a4 = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let b4 = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let a6 = env.address(lab, "2001:db8::10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    env.applied(vec![attach(e1, a4, true)]).await;
+    env.refused(vec![attach(e1, b4, true)], "machines.address.primary")
+        .await;
+    env.applied(vec![attach(e1, b4, false), attach(e1, a6, true)])
+        .await;
+    assert_eq!(env.attachments(a4).await, vec![(e1, false, true)]);
+    assert_eq!(env.attachments(b4).await, vec![(e1, false, false)]);
+    assert_eq!(env.attachments(a6).await, vec![(e1, false, true)]);
+}
+
+#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+async fn attach_needs_address_read_only(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let far = env.domain("far", other, "198.51.100.0/24").await;
+    let seen = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let hidden = env.address(far, "198.51.100.10", AddressUsage::Host).await;
+    let e1 = env.eth0("m1").await;
+    // A writer of the machines of `acme` who reads its addressing but cannot write it.
+    let system = env
+        .granted(
+            acme,
+            &[
+                "machines.machine.read",
+                "machines.interface.read",
+                "machines.interface.write",
+                "core.address.read",
+            ],
+        )
+        .await;
+    assert!(!env.reads(system, "core.address.write", seen).await);
+    let applied = env.submit_as(system, vec![attach(e1, seen, true)]).await;
+    assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
+    let refused = env.submit_as(system, vec![attach(e1, hidden, false)]).await;
+    assert!(
+        rules(&refused).contains(&"core.object.forbidden"),
+        "{refused:?}"
+    );
+    let applied = env.submit_as(system, vec![detach(e1, seen)]).await;
+    assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
+    assert!(env.attachments(seen).await.is_empty());
 }

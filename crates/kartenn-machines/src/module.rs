@@ -72,6 +72,14 @@ static OPERATIONS: &[OperationType] = &[
         name: "update_interface",
         defines: None,
     },
+    OperationType {
+        name: "attach_address",
+        defines: None,
+    },
+    OperationType {
+        name: "detach_address",
+        defines: None,
+    },
 ];
 
 static MIGRATIONS: &[ModuleMigration] = &[
@@ -84,6 +92,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         version: 2,
         name: "interface",
         sql: include_str!("../migrations/0002_interface.sql"),
+    },
+    ModuleMigration {
+        version: 3,
+        name: "attachment",
+        sql: include_str!("../migrations/0003_attachment.sql"),
     },
 ];
 
