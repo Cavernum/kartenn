@@ -65,11 +65,9 @@ async fn drop_template(conn: &mut PgConnection, template: &str) {
         format!(r#"ALTER DATABASE "{template}" WITH IS_TEMPLATE false"#),
     )
     .await;
-    exec(
-        conn,
-        format!(r#"DROP DATABASE IF EXISTS "{template}" WITH (FORCE)"#),
-    )
-    .await;
+    kartenn_testing::drop_database(conn, template)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM _kartenn_test.templates WHERE name = $1")
         .bind(template)
         .execute(&mut *conn)
@@ -204,7 +202,9 @@ fn a_failed_test_keeps_its_database_a_passed_one_drops_it() {
                 .await
                 .is_empty()
         );
-        exec(&mut conn, format!(r#"DROP DATABASE "{kept}" WITH (FORCE)"#)).await;
+        kartenn_testing::drop_database(&mut conn, &kept)
+            .await
+            .unwrap();
         let template = format!(
             "{}{}",
             kartenn_testing::TEMPLATE_PREFIX,

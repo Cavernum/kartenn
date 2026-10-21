@@ -3,7 +3,7 @@
 # kartenn-breakglass and its login, an operator plugin published, the instance role
 # refused an UPDATE of history (INV-11), secrets kept out of the unit, the command line
 # and the environment, the hardening exposure, a failed migration that blocks the
-# instances.
+# instances, a base one migration behind (503), a migration killed midway then replayed.
 {
   testers,
   module,
@@ -145,5 +145,87 @@ in
           machine.succeed("systemctl restart kartenn-migrate.service")
           machine.succeed("systemctl restart kartenn@second.service")
           machine.wait_until_succeeds("curl -sfk https://127.0.0.1:8444/health/ready", timeout=60)
+
+      def sql(query: str) -> str:
+          return machine.succeed(
+              "sudo -u postgres psql -v ON_ERROR_STOP=1 -d kartenn -tA <<'EOF'\n" + query + "\nEOF"
+          ).strip()
+
+      ready = "curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:8444/health/ready"
+
+      with subtest("a base one migration behind answers 503 (REQ-015-11)"):
+          latest = sql("SELECT max(version) FROM _sqlx_migrations")
+          # The latest migration forgotten: the base is one behind the binary. Replaying it
+          # needs its SQL to run again on a migrated base (0054 grants a read); a later
+          # migration that cannot is to be paired here with what undoes it.
+          sql(f"DELETE FROM _sqlx_migrations WHERE version = {latest}")
+          machine.wait_until_succeeds(f'[ "$({ready})" = 503 ]', timeout=30)
+
+      with subtest("a migration killed midway is replayed, then 200 (REQ-015-11)"):
+          # A session holds the migrations table in SHARE mode: the migration reads it,
+          # runs its SQL in its transaction, then waits to record its version.
+          machine.succeed(
+              "systemd-run --unit=kartenn-lock --uid=postgres $(command -v psql) -d kartenn "
+              "-c 'BEGIN; LOCK TABLE _sqlx_migrations IN SHARE MODE; SELECT pg_sleep(600)'"
+          )
+          machine.wait_until_succeeds(
+              "sudo -u postgres psql -d kartenn -tA -c "
+              "\"SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation "
+              "WHERE c.relname = '_sqlx_migrations' AND l.mode = 'ShareLock' AND l.granted\" "
+              "| grep -qx 1",
+              timeout=30,
+          )
+          # The subtests restart the unit often: stay below systemd's start limit.
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
+          machine.succeed("systemctl restart --no-block kartenn-migrate.service")
+          machine.wait_until_succeeds(
+              "sudo -u postgres psql -d kartenn -tA -c "
+              "\"SELECT count(*) FROM pg_stat_activity WHERE datname = 'kartenn' "
+              "AND wait_event_type = 'Lock'\" | grep -qvx 0",
+              timeout=60,
+          )
+          machine.succeed("systemctl kill --signal=SIGKILL kartenn-migrate.service")
+          machine.wait_until_fails("systemctl is-active --quiet kartenn-migrate.service", timeout=30)
+          # pg_sleep does not notice a closed client: the locking backend is ended by name.
+          sql(
+              "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+              "WHERE query LIKE '%pg_sleep(600)%' AND pid <> pg_backend_pid()"
+          )
+          machine.succeed("systemctl stop kartenn-lock.service || true")
+          # Killed before its commit: nothing of the migration remains.
+          assert sql(f"SELECT count(*) FROM _sqlx_migrations WHERE version = {latest}") == "0"
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
+          machine.succeed("systemctl restart kartenn-migrate.service")
+          assert sql(f"SELECT count(*) FROM _sqlx_migrations WHERE version = {latest} AND success") == "1"
+          machine.succeed("systemctl restart kartenn@main.service kartenn@second.service")
+          for port in (8443, 8444):
+              machine.wait_until_succeeds(f"curl -sfk https://127.0.0.1:{port}/health/ready", timeout=60)
+
+      with subtest("the backup and restore procedure of docs/exploitation/sauvegarde.md"):
+          persons = sql("SELECT count(*) FROM person")
+          events = sql("SELECT count(*) FROM audit.event")
+          machine.succeed("systemctl stop kartenn@main.service kartenn@second.service")
+          machine.succeed("sudo -u postgres pg_dump --format=custom --file=/tmp/kartenn.dump --dbname=kartenn")
+          machine.succeed("sudo -u postgres dropdb kartenn")
+          machine.succeed("sudo -u postgres createdb --owner=kartenn kartenn")
+          machine.succeed(
+              "sudo -u postgres pg_restore --exit-on-error --no-owner --role=kartenn "
+              "--dbname=kartenn /tmp/kartenn.dump"
+          )
+          machine.succeed("systemctl reset-failed kartenn-migrate.service")
+          machine.succeed("systemctl restart kartenn-migrate.service")
+          machine.succeed("systemctl start kartenn@main.service kartenn@second.service")
+          for port in (8443, 8444):
+              machine.wait_until_succeeds(f"curl -sfk https://127.0.0.1:{port}/health/ready", timeout=60)
+          assert sql("SELECT count(*) FROM person") == persons
+          assert int(sql("SELECT count(*) FROM audit.event")) >= int(events)
+          server = find(
+              r"(/nix/store/\S+/bin/kartenn-server)",
+              machine.succeed("systemctl show -p ExecStart --value kartenn-migrate.service"),
+          )
+          print(machine.succeed(
+              f"sudo -u postgres {server} audit verify "
+              "'postgresql:///kartenn?host=/run/postgresql&user=postgres'"
+          ))
     '';
   }

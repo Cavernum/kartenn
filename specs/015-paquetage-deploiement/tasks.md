@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 updated: 2026-10-21
 ---
 
@@ -133,7 +133,7 @@ après l'autre.
   fichier monté) : `[web] root` et `plugins_dir` se posent dans la configuration de
   l'exploitant, vers les chemins fixes `/opt/kartenn/…` ; image non lancée par le check
   (configuration et contenu seulement, comme le prévoit le design).
-- [ ] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
+- [x] 7. Module NixOS et test VM : `nix/module.nix`, `nixosModules.default`,
   `checks.vm` — REQ-015-5, 6, 7, 8, 9, 11 — verify : `checks.vm` (sondes de deux
   instances, migration en échec bloquante, secrets absents du magasin, de `systemctl
   show` et de l'environnement, note `systemd-analyze security` ≤ 2,0, refus d'`UPDATE`
@@ -142,7 +142,7 @@ après l'autre.
   où : design « Module NixOS », « Mise à jour » ; `crates/kartenn-rest/src/health.rs` ;
   `kartenn-store-pg/migrations/0001_*.sql` (rôle `kartenn_app`)
   dépend de : 1, 2, 3, 4
-  — en cours (2026-10-21), **non cochée** : `nix/module.nix` (`nixosModules.default`,
+  — fait (2026-10-21) : `nix/module.nix` (`nixosModules.default`,
   `services.kartenn` : `settings`, `instances`, `databaseUrlFile`,
   `migrationDatabaseUrlFile`, `credentials` en `LoadCredential=` désignés par `%d/<nom>`,
   `plugins` joints aux livrés en fichiers réels, `openFirewall`,
@@ -158,13 +158,18 @@ après l'autre.
   `systemctl show` ni les fichiers de configuration, `UPDATE` d'historique refusé au rôle
   d'instance par manque de droit (lecture permise), note `systemd-analyze security
   kartenn@main` = **1,1**, migration en échec (rôle propriétaire sans `LOGIN`) qui
-  empêche le redémarrage d'une instance, puis reprise. **Reste** : base en retard → 503
-  puis 200 après migration, et migration interrompue puis rejouée.
+  empêche le redémarrage d'une instance, puis reprise ; base en retard d'une migration
+  (dernière ligne de `_sqlx_migrations` retirée) → 503 ; migration bloquée sur un verrou
+  `SHARE` de `_sqlx_migrations` (SQL exécuté, version pas encore inscrite), tuée par
+  SIGKILL, rien d'inscrit, puis rejouée → succès et 200 sur les deux instances.
   Défaut trouvé : sqlx crée `_sqlx_migrations` pour le seul propriétaire ; le rôle
   d'instance ne pouvait pas la lire et `/health/ready` restait à 503 en production
-  (question ouverte d'E7). Contourné dans le module (`ExecStartPost` de la migration :
-  `GRANT SELECT ON _sqlx_migrations TO kartenn_app`) ; le correctif durable est une
-  migration de `kartenn-store-pg`, hors du périmètre de cette tâche.
+  (question ouverte d'E7). Corrigé par la migration `0054_migrations_readable.sql`
+  (`SELECT` seul à `kartenn_app`, test `store_pg_it harness::the_application_reads_the_applied_migrations_and_nothing_more`) ;
+  le contournement `ExecStartPost` du module est retiré.
+  choix : le cas « base en retard » rejoue la dernière migration, qui doit pouvoir
+  repasser sur une base migrée (0054 : un `GRANT`) ; une migration future qui ne le peut
+  pas devra être accompagnée ici de ce qui l'annule.
   choix : rôle propriétaire `kartenn` et rôle d'instance `kartenn_server`, utilisateurs
   dynamiques de même nom (authentification `peer`) ; URL locale
   `postgresql:///kartenn?host=/run/postgresql&user=…` (sqlx refuse un hôte vide avant
@@ -181,12 +186,43 @@ après l'autre.
   `compose.yaml` démarré une fois avec l'image de la tâche 6
   où : design « Documentation » ; ADR 0019 (audit exporté) ; spec 007 W4
   dépend de : 6, 7
-- [ ] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
+  — en cours (2026-10-21), **non cochée** : `docs/exploitation/` (`README.md`,
+  `nixos.md`, `oci.md`, `configuration.md`, `amorcage.md`, `plugins.md` avec
+  l'avertissement W4, `mise-a-jour.md`, `sauvegarde.md`, `observabilite.md`,
+  `versions.md`), `compose.yaml` et `initdb.sql` d'essai. `configuration.md` est tenue à
+  la main et vérifiée par `config::tests::the_operator_reference_covers_every_field`
+  (chaque champ public de `config.rs` cité, exemple complet chargé). Procédures jouées par
+  `checks.vm` : amorçage (`kartenn-breakglass`, connexion, `/v1/me`), mise à jour (base en
+  retard, migration interrompue puis rejouée) et sauvegarde-restauration (`pg_dump`,
+  `dropdb`, `pg_restore --no-owner --role=kartenn`, migration, instances prêtes, mêmes
+  personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : démarrer
+  `compose.yaml` avec l'image de la tâche 6 ; aucun moteur de conteneurs sur la machine
+  de développement.
+- [x] 9. CI proposée : `scripts/ci.sh` — E14 — verify : le script passe sur `main`
   où : design « CI » ; `devenv.nix` (`enterTest`)
   dépend de : 6, 7
+  — `scripts/ci.sh` (`--no-nix` pour sauter la VM et l'image) : vérifie que le
+  PostgreSQL de développement répond, puis une ligne par étape, le détail dans un journal :
+  hakari, métadonnées sqlx hors ligne (`k-heavy --pg`), `k-check`, `k-web-check`,
+  `k-web-e2e`, `nix flake check` (`k-heavy --all`). Passé sur la branche (2026-10-21) :
+  hakari 1 s, sqlx 11 s, Rust 142 s, web 32 s, E2E 316 s, Nix 550 s. Une première passe
+  a révélé un test instable de `kartenn-testing` (suppression forcée refusée par un
+  autovacuum, 42501), corrigé dans la bibliothèque (`drop_database` réessayé 10 s).
+  choix : les étapes de `devenv test` (`enterTest`) sont reprises une à une sous le
+  sémaphore plutôt que `devenv test` lui-même, qui relance tous les tests hors `k-heavy`
+  et sans le verrou PostgreSQL.
 - [ ] 10. Synchronisation : `docs/spec/architecture.md` § Déploiement (une image,
   module), `interfaces.md` (CLI, `[database]`), D35 amendée dans
   `specs/001-cadrage/decisions.md`, ADR 0029 acceptée, statuts de la 015 — verify :
   audit `spec-keeper` de la 015 sans écart bloquant
   où : `docs/spec/` ; `docs/adr/0029-paquetage-nix-oci.md`
   dépend de : 1 à 9
+  — fait (2026-10-21), **non cochée** : `docs/spec/architecture.md` § Déploiement
+  (livrables : flake, une image, module, VM ; `_sqlx_migrations` lisible par le rôle
+  d'instance, rejeu des migrations), `interfaces.md` (`[database] url_file`, `--version`,
+  sous-commandes à URL facultative, `breakglass create` lié à `administrator`,
+  `openapi`) ; D35 amendée et ADR 0029 acceptée (déjà sur `main`) ; statuts : exigences
+  et conception `implemented`, tâches `in-progress` ; ligne et point d'étape de la 015
+  dans `specs/README.md`. **Reste** : la tâche 8 (essai `compose.yaml`) et l'audit
+  `spec-keeper` de la 015, que ce sous-agent ne pouvait pas lancer (relecture faite à la
+  main : aucun écart trouvé hors de la tâche 8).

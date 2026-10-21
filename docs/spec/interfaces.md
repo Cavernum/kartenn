@@ -227,18 +227,25 @@ les a exclus (événements sortants).
   `public-drift` (au démarrage d'une version, puis chaque jour), `idempotency-purge`
   (1 h), et une tâche `import:<id>` par import prêt. Minuteries locales à chaque
   instance : purge des caches d'état et des limiteurs, rechargement des JWKS (5 min).
-- Binaire `kartenn-server` :
-  - `migrate <url>` : job de migration (D9) ;
-  - `run <url> [<config>]` : une instance, jusqu'à `SIGTERM` ou Ctrl-C ; à l'arrêt,
+- Base de données (spec 015, REQ-015-4) : section `[database] url_file`, un fichier qui
+  contient l'URL `postgres://…`, lu au démarrage ; l'URL est alors absente de la ligne de
+  commande (lisible par tout utilisateur de la machine), des logs et des erreurs. Les
+  sous-commandes prennent l'URL en argument **ou** depuis ce fichier, jamais les deux.
+- Binaire `kartenn-server` (`--version` donne la version) :
+  - `migrate [<url>] [--config <fichier>]` : job de migration (D9) ;
+  - `run [<url>] [<config>]` : une instance, jusqu'à `SIGTERM` ou Ctrl-C ; à l'arrêt,
     l'événement d'arrêt est scellé et exporté, les files des sorties sont vidées et
     OpenTelemetry est arrêté, dans 10 s (REQ-012-34) ;
   - `audit verify <url> [<clé-publique-hex>]` : vérifie la chaîne des sceaux et leurs
     signatures ; code de sortie 2 si le journal est altéré (REQ-012-14) ;
-  - `audit purge <url> [<config>]` : rétention par criticité (REQ-012-16), pour une
+  - `audit purge [<url>] [<config>]` : rétention par criticité (REQ-012-16), pour une
     minuterie quotidienne (cron, systemd).
-  - `breakglass create <url> <nom> <heures> <fichier-de-clés>` : compte de secours valable
-    de 1 à 24 h, avec la connexion du propriétaire du schéma ; affiche une fois la phrase
-    de passe et l'URI `otpauth://` du second facteur (REQ-005-14).
+  - `breakglass create [<url>] <nom> <heures> <fichier-de-clés> [--config <fichier>]` :
+    compte de secours valable de 1 à 24 h, avec la connexion du propriétaire du schéma,
+    lié au rôle `administrator` de portée globale jusqu'à sa fin de validité (amorçage du
+    premier administrateur, REQ-005-14, K17) ; affiche une fois la phrase de passe et
+    l'URI `otpauth://` du second facteur.
+  - `openapi [<chemin>]` : contrat OpenAPI des routes du build (modules compris).
 
 ## Configuration de l'API (spec 006)
 
