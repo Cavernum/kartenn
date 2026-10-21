@@ -481,4 +481,4 @@ numérotées après coup.
   vérification locale (`cargo check -p kartenn-server --no-default-features`, sans
   module puis avec `vlan`) ; audit spec-keeper non lancé (agent sans sous-agent),
   relecture faite à la main contre le code ; écart REQ-008-22 (422 au lieu de 403)
-  noté, non tranché.
+  noté, tranché le 2026-10-21 par l'utilisateur : 422 gardé, REQ-008-22 alignée (V16).

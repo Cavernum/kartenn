@@ -273,7 +273,8 @@ un VLAN exige `vlan.vlan.read` sur le VLAN.
 
 Acceptation :
 - Un écrivain des machines de E sans droit sur l'adressage rattache une adresse qu'il
-  lit ; une adresse qu'il ne lit pas : refus (403 au changeset).
+  lit ; une adresse qu'il ne lit pas : refus par la violation `core.object.forbidden`
+  du changeset (422 ; 403 reste le refus d'une route entière, 008/V16).
 
 #### REQ-009-19 — Imports
 kartenn doit accepter les opérations du module dans les imports par morceaux de la 006,

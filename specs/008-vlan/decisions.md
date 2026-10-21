@@ -179,3 +179,15 @@ ADR 0026 (contrat de module, proposée, implémentée par cette spec) ; 003 (pro
 - Pourquoi : un VLAN est un petit objet ; le risque est la jointure par propriété vers
   10⁵ réseaux et le RBAC hérité du groupe.
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+
+## V16 — Refus d'une écriture hors du périmètre : 422, pas 403
+- Décision : une opération de module sur un objet hors du périmètre d'écriture de
+  l'appelant est refusée par la violation `core.object.forbidden` du changeset (422),
+  rapportée avec les autres violations, comme pour le noyau depuis la 004 ; 403 reste
+  réservé au refus d'une route entière (permission absente pour la route). REQ-008-22
+  est alignée ; la 007 (REQ-007-20) et la 009 (REQ-009-18) aussi.
+- Pourquoi : un changeset rapporte toutes ses violations en une réponse ; un droit
+  manquant sur un objet cité en est une ; même comportement pour le noyau et les
+  modules, contrat REST inchangé.
+- Rejeté : 403 dès qu'un droit manque (contrat 006 modifié, clients et shell à adapter).
+- Décidé par : l'utilisateur (2026-10-21)

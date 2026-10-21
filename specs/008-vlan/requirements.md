@@ -297,8 +297,9 @@ kartenn doit contrôler les écritures et lectures du module par `vlan.group.rea
 propose` et `vlan.vlan.read|write|propose`, évaluées sur le périmètre hérité du groupe.
 
 Acceptation :
-- Écrivain VLAN sur l'entité E : crée un VLAN dans un groupe de E ; refus (403 au
-  changeset) dans un groupe d'une autre entité.
+- Écrivain VLAN sur l'entité E : crée un VLAN dans un groupe de E ; refus dans un groupe
+  d'une autre entité, par la violation `core.object.forbidden` du changeset (422, comme
+  le noyau ; 403 reste le refus d'une route entière) [V16].
 
 #### REQ-008-23 — Imports
 kartenn doit accepter les opérations du module dans les imports par morceaux de la 006.
