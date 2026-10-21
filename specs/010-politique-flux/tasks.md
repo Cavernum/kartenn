@@ -95,12 +95,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   masquage d'une autorisation par une interdiction (acceptation de REQ-010-18) exige deux
   valeurs, et le décompte reste polynomial ; au-delà de 10⁵ candidats, décompte seul
   (`truncated`) ; la propriété tourne 4 cas (environ 10⁵ paires par service affecté).
-- [ ] 6. Moteur d'inférence pur (critères, transmission, exceptions, départage,
+- [x] 6. Moteur d'inférence pur (critères, transmission, exceptions, départage,
   candidats multiples, explication) — REQ-010-42 à 45, 47, 49 — verify : cas
   d'acceptation de REQ-010-42, 44, 45 ; oracle du départage sur arbres aléatoires
   - où : `kartenn-policy/src/inference.rs` ; crate `regex` (déjà dépendance de
     `kartenn-core`)
   - dépend de : 3
+  — `inference.rs` (`Node`, `NodeKind`, `Criterion` : préfixe englobant ou égal,
+  famille, domaine, type, site et entité avec ascendants, propriété (égalité,
+  appartenance, présence), nom par `NameRegex`, longueur ; `InferenceRule::check`
+  (profondeur ≤ 4, listes non vides), `expected` (correspondance la plus profonde dans la
+  chaîne des ancêtres transmise à la sous-branche, exceptions qui remplacent, priorité
+  puis profondeur, candidats multiples), `Expectation::{conflict, single}`, `mismatch`,
+  `Expected` avec observations par critère et trois règles plus faibles). Tests :
+  `acceptance_of_req_010_42`, `…_44`, `…_45`, `a_match_is_transmitted_to_the_sub_branch`,
+  `every_criterion_observes_what_it_saw` et la propriété `departage_matches_the_oracle`.
+  choix : expression régulière ancrée par `^…$` littéraux, compilée par `regex` (refuse
+  de lui-même les assertions de voisinage et les références arrière) ; une règle sans
+  critère vaut pour tout nœud ; entre exceptions sœurs, même départage que les règles ;
+  le nœud décrit son site et son entité avec leurs ascendants, fournis par le stockage.
 
 ## P2 — Stockage et pipeline
 

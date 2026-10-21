@@ -7,6 +7,7 @@
 
 pub mod diff;
 pub mod evaluate;
+pub mod inference;
 pub mod model;
 pub mod rules;
 pub mod snapshot;
