@@ -218,3 +218,24 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   `Restore` (contrôles des liaisons à réécrire pour elle, identifiants conservés au prix
   d'un chemin de droits distinct).
 - Décidé par : utilisateur (inverses, 2026-10-18) ; forme : recommandation de Claude
+
+## K17 — Premier administrateur d'une instance neuve (précise K9)
+- Constat : K9 donne au compte de secours des « droits élevés » sans dire comment ; une
+  instance neuve n'a aucune liaison, donc personne ne peut lier un premier rôle
+  d'administration (les parcours de bout en bout le posaient en SQL).
+- Décision : `kartenn-server breakglass create` crée, dans la même transaction que le
+  compte, une **liaison** de l'identité du compte au rôle livré `administrator`, portée
+  **globale**, valide de la création à la fin de validité du compte. C'est la seule voie
+  d'amorçage : elle exige le rôle propriétaire du schéma, et l'événement
+  `account.breakglass.created` (criticité haute) nomme le rôle et la portée. Le compte de
+  secours sert ensuite à lier les groupes OIDC par des opérations ordinaires.
+- Forme : la sous-commande n'a pas d'identité appelante ; la liaison est donc écrite
+  directement par l'adaptateur (comme le compte lui-même), avec une trace d'historique,
+  et non par le pipeline des changesets. Elle prend fin d'elle-même avec le compte (fin
+  de période égale à `valid_until`) ; désactiver le compte (100 échecs) suffit à couper
+  ses droits, la liaison n'ayant d'effet que pour une session ouverte.
+- Pourquoi : un seul geste d'exploitant, déjà réservé au propriétaire du schéma et
+  audité ; aucun droit permanent hors des liaisons ordinaires.
+- Rejeté : sous-commande d'amorçage d'un groupe OIDC (second chemin hors API à
+  sécuriser) ; les deux.
+- Décidé par : l'utilisateur (2026-10-21)
