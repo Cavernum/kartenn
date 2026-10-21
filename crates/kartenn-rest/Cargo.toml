@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-rest"
-version = "0.0.0"
+version.workspace = true
 description = "kartenn REST API: router, representations, problems"
 edition.workspace = true
 rust-version.workspace = true
@@ -18,11 +18,11 @@ workspace = true
 
 [dependencies]
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
-kartenn-auth = { version = "0.0.0", path = "../kartenn-auth" }
-kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
-kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
-kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }
-kartenn-telemetry = { version = "0.0.0", path = "../kartenn-telemetry" }
+kartenn-auth = { version = "0.1.0", path = "../kartenn-auth" }
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg" }
+kartenn-telemetry = { version = "0.1.0", path = "../kartenn-telemetry" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid"] }
@@ -49,7 +49,7 @@ semver = "1.0.28"
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
-kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
+kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
 jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 p256 = { version = "0.13", features = ["pkcs8", "pem", "ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
@@ -59,7 +59,7 @@ time = { version = "0.3.55", features = ["formatting", "macros"] }
 tower = { version = "0.5", features = ["util"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }
 # Serving the router over a real port, in clear and in TLS (task 006-24).
-kartenn-server = { version = "0.0.0", path = "../kartenn-server" }
+kartenn-server = { version = "0.1.0", path = "../kartenn-server" }
 hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }
 hyper-util = { version = "0.1.21", features = ["tokio"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }

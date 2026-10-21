@@ -1,6 +1,6 @@
 [package]
 name = "kartenn-server"
-version = "0.0.0"
+version.workspace = true
 description = "kartenn server binary: composition, configuration, observability"
 edition.workspace = true
 rust-version.workspace = true
@@ -29,16 +29,16 @@ vlan = ["dep:kartenn-vlan"]
 machines = ["vlan", "dep:kartenn-machines"]
 
 [dependencies]
-kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
-kartenn-machines = { version = "0.0.0", path = "../kartenn-machines", features = ["rest"], optional = true }
+kartenn-vlan = { version = "0.1.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
+kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
 figment = { version = "0.10.19", features = ["toml", "env"] }
-kartenn-auth = { version = "0.0.0", path = "../kartenn-auth" }
-kartenn-core = { version = "0.0.0", path = "../kartenn-core" }
-kartenn-service = { version = "0.0.0", path = "../kartenn-service" }
-kartenn-store-pg = { version = "0.0.0", path = "../kartenn-store-pg" }
-kartenn-telemetry = { version = "0.0.0", path = "../kartenn-telemetry" }
+kartenn-auth = { version = "0.1.0", path = "../kartenn-auth" }
+kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
+kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg" }
+kartenn-telemetry = { version = "0.1.0", path = "../kartenn-telemetry" }
 serde = { version = "1.0.229", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid"] }
 syslog-sender = { version = "0.1.0", path = "../syslog-sender" }
@@ -51,12 +51,12 @@ hyper = { version = "1.12.0", features = ["server", "http1", "http2"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
 arc-swap = "1.9.3"
 axum = { version = "0.8.9", default-features = false }
-kartenn-rest = { version = "0.0.0", path = "../kartenn-rest" }
+kartenn-rest = { version = "0.1.0", path = "../kartenn-rest" }
 tower-service = "0.3"
 
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
-kartenn-testing = { version = "0.0.0", path = "../kartenn-testing" }
+kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace", "logs", "metrics", "testing"] }
 opentelemetry-proto = { version = "0.33.1", default-features = false, features = ["gen-tonic", "logs", "trace"] }
 serde_json = "1.0.154"
@@ -66,5 +66,5 @@ rcgen = "0.14.10"
 http-body-util = "0.1.5"
 hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }
 # The development issuer, for the login of an instance end to end (task 007-9).
-kartenn-dev-idp = { version = "0.0.0", path = "../kartenn-dev-idp" }
+kartenn-dev-idp = { version = "0.1.0", path = "../kartenn-dev-idp" }
 form_urlencoded = "1.2.2"
