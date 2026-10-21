@@ -108,14 +108,7 @@ pub(crate) fn declaration(
             tree.as_str()
         )));
     }
-    let mut obligations = BTreeSet::new();
-    for o in &input.obligations {
-        obligations.insert(match o {
-            ObligationInput::Domain { id } => ObligationScope::Domain(*id),
-            ObligationInput::ObjectType { kind } => ObligationScope::ObjectType(kind.clone()),
-            ObligationInput::Entity { id } => ObligationScope::Entity(*id),
-        });
-    }
+    let obligations: BTreeSet<ObligationScope> = input.obligations.iter().map(scope).collect();
     let declaration = Declaration {
         key,
         declarant,
@@ -430,6 +423,63 @@ pub(crate) async fn check_closure<T: WriteTx>(
         );
     }
     Ok(())
+}
+
+/// The scope of an obligation as received.
+pub(crate) fn scope(input: &ObligationInput) -> ObligationScope {
+    match input {
+        ObligationInput::Domain { id } => ObligationScope::Domain(*id),
+        ObligationInput::ObjectType { kind } => ObligationScope::ObjectType(kind.clone()),
+        ObligationInput::Entity { id } => ObligationScope::Entity(*id),
+    }
+}
+
+/// Checks an administrator's obligation before it is written: its scope names a domain
+/// or an entity that exists over the whole of `period` (003-18), and the property is
+/// declared there (REQ-008-28).
+pub(crate) async fn check_admin_obligation<T: WriteTx>(
+    tx: &mut T,
+    property: Uuid,
+    scope: &ObligationScope,
+    period: Option<Period>,
+) -> Result<Declaration, WriteError> {
+    let declaration = tx
+        .declaration(property, period)
+        .await?
+        .ok_or(WriteError::NoVersion(property))?;
+    let probe = Declaration {
+        obligations: [scope.clone()].into(),
+        ..declaration.clone()
+    };
+    check_scopes(tx, None, &probe, period).await?;
+    Ok(declaration)
+}
+
+/// The objects of `scope` without a value once an administrator required the property
+/// there: refused, listed (REQ-003-16, REQ-008-28).
+pub(crate) async fn admin_obligation_held<T: WriteTx>(
+    tx: &mut T,
+    property: Uuid,
+    declaration: &Declaration,
+    scope: &ObligationScope,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    let carriers: Vec<String> = declaration.carriers.iter().cloned().collect();
+    let missing = tx
+        .objects_without_value(
+            property,
+            &carriers,
+            declaration.inherit.is_some(),
+            scope,
+            None,
+            period,
+        )
+        .await?;
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(WriteError::Rule(required(&declaration.key, missing)))
+    }
 }
 
 /// Declarations of a module, as its code describes them (P12).

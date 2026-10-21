@@ -598,6 +598,23 @@ pub enum Operation {
         /// Sensitive or not.
         sensitive: bool,
     },
+    /// Requires a property in a scope, as an administrator: the synchronisation of the
+    /// declarations of its module keeps it (spec 008, REQ-008-28).
+    AddObligation {
+        /// The property.
+        property: Ref,
+        /// Where it becomes required.
+        #[serde(flatten)]
+        scope: ObligationInput,
+    },
+    /// Removes an obligation an administrator added (REQ-008-28).
+    RemoveObligation {
+        /// The property.
+        property: Ref,
+        /// Where it was required.
+        #[serde(flatten)]
+        scope: ObligationInput,
+    },
     /// Changes the slug of a domain, an entity or a site over the period of the changeset;
     /// its UUID stays (REQ-002-47).
     Rename {
@@ -830,6 +847,8 @@ impl Operation {
             | Self::MoveSite { .. }
             | Self::Rename { .. }
             | Self::SetSensitivity { .. }
+            | Self::AddObligation { .. }
+            | Self::RemoveObligation { .. }
             | Self::SetApprovalPolicy { .. }
             | Self::Restore { .. }
             | Self::BindExternal { .. }

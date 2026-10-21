@@ -46,6 +46,13 @@ pub enum Change {
     Slug(Slug),
     /// Whether a property is sensitive (REQ-003-27).
     Sensitive(bool),
+    /// An administrator's obligation on a property, added or removed (REQ-008-28).
+    Obligation {
+        /// Where the property is required.
+        scope: kartenn_core::properties::ObligationScope,
+        /// Added, or removed.
+        required: bool,
+    },
 }
 
 /// Failure of one write.
@@ -1172,6 +1179,13 @@ pub trait WriteTx {
         &mut self,
         property: &str,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// Records a section of the differential contributed by a module (REQ-008-26), stored
+    /// with the journal of an applied changeset.
+    fn record_section(
+        &mut self,
+        section: &crate::module::DiffSection,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// First `limit` entries of the differential recorded so far.
     fn diff_sample(

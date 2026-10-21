@@ -675,6 +675,23 @@ pub(crate) enum OperationDto {
         /// Sensitive or not.
         sensitive: bool,
     },
+    /// Requires a property in a scope, as an administrator; the synchronisation of the
+    /// module that declares it keeps it (008, REQ-008-28).
+    AddObligation {
+        /// The property.
+        property: RefDto,
+        /// Where it becomes required.
+        #[serde(flatten)]
+        scope: ObligationDto,
+    },
+    /// Removes an obligation an administrator added (008, REQ-008-28).
+    RemoveObligation {
+        /// The property.
+        property: RefDto,
+        /// Where it was required.
+        #[serde(flatten)]
+        scope: ObligationDto,
+    },
     /// Changes the slug of a domain, an entity or a site; its UUID stays (REQ-002-47).
     Rename {
         /// What is renamed.
@@ -1010,6 +1027,14 @@ impl From<OperationDto> for Operation {
                 property: property.into(),
                 sensitive,
             },
+            OperationDto::AddObligation { property, scope } => Self::AddObligation {
+                property: property.into(),
+                scope: scope.into(),
+            },
+            OperationDto::RemoveObligation { property, scope } => Self::RemoveObligation {
+                property: property.into(),
+                scope: scope.into(),
+            },
             OperationDto::Rename {
                 kind,
                 id,
@@ -1182,6 +1207,8 @@ mod tests {
             Operation::MoveEntity { .. } => "move_entity",
             Operation::MoveSite { .. } => "move_site",
             Operation::SetSensitivity { .. } => "set_sensitivity",
+            Operation::AddObligation { .. } => "add_obligation",
+            Operation::RemoveObligation { .. } => "remove_obligation",
             Operation::Rename { .. } => "rename",
             Operation::DeclareProperty { .. } => "declare_property",
             Operation::UpdateProperty { .. } => "update_property",

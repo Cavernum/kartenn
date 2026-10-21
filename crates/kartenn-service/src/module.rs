@@ -14,7 +14,7 @@ use kartenn_core::rules::{Rule, Violation};
 use uuid::Uuid;
 
 use crate::declarations::ModuleDeclarations;
-use crate::operations::{ModuleKind, ModuleOperation, Operation, Ref};
+use crate::operations::{ModuleKind, ModuleOperation, ObjectKind, Operation, Ref};
 use crate::port::{StoreError, WriteError};
 
 /// The name reserved for the core (ADR 0026, clause 1).
@@ -155,6 +155,70 @@ pub struct ModuleObjectRow {
     pub domain: Option<Uuid>,
 }
 
+/// A row of a section of the differential: an object, its value before and after the
+/// changeset, over a period (ADR 0026, clause 13).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiffRow {
+    /// The object.
+    pub object: Uuid,
+    /// Its qualified type (`prefix`, `vlan.vlan`…).
+    pub kind: String,
+    /// What the module shows of it before the changeset; `None`: absent.
+    pub before: Option<serde_json::Value>,
+    /// What the module shows of it after; `None`: absent.
+    pub after: Option<serde_json::Value>,
+    /// The period of the change; `None`: the changeset's.
+    pub period: Option<Period>,
+}
+
+/// A section of the differential, contributed by a module (REQ-008-26).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiffSection {
+    /// Its name, `<module>.<name>`.
+    pub name: String,
+    /// Its rows, in the order the module gives.
+    pub rows: Vec<DiffRow>,
+}
+
+/// What a module's contribution to the differential reads (ADR 0026, clause 13).
+#[derive(Debug, Clone, Copy)]
+pub struct DiffContext<'a> {
+    /// The changeset.
+    pub changeset: Uuid,
+    /// The counted differential of the resolved property values; its detail is readable
+    /// in the transaction.
+    pub properties: &'a [crate::port::DiffCount],
+    /// The objects the changeset writes, of every type (core and modules).
+    pub touched: &'a [(ObjectKind, Uuid)],
+    /// The sections of the modules before this one, in the order of the registry.
+    pub sections: &'a [DiffSection],
+}
+
+impl DiffContext<'_> {
+    /// The section named `name`, if a module before produced it.
+    #[must_use]
+    pub fn section(&self, name: &str) -> Option<&DiffSection> {
+        self.sections.iter().find(|s| s.name == name)
+    }
+}
+
+/// What the rules of a module read on the final state (ADR 0026, clause 7).
+#[derive(Debug, Clone, Copy)]
+pub struct CheckContext<'a> {
+    /// The objects of the module the changeset wrote.
+    pub touched: &'a [(ModuleKind, Uuid)],
+    /// Every section of the differential.
+    pub sections: &'a [DiffSection],
+}
+
+impl CheckContext<'_> {
+    /// The section named `name`, if a module produced it.
+    #[must_use]
+    pub fn section(&self, name: &str) -> Option<&DiffSection> {
+        self.sections.iter().find(|s| s.name == name)
+    }
+}
+
 /// The transaction of a changeset, as a module writes in it (ADR 0026, clause 6).
 pub trait ModuleTx: Send {
     /// The connection of the adapter: a module's own adapter downcasts it
@@ -276,14 +340,26 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         None
     }
 
-    /// The rules of the module on the final state, once every operation is written:
-    /// `touched` lists the objects of the module the changeset wrote.
+    /// The module's section of the differential, after the differential of the property
+    /// values and the sections of the modules before it (REQ-008-26). None by default.
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        let _ = (tx, context);
+        Box::pin(std::future::ready(Ok(None)))
+    }
+
+    /// The rules of the module on the final state, once every operation is written and
+    /// every section of the differential produced: the context lists the objects of the
+    /// module the changeset wrote, and the sections.
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
-        touched: &'a [(ModuleKind, Uuid)],
+        context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Vec<Violation>, StoreError>> {
-        let _ = (tx, touched);
+        let _ = (tx, context);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }

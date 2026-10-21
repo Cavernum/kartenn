@@ -161,7 +161,34 @@ pub enum Outcome {
         sample: Vec<DiffItem>,
         /// Closures a cascade would add (REQ-004-26).
         cascaded: Vec<(ObjectKind, Uuid)>,
+        /// The sections the modules would contribute, each with its first rows
+        /// (REQ-008-26).
+        sections: Vec<SectionSample>,
     },
+}
+
+/// A section of the differential in a simulation: its size and its first rows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SectionSample {
+    /// Its name, `<module>.<name>`.
+    pub name: String,
+    /// Its rows.
+    pub count: u64,
+    /// Its first rows.
+    pub rows: Vec<crate::module::DiffRow>,
+}
+
+impl SectionSample {
+    fn of(section: crate::module::DiffSection) -> Self {
+        let count = u64::try_from(section.rows.len()).unwrap_or(u64::MAX);
+        let mut rows = section.rows;
+        rows.truncate(usize::try_from(SIMULATION_SAMPLE).unwrap_or(usize::MAX));
+        Self {
+            name: section.name,
+            count,
+            rows,
+        }
+    }
 }
 
 fn addr_violation(err: &AddrError) -> Violation {
@@ -337,7 +364,10 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             kind,
             property,
         } => vec![(*object, *kind), (*property, ObjectKind::Property)],
-        Operation::AddEnumValue { property, .. } | Operation::SetSensitivity { property, .. } => {
+        Operation::AddEnumValue { property, .. }
+        | Operation::SetSensitivity { property, .. }
+        | Operation::AddObligation { property, .. }
+        | Operation::RemoveObligation { property, .. } => {
             vec![(*property, ObjectKind::Property)]
         }
         Operation::CreateEntity { parent, .. } => {
@@ -673,6 +703,16 @@ fn plan_anchor(
             change: Change::Sensitive(*sensitive),
             expected: None,
         },
+        Operation::AddObligation { property, scope }
+        | Operation::RemoveObligation { property, scope } => Planned::Modify {
+            kind: ObjectKind::Property,
+            id: resolve(*property),
+            change: Change::Obligation {
+                scope: crate::declarations::scope(scope),
+                required: matches!(op, Operation::AddObligation { .. }),
+            },
+            expected: None,
+        },
         Operation::SetApprovalPolicy { .. } => plan_policy(op, id, &resolve)?,
         Operation::BindExternal {
             object,
@@ -868,6 +908,8 @@ fn plan(
                 | Operation::MoveSite { .. }
                 | Operation::Rename { .. }
                 | Operation::SetSensitivity { .. }
+                | Operation::AddObligation { .. }
+                | Operation::RemoveObligation { .. }
                 | Operation::SetApprovalPolicy { .. }
                 | Operation::Restore { .. }
                 | Operation::BindExternal { .. }
@@ -1155,43 +1197,47 @@ async fn assignment<T: WriteTx>(
 }
 
 /// The rules of each module on the final state, with the objects of the module the
-/// changeset wrote (ADR 0026, clause 7).
+/// changeset wrote and the sections of the differential (ADR 0026, clause 7).
 async fn check_modules<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
     planned: &[Planned],
+    sections: &[crate::module::DiffSection],
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
-    /// A module and the objects of it the changeset wrote.
-    type Touched = (Arc<dyn ModuleHandler>, Vec<(ModuleKind, Uuid)>);
-    let mut touched: Vec<Touched> = Vec::new();
-    for p in planned {
-        let (handler, object) = match p {
-            Planned::Module { handler, plan } => (Arc::clone(handler), (plan.kind, plan.object)),
-            // Closed or restored by the generic operations (REQ-008-5).
-            Planned::Close {
-                kind: ObjectKind::Module(kind),
-                id,
-                ..
-            }
-            | Planned::Restore {
-                kind: ObjectKind::Module(kind),
-                id,
-                property: None,
-                ..
-            } => match modules.handler_of(*kind) {
-                Some(handler) => (handler, (*kind, *id)),
-                None => continue,
-            },
-            _ => continue,
+    // Each module once, in the order of the registry: a module that wrote nothing may
+    // still have rules on the sections.
+    for module in modules.modules() {
+        let Some(handler) = module.handler() else {
+            continue;
         };
-        match touched.iter_mut().find(|(h, _)| Arc::ptr_eq(h, &handler)) {
-            Some((_, objects)) => objects.push(object),
-            None => touched.push((handler, vec![object])),
+        let mut objects: Vec<(ModuleKind, Uuid)> = Vec::new();
+        for p in planned {
+            let object = match p {
+                Planned::Module { plan, .. } => (plan.kind, plan.object),
+                // Closed or restored by the generic operations (REQ-008-5).
+                Planned::Close {
+                    kind: ObjectKind::Module(kind),
+                    id,
+                    ..
+                }
+                | Planned::Restore {
+                    kind: ObjectKind::Module(kind),
+                    id,
+                    property: None,
+                    ..
+                } => (*kind, *id),
+                _ => continue,
+            };
+            if object.0.module() == module.name() {
+                objects.push(object);
+            }
         }
-    }
-    for (handler, objects) in touched {
-        violations.extend(handler.check(tx.module_tx(), &objects).await?);
+        let context = crate::module::CheckContext {
+            touched: &objects,
+            sections,
+        };
+        violations.extend(handler.check(tx.module_tx(), &context).await?);
     }
     Ok(())
 }
@@ -1258,6 +1304,18 @@ async fn modify<T: WriteTx>(
         for (old, _) in tx.prefix_versions(id, period).await? {
             former.push((old.domain, old.value));
         }
+    }
+    // REQ-008-28: an administrator's obligation, checked like those of a declaration.
+    if let Change::Obligation {
+        scope,
+        required: true,
+    } = change
+    {
+        let declaration =
+            crate::declarations::check_admin_obligation(tx, id, scope, period).await?;
+        tx.modify(kind, id, change, period, changeset).await?;
+        return crate::declarations::admin_obligation_held(tx, id, &declaration, scope, period)
+            .await;
     }
     tx.modify(kind, id, change, period, changeset).await
 }
@@ -1784,12 +1842,6 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return Err(e.into());
     }
-    if !has_errors(&violations)
-        && let Err(e) = check_modules(&mut tx, modules, &planned, &mut violations).await
-    {
-        tx.rollback().await?;
-        return Err(e.into());
-    }
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
@@ -1835,6 +1887,24 @@ async fn stages<S: Store, A: Authorizer>(
         }
     };
     missing.extend(missing_before);
+    // REQ-008-26: the sections of the modules, then their rules on the final state.
+    let touched = crate::sections::touched(&planned);
+    let sections =
+        match crate::sections::contribute(&mut tx, modules, changeset, &diff, &touched).await {
+            Ok(sections) => sections,
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(e.into());
+            }
+        };
+    if let Err(e) = check_modules(&mut tx, modules, &planned, &sections, &mut violations).await {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    if has_errors(&violations) {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, violations, mode, context).await;
+    }
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
         tx.rollback().await?;
@@ -1843,6 +1913,7 @@ async fn stages<S: Store, A: Authorizer>(
             diff,
             sample: sample?,
             cascaded,
+            sections: sections.into_iter().map(SectionSample::of).collect(),
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
@@ -2164,6 +2235,7 @@ async fn refuse<S: Store>(
             diff: Vec::new(),
             sample: Vec::new(),
             cascaded: Vec::new(),
+            sections: Vec::new(),
         });
     }
     let journal = Journal {

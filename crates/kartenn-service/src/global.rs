@@ -341,7 +341,7 @@ async fn check_modified<T: WriteTx>(
         Change::Range(_) => check_range_versions(tx, id, period, violations).await?,
         // A slug is unique among the current slugs of its kind: the constraint of the
         // table (`core.slug.duplicate`). No rule on the sensitivity flag.
-        Change::Slug(_) | Change::Sensitive(_) => {}
+        Change::Slug(_) | Change::Sensitive(_) | Change::Obligation { .. } => {}
     }
     Ok(())
 }
