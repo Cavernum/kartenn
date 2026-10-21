@@ -33,6 +33,9 @@ use kartenn_service::authn::{
     StateCache,
 };
 
+use kartenn_service::authn::Requester;
+use uuid::Uuid;
+
 use crate::cookies;
 use crate::problem::{Problem, ProblemKind};
 use crate::transport::Client;
@@ -91,6 +94,11 @@ pub enum Refusal {
     NotTls,
     /// A logout without a session: 400.
     NoSession,
+    /// `Kartenn-On-Behalf-Of` malformed, repeated or on a read: 400 (REQ-016-12).
+    BadOnBehalf(&'static str),
+    /// `Kartenn-On-Behalf-Of` from other than a service account holding
+    /// `core.identity.act_on_behalf`: 403 (REQ-016-12).
+    OnBehalfForbidden,
 }
 
 impl IntoResponse for Refusal {
@@ -116,6 +124,10 @@ impl IntoResponse for Refusal {
             Self::UnknownIssuer => bad("unknown issuer").into_response(),
             Self::NotTls => bad("TLS required").into_response(),
             Self::NoSession => bad("no session").into_response(),
+            Self::BadOnBehalf(detail) => bad(detail).into_response(),
+            Self::OnBehalfForbidden => Problem::new(ProblemKind::Forbidden)
+                .detail(kartenn_core::authz::IDENTITY_ACT_ON_BEHALF.name)
+                .into_response(),
         }
     }
 }
@@ -216,6 +228,18 @@ pub trait Authenticator: Send + Sync {
     fn rights<'a>(&'a self, principal: &'a Principal) -> Answer<'a, Rights> {
         let _ = principal;
         Box::pin(std::future::ready(Ok(Rights::default())))
+    }
+
+    /// The identity of the requester `principal` writes for (REQ-016-12); refused by
+    /// default.
+    fn on_behalf_of(
+        &self,
+        principal: Principal,
+        requester: Requester,
+        source: Source,
+    ) -> Answer<'_, Uuid> {
+        let _ = (principal, requester, source);
+        refused(Refusal::OnBehalfForbidden)
     }
 }
 
@@ -660,6 +684,25 @@ where
                 .map_err(|e| refusal(&AuthnError::Store(e), Refusal::Unavailable))
         })
     }
+
+    fn on_behalf_of(
+        &self,
+        principal: Principal,
+        requester: Requester,
+        source: Source,
+    ) -> Answer<'_, Uuid> {
+        Box::pin(async move {
+            authn::act_on_behalf(
+                &self.identities,
+                &self.journal,
+                &principal,
+                &requester,
+                source,
+            )
+            .await
+            .map_err(|e| refusal(&e, Refusal::OnBehalfForbidden))
+        })
+    }
 }
 
 /// The proof of a request: `Err` with the answer when there are two, a malformed one, or
@@ -692,6 +735,42 @@ fn proof(headers: &HeaderMap, client: Client) -> Result<Proof, Refusal> {
         return Err(Refusal::Unauthenticated);
     }
     Ok(proof)
+}
+
+/// The requester `Kartenn-On-Behalf-Of` names, if any (REQ-016-12): at most one header,
+/// on a write, well formed, from a service account the authenticator lets act for it.
+async fn on_behalf(
+    authenticator: &dyn Authenticator,
+    headers: &HeaderMap,
+    method: &axum::http::Method,
+    principal: &Principal,
+    source: Source,
+) -> Result<Option<Uuid>, Refusal> {
+    let mut values = headers.get_all(crate::on_behalf::ON_BEHALF_OF).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(Refusal::BadOnBehalf(
+            "Kartenn-On-Behalf-Of is given more than once",
+        ));
+    }
+    if matches!(method.as_str(), "GET" | "HEAD" | "OPTIONS" | "QUERY") {
+        return Err(Refusal::BadOnBehalf(
+            "Kartenn-On-Behalf-Of is only for a write",
+        ));
+    }
+    let value = value
+        .to_str()
+        .map_err(|_| Refusal::BadOnBehalf("Kartenn-On-Behalf-Of is not ASCII"))?;
+    let requester = crate::on_behalf::parse(value).map_err(Refusal::BadOnBehalf)?;
+    if principal.kind != IdentityKind::ServiceAccount {
+        return Err(Refusal::OnBehalfForbidden);
+    }
+    authenticator
+        .on_behalf_of(principal.clone(), requester, source)
+        .await
+        .map(Some)
 }
 
 /// Whether `path` answers without authentication.
@@ -755,9 +834,22 @@ pub async fn layer(
             return response;
         }
     };
-    let mut context = principal.context(source);
+    let mut context = principal.context(source.clone());
     if let Some(before) = request.extensions().get::<RequestContext>() {
         context.correlation = before.correlation.clone();
+    }
+    let method = request.method().clone();
+    match on_behalf(
+        authenticator.as_ref(),
+        request.headers(),
+        &method,
+        &principal,
+        source,
+    )
+    .await
+    {
+        Ok(requester) => context.on_behalf_of = requester,
+        Err(refusal) => return refusal.into_response(),
     }
     request.extensions_mut().insert(context);
     request.extensions_mut().insert(principal);

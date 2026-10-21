@@ -200,7 +200,7 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   revue rend 422 `changeset-refused` avec la violation, sans journal ; un module disparu
   du build (`core.review.module` du design) n'a pas de traitement propre : ses opérations
   ne se planifient plus et la validation est refusée par la règle d'opération inconnue.
-- [ ] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :
+- [x] 12. Pour le compte d'un demandeur — REQ-016-12, 13 — verify :
   `a_service_account_writes_on_behalf_of_a_requester`, sans permission → 403, droits du
   seul compte de service, audit validé par le schéma, pseudonymisation du demandeur
   - où : `kartenn-rest/src/authn.rs`, `kartenn-service/src/authn.rs`, identités (005),
@@ -209,6 +209,38 @@ imposé. B passe avant C sur `kartenn-service/src/module.rs`.
   - dépend de : 11
   - débloque : 011-3 (demandes venues d'un outil de tickets), 010-13 (pré-vérification au
     nom d'un demandeur)
+  — Noyau : permission globale `core.identity.act_on_behalf` (`authz.rs`), événement
+  `authn.requester.created`, détail `on_behalf_of` admis sur tout événement
+  (`AuditEvent::on_behalf_of`, schéma `docs/spec/evenements-audit.schema.json` et
+  catalogue régénérés). Service : `RequestContext::on_behalf_of` (repris par chaque
+  événement de la requête), `Journal::on_behalf_of`, `Identities::requester`,
+  `authn::{Requester, act_on_behalf}` (compte de service seul, permission globale, identité
+  `requester` créée si inconnue, une personne connue gardée telle quelle). Store : migration
+  `0055_on_behalf.sql` (genre `requester`, `changeset.on_behalf_of`, droit
+  `UPDATE (request)` sur `changeset` pour la tâche 11), `identities.rs` (`requester`),
+  `write.rs`, `changesets.rs`, `audit.rs` (la pseudonymisation
+  accepte un `requester`). REST : `on_behalf.rs` (dictionnaire RFC 9651 : `sub`, `iss`,
+  `name`, chaînes ou jetons, sans paramètres), `authn.rs` (couche 6 : 400 sur une lecture,
+  un en-tête mal formé ou répété ; 403 `core.identity.act_on_behalf` hors d'un compte de
+  service autorisé ; `Authenticator::on_behalf_of`, refusé par défaut), fiche du changeset
+  (`on_behalf_of`, ajout ; contrat et types du SDK régénérés). Tests :
+  `kartenn-service/tests/it/on_behalf.rs` (`a_service_account_writes_on_behalf_of_a_requester`,
+  `without_the_permission_or_as_a_person_it_is_refused`, `the_requester_lends_no_right`,
+  `the_requester_is_pseudonymised_like_a_person`), `kartenn-rest/tests/it/on_behalf.rs`
+  (en-tête dans la couche : succès, lecture, mal formé, personne, refus), unitaires de
+  `on_behalf.rs`.
+  choix : `on_behalf_of` est un détail de l'événement (`details.on_behalf_of`) et non une
+  colonne de `audit.event` : une colonne changerait le `to_jsonb` des événements déjà
+  scellés et casserait leur vérification ; l'événement de création s'appelle
+  `authn.requester.created` (le catalogue impose trois segments, le design disait
+  `authn.on_behalf`) ; sans `iss`, l'émetteur du demandeur est
+  `urn:kartenn:service-account:<id>` (l'espace du compte de service) ; un `sub` déjà connu
+  à cet émetteur (personne qui s'est connectée) est repris sans changer de genre, et un
+  demandeur qui se connecte plus tard par son émetteur garde son genre `requester`
+  (l'application n'a pas le droit de changer un genre, `rbac_schema` ; le genre du
+  principal vient de l'authentification, non de cette colonne) ; le
+  contexte, et non `ChangesetRequest`, porte le demandeur (aucun changement de la forme des
+  requêtes enregistrées).
 
 ## Synchronisation
 

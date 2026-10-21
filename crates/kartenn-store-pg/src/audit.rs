@@ -175,7 +175,10 @@ pub async fn pseudonymise_identity(
     .map_err(store_err)?;
     match found {
         None => return Ok(Pseudonymisation::Unknown),
-        Some((kind, _)) if kind != "person" => return Ok(Pseudonymisation::NotAPerson),
+        // A requester (016) is a person named by a service account: pseudonymised alike.
+        Some((kind, _)) if kind != "person" && kind != "requester" => {
+            return Ok(Pseudonymisation::NotAPerson);
+        }
         Some((_, true)) => return Ok(Pseudonymisation::Already),
         Some(_) => {}
     }

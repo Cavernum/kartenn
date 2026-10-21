@@ -48,7 +48,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "method": {}
+            "method": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -68,7 +72,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "method": {}
+            "method": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -89,6 +97,10 @@
           "additionalProperties": false,
           "properties": {
             "count": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "window_seconds": {}
           },
           "type": "object"
@@ -108,7 +120,12 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "name": {
@@ -126,7 +143,12 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "name": {
@@ -145,7 +167,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "cause": {}
+            "cause": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -165,7 +191,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "method": {}
+            "method": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -180,11 +210,38 @@
     {
       "properties": {
         "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "authn.requester.created"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
           "const": "high"
         },
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "permission": {}
           },
           "type": "object"
@@ -205,7 +262,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "kind": {}
+            "kind": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -225,6 +286,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "operations": {}
           },
           "type": "object"
@@ -245,6 +310,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "rules": {}
           },
           "type": "object"
@@ -264,7 +333,12 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "name": {
@@ -282,7 +356,12 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "name": {
@@ -300,7 +379,12 @@
         },
         "details": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "name": {
@@ -319,6 +403,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "rules": {}
           },
           "type": "object"
@@ -340,6 +428,10 @@
           "additionalProperties": false,
           "properties": {
             "object": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "rule": {}
           },
           "type": "object"
@@ -360,6 +452,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "role": {}
           },
           "type": "object"
@@ -380,6 +476,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "role": {},
             "scope": {}
           },
@@ -401,7 +501,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "change": {}
+            "change": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -421,6 +525,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "role": {},
             "scope": {},
             "valid_until": {}
@@ -443,7 +551,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "enabled": {}
+            "enabled": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -464,6 +576,10 @@
           "additionalProperties": false,
           "properties": {
             "key": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "sensitive": {}
           },
           "type": "object"
@@ -484,7 +600,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "motive": {}
+            "motive": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -505,6 +625,10 @@
           "additionalProperties": false,
           "properties": {
             "criteria": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "targets_omitted": {}
           },
           "type": "object"
@@ -525,6 +649,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "property": {}
           },
           "type": "object"
@@ -546,7 +674,11 @@
           "additionalProperties": false,
           "properties": {
             "count": {},
-            "criteria": {}
+            "criteria": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -567,7 +699,11 @@
           "additionalProperties": false,
           "properties": {
             "count": {},
-            "criteria": {}
+            "criteria": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -587,6 +723,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "version": {}
           },
           "type": "object"
@@ -607,7 +747,11 @@
         "details": {
           "additionalProperties": false,
           "properties": {
-            "lost_technical_events": {}
+            "lost_technical_events": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
           },
           "type": "object"
         },
@@ -627,6 +771,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "version": {}
           },
           "type": "object"
@@ -647,6 +795,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "setting": {}
           },
           "type": "object"
@@ -669,6 +821,10 @@
           "properties": {
             "expires_at": {},
             "filter": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "output": {}
           },
           "type": "object"
@@ -689,6 +845,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "output": {}
           },
           "type": "object"
@@ -709,6 +869,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "output": {}
           },
           "type": "object"
@@ -729,6 +893,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "output": {}
           },
           "type": "object"
@@ -752,6 +920,10 @@
             "count": {},
             "hash": {},
             "key_id": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "seal": {}
           },
           "type": "object"
@@ -772,6 +944,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "seal": {}
           },
           "type": "object"
@@ -794,6 +970,10 @@
           "properties": {
             "count": {},
             "limit": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "window_seconds": {}
           },
           "type": "object"
@@ -814,6 +994,10 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
             "reason": {}
           },
           "type": "object"

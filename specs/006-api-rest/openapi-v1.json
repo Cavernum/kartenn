@@ -807,6 +807,14 @@
             "description": "Why.",
             "type": "string"
           },
+          "on_behalf_of": {
+            "description": "The requester a service account wrote it for (`Kartenn-On-Behalf-Of`,\nREQ-016-12); absent otherwise.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "operations": {
             "description": "Its operations, as submitted: the values of a sensitive property are `null` with\n`masked: true` without the right to read them, the digest of a secret never shown.",
             "items": {

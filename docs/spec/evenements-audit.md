@@ -15,6 +15,7 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `authn.token.reused` | WARN | high | Un jeton déjà utilisé ou révoqué a été présenté. | — | REQ-012-8 | Authentication 3002 / Logon | `authentication` |
 | `authn.session.closed` | INFO | low | Une session s'est terminée (déconnexion ou expiration). | `cause` | REQ-012-8 | Authentication 3002 / Logoff | `authentication` |
 | `authn.breakglass.used` | WARN | high | Un compte de secours a ouvert une session. | `method` | REQ-005-15 | Authentication 3002 / Logon | `authentication` |
+| `authn.requester.created` | INFO | normal | Un compte de service a nommé un demandeur inconnu jusque-là : son identité « requester » est créée. | — | REQ-016-12, REQ-016-13 | Account Change 3001 / Create | `iam` |
 | `authz.access.denied` | WARN | high | Un droit a été refusé à l'acteur sur les objets cibles. | `permission` | REQ-012-8 | Authorize Session 3003 / Assign Privileges | `iam` |
 | `changeset.state.pending` | INFO | normal | Un changeset attend une approbation ou une validation de proposition. | `kind` | REQ-012-8 | API Activity 6003 / Create | `configuration` |
 | `changeset.state.applied` | INFO | normal | Un changeset a été appliqué. | `operations` | REQ-012-8 | API Activity 6003 / Update | `configuration` |

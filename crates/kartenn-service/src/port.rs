@@ -165,6 +165,8 @@ pub struct Journal<'a> {
     pub cascaded: &'a [(ObjectKind, Uuid)],
     /// Audit events written with the journal, in its transaction (REQ-012-8, 11).
     pub audit: &'a [kartenn_core::audit::AuditEvent],
+    /// The requester a service account wrote for (REQ-016-12), an identity `requester`.
+    pub on_behalf_of: Option<Uuid>,
 }
 
 /// What a pending changeset waits for (004/design, § Approbation et propositions).

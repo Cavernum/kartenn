@@ -415,6 +415,10 @@ pub(crate) struct ChangesetDto {
     author: Uuid,
     /// Who validated it.
     validator: Option<Uuid>,
+    /// The requester a service account wrote it for (`Kartenn-On-Behalf-Of`,
+    /// REQ-016-12); absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    on_behalf_of: Option<Uuid>,
     /// Why.
     motive: String,
     /// The start of its period, RFC 3339.
@@ -466,6 +470,7 @@ async fn represent(
         kind: s.kind.clone(),
         author: s.author,
         validator: found.validator,
+        on_behalf_of: found.on_behalf_of,
         motive: s.motive.clone(),
         valid_from: time(found.valid_from),
         valid_to: found.valid_to.map(time),

@@ -2127,6 +2127,7 @@ async fn stages<S: Store, A: Authorizer>(
         diff: &diff,
         cascaded: &cascaded,
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &planned)?;
     let journal = Journal {
@@ -2245,6 +2246,7 @@ async fn hold<S: Store>(
         diff: &diff,
         cascaded: &[],
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;
     let journal = Journal {
@@ -2409,6 +2411,7 @@ async fn refuse<S: Store>(
         diff: &[],
         cascaded: &[],
         audit: &[],
+        on_behalf_of: context.on_behalf_of,
     };
     let events = crate::audit::changeset_events(context, &journal, &[])?;
     let journal = Journal {

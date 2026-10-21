@@ -2533,6 +2533,12 @@ export interface components {
       /** @description Why. */
       motive: string;
       /**
+       * Format: uuid
+       * @description The requester a service account wrote it for (`Kartenn-On-Behalf-Of`,
+       *     REQ-016-12); absent otherwise.
+       */
+      on_behalf_of?: string | null;
+      /**
        * @description Its operations, as submitted: the values of a sensitive property are `null` with
        *     `masked: true` without the right to read them, the digest of a secret never shown.
        */
