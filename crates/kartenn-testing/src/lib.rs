@@ -353,12 +353,33 @@ async fn exists(conn: &mut PgConnection, name: &str) -> Result<bool, sqlx::Error
         .await
 }
 
-async fn drop_database(conn: &mut PgConnection, name: &str) -> Result<(), sqlx::Error> {
-    exec(
-        conn,
-        format!(r#"DROP DATABASE IF EXISTS "{name}" WITH (FORCE)"#),
-    )
-    .await
+/// Drops `name`, ending the sessions left on it. `FORCE` must be allowed to end every
+/// backend of the database: an autovacuum worker busy on a fresh clone belongs to no test
+/// role, and the drop is then refused (42501) until it is done, a matter of moments.
+///
+/// # Errors
+///
+/// The error of the drop, past 10 s of refusals for another role's backend.
+pub async fn drop_database(conn: &mut PgConnection, name: &str) -> Result<(), sqlx::Error> {
+    let mut attempts = 0;
+    loop {
+        match exec(
+            conn,
+            format!(r#"DROP DATABASE IF EXISTS "{name}" WITH (FORCE)"#),
+        )
+        .await
+        {
+            Ok(()) => return Ok(()),
+            // 42501: insufficient_privilege, the backend of another role.
+            Err(sqlx::Error::Database(e))
+                if e.code().as_deref() == Some("42501") && attempts < 100 =>
+            {
+                attempts += 1;
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }
 
 /// Runs a statement built here: the names it quotes are hexadecimal or from
