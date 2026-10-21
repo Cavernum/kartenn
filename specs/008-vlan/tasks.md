@@ -421,24 +421,23 @@ numérotées après coup.
 
 ## P3 — Budgets, interface, synchronisation
 
-- [ ] 16. Banc : jeu de référence augmenté (2·10⁴ groupes, 10⁵ VLAN, moitié avec
+- [x] 16. Banc : jeu de référence augmenté (2·10⁴ groupes, 10⁵ VLAN, moitié avec
   réseaux), mesures lecture, page filtrée, occupation, création ; seuils bloquants —
   REQ-008-25 — verify : `bench-core` vert en CI (sous-agent `bench-runner`)
   où : `kartenn-bench` (jeu, `core`), 002/A14
   dépend de : 14
-  — banc écrit, non coché : `kartenn-bench/src/vlan_budgets.rs`, appelé par
-  `core_budgets::run` (module déployé, 2·10⁴ groupes et 10⁵ VLAN par un import, la moitié
-  sur 7,5·10⁴ réseaux, lectures par le routeur en processus, création par le pipeline).
-  Banc complet du 2026-10-21 (99 644 VLAN, jeu antérieur au correctif du nombre) :
-  lecture 3,4 ms, occupation 1,5 ms, création 38,9 ms ; **page filtrée 654 ms, au-delà
-  des 150 ms**. Cause mesurée : la requête de `list_vlans` (`kartenn-vlan/src/rest.rs`)
-  sans le prédicat de lecture rend sa page en 11 ms ; `visible()` (`readable` et la
-  sous-requête sur `module_object`) est évalué pour chaque ligne filtrée (4·10⁴) avant le
-  tri `ORDER BY group_id, vid, id`, qu'aucun index ne sert (`vlan_by_group_vid` n'a pas
-  `id`). Piste : index `(group_id, vid, id)` pour que la limite arrête le parcours, ou
-  ancre matérialisée dans `module_object` (repli du design « Données du noyau »).
+  — `kartenn-bench/src/vlan_budgets.rs`, appelé par `core_budgets::run` (module déployé,
+  2·10⁴ groupes et 10⁵ VLAN par un import, la moitié sur 7,5·10⁴ réseaux, lectures par le
+  routeur en processus, création par le pipeline). `list_vlans`
+  (`kartenn-vlan/src/rest.rs`) : le prédicat de lecture évalué au-dessus des lignes
+  filtrées dans leur ordre (`OFFSET 0`), que la limite arrête ; il l'était sur chacune des
+  4·10⁴ lignes filtrées avant le tri (654 ms). Banc complet du 2026-10-21, graine 42 :
+  lecture 3,7 ms, page filtrée 38,5 ms, occupation 2,9 ms, création 51,9 ms (p95) ; les
+  autres budgets de `bench-core` tiennent.
   choix : les domaines du jeu, chargés sans propriétaire, en reçoivent un avant que le
-  déploiement ne le rende obligatoire (déclarations d'abord sans obligation).
+  déploiement ne le rende obligatoire (déclarations d'abord sans obligation) ; pas
+  d'index `(group_id, vid, id)` : essayé (migration du module), le planificateur ne s'en
+  servait pas (`EXPLAIN` : parcours séquentiel puis tri, 687 ms).
 - [x] 17. Plugin `web/plugins/vlan` : vues groupes et VLAN, onglet et colonne sur
   `prefix`, action « créer un VLAN », catalogues FR/EN — REQ-008-24 — verify :
   parcours Playwright `web/e2e/journeys/vlan.spec.ts` avec axe-core ; plugin absent
