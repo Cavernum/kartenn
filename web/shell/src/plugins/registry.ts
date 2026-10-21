@@ -37,6 +37,18 @@ export function usePlugins(): Readonly<ShallowRef<readonly Loaded[]>> {
   return plugins;
 }
 
+const failed: ShallowRef<boolean> = shallowRef(false);
+
+/** Whether the last reading of the capabilities failed: the plugins are then unknown. */
+export function usePluginsUnavailable(): Readonly<ShallowRef<boolean>> {
+  return failed;
+}
+
+/** Records whether the capabilities could be read. */
+export function unavailable(value: boolean): void {
+  failed.value = value;
+}
+
 /** Replaces the list (a new reading of the capabilities). */
 export function announce(list: readonly UiPlugin[]): void {
   plugins.value = list.map((plugin) => ({ plugin, status: { state: "loading" } }));

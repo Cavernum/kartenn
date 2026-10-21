@@ -1,6 +1,6 @@
 import { SDK_VERSION } from "@kartenn/sdk";
 import { abandonPlugin, addCatalog, expectPlugin, satisfies } from "@kartenn/sdk/host";
-import { announce, settle, type Reason, type UiPlugin } from "./registry.ts";
+import { announce, settle, unavailable, type Reason, type UiPlugin } from "./registry.ts";
 
 // Loading of the plugins by the shell (REQ-007-9, 10; design « Chargement des plugins par
 // le shell »): each plugin of the capabilities in parallel, without holding the first
@@ -125,10 +125,60 @@ export async function loadPlugins(
   );
 }
 
-/** The plugins of the capabilities of the caller; none when signed out or on failure. */
-export async function readPlugins(fetcher: typeof fetch = fetch): Promise<UiPlugin[]> {
-  const response = await fetcher("/v1/capabilities").catch(() => null);
-  if (!response?.ok) return [];
-  const capabilities = (await response.json().catch(() => ({}))) as { ui_plugins?: UiPlugin[] };
-  return capabilities.ui_plugins ?? [];
+/** Readings of the capabilities before giving up: the first and its retries. */
+export const CAPABILITY_ATTEMPTS = 4;
+
+/** Longest wait between two readings, whatever `Retry-After` asks. */
+const MAX_RETRY_MS = 5_000;
+
+/** How long to wait before reading again after `response`, at the `attempt`-th failure. */
+function backoff(response: Response | null, attempt: number): number {
+  const asked = Number(response?.headers.get("retry-after"));
+  const wait = Number.isFinite(asked) && asked > 0 ? asked * 1_000 : 250 * 2 ** attempt;
+  return Math.min(wait, MAX_RETRY_MS);
+}
+
+/**
+ * The plugins of the capabilities of the caller, or `null` if they cannot be read. A
+ * refusal for load (429, 503) or a network failure is read again, `Retry-After` honoured;
+ * a body without a list of plugins is a failure, never an empty list.
+ */
+export async function readPlugins(
+  fetcher: typeof fetch = fetch,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<UiPlugin[] | null> {
+  for (let attempt = 0; attempt < CAPABILITY_ATTEMPTS; attempt++) {
+    const response = await fetcher("/v1/capabilities").catch(() => null);
+    const transient = !response || response.status === 429 || response.status === 503;
+    if (response?.ok) {
+      const capabilities = (await response.json().catch(() => null)) as {
+        ui_plugins?: unknown;
+      } | null;
+      return Array.isArray(capabilities?.ui_plugins)
+        ? (capabilities.ui_plugins as UiPlugin[])
+        : null;
+    }
+    if (!transient || attempt === CAPABILITY_ATTEMPTS - 1) return null;
+    await sleep(backoff(response, attempt));
+  }
+  return null;
+}
+
+/**
+ * Reads the capabilities and loads their plugins; when they cannot be read, the registry
+ * says so (`unavailable`) and `start` may be called again (« Réessayer »).
+ */
+export async function startPlugins(
+  locales: readonly string[],
+  merge: MergeCatalog,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  unavailable(false);
+  const list = await readPlugins(fetcher);
+  if (list === null) {
+    console.warn("kartenn: the capabilities could not be read; plugins not loaded");
+    unavailable(true);
+    return;
+  }
+  await loadPlugins(list, locales, merge);
 }

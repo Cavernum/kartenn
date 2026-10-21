@@ -141,6 +141,27 @@ function machine(id: string): Promise<Machine> {
   return found;
 }
 
+/**
+ * At most this many reads of the column at once: a list shows dozens of rows, and one read
+ * per row all at once overflows the server's shedding limit (REQ-006-30) and the reader's
+ * quota, refusing the other requests of the page with them.
+ */
+export const COLUMN_READS = 4;
+let reading = 0;
+const queued: (() => void)[] = [];
+
+/** Runs `read` within the limit; `null`, without reading, if its row is gone by its turn. */
+export async function limited<T>(live: () => boolean, read: () => Promise<T>): Promise<T | null> {
+  while (reading >= COLUMN_READS) await new Promise<void>((resolve) => queued.push(resolve));
+  reading++;
+  try {
+    return live() ? await read() : null;
+  } finally {
+    reading--;
+    queued.shift()?.();
+  }
+}
+
 /** The interfaces that hold an address, each with its machine. */
 async function holders(address: string): Promise<{ iface: Interface; machine: Machine }[]> {
   const found = await interfaces({ address });
@@ -212,6 +233,8 @@ abstract class MachinesElement extends HTMLElement {
   disconnectedCallback(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    // A row scrolled out of the list: its pending reads are dropped.
+    this.generation++;
   }
 
   /** Replaces the content of the shadow root, keeping the style sheet. */
@@ -594,9 +617,12 @@ class MachineColumn extends MachinesElement {
     const cell = el("span", "—");
     this.draw(cell);
     if (!address) return;
-    holders(address).then(
+    limited(
+      () => generation === this.generation,
+      () => holders(address),
+    ).then(
       (found) => {
-        if (generation === this.generation && found.length) {
+        if (generation === this.generation && found?.length) {
           cell.textContent = [...new Set(found.map((h) => h.machine.name))].join(", ");
         }
       },

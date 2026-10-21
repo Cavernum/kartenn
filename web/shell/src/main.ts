@@ -3,7 +3,7 @@ import { createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { installDraft } from "./draft/index.ts";
 import { createShellI18n, LOCALES } from "./i18n/index.ts";
-import { loadPlugins, readPlugins } from "./plugins/loader.ts";
+import { startPlugins } from "./plugins/loader.ts";
 import { createShellRouter } from "./router.ts";
 import { installSession } from "./session/index.ts";
 import { applyTheme, storedTheme } from "./theme.ts";
@@ -19,8 +19,6 @@ installSession(router);
 installDraft();
 createApp(App).use(i18n).use(router).mount("#app");
 // The first screen does not wait for the plugins (REQ-007-9).
-void readPlugins().then((plugins) =>
-  loadPlugins(plugins, LOCALES, (locale, name, messages) =>
-    i18n.global.mergeLocaleMessage(locale, { [name]: messages }),
-  ),
+void startPlugins(LOCALES, (locale, name, messages) =>
+  i18n.global.mergeLocaleMessage(locale, { [name]: messages }),
 );

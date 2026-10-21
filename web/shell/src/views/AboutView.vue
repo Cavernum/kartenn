@@ -3,11 +3,21 @@ import { SDK_VERSION } from "@kartenn/sdk";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import shell from "../../package.json";
-import { usePlugins } from "../plugins/registry.ts";
+import { LOCALES } from "../i18n/index.ts";
+import { startPlugins } from "../plugins/loader.ts";
+import { usePlugins, usePluginsUnavailable } from "../plugins/registry.ts";
 
-const { t } = useI18n();
+const { t, mergeLocaleMessage } = useI18n({ useScope: "global" });
 const server = ref<string | null>(null);
 const plugins = usePlugins();
+const unavailable = usePluginsUnavailable();
+
+/** Reads the capabilities again after a failure (« Réessayer »). */
+function retry(): void {
+  void startPlugins(LOCALES, (locale, name, messages) =>
+    mergeLocaleMessage(locale, { [name]: messages }),
+  );
+}
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 onMounted(async () => {
@@ -34,8 +44,13 @@ onMounted(async () => {
   </dl>
   <p class="k-muted">{{ t("about.timeZone", { zone: timeZone }) }}</p>
   <h2>{{ t("about.plugins") }}</h2>
+  <!-- The capabilities could not be read: the plugins are unknown, not absent. -->
+  <p v-if="unavailable" role="alert">
+    {{ t("about.pluginsUnavailable") }}
+    <button type="button" @click="retry">{{ t("about.retry") }}</button>
+  </p>
   <!-- Loaded and set-aside plugins, with their reason (REQ-007-10). -->
-  <ul v-if="plugins.length > 0">
+  <ul v-else-if="plugins.length > 0">
     <li v-for="{ plugin, status } in plugins" :key="plugin.name">
       {{ plugin.name }} {{ plugin.version }} —
       <template v-if="status.state === 'rejected'">
