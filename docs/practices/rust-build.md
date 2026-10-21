@@ -18,6 +18,14 @@ Les réglages se répartissent en trois niveaux :
 
 ## 1. Poste local
 
+`devenv.local.nix` étant ignoré par git, une worktree créée par `git worktree add` ne le
+reçoit pas : elle compile alors sans wild ni réglages de débogage (binaires de test de
+l'ordre de 500 Mo, dont près de 450 Mo de sections DWARF). Le fichier
+`.worktreeinclude` (versionné, syntaxe `.gitignore`) le fait recopier par Claude Code
+dans chaque worktree qu'il crée (`claude --worktree`, sous-agents `isolation: worktree`).
+Une worktree créée à la main le reçoit par `cp devenv.local.nix <worktree>/`. Source :
+[Claude Code, worktrees, « Copy gitignored files into worktrees »](https://code.claude.com/docs/en/worktrees.md).
+
 ### 1.1 Linker wild
 
 `devenv.local.nix` active `languages.rust.wild.enable = true`. devenv utilise Clang

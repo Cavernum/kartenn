@@ -1,0 +1,3 @@
+# Gitignored files that Claude Code copies into each new worktree
+# (docs/practices/rust-build.md §1): local build tuning (wild, split debug info).
+devenv.local.nix
