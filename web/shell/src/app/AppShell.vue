@@ -5,6 +5,7 @@ import { visibleEntries } from "../navigation.ts";
 import { extensionsOf, pluginKey, usePlugins } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
 import SessionDialog from "../session/SessionDialog.vue";
+import SearchBox from "./SearchBox.vue";
 import TimeBanner from "../time/TimeBanner.vue";
 import UserMenu from "./UserMenu.vue";
 
@@ -23,6 +24,7 @@ const views = computed(() =>
   <div class="k-layout">
     <header class="k-header">
       <RouterLink class="k-brand" to="/">{{ t("app.name") }}</RouterLink>
+      <SearchBox />
       <UserMenu />
     </header>
     <nav class="k-nav" :aria-label="t('app.navigation')">

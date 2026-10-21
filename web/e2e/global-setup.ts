@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "./fixtures/env.ts";
-import { DATA, GROUPS } from "./fixtures/data.ts";
+import { bulkAddresses, DATA, GROUPS } from "./fixtures/data.ts";
 import { totp } from "./fixtures/totp.ts";
 
 /**
@@ -70,6 +70,23 @@ export default async function globalSetup(): Promise<void> {
         ...DATA.addresses.map((address) => ({
           op: "create_address",
           domain,
+          address,
+          usage: "host",
+        })),
+      ],
+    });
+    // The long list (REQ-007-31): one network and its 1 000 addresses, in a second changeset.
+    const domains = (await (await api.get(`/v1/domains?slug=${DATA.domain}`)).json()) as {
+      items: { id: string }[];
+    };
+    const production = { id: domains.items[0]!.id };
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end long list",
+      operations: [
+        { op: "create_prefix", domain: production, prefix: DATA.bulk.prefix, nature: "network" },
+        ...bulkAddresses().map((address) => ({
+          op: "create_address",
+          domain: production,
           address,
           usage: "host",
         })),

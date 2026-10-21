@@ -117,6 +117,79 @@
       "address": "Address"
     }
   },
+  "field": {
+    "id": "Identifier",
+    "slug": "Short name",
+    "parent": "Parent",
+    "value": "Value",
+    "nature": "Nature",
+    "domain": "Domain",
+    "entity": "Entity",
+    "public": "Public",
+    "anycast": "Anycast",
+    "point_to_point": "Point to point",
+    "first": "First address",
+    "last": "Last address",
+    "usage": "Usage",
+    "kind": "Type",
+    "detail": "Detail",
+    "rule": "Rule"
+  },
+  "list": {
+    "filters": "Filters",
+    "apply": "Filter",
+    "count": "{n} item | {n} item | {n} items",
+    "loaded": "{n} item loaded, more on scrolling | {n} item loaded, more on scrolling | {n} items loaded, more on scrolling",
+    "more": "Show more"
+  },
+  "record": {
+    "content": "Content",
+    "properties": "Properties",
+    "history": "History",
+    "anomalies": "Anomalies",
+    "noProperties": "No property.",
+    "masked": "{n} value hidden by your rights. | {n} value hidden by your rights. | {n} values hidden by your rights.",
+    "explain": "Explain",
+    "explainKey": "Explain {key}",
+    "origin": "Value carried by:",
+    "chain": "Path walked, nearest first:",
+    "hidden": "an object you may not read",
+    "version": "Version",
+    "validFrom": "Valid from",
+    "validTo": "to",
+    "assertedFrom": "Recorded on",
+    "changeset": "Changeset",
+    "open": "no end",
+    "occupancy": "Occupancy",
+    "used": "{used} of {total}",
+    "nextFree": "Next free:",
+    "full": "none, the prefix is full"
+  },
+  "anomalies": {
+    "none": "No open anomaly.",
+    "open": "Open the record",
+    "motive": "Motive",
+    "acknowledge": "Acknowledge",
+    "acknowledgeOf": "Acknowledge the anomaly {rule}",
+    "acknowledged": "Anomaly acknowledged."
+  },
+  "properties": {
+    "declarations": "Declarations",
+    "key": "Key",
+    "type": "Type",
+    "cardinality": "Cardinality",
+    "inherit": "Inheritance",
+    "carriers": "Carriers",
+    "gaps": "Gaps to the obligations",
+    "noGaps": "No gap."
+  },
+  "search": {
+    "label": "Search for an address or a prefix",
+    "placeholder": "10.0.0.1 or 10.0.0.0/24",
+    "submit": "Search",
+    "title": "Search: {term}",
+    "none": "No result."
+  },
   "login": {
     "title": "Log in",
     "issuers": "With your identity provider",
