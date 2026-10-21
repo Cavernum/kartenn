@@ -69,11 +69,15 @@ même crate.
   — 20 tests avant et après (mêmes noms hors préfixe), 10 binaires → 2 ; `panic.rs` relance
   `--exact panic::panicking_child` et attend `tests/it/panic.rs` dans le lieu de la
   panique ; `architecture.rs` inchangé.
-- [ ] 6. kartenn-server : cible `server_it` pour tous les fichiers sauf `http.rs`, gardé en
+- [x] 6. kartenn-server : cible `server_it` pour tous les fichiers sauf `http.rs`, gardé en
   cible `http` avec un commentaire (il envoie SIGHUP à son propre processus) — ADR 0027
   point 3 — verify : nombre de tests identique
   où : `crates/kartenn-server/Cargo.toml`, `crates/kartenn-server/tests/`
   dépend de : 1
+  — 32 tests avant et après (mêmes noms hors préfixe), 9 binaires → 3 (lib, `server_it`,
+  `http`) ; `dev_idp` lance toujours le binaire par `CARGO_BIN_EXE_kartenn-server` ; le
+  commentaire de `secrets.rs` suit le déplacement de `panic.rs`. Aucune ligne `où :` de
+  tâche ouverte ne citait un test de la crate.
 - [ ] 7. kartenn-vlan, kartenn-machines : cibles `vlan_it` et `machines_it` avec
   `required-features = ["rest"]`, `[[test]]` actuels retirés, `kartenn-vlan/tests/support/`
   → `tests/it/support/` — ADR 0027 point 2 — verify : nombre de tests identique
