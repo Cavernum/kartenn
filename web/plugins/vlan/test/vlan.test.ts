@@ -94,6 +94,24 @@ describe("the VLAN plugin", () => {
     expect(keys(fr).sort()).toEqual(keys(en).sort());
   });
 
+  it("reads its column a few rows at a time, and drops a row gone by its turn", async () => {
+    const { limited, COLUMN_READS } = await import("../src/index.ts");
+    let running = 0;
+    let highest = 0;
+    const read = async () => {
+      running++;
+      highest = Math.max(highest, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running--;
+      return "read";
+    };
+    const rows = Array.from({ length: 40 }, (_, i) => limited(() => i % 2 === 0, read));
+    const results = await Promise.all(rows);
+    expect(highest).toBe(COLUMN_READS);
+    expect(results.filter((r) => r === "read")).toHaveLength(20);
+    expect(results.filter((r) => r === null)).toHaveLength(20);
+  });
+
   it("shows the VLAN of a network in its column", async () => {
     mounted = mount("vlan-column", {
       context: { locale: "fr" },

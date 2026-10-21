@@ -139,6 +139,27 @@ function idOfValue(value: unknown): string | null {
   return null;
 }
 
+/**
+ * At most this many reads of the column at once: a list shows dozens of rows, and one read
+ * per row all at once overflows the server's shedding limit (REQ-006-30) and the reader's
+ * quota, refusing the other requests of the page with them.
+ */
+export const COLUMN_READS = 4;
+let reading = 0;
+const queued: (() => void)[] = [];
+
+/** Runs `read` within the limit; `null`, without reading, if its row is gone by its turn. */
+export async function limited<T>(live: () => boolean, read: () => Promise<T>): Promise<T | null> {
+  while (reading >= COLUMN_READS) await new Promise<void>((resolve) => queued.push(resolve));
+  reading++;
+  try {
+    return live() ? await read() : null;
+  } finally {
+    reading--;
+    queued.shift()?.();
+  }
+}
+
 /** The VLAN of a network at the dates of the shell, if it has one. */
 async function vlanOfNetwork(prefix: string): Promise<Vlan | null> {
   const { data } = await api.get("/v1/prefixes/{id}/properties", { path: { id: prefix } });
@@ -211,6 +232,8 @@ abstract class VlanElement extends HTMLElement {
   disconnectedCallback(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    // A row scrolled out of the list: its pending reads are dropped.
+    this.generation++;
   }
 
   /** Replaces the content of the shadow root, keeping the style sheet. */
@@ -527,7 +550,10 @@ class VlanColumn extends VlanElement {
     const cell = el("span", "—");
     this.draw(cell);
     if (!prefix) return;
-    vlanOfNetwork(prefix).then(
+    limited(
+      () => generation === this.generation,
+      () => vlanOfNetwork(prefix),
+    ).then(
       (found) => {
         if (generation === this.generation && found) cell.textContent = named(found);
       },
