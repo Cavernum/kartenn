@@ -20,6 +20,8 @@ mod checks;
 #[cfg(feature = "pg")]
 mod codec;
 #[cfg(feature = "pg")]
+mod coherence;
+#[cfg(feature = "pg")]
 mod contribution;
 #[cfg(feature = "pg")]
 pub mod handler;

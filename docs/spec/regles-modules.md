@@ -60,6 +60,7 @@ spécification du module.
 | `policy.inference.regex_invalid` | erreur | Une expression régulière d'inférence est ancrée, d'au plus 256 caractères, dans la syntaxe du moteur à temps linéaire. | REQ-010-42 | 010/I3 |
 | `policy.inference.depth` | erreur | Les exceptions d'une règle d'inférence s'imbriquent sur 4 niveaux au plus. | REQ-010-44 | 010/I5 |
 | `policy.inference.criterion_invalid` | erreur | Un critère d'inférence admet au moins une valeur, et une règle au moins une valeur attendue. | REQ-010-42 | 010/I3 |
+| `policy.machine.environment_mismatch` | avertissement | Les adresses d'une machine, hors interfaces d'un rôle exempté, résolvent l'environnement qu'elle déclare, ou, sans déclaration, un même environnement. | REQ-010-17 | 010/S10, D22 |
 | `policy.inference.conflict` | avertissement | Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents. | REQ-010-45 | 010/I6 adouci |
 | `policy.operation.invalid` | erreur | Une opération de la politique a un corps conforme à son schéma et cite des objets connus. | REQ-010-26 | ADR 0026 clause 6 |
 | `policy.axis.invalid` | erreur | Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé. | REQ-010-29 | 010/S22 |

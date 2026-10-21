@@ -647,10 +647,12 @@ impl ModuleHandler for Handler {
         context: &'a CheckContext<'a>,
     ) -> BoxFuture<'a, Result<Findings, StoreError>> {
         Box::pin(async move {
-            if context.touched.is_empty() {
-                return Ok(Findings::default());
-            }
             let conn = connection(tx)?;
+            // The machines touched, whatever the module that wrote them (REQ-010-17).
+            let mut findings = crate::coherence::check(conn, context).await?;
+            if context.touched.is_empty() {
+                return Ok(findings);
+            }
             let mut found = Vec::new();
             for (axis, why) in pg::invalid_axes(conn, context.changeset).await? {
                 found.push(Violation::new(&AXIS_INVALID, why).with_subjects([axis]));
@@ -665,7 +667,8 @@ impl ModuleHandler for Handler {
                 );
             }
             found.extend(checks::catalogue(conn, context.changeset).await?);
-            Ok(found.into())
+            findings.violations.extend(found);
+            Ok(findings)
         })
     }
 }
