@@ -6,7 +6,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::{Permission, TypePermissions};
-use kartenn_core::properties::{Declarant, Declaration, InheritTree, PropertyKey, TypeSpec};
+use kartenn_core::properties::{
+    Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey, TypeSpec,
+};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
@@ -40,6 +42,10 @@ pub const SIGNAL: &str = "policy.signal";
 /// The qualified type of a role of interface exempt from S10.
 pub const EXEMPT_ROLE: &str = "policy.exempt_role";
 
+/// The qualified type of a rule of inference (REQ-010-42 to 46): an exception when it has
+/// a parent; anchored in the domain it cites, if any (its scope for the rights).
+pub const INFERENCE_RULE: &str = "policy.inference_rule";
+
 /// Every type of the module, with its collection under `/v1` (REQ-010-27).
 pub(crate) const KINDS: &[(&str, &str)] = &[
     (AXIS, "policy-axes"),
@@ -51,6 +57,7 @@ pub(crate) const KINDS: &[(&str, &str)] = &[
     (CONDITION, "admissibility-conditions"),
     (SIGNAL, "risk-signals"),
     (EXEMPT_ROLE, "policy-exempt-roles"),
+    (INFERENCE_RULE, "inference-rules"),
 ];
 
 /// The axes the module declares as examples, designated only by
@@ -104,6 +111,12 @@ static TYPES: &[ObjectType] = &[
     global(KINDS[6].0, KINDS[6].1),
     global(KINDS[7].0, KINDS[7].1),
     global(KINDS[8].0, KINDS[8].1),
+    // A rule that cites a domain is written under `policy.inference.admin` on that domain,
+    // under the whole referential otherwise (REQ-010-46).
+    ObjectType {
+        domain_anchored: true,
+        ..global(KINDS[9].0, KINDS[9].1)
+    },
 ];
 
 static OPERATIONS: &[OperationType] = &[
@@ -163,6 +176,11 @@ static OPERATIONS: &[OperationType] = &[
         name: "rule.update",
         defines: None,
     },
+    // A cell of the matrix view (REQ-010-34): creates, updates or closes its rule.
+    OperationType {
+        name: "matrix.set",
+        defines: Some(RULE),
+    },
     OperationType {
         name: "condition.create",
         defines: Some(CONDITION),
@@ -182,6 +200,14 @@ static OPERATIONS: &[OperationType] = &[
     OperationType {
         name: "exempt_role.create",
         defines: Some(EXEMPT_ROLE),
+    },
+    OperationType {
+        name: "inference_rule.create",
+        defines: Some(INFERENCE_RULE),
+    },
+    OperationType {
+        name: "inference_rule.update",
+        defines: None,
     },
 ];
 
@@ -266,6 +292,7 @@ static TYPE_PERMISSIONS: &[TypePermissions] = &[
     typed(CONDITION, "policy.rule.admin"),
     typed(SIGNAL, "policy.rule.admin"),
     typed(EXEMPT_ROLE, "policy.rule.admin"),
+    typed(INFERENCE_RULE, "policy.inference.admin"),
 ];
 
 const fn typed(kind: &'static str, write: &'static str) -> TypePermissions {
@@ -324,12 +351,20 @@ impl Module for Policy {
         tree_and_machine.push(MACHINE);
         let mut properties = vec![
             (
-                declaration(
-                    ENVIRONMENT,
-                    TypeSpec::ENUM,
-                    &TREE,
-                    Some(InheritTree::Addressing),
-                ),
+                // The inference proposes its expected environments and writes the single
+                // one as a default value at creation (REQ-010-51, 52).
+                Declaration {
+                    expected: Some(Expected {
+                        source: "policy.inference".into(),
+                        mode: ExpectedMode::Default,
+                    }),
+                    ..declaration(
+                        ENVIRONMENT,
+                        TypeSpec::ENUM,
+                        &TREE,
+                        Some(InheritTree::Addressing),
+                    )
+                },
                 Vec::new(),
             ),
             (

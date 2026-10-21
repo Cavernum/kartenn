@@ -514,8 +514,7 @@ pub async fn run(
     let jobs = tokio::spawn(crate::jobs::Scheduler::new(pool.clone(), id).run(
         crate::jobs::Tasks {
             store: store.clone(),
-            // No module provides a source of expected values yet.
-            sources: kartenn_service::expected::Sources::none(),
+            sources: crate::modules::sources(),
         },
         jobs_stopped,
     ));
@@ -756,8 +755,7 @@ impl Api {
             bound: write_transaction_timeout,
             journal: journal.clone(),
             audit: read_audit,
-            // No module provides a source of expected values yet.
-            sources: kartenn_service::expected::Sources::none(),
+            sources: crate::modules::sources(),
             outputs,
             modules,
         };

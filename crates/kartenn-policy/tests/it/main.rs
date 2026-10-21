@@ -8,6 +8,8 @@ mod catalogue;
 mod coherence;
 mod dated;
 mod differential;
+mod inference;
+mod matrix;
 mod obligation;
 mod rights;
 mod verdict;

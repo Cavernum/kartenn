@@ -84,6 +84,13 @@ pub trait ExpectedValueSource: Send + Sync {
     /// Identifier, as declarations name it.
     fn id(&self) -> &str;
 
+    /// Whether an object created without its own assignment receives the default value
+    /// even when it inherits a value (REQ-003-22, the default); a source that returns
+    /// `false` gives a default only to an object that inherits nothing (REQ-010-52).
+    fn defaults_when_inheriting(&self) -> bool {
+        true
+    }
+
     /// Revision, recorded in the provenance of the default values it gives and compared to
     /// the last evaluation of its deviations; computed at the call (the rules of a module
     /// change with its data).
@@ -178,6 +185,10 @@ pub(crate) fn check_declared_sources(
             p
             && let Some(expected) = &declaration.expected
             && sources.get(&expected.source).is_none()
+            // A module names a source of its own, which it provides with its code: its
+            // synchronisation runs before the sources of the deployment are assembled.
+            && !matches!(&declaration.declarant, kartenn_core::properties::Declarant::Module(m)
+                if expected.source.strip_prefix(m.as_str()).is_some_and(|s| s.starts_with('.')))
         {
             violations.push(
                 Violation::new(
@@ -283,12 +294,31 @@ pub(crate) async fn defaults<T: WriteTx>(
             })
             .map(|(o, k)| (*o, Some(*k)))
             .collect();
-        let found = views(tx, &wanted, period).await?;
+        let key = declaration.key.to_string();
+        // For a source that leaves inheriting objects alone (REQ-010-52), the origins of
+        // the objects just created are materialised first, so that their view shows what
+        // they inherit; the maintenance after the defaults recomputes them.
+        let skip_inheriting = !source.defaults_when_inheriting();
+        if skip_inheriting && let Some(tree) = &declaration.inherit {
+            let targets: Vec<Uuid> = wanted.iter().map(|(o, _)| *o).collect();
+            if !targets.is_empty() {
+                tx.refresh_origins(property, tree, &targets, period, changeset)
+                    .await?;
+            }
+        }
+        let found: Vec<_> = views(tx, &wanted, period)
+            .await?
+            .into_iter()
+            .filter(|(view, _)| {
+                !skip_inheriting
+                    || declaration.inherit.is_none()
+                    || !matches!(view.properties.get(&key), Some(Some(v)) if v != "null" && v != "[]")
+            })
+            .collect();
         if found.is_empty() {
             continue;
         }
         let objects: Vec<ObjectView> = found.iter().map(|(v, _)| v.clone()).collect();
-        let key = declaration.key.to_string();
         let ctx = ExpectedContext {
             valid_at: period.map(Period::start),
         };

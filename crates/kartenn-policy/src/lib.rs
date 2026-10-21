@@ -8,6 +8,7 @@
 pub mod diff;
 pub mod evaluate;
 pub mod inference;
+pub mod matrix;
 pub mod model;
 pub mod module;
 pub mod rules;
@@ -25,6 +26,8 @@ mod coherence;
 mod contribution;
 #[cfg(feature = "pg")]
 pub mod handler;
+#[cfg(feature = "pg")]
+pub mod infer;
 #[cfg(feature = "pg")]
 mod load;
 #[cfg(feature = "pg")]
