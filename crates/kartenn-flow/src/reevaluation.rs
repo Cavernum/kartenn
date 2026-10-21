@@ -244,12 +244,6 @@ async fn touched(
                  OR EXISTS (SELECT 1 FROM flow.flow_endpoint_address e
                              WHERE e.flow_id = f.id AND e.address_id = ANY($2)
                                AND (upper(e.valid_period) IS NULL OR upper(e.valid_period) > now()))
-                 OR EXISTS (SELECT 1 FROM public.property_origin o
-                             WHERE o.origin_object_id = ANY($2)
-                               AND (o.object_id IN (f.source_id, f.destination_id)
-                                    OR o.object_id IN (SELECT e.address_id
-                                                         FROM flow.flow_endpoint_address e
-                                                        WHERE e.flow_id = f.id)))
                  OR EXISTS (SELECT 1 FROM flow.flow_endpoint_address e
                               JOIN machines.attachment a ON a.address_id = e.address_id
                               JOIN machines.interface i ON i.id = a.interface_id

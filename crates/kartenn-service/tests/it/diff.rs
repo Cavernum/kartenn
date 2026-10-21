@@ -275,6 +275,133 @@ async fn a_container_above_4096_addresses_changes_them_all(pool: PgPool) {
     assert_eq!(event, summary);
 }
 
+/// A changeset of the present whose one operation takes effect tomorrow (`Within`), on a
+/// property declared a moment ago: the heirs of the classified network are part of the
+/// differential, whether the network carried a value before or not. The window of such a
+/// changeset opens a minute before the transaction, before the declaration (found by the
+/// oracle of task 011-5).
+#[kartenn_testing::pg_test]
+async fn a_value_from_tomorrow_reaches_the_heirs_in_the_differential(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let now = |operations: Vec<Operation>| ChangesetRequest {
+        author: f.author,
+        motive: "test".into(),
+        period: None,
+        operations,
+        simulate: false,
+        idempotency_key: None,
+    };
+    let store = &f.store;
+    let apply = |request: ChangesetRequest| async move {
+        match submit(store, &Unrestricted, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+        {
+            Outcome::Applied { diff, .. } => diff,
+            other => panic!("expected applied, got {other:?}"),
+        }
+    };
+    // The objects of the fixture live from 2030; these ones from now, with their own domain
+    // and declaration.
+    apply(now(vec![
+        Operation::CreateDomain {
+            local: Some(3),
+            slug: "today".into(),
+        },
+        Operation::DeclareProperty {
+            local: Some(4),
+            declaration: DeclarationInput {
+                key: "custom.today".into(),
+                value_type: TypeInput::ENUM,
+                cardinality: Cardinality::Set,
+                carriers: vec!["prefix".into(), "address".into()],
+                inherit: Some("addressing".into()),
+                module: None,
+                obligations: Vec::new(),
+                expected: None,
+            },
+        },
+        Operation::AddEnumValue {
+            local: None,
+            property: Ref::Local(4),
+            key: "prod".into(),
+        },
+        Operation::AddEnumValue {
+            local: None,
+            property: Ref::Local(4),
+            key: "dev".into(),
+        },
+        Operation::CreatePrefix {
+            local: Some(1),
+            domain: Ref::Local(3),
+            prefix: "192.168.0.0/24".into(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        },
+        Operation::CreatePrefix {
+            local: Some(2),
+            domain: Ref::Local(3),
+            prefix: "192.168.1.0/24".into(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        },
+        Operation::CreateAddress {
+            local: None,
+            domain: Ref::Local(3),
+            address: "192.168.0.1".into(),
+            usage: AddressUsage::Host,
+        },
+        Operation::CreateAddress {
+            local: None,
+            domain: Ref::Local(3),
+            address: "192.168.1.1".into(),
+            usage: AddressUsage::Host,
+        },
+    ]))
+    .await;
+    let property: Uuid =
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'custom.today'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let assign = |object: Uuid, value: &str| Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::Prefix,
+        property: Ref::Id(property),
+        values: vec![RawInput::Text(value.into())],
+    };
+    let classified = f.prefix("192.168.0.0/24").await;
+    let bare = f.prefix("192.168.1.0/24").await;
+    apply(now(vec![assign(classified, "prod")])).await;
+    let tomorrow: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM now() + interval '1 day') * 1000000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let within = |object: Uuid| Operation::Within {
+        period: PeriodSpec {
+            start: tomorrow,
+            end: None,
+        },
+        operation: Box::new(assign(object, "dev")),
+    };
+    let today = |before: Option<&str>, count: u64| DiffCount {
+        property: "custom.today".into(),
+        before: before.map(Into::into),
+        after: Some(r#"["dev"]"#.into()),
+        count,
+    };
+    // A carried value replaced from tomorrow: the network and its address.
+    let diff = apply(now(vec![within(classified)])).await;
+    assert_eq!(diff, vec![today(Some(r#"["prod"]"#), 2)]);
+    // A first value from tomorrow: the network and its address, from no value.
+    let diff = apply(now(vec![within(bare)])).await;
+    assert_eq!(diff, vec![today(None, 2)]);
+}
+
 #[kartenn_testing::pg_test]
 async fn every_effect_in_the_window_counts_and_only_existing_objects(pool: PgPool) {
     let f = Fixture::new(&pool).await;
