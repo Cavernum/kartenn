@@ -1824,11 +1824,14 @@ name = "kartenn-flow"
 version = "0.1.0"
 dependencies = [
  "kartenn-core",
+ "kartenn-machines",
  "kartenn-policy",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
+ "kartenn-vlan",
  "kartenn-workspace-hack",
+ "serde_json",
  "sqlx",
  "time",
  "tokio",
@@ -1941,6 +1944,7 @@ dependencies = [
  "kartenn-auth",
  "kartenn-core",
  "kartenn-dev-idp",
+ "kartenn-flow",
  "kartenn-machines",
  "kartenn-policy",
  "kartenn-rest",
