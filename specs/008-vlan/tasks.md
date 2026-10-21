@@ -135,13 +135,26 @@ numérotées après coup.
   où : design « Registre de modules » ; `kartenn-core/src/authz.rs` (`PERMISSIONS`,
   `BuiltinRole`), `rbac.rs::check`, test de `docs/spec/permissions.md`
   dépend de : 1
-- [ ] 7. Références et suppression : `Reference` des modules interrogées à la clôture de
+- [x] 7. Références et suppression : `Reference` des modules interrogées à la clôture de
   tout objet, refus listant les dépendants, cascade (clôture ou mise à nul) sous les
   droits de chaque dépendant — REQ-008-10 — verify (module factice) :
   `closing_a_referenced_core_object_is_refused_with_dependents`,
   `cascade_closes_module_dependents`, `nullify_policy_unassigns`
   où : design « Références » ; `cascade.rs::dependents`, `pipeline.rs::close`
   dépend de : 4
+  — Service : `module.rs` (`ModuleHandler::{referrers, nullify}`, sans effet par
+  défaut), `cascade.rs` (`referrers` interroge les références déclarées vers la sorte
+  de l'objet clos ; la cascade ajoute la clôture des sources sous `Cascade`,
+  récursivement, et le `ModulePlan` de mise à nul sous `Nullify` ; `check_referrers` sur
+  l'état final), `pipeline.rs` (registre passé à `expand`, contrôle après la validation
+  globale) ; règle `core.object.dependents` (catalogue régénéré). Tests :
+  `module_pipeline.rs` (les trois du verify ; la mise à nul exige `dummy.thing.write`),
+  module factice : référence au préfixe (`Cascade`) et au domaine (`Nullify`).
+  choix : identifiant `core.object.dependents` (le design écrit `core.dependents`, le
+  catalogue impose trois segments) ; sans cascade, toute référence vivante refuse ; avec
+  cascade, `Refuse` refuse encore, `Cascade` clôt, `Nullify` détache par une
+  modification que le module construit (`nullify` sans plan : refus) ; le refus est
+  vérifié sur l'état final, après les écritures.
 - [ ] 8. REST du contrat : montage des routeurs de modules sous `/v1`, routes
   transverses par type de module (`history`, `properties`, `explanation`,
   `suggestion`), enveloppe d'opération dans le contrat OpenAPI, `GET /v1/graph/edges`,

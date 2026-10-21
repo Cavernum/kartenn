@@ -1710,7 +1710,7 @@ async fn stages<S: Store, A: Authorizer>(
     // One period per planned operation: that of the operation it comes from.
     let periods: Vec<Option<Period>> = origins.iter().map(|&o| periods[o]).collect();
     let (planned, origins, periods, cascaded) =
-        crate::cascade::expand(&mut tx, planned, origins, periods).await?;
+        crate::cascade::expand(&mut tx, modules, planned, origins, periods).await?;
     let (domains, public, keys) = lock_targets(&mut tx, &planned).await?;
     tx.lock(&domains, public).await?;
     tx.lock_keys(&keys).await?;
@@ -1771,6 +1771,15 @@ async fn stages<S: Store, A: Authorizer>(
     if !has_errors(&violations)
         && let Err(e) =
             crate::global::validate(&mut tx, &planned, &periods, &former, &mut violations).await
+    {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
+    // REQ-008-10: what the modules still reference is not closed.
+    if !has_errors(&violations)
+        && let Err(e) =
+            crate::cascade::check_referrers(&mut tx, modules, &planned, &periods, &mut violations)
+                .await
     {
         tx.rollback().await?;
         return Err(e.into());

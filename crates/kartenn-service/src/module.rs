@@ -253,6 +253,29 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(())))
     }
 
+    /// The living objects of the module that reference `target` by `reference` (one of the
+    /// module's [`Module::references`]) from the start of `period` on, on the state of the
+    /// transaction (REQ-008-10). None by default.
+    fn referrers<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        let _ = (tx, reference, target, period);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// The write that clears `reference` in `source` (pointing at `target`), for the
+    /// cascade of a reference whose policy is [`OnClose::Nullify`]: a modification of
+    /// `source`, checked under its rights. `None` keeps the reference, so the closure is
+    /// refused.
+    fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
+        let _ = (reference, source, target);
+        None
+    }
+
     /// The rules of the module on the final state, once every operation is written:
     /// `touched` lists the objects of the module the changeset wrote.
     fn check<'a>(
