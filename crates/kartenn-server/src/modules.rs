@@ -13,6 +13,8 @@ fn compiled() -> Vec<Arc<dyn Module>> {
         Arc::new(kartenn_vlan::Vlan),
         #[cfg(feature = "machines")]
         Arc::new(kartenn_machines::Machines),
+        #[cfg(feature = "policy")]
+        Arc::new(kartenn_policy::Policy),
     ];
     modules
 }

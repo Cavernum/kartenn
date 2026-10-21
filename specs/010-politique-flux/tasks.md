@@ -126,7 +126,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P2 — Stockage et pipeline
 
-- [ ] 7. Migrations du module (tables `policy_*` versionnées, contraintes, GiST des
+- [x] 7. Migrations du module (tables `policy_*` versionnées, contraintes, GiST des
   ports, `policy_revision`) ; déclarations `policy.environment`,
   `policy.declared_environment` ; référentiel de valeurs partagé (second volet de N7,
   ADR 0026) ; opérations `policy.axis.*`, `policy.value.describe`,
@@ -134,6 +134,37 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   — verify : tests de contraintes ; cas d'acceptation de REQ-010-1, 2, 29
   - où : migrations de `crates/kartenn-vlan` (forme), `declarations.rs`
   - dépend de : 3
+  — `crates/kartenn-policy` : `migrations/0001_policy.sql` (schéma `policy` : tables
+  versionnées `policy_axis`, `policy_value`, `policy_flow_type`, `policy_service`,
+  `policy_pattern`, `policy_rule`, `policy_condition`, `policy_signal`,
+  `policy_exempt_role`, `policy_inference_rule` ; `policy_revision` à une ligne) ;
+  `module.rs` (module `policy`, dépend de `machines` ; types `policy.axis`,
+  `policy.value` ; déclarations `policy.environment` (ensemble, arbre d'adressage,
+  domaine, préfixe, adresse), `policy.declared_environment` (`values_of`
+  `policy.environment`, machine, non héritée), `policy.personal_data` et les axes
+  d'exemple déclarés mais non désignés ; références axe → propriété (refus), attributs →
+  valeur de liste (cascade)) ; `handler.rs` (opérations `axis.designate`, `axis.update`,
+  `value.describe`, `environment.create` qui planifie `AddEnumValue`,
+  `environment.close` qui planifie la clôture de la valeur en cascade,
+  `examples.install` qui désigne les six axes d'exemple ; verrou `policy` ; révision
+  levée une fois par changeset) ; `pg.rs` (écritures génériques par
+  `jsonb_populate_record` et `kartenn_portion`, unicités vérifiées avant l'écriture) ;
+  règles `policy.operation.invalid`, `policy.axis.invalid`, `policy.value.unknown`,
+  `policy.reference.closed`. Serveur : feature `policy` par défaut. Tests :
+  `tests/it/axes.rs` (`acceptance_of_req_010_1`, `…_2`, `…_29`,
+  `a_value_is_described_then_modified`, `the_revision_rises_once_per_changeset`,
+  `the_tables_keep_their_constraints`, `a_machine_declares_environments_of_the_shared_list`).
+  choix : axes et valeurs nommés par leurs clés (une clé de propriété ou de valeur de liste
+  ne change pas, REQ-003-5), les autres objets cités par identifiant ; termes des règles,
+  textes pédagogiques et entrées d'un service en `jsonb` dans la ligne de l'objet (une
+  version = une ligne) plutôt que les tables filles du design (`policy_rule_term`,
+  `policy_rule_same`, `policy_text`, `policy_service_entry`) ; l'index des ports est celui
+  de l'instantané ; `policy.environment` est un axe implicite, refusé à la désignation ;
+  les axes d'exemple sont déclarés par le module (seul un module déclare `policy.*`) et
+  seulement désignés à l'installation, `policy.exposure` porté par l'arbre, les autres par
+  la machine (S27) ; droits par type (`policy.<type>.write`, globale, S15) ; module
+  dépendant de `machines` (axes portés par la machine, REQ-010-3) ; collection
+  `policy-values` pour les attributs des valeurs.
 - [ ] 8. Opérations `policy.*` (types, services, règles, motifs, conditions, signaux,
   textes, rôles exemptés), règles du tableau du design, verrou `policy`, révision,
   événements de module (point différé N15, ADR 0026) — REQ-010-4 à 9, 26, 33 — verify :

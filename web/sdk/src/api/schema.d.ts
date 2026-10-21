@@ -1389,6 +1389,142 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-axes/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the policy.axis, on both axes (REQ-004-18). */
+    get: operations["policy_axis_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-axes/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["policy_axis_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-axes/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["policy_axis_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-axes/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["policy_axis_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the policy.value, on both axes (REQ-004-18). */
+    get: operations["policy_value_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["policy_value_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["policy_value_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-values/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["policy_value_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/prefixes": {
     parameters: {
       query?: never;
@@ -4945,7 +5081,9 @@ export interface components {
       | "vlan.vlan"
       | "machines.cluster"
       | "machines.machine"
-      | "machines.interface";
+      | "machines.interface"
+      | "policy.axis"
+      | "policy.value";
     /** @description A node of the tree, as listed. */
     TreeNode:
       | {
@@ -9365,6 +9503,318 @@ export interface operations {
         };
         content: {
           "application/json": Record<string, never>;
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_axis_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.axis. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_axis_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.axis. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_axis_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.axis. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_axis_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.axis. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_value_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.value. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_value_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.value. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_value_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.value. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_value_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The policy.value. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
         };
       };
       /** @description A problem (RFC 9457). */

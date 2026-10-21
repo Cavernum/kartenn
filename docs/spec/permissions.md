@@ -55,12 +55,18 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `machines.interface.read` | — | Lire les interfaces. |
 | `machines.interface.write` | — | Créer, modifier ou clore une interface. |
 | `machines.interface.propose` | — | Proposer un changement d'une interface. |
+| `policy.axis.read` | — | Lire les axes de la politique. |
+| `policy.axis.write` | oui | Désigner, modifier ou retirer un axe de la politique. |
+| `policy.axis.propose` | oui | Proposer un changement d'un axe de la politique. |
+| `policy.value.read` | — | Lire les attributs des valeurs des axes. |
+| `policy.value.write` | oui | Décrire une valeur d'axe, créer ou clore un environnement. |
+| `policy.value.propose` | oui | Proposer un changement des attributs d'une valeur d'axe. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.axis.read`, `policy.value.read` |
 | Administrateur | `administrator` | `*` |

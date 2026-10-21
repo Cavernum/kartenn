@@ -57,6 +57,14 @@ rules! {
         "Un critère d'inférence admet au moins une valeur, et une règle au moins une valeur attendue.";
     INFERENCE_CONFLICT = "policy.inference.conflict", Warning, ["REQ-010-45"], "010/I6 adouci",
         "Des règles d'inférence de même priorité, au même nœud, attendent des ensembles différents.";
+    OPERATION_INVALID = "policy.operation.invalid", Error, ["REQ-010-26"], "ADR 0026 clause 6",
+        "Une opération de la politique a un corps conforme à son schéma et cite des objets connus.";
+    AXIS_INVALID = "policy.axis.invalid", Error, ["REQ-010-29"], "010/S22",
+        "Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé.";
+    VALUE_UNKNOWN = "policy.value.unknown", Error, ["REQ-010-2", "REQ-010-30"], "010/S2",
+        "Les attributs d'une valeur décrivent une valeur vivante d'un axe.";
+    REFERENCE_CLOSED = "policy.reference.closed", Error, ["REQ-010-2", "REQ-010-8"], "010/design « Opérations »",
+        "Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période.";
 }
 
 #[cfg(test)]
