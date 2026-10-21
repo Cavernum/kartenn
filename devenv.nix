@@ -26,11 +26,20 @@
   # benches recreate kartenn_bench. The lock is taken *before* the slot: a command waiting
   # for PostgreSQL holds no slot, so the cores stay free for builds meanwhile. Nothing may
   # ask for the lock while holding a slot (k-check takes them phase by phase).
+  # `k-heavy --all <command>` takes every slot, in order, for the timing-sensitive end-to-end
+  # journeys: a build beside them stretches browser timeouts.
   kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
     set -uo pipefail
     pg=0
-    [ "''${1:-}" != --pg ] || { pg=1; shift; }
-    [ $# -gt 0 ] || { echo "usage: k-heavy [--pg] <command> [args…]" >&2; exit 2; }
+    all=0
+    while :; do
+      case "''${1:-}" in
+        --pg) pg=1; shift ;;
+        --all) all=1; shift ;;
+        *) break ;;
+      esac
+    done
+    [ $# -gt 0 ] || { echo "usage: k-heavy [--pg] [--all] <command> [args…]" >&2; exit 2; }
     slots=''${K_HEAVY_SLOTS:-2}
     jobs=''${K_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
     [ "$jobs" -ge 1 ] || jobs=1
@@ -49,6 +58,18 @@
       exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
     }
     [ -z "''${K_HEAVY_HELD:-}" ] || run "$@"
+    if [ "$all" -eq 1 ]; then
+      # In order, blocking: two --all callers cannot deadlock, and a plain caller never
+      # waits while holding a slot.
+      echo "k-heavy: réservation de tous les créneaux…" >&2
+      for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
+        exec {fd}>"$dir/slot.$i"
+        ${pkgs.util-linux}/bin/flock "$fd"
+      done
+      export K_HEAVY_HELD=all
+      jobs=$(${pkgs.coreutils}/bin/nproc)
+      run "$@"
+    fi
     waited=0
     while :; do
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
@@ -287,8 +308,9 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      # Exclusive: the journeys own the kartenn_e2e database and fixed loopback ports.
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      # Exclusive: the journeys own the kartenn_e2e database and fixed loopback ports, and
+      # take every slot, since a build beside them stretches the browser timeouts.
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
