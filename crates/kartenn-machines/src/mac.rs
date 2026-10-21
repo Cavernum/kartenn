@@ -77,6 +77,7 @@ impl Mac {
 }
 
 impl fmt::Display for Mac {
+    #[allow(clippy::many_single_char_names)] // the six octets, in order
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let [a, b, c, d, e, g] = self.0;
         write!(f, "{a:02X}-{b:02X}-{c:02X}-{d:02X}-{e:02X}-{g:02X}")

@@ -37,7 +37,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
 
 ## P2 — Module
 
-- [ ] 2. Clusters et machines : migration `0001_machines.sql` (`cluster`, `machine`),
+- [x] 2. Clusters et machines : migration `0001_machines.sql` (`cluster`, `machine`),
   adaptateur `pg`, gestionnaire `create/update_cluster`, `create/update_machine`
   (affectations `core.owner`/`core.site` planifiées, clés de verrou), unicité du nom par
   propriétaire résolu, hébergement ; module au registre (dépendance `vlan`), feature
@@ -48,12 +48,39 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   où : design « Données », « Opérations » ; gestionnaire VLAN `kartenn-vlan/src/handler.rs`
   (008, tâches 10, 11) comme modèle
   dépend de : 1 ; 008 : 3, 5, 6
-- [ ] 3. Interfaces : table `interface`, `create/update_interface`, unicité du nom par
+  — `kartenn-machines` : `module.rs` (`Machines`, types `machines.cluster` et
+  `machines.machine`, permissions, dépendance `vlan`), `handler.rs` (`prepare` : propriétés
+  du noyau et propriétaire résolu ; `plan` des quatre opérations, affectations
+  `core.owner`/`core.site` planifiées, clés `machines.name:<owner>` et `machines.hosting` ;
+  `check` : nom par propriétaire résolu, sorte de l'hébergeur, hébergeur vivant, cycle),
+  `pg.rs` (écritures refusées avant d'écrire ce que les contraintes refuseraient),
+  migration `0001_machines.sql`, feature `pg` ; serveur : feature `machines` (par défaut,
+  active `vlan`), registre ; contrat de référence, types du SDK et `permissions.md`
+  régénérés. Tests : `kartenn-machines/tests/machines.rs` (les sept du verify).
+  choix : règle `machines.operation.invalid` ajoutée pour une opération mal formée (champ
+  inconnu, sorte inconnue, objet introuvable), un corps de module n'ayant pas de refus
+  structurel (400) ; un changement de propriétaire par affectation du noyau est relu dans
+  le détail du différentiel (`pg_temp.diff_detail`) ; propriétaires comparés maintenant si
+  le chevauchement le couvre, sinon à son début ; cycle cherché à l'instant présent ;
+  `update_machine` ne porte pas `owner`/`site` (opérations du noyau), `update_cluster` oui.
+- [x] 3. Interfaces : table `interface`, `create/update_interface`, unicité du nom par
   machine, MAC, état, héritage des ancres — REQ-009-6, 7 — verify :
   `interface_name_unique_per_machine`, `mac_stored_as_macaddr`,
   `interface_cannot_change_machine`, `owner_change_moves_interface_scope`
   où : design « Types d'objets », « Données »
   dépend de : 2
+  — `kartenn-machines` : migration `0002_interface.sql` (table `interface` avec ses
+  colonnes 802.1Q, `CHECK` du bit de groupe par `macaddr &`), type `machines.interface`
+  (parent : sa machine), permissions, `create/update_interface` (`handler.rs` : nom de 1 à
+  64 caractères imprimables sans espace, MAC canonique, clé `machines.machine:<id>`,
+  enregistrement sous sa machine dans `module_object` ; `check` : machine vivante sur la
+  période), `pg.rs` (nom pris refusé avant d'écrire) ; contrat de référence, types du SDK
+  et `permissions.md` régénérés. Tests : `kartenn-machines/tests/machines.rs` (les quatre du
+  verify).
+  choix : migration `0002_interface.sql` plutôt qu'une réécriture de `0001` déjà livrée par
+  la tâche 2 ; colonnes 802.1Q créées dès maintenant (mode `none` par défaut), leurs règles
+  restent à la tâche 4 ; nom d'interface mal formé et machine changée refusés par
+  `machines.operation.invalid`.
 - [ ] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
   `vlan.vlan.read` — REQ-009-12, 18 (VLAN) — verify : `access_needs_one_vlan`,
   `native_not_in_tagged`, `closed_vlan_refused`, `vlan_read_required`

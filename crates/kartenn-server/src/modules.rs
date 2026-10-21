@@ -11,6 +11,8 @@ fn compiled() -> Vec<Arc<dyn Module>> {
     let modules: Vec<Arc<dyn Module>> = vec![
         #[cfg(feature = "vlan")]
         Arc::new(kartenn_vlan::Vlan),
+        #[cfg(feature = "machines")]
+        Arc::new(kartenn_machines::Machines),
     ];
     modules
 }

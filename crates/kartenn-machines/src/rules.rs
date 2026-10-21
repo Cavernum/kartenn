@@ -22,6 +22,8 @@ macro_rules! rules {
 }
 
 rules! {
+    OPERATION_INVALID = "machines.operation.invalid", Error, ["REQ-009-3", "REQ-009-6"], "ADR 0026",
+        "Une opération du module porte les champs qu'il attend, avec des valeurs admises et des objets qui existent.";
     NAME_INVALID = "machines.name.invalid", Error, ["REQ-009-4"], "RFC 1123 §2.1",
         "Un nom de machine est une suite d'étiquettes LDH de 1 à 63 caractères, 253 au total, conservée en minuscules.";
     NAME_DUPLICATE = "machines.name.duplicate", Error, ["REQ-009-4"], "009/M3",
