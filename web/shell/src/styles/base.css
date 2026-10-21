@@ -291,7 +291,9 @@ button {
   flex-wrap: nowrap;
 }
 
-input {
+input,
+select,
+textarea {
   background: var(--k-color-bg);
   border: 1px solid var(--k-color-border);
   border-radius: var(--k-radius);
@@ -372,4 +374,60 @@ input {
 .k-anomalies > li {
   border-bottom: 1px solid var(--k-color-border);
   padding-block: var(--k-space-2);
+}
+
+.k-field {
+  display: flex;
+  gap: var(--k-space-2);
+  align-items: center;
+}
+
+/* The tree (design « Thème, composants, arbre »): rows of a fixed height, absolutely
+   placed by the virtualiser; the active row outlined while the tree has the focus. */
+.k-tree {
+  height: min(70vh, 40rem);
+  overflow: auto;
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+}
+
+.k-tree:focus-visible {
+  outline: 2px solid var(--k-color-focus);
+  outline-offset: 2px;
+}
+
+.k-tree-sizer {
+  position: relative;
+  width: 100%;
+}
+
+.k-tree-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  gap: var(--k-space-2);
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.k-tree-row a {
+  font-family: var(--k-font-mono);
+}
+
+.k-tree-row[data-active] {
+  background: var(--k-color-surface);
+}
+
+.k-tree:focus-visible .k-tree-row[data-active] {
+  outline: 2px solid var(--k-color-focus);
+  outline-offset: -2px;
+}
+
+.k-tree-twisty {
+  display: inline-block;
+  width: 1em;
 }

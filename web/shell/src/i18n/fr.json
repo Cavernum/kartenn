@@ -39,7 +39,20 @@
   },
   "home": {
     "title": "Arbre des préfixes",
-    "intro": "Choisissez un domaine pour parcourir ses préfixes."
+    "domain": "Domaine",
+    "noDomain": "Aucun domaine d'adressage à afficher."
+  },
+  "tree": {
+    "label": "Préfixes du domaine {domain}",
+    "empty": "Ce domaine n'a aucun préfixe.",
+    "more": "Charger la page suivante",
+    "failed": "La page n'a pas pu être lue. Appuyez sur Entrée pour réessayer.",
+    "kind": {
+      "container": "conteneur",
+      "network": "réseau",
+      "range": "plage",
+      "address": "adresse"
+    }
   },
   "admin": {
     "title": "Administration",

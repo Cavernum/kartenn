@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "./fixtures/env.ts";
-import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS } from "./fixtures/data.ts";
+import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS, widePrefixes } from "./fixtures/data.ts";
 import { totp } from "./fixtures/totp.ts";
 
 /**
@@ -99,6 +99,26 @@ export default async function globalSetup(): Promise<void> {
         })),
       ],
     });
+    // The wide container of the tree (REQ-007-31): 10⁴ direct children, by changesets of
+    // 2 500 operations.
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end wide container",
+      operations: [
+        { op: "create_prefix", domain: production, prefix: DATA.wide.prefix, nature: "container" },
+      ],
+    });
+    const wide = widePrefixes();
+    for (let start = 0; start < wide.length; start += 2500) {
+      await expectOk(api, "POST", "/v1/changesets", {
+        motive: "end-to-end wide container",
+        operations: wide.slice(start, start + 2500).map((prefix) => ({
+          op: "create_prefix",
+          domain: production,
+          prefix,
+          nature: "network",
+        })),
+      });
+    }
   } finally {
     await api.dispose();
   }

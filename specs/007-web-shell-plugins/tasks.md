@@ -437,12 +437,30 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   objet ; l'acquittement suit les écritures rapides (coupé sous `valid_at` comme sous
   `as_of`) ; « Domaines » d'abord dans la navigation, l'arbre restant l'accueil
   (tâche 18)
-- [ ] 18. Arbre des préfixes : racines du domaine, enfants à la demande, virtualisation,
+- [x] 18. Arbre des préfixes : racines du domaine, enfants à la demande, virtualisation,
   clavier `treeview` — REQ-007-17, 31, 33 — verify : E2E : ouverture, page suivante
   chargée en défilant, flèches, Origine, Fin, Entrée ; conteneur à 10⁴ enfants du jeu de
   bout en bout : quelques centaines de nœuds au plus dans le DOM (10⁵ au banc, tâche 24)
   où : design « Thème, composants, arbre » (arbre) ; route de la tâche 6 ;
   `kartenn-rest/src/tree.rs` (`children`)
+  — `web/shell/src/tree/model.ts` (modèle aplati des lignes visibles, branches lues page
+  par page, ligne « suite » tant qu'il reste des pages, `aria-setsize` à -1 jusqu'à la
+  dernière, pages d'une remise à zéro écartées ; `moveFocus` : touches du motif
+  `treeview`), `tree/PrefixTree.vue` (`role="tree"` focalisable, `aria-activedescendant`,
+  lignes `treeitem` à `aria-level`, `aria-posinset`, `aria-expanded`, virtualisées par
+  `@tanstack/vue-virtual` à 32 px ; un `Pager` de `data/api.ts` par parent ; la ligne
+  « suite » qui entre dans la fenêtre lit la page suivante ; Entrée ouvre la fiche ou
+  relit une page en échec), `views/HomeView.vue` (domaine choisi dans l'URL, `?domain=`,
+  le premier par défaut) ; catalogues `home.*`, `tree.*` ; `select` aux couleurs des
+  jetons (contraste en mode sombre). Jeu de bout en bout : conteneur `10.3.0.0/16` et ses
+  10⁴ réseaux `/30`. Tests : Vitest `tree/model.test.ts` (pages, ouverture, fermeture,
+  remise à zéro, échec puis reprise, touches) ; E2E `journeys/tree.spec.ts` (Chromium et
+  Firefox : droite, droite, bas, Fin et défilement jusqu'au-delà de la 200ᵉ ligne, au plus
+  300 lignes dans le DOM, Origine, gauche, Entrée), axe-core
+  choix : lignes « suite » focalisables (`treeitem` « Charger la page suivante ») plutôt
+  qu'invisibles au clavier ; un clic sur une ligne ouvre ou ferme, son lien mène à la
+  fiche ; la page d'un conteneur à 10⁴ enfants coûte environ 2 s au serveur (chaque page
+  recalcule tous les enfants avant le curseur), d'où des délais de 60 s dans le parcours
 - [ ] 19. Modification rapide : création, modification, clôture avec motif et `If-Match`,
   réponses 202, 403, 412 et 422 — REQ-007-25, 20 — verify : E2E : deux onglets sur le
   même préfixe → 412, saisie retrouvée après relecture ; politique d'approbation → 202 et

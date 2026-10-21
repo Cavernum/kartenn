@@ -25,7 +25,17 @@ export const DATA = {
   addresses: ["10.1.0.10"],
   /** A network with 1 000 addresses: a long list (REQ-007-31). */
   bulk: { prefix: "10.2.0.0/22", count: 1000 },
+  /** A container with 10⁴ direct children: the virtualised tree (REQ-007-31). */
+  wide: { prefix: "10.3.0.0/16", count: 10_000 },
 };
+
+/** The children of the wide container: /30 networks, 10.3.0.0/30 onwards. */
+export function widePrefixes(): string[] {
+  return Array.from({ length: DATA.wide.count }, (_, i) => {
+    const n = i * 4;
+    return `10.3.${Math.floor(n / 256)}.${n % 256}/30`;
+  });
+}
 
 /** The addresses of the bulk network: 10.2.0.1 onwards. */
 export function bulkAddresses(): string[] {
