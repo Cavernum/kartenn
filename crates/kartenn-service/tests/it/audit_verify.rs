@@ -36,7 +36,7 @@ async fn exec(pool: &PgPool, sql: &str) {
         .unwrap();
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_intact_journal_verifies(pool: PgPool) {
     let key = journal(&pool).await;
     let report = verify(&pool, Some(&key.public())).await.unwrap();
@@ -44,7 +44,7 @@ async fn an_intact_journal_verifies(pool: PgPool) {
     assert_eq!((report.seals, report.events, report.purged), (2, 6, 0));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_modified_event_breaks_its_seal(pool: PgPool) {
     journal(&pool).await;
     exec(
@@ -57,7 +57,7 @@ async fn a_modified_event_breaks_its_seal(pool: PgPool) {
     assert!(broken.reason.contains("event 2 was modified"), "{broken:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_deleted_event_breaks_its_seal_unless_purged(pool: PgPool) {
     journal(&pool).await;
     exec(&pool, "DELETE FROM audit.event WHERE seq = 5").await;
@@ -80,7 +80,7 @@ async fn a_deleted_event_breaks_its_seal_unless_purged(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_tampered_seal_or_member_breaks_the_chain(pool: PgPool) {
     journal(&pool).await;
     exec(
@@ -92,7 +92,7 @@ async fn a_tampered_seal_or_member_breaks_the_chain(pool: PgPool) {
     assert_eq!(broken.seal, 1, "{broken:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_added_member_breaks_its_seal(pool: PgPool) {
     journal(&pool).await;
     exec(
@@ -106,7 +106,7 @@ async fn an_added_member_breaks_its_seal(pool: PgPool) {
     assert!(broken.reason.contains("members"), "{broken:?}");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn another_key_does_not_verify_and_the_break_is_recorded(pool: PgPool) {
     journal(&pool).await;
     let other = SealKey::from_bytes(&[8; 32]);

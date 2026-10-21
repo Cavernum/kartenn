@@ -38,7 +38,7 @@ fn assign(object: Uuid, kind: ObjectKind, property: Ref, value: &str) -> Operati
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_object_is_read_with_its_resolved_properties(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author: Uuid = sqlx::query_scalar(

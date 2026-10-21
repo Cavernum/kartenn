@@ -47,7 +47,7 @@ async fn entries(pool: &PgPool, role: &str) -> Vec<String> {
     .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_role_with_a_module_permission(pool: PgPool) {
     let store = kit::store(&pool);
     let outcome = set_role(&pool, &store, &["kit.group.read", "kit.item.read"]).await;
@@ -72,7 +72,7 @@ async fn a_role_with_a_module_permission(pool: PgPool) {
     assert!(kartenn_core::authz::permission("kit.group.write").is_some());
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn unknown_module_permission_refused(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let outcome = set_role(&pool, &store, &["kit.group.read"]).await;

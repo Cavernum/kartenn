@@ -264,12 +264,12 @@ fn declaration(
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn entity_values_follow_the_parents_over_time(pool: PgPool) {
     follow_the_parents(&pool, "entity").await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn site_values_follow_the_parents_over_time(pool: PgPool) {
     follow_the_parents(&pool, "site").await;
 }
@@ -312,7 +312,7 @@ async fn follow_the_parents(pool: &PgPool, tree: &'static str) {
     assert_eq!(explained.value.as_deref(), Some("\"b\""));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn heritable_carriers_belong_to_the_tree(pool: PgPool) {
     let f = Fixture::new(&pool, "entity").await;
     for (tree, carriers) in [
@@ -415,12 +415,12 @@ async fn random_step(
     (vec![op], start, end)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn entity_origins_match_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, "entity").await;
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn site_origins_match_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, "site").await;
 }
@@ -481,7 +481,7 @@ fn refusal(outcome: Outcome) -> (Vec<&'static str>, Vec<Uuid>) {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_entity_obligation_follows_owners_and_moves(pool: PgPool) {
     let f = Fixture::new(&pool, "entity").await;
     for outcome in sync_modules(

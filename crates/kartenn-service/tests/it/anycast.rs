@@ -119,7 +119,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_anycast_network_and_its_addresses_may_be_in_several_domains(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // REQ-002-46: the same network, anycast everywhere → accepted with a warning.
@@ -161,7 +161,7 @@ async fn an_anycast_network_and_its_addresses_may_be_in_several_domains(pool: Pg
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn every_occurrence_must_be_the_same_anycast_network(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![Fixture::network(f.a, N, true)]).await;
@@ -187,7 +187,7 @@ async fn every_occurrence_must_be_the_same_anycast_network(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_anycast_network_holds_anycast_addresses_only(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // REQ-002-49: only networks carry the mark.
@@ -229,7 +229,7 @@ async fn an_anycast_network_holds_anycast_addresses_only(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn concurrent_occurrences_are_serialised_by_the_public_space_lock(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     // Hold the public space lock (same key as the store, ADR 0015) so that both

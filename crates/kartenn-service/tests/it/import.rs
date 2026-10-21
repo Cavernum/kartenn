@@ -84,7 +84,7 @@ async fn count(pool: &PgPool, table: &str) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_import_pauses_on_a_faulty_batch_and_resumes(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = author(&pool).await;
@@ -169,7 +169,7 @@ async fn an_import_pauses_on_a_faulty_batch_and_resumes(pool: PgPool) {
     assert_eq!(count(&pool, "prefix").await, 2);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_import_needs_identifiers_and_known_references(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = author(&pool).await;
@@ -287,7 +287,7 @@ impl Authorizer for Cancelling {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_cancelled_import_stops_after_the_batch_in_progress(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let author = author(&pool).await;

@@ -88,7 +88,7 @@ impl AuditJournal for Broken {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
@@ -215,7 +215,7 @@ async fn reads_are_audited_sensitive_ones_longer(pool: PgPool) {
     ));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn consulting_the_audit_needs_its_permission_and_is_audited(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![Operation::CreateDomain {

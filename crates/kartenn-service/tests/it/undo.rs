@@ -160,7 +160,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_inverse_restores_what_a_changeset_changed(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let changed = f
@@ -211,7 +211,7 @@ async fn an_inverse_restores_what_a_changeset_changed(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let changed = f
@@ -330,7 +330,7 @@ fn bind(subject: BindingSubject, scope: BindingScope) -> Operation {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_administration_changeset_is_undone(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let administered = f
@@ -383,7 +383,7 @@ async fn an_administration_changeset_is_undone(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn undoing_a_closure_gives_the_role_and_its_bindings_back(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
@@ -438,7 +438,7 @@ async fn undoing_a_closure_gives_the_role_and_its_bindings_back(pool: PgPool) {
     assert_eq!(f.attachments().await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn undoing_the_end_of_a_future_binding_gives_it_back_on_its_period(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let tomorrow = i64::try_from(
@@ -485,7 +485,7 @@ async fn undoing_the_end_of_a_future_binding_gives_it_back_on_its_period(pool: P
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_later_administration_is_a_conflict(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let created = f

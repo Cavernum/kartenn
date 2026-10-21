@@ -196,7 +196,7 @@ impl Fixture {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
     let f = Fixture::new(&pool, None).await;
     let at = |object, d, as_of| explain(&pool, object, f.env, day(d), as_of);
@@ -254,7 +254,7 @@ async fn the_resolution_is_explained_on_both_axes(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_default_value_shows_its_source(pool: PgPool) {
     let f = Fixture::new(
         &pool,

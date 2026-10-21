@@ -17,7 +17,7 @@ fn a(t: &str) -> Addr {
     Addr::parse_any(&ALL, t).unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn ranges_are_children_of_their_network_and_count_in_occupancy(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",

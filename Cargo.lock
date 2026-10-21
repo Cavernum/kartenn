@@ -1930,6 +1930,7 @@ dependencies = [
  "jsonschema",
  "kartenn-core",
  "kartenn-store-pg",
+ "kartenn-testing",
  "kartenn-workspace-hack",
  "serde",
  "serde_json",

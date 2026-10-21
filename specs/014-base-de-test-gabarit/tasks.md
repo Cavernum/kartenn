@@ -58,9 +58,15 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   dev-dependency `kartenn-testing`, en-tête de `harness.rs` ; nextest : 50 tests avant,
   50 après (mêmes noms). Exécution de la suite (`k-check -p kartenn-store-pg`, résumé
   nextest) : 4,2 s avant (charge 14), 3,1 s après (charge 15 puis 7).
-- [ ] 3. kartenn-service (157 tests) — verify : commun
+- [x] 3. kartenn-service (157 tests) — verify : commun
   où : `crates/kartenn-service/tests/it/`, `Cargo.toml`
   dépend de : 1 ; 013 : 2
+  — 157 attributs remplacés (aucun laissé en `#[sqlx::test]`), dev-dependency
+  `kartenn-testing` ; nextest : 177 tests avant, 177 après (mêmes noms). Exécution de la
+  suite : 21,4 s avant (charge 10 à 11), 14,3 s après (charge 4 à 5).
+  choix : l'attribut porte `#[allow(clippy::too_many_lines)]` (`kartenn-testing-macros`),
+  comme `#[sqlx::test]` qui masquait la fonction à ce lint : douze scénarios de plus de
+  100 lignes le déclenchaient, sans changer leur corps.
 - [ ] 4. kartenn-rest (97 tests) — verify : commun
   où : `crates/kartenn-rest/tests/it/`, `tests/it/common/`, `Cargo.toml`
   dépend de : 1 ; 013 : 3

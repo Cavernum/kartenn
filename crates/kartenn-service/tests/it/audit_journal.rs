@@ -16,7 +16,7 @@ async fn count(pool: &PgPool) -> i64 {
         .unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_event_is_recorded_with_its_context(pool: PgPool) {
     let journal = PgAuditJournal::new(pool.clone(), Instance::new("1.2.3"));
     let person = Uuid::now_v7();
@@ -58,7 +58,7 @@ async fn an_event_is_recorded_with_its_context(pool: PgPool) {
     assert_eq!(row.8["permission"], "prop.custom.env.write");
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn an_event_in_a_transaction_shares_its_fate(pool: PgPool) {
     let store = PgStore::new(pool.clone());
     let event = RequestContext::system()
@@ -74,7 +74,7 @@ async fn an_event_in_a_transaction_shares_its_fate(pool: PgPool) {
     assert_eq!(count(&pool).await, 1);
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn a_failed_audit_fails_the_action(pool: PgPool) {
     // The audit cannot be written: every insertion is refused.
     sqlx::raw_sql(

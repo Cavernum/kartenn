@@ -29,7 +29,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
     }
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPool) {
     let (alice, bob) = (person(&pool, "alice").await, person(&pool, "bob").await);
     let store = PgStore::new(pool.clone());
@@ -163,7 +163,7 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
     );
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn pseudonymisation_keeps_the_history(pool: PgPool) {
     let alice = person(&pool, "alice").await;
     let store = PgStore::new(pool.clone());

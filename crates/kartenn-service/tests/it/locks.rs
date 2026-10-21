@@ -10,7 +10,7 @@ use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn closing_a_domain_waits_for_its_lock(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'tester') RETURNING id",

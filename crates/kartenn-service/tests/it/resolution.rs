@@ -182,7 +182,7 @@ fn instant(micros: i64) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(micros) * 1_000).unwrap()
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn values_are_inherited_replaced_cleared_and_dated(pool: PgPool) {
     let f = Fixture::new(&pool, PgStore::new(pool.clone())).await;
     f.applied(
@@ -269,7 +269,7 @@ async fn values_are_inherited_replaced_cleared_and_dated(pool: PgPool) {
     assert_eq!(f.origin(mid, 5).await, Some(mid));
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn assignments_respect_carriers_types_and_existence(pool: PgPool) {
     let f = Fixture::new(&pool, PgStore::new(pool.clone())).await;
     f.applied(vec![f.prefix("10.0.0.0/8", Nature::Container)], 0, None)
@@ -549,14 +549,14 @@ async fn random_step(f: &Fixture, rng: &mut Rng) -> (Vec<Operation>, i64, Option
     (vec![op], start, end)
 }
 
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn the_materialisation_matches_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, PgStore::new(pool.clone())).await;
 }
 
 /// The same, the origins being recomputed going down from the carriers of an assignment
 /// (the way of the large changesets).
-#[sqlx::test(migrator = "kartenn_store_pg::MIGRATOR")]
+#[kartenn_testing::pg_test]
 async fn going_down_matches_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, PgStore::new(pool.clone()).with_down_from(0)).await;
 }
