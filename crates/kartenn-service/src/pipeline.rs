@@ -1385,17 +1385,16 @@ async fn modify<T: WriteTx>(
             former.push((old.domain, old.value));
         }
     }
-    // REQ-008-28: an administrator's obligation, checked like those of a declaration.
+    // REQ-008-28: an administrator's obligation, its scope checked here; whether the scope
+    // holds a value everywhere is checked on the final state, with the obligations of the
+    // declarations (`resolution::check_obligations`), so that the same changeset may
+    // classify the objects it requires (REQ-010-21).
     if let Change::Obligation {
         scope,
         required: true,
     } = change
     {
-        let declaration =
-            crate::declarations::check_admin_obligation(tx, id, scope, period).await?;
-        tx.modify(kind, id, change, period, changeset).await?;
-        return crate::declarations::admin_obligation_held(tx, id, &declaration, scope, period)
-            .await;
+        crate::declarations::check_admin_obligation(tx, id, scope, period).await?;
     }
     tx.modify(kind, id, change, period, changeset).await
 }

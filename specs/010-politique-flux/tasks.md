@@ -223,10 +223,22 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   grand total d'héritiers reclassés sur un axe ; `policy.write` compte les objets de la
   politique écrits ; la troncature au-delà de 10⁵ candidats garde le décompte seul
   (`truncated`).
-- [ ] 10. Obligation par domaine et par axe — REQ-010-21, 22 — verify : cas
+- [x] 10. Obligation par domaine et par axe — REQ-010-21, 22 — verify : cas
   d'acceptation de REQ-010-21
   - où : `AddObligation` (tâche 008-20), `crates/kartenn-core/src/properties.rs`
   - dépend de : 7
+  — l'obligation d'un administrateur du noyau (008-20) sur la propriété de l'axe suffit,
+  sans opération du module ; un correctif du noyau était nécessaire : la tenue d'une
+  obligation ajoutée se contrôlait à l'application de l'opération, avant la résolution, si
+  bien qu'un nœud classé dans le même changeset comptait encore comme sans valeur. Elle se
+  contrôle maintenant sur l'état final, la portée entière, avec les obligations des
+  déclarations (`kartenn-service/src/resolution.rs::check_obligations`, `pipeline.rs`
+  ne vérifie plus que la portée ; `declarations::admin_obligation_held` retirée). Tests :
+  `kartenn-policy/tests/it/obligation.rs` (`acceptance_of_req_010_21_required_environment`
+  : refus listant les 12 adresses, accepté une fois classées dans le même changeset ;
+  `acceptance_of_req_010_21_required_exposure` : un réseau qui hérite l'exposition est
+  accepté sans environnement, un réseau qui l'arrête est refusé). REQ-010-22 (non
+  classifiés comptés) relève du rapport d'audit (tâche 16).
 - [ ] 11. Vue matricielle (`policy.matrix.set`, lecture) — REQ-010-34 — verify : cas
   d'acceptation ; aller-retour vue → règles → vue
   - où : `kartenn-policy/src/matrix.rs`
