@@ -1061,8 +1061,13 @@ pub(crate) async fn gate(
     gate_target(api, context, Target::Core(kind), id).await
 }
 
-/// [`gate`], for a kind of the core or a type of a module.
-pub(crate) async fn gate_target(
+/// [`gate`], for a kind of the core or a type of a module: 404 for an object the caller
+/// may not read, the refusal journaled.
+///
+/// # Errors
+///
+/// 404 `not-found`; the authorizer or the journal unavailable.
+pub async fn gate_target(
     api: &Api,
     context: &RequestContext,
     target: Target,

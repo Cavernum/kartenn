@@ -224,6 +224,7 @@ pub(crate) fn op(name: &str, fields: Value) -> Operation {
     serde_json::from_value(object).unwrap()
 }
 
+#[allow(dead_code)] // not every test binary reads the rules
 pub(crate) fn rules(outcome: &Outcome) -> Vec<&'static str> {
     match outcome {
         Outcome::Refused { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),

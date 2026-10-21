@@ -46,7 +46,7 @@ pub struct Dates {
 #[derive(Debug, IntoParams)]
 #[into_params(parameter_in = Query)]
 #[allow(dead_code)]
-pub(crate) struct DatesParams {
+pub struct DatesParams {
     /// Valid time, RFC 3339 with its offset; now by default.
     valid_at: Option<String>,
     /// System time, RFC 3339 with its offset: what kartenn asserted then; now by default.

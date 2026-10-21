@@ -222,7 +222,7 @@ pub fn next_href(path: &str, cursor: &str) -> String {
 #[derive(Debug, IntoParams)]
 #[into_params(parameter_in = Query)]
 #[allow(dead_code)]
-pub(crate) struct PageParams {
+pub struct PageParams {
     /// The next page, from `links.next`; it freezes the dates and the filters.
     cursor: Option<String>,
     /// The size of a page, 1 to 1 000; 100 by default.

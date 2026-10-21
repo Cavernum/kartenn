@@ -18,6 +18,7 @@ pub mod error;
 pub mod filter;
 pub mod health;
 pub mod imports;
+pub mod kit;
 pub mod modules;
 pub mod objects;
 pub mod openapi;

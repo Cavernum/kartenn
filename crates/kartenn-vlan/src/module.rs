@@ -43,6 +43,18 @@ static TYPES: &[ObjectType] = &[
     },
 ];
 
+/// The type of the groups, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn group_type() -> &'static ObjectType {
+    &TYPES[0]
+}
+
+/// The type of the VLANs, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn vlan_type() -> &'static ObjectType {
+    &TYPES[1]
+}
+
 static OPERATIONS: &[OperationType] = &[
     OperationType {
         name: "create_group",

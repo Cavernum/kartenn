@@ -2995,6 +2995,69 @@
         ],
         "type": "object"
       },
+      "Listing_Vlan": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/Vlan"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_VlanGroup": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/VlanGroup"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_VlanNetwork": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/VlanNetwork"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "LogFilter": {
         "additionalProperties": false,
         "description": "The body of `PUT /v1/log-filters/{output}`.",
@@ -6790,6 +6853,531 @@
           "severity",
           "detail",
           "subjects"
+        ],
+        "type": "object"
+      },
+      "Vlan": {
+        "description": "A VLAN (REQ-008-14).",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/VlanObjectRef",
+            "description": "Its group."
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name, unique in the group.",
+            "type": "string"
+          },
+          "status": {
+            "description": "`active`, `reserved` or `deprecated`.",
+            "type": "string"
+          },
+          "vid": {
+            "description": "VID, 1 to 4094, unique in the group.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "vid",
+          "name",
+          "status",
+          "href"
+        ],
+        "type": "object"
+      },
+      "VlanClosure": {
+        "description": "The optional body of the closure of an object of the module (REQ-008-10).",
+        "properties": {
+          "cascade": {
+            "description": "Also close the VLANs of a group, and remove the VLAN of its networks.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the closure, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "VlanCreation": {
+        "description": "The body of the creation of a VLAN.",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/VlanObjectRef",
+            "description": "Its group."
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name.",
+            "type": "string"
+          },
+          "status": {
+            "description": "`active` by default, `reserved` or `deprecated`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vid": {
+            "description": "VID.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "motive",
+          "group",
+          "vid",
+          "name"
+        ],
+        "type": "object"
+      },
+      "VlanGroup": {
+        "description": "A group of VLANs (REQ-008-12).",
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/VlanGroupAnchor",
+            "description": "Anchor."
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Slug, unique among the living groups.",
+            "type": "string"
+          },
+          "vid_max": {
+            "description": "Last VID of its range.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "vid_min": {
+            "description": "First VID of its range.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "anchor",
+          "vid_min",
+          "vid_max",
+          "href"
+        ],
+        "type": "object"
+      },
+      "VlanGroupAnchor": {
+        "description": "The anchor of a group (V3): an entity, a site or an addressing domain.",
+        "oneOf": [
+          {
+            "description": "An entity.",
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "An entity."
+              }
+            },
+            "required": [
+              "entity"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A site.",
+            "properties": {
+              "site": {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "A site."
+              }
+            },
+            "required": [
+              "site"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An addressing domain.",
+            "properties": {
+              "domain": {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "An addressing domain."
+              }
+            },
+            "required": [
+              "domain"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VlanGroupCreation": {
+        "description": "The body of the creation of a group.",
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/VlanGroupAnchor",
+            "description": "Anchor."
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "The owner, the entity of the anchor by default."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vid_max": {
+            "description": "Last VID, 4094 by default.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "vid_min": {
+            "description": "First VID, 1 by default.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "slug",
+          "anchor"
+        ],
+        "type": "object"
+      },
+      "VlanGroupPatch": {
+        "description": "The body of the modification of a group (JSON Merge Patch).",
+        "properties": {
+          "anchor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VlanGroupAnchor",
+                "description": "Anchor."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "The owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vid_max": {
+            "description": "Last VID.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "vid_min": {
+            "description": "First VID.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "VlanNetwork": {
+        "description": "A network that carries a VLAN (REQ-008-21).",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "The network, CIDR.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prefix",
+          "href"
+        ],
+        "type": "object"
+      },
+      "VlanNextFree": {
+        "description": "The next free VID of a group (REQ-008-20).",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/VlanObjectRef",
+            "description": "The group."
+          },
+          "vid": {
+            "description": "The smallest free VID, at or after `from`.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group",
+          "vid"
+        ],
+        "type": "object"
+      },
+      "VlanObjectRef": {
+        "description": "The identifier of an object, as the operations name it.",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "VlanOccupancy": {
+        "description": "The occupancy of a group at a date (REQ-008-20).",
+        "properties": {
+          "free": {
+            "description": "VIDs of no VLAN.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "group": {
+            "$ref": "#/components/schemas/VlanObjectRef",
+            "description": "The group."
+          },
+          "reserved": {
+            "description": "VIDs of reserved VLANs.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slices": {
+            "description": "Its range, from `vid_min` to `vid_max`, in runs.",
+            "items": {
+              "$ref": "#/components/schemas/VlanSlice"
+            },
+            "type": "array"
+          },
+          "used": {
+            "description": "VIDs of active or deprecated VLANs.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group",
+          "slices",
+          "used",
+          "reserved",
+          "free"
+        ],
+        "type": "object"
+      },
+      "VlanPatch": {
+        "description": "The body of the modification of a VLAN (JSON Merge Patch).",
+        "properties": {
+          "group": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "Its group."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "Status.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vid": {
+            "description": "VID.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "VlanSlice": {
+        "description": "A run of VIDs in the same state.",
+        "properties": {
+          "first": {
+            "description": "First VID.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last": {
+            "description": "Last VID.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "description": "`used`, `reserved` or `free`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first",
+          "last",
+          "state"
         ],
         "type": "object"
       },
@@ -14277,6 +14865,395 @@
         ]
       }
     },
+    "/v1/vlan-groups": {
+      "get": {
+        "operationId": "list_vlan_groups",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "slug",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The entity, site or domain the group is anchored on.",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_VlanGroup"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlan-groups the caller may read.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "post": {
+        "operationId": "create_vlan_group",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanGroupCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates a vlan_group.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_vlan_groups",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_VlanGroup"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlan-groups the caller may read.",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}": {
+      "delete": {
+        "operationId": "close_vlan_group",
+        "parameters": [
+          {
+            "description": "The vlan_group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the vlan_group.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "get": {
+        "operationId": "show_vlan_group",
+        "parameters": [
+          {
+            "description": "The vlan_group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VlanGroup"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlan_group.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_vlan_group",
+        "parameters": [
+          {
+            "description": "The vlan_group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanGroupPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the vlan_group (JSON Merge Patch).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
     "/v1/vlan-groups/{id}/history": {
       "get": {
         "operationId": "vlan_group_history",
@@ -14353,6 +15330,137 @@
           }
         },
         "summary": "The versions of the record of the vlan.group, on both axes (REQ-004-18).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/next-free": {
+      "get": {
+        "operationId": "vlan_group_next_free",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The VID to start from; the first of the range by default.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VlanNextFree"
+                }
+              }
+            },
+            "description": "The next free VID."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The smallest free VID of the group, at or after `from`; 404 `exhausted` when none.",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlan-groups/{id}/occupancy": {
+      "get": {
+        "operationId": "vlan_group_occupancy",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VlanOccupancy"
+                }
+              }
+            },
+            "description": "The occupancy."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The used, reserved and free VIDs of the group, in runs (REQ-008-20).",
         "tags": [
           "vlan"
         ]
@@ -14559,6 +15667,422 @@
         ]
       }
     },
+    "/v1/vlans": {
+      "get": {
+        "operationId": "list_vlans",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A VID, or a range `a..b`.",
+            "in": "query",
+            "name": "vid",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Starting with.",
+            "in": "query",
+            "name": "name_prefix",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active`, `reserved` or `deprecated`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Vlan"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlans the caller may read.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "post": {
+        "operationId": "create_vlan",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Creates a vlan.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_vlans",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_Vlan"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlans the caller may read.",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlans/{id}": {
+      "delete": {
+        "operationId": "close_vlan",
+        "parameters": [
+          {
+            "description": "The vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Closed."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the vlan.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "get": {
+        "operationId": "show_vlan",
+        "parameters": [
+          {
+            "description": "The vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vlan"
+                }
+              }
+            },
+            "description": "The object; its version is its ETag."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The vlan.",
+        "tags": [
+          "vlan"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_vlan",
+        "parameters": [
+          {
+            "description": "The vlan.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version read, as its ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/VlanPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Modified."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the vlan (JSON Merge Patch).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
     "/v1/vlans/{id}/history": {
       "get": {
         "operationId": "vlan_vlan_history",
@@ -14635,6 +16159,87 @@
           }
         },
         "summary": "The versions of the record of the vlan.vlan, on both axes (REQ-004-18).",
+        "tags": [
+          "vlan"
+        ]
+      }
+    },
+    "/v1/vlans/{id}/prefixes": {
+      "get": {
+        "operationId": "vlan_prefixes",
+        "parameters": [
+          {
+            "description": "The VLAN.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_VlanNetwork"
+                }
+              }
+            },
+            "description": "A page of networks."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The networks that carry the VLAN, those the caller may read (REQ-008-21).",
         "tags": [
           "vlan"
         ]

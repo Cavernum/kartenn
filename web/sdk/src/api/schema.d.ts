@@ -1575,6 +1575,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/vlan-groups": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The vlan-groups the caller may read. */
+    get: operations["list_vlan_groups"];
+    put?: never;
+    /** Creates a vlan_group. */
+    post: operations["create_vlan_group"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The vlan_group. */
+    get: operations["show_vlan_group"];
+    put?: never;
+    post?: never;
+    /** Closes the vlan_group. */
+    delete: operations["close_vlan_group"];
+    options?: never;
+    head?: never;
+    /** Modifies the vlan_group (JSON Merge Patch). */
+    patch: operations["modify_vlan_group"];
+    trace?: never;
+  };
   "/v1/vlan-groups/{id}/history": {
     parameters: {
       query?: never;
@@ -1584,6 +1621,40 @@ export interface paths {
     };
     /** The versions of the record of the vlan.group, on both axes (REQ-004-18). */
     get: operations["vlan_group_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}/next-free": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The smallest free VID of the group, at or after `from`; 404 `exhausted` when none. */
+    get: operations["vlan_group_next_free"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlan-groups/{id}/occupancy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The used, reserved and free VIDs of the group, in runs (REQ-008-20). */
+    get: operations["vlan_group_occupancy"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1643,6 +1714,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/vlans": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The vlans the caller may read. */
+    get: operations["list_vlans"];
+    put?: never;
+    /** Creates a vlan. */
+    post: operations["create_vlan"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The vlan. */
+    get: operations["show_vlan"];
+    put?: never;
+    post?: never;
+    /** Closes the vlan. */
+    delete: operations["close_vlan"];
+    options?: never;
+    head?: never;
+    /** Modifies the vlan (JSON Merge Patch). */
+    patch: operations["modify_vlan"];
+    trace?: never;
+  };
   "/v1/vlans/{id}/history": {
     parameters: {
       query?: never;
@@ -1652,6 +1760,23 @@ export interface paths {
     };
     /** The versions of the record of the vlan.vlan, on both axes (REQ-004-18). */
     get: operations["vlan_vlan_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/vlans/{id}/prefixes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The networks that carry the VLAN, those the caller may read (REQ-008-21). */
+    get: operations["vlan_prefixes"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2832,6 +2957,27 @@ export interface components {
     Listing_Version: {
       /** @description The elements of the page. */
       items: components["schemas"]["Version"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_Vlan: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["Vlan"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_VlanGroup: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["VlanGroup"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_VlanNetwork: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["VlanNetwork"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -4225,6 +4371,227 @@ export interface components {
       severity: string;
       /** @description The objects concerned. */
       subjects: string[];
+    };
+    /** @description A VLAN (REQ-008-14). */
+    Vlan: {
+      /** @description Its group. */
+      group: components["schemas"]["VlanObjectRef"];
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Name, unique in the group. */
+      name: string;
+      /** @description `active`, `reserved` or `deprecated`. */
+      status: string;
+      /**
+       * Format: int32
+       * @description VID, 1 to 4094, unique in the group.
+       */
+      vid: number;
+    };
+    /** @description The optional body of the closure of an object of the module (REQ-008-10). */
+    VlanClosure: {
+      /** @description Also close the VLANs of a group, and remove the VLAN of its networks. */
+      cascade?: boolean | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The start of the closure, RFC 3339; now by default. */
+      valid_from?: string | null;
+    };
+    /** @description The body of the creation of a VLAN. */
+    VlanCreation: {
+      /** @description Its group. */
+      group: components["schemas"]["VlanObjectRef"];
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Name. */
+      name: string;
+      /** @description `active` by default, `reserved` or `deprecated`. */
+      status?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      /**
+       * Format: int32
+       * @description VID.
+       */
+      vid: number;
+    };
+    /** @description A group of VLANs (REQ-008-12). */
+    VlanGroup: {
+      /** @description Anchor. */
+      anchor: components["schemas"]["VlanGroupAnchor"];
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Slug, unique among the living groups. */
+      slug: string;
+      /**
+       * Format: int32
+       * @description Last VID of its range.
+       */
+      vid_max: number;
+      /**
+       * Format: int32
+       * @description First VID of its range.
+       */
+      vid_min: number;
+    };
+    /** @description The anchor of a group (V3): an entity, a site or an addressing domain. */
+    VlanGroupAnchor:
+      | {
+          /** @description An entity. */
+          entity: components["schemas"]["VlanObjectRef"];
+        }
+      | {
+          /** @description A site. */
+          site: components["schemas"]["VlanObjectRef"];
+        }
+      | {
+          /** @description An addressing domain. */
+          domain: components["schemas"]["VlanObjectRef"];
+        };
+    /** @description The body of the creation of a group. */
+    VlanGroupCreation: {
+      /** @description Anchor. */
+      anchor: components["schemas"]["VlanGroupAnchor"];
+      /** @description Why; required by the rules. */
+      motive: string;
+      owner?: components["schemas"]["VlanObjectRef"] | null;
+      /** @description Slug. */
+      slug: string;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      /**
+       * Format: int32
+       * @description Last VID, 4094 by default.
+       */
+      vid_max?: number | null;
+      /**
+       * Format: int32
+       * @description First VID, 1 by default.
+       */
+      vid_min?: number | null;
+    };
+    /** @description The body of the modification of a group (JSON Merge Patch). */
+    VlanGroupPatch: {
+      anchor?: components["schemas"]["VlanGroupAnchor"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      owner?: components["schemas"]["VlanObjectRef"] | null;
+      /** @description Slug. */
+      slug?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      /**
+       * Format: int32
+       * @description Last VID.
+       */
+      vid_max?: number | null;
+      /**
+       * Format: int32
+       * @description First VID.
+       */
+      vid_min?: number | null;
+    };
+    /** @description A network that carries a VLAN (REQ-008-21). */
+    VlanNetwork: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description The network, CIDR. */
+      prefix: string;
+    };
+    /** @description The next free VID of a group (REQ-008-20). */
+    VlanNextFree: {
+      /** @description The group. */
+      group: components["schemas"]["VlanObjectRef"];
+      /**
+       * Format: int32
+       * @description The smallest free VID, at or after `from`.
+       */
+      vid: number;
+    };
+    /** @description The identifier of an object, as the operations name it. */
+    VlanObjectRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+    };
+    /** @description The occupancy of a group at a date (REQ-008-20). */
+    VlanOccupancy: {
+      /**
+       * Format: int32
+       * @description VIDs of no VLAN.
+       */
+      free: number;
+      /** @description The group. */
+      group: components["schemas"]["VlanObjectRef"];
+      /**
+       * Format: int32
+       * @description VIDs of reserved VLANs.
+       */
+      reserved: number;
+      /** @description Its range, from `vid_min` to `vid_max`, in runs. */
+      slices: components["schemas"]["VlanSlice"][];
+      /**
+       * Format: int32
+       * @description VIDs of active or deprecated VLANs.
+       */
+      used: number;
+    };
+    /** @description The body of the modification of a VLAN (JSON Merge Patch). */
+    VlanPatch: {
+      group?: components["schemas"]["VlanObjectRef"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description Name. */
+      name?: string | null;
+      /** @description Status. */
+      status?: string | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+      /**
+       * Format: int32
+       * @description VID.
+       */
+      vid?: number | null;
+    };
+    /** @description A run of VIDs in the same state. */
+    VlanSlice: {
+      /**
+       * Format: int32
+       * @description First VID.
+       */
+      first: number;
+      /**
+       * Format: int32
+       * @description Last VID.
+       */
+      last: number;
+      /** @description `used`, `reserved` or `free`. */
+      state: string;
     };
     /** @description A condition on a field of the core or a property `prop.<key>`. */
     Wanted: {
@@ -8722,6 +9089,226 @@ export interface operations {
       };
     };
   };
+  list_vlan_groups: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        slug?: string;
+        /** @description The entity, site or domain the group is anchored on. */
+        anchor?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_VlanGroup"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_vlan_group: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VlanGroupCreation"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_vlan_group: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan_group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VlanGroup"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_vlan_group: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The vlan_group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["VlanClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_vlan_group: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The vlan_group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["VlanGroupPatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   vlan_group_history: {
     parameters: {
       query?: {
@@ -8750,6 +9337,82 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_next_free: {
+    parameters: {
+      query?: {
+        /** @description The VID to start from; the first of the range by default. */
+        from?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The next free VID. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VlanNextFree"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_group_occupancy: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The occupancy. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VlanOccupancy"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -8878,6 +9541,232 @@ export interface operations {
       };
     };
   };
+  list_vlans: {
+    parameters: {
+      query?: {
+        /** @description The group. */
+        group?: string;
+        /** @description A VID, or a range `a..b`. */
+        vid?: string;
+        /** @description Equal to. */
+        name?: string;
+        /** @description Starting with. */
+        name_prefix?: string;
+        /** @description `active`, `reserved` or `deprecated`. */
+        status?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_Vlan"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_vlan: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VlanCreation"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_vlan: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The vlan. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object; its version is its ETag. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Vlan"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_vlan: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The vlan. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["VlanClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_vlan: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The version read, as its ETag. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The vlan. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["VlanPatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   vlan_vlan_history: {
     parameters: {
       query?: {
@@ -8906,6 +9795,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  vlan_prefixes: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The VLAN. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of networks. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_VlanNetwork"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -9065,5 +9995,13 @@ export interface queries {
   "/v1/sites": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Node"];
+  };
+  "/v1/vlan-groups": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_VlanGroup"];
+  };
+  "/v1/vlans": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_Vlan"];
   };
 }

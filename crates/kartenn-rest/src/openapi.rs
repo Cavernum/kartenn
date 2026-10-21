@@ -239,17 +239,24 @@ pub(crate) fn json_of<T: ToSchema>() -> Content {
 }
 
 /// The schema of `T` and those it refers to, for the components.
-pub(crate) fn schemas_of<T: ToSchema>(schemas: &mut Vec<(String, RefOr<Schema>)>) {
+pub fn schemas_of<T: ToSchema>(schemas: &mut Vec<(String, RefOr<Schema>)>) {
     schemas.push((T::name().into_owned(), T::schema()));
     T::schemas(schemas);
 }
 
 /// An operation built by hand, for the routes one handler serves for each collection
-/// (`#[utoipa::path]` names one path).
-pub(crate) struct Op(OperationBuilder);
+/// (`#[utoipa::path]` names one path), and for the routes of the modules.
+pub struct Op(OperationBuilder);
+
+impl std::fmt::Debug for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Op").finish_non_exhaustive()
+    }
+}
 
 /// An operation `id` of `tag`.
-pub(crate) fn op(id: &str, tag: &str, summary: &str) -> Op {
+#[must_use]
+pub fn op(id: &str, tag: &str, summary: &str) -> Op {
     Op(OperationBuilder::new()
         .operation_id(Some(id))
         .tag(tag)
@@ -258,7 +265,8 @@ pub(crate) fn op(id: &str, tag: &str, summary: &str) -> Op {
 
 impl Op {
     /// A parameter of the path, a UUID or a string.
-    pub(crate) fn path(self, name: &str, description: &str, uuid: bool) -> Self {
+    #[must_use]
+    pub fn path(self, name: &str, description: &str, uuid: bool) -> Self {
         let schema: RefOr<Schema> = if uuid {
             utoipa::openapi::ObjectBuilder::new()
                 .schema_type(utoipa::openapi::schema::Type::String)
@@ -283,7 +291,8 @@ impl Op {
     }
 
     /// A parameter of the query string.
-    pub(crate) fn query(self, name: &str, description: &str) -> Self {
+    #[must_use]
+    pub fn query(self, name: &str, description: &str) -> Self {
         Self(
             self.0.parameter(
                 ParameterBuilder::new()
@@ -298,7 +307,8 @@ impl Op {
     }
 
     /// The parameters of `P`.
-    pub(crate) fn params<P: IntoParams>(self) -> Self {
+    #[must_use]
+    pub fn params<P: IntoParams>(self) -> Self {
         Self(
             self.0
                 .parameters(Some(P::into_params(|| Some(ParameterIn::Query)))),
@@ -306,7 +316,8 @@ impl Op {
     }
 
     /// A header.
-    pub(crate) fn header(self, name: &str, required: bool, description: &str) -> Self {
+    #[must_use]
+    pub fn header(self, name: &str, required: bool, description: &str) -> Self {
         Self(
             self.0.parameter(
                 ParameterBuilder::new()
@@ -325,7 +336,8 @@ impl Op {
     }
 
     /// A body of media type `media`, of the schema named `schema`.
-    pub(crate) fn body(self, media: &str, schema: &str, required: bool) -> Self {
+    #[must_use]
+    pub fn body(self, media: &str, schema: &str, required: bool) -> Self {
         Self(
             self.0.request_body(Some(
                 RequestBodyBuilder::new()
@@ -346,7 +358,8 @@ impl Op {
     }
 
     /// A JSON response `status`, of the schema named `schema`.
-    pub(crate) fn answers(self, status: &str, description: &str, schema: &str) -> Self {
+    #[must_use]
+    pub fn answers(self, status: &str, description: &str, schema: &str) -> Self {
         Self(
             self.0.response(
                 status,
@@ -364,13 +377,14 @@ impl Op {
     }
 
     /// The operation.
-    pub(crate) fn build(self) -> Operation {
+    #[must_use]
+    pub fn build(self) -> Operation {
         self.0.build()
     }
 }
 
 /// A route documented by hand: its path item at `path`, the schemas it names.
-pub(crate) fn documented<S>(
+pub fn documented<S>(
     path: &str,
     operations: Vec<(HttpMethod, Operation)>,
     schemas: Vec<(String, RefOr<Schema>)>,
@@ -385,7 +399,7 @@ pub(crate) fn documented<S>(
 }
 
 /// The schema of a page of `T`, under the name `#[utoipa::path]` gives it.
-pub(crate) fn listing_of<T: ToSchema + 'static>() -> (String, RefOr<Schema>) {
+pub fn listing_of<T: ToSchema + 'static>() -> (String, RefOr<Schema>) {
     (
         format!("Listing_{}", T::name()),
         <crate::cursor::Listing<'static, T> as PartialSchema>::schema(),
@@ -395,7 +409,11 @@ pub(crate) fn listing_of<T: ToSchema + 'static>() -> (String, RefOr<Schema>) {
 /// Places the `QUERY` operation of the collection at `path` of `router`, read by
 /// [`crate::filter::collection`], in the extension `x-query` of its path item: the filters
 /// in a JSON body ([`crate::filter::Search`]), the responses of its `GET`.
-pub(crate) fn queryable<S>(mut router: OpenApiRouter<S>, path: &str, id: &str) -> OpenApiRouter<S>
+///
+/// # Panics
+///
+/// When `path` is not routed with a `GET` in `router`.
+pub fn queryable<S>(mut router: OpenApiRouter<S>, path: &str, id: &str) -> OpenApiRouter<S>
 where
     S: Clone + Send + Sync + 'static,
 {

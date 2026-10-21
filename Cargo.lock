@@ -1969,15 +1969,23 @@ dependencies = [
 name = "kartenn-vlan"
 version = "0.0.0"
 dependencies = [
+ "axum",
+ "http-body-util",
+ "kartenn-auth",
  "kartenn-core",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-workspace-hack",
  "serde",
  "serde_json",
  "sqlx",
+ "time",
  "tokio",
+ "tower",
  "unicode-normalization",
+ "utoipa",
+ "utoipa-axum",
  "uuid",
 ]
 

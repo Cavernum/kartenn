@@ -160,13 +160,14 @@ pub async fn object(
 }
 
 /// The tables of the six kinds of object a read by UUID looks in.
-const OBJECT_TABLES: [&str; 6] = [
+const OBJECT_TABLES: [&str; 7] = [
     "addressing_domain",
     "prefix",
     "ip_range",
     "address",
     "entity",
     "site",
+    "module_object",
 ];
 
 /// The version of the object `id` valid at `valid_at`, as asserted at `as_of` (now when

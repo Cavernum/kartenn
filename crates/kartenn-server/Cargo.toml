@@ -16,7 +16,7 @@ default = ["vlan"]
 vlan = ["dep:kartenn-vlan"]
 
 [dependencies]
-kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["pg"], optional = true }
+kartenn-vlan = { version = "0.0.0", path = "../kartenn-vlan", features = ["rest"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 anyhow = "1.0.104"
 figment = { version = "0.10.19", features = ["toml", "env"] }
