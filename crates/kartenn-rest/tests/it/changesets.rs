@@ -3,7 +3,7 @@
 //! violation and a pointer to its operation, and the order of the problems.
 //! `Idempotency-Key` (REQ-006-15; task 006-15): replay, key in progress, other identity.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

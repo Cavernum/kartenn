@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-mod common;
+use crate::common;
 
 struct Ready;
 

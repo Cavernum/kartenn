@@ -43,7 +43,7 @@ use sqlx::types::time::OffsetDateTime;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-mod wire;
+use crate::wire;
 
 const CLIENT: &str = "kartenn";
 const REDIRECT: &str = "https://kartenn.example.invalid/v1/auth/callback";

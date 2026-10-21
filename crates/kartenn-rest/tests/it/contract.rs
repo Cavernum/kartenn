@@ -3,7 +3,7 @@
 //! (a member removed fails the comparison), carries `QUERY` in its extension; it is served
 //! with the capabilities; a retired route announces its successor.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

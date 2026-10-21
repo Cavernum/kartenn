@@ -3,7 +3,7 @@
 //! received, a chunk too large; the import is its author's; start, resume and cancel
 //! guarded by the state.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

@@ -2,10 +2,9 @@
 //! in the answer of a simulation, then by pages under
 //! `GET /v1/changesets/{id}/diff?section=`.
 
-mod common;
+use crate::common;
 
-#[path = "../../kartenn-service/tests/it/support/section_modules.rs"]
-mod sections;
+use crate::support::section_modules as sections;
 
 use std::sync::Arc;
 use std::time::Duration;

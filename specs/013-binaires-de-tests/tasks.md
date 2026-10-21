@@ -43,12 +43,18 @@ même crate.
   `use crate::support::… as …` ; le `#[path]` de `kartenn-rest/tests/diff_sections.rs`
   suit le déplacement jusqu'à la tâche 3. Aucune ligne `où :` de tâche ouverte ne citait
   un test de la crate.
-- [ ] 3. kartenn-rest : cible `rest_it`, `tests/*.rs`, `tests/common/`, `tests/wire/` →
+- [x] 3. kartenn-rest : cible `rest_it`, `tests/*.rs`, `tests/common/`, `tests/wire/` →
   `tests/it/` ; `diff_sections.rs` : le `#[path]` vers les helpers de kartenn-service
   devient une copie locale ou une feature `test-support` — verify : nombre de tests
   identique
   où : `crates/kartenn-rest/Cargo.toml`, `crates/kartenn-rest/tests/`
   dépend de : 2
+  — 198 tests avant et après (mêmes noms hors préfixe), 24 binaires → 2 ; `mod common;`
+  et `mod wire;` des fichiers deviennent `use crate::common;` et `use crate::wire;`,
+  modules déclarés une fois dans `tests/it/main.rs`.
+  choix : copie locale `tests/it/support/section_modules.rs` (avec une ligne qui en
+  nomme l'original) plutôt qu'une feature `test-support` de kartenn-service : un seul
+  utilisateur, aucune dépendance de la crate vers ses helpers de test.
 - [ ] 4. kartenn-store-pg : cible `store_pg_it`, `tests/*.rs` → `tests/it/` — verify :
   nombre de tests identique
   où : `crates/kartenn-store-pg/Cargo.toml`, `crates/kartenn-store-pg/tests/`
