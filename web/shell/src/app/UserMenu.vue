@@ -15,6 +15,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { LOCALES, setLocale, type Locale } from "../i18n/index.ts";
 import { useSession } from "../rights/index.ts";
+import { clearSensitive } from "../session/index.ts";
 import { applyTheme, storedTheme, THEMES, type Theme } from "../theme.ts";
 
 const composer = useI18n({ useScope: "global" });
@@ -33,8 +34,10 @@ function chooseTheme(value: unknown): void {
   applyTheme(theme.value);
 }
 
-// A top-level form POST, which follows the redirection to the issuer (design « Session »).
-function logout(): void {
+// What is sensitive goes first, then a top-level form POST, which follows the redirection
+// to the issuer (design « Session », REQ-007-28).
+async function logout(): Promise<void> {
+  await clearSensitive();
   logoutForm.value?.submit();
 }
 </script>

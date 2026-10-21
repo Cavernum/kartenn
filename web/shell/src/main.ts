@@ -3,16 +3,18 @@ import { createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { createShellI18n, LOCALES } from "./i18n/index.ts";
 import { loadPlugins, readPlugins } from "./plugins/loader.ts";
-import { loadSession } from "./rights/index.ts";
 import { createShellRouter } from "./router.ts";
+import { installSession } from "./session/index.ts";
 import { applyTheme, storedTheme } from "./theme.ts";
 import "./styles/tokens.css";
 import "./styles/base.css";
 
 applyTheme(storedTheme());
 const i18n = createShellI18n();
-createApp(App).use(i18n).use(createShellRouter(createWebHistory())).mount("#app");
-void loadSession();
+const router = createShellRouter(createWebHistory());
+// Before the first navigation: it waits for `/v1/me` (REQ-007-28).
+installSession(router);
+createApp(App).use(i18n).use(router).mount("#app");
 // The first screen does not wait for the plugins (REQ-007-9).
 void readPlugins().then((plugins) =>
   loadPlugins(plugins, LOCALES, (locale, name, messages) =>

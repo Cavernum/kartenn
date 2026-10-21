@@ -117,6 +117,98 @@
       "address": "Adresse"
     }
   },
+  "field": {
+    "id": "Identifiant",
+    "slug": "Nom court",
+    "parent": "Parent",
+    "value": "Valeur",
+    "nature": "Nature",
+    "domain": "Domaine",
+    "entity": "Entité",
+    "public": "Publique",
+    "anycast": "Anycast",
+    "point_to_point": "Point à point",
+    "first": "Première adresse",
+    "last": "Dernière adresse",
+    "usage": "Usage",
+    "kind": "Type",
+    "detail": "Détail",
+    "rule": "Règle"
+  },
+  "list": {
+    "filters": "Filtres",
+    "apply": "Filtrer",
+    "count": "{n} élément | {n} élément | {n} éléments",
+    "loaded": "{n} élément chargé, la suite au défilement | {n} élément chargé, la suite au défilement | {n} éléments chargés, la suite au défilement",
+    "more": "Afficher la suite"
+  },
+  "record": {
+    "content": "Contenu",
+    "properties": "Propriétés",
+    "history": "Historique",
+    "anomalies": "Anomalies",
+    "noProperties": "Aucune propriété.",
+    "masked": "{n} valeur masquée par vos droits. | {n} valeur masquée par vos droits. | {n} valeurs masquées par vos droits.",
+    "explain": "Expliquer",
+    "explainKey": "Expliquer {key}",
+    "origin": "Valeur portée par :",
+    "chain": "Chemin parcouru, du plus proche au plus lointain :",
+    "hidden": "objet que vous ne pouvez pas lire",
+    "version": "Version",
+    "validFrom": "Valide du",
+    "validTo": "au",
+    "assertedFrom": "Enregistrée le",
+    "changeset": "Changeset",
+    "open": "sans fin",
+    "occupancy": "Occupation",
+    "used": "{used} sur {total}",
+    "nextFree": "Prochain libre :",
+    "full": "aucun, préfixe plein"
+  },
+  "anomalies": {
+    "none": "Aucune anomalie ouverte.",
+    "open": "Ouvrir la fiche",
+    "motive": "Motif",
+    "acknowledge": "Acquitter",
+    "acknowledgeOf": "Acquitter l'anomalie {rule}",
+    "acknowledged": "Anomalie acquittée."
+  },
+  "properties": {
+    "declarations": "Déclarations",
+    "key": "Clé",
+    "type": "Type",
+    "cardinality": "Cardinalité",
+    "inherit": "Héritage",
+    "carriers": "Porteurs",
+    "gaps": "Écarts aux obligations",
+    "noGaps": "Aucun écart."
+  },
+  "search": {
+    "label": "Rechercher une adresse ou un préfixe",
+    "placeholder": "10.0.0.1 ou 10.0.0.0/24",
+    "submit": "Rechercher",
+    "title": "Recherche : {term}",
+    "none": "Aucun résultat."
+  },
+  "login": {
+    "title": "Connexion",
+    "issuers": "Par votre fournisseur d'identité",
+    "issuer": "Se connecter par {id}",
+    "none": "Aucun fournisseur d'identité n'est configuré.",
+    "breakglass": "Compte de secours",
+    "breakglassHint": "Réservé aux pannes du fournisseur d'identité ; chaque usage est audité.",
+    "name": "Nom du compte",
+    "passphrase": "Phrase de passe",
+    "code": "Code à usage unique",
+    "submit": "Se connecter",
+    "failed": "La connexion a échoué."
+  },
+  "session": {
+    "expired": "Session expirée",
+    "text": "Reconnectez-vous pour continuer : vous reviendrez sur cette page, aux mêmes dates.",
+    "reconnect": "Se reconnecter",
+    "later": "Plus tard"
+  },
   "time": {
     "validAt": "Données valides au",
     "asOf": "telles que connues au",

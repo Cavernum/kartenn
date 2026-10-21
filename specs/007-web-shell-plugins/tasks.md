@@ -318,12 +318,33 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   si ce droit manque ; menu de l'utilisateur non modal (un menu modal masque la page par
   `aria-hidden` en y laissant des liens focalisables) et nom accessible qui commence par
   le texte visible (WCAG 2.5.3)
-- [ ] 14. Session : page `/login` (émetteurs, secours), URL de retour, reconnexion sur
+- [x] 14. Session : page `/login` (émetteurs, secours), URL de retour, reconnexion sur
   401, déconnexion par formulaire — REQ-007-28 — verify : E2E : session expirée sur une
   fiche → reconnexion → même fiche et même contexte temporel ; déconnexion → retour à
   l'émetteur, préférences sensibles effacées
   où : design « Session » ; 006 design « Authentification et sessions » ;
   `kartenn-rest/src/auth.rs` (`callback` vers `/`, `logout`)
+  — `web/shell/src/session/` : `index.ts` (`internalPath` : chemin interne seulement,
+  ni `//`, ni `/\`, ni `/login`, ni `/v1/` ; `rememberReturn`/`takeReturn` en
+  `sessionStorage`, lue une fois ; `loginAt` garde l'émetteur en `localStorage` ;
+  `clearSensitive` : toute clé `kartenn.*` sauf langue, thème et émetteur, clés de
+  l'onglet, bases IndexedDB `kartenn*` ; `shellFetch` et `onUnauthorized` du SDK ouvrent
+  le dialogue ; `installSession` : la première navigation attend `/v1/me`, sans session
+  → `/login?return=…` hors `login` et `about`, puis retour à l'URL gardée),
+  `SessionDialog.vue` (`alertdialog` « Session expirée », « Se reconnecter » vers
+  l'émetteur gardé, sinon `/login`) ; `views/LoginView.vue` (émetteurs de
+  `GET /v1/auth/issuers`, formulaire de secours, problème traduit) ; route `login` ;
+  `main.ts` installe la session avant la première navigation ; déconnexion du menu
+  précédée de `clearSensitive` ; catalogues `login.*`, `session.*`. Tests : Vitest
+  `session/session.test.ts` (chemins refusés, retour lu une fois, émetteur gardé,
+  effacement sélectif, garde sans session puis retour après connexion) ; E2E
+  `journeys/session.spec.ts` (cookie retiré sur une fiche datée → `/login` → émetteur →
+  même fiche, même `valid_at` ; 401 en cours d'usage → dialogue → émetteur gardé → même
+  fiche ; déconnexion → `end-session` de l'émetteur, langue et émetteur gardés, recherches
+  récentes et URL de retour effacées), axe-core
+  choix : sans session, toute page sauf `/login` et `/about` renvoie à la connexion (l'API
+  n'a pas de lecture anonyme) ; le formulaire de secours n'a pas de parcours E2E (un code
+  TOTP n'est accepté qu'une fois par pas de 30 s, déjà pris par `global-setup.ts`)
 - [x] 15. Chargement des plugins par le shell et hôtes des quatre points d'extension,
   filtres par type et permission — REQ-007-9, 10, 13 — verify : E2E avec les plugins de
   test de `web/e2e/plugins/` : compatible actif ; `sdk: "^9"`, empreinte fausse,
@@ -378,7 +399,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   choix : les actions des plugins comptent comme écritures (seul bouton d'écriture
   existant avant la modification rapide de la tâche 19) ; dates affichées par `Intl` dans
   la langue du shell
-- [ ] 17. Listes et fiches du noyau : collections filtrées et virtualisées, recherche
+- [x] 17. Listes et fiches du noyau : collections filtrées et virtualisées, recherche
   globale, fiche (attributs, propriétés résolues et explication, historique, anomalies et
   acquittement), occupation et prochain libre, déclarations et écarts de propriétés —
   REQ-007-17, 31 — verify : E2E sur le jeu de données : domaine → préfixe → adresse,
@@ -386,6 +407,36 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   1 000 lignes avec quelques dizaines de lignes dans le DOM
   où : design « Écrans et routes du client » ; 006 design « Ressources et routes » ;
   `web/shell/src/views/`
+  — `web/shell/src/data/` : `collections.ts` (collections, filtres et colonnes du
+  contrat, noms et champs d'un objet, `pageOf` d'une URL de l'API vers une page),
+  `api.ts` (`read`/`write` par `shellFetch`, problème gardé ; `Pager` : pages de 100 par
+  `links.next`, curseur jamais dans l'URL du shell, `invalid-cursor` → première page),
+  `DataTable.vue` (`<table>` natif virtualisé par `@tanstack/vue-virtual` à hauteur fixe,
+  `aria-rowcount` à -1 tant que la liste n'est pas lue, `aria-rowindex`, une ligne
+  focalisable à la fois, flèches, Origine, Fin, page, Entrée ouvre la fiche, page
+  suivante demandée 20 lignes avant la fin), `recent.ts` (recherches récentes, effacées
+  à la déconnexion) ; `views/ListView.vue` (`/:collection`, filtres dans l'URL),
+  `ObjectView.vue` (attributs et liens des résumés ; onglets Contenu par `roots` ou
+  `children`, Propriétés, Historique, Anomalies, puis ceux des plugins),
+  `record/` (`PropertiesPanel` : valeurs résolues, explication à la demande, nœuds
+  nommés par la lecture de leur fiche ; `HistoryPanel` ; `AnomaliesPanel` : acquittement
+  avec motif, coupé hors du présent ; `ContentPanel` ; `OccupancyPanel` : occupation et
+  prochain libre), `AnomaliesView.vue`, `PropertiesView.vue` (déclarations, écarts),
+  `SearchView.vue` et `app/SearchBox.vue` (adresse ou préfixe, une seule réponse ouvre
+  sa fiche) ; routes et navigation ; catalogues `field.*`, `list.*`, `record.*`,
+  `anomalies.*`, `properties.*`, `search.*`. Jeu de bout en bout : réseau `10.2.0.0/22` et
+  ses 1 000 adresses (`fixtures/data.ts`, `global-setup.ts`). Tests : Vitest
+  `data/data.test.ts` (pages suivies, curseur refusé → reprise, autre problème gardé,
+  paramètres, noms, résumés, `pageOf`, valeurs) ; E2E `journeys/records.spec.ts`
+  (domaine → Contenu → préfixe → préfixe → adresse, `core.owner` expliqué jusqu'au
+  domaine, historique ; 1 001 adresses lues au défilement, moins de 100 lignes dans le
+  DOM, `aria-rowcount`, Origine, flèche et Entrée ; curseur refusé simulé →
+  « la liste repart du début »), axe-core
+  choix : dépendance `@tanstack/vue-virtual` (W12) ; anomalies d'une fiche lues par son
+  domaine (ou son entité) puis filtrées par objet, l'API n'ayant pas de filtre par
+  objet ; l'acquittement suit les écritures rapides (coupé sous `valid_at` comme sous
+  `as_of`) ; « Domaines » d'abord dans la navigation, l'arbre restant l'accueil
+  (tâche 18)
 - [ ] 18. Arbre des préfixes : racines du domaine, enfants à la demande, virtualisation,
   clavier `treeview` — REQ-007-17, 31, 33 — verify : E2E : ouverture, page suivante
   chargée en défilant, flèches, Origine, Fin, Entrée ; conteneur à 10⁴ enfants du jeu de

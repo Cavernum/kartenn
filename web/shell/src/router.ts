@@ -1,4 +1,5 @@
 import { createRouter, type Router, type RouterHistory } from "vue-router";
+import { COLLECTION_PATTERN } from "./data/collections.ts";
 import { installTime } from "./time/index.ts";
 
 /** The routes of the client; history injected so that tests run without a browser. */
@@ -9,8 +10,25 @@ export function createShellRouter(history: RouterHistory): Router {
       { path: "/", name: "home", component: () => import("./views/HomeView.vue") },
       { path: "/admin", name: "admin", component: () => import("./views/AdminView.vue") },
       { path: "/about", name: "about", component: () => import("./views/AboutView.vue") },
+      { path: "/login", name: "login", component: () => import("./views/LoginView.vue") },
+      { path: "/search", name: "search", component: () => import("./views/SearchView.vue") },
       {
-        path: "/:collection(entities|sites|domains|prefixes|ranges|addresses)/:id",
+        path: "/anomalies",
+        name: "anomalies",
+        component: () => import("./views/AnomaliesView.vue"),
+      },
+      {
+        path: "/properties",
+        name: "properties",
+        component: () => import("./views/PropertiesView.vue"),
+      },
+      {
+        path: `/:collection(${COLLECTION_PATTERN})`,
+        name: "list",
+        component: () => import("./views/ListView.vue"),
+      },
+      {
+        path: `/:collection(${COLLECTION_PATTERN})/:id`,
         name: "object",
         component: () => import("./views/ObjectView.vue"),
       },

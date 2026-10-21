@@ -231,6 +231,9 @@ importers:
       '@kartenn/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@tanstack/vue-virtual':
+        specifier: ^3.13.47
+        version: 3.13.47(vue@3.5.44(typescript@6.0.3))
       reka-ui:
         specifier: ^2.11.0
         version: 2.11.0(vue@3.5.44(typescript@6.0.3))

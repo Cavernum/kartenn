@@ -246,3 +246,130 @@ button {
   border: 1px solid var(--k-color-border);
   border-radius: var(--k-radius);
 }
+
+.k-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.k-mono {
+  font-family: var(--k-font-mono);
+}
+
+/* Forms: filters of a list, global search, inline actions. */
+.k-filters,
+.k-search,
+.k-inline-form,
+.k-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--k-space-2);
+  margin-bottom: var(--k-space-3);
+}
+
+.k-form {
+  flex-direction: column;
+  align-items: start;
+  max-width: 24rem;
+}
+
+.k-filters label,
+.k-inline-form label,
+.k-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-space-1);
+}
+
+.k-search {
+  margin: 0 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+input {
+  background: var(--k-color-bg);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+  padding: var(--k-space-1) var(--k-space-2);
+}
+
+/* Long lists (REQ-007-31): rows at a fixed height, virtualised in their own scroller. */
+.k-table-scroll {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--k-radius);
+}
+
+.k-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.k-table th {
+  position: sticky;
+  top: 0;
+  background: var(--k-color-surface);
+  text-align: start;
+}
+
+.k-table th,
+.k-table td {
+  padding: 0 var(--k-space-2);
+  height: var(--k-row-height);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--k-color-surface);
+}
+
+.k-table-row:focus-visible {
+  outline-offset: -2px;
+}
+
+.k-table-spacer td {
+  padding: 0;
+  height: auto;
+  border: none;
+}
+
+.k-properties {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--k-space-2) var(--k-space-3);
+}
+
+.k-properties dt {
+  font-family: var(--k-font-mono);
+}
+
+.k-properties dd {
+  margin: 0;
+}
+
+.k-value {
+  font-family: var(--k-font-mono);
+  margin-inline-end: var(--k-space-2);
+}
+
+/* Links close to one another: targets of 24 × 24 px at least (WCAG 2.2, 2.5.8). */
+.k-explanation a {
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.k-anomalies {
+  list-style: none;
+  padding: 0;
+}
+
+.k-anomalies > li {
+  border-bottom: 1px solid var(--k-color-border);
+  padding-block: var(--k-space-2);
+}

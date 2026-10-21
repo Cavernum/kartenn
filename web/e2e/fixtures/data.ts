@@ -13,4 +13,14 @@ export const DATA = {
     ["10.1.0.0/24", "network"],
   ] as const,
   addresses: ["10.1.0.10"],
+  /** A network with 1 000 addresses: a long list (REQ-007-31). */
+  bulk: { prefix: "10.2.0.0/22", count: 1000 },
 };
+
+/** The addresses of the bulk network: 10.2.0.1 onwards. */
+export function bulkAddresses(): string[] {
+  return Array.from({ length: DATA.bulk.count }, (_, i) => {
+    const n = i + 1;
+    return `10.2.${Math.floor(n / 256)}.${n % 256}`;
+  });
+}

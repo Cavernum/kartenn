@@ -13,6 +13,14 @@ export const ADMIN_PERMISSIONS = ["core.rbac.read", "core.rbac.admin", "core.aud
 /** The main navigation (design « Écrans et routes du client »), in this order. */
 export const NAVIGATION: readonly NavEntry[] = [
   { to: "/", label: "nav.tree" },
+  { to: "/domains", label: "nav.domains" },
+  { to: "/prefixes", label: "nav.prefixes" },
+  { to: "/ranges", label: "nav.ranges" },
+  { to: "/addresses", label: "nav.addresses" },
+  { to: "/entities", label: "nav.entities" },
+  { to: "/sites", label: "nav.sites" },
+  { to: "/anomalies", label: "nav.anomalies" },
+  { to: "/properties", label: "nav.properties" },
   { to: "/admin", label: "nav.admin", anyOf: ADMIN_PERMISSIONS },
   { to: "/about", label: "nav.about" },
 ];
