@@ -23,11 +23,15 @@ synchronisation (tâche 010-20), une fois l'implémentation faite.
    axes, valeurs, types, services (index transport → intervalles de ports), règles
    indexées par service, motifs, conditions, signaux et textes, lus une requête par table
    à (`valid_at`, `as_of`) (`read.rs`, tâche 010-12).
-2. **Cache versionné.** `SnapshotCache` (`cache.rs`) garde les instantanés dans une LRU de
-   16 entrées. Une entrée vaut pour l'intervalle de temps valide où aucune version ne
+2. **Cache versionné.** `SnapshotCache` (`cache.rs`), un par processus
+   (`cache::shared()`, partagé entre les requêtes et les préparations d'écriture), garde
+   les instantanés dans une LRU de 16 entrées. Une entrée vaut pour l'intervalle de temps valide où aucune version ne
    commence ni ne finit, sous la révision `policy_revision.policy` : une écriture de la
    politique incrémente la révision et recharge le présent ; le passé, immuable, n'est
-   jamais relu.
+   jamais relu. Le cache n'est alimenté que depuis une transaction qui n'a pas écrit la
+   politique : une révision non validée peut être annulée et nommer ensuite un autre
+   contenu (condition tenue par les appelants, non vérifiée par le cache). La clé ne
+   nomme pas la base : le cache suppose une base par processus.
 3. **Deux étapes.** `evaluate` (domaine pur, `evaluate.rs`) rend d'abord le verdict :
    non classifié par axe → refus ; une règle `deny` qui s'applique l'emporte ; une règle
    `allow` donne l'autorisation, sous réserve si elle exige des motifs ; sinon refus par

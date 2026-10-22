@@ -98,7 +98,13 @@ Règles :
   sous concurrence (D15) ;
 - un changeset en attente est **revalidé** à son application (D11) ;
 - l'horodatage système est celui de la transaction PostgreSQL (`now()`), jamais celui
-  d'une instance (D9).
+  d'une instance (D9) ;
+- les verrous consultatifs de la transaction sérialisent les écritures par portée
+  (domaines, modules, clés nommées ; [ADR 0015](../adr/0015-serialisation-ecritures-par-domaine.md)) ;
+  une clé nommée est verrouillée par son seau, l'un de 1024 (`hashtext(clé) & 1023`),
+  seaux distincts pris en ordre croissant en une requête, pour ne pas épuiser la table
+  des verrous de PostgreSQL sur un changeset de milliers de clés (amendement du
+  2026-10-22).
 
 ## Modularité (D6, ADR 0001)
 
