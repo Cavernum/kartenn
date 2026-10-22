@@ -97,6 +97,11 @@ hit AS (
 /// As [`SEGMENTS_UP`], going down from each object carrying an assignment to the targets
 /// below it: one index scan per carrier rather than one per target, but every carrier of
 /// the targets' domains is walked whatever the number of targets.
+///
+/// The objects below a carrier are kept when they are targets by a join on `t`, never by
+/// `x.id = ANY($1)`: once the prepared statement runs its generic plan, `$1` is a
+/// parameter whose array PostgreSQL does not hash, and the test is linear in the targets
+/// for each object walked (more than an hour for 10⁶ targets, task 010-19).
 const SEGMENTS_DOWN: &str = concat!(
     targets!(),
     "
@@ -114,13 +119,13 @@ hit AS (
             AND p.domain_id IN (SELECT DISTINCT domain_id FROM t)
         JOIN addressing_object x ON x.domain_id = p.domain_id AND x.value <<= p.prefix
             AND x.id <> p.id AND x.valid_period && a.vp
-            AND x.id = ANY($1) AND x.kind = ANY($4)
+            AND x.id IN (SELECT id FROM t)
         UNION ALL
         SELECT x.id, d.id, -1, x.valid_period * d.valid_period * a.vp
         FROM a JOIN addressing_domain d ON d.id = a.object_id AND d.valid_period && a.vp
             AND d.id IN (SELECT DISTINCT domain_id FROM t)
         JOIN addressing_object x ON x.domain_id = d.id AND x.kind <> 'domain'
-            AND x.valid_period && a.vp AND x.id = ANY($1) AND x.kind = ANY($4)
+            AND x.valid_period && a.vp AND x.id IN (SELECT id FROM t)
     ) h WHERE NOT isempty(vp)
 ),",
     segments!()

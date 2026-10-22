@@ -2,7 +2,7 @@
 status: in-progress
 updated: 2026-10-22
 ---
-<!-- Implémentées sauf REQ-010-28 et 54 (budgets : prototype 010-1 et banc 010-19 à faire). -->
+<!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer). -->
 
 
 # 010 — Politique de flux : exigences
@@ -602,7 +602,8 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 ## Questions ouvertes
 
-- [ ] Budgets de REQ-010-28 et REQ-010-54 : à confirmer par un prototype sur le jeu de
-  10⁶ objets. (Claude, tâche 010-1)
+- [ ] Budgets de REQ-010-28 et REQ-010-54 : tenus en variante réduite par le banc
+  `bench-policy` (2026-10-22, tâche 010-19) ; à confirmer sur le jeu de 10⁶ objets.
+  Le rapport d'audit y dépassait le budget (≈ 990 s). (Claude, tâches 010-1 et 010-19)
 - [ ] Exigences envers le noyau N25 à N33 (design, § Exigences) : à porter dans les specs
   003 à 005 avant la v0.2. (Claude)

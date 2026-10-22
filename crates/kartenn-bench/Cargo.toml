@@ -41,8 +41,9 @@ time = { version = "0.3.55", features = ["formatting"] }
 kartenn-vlan = { version = "0.1.0", path = "../kartenn-vlan", features = ["rest"] }
 # The budgets of the machines module (task 009-12), the same way.
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"] }
-# The budgets of the flow registry (task 011-10), with the policy module it evaluates on.
-kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["pg"] }
+# The budgets of the flow policy module (task 010-19): its routes, its tasks, its inference;
+# and of the flow registry (task 011-10), which evaluates on it.
+kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["rest"] }
 kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", features = ["rest"] }
 axum = { version = "0.8.9", default-features = false, features = ["json"] }
 tower = { version = "0.5", features = ["util"] }

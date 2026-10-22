@@ -19,6 +19,7 @@ pub mod core_budgets;
 pub mod flow_budgets;
 pub mod http;
 pub mod machine_budgets;
+pub mod policy_budgets;
 pub mod props;
 pub mod rbac;
 pub mod telemetry;

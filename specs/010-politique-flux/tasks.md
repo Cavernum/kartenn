@@ -22,6 +22,11 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   - où : jeu de `kartenn-bench` (`crates/kartenn-bench`), modèle de
     `docs/spikes/003-resolution.md`
   - dépend de : —
+  — absorbée par la tâche 19 (2026-10-22) : le code étant écrit, le banc réel
+  `bench-policy` tient lieu de prototype ; pas de `docs/spikes/010-verdicts.md`. **Non
+  cochée** : seule la variante réduite a été mesurée de bout en bout (voir tâche 19) ; le
+  jeu de 10⁶ objets reste à passer. Aucun budget n'a dû être amendé : ceux qui échouaient
+  ont été tenus par des correctifs du code.
 - [x] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
   (N9) — verify : 512 objets × 6 propriétés < 30 ms au banc ; mêmes résultats que la
   lecture unitaire
@@ -455,6 +460,24 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 - [ ] 19. Banc `bench-policy` bloquant en CI — REQ-010-28, 54 — verify : budgets tenus
   - où : `crates/kartenn-bench`
   - dépend de : 13, 15
+  — banc écrit, **non coché** (2026-10-22) : `kartenn-bench/src/policy_budgets.rs`
+  (`kartenn-bench policy`, script `bench-policy`) sur le jeu du cœur, modules VLAN et
+  machines déployés sans leurs jeux ; politique de la taille du budget (6 axes,
+  50 environnements, 20 types de flux, 1 000 services, 10⁴ règles, 100 motifs,
+  50 conditions, 30 signaux), 2 000 règles d'inférence. **Variante réduite tenue** (jeu
+  de 2,6·10⁴ adresses, politique complète, pic RSS 320 Mo) : paire 18 ms / 50,
+  machine × machine 30 ms / 300, port brut 22 ms / 100, différentiel 730 ms / 1 s,
+  rapport 3,7 s / 10 min, suggestion 17 ms / 50, contrôle de 10⁴ objets +28 ms / 1 s,
+  réévaluation complète 40 s / 10 min. **Jeu complet non mesuré** : le passage du
+  2026-10-22 a été arrêté pendant le contrôle de l'inférence. La lecture groupée des
+  vues (`views_of`), en plan générique sur le jeu complet, filtrait toutes les
+  affectations : corrigée depuis, non remesurée. Avant l'arrêt, le rapport d'audit avait
+  pris environ 990 s (budget 600 s) : à diagnostiquer. Correctifs trouvés par le banc :
+  différentiel (paires comptées avant d'être construites, 29 Go → 0,3 Go ; candidates
+  comparées par clés), verdicts (une évaluation par paire de points distincts), chaînes
+  de l'inférence et vues des sources lues ensemble, machines d'un /24 (1,8 s → 1,7 ms),
+  origines descendantes (plus d'une heure → jointure). Reste : un passage complet,
+  puis cocher 1 et 19.
 - [ ] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées
   - où : skill `tech-specs`, mode sync
   - dépend de : 17, 18, 19

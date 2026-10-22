@@ -67,6 +67,79 @@ impl PgTx {
         }))
     }
 
+    /// [`Self::view_of`] of each of `objects`, in two reads whatever their number; in the
+    /// order of `objects`, those that do not exist at `at` left out. The properties are
+    /// read from the objects down, each behind an `OFFSET 0` fence: in the generic plan of
+    /// the prepared statement, `object_id = ANY($1)` filtered every assignment of each
+    /// property, linearly in the objects (minutes for 10⁴ objects, task 010-19).
+    pub(crate) async fn views_of(
+        &mut self,
+        objects: &[Uuid],
+        at: Option<OffsetDateTime>,
+    ) -> Result<Vec<ObjectView>, StoreError> {
+        if objects.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows: Vec<(Uuid, String, Uuid, Option<String>)> = sqlx::query_as(
+            "SELECT id, kind, domain_id,
+                    CASE kind WHEN 'prefix' THEN value::cidr::text ELSE host(value) END
+             FROM addressing_object
+             WHERE id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(objects)
+        .bind(at)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        let json = value_json("d.value_type = 'enum'");
+        let properties: Vec<(Uuid, String, Option<String>)> =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!(
+                "WITH t AS (SELECT coalesce($2::timestamptz, now()) AS at)
+                 SELECT p.object_id, d.key, ({json})::text
+                 FROM t, unnest($1::uuid[]) AS o(id)
+                 JOIN property_origin p ON p.object_id = o.id
+                 JOIN property_assignment a ON a.object_id = p.origin_object_id AND a.property_id = p.property_id
+                 JOIN property_declaration d ON d.id = p.property_id
+                 WHERE p.valid_period @> t.at AND a.valid_period @> t.at
+                   AND d.valid_period @> t.at
+                 UNION ALL
+                 SELECT o.id, d.key, ({json})::text
+                 FROM t, unnest($1::uuid[]) AS o(id)
+                 CROSS JOIN LATERAL (
+                     SELECT * FROM property_assignment a
+                     WHERE a.object_id = o.id AND a.valid_period @> t.at
+                     OFFSET 0) a
+                 JOIN property_declaration d ON d.id = a.property_id AND d.inherit_tree IS NULL
+                 WHERE d.valid_period @> t.at"
+            )))
+            .bind(objects)
+            .bind(at)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        let mut by_object: BTreeMap<Uuid, BTreeMap<String, Option<String>>> = BTreeMap::new();
+        for (object, key, value) in properties {
+            by_object.entry(object).or_default().insert(key, value);
+        }
+        let mut found: BTreeMap<Uuid, (String, Uuid, Option<String>)> = rows
+            .into_iter()
+            .map(|(id, kind, domain, value)| (id, (kind, domain, value)))
+            .collect();
+        Ok(objects
+            .iter()
+            .filter_map(|id| {
+                let (kind, domain, value) = found.remove(id)?;
+                Some(ObjectView {
+                    id: *id,
+                    kind,
+                    domain,
+                    value,
+                    properties: by_object.remove(id).unwrap_or_default(),
+                })
+            })
+            .collect())
+    }
+
     /// Resolved value of a property for an object at `at`: the assignment of its origin
     /// (heritable) or its own; `None` when absent or "no value".
     pub(crate) async fn resolved_at(

@@ -147,13 +147,30 @@ pub(crate) fn app(
     routes: Vec<kartenn_rest::ModuleRouter>,
     identity: Uuid,
 ) -> anyhow::Result<Router> {
+    app_with(
+        pool,
+        registry,
+        routes,
+        identity,
+        kartenn_service::expected::Sources::none(),
+    )
+}
+
+/// [`app`] with the sources of expected values of the deployment (the policy's inference).
+pub(crate) fn app_with(
+    pool: &PgPool,
+    registry: Arc<ModuleRegistry>,
+    routes: Vec<kartenn_rest::ModuleRouter>,
+    identity: Uuid,
+    sources: kartenn_service::expected::Sources,
+) -> anyhow::Result<Router> {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1"))?,
         bound: Duration::from_secs(60),
         journal: PgAuditJournal::new(pool.clone(), Instance::new("bench")),
         audit: ReadAudit::default(),
-        sources: kartenn_service::expected::Sources::none(),
+        sources,
         outputs: Arc::from([]),
         modules: registry,
     };

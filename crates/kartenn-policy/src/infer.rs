@@ -272,82 +272,98 @@ fn trees(rows: Vec<Row>) -> Vec<InferenceRule> {
         .collect()
 }
 
-/// The closed-list values of the heritable or own properties `keys` resolved on `object`.
+/// The closed-list values of the heritable or own properties `keys` resolved on each of
+/// `objects`, in one read (REQ-010-54).
 async fn resolved(
     conn: &mut PgConnection,
-    object: Uuid,
+    objects: &[Uuid],
     keys: &[String],
     at: Option<OffsetDateTime>,
-) -> Result<BTreeMap<AxisKey, BTreeSet<AxisValue>>, StoreError> {
-    if keys.is_empty() {
+) -> Result<BTreeMap<Uuid, BTreeMap<AxisKey, BTreeSet<AxisValue>>>, StoreError> {
+    if keys.is_empty() || objects.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let rows: Vec<(String, Vec<String>)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, Vec<String>)> = sqlx::query_as(
         "WITH t AS (SELECT coalesce($3::timestamptz, now()) AS at)
-         SELECT d.key, coalesce(array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL), '{}')
-           FROM t, property_declaration d
-           JOIN property_assignment a ON a.property_id = d.id
+         SELECT o.id, d.key,
+                coalesce(array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL), '{}')
+           FROM t, unnest($1::uuid[]) AS o(id), property_declaration d
+           CROSS JOIN LATERAL (
+             SELECT CASE WHEN d.inherit_tree IS NULL THEN o.id ELSE
+                    (SELECT po.origin_object_id FROM property_origin po
+                      WHERE po.object_id = o.id AND po.property_id = d.id
+                        AND po.valid_period @> t.at)
+                    END AS target) g
+           JOIN property_assignment a ON a.object_id = g.target AND a.property_id = d.id
            LEFT JOIN property_enum_value e ON e.id = a.v_uuid OR e.id = ANY(a.v_uuids)
           WHERE d.key = ANY($2) AND d.valid_period @> t.at AND a.valid_period @> t.at
             AND a.kind = 'value'
-            AND a.object_id = CASE WHEN d.inherit_tree IS NULL THEN $1 ELSE
-                (SELECT o.origin_object_id FROM property_origin o
-                  WHERE o.object_id = $1 AND o.property_id = d.id AND o.valid_period @> t.at)
-                END
-          GROUP BY d.key",
+          GROUP BY o.id, d.key",
     )
-    .bind(object)
+    .bind(objects)
     .bind(keys)
     .bind(at)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(k, v)| {
-            Some((
-                AxisKey::parse(&k).ok()?,
-                v.into_iter().map(AxisValue::new).collect(),
-            ))
-        })
-        .collect())
+    let mut out: BTreeMap<Uuid, BTreeMap<AxisKey, BTreeSet<AxisValue>>> = BTreeMap::new();
+    for (object, key, values) in rows {
+        if let Ok(key) = AxisKey::parse(&key) {
+            out.entry(object)
+                .or_default()
+                .insert(key, values.into_iter().map(AxisValue::new).collect());
+        }
+    }
+    Ok(out)
 }
 
-/// The resolved reference `key` (`core.site`, `core.owner`) of `object` and the ancestors
-/// of what it designates in `table` (`site`, `entity`).
+/// The resolved reference `key` (`core.site`, `core.owner`) of each of `objects` and the
+/// ancestors of what it designates in `table` (`site`, `entity`), nearest first, in one
+/// read (REQ-010-54).
 async fn lineage(
     conn: &mut PgConnection,
-    object: Uuid,
+    objects: &[Uuid],
     key: &str,
     table: &str,
     at: Option<OffsetDateTime>,
-) -> Result<Vec<Uuid>, StoreError> {
+) -> Result<BTreeMap<Uuid, Vec<Uuid>>, StoreError> {
+    if objects.is_empty() {
+        return Ok(BTreeMap::new());
+    }
     let sql = format!(
         "WITH RECURSIVE t AS (SELECT coalesce($3::timestamptz, now()) AS at),
          start AS (
-           SELECT a.v_uuid AS id FROM t, property_declaration d
-             JOIN property_assignment a ON a.property_id = d.id
+           SELECT o.id AS object, a.v_uuid AS id
+             FROM t, unnest($1::uuid[]) AS o(id), property_declaration d
+             CROSS JOIN LATERAL (
+               SELECT coalesce(
+                 (SELECT po.origin_object_id FROM property_origin po
+                   WHERE po.object_id = o.id AND po.property_id = d.id
+                     AND po.valid_period @> t.at), o.id) AS target) g
+             JOIN property_assignment a ON a.object_id = g.target AND a.property_id = d.id
             WHERE d.key = $2 AND d.valid_period @> t.at AND a.valid_period @> t.at
-              AND a.kind = 'value' AND a.v_uuid IS NOT NULL
-              AND a.object_id = coalesce(
-                (SELECT o.origin_object_id FROM property_origin o
-                  WHERE o.object_id = $1 AND o.property_id = d.id AND o.valid_period @> t.at), $1)),
-         up(id, n) AS (
-           SELECT id, 0 FROM start
+              AND a.kind = 'value' AND a.v_uuid IS NOT NULL),
+         up(object, id, n) AS (
+           SELECT object, id, 0 FROM start
            UNION ALL
-           SELECT x.parent_id, up.n + 1 FROM up
+           SELECT up.object, x.parent_id, up.n + 1 FROM up
              JOIN {table} x ON x.id = up.id
             WHERE x.valid_period @> (SELECT at FROM t)
               AND x.parent_id IS NOT NULL AND up.n < 64)
-         SELECT id FROM up ORDER BY n"
+         SELECT object, id FROM up ORDER BY object, n"
     );
-    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-        .bind(object)
+    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(objects)
         .bind(key)
         .bind(at)
         .fetch_all(&mut *conn)
         .await
-        .map_err(|e| store(&e))
+        .map_err(|e| store(&e))?;
+    let mut out: BTreeMap<Uuid, Vec<Uuid>> = BTreeMap::new();
+    for (object, id) in rows {
+        out.entry(object).or_default().push(id);
+    }
+    Ok(out)
 }
 
 /// The keys of the properties the criteria of `rules` test.
@@ -369,91 +385,171 @@ fn tested(rules: &[InferenceRule]) -> Vec<String> {
     out.into_iter().collect()
 }
 
-/// The chain of `view` in its tree, root first (REQ-010-41): its domain, the prefixes of
-/// its domain that contain it, by length, then itself. A range is not a node.
-async fn chain(
+/// A member of a chain before its node is read: identifier, kind, prefix, name.
+type Member = (Uuid, NodeKind, Option<String>, Option<String>);
+
+fn kind_of(nature: &str) -> NodeKind {
+    if nature == "network" {
+        NodeKind::Network
+    } else {
+        NodeKind::Container
+    }
+}
+
+/// The chain of each of `views` in its tree, root first (REQ-010-41): its domain, the
+/// prefixes of its domain that contain it, by length, then itself; empty for a range,
+/// which is not a node. Read in a few queries for all of them: the objects of a changeset
+/// mostly share their domain and containers (REQ-010-54).
+#[allow(clippy::too_many_lines)] // the members, then the nodes, each read once
+async fn chains(
     conn: &mut PgConnection,
-    view: &ObjectView,
+    views: &[ObjectView],
     keys: &[String],
     at: Option<OffsetDateTime>,
-) -> Result<Vec<Node>, StoreError> {
-    let mut members: Vec<(Uuid, NodeKind, Option<String>, Option<String>)> = Vec::new();
-    let domain: Option<String> = sqlx::query_scalar(
-        "SELECT slug FROM addressing_domain
-          WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+) -> Result<Vec<Vec<Node>>, StoreError> {
+    let domains: Vec<Uuid> = views
+        .iter()
+        .map(|v| v.domain)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let slugs: BTreeMap<Uuid, String> = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT id, slug FROM addressing_domain
+          WHERE id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())",
     )
-    .bind(view.domain)
+    .bind(&domains)
     .bind(at)
-    .fetch_optional(&mut *conn)
+    .fetch_all(&mut *conn)
     .await
-    .map_err(|e| store(&e))?;
-    members.push((view.domain, NodeKind::Domain, None, domain));
-    if let Some(value) = &view.value {
-        let host = match view.kind.as_str() {
-            "prefix" => value.clone(),
-            "address" if value.contains(':') => format!("{value}/128"),
-            "address" => format!("{value}/32"),
-            _ => return Ok(Vec::new()),
-        };
-        let above: Vec<(Uuid, String, String)> = sqlx::query_as(
-            "SELECT id, prefix::text, nature FROM prefix
-              WHERE domain_id = $1 AND prefix >>= $2::cidr AND id <> $3
-                AND valid_period @> coalesce($4::timestamptz, now())
-              ORDER BY masklen(prefix)",
+    .map_err(|e| store(&e))?
+    .into_iter()
+    .collect();
+    // The host prefix of each view that has one; `None` for a view that is no node.
+    let hosts: Vec<Option<String>> = views
+        .iter()
+        .map(|view| match (&view.value, view.kind.as_str()) {
+            (Some(value), "prefix") => Some(value.clone()),
+            (Some(value), "address") if value.contains(':') => Some(format!("{value}/128")),
+            (Some(value), "address") => Some(format!("{value}/32")),
+            _ => None,
+        })
+        .collect();
+    let (mut index, mut ids, mut in_domains, mut cidrs) = (vec![], vec![], vec![], vec![]);
+    for (n, (view, host)) in views.iter().zip(&hosts).enumerate() {
+        if let Some(host) = host {
+            index.push(i32::try_from(n).map_err(|_| StoreError("too many objects".into()))?);
+            ids.push(view.id);
+            in_domains.push(view.domain);
+            cidrs.push(host.clone());
+        }
+    }
+    let mut above: BTreeMap<usize, Vec<Member>> = BTreeMap::new();
+    if !index.is_empty() {
+        let rows: Vec<(i32, Uuid, String, String)> = sqlx::query_as(
+            "SELECT o.n, p.id, p.prefix::text, p.nature
+               FROM unnest($1::int[], $2::uuid[], $3::uuid[], $4::text[])
+                    AS o(n, id, domain_id, host)
+               JOIN prefix p ON p.domain_id = o.domain_id AND p.prefix >>= o.host::cidr
+                            AND p.id <> o.id
+                            AND p.valid_period @> coalesce($5::timestamptz, now())
+              ORDER BY o.n, masklen(p.prefix)",
         )
-        .bind(view.domain)
-        .bind(&host)
-        .bind(view.id)
+        .bind(&index)
+        .bind(&ids)
+        .bind(&in_domains)
+        .bind(&cidrs)
         .bind(at)
         .fetch_all(&mut *conn)
         .await
         .map_err(|e| store(&e))?;
-        for (id, prefix, nature) in above {
-            let kind = if nature == "network" {
-                NodeKind::Network
-            } else {
-                NodeKind::Container
-            };
-            members.push((id, kind, Some(prefix), None));
+        for (n, id, prefix, nature) in rows {
+            let n = usize::try_from(n).map_err(|_| StoreError("a negative index".into()))?;
+            above
+                .entry(n)
+                .or_default()
+                .push((id, kind_of(&nature), Some(prefix), None));
         }
-        let own = if view.kind == "address" {
-            NodeKind::Address
-        } else {
-            {
-                let nature: Option<String> = sqlx::query_scalar(
-                    "SELECT nature FROM prefix
-                      WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
-                )
-                .bind(view.id)
-                .bind(at)
-                .fetch_optional(&mut *conn)
-                .await
-                .map_err(|e| store(&e))?;
-                if nature.as_deref() == Some("network") {
-                    NodeKind::Network
+    }
+    let own_prefixes: Vec<Uuid> = views
+        .iter()
+        .filter(|v| v.kind == "prefix" && v.value.is_some())
+        .map(|v| v.id)
+        .collect();
+    let natures: BTreeMap<Uuid, String> = if own_prefixes.is_empty() {
+        BTreeMap::new()
+    } else {
+        sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT id, nature FROM prefix
+              WHERE id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(&own_prefixes)
+        .bind(at)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?
+        .into_iter()
+        .collect()
+    };
+    let mut members: Vec<Vec<Member>> = Vec::with_capacity(views.len());
+    for (n, (view, host)) in views.iter().zip(hosts).enumerate() {
+        let domain = (
+            view.domain,
+            NodeKind::Domain,
+            None,
+            slugs.get(&view.domain).cloned(),
+        );
+        let chain = match host {
+            Some(host) => {
+                let own = if view.kind == "address" {
+                    NodeKind::Address
                 } else {
-                    NodeKind::Container
-                }
+                    kind_of(natures.get(&view.id).map_or("", String::as_str))
+                };
+                let mut chain = vec![domain];
+                chain.extend(above.remove(&n).unwrap_or_default());
+                chain.push((view.id, own, Some(host), None));
+                chain
             }
+            None if view.value.is_none() && view.kind == "domain" => vec![domain],
+            None => Vec::new(),
         };
-        members.push((view.id, own, Some(host), None));
-    } else if view.kind != "domain" {
-        return Ok(Vec::new());
+        members.push(chain);
     }
-    let mut nodes = Vec::with_capacity(members.len());
-    for (id, kind, prefix, name) in members {
-        nodes.push(Node {
-            id,
-            kind,
-            prefix: prefix.and_then(|p| Prefix::parse_any(&FAMILIES, &p).ok()),
-            domain: view.domain,
-            sites: lineage(conn, id, "core.site", "site", at).await?,
-            entities: lineage(conn, id, "core.owner", "entity", at).await?,
-            name,
-            properties: resolved(conn, id, keys, at).await?,
-        });
-    }
-    Ok(nodes)
+    let every: Vec<Uuid> = members
+        .iter()
+        .flatten()
+        .map(|(id, ..)| *id)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut sites = lineage(conn, &every, "core.site", "site", at).await?;
+    let mut entities = lineage(conn, &every, "core.owner", "entity", at).await?;
+    let mut properties = resolved(conn, &every, keys, at).await?;
+    let mut nodes: BTreeMap<Uuid, Node> = BTreeMap::new();
+    Ok(members
+        .into_iter()
+        .zip(views)
+        .map(|(chain, view)| {
+            chain
+                .into_iter()
+                .map(|(id, kind, prefix, name)| {
+                    nodes
+                        .entry(id)
+                        .or_insert_with(|| Node {
+                            id,
+                            kind,
+                            prefix: prefix.and_then(|p| Prefix::parse_any(&FAMILIES, &p).ok()),
+                            domain: view.domain,
+                            sites: sites.remove(&id).unwrap_or_default(),
+                            entities: entities.remove(&id).unwrap_or_default(),
+                            name,
+                            properties: properties.remove(&id).unwrap_or_default(),
+                        })
+                        .clone()
+                })
+                .collect()
+        })
+        .collect())
 }
 
 /// An instant of the core as PostgreSQL reads it.
@@ -567,16 +663,17 @@ impl ExpectedValueSource for InferenceSource {
                 return Ok(vec![Expected::None; objects.len()]);
             }
             let keys = tested(&rules);
-            let mut out = Vec::with_capacity(objects.len());
-            for view in objects {
-                let nodes = chain(conn, view, &keys, at).await?;
-                if nodes.is_empty() {
-                    out.push(Expected::None);
-                } else {
-                    out.push(answer(&expected(&rules, &axis, &nodes)));
-                }
-            }
-            Ok(out)
+            Ok(chains(conn, objects, &keys, at)
+                .await?
+                .into_iter()
+                .map(|nodes| {
+                    if nodes.is_empty() {
+                        Expected::None
+                    } else {
+                        answer(&expected(&rules, &axis, &nodes))
+                    }
+                })
+                .collect())
         })
     }
 }

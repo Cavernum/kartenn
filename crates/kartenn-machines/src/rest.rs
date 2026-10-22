@@ -684,16 +684,22 @@ async fn machines_page(
 ) -> Result<Response, Problem> {
     let after = after::<(String, Uuid)>(page)?;
     let (moment, scope) = reading(api, principal, page).await?;
+    // Correlated in `LATERAL` joins from the network down: the generic plan the pool's
+    // prepared statement ends on keeps to the indexes (each address valid at `$1` scanned
+    // otherwise, task 010-19).
     let network = format!(
-        "EXISTS (SELECT 1 FROM {p} p
-                   JOIN {x} a ON a.domain_id = p.domain_id AND a.address <<= p.prefix
-                   JOIN {t} t ON t.address_id = a.id
-                   JOIN {i} i ON i.id = t.interface_id
-                  WHERE p.id = $13 AND i.machine_id = x.id)",
-        p = dated("public.prefix", "id, domain_id, prefix"),
-        x = dated("public.address", "id, domain_id, address"),
-        t = dated("machines.attachment", "interface_id, address_id"),
-        i = dated("machines.interface", "id, machine_id"),
+        "x.id IN (SELECT i.machine_id FROM {p} p
+                    CROSS JOIN LATERAL {a} a
+                    CROSS JOIN LATERAL {t} t
+                    CROSS JOIN LATERAL {i} i)",
+        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $13"),
+        a = dated_where(
+            "public.address",
+            "id",
+            "domain_id = p.domain_id AND address <<= p.prefix"
+        ),
+        t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
+        i = dated_where("machines.interface", "machine_id", "id = t.interface_id"),
     );
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))

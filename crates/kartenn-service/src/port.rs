@@ -1076,6 +1076,14 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Option<ObjectView>, StoreError>> + Send;
 
+    /// [`WriteTx::object_view`] of each of `objects`, read together, in their order; those
+    /// that do not exist then are left out (the objects of a changeset, REQ-010-54).
+    fn object_views(
+        &mut self,
+        objects: &[Uuid],
+        period: Option<Period>,
+    ) -> impl Future<Output = Result<Vec<ObjectView>, StoreError>> + Send;
+
     /// Resolved value of a property for an object at the start of `period`; `None` when
     /// absent or explicitly "no value".
     fn resolved_value(

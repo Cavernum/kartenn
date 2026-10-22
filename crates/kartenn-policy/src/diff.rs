@@ -185,10 +185,28 @@ fn classes(rules: &[&Rule]) -> Vec<(AxisKey, Vec<Classes>)> {
         .collect()
 }
 
-fn same_candidates(before: &PolicySnapshot, after: &PolicySnapshot, service: &Key) -> bool {
-    let flow_type = |s: &PolicySnapshot| s.service(service).map(|svc| svc.flow_type.clone());
-    let rules = |s: &PolicySnapshot| s.candidates(service).cloned().collect::<Vec<_>>();
-    flow_type(before) == flow_type(after) && rules(before) == rules(after)
+/// The keys of the rules written differently in `before` and `after`, or in one only.
+fn changed_rules<'a>(before: &'a PolicySnapshot, after: &'a PolicySnapshot) -> BTreeSet<&'a Key> {
+    before
+        .rules
+        .keys()
+        .chain(after.rules.keys())
+        .filter(|k| before.rules.get(*k) != after.rules.get(*k))
+        .collect()
+}
+
+/// Whether the candidates of `service` are the same rules, written the same, on both
+/// sides: compared by their keys, `changed` holding those of the rules that differ.
+fn same_candidates(
+    before: &PolicySnapshot,
+    after: &PolicySnapshot,
+    changed: &BTreeSet<&Key>,
+    service: &Key,
+) -> bool {
+    let keys = before.candidate_keys(service);
+    before.service(service).map(|s| &s.flow_type) == after.service(service).map(|s| &s.flow_type)
+        && keys == after.candidate_keys(service)
+        && !keys.iter().any(|k| changed.contains(k))
 }
 
 /// The flips between `before` and `after` (REQ-010-18). Services whose candidate rules
@@ -202,8 +220,11 @@ pub fn diff(before: &PolicySnapshot, after: &PolicySnapshot) -> PolicyDiff {
         .collect();
     let mut out = PolicyDiff::default();
     let mut plans = Vec::new();
+    let changed = changed_rules(before, after);
+    // The services of a flow type share their candidates: their count once.
+    let mut counts: BTreeMap<(&[Key], &[Key]), usize> = BTreeMap::new();
     for service in services {
-        if same_candidates(before, after, &service) {
+        if same_candidates(before, after, &changed, &service) {
             continue;
         }
         let rules: Vec<&Rule> = before
@@ -211,8 +232,14 @@ pub fn diff(before: &PolicySnapshot, after: &PolicySnapshot) -> PolicyDiff {
             .chain(after.candidates(&service))
             .collect();
         // Counted before being built: the combinations of a large policy would not fit
-        // in memory (task 011-10).
-        out.candidates = out.candidates.saturating_add(class_count(&rules));
+        // in memory (tasks 011-10, 010-19: 50 cited values make 1,7·10⁶ pairs an axis).
+        let count = *counts
+            .entry((
+                before.candidate_keys(&service),
+                after.candidate_keys(&service),
+            ))
+            .or_insert_with(|| class_count(&rules));
+        out.candidates = out.candidates.saturating_add(count);
         plans.push((service, rules));
     }
     if out.candidates > MAX_CANDIDATES {
@@ -397,7 +424,11 @@ mod tests {
         let subsets = subsets();
         let mut out = BTreeSet::new();
         for service in before.services().map(|s| s.key.clone()) {
-            if same_candidates(before, after, &service) {
+            // The candidates compared rule by rule, independently of `same_candidates`.
+            let flow_type = |s: &PolicySnapshot| s.service(&service).map(|v| v.flow_type.clone());
+            if flow_type(before) == flow_type(after)
+                && before.candidates(&service).eq(after.candidates(&service))
+            {
                 continue;
             }
             let rules: Vec<&Rule> = before
@@ -476,5 +507,23 @@ mod tests {
                 .collect();
             prop_assert_eq!(computed, oracle(&before, &after));
         }
+    }
+
+    /// A changeset of 50 cited environments is truncated without building its classes
+    /// (1,7·10⁶ pairs an axis, task 010-19).
+    #[test]
+    fn a_wide_change_is_counted_not_built() {
+        let values: Vec<String> = (0..50).map(|i| format!("e{i}")).collect();
+        let values: Vec<&str> = values.iter().map(String::as_str).collect();
+        let after = PolicySnapshot::new(parts(vec![rule(
+            "wide",
+            Effect::Allow,
+            &[(ENV, &values)],
+            &[(ENV, &values)],
+            &["admin"],
+        )]));
+        let out = diff(&PolicySnapshot::new(parts(Vec::new())), &after);
+        assert!(out.truncated);
+        assert!(out.flips.is_empty());
     }
 }

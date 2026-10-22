@@ -238,13 +238,18 @@ async fn views<T: WriteTx>(
     objects: &[(Uuid, Option<ObjectKind>)],
     period: Option<Period>,
 ) -> Result<Vec<(ObjectView, Option<ObjectKind>)>, StoreError> {
-    let mut out = Vec::new();
-    for &(object, kind) in objects {
-        if let Some(view) = tx.object_view(object, period).await? {
-            out.push((view, kind));
-        }
-    }
-    Ok(out)
+    // Read together: a changeset of 10⁴ objects read one by one took a second (REQ-010-54).
+    let ids: Vec<Uuid> = objects.iter().map(|(o, _)| *o).collect();
+    let kinds: BTreeMap<Uuid, Option<ObjectKind>> = objects.iter().copied().collect();
+    Ok(tx
+        .object_views(&ids, period)
+        .await?
+        .into_iter()
+        .map(|view| {
+            let kind = kinds.get(&view.id).copied().flatten();
+            (view, kind)
+        })
+        .collect())
 }
 
 /// Default values (REQ-003-22, REQ-016-5): every created object of a carrier kind without

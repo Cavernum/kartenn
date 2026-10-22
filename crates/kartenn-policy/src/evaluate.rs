@@ -251,8 +251,7 @@ pub fn verdict(
     }
     let candidates: Vec<&Rule> = snapshot.candidates(service).collect();
     // 1. Not classified on an axis cited by a candidate rule.
-    let cited: BTreeSet<&AxisKey> = candidates.iter().flat_map(|r| r.axes()).collect();
-    for axis in cited {
+    for axis in snapshot.cited_axes(service) {
         for (side, endpoint) in [(Side::Source, a), (Side::Destination, b)] {
             if endpoint.on(axis).is_none() {
                 let decisive = Decisive::Unclassified {

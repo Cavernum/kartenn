@@ -548,6 +548,11 @@ in {
   scripts.bench-core =
     bench "core" "Check the budgets of the core on a fresh kartenn_bench database";
 
+  # Budgets of the flow policy module (REQ-010-28, 54) on the dataset of the core, the VLAN
+  # and machines modules deployed: `bench-policy [seed] [small]`.
+  scripts.bench-policy =
+    bench "policy" "Check the budgets of the flow policy on a fresh kartenn_bench database";
+
   # Budgets of the flow registry (REQ-011-19): the four modules on the dataset of the
   # core, a policy of 10⁴ rules and 10⁵ flows: `bench-flow [seed] [small]`.
   scripts.bench-flow =
