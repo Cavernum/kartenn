@@ -169,9 +169,26 @@ pub async fn flows(
     );
     let mut q = dated_query(
         dates,
-        &format!(
-            ", f AS (SELECT DISTINCT ON (t.id) t.* FROM {flow} t
-                      ORDER BY t.id, upper(t.valid_period) DESC NULLS FIRST)
+        &format!(", f AS (SELECT DISTINCT ON (t.id) t.* FROM {flow} t WHERE TRUE"),
+    );
+    // The flows of which a version has the entity, the service or the requester filtered,
+    // through their indexes; the filters below then hold on their last version (task
+    // 011-10).
+    for (column, value) in [
+        ("entity_id", filter.entity),
+        ("service_id", filter.service),
+        ("requester_id", filter.requester),
+    ] {
+        if let Some(value) = value {
+            q.push(format!(
+                " AND t.id IN (SELECT n.id FROM {flow} n WHERE n.{column} = "
+            ));
+            q.push_bind(value);
+            q.push(")");
+        }
+    }
+    q.push(format!(
+        " ORDER BY t.id, upper(t.valid_period) DESC NULLS FIRST)
              SELECT to_jsonb(f) - 'valid_period' AS flow, f.id,
                     lower(f.valid_period) AS start, upper(f.valid_period) AS end_,
                     s.summary, s.outcome,
@@ -185,8 +202,7 @@ pub async fn flows(
                FROM f
                LEFT JOIN {summary} s ON s.flow_id = f.id AND s.valid_period @> $1::timestamptz
               WHERE TRUE"
-        ),
-    );
+    ));
     if let Some((kind, id)) = filter.endpoint {
         let name = pg::kind_name(kind);
         q.push(" AND ((f.source_kind = ");
@@ -560,10 +576,7 @@ pub async fn nonconformities(
     let mut q = dated_query(
         dates,
         &format!(
-            ", f AS (SELECT DISTINCT ON (t.id) t.* FROM {flow} t
-                      WHERE t.valid_period @> $1::timestamptz
-                      ORDER BY t.id, upper(t.valid_period) DESC NULLS FIRST),
-               rows AS (
+            ", rows AS (
                  SELECT 'rejected'::text AS state, NULL::uuid AS flow, r.changeset_id AS changeset,
                         r.requester_id AS requester, r.entity_id AS entity, r.reason AS motive,
                         r.rule_id AS rule, r.rejected_at AS at,
@@ -575,15 +588,19 @@ pub async fn nonconformities(
                         f.id, NULL, f.requester_id, f.entity_id,
                         coalesce(w.reason, v.reason), v.decisive_id, lower(s.valid_period),
                         f.kind
-                   FROM f
-                   JOIN {summary} s ON s.flow_id = f.id AND s.valid_period @> $1::timestamptz
-                    AND s.summary = 'denied'
+                   FROM {summary} s
+                   -- From the denied summaries, few, to their flow (task 011-10).
+                   CROSS JOIN LATERAL (
+                     SELECT t.* FROM {flow} t
+                      WHERE t.id = s.flow_id AND t.valid_period @> $1::timestamptz
+                      ORDER BY upper(t.valid_period) DESC NULLS FIRST LIMIT 1) f
                    LEFT JOIN {waiver} w ON w.flow_id = f.id AND w.valid_period @> $1::timestamptz
                    LEFT JOIN LATERAL (
                      SELECT e.reason, e.decisive_id FROM {evaluation} e
                       WHERE e.flow_id = f.id AND e.valid_period @> $1::timestamptz
                         AND e.verdict = 'denied'
-                      ORDER BY e.decisive_id NULLS LAST LIMIT 1) v ON TRUE)
+                      ORDER BY e.decisive_id NULLS LAST LIMIT 1) v ON TRUE
+                  WHERE s.valid_period @> $1::timestamptz AND s.summary = 'denied')
              SELECT x.state, x.flow, x.changeset, x.requester, x.entity, x.motive, x.rule,
                     pr.key, pr.label, pr.texts, x.at, x.kind
                FROM rows x

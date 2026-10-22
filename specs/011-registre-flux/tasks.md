@@ -245,19 +245,24 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
 
 ## P4 — Budgets et synchronisation
 
-- [ ] 10. Banc `bench-flow` (10⁵ flux) bloquant en CI — REQ-011-19 — verify : budgets
+- [x] 10. Banc `bench-flow` (10⁵ flux) bloquant en CI — REQ-011-19 — verify : budgets
   tenus
   - où : `crates/kartenn-bench`
   - dépend de : 9
-  - en cours (2026-10-22) : banc `bench-flow` (`flow_budgets.rs`, politique au gabarit
-    du banc 010 sans motifs, conditions ni signaux), politique lue une fois par passe,
-    filtrage par service, différentiel de politique compté avant d'être construit (OOM).
-    Mesure de référence : demande 16 × 16 1,1 s (300 ms), reclassement de 10⁴ flux
-    17,8 s (3 s), changement de politique sur 10⁵ flux 96,5 s (60 s), page des
-    non-conformités 17,6 s (150 ms) ; tenus : règle d'un type de flux (5·10³ flux) 7,5 s,
-    page filtrée 140 ms. Reste : réévaluation ensembliste (étape 2 du design 011
-    « Réévaluation », un aller-retour par étape et non par flux) et requête des
-    non-conformités.
+  - fait (2026-10-22) : banc `bench-flow` (`flow_budgets.rs`, politique au gabarit du
+    banc 010 sans motifs, conditions ni signaux) ; réévaluation ensembliste (lots de 512
+    flux, une requête par étape et par lot, flux d'un même instant évalués ensemble,
+    seules les tables dérivées qui changent réécrites), index B-tree sur `flow_id`
+    (migration 0002), politique d'une révision validée gardée par l'instance, candidats
+    d'un service indexés dans l'instantané (010), adresses d'une machine lues par
+    identifiant (009), non-conformités lues depuis les synthèses refusées.
+    Mesure (seed 42, 10⁵ flux, pic mémoire du banc 1,6 Go), avant → après (budget) :
+    demande 16 × 16 1,1 s → 297 ms (300 ms, marge mince : ~210 ms sont le différentiel
+    des propriétés du noyau pour l'ancre `core.owner`) ; reclassement de 10⁴ flux
+    17,8 s → 2,4 s (3 s) ; changement de politique sur 10⁵ flux 96,5 s → 12,8 s (60 s) ;
+    règle d'un type de flux (5·10³ flux) 7,5 s → 2,0 s (60 s) ; page filtrée 140 →
+    130 ms (150 ms) ; non-conformités 17,6 s → 26 ms (150 ms). Non mesuré : la
+    réévaluation de fond (5 min), faute de tâche de fond qui la porte.
 - [ ] 11. Synchronisation de `docs/spec/`, ADR proposée → acceptée, amendement de l'ADR
   0026 (N38, N39)
   - où : skill `tech-specs`, mode sync

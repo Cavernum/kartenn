@@ -32,7 +32,7 @@ pub enum FlowKind {
 }
 
 /// Kind of object an endpoint designates (REQ-011-2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EndpointKind {
     /// An address.
     Address,

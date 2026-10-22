@@ -61,11 +61,18 @@ static REFERENCES: &[Reference] = &[
     },
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "flow",
-    sql: include_str!("../migrations/0001_flow.sql"),
-}];
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "flow",
+        sql: include_str!("../migrations/0001_flow.sql"),
+    },
+    ModuleMigration {
+        version: 2,
+        name: "by_flow",
+        sql: include_str!("../migrations/0002_by_flow.sql"),
+    },
+];
 
 macro_rules! permissions {
     ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {

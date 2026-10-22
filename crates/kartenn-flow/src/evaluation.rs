@@ -4,16 +4,17 @@
 //! pair of addresses for its service, their summary.
 //!
 //! It reads the transaction, not the pool: an address created, classified or attached in
-//! the same changeset counts. The policy is loaded at each call, never from the cache of
-//! the queries, since a changeset may raise a revision it then rolls back (a simulation);
-//! a pass over the flows after the writes of a changeset reads it through [`Policies`],
-//! which lives as long as the pass (task 011-10).
+//! the same changeset counts. The policy of a committed revision is kept for the instance
+//! (task 011-10); a transaction that wrote the policy reads its own at each call, since a
+//! changeset may raise a revision it then rolls back (a simulation). A pass over the flows
+//! after the writes of a changeset reads it through [`Policies`], which lives as long as
+//! the pass, and evaluates its flows by batches.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use kartenn_core::period::Instant;
-use kartenn_machines::read::{addresses_of_interface, addresses_of_machine, instant};
+use kartenn_machines::read::{addresses_of_interfaces, addresses_of_machines, instant};
 use kartenn_policy::evaluate::{
     Dossier, Endpoint as Side, Evaluation, Requested, Synthesis, evaluate, synthesis,
     unknown_service,
@@ -104,51 +105,76 @@ fn axes_read(parts: &Parts) -> BTreeSet<AxisKey> {
     found
 }
 
-/// The points an endpoint develops into at `at`: an address or a prefix, itself; an
-/// interface or a machine, its addresses (port of reading of the 009). With the width of
-/// each and whether they are addresses.
+/// The points each endpoint of `flows` develops into at `at`, in one query per kind of
+/// endpoint: an address or a prefix, itself; an interface or a machine, its addresses
+/// (port of reading of the 009). With the width of each and whether they are addresses.
 async fn develop(
     conn: &mut PgConnection,
-    kind: EndpointKind,
-    id: Uuid,
+    flows: &[&Flow],
     at: OffsetDateTime,
-) -> Result<(Vec<(Uuid, u128)>, bool), StoreError> {
+) -> Result<BTreeMap<(EndpointKind, Uuid), (Vec<(Uuid, u128)>, bool)>, StoreError> {
     let t: Instant = instant(at);
-    Ok(match kind {
-        EndpointKind::Address => (vec![(id, 1)], true),
-        EndpointKind::Prefix => {
-            let prefix: Option<String> = sqlx::query_scalar(
-                "SELECT prefix::text FROM public.prefix WHERE id = $1 AND valid_period @> $2",
-            )
-            .bind(id)
-            .bind(at)
-            .fetch_optional(&mut *conn)
-            .await
-            .map_err(|e| store(&e))?;
-            (vec![(id, prefix.as_deref().map_or(1, width_of))], false)
+    let mut wanted: BTreeMap<EndpointKind, BTreeSet<Uuid>> = BTreeMap::new();
+    for flow in flows {
+        for end in [&flow.source, &flow.destination] {
+            wanted.entry(end.kind).or_default().insert(end.id);
         }
-        EndpointKind::Interface => (
-            addresses_of_interface(conn, id, t, None)
-                .await?
-                .into_iter()
-                .map(|a| (a.address, 1))
-                .collect(),
-            true,
-        ),
-        EndpointKind::Machine => {
-            let mut seen = BTreeSet::new();
-            (
-                addresses_of_machine(conn, id, t, None)
-                    .await?
-                    .into_iter()
-                    .filter(|a| seen.insert(a.address))
-                    .map(|a| (a.address, 1))
-                    .collect(),
-                true,
-            )
+    }
+    let ids = |kind: EndpointKind| -> Vec<Uuid> {
+        wanted
+            .get(&kind)
+            .map(|s| s.iter().copied().collect())
+            .unwrap_or_default()
+    };
+    let mut out = BTreeMap::new();
+    for id in ids(EndpointKind::Address) {
+        out.insert((EndpointKind::Address, id), (vec![(id, 1)], true));
+    }
+    for id in ids(EndpointKind::Range) {
+        out.insert((EndpointKind::Range, id), (Vec::new(), false));
+    }
+    let prefixes = ids(EndpointKind::Prefix);
+    if !prefixes.is_empty() {
+        let found: BTreeMap<Uuid, String> = sqlx::query_as(
+            "SELECT DISTINCT ON (id) id, prefix::text FROM public.prefix
+              WHERE id = ANY($1) AND valid_period @> $2 ORDER BY id",
+        )
+        .bind(&prefixes)
+        .bind(at)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?
+        .into_iter()
+        .collect();
+        for id in prefixes {
+            let width = found.get(&id).map_or(1, |p| width_of(p));
+            out.insert((EndpointKind::Prefix, id), (vec![(id, width)], false));
         }
-        EndpointKind::Range => (Vec::new(), false),
-    })
+    }
+    for kind in [EndpointKind::Interface, EndpointKind::Machine] {
+        let owners = ids(kind);
+        if owners.is_empty() {
+            continue;
+        }
+        for id in &owners {
+            out.insert((kind, *id), (Vec::new(), true));
+        }
+        let found = if kind == EndpointKind::Interface {
+            addresses_of_interfaces(conn, &owners, t, None).await?
+        } else {
+            addresses_of_machines(conn, &owners, t, None).await?
+        };
+        for (owner, address) in found {
+            if let Some((points, _)) = out.get_mut(&(kind, owner))
+                // A machine holds an address once, whatever its interfaces.
+                && (kind == EndpointKind::Interface
+                    || !points.iter().any(|(a, _)| *a == address.address))
+            {
+                points.push((address.address, 1));
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The resolved values of `keys` on `objects` at `at`, on the state of the transaction
@@ -174,6 +200,7 @@ async fn tree_values(
              ON e.id = a.v_uuid OR e.id = ANY(a.v_uuids)
           WHERE o.object_id = ANY($1) AND o.valid_period @> $3",
     )
+    .persistent(false)
     .bind(objects)
     .bind(keys)
     .bind(at)
@@ -191,13 +218,40 @@ async fn tree_values(
     Ok(out)
 }
 
+/// The values of the policy that `flows` name as the nature of their data, by
+/// identifier, at `at`: one query for the batch.
+async fn natures(
+    conn: &mut PgConnection,
+    flows: &[&Flow],
+    at: OffsetDateTime,
+) -> Result<BTreeMap<Uuid, Vec<(String, String)>>, StoreError> {
+    let named: BTreeSet<Uuid> = flows
+        .iter()
+        .flat_map(|f| f.data_nature.iter().copied())
+        .collect();
+    let mut out: BTreeMap<Uuid, Vec<(String, String)>> = BTreeMap::new();
+    if named.is_empty() {
+        return Ok(out);
+    }
+    let named: Vec<Uuid> = named.into_iter().collect();
+    let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, property_key, value_key FROM policy.policy_value
+          WHERE id = ANY($1) AND valid_period @> $2",
+    )
+    .bind(&named)
+    .bind(at)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    for (id, axis, value) in rows {
+        out.entry(id).or_default().push((axis, value));
+    }
+    Ok(out)
+}
+
 /// The file of a flow (REQ-010-38): the fields it carries, and the nature of its data on
 /// the axes of the values it names.
-async fn dossier(
-    conn: &mut PgConnection,
-    flow: &Flow,
-    at: OffsetDateTime,
-) -> Result<Dossier, StoreError> {
+fn dossier(flow: &Flow, natures: &BTreeMap<Uuid, Vec<(String, String)>>) -> Dossier {
     let mut fields = BTreeSet::from([DossierField::Requester]);
     if !flow.external_refs.is_empty() {
         fields.insert(DossierField::ExternalRefs);
@@ -211,25 +265,17 @@ async fn dossier(
     let mut values: BTreeMap<AxisKey, BTreeSet<AxisValue>> = BTreeMap::new();
     if !flow.data_nature.is_empty() {
         fields.insert(DossierField::DataNature);
-        let named: Vec<(String, String)> = sqlx::query_as(
-            "SELECT property_key, value_key FROM policy.policy_value
-              WHERE id = ANY($1) AND valid_period @> $2",
-        )
-        .bind(&flow.data_nature)
-        .bind(at)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| store(&e))?;
-        for (axis, value) in named {
-            if let Ok(axis) = AxisKey::parse(&axis) {
+        let named: BTreeSet<Uuid> = flow.data_nature.iter().copied().collect();
+        for (axis, value) in named.iter().filter_map(|id| natures.get(id)).flatten() {
+            if let Ok(axis) = AxisKey::parse(axis) {
                 values
                     .entry(axis)
                     .or_default()
-                    .insert(AxisValue::new(value));
+                    .insert(AxisValue::new(value.clone()));
             }
         }
     }
-    Ok(Dossier { fields, values })
+    Dossier { fields, values }
 }
 
 /// The policy an evaluation reads at an instant: its snapshot and the axes it may read.
@@ -284,14 +330,74 @@ impl Policies {
         if let Some((_, _, hit)) = self.kept.iter().find(|(f, u, _)| covers(f, u)) {
             return Ok(hit.clone());
         }
-        let (from, until) = read::stable_span(conn, at, None).await?;
-        let loaded = Arc::new(Loaded::read(conn, at).await?);
+        let kept = load_at(conn, at).await?;
+        let loaded = kept.2.clone();
         if self.kept.len() >= KEPT {
             self.kept.remove(0);
         }
-        self.kept.push((from, until, loaded.clone()));
+        self.kept.push(kept);
         Ok(loaded)
     }
+}
+
+/// A policy with the span of valid time it holds over, start included, end excluded.
+type Kept = (Option<OffsetDateTime>, Option<OffsetDateTime>, Arc<Loaded>);
+
+/// The policies of a committed revision, shared by the evaluations of the instance
+/// (task 011-10), as the cache of the queries of the 010 keeps its snapshots: a revision
+/// committed names one state of the policy, every write of it raising the revision.
+static COMMITTED: Mutex<Option<(u64, Vec<Kept>)>> = Mutex::new(None);
+
+/// The revision of the policy as committed; `None` when this transaction wrote it, its
+/// revision then naming a state that may still change or be rolled back.
+async fn committed_revision(conn: &mut PgConnection) -> Result<Option<u64>, StoreError> {
+    let (revision, here): (i64, Option<bool>) = sqlx::query_as(
+        "SELECT policy, xmin = xid(pg_current_xact_id_if_assigned())
+           FROM policy.policy_revision",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok((here != Some(true)).then(|| u64::try_from(revision).unwrap_or_default()))
+}
+
+/// The policy valid at `at` and the span it holds over: kept from a committed revision
+/// when the transaction did not write the policy, read otherwise.
+async fn load_at(conn: &mut PgConnection, at: OffsetDateTime) -> Result<Kept, StoreError> {
+    let committed = || COMMITTED.lock().unwrap_or_else(PoisonError::into_inner);
+    let revision = committed_revision(conn).await?;
+    if let Some(revision) = revision {
+        let hit = committed()
+            .as_ref()
+            .filter(|(r, _)| *r == revision)
+            .and_then(|(_, kept)| {
+                kept.iter()
+                    .find(|(f, u, _)| f.is_none_or(|f| f <= at) && u.is_none_or(|u| at < u))
+                    .cloned()
+            });
+        if let Some(hit) = hit {
+            return Ok(hit);
+        }
+    }
+    let (from, until) = read::stable_span(conn, at, None).await?;
+    let loaded = Arc::new(Loaded::read(conn, at).await?);
+    // Kept only when no write of the policy committed meanwhile.
+    if let Some(revision) = revision
+        && loaded.snapshot.revision() == revision
+        && committed_revision(conn).await? == Some(revision)
+    {
+        let mut shared = committed();
+        if shared.as_ref().is_none_or(|(r, _)| *r != revision) {
+            *shared = Some((revision, Vec::new()));
+        }
+        if let Some((_, kept)) = shared.as_mut() {
+            if kept.len() >= KEPT {
+                kept.remove(0);
+            }
+            kept.push((from, until, loaded.clone()));
+        }
+    }
+    Ok((from, until, loaded))
 }
 
 /// Evaluates `flow` at `at` on the state of the transaction (REQ-011-8, 11, 21).
@@ -304,8 +410,8 @@ pub async fn evaluate_flow(
     flow: &Flow,
     at: OffsetDateTime,
 ) -> Result<Evaluated, StoreError> {
-    let policy = Loaded::read(conn, at).await?;
-    evaluate_with(conn, &policy, flow, at).await
+    let (_, _, policy) = load_at(conn, at).await?;
+    one(evaluate_with(conn, &policy, &[flow], at).await?)
 }
 
 /// [`evaluate_flow`] in a pass over the flows after the writes of a changeset, the policy
@@ -320,60 +426,90 @@ pub(crate) async fn evaluate_in(
     flow: &Flow,
     at: OffsetDateTime,
 ) -> Result<Evaluated, StoreError> {
-    let policy = policies.at(conn, at).await?;
-    evaluate_with(conn, &policy, flow, at).await
+    one(evaluate_many(conn, policies, &[flow], at).await?)
 }
 
-/// Evaluates `flow` at `at` against `policy`.
+/// [`evaluate_in`] for a batch of flows at the same instant, in their order: each read is
+/// one query for the batch, the values of the axes by lots of [`LOT`] addresses (N9), the
+/// evaluation in memory (design 011 « Réévaluation », step 2).
+///
+/// # Errors
+///
+/// A failure of the database.
+pub(crate) async fn evaluate_many(
+    conn: &mut PgConnection,
+    policies: &mut Policies,
+    flows: &[&Flow],
+    at: OffsetDateTime,
+) -> Result<Vec<Evaluated>, StoreError> {
+    if flows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let policy = policies.at(conn, at).await?;
+    evaluate_with(conn, &policy, flows, at).await
+}
+
+fn one(mut found: Vec<Evaluated>) -> Result<Evaluated, StoreError> {
+    found
+        .pop()
+        .ok_or_else(|| StoreError("a flow evaluated to nothing".into()))
+}
+
+/// The addresses whose values one query reads (N9).
+pub(crate) const LOT: usize = 512;
+
+/// Evaluates `flows` at `at` against `policy`, in their order.
 #[allow(clippy::too_many_lines)] // the steps of design 010 « Évaluation », in their order
 async fn evaluate_with(
     conn: &mut PgConnection,
     policy: &Loaded,
-    flow: &Flow,
+    flows: &[&Flow],
     at: OffsetDateTime,
-) -> Result<Evaluated, StoreError> {
+) -> Result<Vec<Evaluated>, StoreError> {
     let Loaded {
         snapshot,
         axes,
         machine_axes,
     } = policy;
-    let service: Option<String> = sqlx::query_scalar(
-        "SELECT key FROM policy.policy_service WHERE id = $1 AND valid_period @> $2",
+    let ids: BTreeSet<Uuid> = flows.iter().map(|f| f.service).collect();
+    let ids: Vec<Uuid> = ids.into_iter().collect();
+    let services: BTreeMap<Uuid, Key> = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT id, key FROM policy.policy_service WHERE id = ANY($1) AND valid_period @> $2",
     )
-    .bind(flow.service)
+    .bind(&ids)
     .bind(at)
-    .fetch_optional(&mut *conn)
+    .fetch_all(&mut *conn)
     .await
-    .map_err(|e| store(&e))?;
-    let service = service.and_then(|k| Key::new(&k).ok());
-    let (source, source_addresses) = develop(conn, flow.source.kind, flow.source.id, at).await?;
-    let (destination, destination_addresses) =
-        develop(conn, flow.destination.kind, flow.destination.id, at).await?;
+    .map_err(|e| store(&e))?
+    .into_iter()
+    .filter_map(|(id, key)| Some((id, Key::new(&key).ok()?)))
+    .collect();
+    let developed = develop(conn, flows, at).await?;
     let keys: Vec<String> = axes.iter().map(ToString::to_string).collect();
     let mut widths: BTreeMap<Uuid, u128> = BTreeMap::new();
     let mut addresses: BTreeSet<Uuid> = BTreeSet::new();
-    for (points, are_addresses) in [
-        (&source, source_addresses),
-        (&destination, destination_addresses),
-    ] {
+    for (points, are_addresses) in developed.values() {
         for (id, width) in points {
             widths.insert(*id, *width);
-            if are_addresses {
+            if *are_addresses {
                 addresses.insert(*id);
             }
         }
     }
     let objects: Vec<Uuid> = widths.keys().copied().collect();
-    let tree = tree_values(conn, &objects, &keys, at).await?;
+    let mut tree = BTreeMap::new();
+    for lot in objects.chunks(LOT) {
+        tree.extend(tree_values(conn, lot, &keys, at).await?);
+    }
     // An axis carried by the machine: the union of the values of the machines holding the
     // address, else the value of the tree (S27).
     let mut machine: BTreeMap<(Uuid, String), BTreeSet<AxisValue>> = BTreeMap::new();
-    if !machine_axes.is_empty() && !addresses.is_empty() {
-        let list: Vec<Uuid> = addresses.iter().copied().collect();
-        let names: Vec<&str> = machine_axes.iter().map(String::as_str).collect();
+    let list: Vec<Uuid> = addresses.iter().copied().collect();
+    let names: Vec<&str> = machine_axes.iter().map(String::as_str).collect();
+    for lot in list.chunks(LOT).filter(|_| !names.is_empty()) {
         for (address, machines) in kartenn_machines::read::machine_values_of_addresses(
             conn,
-            &list,
+            lot,
             &names,
             instant(at),
             None,
@@ -421,36 +557,42 @@ async fn evaluate_with(
             whole_domain: false,
         }
     };
-    let dossier = dossier(conn, flow, at).await?;
-    let mut pairs = Vec::new();
-    for (a, _) in &source {
-        for (b, _) in &destination {
-            let evaluation = match &service {
-                Some(service) => evaluate(
-                    snapshot,
-                    &side(*a),
-                    &side(*b),
-                    service,
-                    Requested::Service,
-                    Some(&dossier),
-                ),
-                None => unknown_service(),
-            };
-            pairs.push(Pair {
-                source: *a,
-                destination: *b,
-                evaluation,
-            });
+    let sides: BTreeMap<Uuid, Side> = objects.iter().map(|id| (*id, side(*id))).collect();
+    let natures = natures(conn, flows, at).await?;
+    let none = (Vec::new(), false);
+    let mut out = Vec::with_capacity(flows.len());
+    for flow in flows {
+        let points =
+            |end: &crate::model::Endpoint| &developed.get(&(end.kind, end.id)).unwrap_or(&none).0;
+        let (source, destination) = (points(&flow.source), points(&flow.destination));
+        let service = services.get(&flow.service);
+        let dossier = dossier(flow, &natures);
+        let mut pairs = Vec::with_capacity(source.len() * destination.len());
+        for (a, _) in source {
+            for (b, _) in destination {
+                let evaluation = match (service, sides.get(a), sides.get(b)) {
+                    (Some(service), Some(a), Some(b)) => {
+                        evaluate(snapshot, a, b, service, Requested::Service, Some(&dossier))
+                    }
+                    _ => unknown_service(),
+                };
+                pairs.push(Pair {
+                    source: *a,
+                    destination: *b,
+                    evaluation,
+                });
+            }
         }
+        let evaluations: Vec<Evaluation> = pairs.iter().map(|p| p.evaluation.clone()).collect();
+        out.push(Evaluated {
+            revision: snapshot.revision(),
+            sources: source.iter().map(|(id, _)| *id).collect(),
+            destinations: destination.iter().map(|(id, _)| *id).collect(),
+            summary: synthesis(&evaluations),
+            pairs,
+        });
     }
-    let evaluations: Vec<Evaluation> = pairs.iter().map(|p| p.evaluation.clone()).collect();
-    Ok(Evaluated {
-        revision: snapshot.revision(),
-        sources: source.into_iter().map(|(id, _)| id).collect(),
-        destinations: destination.into_iter().map(|(id, _)| id).collect(),
-        summary: synthesis(&evaluations),
-        pairs,
-    })
+    Ok(out)
 }
 
 #[cfg(test)]
