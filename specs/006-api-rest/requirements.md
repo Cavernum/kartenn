@@ -243,12 +243,17 @@ Acceptation :
 kartenn doit permettre de créer un import (`POST /v1/imports`, 201), d'y déposer des
 morceaux numérotés d'au plus 10 000 éléments (un morceau renvoyé sous un numéro déjà
 reçu est ignoré s'il est identique, refusé en 409 sinon), puis de le démarrer (`start`,
-202 et `Location` vers l'import). [H9, 004/REQ-004-28]
+202 et `Location` vers l'import). Le tri et le découpage en lots se font en tâche de
+fond, jamais dans la requête ; une erreur de tri ramène l'import en dépôt et se lit dans
+son état. [H9, H18, 004/REQ-004-28]
 
 Acceptation :
 - Le dépôt de 10⁶ éléments en 100 morceaux, dont un renvoyé deux fois, donne un import
   de 10⁶ éléments.
 - Un morceau de 10 001 éléments → 413.
+- Le `start` d'un import de 10⁶ éléments répond 202 sous le délai de transport, même
+  sous charge ; un import qui ne se trie pas (cycle) répond 202, puis son état montre
+  `uploading` et l'erreur `invalid-import`.
 
 #### REQ-006-18 — Exécution reprise après panne
 kartenn doit exécuter un import démarré sur une seule instance à la fois, sous bail en
@@ -260,7 +265,8 @@ Acceptation :
   objet en double, dans le délai du bail plus le reste du travail.
 
 #### REQ-006-19 — Suivi et contrôle
-kartenn doit exposer l'état d'un import (lots appliqués, restants, rapport, échec), avec
+kartenn doit exposer l'état d'un import (tri en cours, lots appliqués, restants, rapport,
+échec, erreur de tri), avec
 `Retry-After` indicatif pendant l'exécution, et les actions reprendre et annuler ;
 l'annulation arrête après le lot en cours et laisse les lots appliqués. [H9,
 004/REQ-004-30]

@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
 
 # 011 — Registre de flux : conception
@@ -232,7 +232,33 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 
 ## ADR
 
-- ADR proposée (numéro à attribuer) : **évaluations de flux matérialisées, maintenues
-  dans la transaction par une contribution au différentiel ordonnée par le DAG des
-  modules ; état et validité dérivés**.
-- Amendement de l'ADR 0026 : crochet de rejet (N38).
+- [ADR 0031](../../docs/adr/0031-evaluations-de-flux-materialisees.md) (acceptée,
+  2026-10-22) : **évaluations de flux matérialisées, maintenues dans la transaction par
+  une contribution au différentiel ordonnée par le DAG des modules ; état et validité
+  dérivés**.
+- Amendements de l'ADR 0026 : crochet de fin de proposition `ended` (N38) et revue
+  forcée (N39), amendement 2 (spec 016) ; permission propre à une opération
+  (`flow.flow.request`) et acteurs du changeset, amendement 3 ; constats des tâches de
+  fond (échéance d'une dérogation), amendement 4.
+
+## Écarts au design (le code fait foi, 2026-10-22)
+
+- Règles : `flow.verdict.denied` est un **avertissement** (anomalie) ; le refus à
+  l'enregistrement sans dérogation est l'erreur `flow.waiver.required` (une règle n'a
+  qu'une sévérité). Deux règles ajoutées : `flow.field.invalid` et `flow.update.identity`.
+- Le refus de clore une extrémité citée passe par la règle générique du noyau
+  `core.object.dependents` (008-7), qui liste les flux, et non par `flow.referenced`.
+- Opérations : l'écriture directe de maintenance s'appelle `flow.flow.register` (sans
+  route dédiée : `POST /v1/changesets`) ; `update` ne fait que raccourcir la période ;
+  route `POST /v1/flows/{id}/waiver` ajoutée (F6).
+- La demande d'un flux exige aussi `prop.core.owner.write` sur l'entité : le flux est
+  ancré par une affectation ordinaire de `core.owner`, bornée à sa vie.
+- Lectures : le prédicat RBAC est appliqué par les routes ; une page est coupée avant le
+  filtre des droits (parfois plus courte, sans fuite) ; les non-conformités se lisent sur
+  une page sans curseur ; le demandeur lit son flux avec des évaluations réduites.
+- Les jointures sur le noyau (adresses, préfixes, origines des valeurs, machines) sont lues
+  à l'assertion courante ; seules les tables du module suivent `as_of`.
+- Échéances : fenêtres de 30 et 7 jours en constantes (pas de configuration de module dans
+  le contrat).
+- Mois calendaires en UTC, jour borné à la fin du mois ; un flux sans paire d'adresses est
+  `denied` et `noncompliant`.

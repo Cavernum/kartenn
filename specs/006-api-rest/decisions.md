@@ -374,6 +374,20 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   REQ-006-30 est précisée en ce sens.
 - Décidé par : l'utilisateur (2026-10-21), sur la proposition de Claude
 
+## H18 — Tri d'un import en tâche de fond (amende H9, REQ-006-17 et 19)
+- Constat (2026-10-21) : `start` trie le million d'éléments dans la requête (environ
+  11 s au calme, plus de 30 s sous charge) ; au-delà du délai de transport (30 s), le
+  client reçoit 503 alors que le tri se poursuit ou échoue sans être vu.
+- Options : (A) délai plus long pour cette seule route ; (B) tri dans la tâche de fond
+  de l'import, l'erreur rendue dans l'état de l'import.
+- Décision : **B**. `start` vérifie l'état, passe l'import à `sorting` et pose la tâche
+  `import:<id>` ; la tâche trie et découpe en lots dans une transaction, puis passe à
+  `ready` et applique comme avant. Une erreur de tri ramène l'import à `uploading` et
+  s'expose dans sa représentation (`error`, problème `invalid-import` avec ses
+  violations) ; `start` ne répond plus 422. Toute requête reste bornée par le délai de
+  transport.
+- Décidé par : l'utilisateur (2026-10-22), sur la proposition de Claude
+
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
 routes de connexion, déconnexion et secours, variante de `logged_in` sans événement,
