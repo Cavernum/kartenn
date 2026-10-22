@@ -675,7 +675,7 @@ async fn line_415_an_unsupported_media_type(pool: PgPool) {
 /// 422: a refused changeset, a write without its right (a rule, REQ-005-22), a
 /// sensitive value against its rule, a motive missing, too
 /// many operations, a reused idempotency key, a member not written, an undeclared
-/// property, an invalid filter, an import that does not sort.
+/// property, an invalid filter.
 #[kartenn_testing::pg_test]
 async fn line_422_a_request_the_service_refuses(pool: PgPool) {
     let app = admin(&pool).await;
@@ -762,9 +762,8 @@ async fn line_422_a_request_the_service_refuses(pool: PgPool) {
     )
     .await;
     expect(response, ProblemKind::InvalidOverride).await;
-
-    let stray = import(&app, &[1]).await;
-    expect(send(&app, start(&stray)).await, ProblemKind::InvalidImport).await;
+    // An import that does not sort is no longer refused here: `start` answers 202 and
+    // the problem `invalid-import` is the `error` of the import (H18, tests/it/imports.rs).
 }
 
 /// 428: a write by resource without `If-Match`.
