@@ -765,11 +765,16 @@ async fn measure(
     progress(&load("policy inference rules"));
 
     // The suggestion of the inference for an address (REQ-010-54).
+    // From the rules down to a few addresses of each (a join from the addresses took ten
+    // minutes at 10⁶ addresses).
     let inferred: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT a.id FROM address a JOIN prefix p ON p.domain_id = a.domain_id AND p.prefix >> a.address
-           JOIN policy.policy_inference_rule r ON upper_inf(r.valid_period)
-                AND r.criteria @> jsonb_build_array(jsonb_build_object('within', jsonb_build_array(p.prefix::text)))
-          WHERE upper_inf(a.valid_period) AND upper_inf(p.valid_period) LIMIT 1000",
+        "SELECT a.id FROM policy.policy_inference_rule r
+           CROSS JOIN LATERAL jsonb_array_elements_text(r.criteria -> 0 -> 'within') w(prefix)
+           CROSS JOIN LATERAL (
+               SELECT a.id FROM address a
+                WHERE a.domain_id = r.domain_id AND a.address <<= w.prefix::inet
+                  AND upper_inf(a.valid_period) LIMIT 5) a
+          WHERE upper_inf(r.valid_period) LIMIT 1000",
     )
     .fetch_all(pool)
     .await?;
