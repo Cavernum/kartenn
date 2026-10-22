@@ -40,3 +40,4 @@ Chaque note contient :
 | [mise-en-page-adaptative.md](mise-en-page-adaptative.md) | Adaptation à la largeur : WCAG 2.2 (1.4.10 Reflow et son exception des tableaux, 1.4.4, 1.4.12, 1.3.4, 2.5.8), requêtes de conteneur, syntaxe d'intervalle, unités `dv*`, `auto-fit`, `subgrid`, `:has()`, prise en charge ; politique de kartenn | 020 |
 | [push-serveur.md](push-serveur.md) | Canal push serveur → client : SSE, MCP Streamable HTTP, mandataires, alternatives, `LISTEN`/`NOTIFY` | 022 |
 | [langues-negociation.md](langues-negociation.md) | Étiquettes BCP 47 (RFC 5646), Lookup (RFC 4647), `Accept-Language`, `Content-Language`, `Vary`, cache d'une réponse par langue | 018 |
+| [kubernetes-calcul.md](kubernetes-calcul.md) | Kubernetes : Node, Pod, Service, EndpointSlice, Ingress, NetworkPolicy, list et watch, RBAC du connecteur | 019 |
