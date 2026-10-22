@@ -77,32 +77,18 @@ impl kartenn_service::module::ModuleTx for PgTx {
     ) -> kartenn_service::module::BoxFuture<'_, Result<(), WriteError>> {
         Box::pin(async move {
             let (a, b) = bounds(period)?;
-            // Already registered over the period: a new version of its record.
-            let rewritten = self
-                .guarded(
-                    sqlx::AssertSqlSafe(format!(
-                        "UPDATE module_object SET parent_id = $2, domain_id = $3, changeset_id = $6
-                         WHERE id = $1 AND valid_period && {}",
-                        period_sql(4, 5)
-                    )),
-                    vec![
-                        Bind::Uuid(row.id),
-                        Bind::OptUuid(row.parent),
-                        Bind::OptUuid(row.domain),
-                        Bind::Time(a),
-                        Bind::Time(b),
-                        Bind::Uuid(changeset),
-                    ],
-                    row.id,
-                )
-                .await?;
-            if rewritten > 0 {
-                return Ok(());
-            }
+            // Already registered over the period: a new version of its record; else a new
+            // record. One statement, so one write under its savepoint, rather than an
+            // update that finds nothing for each object created, then the insert.
+            let period = period_sql(6, 7);
             let sql = format!(
-                "INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
-                 VALUES ($1, $2, $3, $4, $5, {}, $8)",
-                period_sql(6, 7)
+                "WITH up AS (
+                     UPDATE module_object SET parent_id = $4, domain_id = $5, changeset_id = $8
+                     WHERE id = $1 AND valid_period && {period}
+                     RETURNING 1)
+                 INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
+                 SELECT $1, $2, $3, $4, $5, {period}, $8
+                 WHERE NOT EXISTS (SELECT 1 FROM up)"
             );
             let binds = vec![
                 Bind::Uuid(row.id),
