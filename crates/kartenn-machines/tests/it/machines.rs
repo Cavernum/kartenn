@@ -446,7 +446,8 @@ fn usage(address: Uuid, usage: AddressUsage) -> Operation {
     }
 }
 
-/// The class of the named locks of the store (`write.rs`, REQ-008-27).
+/// The class of the named locks of the store (`write.rs`, REQ-008-27); the second key is
+/// the bucket `hashtext(key) & 1023` (ADR 0015, amendment of 2026-10-22).
 const NAMED_LOCK_CLASS: i32 = 0x6b61_726b;
 
 /// `vlan.<name>` from its JSON fields.
@@ -1066,7 +1067,7 @@ async fn two_concurrent_attachments_one_wins(pool: PgPool) {
     // Hold the key of the address, as the store takes it, so that both submissions queue
     // behind it; then release them together.
     let mut holder = pool.begin().await.unwrap();
-    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2))")
+    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2) & 1023)")
         .bind(NAMED_LOCK_CLASS)
         .bind(format!("machines.address:{address}"))
         .execute(&mut *holder)

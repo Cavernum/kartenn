@@ -275,9 +275,9 @@ async fn two_changesets_under_one_module_lock_are_delivered_in_order(pool: PgPoo
     .await
     .unwrap();
     // A changeset under the key `policy`, still running: it holds the named lock (class
-    // "kark", as the store takes it) and has written its event.
+    // "kark", bucket of the hash, as the store takes it) and has written its event.
     let mut running = pool.begin().await.unwrap();
-    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext('policy'))")
+    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext('policy') & 1023)")
         .bind(0x6b61_726b_i32)
         .execute(&mut *running)
         .await
