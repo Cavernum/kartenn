@@ -140,6 +140,21 @@ fn cited(rules: &[&Rule]) -> BTreeMap<AxisKey, (BTreeSet<AxisValue>, bool)> {
     out
 }
 
+/// The number of combinations [`classes`] gives for `rules`, without building them: per
+/// axis, n cited values and « another value » make n + 1 slots, taken one or two at a
+/// time on each side, plus the shared value when a rule asks for the same value.
+fn class_count(rules: &[&Rule]) -> usize {
+    cited(rules)
+        .values()
+        .try_fold(1usize, |n, (values, same)| {
+            let slots = values.len().checked_add(1)?;
+            let sets = slots.checked_add(slots.checked_mul(slots - 1)? / 2)?;
+            let pairs = sets.checked_mul(sets)?.checked_add(usize::from(*same))?;
+            n.checked_mul(pairs)
+        })
+        .unwrap_or(usize::MAX)
+}
+
 /// Per axis, the pairs of class sets (source, destination) to try.
 fn classes(rules: &[&Rule]) -> Vec<(AxisKey, Vec<Classes>)> {
     cited(rules)
@@ -195,19 +210,17 @@ pub fn diff(before: &PolicySnapshot, after: &PolicySnapshot) -> PolicyDiff {
             .candidates(&service)
             .chain(after.candidates(&service))
             .collect();
-        let axes = classes(&rules);
-        let count = axes
-            .iter()
-            .try_fold(1usize, |n, (_, pairs)| n.checked_mul(pairs.len()))
-            .unwrap_or(usize::MAX);
-        out.candidates = out.candidates.saturating_add(count);
-        plans.push((service, axes));
+        // Counted before being built: the combinations of a large policy would not fit
+        // in memory (task 011-10).
+        out.candidates = out.candidates.saturating_add(class_count(&rules));
+        plans.push((service, rules));
     }
     if out.candidates > MAX_CANDIDATES {
         out.truncated = true;
         return out;
     }
-    for (service, axes) in plans {
+    for (service, rules) in plans {
+        let axes = classes(&rules);
         let mut index = vec![0usize; axes.len()];
         loop {
             let mut candidate = Candidate {
@@ -267,6 +280,31 @@ mod tests {
 
     fn one(value: &str) -> BTreeSet<Slot> {
         BTreeSet::from([Slot::Value(value.into())])
+    }
+
+    #[test]
+    fn the_combinations_are_counted_as_built() {
+        let rules = [
+            rule(
+                "a",
+                Effect::Allow,
+                &[(ENV, &["prod", "dev"])],
+                &[(ENV, &["dev"])],
+                &["admin"],
+            ),
+            rule(
+                "b",
+                Effect::Deny,
+                &[(ENV, &["test"])],
+                &[(ENV, &["prod"])],
+                &["admin"],
+            ),
+        ];
+        let rules: Vec<&Rule> = rules.iter().collect();
+        let built: usize = classes(&rules).iter().map(|(_, p)| p.len()).product();
+        // Three cited values and « another »: 4 + 6 = 10 sets a side.
+        assert_eq!(built, 100);
+        assert_eq!(class_count(&rules), built);
     }
 
     #[test]
