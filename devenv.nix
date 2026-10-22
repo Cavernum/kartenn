@@ -257,7 +257,7 @@
       [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench "$0" "$@"
       k-pg-bench
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
-      psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
+      PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
         -c "CREATE DATABASE \"''${bench##*/}\""
       cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"}
     '';
