@@ -2508,14 +2508,21 @@ impl WriteTx for PgTx {
 
     async fn subtree(
         &mut self,
-        object: Uuid,
+        objects: &[Uuid],
         period: Option<Period>,
     ) -> Result<Vec<Uuid>, StoreError> {
+        if objects.is_empty() {
+            return Ok(Vec::new());
+        }
         let (a, _) = bounds(period)?;
+        // The roots joined from `unnest` rather than filtered by `= ANY`: a join keeps the
+        // index of each table under a generic plan.
         sqlx::query_scalar(
             "WITH w AS (SELECT tstzrange(coalesce($2::timestamptz, now()), NULL) AS r),
-                  o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
-                        WHERE id = $1 AND valid_period && w.r),
+                  roots AS (SELECT DISTINCT id FROM unnest($1::uuid[]) AS u(id)),
+                  o AS (SELECT DISTINCT x.domain_id, x.value, x.kind
+                        FROM roots JOIN addressing_object x ON x.id = roots.id, w
+                        WHERE x.valid_period && w.r),
                   -- inlined: cited twice, a materialised CTE would copy every entity,
                   -- site and object of a module at each call, where each reference
                   -- inlined walks the index of its id or its parent
@@ -2524,7 +2531,8 @@ impl WriteTx for PgTx {
                       UNION ALL SELECT id, parent_id, valid_period FROM site
                       UNION ALL SELECT id, parent_id, valid_period FROM module_object)
              -- three branches rather than an OR, so that each uses its index
-             SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
+             SELECT x.id FROM roots JOIN addressing_object x ON x.id = roots.id, w
+             WHERE x.valid_period && w.r
              UNION
              SELECT x.id FROM addressing_object x, o, w
              WHERE o.kind = 'domain' AND x.domain_id = o.domain_id AND x.valid_period && w.r
@@ -2537,15 +2545,16 @@ impl WriteTx for PgTx {
              -- the window
              SELECT id FROM (
                  WITH RECURSIVE d(id, vp, depth) AS (
-                     SELECT a.id, a.valid_period * w.r, 0 FROM anchor a, w
-                     WHERE a.id = $1 AND a.valid_period && w.r
+                     SELECT a.id, a.valid_period * w.r, 0
+                     FROM roots JOIN anchor a ON a.id = roots.id, w
+                     WHERE a.valid_period && w.r
                      UNION ALL
                      SELECT c.id, c.valid_period * d.vp, d.depth + 1
                      FROM d JOIN anchor c ON c.parent_id = d.id AND c.valid_period && d.vp
                      WHERE d.depth < 1000)
                  SELECT id FROM d) a",
         )
-        .bind(object)
+        .bind(objects)
         .bind(a)
         .fetch_all(&mut *self.tx)
         .await
@@ -2571,16 +2580,20 @@ impl WriteTx for PgTx {
 
     async fn inheritors(
         &mut self,
-        origin: Uuid,
+        origins: &[Uuid],
         period: Option<Period>,
     ) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+        if origins.is_empty() {
+            return Ok(Vec::new());
+        }
         let (a, _) = bounds(period)?;
         sqlx::query_as(
-            "SELECT DISTINCT property_id, object_id FROM property_origin
-             WHERE origin_object_id = $1
-               AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
+            "SELECT DISTINCT p.property_id, p.object_id
+               FROM (SELECT DISTINCT id FROM unnest($1::uuid[]) AS u(id)) o
+               JOIN property_origin p ON p.origin_object_id = o.id
+              WHERE p.valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
         )
-        .bind(origin)
+        .bind(origins)
         .bind(a)
         .fetch_all(&mut *self.tx)
         .await

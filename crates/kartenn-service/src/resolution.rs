@@ -256,6 +256,7 @@ pub(crate) struct Maintained {
 /// Brings the materialised origins in line with the writes of the changeset (the four
 /// maintenance rules of the 003 design): new objects, assignments written or removed,
 /// closed objects and properties, declarations whose carriers or tree changed.
+#[allow(clippy::too_many_lines)] // one walk of the plan, then its reads in batches
 pub(crate) async fn maintain<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
@@ -277,6 +278,12 @@ pub(crate) async fn maintain<T: WriteTx>(
                 }
             }
         };
+    // The reads of the subtrees and of the inheritors wait for the end of the walk, to be
+    // made once for every object of the changeset rather than once per object (the import
+    // of a batch of machines read them four times per machine).
+    let mut moved: HashMap<ObjectKind, Vec<Uuid>> = HashMap::new();
+    let mut origins: Vec<Uuid> = Vec::new();
+    let mut assigned: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
     for p in planned {
         if let Some((kind, id)) = new_object(p) {
             add_all(&mut targets, kind, &[id]);
@@ -286,9 +293,11 @@ pub(crate) async fn maintain<T: WriteTx>(
             // A changed object of a module may have moved in the tree of its module: it and
             // the objects below it look for their origins again (REQ-008-6).
             Planned::Module { plan, .. } => {
-                let below = tx.subtree(plan.object, period).await?;
-                add_all(&mut targets, ObjectKind::Module(plan.kind), &below);
-                inheritors(tx, plan.object, &mut targets, period).await?;
+                moved
+                    .entry(ObjectKind::Module(plan.kind))
+                    .or_default()
+                    .push(plan.object);
+                origins.push(plan.object);
             }
             // Rules 2 and 3: an assignment written or removed changes the origin of the
             // object and of the objects below it that do not carry their own; a new value
@@ -303,8 +312,7 @@ pub(crate) async fn maintain<T: WriteTx>(
                     .assignment_presence_changed(*object, *property, period)
                     .await?
                 {
-                    let below = tx.subtree(*object, period).await?;
-                    targets.entry(*property).or_default().extend(below);
+                    assigned.entry(*property).or_default().push(*object);
                 } else {
                     let heirs = tx.heirs(*property, *object, period).await?;
                     affected.entry(*property).or_default().extend(heirs);
@@ -314,7 +322,7 @@ pub(crate) async fn maintain<T: WriteTx>(
             // Rule 3: a closed object loses its rows; its inheritors look further up.
             Planned::Close { kind, id, .. } if tree_of(*kind).is_some() => {
                 add_all(&mut targets, *kind, &[*id]);
-                inheritors(tx, *id, &mut targets, period).await?;
+                origins.push(*id);
             }
             Planned::Restore {
                 kind, id, property, ..
@@ -342,9 +350,8 @@ pub(crate) async fn maintain<T: WriteTx>(
                 change: Change::Parent(_),
                 ..
             } => {
-                let below = tx.subtree(*id, period).await?;
-                add_all(&mut targets, *kind, &below);
-                inheritors(tx, *id, &mut targets, period).await?;
+                moved.entry(*kind).or_default().push(*id);
+                origins.push(*id);
             }
             Planned::Close {
                 kind: ObjectKind::Property,
@@ -361,6 +368,15 @@ pub(crate) async fn maintain<T: WriteTx>(
             _ => {}
         }
     }
+    for (kind, objects) in moved {
+        let below = tx.subtree(&objects, period).await?;
+        add_all(&mut targets, kind, &below);
+    }
+    for (property, objects) in assigned {
+        let below = tx.subtree(&objects, period).await?;
+        targets.entry(property).or_default().extend(below);
+    }
+    inheritors(tx, &origins, &mut targets, period).await?;
     let tree = (heritable, targets, everything);
     refresh(tx, tree, revalued, affected, (period, changeset)).await
 }
@@ -380,14 +396,17 @@ fn new_object(p: &Planned) -> Option<(ObjectKind, Uuid)> {
     }
 }
 
-/// The objects that inherit from `origin` look for their origin again.
+/// The objects that inherit from one of `origins` look for their origin again.
 async fn inheritors<T: WriteTx>(
     tx: &mut T,
-    origin: Uuid,
+    origins: &[Uuid],
     targets: &mut HashMap<Uuid, BTreeSet<Uuid>>,
     period: Option<Period>,
 ) -> Result<(), StoreError> {
-    for (property, object) in tx.inheritors(origin, period).await? {
+    if origins.is_empty() {
+        return Ok(());
+    }
+    for (property, object) in tx.inheritors(origins, period).await? {
         targets.entry(property).or_default().insert(object);
     }
     Ok(())
@@ -455,17 +474,17 @@ async fn restored<T: WriteTx>(
                 kind,
                 ObjectKind::Prefix | ObjectKind::Entity | ObjectKind::Site | ObjectKind::Module(_)
             ) {
-                objects.extend(tx.subtree(id, period).await?);
+                objects.extend(tx.subtree(&[id], period).await?);
             }
             for (p, t) in heritable {
                 if inherits_along(kind, t) {
                     targets.entry(*p).or_default().extend(&objects);
                 }
             }
-            inheritors(tx, id, targets, period).await?;
+            inheritors(tx, &[id], targets, period).await?;
         }
         Some(property) if heritable.contains_key(&property) => {
-            let below = tx.subtree(id, period).await?;
+            let below = tx.subtree(&[id], period).await?;
             targets.entry(property).or_default().extend(below);
         }
         _ => {}
