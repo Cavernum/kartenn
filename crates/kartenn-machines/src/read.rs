@@ -101,14 +101,21 @@ fn role_sql() -> String {
     )
 }
 
-/// The addresses of the interfaces matching `filter` (on `i`, with `$3`).
+/// The addresses of the interfaces whose `filter` column (on `i`) is one of `ids`, each
+/// with that column: by owner, then by interface name and address.
 async fn addresses_where(
     conn: &mut PgConnection,
     filter: &str,
-    id: Uuid,
+    ids: &[Uuid],
     valid_at: Instant,
     as_of: Option<Instant>,
-) -> Result<Vec<AddressOf>, StoreError> {
+) -> Result<Vec<(Uuid, AddressOf)>, StoreError> {
+    #[derive(sqlx::FromRow)]
+    struct Owned {
+        owner: Uuid,
+        #[sqlx(flatten)]
+        address: AddressOf,
+    }
     let interface = snapshot("machines.interface", "id, machine_id, name");
     let attachment = snapshot(
         "machines.attachment",
@@ -116,22 +123,24 @@ async fn addresses_where(
     );
     let address = snapshot("public.address", "id, address");
     let role = role_sql();
-    sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT i.id AS interface, i.name AS interface_name, role.key AS role,
-                x.id AS address, host(x.address) AS value, a.primary_for_family AS primary
+    let rows: Vec<Owned> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {filter} AS owner, i.id AS interface, i.name AS interface_name,
+                role.key AS role, x.id AS address, host(x.address) AS value,
+                a.primary_for_family AS primary
            FROM {interface} i
            JOIN {attachment} a ON a.interface_id = i.id
            JOIN {address} x ON x.id = a.address_id
            {role}
-          WHERE {filter} = $3
-          ORDER BY i.name, x.address"
+          WHERE {filter} = ANY($3)
+          ORDER BY {filter}, i.name, x.address"
     )))
     .bind(time(valid_at))
     .bind(as_of.map(time))
-    .bind(id)
+    .bind(ids)
     .fetch_all(conn)
     .await
-    .map_err(|e| store(&e))
+    .map_err(|e| store(&e))?;
+    Ok(rows.into_iter().map(|r| (r.owner, r.address)).collect())
 }
 
 /// The addresses of the machine `machine` at (`valid_at`, `as_of`), by interface, each with
@@ -146,7 +155,9 @@ pub async fn addresses_of_machine(
     valid_at: Instant,
     as_of: Option<Instant>,
 ) -> Result<Vec<AddressOf>, StoreError> {
-    addresses_where(conn, "i.machine_id", machine, valid_at, as_of).await
+    addresses_of_machines(conn, &[machine], valid_at, as_of)
+        .await
+        .map(|found| found.into_iter().map(|(_, a)| a).collect())
 }
 
 /// The addresses of the interface `interface` at (`valid_at`, `as_of`), with its role.
@@ -160,7 +171,39 @@ pub async fn addresses_of_interface(
     valid_at: Instant,
     as_of: Option<Instant>,
 ) -> Result<Vec<AddressOf>, StoreError> {
-    addresses_where(conn, "i.id", interface, valid_at, as_of).await
+    addresses_of_interfaces(conn, &[interface], valid_at, as_of)
+        .await
+        .map(|found| found.into_iter().map(|(_, a)| a).collect())
+}
+
+/// [`addresses_of_machine`] for a batch of machines in one query, each address with its
+/// machine, ordered by machine.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn addresses_of_machines(
+    conn: &mut PgConnection,
+    machines: &[Uuid],
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<(Uuid, AddressOf)>, StoreError> {
+    addresses_where(conn, "i.machine_id", machines, valid_at, as_of).await
+}
+
+/// [`addresses_of_interface`] for a batch of interfaces in one query, each address with
+/// its interface, ordered by interface.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn addresses_of_interfaces(
+    conn: &mut PgConnection,
+    interfaces: &[Uuid],
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<(Uuid, AddressOf)>, StoreError> {
+    addresses_where(conn, "i.id", interfaces, valid_at, as_of).await
 }
 
 /// The interfaces and machines that hold `address` at (`valid_at`, `as_of`), with the role
