@@ -232,12 +232,12 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
 
 ## P3 — Budgets, interface, synchronisation
 
-- [ ] 12. Banc : jeu augmenté (10⁵ machines, 10³ clusters, 3·10⁵ interfaces et
+- [x] 12. Banc : jeu augmenté (10⁵ machines, 10³ clusters, 3·10⁵ interfaces et
   rattachements), mesures REQ-009-21, bloquantes — verify : `bench-core` vert (sous-agent
   `bench-runner`)
   où : `kartenn-bench` ; 008 tâche 16
   dépend de : 10 ; 008 : 16
-  — banc écrit, non coché, **banc complet à relancer** : `kartenn-bench/src/machine_budgets.rs`,
+  — `kartenn-bench/src/machine_budgets.rs`,
   appelé par `core_budgets::run` après les VLAN (10⁵ machines dont 60 % virtuelles hébergées
   par 10³ clusters, trois interfaces rattachées chacune à une adresse du jeu, par un import ;
   lectures par le routeur en processus, création par le pipeline), puis l'import de
@@ -247,8 +247,17 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   en 8 s. Correctif trouvé par le banc : la fiche d'une machine prenait 91 ms, la requête
   de ses adresses (`attached`, `kartenn-machines/src/rest.rs`) parcourant en plan générique
   toutes les adresses et tous les rattachements valides ; elle est pilotée par les
-  interfaces en `LATERAL` (`dated_where`). Le banc complet a été arrêté pour libérer le
-  verrou PostgreSQL.
+  interfaces en `LATERAL` (`dated_where`).
+  Banc complet tenu le 2026-10-22 (p95, par le routeur) : fiche 5,7 ms (50), page filtrée
+  36,8 ms (150), machines d'un /24 64 ms (150), création 29 ms (200) ; import de
+  l'acceptation (10⁴ machines, 2·10⁴ interfaces, adresses et rattachements) en 61 s.
+  Correctif trouvé par le banc complet : la page filtrée (machines virtuelles d'un
+  propriétaire) prenait 836 ms, le filtre `owner` appelant `kartenn_owner` (fonction non
+  inlinée) sur chaque machine valide, 0,7 s en plan personnalisé et 2 s en plan générique
+  à l'`EXPLAIN ANALYZE` ; une machine n'héritant pas de propriétaire, le filtre lit ses
+  propres affectations de `core.owner` par une semi-jointure (`machines_page`,
+  `kartenn-machines/src/rest.rs`), environ 45 ms dans les deux plans, sans index nouveau ;
+  test `machines_filtered_by_owner`.
 - [x] 13. Plugin `web/plugins/machines` — REQ-009-20 — verify : parcours Playwright
   `web/e2e/journeys/machines.spec.ts` avec axe-core
   où : design « Interface » ; plugin VLAN (008, tâche 17)
