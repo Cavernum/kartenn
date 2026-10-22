@@ -71,6 +71,11 @@ impl Env {
 
     /// A person granted `entries` everywhere.
     async fn granted(&self, entries: &[&str]) -> Uuid {
+        self.granted_on(entries, None).await
+    }
+
+    /// A person granted `entries` on the entity `entity`, everywhere when `None`.
+    async fn granted_on(&self, entries: &[&str], entity: Option<Uuid>) -> Uuid {
         let pool = &self.pool;
         let identity: Uuid = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
@@ -102,11 +107,13 @@ impl Env {
         sqlx::query(
             "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
                                   valid_period, changeset_id)
-             VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
+             VALUES (gen_random_uuid(), 'identity', $1, $2,
+                     CASE WHEN $3::uuid IS NULL THEN 'global' ELSE 'entity' END, $3,
                      tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
         )
         .bind(identity)
         .bind(role)
+        .bind(entity)
         .execute(pool)
         .await
         .unwrap();
@@ -265,6 +272,215 @@ async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
     assert!(page["items"].as_array().unwrap().is_empty());
 }
 
+/// The instant of the database, as a query parameter.
+async fn instant(pool: &PgPool) -> String {
+    let at: sqlx::types::time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    at.format(&time::format_description::well_known::Rfc3339)
+        .unwrap()
+}
+
+/// The items of a page.
+fn items(page: &Value) -> &Vec<Value> {
+    page["items"].as_array().unwrap()
+}
+
+/// REQ-011-5, 14, 17 (F19): a request held for a review is read with `state=requested`,
+/// without identifier, with its proposal and the triage its operation keeps; reduced for
+/// its requester, in full for a reader, seen by a reviewer, unseen elsewhere; absent
+/// before its submission and once rejected.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // one block per reader and per filter of the acceptance
+async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let before = instant(&pool).await;
+    let requester = env
+        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .await;
+    let app = env.app(requester);
+    let (status, answer) = call(
+        &app,
+        Method::POST,
+        "/v1/flows",
+        Some(body(&env, dev, prod).await),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    let changeset = answer["changeset"]["id"].as_str().unwrap().to_owned();
+    let stored: Value = sqlx::query_scalar(
+        "SELECT o -> 'completed' -> 'triage'
+           FROM changeset c, jsonb_array_elements(c.request -> 'operations') o
+          WHERE c.id = $1::uuid",
+    )
+    .bind(&changeset)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(stored["summary"], "denied", "{stored}");
+
+    // The requester: the row, its triage reduced (REQ-010-25).
+    let (status, page) = call(&app, Method::GET, "/v1/flows?state=requested", None).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let [row] = items(&page).as_slice() else {
+        panic!("one row: {page}");
+    };
+    assert!(row["id"].is_null(), "{row}");
+    assert_eq!(row["state"], "requested");
+    assert_eq!(row["fields"]["requester_id"], requester.to_string());
+    let review = &row["review"];
+    assert_eq!(review["changeset"], changeset.as_str());
+    assert_eq!(review["kind"], "request");
+    let triage = &review["triage"];
+    assert_eq!(triage["outcome"], stored["outcome"]);
+    assert_eq!(triage["summary"], stored["summary"]);
+    assert_eq!(row["outcome"], stored["outcome"]);
+    assert_eq!(triage["rule"], stored["rule"]);
+    assert_eq!(triage["policy_revision"], stored["revision"]);
+    assert!(triage["decisive"].is_null(), "{triage}");
+    let pairs = triage["evaluations"].as_array().unwrap();
+    assert_eq!(pairs.len(), 1, "{triage}");
+    assert!(pairs[0]["source"].is_null(), "{triage}");
+    // Without `requested`, the applied flows only.
+    let (_, page) = call(&app, Method::GET, "/v1/flows", None).await;
+    assert!(items(&page).is_empty(), "{page}");
+
+    // A reader of the entity: the triage in full, as the operation keeps it.
+    let reader = env.app(env.granted(&["flow.flow.read"]).await);
+    let (_, page) = call(&reader, Method::GET, "/v1/flows?state=requested", None).await;
+    let [row] = items(&page).as_slice() else {
+        panic!("one row: {page}");
+    };
+    let triage = &row["review"]["triage"];
+    assert_eq!(triage["decisive"], stored["decisive"]);
+    assert_eq!(triage["evaluations"], stored["evaluations"], "{triage}");
+    assert_eq!(triage["evaluations"][0]["source"], dev.to_string());
+    for query in [
+        "review=pending",
+        "state=active,requested",
+        &format!("changeset={changeset}"),
+        &format!("state=requested&requester={requester}"),
+        &format!("state=requested&entity={}", env.acme),
+        &format!("state=requested&endpoint=address:{dev}"),
+        "state=requested&summary=denied",
+    ] {
+        let (status, page) = call(&reader, Method::GET, &format!("/v1/flows?{query}"), None).await;
+        assert_eq!(status, StatusCode::OK, "{query}: {page}");
+        assert_eq!(items(&page).len(), 1, "{query}: {page}");
+    }
+    let network: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.2.0.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    for query in [
+        format!("state=requested&prefix={network}"),
+        format!("changeset={}", Uuid::now_v7()),
+        format!("state=requested&endpoint=address:{prod}&summary=allowed"),
+        format!("state=requested&as_of={before}"),
+        "state=active".to_owned(),
+    ] {
+        let (status, page) = call(&reader, Method::GET, &format!("/v1/flows?{query}"), None).await;
+        assert_eq!(status, StatusCode::OK, "{query}: {page}");
+        assert!(items(&page).is_empty(), "{query}: {page}");
+    }
+
+    // A reviewer sees it; a reader of another entity does not.
+    let reviewer = env.granted(&["flow.flow.review"]).await;
+    let (_, page) = call(
+        &env.app(reviewer),
+        Method::GET,
+        "/v1/flows?review=pending",
+        None,
+    )
+    .await;
+    assert_eq!(items(&page).len(), 1, "{page}");
+    env.applied(vec![kartenn_service::Operation::CreateEntity {
+        local: Some(1),
+        slug: "other".into(),
+        parent: None,
+    }])
+    .await;
+    let other: Uuid = sqlx::query_scalar("SELECT id FROM entity WHERE slug = 'other'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let elsewhere = env.app(env.granted_on(&["flow.flow.read"], Some(other)).await);
+    let (_, page) = call(&elsewhere, Method::GET, "/v1/flows?state=requested", None).await;
+    assert!(items(&page).is_empty(), "{page}");
+
+    // Rejected: no longer pending, but pending at a date before the rejection.
+    let pending = instant(&pool).await;
+    kartenn_service::review::reject(
+        &env.store,
+        &kartenn_service::authz::Unrestricted,
+        changeset.parse().unwrap(),
+        &reviewer.into(),
+        "no administration from dev",
+    )
+    .await
+    .unwrap();
+    let (_, page) = call(&reader, Method::GET, "/v1/flows?state=requested", None).await;
+    assert!(items(&page).is_empty(), "{page}");
+    let (_, page) = call(
+        &reader,
+        Method::GET,
+        &format!("/v1/flows?state=requested&as_of={pending}"),
+        None,
+    )
+    .await;
+    assert_eq!(items(&page).len(), 1, "{page}");
+}
+
+/// F19: the pending rows follow the applied flows, a page at a time, the cursor on the
+/// proposal.
+#[kartenn_testing::pg_test]
+async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let requester = env
+        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .await;
+    let app = env.app(requester);
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/v1/flows",
+        Some(body(&env, prod, dev).await),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    for _ in 0..2 {
+        let (status, answer) = call(
+            &app,
+            Method::POST,
+            "/v1/flows",
+            Some(body(&env, dev, prod).await),
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    }
+    let mut uri = "/v1/flows?state=active,requested&page_size=1".to_owned();
+    let mut seen = Vec::new();
+    loop {
+        let (status, page) = call(&app, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        seen.extend(
+            items(&page)
+                .iter()
+                .map(|i| i["state"].as_str().unwrap().to_owned()),
+        );
+        match page["links"]["next"].as_str() {
+            Some(next) => uri = next.to_owned(),
+            None => break,
+        }
+    }
+    assert_eq!(seen, ["active", "requested", "requested"]);
+}
+
 /// `PATCH /v1/flows/{id}` under the version read, as a JSON Merge Patch.
 async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
     let request = Request::builder()
@@ -326,4 +542,24 @@ async fn a_patch_shortens_or_holds_an_extension(pool: PgPool) {
         (Some("proposal"), Some("pending")),
         "{answer}"
     );
+
+    // F19: the extension pending is read as a review of the flow, its added portion
+    // triaged; the flow itself stays listed as applied.
+    let changeset = answer["changeset"]["id"].as_str().unwrap().to_owned();
+    let (status, page) = call(&writer, Method::GET, "/v1/flows?review=pending", None).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let [row] = items(&page).as_slice() else {
+        panic!("one row: {page}");
+    };
+    assert_eq!(row["id"], id.to_string(), "{row}");
+    assert_eq!(row["review"]["kind"], "extension");
+    assert_eq!(row["review"]["changeset"], changeset.as_str());
+    let triage = &row["review"]["triage"];
+    assert!(triage["outcome"].is_string(), "{row}");
+    assert!(
+        !triage["evaluations"].as_array().unwrap().is_empty(),
+        "{row}"
+    );
+    let (_, page) = call(&writer, Method::GET, "/v1/flows", None).await;
+    assert!(items(&page).iter().all(|i| i["review"].is_null()), "{page}");
 }

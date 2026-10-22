@@ -201,14 +201,17 @@ fn completed(operation: &ModuleOperation, c: Option<Completed>) -> Result<Comple
 }
 
 /// The identifier given directly, if any.
-fn id_of(body: &serde_json::Map<String, Value>, key: &str) -> Option<Uuid> {
+pub(crate) fn id_of(body: &serde_json::Map<String, Value>, key: &str) -> Option<Uuid> {
     match serde_json::from_value(body.get(key)?.clone()).ok()? {
         Ref::Id(id) => Some(id),
         Ref::Local(_) => None,
     }
 }
 
-fn endpoint_id(body: &serde_json::Map<String, Value>, side: &str) -> Option<(EndpointKind, Uuid)> {
+pub(crate) fn endpoint_id(
+    body: &serde_json::Map<String, Value>,
+    side: &str,
+) -> Option<(EndpointKind, Uuid)> {
     let e = body.get(side)?;
     let kind = pg::kind_of(e.get("kind")?.as_str()?)?;
     match serde_json::from_value(e.get("id")?.clone()).ok()? {
@@ -297,7 +300,8 @@ impl Handler {
                         if let Ok(period) = Period::new(from, completed.end.map(Instant)) {
                             added.period = period;
                             let evaluated = evaluate_flow(conn, &added, from_time).await?;
-                            completed.triage = Some(pg::triage_json(&evaluated));
+                            completed.triage =
+                                Some(pg::triage_of(conn, &evaluated, from_time).await?);
                         }
                     }
                 }
@@ -364,7 +368,7 @@ impl Handler {
             period,
         };
         let evaluated = evaluate_flow(conn, &flow, at).await?;
-        Ok(Some(pg::triage_json(&evaluated)))
+        Ok(Some(pg::triage_of(conn, &evaluated, at).await?))
     }
 
     fn plan_flow(
