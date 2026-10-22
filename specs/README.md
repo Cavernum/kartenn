@@ -245,8 +245,9 @@ refusée par un autovacuum (`kartenn-testing`).
 
 Essai `compose.yaml` joué le 2026-10-22 sous Podman avec l'image (amorçage, mise à jour,
 sauvegarde et restauration avec `audit verify`) ; il a montré que la connexion exige TLS,
-l'essai sert donc désormais l'instance en HTTPS. Reste à revoir le cas « base en retard »
-de `checks.vm`, qui rejoue la dernière migration : 0057 ne le permet plus. Question
+l'essai sert donc désormais l'instance en HTTPS. Le cas « base en retard » de
+`checks.vm`, qui rejouait la dernière migration (0057 ne le permet plus), reconstruit
+désormais la base une migration en retard par `sqlx-cli` ; `checks.vm` est vert. Question
 ouverte : registre et signature de l'image (E13).
 
 ## Point d'étape — 2026-10-21 : spec 016
