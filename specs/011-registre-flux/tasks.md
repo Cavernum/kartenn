@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
 
 # 011 — Registre de flux : tâches
@@ -253,3 +253,10 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   0026 (N38, N39)
   - où : skill `tech-specs`, mode sync
   - dépend de : 10
+  - préparée (2026-10-22) pour les tâches 1 à 9 : `docs/spec/` (data : schéma `flow` ;
+    interfaces : routes des flux ; invariants INV-64 à 66 ; permissions et règles
+    générées), [ADR 0031](../../docs/adr/0031-evaluations-de-flux-materialisees.md)
+    acceptée, amendements N38 et N39 de l'ADR 0026 et de la 004 déjà faits par la 016,
+    écarts au design reportés (design, § « Écarts au design »), statuts `in-progress`.
+    **N'attend plus que le banc 011-10** : budgets de REQ-011-19 et de l'ADR 0031 « à
+    mesurer », relecture spec-keeper.

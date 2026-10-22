@@ -11,7 +11,7 @@
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | implémentées, sauf REQ-009-21 (banc complet à relancer) | implémentée | [tasks](009-machines-interfaces/tasks.md) (13/14, reste 12 : banc complet) |
-| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée sauf REQ-010-28, 54 (budgets) | 010 en cours (ADR 0030) ; 011 rédigée | [010](010-politique-flux/tasks.md) (17/20, restent les bancs 1, 19 et la synchronisation 20), [011](011-registre-flux/tasks.md) |
+| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée sauf REQ-010-28, 54 (budgets) | 010 en cours (ADR 0030) ; 011 implémentée sauf REQ-011-19 (budgets), ADR 0031 | [010](010-politique-flux/tasks.md) (17/20, restent les bancs 1, 19 et la synchronisation 20), [011](011-registre-flux/tasks.md) (9/11, restent le banc 10 et la synchronisation 11, préparée) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
@@ -301,3 +301,25 @@ est contrôlée sur l'état final du changeset (noyau, 010-10).
 
 Reste : budgets REQ-010-28 et 54 à mesurer (010-1, 010-19), à reporter dans l'ADR 0030 et
 `docs/spec/invariants.md` § Performance ; audit `spec-keeper` (relecture faite à la main).
+
+## Point d'étape — 2026-10-22 : spec 011
+
+Registre de flux implémenté sur les tâches 1 à 9 (crate `kartenn-flow`, feature `flow`
+montée par défaut) : demande, triage et revue forcée, séparation des rôles (le demandeur
+n'instruit ni ne déroge), dérogation datée et plafonnée, évaluations matérialisées et
+réévaluées dans la transaction (ADR 0031, oracle contre recalcul complet), section de
+différentiel `flow.flows`, anomalies et approbation `flow.breaks`, lectures datées,
+échéances J-30, J-7 et terme, routes `/v1/flows`. Invariants INV-64 à 66.
+
+Écarts au design, le code faisant foi (design, § « Écarts au design ») :
+`flow.verdict.denied` en avertissement et `flow.waiver.required` en erreur ; refus de
+clôture par `core.object.dependents` ; demande soumise aussi à `prop.core.owner.write` ;
+`update` ne fait que raccourcir ; écriture directe `register` sans route dédiée, route
+`waiver` ajoutée ; page coupée avant le filtre des droits ; non-conformités sans curseur ;
+jointures du noyau à l'assertion courante ; fenêtres d'échéance en constantes. Corrigé en
+route : une opération du noyau ajoutée par un module garde sa propre période (noyau, constat
+de 011-8). Contourné : héritiers d'une valeur datée dans le futur absents du différentiel
+des propriétés du noyau, rattrapés par l'index des origines (011-5).
+
+Reste : banc `bench-flow` (011-10), budgets de REQ-011-19 et de l'ADR 0031 ; tâche 011-11
+préparée, à cocher après le banc ; audit `spec-keeper` (relecture faite à la main).

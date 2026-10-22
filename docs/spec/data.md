@@ -266,6 +266,22 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
     par `policy.examples.install`. Les objets de la politique n'ont pas d'ancre
     (administration globale, S15), sauf les règles d'inférence. Source de valeurs
     attendues `policy.inference` (provenance `source:policy.inference@<révision>#<règle>`).
+  - `flow` (spec 011, migration du module 0001, [ADR 0031](../adr/0031-evaluations-de-flux-materialisees.md)) :
+    `flow` (type `flow.flow` ancré sur l'entité par `core.owner` ; sorte `declared`,
+    `observed` réservée v0.3 ; extrémités et service polymorphes, sans clé étrangère,
+    contrôlés par les règles du module ; référence externe obligatoire, justification
+    facultative ; fin facultative), `flow_waiver` (motif, risque, fin obligatoire, accordée
+    par un autre que le demandeur), `flow_endpoint_address` (extrémités développées en
+    adresses), `flow_evaluation` (verdict par paire et par segment de temps) et
+    `flow_summary` (synthèse et issue par segment), toutes versionnées ; en ajout seul
+    (`SELECT, INSERT` pour `kartenn_app`) : `flow_registration` (évaluation figée à
+    l'enregistrement), `flow_rejection` (rejet d'une demande, alimenté par le crochet de
+    fin de proposition) et `flow_notice` (avis d'échéance J-30, J-7 et terme, sans
+    doublon). L'état d'un flux (demandé, programmé, actif, non conforme, dérogé, expiré,
+    retiré, rejeté) et sa validité sont **dérivés** (date, synthèse, dérogation), jamais
+    stockés ; les évaluations sont maintenues dans la transaction de tout changeset qui
+    touche une extrémité, une valeur d'axe, un rattachement ou la politique (section de
+    différentiel `flow.flows`).
 
 ## Stockage PostgreSQL (D15, ADR 0004)
 

@@ -1,6 +1,6 @@
 ---
-status: draft
-updated: 2026-10-21
+status: in-progress
+updated: 2026-10-22
 ---
 
 # 011 — Registre de flux : exigences
