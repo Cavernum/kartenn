@@ -21,7 +21,9 @@ in
       imports = [module];
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
-      environment.systemPackages = [pkgs.curl pkgs.jq pkgs.oath-toolkit pkgs.openssl];
+      environment.systemPackages = [pkgs.curl pkgs.jq pkgs.oath-toolkit pkgs.openssl pkgs.sqlx-cli];
+      # The migrations the binary embeds, for a base rebuilt one migration behind.
+      environment.etc."kartenn-migrations".source = ../../crates/kartenn-store-pg/migrations;
 
       # The secrets, made at boot outside the store: a key ring and a TLS certificate.
       systemd.services.vmtest-secrets = {
@@ -154,11 +156,25 @@ in
       ready = "curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:8444/health/ready"
 
       with subtest("a base one migration behind answers 503 (REQ-015-11)"):
-          latest = sql("SELECT max(version) FROM _sqlx_migrations")
-          # The latest migration forgotten: the base is one behind the binary. Replaying it
-          # needs its SQL to run again on a migrated base (0054 grants a read); a later
-          # migration that cannot is to be paired here with what undoes it.
-          sql(f"DELETE FROM _sqlx_migrations WHERE version = {latest}")
+          # The base is rebuilt one migration behind by sqlx-cli (up to the one before the
+          # last the binary embeds): the latest then runs for real, whatever its SQL; a
+          # forgotten row would replay a migration on a base that already has it.
+          versions = sorted(
+              int(name.split("_")[0])
+              for name in machine.succeed("ls /etc/kartenn-migrations").split()
+              if name.endswith(".sql")
+          )
+          latest, behind = versions[-1], versions[-2]
+          machine.succeed("sudo -u postgres dropdb --force kartenn")
+          machine.succeed("sudo -u postgres createdb --owner=kartenn kartenn")
+          machine.succeed(
+              "systemd-run --quiet --pipe --wait --collect --unit=kartenn-behind "
+              "-p DynamicUser=yes -p User=kartenn -p ReadWritePaths=/run/postgresql "
+              "$(command -v sqlx) migrate run --source /etc/kartenn-migrations "
+              f"--target-version {behind} "
+              "--database-url 'postgresql:///kartenn?host=/run/postgresql&user=kartenn'"
+          )
+          assert sql("SELECT max(version) FROM _sqlx_migrations WHERE success") == str(behind)
           machine.wait_until_succeeds(f'[ "$({ready})" = 503 ]', timeout=30)
 
       with subtest("a migration killed midway is replayed, then 200 (REQ-015-11)"):

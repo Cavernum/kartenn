@@ -163,7 +163,8 @@ après l'autre.
   d'instance par manque de droit (lecture permise), note `systemd-analyze security
   kartenn@main` = **1,1**, migration en échec (rôle propriétaire sans `LOGIN`) qui
   empêche le redémarrage d'une instance, puis reprise ; base en retard d'une migration
-  (dernière ligne de `_sqlx_migrations` retirée) → 503 ; migration bloquée sur un verrou
+  (supprimée, recréée et migrée par `sqlx-cli` jusqu'à l'avant-dernière migration du
+  binaire, `--target-version`) → 503 ; migration bloquée sur un verrou
   `SHARE` de `_sqlx_migrations` (SQL exécuté, version pas encore inscrite), tuée par
   SIGKILL, rien d'inscrit, puis rejouée → succès et 200 sur les deux instances.
   Défaut trouvé : sqlx crée `_sqlx_migrations` pour le seul propriétaire ; le rôle
@@ -171,9 +172,14 @@ après l'autre.
   (question ouverte d'E7). Corrigé par la migration `0054_migrations_readable.sql`
   (`SELECT` seul à `kartenn_app`, test `store_pg_it harness::the_application_reads_the_applied_migrations_and_nothing_more`) ;
   le contournement `ExecStartPost` du module est retiré.
-  choix : le cas « base en retard » rejoue la dernière migration, qui doit pouvoir
-  repasser sur une base migrée (0054 : un `GRANT`) ; une migration future qui ne le peut
-  pas devra être accompagnée ici de ce qui l'annule.
+  choix : le cas « base en retard » ne retire plus la dernière ligne de
+  `_sqlx_migrations` (revu après l'essai de la tâche 8 : 0057 ne repasse pas sur une base
+  migrée) ; la base est reconstruite une migration en retard par `sqlx-cli` (outil de
+  test, déjà dans devenv, même version que le crate), la dernière migration s'y applique
+  donc réellement, quel que soit son SQL. Une ligne de version future ne convient pas :
+  `/health/ready` compare `max(version)` réussie à la dernière du binaire (`>=`), une
+  base en avance est prête. `checks.vm` vert le 2026-10-22 (29 s de script ; `audit
+  verify` : 5 sceaux, 36 événements, la base ayant été reconstruite).
   choix : rôle propriétaire `kartenn` et rôle d'instance `kartenn_server`, utilisateurs
   dynamiques de même nom (authentification `peer`) ; URL locale
   `postgresql:///kartenn?host=/run/postgresql&user=…` (sqlx refuse un hôte vide avant
@@ -220,7 +226,8 @@ après l'autre.
   écart : la « base en retard » ne se simule plus en retirant la dernière ligne de
   `_sqlx_migrations` : la migration 0057 (`ADD COLUMN error`, tâche 006-27) ne repasse
   pas sur une base migrée (essai : colonne défaite à la main avant le rejeu). `checks.vm`
-  (tâche 7) fait ce rejeu et doit être revu, comme sa note le prévoyait.
+  (tâche 7), qui faisait ce rejeu et échouait, est corrigé : base reconstruite une
+  migration en retard par `sqlx-cli` (voir la note de la tâche 7).
   choix : `compose.yaml` est volontairement sous `docs/exploitation/` et non à la racine :
   c'est un essai documenté de l'image, pas un déploiement ni un outil de développement ;
   son service `migrate` monte aussi le trousseau, pour l'amorçage
