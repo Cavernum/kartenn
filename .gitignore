@@ -21,6 +21,9 @@ devenv.local.yaml
 /dev/state/
 # and by web/e2e/serve.sh for the end-to-end journeys
 /web/e2e/.state/
+# and by the operator's compose trial (docs/exploitation/oci.md)
+/docs/exploitation/secrets/
+/docs/exploitation/kartenn.dump
 
 # node
 node_modules/
