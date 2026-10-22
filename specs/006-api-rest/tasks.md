@@ -518,3 +518,20 @@ routeur complet, sauf mention « vrai TCP ».
   choix : le report de la `source` CloudEvents (004 → 006) est noté comme rejoignant le
   transport des événements sortants plutôt que tranché ici ; Q-ouv-5, déjà close par
   005/K2, barrée en même temps que Q-ouv-7
+
+## P7 — Amendements
+
+- [ ] 27. Tri d'un import en tâche de fond (H18) : état `sorting`, colonne `error`, `start`
+  sans tri (202, efface `error`, pose `import:<id>`), la tâche trie puis passe à `ready`
+  ou revient à `uploading` avec `error` ; `cancel` admis en `sorting` ; `Retry-After` en
+  `sorting` ; contrat OpenAPI, SDK et client web (état et erreur affichés) — REQ-006-17,
+  19 — verify : `start` de 10⁶ éléments répond 202 sous le délai ; import à cycle →
+  202, puis `uploading` et `error.type` `invalid-import` ; instance arrêtée pendant le
+  tri, reprise par une autre ; `docs/spec/interfaces.md` à jour
+  où : design « Imports et tâches de fond » (puces `start`, états, `GET`) ; migration
+  après la dernière de `crates/kartenn-store-pg/migrations/` (`import.state`, colonne
+  `error jsonb`) ; store `imports.rs` (`start`, `transition`) ; service `import.rs`
+  (`create_import`, `run_import`, `import_status`) ; rest `imports.rs` (`start`,
+  représentation, `ProblemKind::InvalidImport`) ; tâche `Tasks::import` du serveur ;
+  tests `rest/tests/it/imports.rs` (le test du million et celui qui fixe le 503 actuel
+  sont à réécrire), `server/tests/it/jobs.rs` ; écran d'import web s'il existe

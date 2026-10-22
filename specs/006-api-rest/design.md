@@ -467,7 +467,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Corps trop gros | 413 | `payload-too-large` |
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
-| Changeset refusé (`Outcome::Refused`), droit d'écriture manquant (règle `core.object.forbidden`, REQ-005-22), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide, import qui ne se trie pas | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override`, `invalid-import` |
+| Changeset refusé (`Outcome::Refused`), droit d'écriture manquant (règle `core.object.forbidden`, REQ-005-22), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override` ; `invalid-import` ne sort plus en réponse, il décrit l'`error` d'un import (H18) |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
@@ -566,7 +566,8 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 
 - Migration : `import_chunk (import_id, n, digest, elements jsonb)` ; `import.state`
   gagne `uploading`. `start` lit les morceaux dans l'ordre, appelle `create_import` (tri,
-  lots) dans une transaction, passe l'import à `ready`.
+  lots) dans une transaction, passe l'import à `ready`. **Amendé par H18** : ce travail
+  passe dans la tâche `import:<id>` (état `sorting`), voir plus bas.
 - Table `job (name, due_at, period, lease_until, holder, heartbeat_at)` ; une ligne par
   tâche périodique, plus une par import prêt (`import:<id>`). Boucle de chaque instance
   (toutes les 5 s) : `SELECT … WHERE due_at <= now() AND (lease_until IS NULL OR
@@ -579,8 +580,8 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - Minuteries locales : purge de `StateCache`, du `FailureLimiter` et des limiteurs,
   rechargement des JWKS et de la découverte (5 min).
 - **Imports (arbitrage du 2026-10-19, 006-21)** :
-  - états : `uploading`, `ready` (renomme `queued` de la 004), `running`, `paused`,
-    `done`, `cancelled` ; les lots gardent `queued`, `applied`, `failed` ;
+  - états : `uploading`, `sorting` (H18), `ready` (renomme `queued` de la 004),
+    `running`, `paused`, `done`, `cancelled` ; les lots gardent `queued`, `applied`, `failed` ;
   - droits : créer est ouvert à tout appelant authentifié ; déposer, démarrer,
     reprendre, annuler et lire sont réservés à l'auteur (un autre appelant → 404, comme
     un objet invisible). Aucune permission nouvelle : chaque lot est un changeset de
@@ -592,15 +593,22 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     empreinte SHA-256 du tableau `elements` sérialisé) → 200 sans effet, contenu
     différent → 409 `conflict`, plus de 10 000 éléments → 413 `payload-too-large`,
     import hors `uploading` → 409 ; le morceau pèse `⌈éléments / 1 000⌉` au quota ;
-  - `POST …/start` → 202 et `Location` vers l'import (`uploading` → `ready`, sinon 409) ;
-    une erreur de tri (`ImportError` : identifiant externe manquant, référence locale
-    inconnue, cycle) → 422 `invalid-import`, l'import reste `uploading` ;
+  - `POST …/start` → 202 et `Location` vers l'import (`uploading` → `sorting`, sinon
+    409), efface l'`error` précédente et pose la tâche `import:<id>` (H18) ; la tâche
+    lit les morceaux par `n` croissant, appelle `create_import` (tri, lots) dans une
+    transaction et passe à `ready`. Une erreur de tri (`ImportError` : identifiant
+    externe manquant, référence locale inconnue, cycle) ramène l'import à `uploading`
+    et enregistre `error` (colonne `jsonb`, problème `invalid-import` et ses
+    violations) ; aucun lot n'est créé. Le tri tient sous le bail grâce au battement ;
+    une instance arrêtée pendant le tri laisse l'import en `sorting`, repris par la
+    suivante ;
   - `POST …/resume` → 202 (`paused` → `ready`, sinon 409) ; `POST …/cancel` → 200
-    (`uploading`, `ready`, `running`, `paused` → `cancelled`, sinon 409) : le lot en
+    (`uploading`, `sorting`, `ready`, `running`, `paused` → `cancelled`, sinon 409) : le lot en
     cours se termine, les lots appliqués restent. Aucune action n'exige `If-Match` :
     l'état fait garde ;
   - `GET /v1/imports/{id}` → `{id, source, state, chunks, elements, batches: {applied,
-    remaining}, report, links: {self}}` ; `Retry-After: 5` en `ready` et `running` ;
+    remaining}, report, error, links: {self}}` (`error` absent sauf après un tri
+    échoué, H18) ; `Retry-After: 5` en `sorting`, `ready` et `running` ;
   - exécution : `start` et `resume` posent la tâche `import:<id>` (due aussitôt) ; une
     exécution applique les lots restants l'un après l'autre sous le bail, relit l'état
     avant chaque lot (arrêt sur `cancelled`), et retire la tâche quand l'import est
@@ -648,7 +656,7 @@ pas l'API (tâches de fond seules), utile à un job dédié.
 | Curseur d'une clé retirée du trousseau | 400 ; le client recommence | 8 |
 | `as_of` dans le futur | 400 (le temps système n'a pas d'avenir) | 5 |
 | Import `start` deux fois | 409 (état `ready` ou au-delà) | 17 |
-| Tri d'un import impossible au `start` | 422 `invalid-import`, import resté `uploading` | 17 |
+| Tri d'un import impossible | `start` → 202 ; la tâche ramène l'import à `uploading` avec `error` (`invalid-import`) (H18) | 17 |
 | Instance arrêtée pendant un lot | lot atomique, rejoué par une autre instance | 18 |
 | `QUERY` vers une route sans `QUERY` | 405 et `Allow` | 10 |
 | Journal d'audit indisponible pendant une lecture | 503 (échec fermé, REQ-012-11) | 20 |
