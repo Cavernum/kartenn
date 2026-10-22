@@ -249,6 +249,15 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   tenus
   - où : `crates/kartenn-bench`
   - dépend de : 9
+  - en cours (2026-10-22) : banc `bench-flow` (`flow_budgets.rs`, politique au gabarit
+    du banc 010 sans motifs, conditions ni signaux), politique lue une fois par passe,
+    filtrage par service, différentiel de politique compté avant d'être construit (OOM).
+    Mesure de référence : demande 16 × 16 1,1 s (300 ms), reclassement de 10⁴ flux
+    17,8 s (3 s), changement de politique sur 10⁵ flux 96,5 s (60 s), page des
+    non-conformités 17,6 s (150 ms) ; tenus : règle d'un type de flux (5·10³ flux) 7,5 s,
+    page filtrée 140 ms. Reste : réévaluation ensembliste (étape 2 du design 011
+    « Réévaluation », un aller-retour par étape et non par flux) et requête des
+    non-conformités.
 - [ ] 11. Synchronisation de `docs/spec/`, ADR proposée → acceptée, amendement de l'ADR
   0026 (N38, N39)
   - où : skill `tech-specs`, mode sync

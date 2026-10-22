@@ -9,6 +9,9 @@
 //! `kartenn-bench core <database-url> <seed> [small]`: the same for the budgets of the
 //! core (REQ-002-45, REQ-004-38).
 //!
+//! `kartenn-bench flow <database-url> <seed> [small]`: the budgets of the flow registry
+//! (REQ-011-19) with the four modules, a policy of 10⁴ rules and 10⁵ flows.
+//!
 //! `kartenn-bench rbac <database-url> <seed> [small]`: those budgets with access control,
 //! for a person with 50 groups and 1 000 bindings, and its overhead (REQ-005-29).
 //!
@@ -46,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, database, seed, rest @ ..]
-            if ["props", "core", "rbac", "http"].contains(&command.as_str()) =>
+            if ["props", "core", "rbac", "http", "flow"].contains(&command.as_str()) =>
         {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let data = generate(seed, scale(rest));
@@ -55,6 +58,9 @@ fn main() -> anyhow::Result<()> {
                 "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
                 "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed))?,
                 "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed))?,
+                "flow" => {
+                    runtime.block_on(kartenn_bench::flow_budgets::run(database, &data, seed))?
+                }
                 _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
             };
             print!("{report}");

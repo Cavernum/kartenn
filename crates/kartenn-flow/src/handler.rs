@@ -29,7 +29,7 @@ use sqlx::types::time::OffsetDateTime;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-use crate::evaluation::evaluate_flow;
+use crate::evaluation::{Policies, evaluate_flow, evaluate_in};
 use crate::model::{
     self, Endpoint, EndpointKind, Facts, Flow, FlowKind, REVIEW_MAX_MONTHS, WAIVER_MAX_MONTHS,
     Waiver,
@@ -621,6 +621,7 @@ impl Handler {
     #[allow(clippy::too_many_lines)] // the rules of design 011, one after the other
     async fn check_flow(
         tx: &mut dyn ModuleTx,
+        policies: &mut Policies,
         id: Uuid,
         changeset: Uuid,
         out: &mut Vec<Violation>,
@@ -665,7 +666,7 @@ impl Handler {
             let at = flow.period.start().max(now_instant);
             let at_time = pg::time(at);
             // Its evaluation is written by the section of the differential (`diff`).
-            let evaluated = evaluate_flow(conn, flow, at_time).await?;
+            let evaluated = evaluate_in(conn, policies, flow, at_time).await?;
             let summary = evaluated.summary;
             let compliant = summary.is_some_and(|s| {
                 s.verdict == SynthesisVerdict::Allowed && s.outcome == PolicyOutcome::Automatic
@@ -883,9 +884,11 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let mut out = Vec::new();
             let mut seen = std::collections::BTreeSet::new();
+            // Every write of the changeset is done: the policy holds still over the checks.
+            let mut policies = Policies::default();
             for (kind, id) in context.touched {
                 if *kind == flow_kind() && seen.insert(*id) {
-                    Self::check_flow(tx, *id, context.changeset, &mut out).await?;
+                    Self::check_flow(tx, &mut policies, *id, context.changeset, &mut out).await?;
                 }
             }
             crate::expiry::outcome_changed(tx, context)?;

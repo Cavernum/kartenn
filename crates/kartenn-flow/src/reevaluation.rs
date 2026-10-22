@@ -20,7 +20,7 @@ use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::evaluation::evaluate_flow;
+use crate::evaluation::{Policies, evaluate_in};
 use crate::model::Flow;
 use crate::pg::{self, store};
 
@@ -173,12 +173,64 @@ fn state_at(segments: &[Segment], at: OffsetDateTime) -> State {
         .unwrap_or_default()
 }
 
-/// Whether the changeset writes the policy a verdict reads.
-fn writes_policy(touched: &[(ObjectKind, Uuid)]) -> bool {
-    touched.iter().any(|(kind, _)| {
-        matches!(kind, ObjectKind::Module(k)
-            if k.module() == "policy" && !k.as_str().contains("inference"))
-    })
+/// What the changeset writes of the policy a verdict reads.
+#[derive(Default)]
+struct PolicyWrites {
+    /// An object every verdict may read (an axis, a value, a pattern, a condition, a
+    /// signal, an exempt role): every flow is concerned.
+    everything: bool,
+    rules: Vec<Uuid>,
+    services: Vec<Uuid>,
+    flow_types: Vec<Uuid>,
+}
+
+impl PolicyWrites {
+    fn of(touched: &[(ObjectKind, Uuid)]) -> Self {
+        let mut writes = Self::default();
+        for (kind, id) in touched {
+            let ObjectKind::Module(k) = kind else {
+                continue;
+            };
+            if k.module() != "policy" || k.as_str().contains("inference") {
+                continue;
+            }
+            match k.as_str() {
+                kartenn_policy::module::RULE => writes.rules.push(*id),
+                kartenn_policy::module::SERVICE => writes.services.push(*id),
+                kartenn_policy::module::FLOW_TYPE => writes.flow_types.push(*id),
+                _ => writes.everything = true,
+            }
+        }
+        writes
+    }
+
+    /// The services whose flows a write of rules, services or flow types concerns: a
+    /// verdict reads the rules of the flow type of its service, or citing its service
+    /// (010 « Évaluation »), in their versions before and after the changeset.
+    async fn services(&self, conn: &mut PgConnection) -> Result<Vec<Uuid>, StoreError> {
+        if self.rules.is_empty() && self.services.is_empty() && self.flow_types.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_scalar(
+            "WITH r AS (SELECT flow_type_ids, service_ids FROM policy.policy_rule
+                         WHERE id = ANY($1)
+                        UNION ALL
+                        SELECT flow_type_ids, service_ids FROM policy.policy_rule_history
+                         WHERE id = ANY($1) AND sys_end >= now()),
+                  types AS (SELECT unnest($3::uuid[]) AS id
+                            UNION SELECT unnest(flow_type_ids) FROM r)
+             SELECT id FROM policy.policy_service
+              WHERE flow_type_id IN (SELECT id FROM types)
+             UNION SELECT unnest(service_ids) FROM r
+             UNION SELECT unnest($2::uuid[])",
+        )
+        .bind(&self.rules)
+        .bind(&self.services)
+        .bind(&self.flow_types)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))
+    }
 }
 
 /// The living flows the changeset of `context` touches, in the order of their
@@ -236,10 +288,14 @@ async fn touched(
     }
     let written: Vec<Uuid> = written.into_iter().collect();
     let objects: Vec<Uuid> = objects.into_iter().collect();
+    // A write of the policy concerns the flows of the services it may change the verdicts
+    // of, or every flow (task 011-10).
+    let policy = PolicyWrites::of(context.touched);
+    let services = policy.services(conn).await?;
     sqlx::query_scalar(
         "SELECT DISTINCT f.id FROM flow.flow f
           WHERE (upper(f.valid_period) IS NULL OR upper(f.valid_period) > now())
-            AND ($3 OR f.id = ANY($1)
+            AND ($3 OR f.id = ANY($1) OR f.service_id = ANY($4)
                  OR f.source_id = ANY($2) OR f.destination_id = ANY($2) OR f.service_id = ANY($2)
                  OR EXISTS (SELECT 1 FROM flow.flow_endpoint_address e
                              WHERE e.flow_id = f.id AND e.address_id = ANY($2)
@@ -252,10 +308,46 @@ async fn touched(
     )
     .bind(&written)
     .bind(&objects)
-    .bind(writes_policy(context.touched))
+    .bind(policy.everything)
+    .bind(&services)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))
+}
+
+/// What a pass over the flows reads once, every write of its changeset done: the policy
+/// at each instant, and the instants where a version of the policy starts or ends, the
+/// same for every flow (task 011-10).
+#[derive(Default)]
+struct Pass {
+    policies: Policies,
+    policy_bounds: Option<Vec<OffsetDateTime>>,
+}
+
+impl Pass {
+    /// The instants where a version of a policy object starts or ends, in order.
+    async fn policy_bounds(
+        &mut self,
+        conn: &mut PgConnection,
+    ) -> Result<&[OffsetDateTime], StoreError> {
+        if self.policy_bounds.is_none() {
+            let periods: Vec<String> = POLICY_TABLES
+                .iter()
+                .map(|t| format!("SELECT valid_period FROM {t}"))
+                .collect();
+            let bounds: Vec<OffsetDateTime> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT DISTINCT b FROM ({}) p,
+                        LATERAL (VALUES (lower(valid_period)), (upper(valid_period))) v(b)
+                  WHERE b IS NOT NULL ORDER BY b",
+                periods.join(" UNION ALL ")
+            )))
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+            self.policy_bounds = Some(bounds);
+        }
+        Ok(self.policy_bounds.as_deref().unwrap_or_default())
+    }
 }
 
 /// The instants in (`from`, `to`) where what the evaluation of `flow` reads may change:
@@ -264,15 +356,20 @@ async fn touched(
 /// prefix endpoint (design 011 « Réévaluation », step 2).
 async fn boundaries(
     conn: &mut PgConnection,
+    pass: &mut Pass,
     flow: &Flow,
     from: OffsetDateTime,
     to: Option<OffsetDateTime>,
 ) -> Result<Vec<OffsetDateTime>, StoreError> {
-    let policy: Vec<String> = POLICY_TABLES
+    let inside = |b: &OffsetDateTime| *b > from && to.is_none_or(|t| *b < t);
+    let mut bounds: Vec<OffsetDateTime> = pass
+        .policy_bounds(conn)
+        .await?
         .iter()
-        .map(|t| format!("UNION ALL SELECT valid_period FROM {t} WHERE valid_period && $2"))
+        .copied()
+        .filter(inside)
         .collect();
-    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+    let own: Vec<OffsetDateTime> = sqlx::query_scalar(
         "WITH ends AS (SELECT unnest($1::uuid[]) AS id),
               att AS (
                   SELECT a.valid_period, a.address_id, i.machine_id
@@ -296,14 +393,11 @@ async fn boundaries(
                                             AND a.property_id = o.property_id
                              WHERE a.valid_period && $2
                   UNION ALL SELECT valid_period FROM public.prefix
-                             WHERE id IN (SELECT id FROM ends) AND valid_period && $2
-                  {})
+                             WHERE id IN (SELECT id FROM ends) AND valid_period && $2)
          SELECT DISTINCT b FROM periods,
                 LATERAL (VALUES (lower(valid_period)), (upper(valid_period))) v(b)
-          WHERE b > lower($2) AND (upper($2) IS NULL OR b < upper($2))
-          ORDER BY b",
-        policy.join("\n                  ")
-    )))
+          WHERE b > lower($2) AND (upper($2) IS NULL OR b < upper($2))",
+    )
     .bind(vec![flow.source.id, flow.destination.id])
     .bind(sqlx::postgres::types::PgRange::from((
         std::ops::Bound::Included(from),
@@ -311,13 +405,18 @@ async fn boundaries(
     )))
     .fetch_all(conn)
     .await
-    .map_err(|e| store(&e))
+    .map_err(|e| store(&e))?;
+    bounds.extend(own);
+    bounds.sort_unstable();
+    bounds.dedup();
+    Ok(bounds)
 }
 
 /// The evaluation of `flow` over [`from`, `to`), one segment per stretch where what it
 /// reads holds still.
 async fn evaluate_over(
     conn: &mut PgConnection,
+    pass: &mut Pass,
     flow: &Flow,
     from: OffsetDateTime,
     to: Option<OffsetDateTime>,
@@ -326,10 +425,10 @@ async fn evaluate_over(
         return Ok(Vec::new());
     }
     let mut cuts = vec![from];
-    cuts.extend(boundaries(conn, flow, from, to).await?);
+    cuts.extend(boundaries(conn, pass, flow, from, to).await?);
     let mut out = Vec::with_capacity(cuts.len());
     for (i, at) in cuts.iter().enumerate() {
-        let evaluated = evaluate_flow(conn, flow, *at).await?;
+        let evaluated = evaluate_in(conn, &mut pass.policies, flow, *at).await?;
         out.push(Segment {
             from: *at,
             to: cuts.get(i + 1).copied().or(to),
@@ -352,6 +451,7 @@ struct Rewritten {
 /// the stored one (design 011 « Réévaluation », steps 2 and 3).
 async fn reevaluate(
     conn: &mut PgConnection,
+    pass: &mut Pass,
     id: Uuid,
     now: OffsetDateTime,
     changeset: Uuid,
@@ -367,7 +467,7 @@ async fn reevaluate(
             .map_err(|e| store(&e))?;
     let from = start.map_or(now, |s| s.max(now));
     let to = stored.flow.period.end().map(pg::time);
-    let wanted = merged(evaluate_over(conn, &stored.flow, from, to).await?);
+    let wanted = merged(evaluate_over(conn, pass, &stored.flow, from, to).await?);
     let held = merged(pg::read_states(conn, id, now).await?);
     if same(&held, &wanted) {
         return Ok(None);
@@ -400,8 +500,10 @@ pub(crate) async fn section(
         .map_err(|e| store(&e))?;
     let (mut breaks, mut heals, mut outcome) = (0_u64, 0_u64, 0_u64);
     let mut rows = Vec::new();
+    // Every write of the changeset is done: the policy holds still over the pass.
+    let mut pass = Pass::default();
     for id in touched(conn, context).await? {
-        let Some(r) = reevaluate(conn, id, now, context.changeset).await? else {
+        let Some(r) = reevaluate(conn, &mut pass, id, now, context.changeset).await? else {
             continue;
         };
         if r.before.is_empty() || r.before.verdicts() == r.after.verdicts() {
@@ -472,7 +574,9 @@ pub async fn drift(conn: &mut PgConnection) -> Result<Vec<Uuid>, StoreError> {
                 .map_err(|e| store(&e))?;
         let from = start.map_or(now, |s| s.max(now));
         let to = stored.flow.period.end().map(pg::time);
-        let wanted = merged(evaluate_over(conn, &stored.flow, from, to).await?);
+        // The oracle shares nothing between flows: a policy read for each.
+        let mut pass = Pass::default();
+        let wanted = merged(evaluate_over(conn, &mut pass, &stored.flow, from, to).await?);
         let held = merged(pg::read_states(conn, id, now).await?);
         if !same(&held, &wanted) {
             out.push(id);
