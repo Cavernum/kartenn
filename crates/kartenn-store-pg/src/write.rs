@@ -2367,6 +2367,15 @@ impl WriteTx for PgTx {
         self.view_of(object, a).await
     }
 
+    async fn object_views(
+        &mut self,
+        objects: &[Uuid],
+        period: Option<Period>,
+    ) -> Result<Vec<ObjectView>, StoreError> {
+        let (a, _) = bounds(period)?;
+        self.views_of(objects, a).await
+    }
+
     async fn resolved_value(
         &mut self,
         object: Uuid,
