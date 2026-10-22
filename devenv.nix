@@ -391,8 +391,8 @@ in {
     '';
   };
 
-  # Budgets of the flow policy module (REQ-010-28, 54) on the dataset of the core with the
-  # VLAN and machines modules: `bench-policy [seed] [small]`.
+  # Budgets of the flow policy module (REQ-010-28, 54) on the dataset of the core, the VLAN
+  # and machines modules deployed: `bench-policy [seed] [small]`.
   scripts.bench-policy = {
     description = "Check the budgets of the flow policy on a fresh kartenn_bench database";
     exec = ''

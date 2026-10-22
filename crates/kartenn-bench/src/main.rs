@@ -24,7 +24,7 @@
 //! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
 //!
 //! `kartenn-bench policy <database-url> <seed> [small]`: the budgets of the flow policy
-//! module (REQ-010-28, 54) after those of the core's dataset, VLAN and machines modules.
+//! module (REQ-010-28, 54) on the dataset of `core`, the VLAN and machines modules deployed.
 //!
 //! `kartenn-bench seed <database-url> <seed> [small]`: loads the dataset of `core`, and a
 //! domain whose container has 10⁵ networks, into a database migrated by

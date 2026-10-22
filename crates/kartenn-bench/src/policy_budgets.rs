@@ -1,5 +1,5 @@
 //! Budgets of the flow policy module (spec 010, REQ-010-28 and 54; tasks 010-1 and
-//! 010-19) on the reference dataset with the VLAN and machines modules loaded: a policy
+//! 010-19) on the reference dataset with the VLAN and machines modules deployed: a policy
 //! of the size of the budget (6 axes, 50 environments, 20 flow types, 1 000 services,
 //! 10⁴ rules, 100 patterns, 50 conditions, 30 signals) and 2 000 rules of inference.
 //! Measures, through the router of the module: the verdict of a pair of addresses for a
@@ -296,13 +296,14 @@ fn addresses_request(author: Uuid, domain: Uuid, base: [u8; 2], count: usize) ->
     }
 }
 
-/// Loads, measures the core, VLAN and machines modules' budgets, then the policy's;
-/// returns the report and whether every budget holds.
+/// Loads the dataset of the core and measures the policy's budgets; returns the report and
+/// whether every budget holds. The VLAN and machines modules are deployed, as the policy
+/// needs them, without their datasets: REQ-010-28 counts the objects of REQ-002-45, and
+/// `bench-core` measures those modules.
 ///
 /// # Errors
 ///
 /// Database, pipeline or router failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
 pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
     let Prepared {
         pool,
@@ -311,11 +312,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         ..
     } = prepare(database, data, seed).await?;
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
-    let mut budgets = Vec::new();
-    // The modules the policy depends on, with their own budgets (they are cheap beside).
-    budgets.extend(crate::vlan_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
-    budgets.extend(crate::machine_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
-    budgets.extend(measure(&pool, author, data, &mut rng, &mut report).await?);
+    let budgets = measure(&pool, author, data, &mut rng, &mut report).await?;
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);
     Ok((report, ok))
@@ -342,6 +339,49 @@ async fn measure(
     let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
         .chain(registry.modules().filter_map(|m| m.declarations()))
         .collect();
+    // The loaded domains were written without an owner, which the deployment makes
+    // mandatory (REQ-003-16): the declarations without their obligations, an owner on each
+    // domain, then all (as the VLAN budgets do).
+    let mut relaxed = declarations.clone();
+    for module in &mut relaxed {
+        for (declaration, _) in &mut module.properties {
+            declaration.obligations.clear();
+        }
+    }
+    sync(&store, &relaxed).await?;
+    unitary(
+        &store,
+        author,
+        Operation::CreateEntity {
+            local: None,
+            slug: "bench-policy".into(),
+            parent: None,
+        },
+    )
+    .await?;
+    let entity: Uuid = sqlx::query_scalar(
+        "SELECT id FROM entity WHERE slug = 'bench-policy' AND valid_period @> now()",
+    )
+    .fetch_one(pool)
+    .await
+    .context("the entity of the bench")?;
+    let owner: Uuid =
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
+            .fetch_one(pool)
+            .await?;
+    let owned = data
+        .domains
+        .iter()
+        .map(|d| {
+            plain(Operation::AssignProperty {
+                object: Ref::Id(d.id),
+                kind: ObjectKind::Domain,
+                property: Ref::Id(owner),
+                values: vec![RawInput::Text(entity.to_string())],
+            })
+        })
+        .collect();
+    import(&store, author, "bench-policy-owners", owned).await?;
     sync(&store, &declarations).await?;
     let sources = Sources::none().with(Arc::new(kartenn_policy::infer::InferenceSource));
 
@@ -415,13 +455,6 @@ async fn measure(
 
     // A domain of its own: two networks (env00 and env01) holding the machines of 16
     // addresses, and two networks for the control of the inference.
-    let entity: Uuid = sqlx::query_scalar(
-        "SELECT id FROM entity WHERE slug LIKE 'bench-vlan-%' AND valid_period @> now() ORDER BY slug LIMIT 1",
-    )
-    .fetch_one(pool)
-    .await
-    .context("an entity of the VLAN budgets")?;
-    let owner = property("core.owner").await?;
     let mut items = vec![
         item(Operation::CreateDomain {
             local: Some(1),
