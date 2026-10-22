@@ -173,12 +173,64 @@ fn state_at(segments: &[Segment], at: OffsetDateTime) -> State {
         .unwrap_or_default()
 }
 
-/// Whether the changeset writes the policy a verdict reads.
-fn writes_policy(touched: &[(ObjectKind, Uuid)]) -> bool {
-    touched.iter().any(|(kind, _)| {
-        matches!(kind, ObjectKind::Module(k)
-            if k.module() == "policy" && !k.as_str().contains("inference"))
-    })
+/// What the changeset writes of the policy a verdict reads.
+#[derive(Default)]
+struct PolicyWrites {
+    /// An object every verdict may read (an axis, a value, a pattern, a condition, a
+    /// signal, an exempt role): every flow is concerned.
+    everything: bool,
+    rules: Vec<Uuid>,
+    services: Vec<Uuid>,
+    flow_types: Vec<Uuid>,
+}
+
+impl PolicyWrites {
+    fn of(touched: &[(ObjectKind, Uuid)]) -> Self {
+        let mut writes = Self::default();
+        for (kind, id) in touched {
+            let ObjectKind::Module(k) = kind else {
+                continue;
+            };
+            if k.module() != "policy" || k.as_str().contains("inference") {
+                continue;
+            }
+            match k.as_str() {
+                kartenn_policy::module::RULE => writes.rules.push(*id),
+                kartenn_policy::module::SERVICE => writes.services.push(*id),
+                kartenn_policy::module::FLOW_TYPE => writes.flow_types.push(*id),
+                _ => writes.everything = true,
+            }
+        }
+        writes
+    }
+
+    /// The services whose flows a write of rules, services or flow types concerns: a
+    /// verdict reads the rules of the flow type of its service, or citing its service
+    /// (010 « Évaluation »), in their versions before and after the changeset.
+    async fn services(&self, conn: &mut PgConnection) -> Result<Vec<Uuid>, StoreError> {
+        if self.rules.is_empty() && self.services.is_empty() && self.flow_types.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_scalar(
+            "WITH r AS (SELECT flow_type_ids, service_ids FROM policy.policy_rule
+                         WHERE id = ANY($1)
+                        UNION ALL
+                        SELECT flow_type_ids, service_ids FROM policy.policy_rule_history
+                         WHERE id = ANY($1) AND sys_end >= now()),
+                  types AS (SELECT unnest($3::uuid[]) AS id
+                            UNION SELECT unnest(flow_type_ids) FROM r)
+             SELECT id FROM policy.policy_service
+              WHERE flow_type_id IN (SELECT id FROM types)
+             UNION SELECT unnest(service_ids) FROM r
+             UNION SELECT unnest($2::uuid[])",
+        )
+        .bind(&self.rules)
+        .bind(&self.services)
+        .bind(&self.flow_types)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))
+    }
 }
 
 /// The living flows the changeset of `context` touches, in the order of their
@@ -236,10 +288,14 @@ async fn touched(
     }
     let written: Vec<Uuid> = written.into_iter().collect();
     let objects: Vec<Uuid> = objects.into_iter().collect();
+    // A write of the policy concerns the flows of the services it may change the verdicts
+    // of, or every flow (task 011-10).
+    let policy = PolicyWrites::of(context.touched);
+    let services = policy.services(conn).await?;
     sqlx::query_scalar(
         "SELECT DISTINCT f.id FROM flow.flow f
           WHERE (upper(f.valid_period) IS NULL OR upper(f.valid_period) > now())
-            AND ($3 OR f.id = ANY($1)
+            AND ($3 OR f.id = ANY($1) OR f.service_id = ANY($4)
                  OR f.source_id = ANY($2) OR f.destination_id = ANY($2) OR f.service_id = ANY($2)
                  OR EXISTS (SELECT 1 FROM flow.flow_endpoint_address e
                              WHERE e.flow_id = f.id AND e.address_id = ANY($2)
@@ -252,7 +308,8 @@ async fn touched(
     )
     .bind(&written)
     .bind(&objects)
-    .bind(writes_policy(context.touched))
+    .bind(policy.everything)
+    .bind(&services)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))

@@ -221,6 +221,71 @@ async fn an_unchanged_evaluation_is_not_rewritten(pool: PgPool) {
     assert!(drifting(&pool).await.is_empty());
 }
 
+/// A rule re-evaluates the flows of the services of its flow types only (task 011-10): a
+/// stored evaluation made stale on purpose stays so after a rule of another flow type,
+/// and is mended by a rule of its own.
+#[kartenn_testing::pg_test]
+async fn a_rule_reevaluates_the_flows_of_its_flow_type_only(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let source = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let destination = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    env.applied(vec![flow("request", env.fields(source, destination).await)])
+        .await;
+    let id = flow_between(&pool, source, destination).await;
+    assert_eq!(summary(&pool, id).await, "allowed");
+    let stale = || async {
+        sqlx::query(
+            "UPDATE flow.flow_summary SET summary = 'denied', allowed = 0, denied = 1
+              WHERE flow_id = $1",
+        )
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    };
+    stale().await;
+    let rule = |key: &str, flow_type: serde_json::Value| {
+        policy(
+            "rule.create",
+            json!({ "key": key, "label": key, "effect": "allow", "flow_types": [flow_type],
+                    "source": { "policy.environment": ["dev"] },
+                    "destination": { "policy.environment": ["prod"] } }),
+        )
+    };
+    env.applied(vec![
+        policy(
+            "flow_type.create",
+            json!({ "local": 1, "key": "web", "label": "Web" }),
+        ),
+        policy(
+            "service.create",
+            json!({ "key": "http", "label": "HTTP", "flow_type": { "local": 1 },
+                    "entries": [{ "transport": "tcp", "ports": 80 }] }),
+        ),
+        rule("dev-prod-web", json!({ "local": 1 })),
+    ])
+    .await;
+    assert_eq!(
+        summary(&pool, id).await,
+        "denied",
+        "another flow type: not read"
+    );
+    let admin = id_of(
+        &pool,
+        "SELECT id FROM policy.policy_flow_type WHERE key = $1",
+        "admin",
+    )
+    .await;
+    env.applied(vec![rule("dev-prod-admin", json!({ "id": admin }))])
+        .await;
+    assert_eq!(
+        summary(&pool, id).await,
+        "allowed",
+        "its flow type: re-evaluated"
+    );
+    assert!(drifting(&pool).await.is_empty());
+}
+
 /// A generator of the suites, reproducible from its seed.
 struct Suite(u64);
 
