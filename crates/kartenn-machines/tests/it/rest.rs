@@ -471,6 +471,36 @@ async fn machine_card_with_interfaces(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
+async fn machines_filtered_by_owner(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let other = env.entity("other").await;
+    env.machine("web2", acme).await;
+    env.machine("db1", other).await;
+    env.machine("web1", acme).await;
+    let app = env.app(env.admin().await);
+    let (status, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/machines?owner={acme}&kind=physical"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body, "name"), ["web1", "web2"]);
+    let (_, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/machines?owner={acme}&kind=virtual"),
+        None,
+        &[],
+    )
+    .await;
+    assert!(ids(&body, "name").is_empty(), "{body}");
+}
+
+#[kartenn_testing::pg_test]
 async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;

@@ -701,6 +701,16 @@ async fn machines_page(
         t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
         i = dated_where("machines.interface", "machine_id", "id = t.interface_id"),
     );
+    // A machine is the root of its tree and inherits no owner (`module::TYPES`): its
+    // resolved owner is its own assignment of `core.owner`. Read from the owner, a hashed
+    // semi-join; `kartenn_owner` on each row (a function that is not inlined) cost 0.7 s
+    // in the custom plan and 2 s in the generic one at 100 000 machines (task 009-12).
+    let owned = "SELECT a.object_id FROM public.property_assignment a
+                   JOIN public.property_declaration d
+                     ON d.id = a.property_id AND d.key = 'core.owner'
+                    AND d.valid_period @> $1::timestamptz
+                  WHERE a.v_uuid = $9 AND a.object_type = 'machines.machine'
+                    AND a.kind = 'value' AND a.valid_period @> $1::timestamptz";
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT {MACHINE_SELECT}
@@ -710,7 +720,7 @@ async fn machines_page(
             AND ($6::text IS NULL OR x.kind = $6)
             AND ($7::uuid IS NULL OR x.host_machine_id = $7 OR x.host_cluster_id = $7)
             AND ($8::uuid IS NULL OR x.host_cluster_id = $8 OR x.member_cluster_id = $8)
-            AND ($9::uuid IS NULL OR kartenn_owner(x.id, $1) = $9)
+            AND ($9::uuid IS NULL OR x.id IN ({owned}))
             AND ($10::uuid IS NULL OR kartenn_site(x.id, $1) = $10)
             AND ($11::text IS NULL OR (x.name, x.id) > ($11, $12::uuid))
             AND ($13::uuid IS NULL OR {network})
