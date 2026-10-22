@@ -302,7 +302,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     `tests/it/rest.rs` (lecture réduite du demandeur à imiter) ;
     `web/sdk/src/api/schema.d.ts`
   - dépend de : 9
-- [ ] 13. Prolongation d'un flux (F20) : `update` distingue raccourcissement et
+- [x] 13. Prolongation d'un flux (F20) : `update` distingue raccourcissement et
   prolongation (fin plus tardive ou retirée d'un flux daté) ; `complete` trie la portion
   ajoutée ; `review` rend `REVIEW` pour une prolongation non automatique ; application
   qui étend la version, l'ancre `core.owner` et les adresses développées, et réévalue la
@@ -329,3 +329,36 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     `tests/it/approval.rs`, `tests/it/expiry.rs`, `tests/it/rest.rs` ;
     `web/sdk/src/api/schema.d.ts`
   - dépend de : 9 ; 12 pour la ligne `extension` de la lecture
+  - fait (2026-10-22) : `src/handler.rs` — `complete` (branche `update`) range dans
+    `completed.current` l'entité, la fin courante et `ended`, note `end_removed`
+    (`end: null`) et, pour une prolongation, le triage de `[fin courante, nouvelle fin)`
+    à la fin courante (`completed.triage`, même forme qu'une demande) ; `plan_update`
+    refuse `flow.update.ended`, ajoute l'ancre `core.owner` bornée à la portion ajoutée
+    (`extension_anchor`) et porte `extend` (fin courante) dans le plan ; `review` rend
+    `REVIEW` pour une prolongation non automatique ; `extend` étend la dernière version
+    (`pg::extend_flow`, l'ancienne gardée dans l'historique) et enregistre l'objet du
+    module sur la portion ajoutée, la réévaluation du différentiel écrivant évaluations
+    et adresses développées jusqu'à la nouvelle fin ; `check_flow` évalue la portion
+    ajoutée (validation : `flow.review.required` sans `approve_review`,
+    `flow.waiver.required` sans dérogation qui la couvre) et oppose `flow.separation` à
+    l'auteur de la prolongation ou à son `on_behalf_of` ; `ended` consigne le rejet d'une
+    prolongation dans `flow_rejection` ; `src/pg.rs` (`mark_at`, `extended_from`,
+    `extend_flow`, `written_counts` avec `extend`) ; `src/rules.rs`
+    (`flow.update.ended`) ; `src/rest.rs` (`PATCH` par `modify_nullable`, `end`
+    effaçable ; contrat et SDK régénérés) ; `docs/spec/interfaces.md`,
+    `docs/spec/regles-modules.md`. Tests : `tests/it/extensions.rs` (raccourcir ;
+    prolongation automatique, ancre, objet et évaluation jusqu'à la nouvelle fin, fin
+    retirée ; sous réserve : proposition, 13 mois refusée, 12 mois appliquée ; refusée
+    sans dérogation puis appliquée avec ; séparation par `on_behalf_of` ; flux expiré ;
+    politique `flow.created ≥ 1` ; rejet consigné), `tests/it/expiry.rs` (nouvelle fin
+    annoncée), `tests/it/rest.rs` (`PATCH` 200 puis 202).
+    **Reste** : la ligne `review.kind = extension` de la lecture, à vérifier après la
+    fusion de la tâche 12 (absente de cette base) ; la prolongation porte son triage dans
+    `completed.triage` et le flux dans `id`.
+  - choix : la prolongation garde le droit de l'`update` (`flow.flow.write`, plus
+    `prop.core.owner.write` pour l'ancre) ; `approve_review` inscrit l'instructeur de
+    maintenant à la fin du flux (un flux daté n'était pas couvert jusqu'à l'infini) et ne
+    raccourcit que si la fin approuvée précède la fin courante (sinon le plafond seul est
+    contrôlé) ; un flux expiré se refuse dès la planification (`now()` lu à la
+    préparation) ; la portion ajoutée est évaluée à `max(fin courante, maintenant)` ;
+    tests réunis dans un module `extensions`.

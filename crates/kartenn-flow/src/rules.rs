@@ -33,6 +33,8 @@ rules! {
         "La sorte « constaté » est réservée à la v0.3.";
     UPDATE_IDENTITY = "flow.update.identity", Error, ["REQ-011-4"], "011/F2",
         "Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée.";
+    UPDATE_ENDED = "flow.update.ended", Error, ["REQ-011-4"], "011/F20",
+        "Un flux terminé ne se prolonge pas : une nouvelle demande le remplace.";
     REVIEW_REQUIRED = "flow.review.required", Error, ["REQ-011-8", "REQ-011-21"], "011/F5, F6",
         "Un flux dont l'issue n'est pas automatique ne s'applique qu'après instruction.";
     REVIEW_END_REQUIRED = "flow.review.end_required", Error, ["REQ-011-22"], "011/F17",
