@@ -57,3 +57,29 @@ L'ordre canonique (domaines, puis clés triées) exclut l'interblocage entre cha
 qui nomment les mêmes clés dans des ordres différents ; un changeset qui ne touche aucun
 domaine se sérialise sur ses seules clés. Deux noms de même hachage partagent un verrou :
 sérialisation de trop, jamais de trop peu.
+
+## Amendement (2026-10-22) — clés nommées rangées en seaux
+
+Le verrou d'une clé nommée n'est plus pris sur le hachage du nom mais sur son **seau** :
+`hashtext(clé) & 1023`, l'un de 1024 seaux fixes, toujours dans la classe propre aux
+clés nommées. Le pipeline prend les seaux distincts, en ordre croissant, un verrou par
+seau, en une seule requête.
+
+Raison : un verrou par clé épuisait la table des verrous partagée de PostgreSQL
+(`max_locks_per_transaction` × `max_connections` entrées) dès qu'un changeset nommait des
+milliers de clés, par exemple l'import de 10⁴ machines en un changeset (« out of shared
+memory »). Élargir ce paramètre ne ferait que repousser la limite.
+
+Conséquences :
+- **Borne** : une transaction tient au plus 1024 verrous de clés nommées, quel que soit
+  le nombre de clés qu'elle cite.
+- **Exclusion préservée** : une même clé tombe toujours dans le même seau, donc deux
+  changesets qui la nomment se sérialisent. Deux clés sans rapport qui partagent un seau
+  se sérialisent aussi : sérialisation de trop, jamais de trop peu, comme une collision
+  de hachage.
+- **Pas d'interblocage** : l'ordre canonique demeure (domaines, puis seaux croissants).
+- **Pas de seuil** : toutes les clés passent par les seaux, quel que soit leur nombre ;
+  mêler verrous par clé exacte et verrous par seau casserait l'exclusion entre deux
+  changesets de tailles différentes.
+- Les verrous de domaine restent un par domaine : un changeset ne touche que des
+  domaines de l'instance, en nombre réduit.

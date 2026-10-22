@@ -171,7 +171,8 @@ Acceptation :
 #### REQ-008-27 — Clés de verrou hors domaine
 kartenn doit prendre les clés de verrou nommées déclarées par les opérations de module
 après les verrous de domaine, dans un ordre canonique, pour la durée de la transaction
-(ADR 0026, clause 14 ; amendement de l'ADR 0015).
+(ADR 0026, clause 14 ; amendements de l'ADR 0015, dont celui du 2026-10-22 : une clé est
+tenue par son seau de hachage, au plus 1024 verrous par transaction).
 
 Acceptation :
 - Deux changesets qui déclarent les clés `x` et `y` dans des ordres opposés ne

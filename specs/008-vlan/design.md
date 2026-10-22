@@ -82,7 +82,7 @@ la désérialisation (le service n'a pas le registre à cet instant).
 | Étape du pipeline (`pipeline.rs`) | Appel |
 |---|---|
 | `plan` (local) | `plan(&ModuleOperation) -> Result<ModulePlan, Violation>` : décode `body` en type du module, valide localement (VID, nom), rend le `local` défini, les `Ref` utilisées, le type et l'objet cible, et les **opérations du noyau** qu'il ajoute au changeset (`ModulePlan::core`, planifiées à leur tour comme des opérations ordinaires, ADR 0026 clause 6) |
-| `lock_targets` | `locks(&mut dyn ModuleTx, &ModulePlan) -> Locks` : domaines (ancrage de domaine) et **clés nommées** (`vlan.group:<uuid>`) ; le pipeline prend les domaines puis les clés triées, en verrous consultatifs de transaction sur un hachage de la clé (REQ-008-27) |
+| `lock_targets` | `locks(&mut dyn ModuleTx, &ModulePlan) -> Locks` : domaines (ancrage de domaine) et **clés nommées** (`vlan.group:<uuid>`) ; le pipeline prend les domaines puis les clés triées, en verrous consultatifs de transaction sur le seau du hachage de la clé, 1024 seaux (REQ-008-27 ; ADR 0015, amendement du 2026-10-22) |
 | `apply` | `apply(&mut dyn ModuleTx, &ModulePlan, ids résolus, période, changeset) -> Touched` |
 | différentiel | `Module::diff(&mut dyn ModuleTx, &DiffContext) -> Option<DiffSection>` après le différentiel des propriétés, dans l'ordre du registre ; `DiffContext` porte le différentiel des propriétés, les objets touchés (noyau et modules, typés) et les sections déjà produites (REQ-008-26) |
 | validation globale | `check(&mut dyn ModuleTx, &CheckContext) -> Vec<Violation>` : objets touchés de tous types et sections, pour des règles sur l'état final |
