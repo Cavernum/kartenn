@@ -272,7 +272,7 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
     par `policy.examples.install`. Les objets de la politique n'ont pas d'ancre
     (administration globale, S15), sauf les règles d'inférence. Source de valeurs
     attendues `policy.inference` (provenance `source:policy.inference@<révision>#<règle>`).
-  - `flow` (spec 011, migration du module 0001, [ADR 0031](../adr/0031-evaluations-de-flux-materialisees.md)) :
+  - `flow` (spec 011, migrations du module 0001 et 0002, [ADR 0031](../adr/0031-evaluations-de-flux-materialisees.md)) :
     `flow` (type `flow.flow` ancré sur l'entité par `core.owner` ; sorte `declared`,
     `observed` réservée v0.3 ; extrémités et service polymorphes, sans clé étrangère,
     contrôlés par les règles du module ; référence externe obligatoire, justification
@@ -287,7 +287,9 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
     retiré, rejeté) et sa validité sont **dérivés** (date, synthèse, dérogation), jamais
     stockés ; les évaluations sont maintenues dans la transaction de tout changeset qui
     touche une extrémité, une valeur d'axe, un rattachement ou la politique (section de
-    différentiel `flow.flows`).
+    différentiel `flow.flows`). Index B-tree sur l'identifiant des flux et sur
+    `flow_id` des tables dérivées (migration 0002) : les clés `WITHOUT OVERLAPS` sont des
+    index GiST, lents à sonder par lot (`flow_id = ANY(…)`) pour la réévaluation.
 
 ## Stockage PostgreSQL (D15, ADR 0004)
 

@@ -131,7 +131,8 @@ attente : extrémité exacte, service, type de flux, sorte, entité, demandeur, 
 externe, synthèse, issue, règle décisive (lus dans la demande et son triage) ; les
 filtres par sous-arbre de préfixe, machine développée et valeur d'axe les excluent (pas
 d'adresses développées avant l'application). Pagination : avec `requested` seul ou
-`review=pending`, curseur sur l'identifiant du changeset ; `requested` combiné à
+`review=pending`, curseur sur le changeset et le rang de l'opération (plusieurs
+demandes par proposition) ; `requested` combiné à
 d'autres états : les lignes en attente suivent les flux appliqués. Droits : prédicat
 RBAC sur l'entité de la demande pour `flow.flow.read` et `flow.flow.review`, ou
 demandeur de la ligne (`flow.flow.request`) ; triage réduit (REQ-010-25) pour qui ne
@@ -289,11 +290,10 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 - Le refus de clore une extrémité citée passe par la règle générique du noyau
   `core.object.dependents` (008-7), qui liste les flux, et non par `flow.referenced`.
 - Opérations : l'écriture directe de maintenance s'appelle `flow.flow.register` (sans
-  route dédiée : `POST /v1/changesets`) ; `update` ne fait que raccourcir la période
-  (**amendé par F20** : prolongation triée et instruite, tâche 13) ; route
-  `POST /v1/flows/{id}/waiver` ajoutée (F6).
-- Lectures : les demandes en attente ne sont pas servies (**amendé par F19** : tâche
-  12).
+  route dédiée : `POST /v1/changesets`) ; route `POST /v1/flows/{id}/waiver` ajoutée
+  (F6). Résorbés par les amendements : `update` qui ne faisait que raccourcir la période
+  (F20, prolongation triée et instruite, tâche 13) ; demandes en attente non servies par
+  la lecture (F19, tâche 12).
 - La demande d'un flux exige aussi `prop.core.owner.write` sur l'entité : le flux est
   ancré par une affectation ordinaire de `core.owner`, bornée à sa vie.
 - Lectures : le prédicat RBAC est appliqué par les routes ; une page est coupée avant le
