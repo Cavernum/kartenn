@@ -20,6 +20,9 @@
 //! on those budgets, in three configurations (REQ-012-23), and the volume of the audit
 //! of reads (REQ-012-18); each configuration runs in a child (`telemetry-run`).
 //!
+//! `kartenn-bench policy <database-url> <seed> [small]`: the budgets of the flow policy
+//! module (REQ-010-28, 54) after those of the core's dataset, VLAN and machines modules.
+//!
 //! `kartenn-bench seed <database-url> <seed> [small]`: loads the dataset of `core`, and a
 //! domain whose container has 10⁵ networks, into a database migrated by
 //! `kartenn-server migrate`, for the budgets of the browser (`bench-web`, REQ-007-32);
@@ -46,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, database, seed, rest @ ..]
-            if ["props", "core", "rbac", "http"].contains(&command.as_str()) =>
+            if ["props", "core", "rbac", "http", "policy"].contains(&command.as_str()) =>
         {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let data = generate(seed, scale(rest));
@@ -55,6 +58,9 @@ fn main() -> anyhow::Result<()> {
                 "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
                 "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed))?,
                 "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed))?,
+                "policy" => {
+                    runtime.block_on(kartenn_bench::policy_budgets::run(database, &data, seed))?
+                }
                 _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
             };
             print!("{report}");

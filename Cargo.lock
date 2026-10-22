@@ -1757,6 +1757,7 @@ dependencies = [
  "kartenn-auth",
  "kartenn-core",
  "kartenn-machines",
+ "kartenn-policy",
  "kartenn-rest",
  "kartenn-server",
  "kartenn-service",
