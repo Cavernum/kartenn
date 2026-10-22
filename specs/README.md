@@ -15,7 +15,7 @@
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
-| [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (9/10 : reste l'essai `compose.yaml`) |
+| [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (10/10) |
 | [016-noyau-v0-2](016-noyau-v0-2/) | implémentées (N9 à remesurer au calme) | implémentée | [tasks](016-noyau-v0-2/tasks.md) (13/13) |
 | [017-plugins-politique-flux](017-plugins-politique-flux/) | validées (Q-017-1 à 7 arbitrées le 2026-10-22) ; prérequis : amendements 010/S35, 011/F19, F20 | validée ; maquettes à faire d'abord (U14) | [tasks](017-plugins-politique-flux/tasks.md) (0/24 ; 1 : maquettes ; 15 bloquée sur un amendement de la 010 à rédiger) |
 
@@ -243,9 +243,11 @@ pouvant pas lire `_sqlx_migrations` (migration 0054, `SELECT` seul) ; le paquet 
 symboliques, que le registre des plugins refuse ; une suppression forcée de base de test
 refusée par un autovacuum (`kartenn-testing`).
 
-Reste : démarrer l'essai `compose.yaml` avec l'image (aucun moteur de conteneurs sur la
-machine de développement) et l'audit `spec-keeper` de la 015. Question ouverte : registre
-et signature de l'image (E13).
+Essai `compose.yaml` joué le 2026-10-22 sous Podman avec l'image (amorçage, mise à jour,
+sauvegarde et restauration avec `audit verify`) ; il a montré que la connexion exige TLS,
+l'essai sert donc désormais l'instance en HTTPS. Reste à revoir le cas « base en retard »
+de `checks.vm`, qui rejoue la dernière migration : 0057 ne le permet plus. Question
+ouverte : registre et signature de l'image (E13).
 
 ## Point d'étape — 2026-10-21 : spec 016
 
