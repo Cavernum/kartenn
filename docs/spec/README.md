@@ -143,6 +143,7 @@ Non-objectifs :
 | [0029](../adr/0029-paquetage-nix-oci.md) | Paquetage par un flake Nix : une image OCI, un module NixOS (amende D35) | accepted |
 | [0030](../adr/0030-evaluation-sur-instantane.md) | Verdicts de flux évalués en mémoire sur un instantané versionné de la politique, en deux étapes (verdict, issue) | accepted |
 | [0031](../adr/0031-evaluations-de-flux-materialisees.md) | Évaluations de flux matérialisées, maintenues dans la transaction ; état et validité dérivés (spec 011) | accepted |
+| [0032](../adr/0032-instance-postgresql-des-bancs.md) | Instance PostgreSQL dédiée aux bancs (5433, `k-pg-bench`), verrou `k-heavy --bench`, attentes bornées, échelles réduite et complète | accepted |
 
 ## Questions ouvertes
 
