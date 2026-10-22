@@ -17,6 +17,7 @@
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
 | [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (9/10 : reste l'essai `compose.yaml`) |
 | [016-noyau-v0-2](016-noyau-v0-2/) | implémentées (N9 à remesurer au calme) | implémentée | [tasks](016-noyau-v0-2/tasks.md) (13/13) |
+| [017-plugins-politique-flux](017-plugins-politique-flux/) | brouillon à valider ; questions Q-017-1 à 7 à arbitrer | brouillon | [tasks](017-plugins-politique-flux/tasks.md) (0/17) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
