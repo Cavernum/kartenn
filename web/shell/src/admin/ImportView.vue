@@ -5,12 +5,13 @@ import { useRoute } from "vue-router";
 import { read, send, type Problem } from "../data/api.ts";
 import { problemText } from "../i18n/index.ts";
 import { useWrites } from "../time/index.ts";
-import { IMPORT_OPEN, type Import } from "./admin.ts";
+import { IMPORT_BUSY, IMPORT_OPEN, type Import, type ImportError } from "./admin.ts";
 
 // The follow-up of an import (REQ-007-19, REQ-006-17 to 19): its state read again while
-// it runs, the failure that paused it, resumed or cancelled.
+// its task sorts or runs it, the failure that paused it, why its sort failed (006/H18),
+// resumed or cancelled.
 
-/** Reading again while the import is ready or running. */
+/** Reading again while the import sorts, is ready or runs. */
 const POLL_MS = 1_000;
 
 const i18n = useI18n();
@@ -30,7 +31,7 @@ async function load(): Promise<void> {
   const answer = await read<Import>(`/v1/imports/${id.value}`);
   item.value = answer.ok ? answer.body : null;
   problem.value = answer.ok ? null : answer.problem;
-  if (answer.ok && (answer.body.state === "ready" || answer.body.state === "running")) {
+  if (answer.ok && (IMPORT_BUSY as readonly string[]).includes(answer.body.state)) {
     timer = setTimeout(() => void load(), POLL_MS);
   }
 }
@@ -55,6 +56,12 @@ const report = computed(() =>
     ? JSON.stringify(item.value.report, null, 2)
     : null,
 );
+type Violation = NonNullable<ImportError["violations"]>[number];
+/** A violation of the sort, in words: by its rule when known, else as the server says. */
+function violationText(v: Violation): string {
+  const key = `imports.violations.${v.rule}`;
+  return i18n.te(key) ? t(key, { element: v.element ?? "" }) : v.detail;
+}
 </script>
 
 <template>
@@ -72,6 +79,13 @@ const report = computed(() =>
       <dt>{{ t("field.id") }}</dt>
       <dd>{{ item.id }}</dd>
     </dl>
+    <template v-if="item.error">
+      <h2>{{ t("imports.sortFailed") }}</h2>
+      <p role="alert" class="k-error">{{ problemText(i18n, item.error) }}</p>
+      <ul v-if="item.error.violations?.length">
+        <li v-for="(v, i) in item.error.violations" :key="i">{{ violationText(v) }}</li>
+      </ul>
+    </template>
     <template v-if="report">
       <h2>{{ t("imports.report") }}</h2>
       <pre class="k-mono" tabindex="0">{{ report }}</pre>

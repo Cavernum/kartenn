@@ -32,7 +32,7 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 | Erreurs | `application/problem+json` (RFC 9457), `type` en URN `urn:kartenn:problem:<slug>` ; changeset refusé → 422 avec toutes ses violations (`rule`, `severity`, `subjects`, `pointer` RFC 6901) ; objet invisible ou absent → même 404 | 002/REQ-002-37, REQ-006-20 à 23 |
 | Pagination | Curseur opaque signé (HMAC, clé du trousseau `Purpose::Cursor`), droits réévalués à chaque page, sans total ; tri stable | REQ-006-7, 8 |
 | Filtrage | Paramètres conjonctifs (`champ=…`, `prop.<clé>:<op>=…`), et méthode `QUERY` (RFC 10008) au corps JSON pour les filtres longs ; URL au-delà de 8 Kio → 414 | 003/REQ-003-25, REQ-006-9, 10 |
-| Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start`, `resume`, `cancel` ; exécution par une tâche de fond sous bail, reprise au premier lot non appliqué | 004/REQ-004-28 à 30, REQ-006-17 à 19 |
+| Imports | `POST /v1/imports`, morceaux `PUT …/chunks/{n}` (10 000 éléments au plus, renvoi identique idempotent), `start` (202 sans trier : `uploading` → `sorting`, sinon 409 ; efface l'`error` précédente), `resume`, `cancel` (admis jusqu'à `paused`, `sorting` compris) ; tri, découpage en lots et exécution par la tâche de fond `import:<id>` sous bail, reprise au premier lot non appliqué (un tri interrompu reprend sur une autre instance) ; un tri impossible ramène l'import à `uploading` avec `error` (problème `invalid-import` et ses violations), lu par `GET` ; `Retry-After: 5` en `sorting`, `ready`, `running` | 004/REQ-004-28 à 30, REQ-006-17 à 19, 006/H18 |
 | Capacités | `GET /v1/capabilities` : modules actifs, versions, propriétés, plugins UI (`ui_plugins` : nom, version, plage de SDK, `base`, `entry`, empreintes SRI par fichier, catalogues, points d'extension), limites (page, changeset, morceau, corps) | D7, D17, REQ-006-35, REQ-007-7 |
 | Modules (ADR 0026) | Chaque module monte ses collections sous `/v1` (VLAN : `vlan-groups` avec `occupancy` et `next-free`, `vlans` avec `prefixes` ; machines : `clusters` avec `machines` (membres), `machines` avec `addresses` (adresses par
 interface) et `hosted` (machines hébergées), filtre `network` (machines dont une adresse est
@@ -228,7 +228,7 @@ les a exclus (événements sortants).
   `FOR UPDATE SKIP LOCKED`, bail de 30 s renouvelé toutes les 10 s, scrutation toutes
   les 5 s ; tâches `expire-pending` (1 min), `reevaluate-expected` (5 min),
   `public-drift` (au démarrage d'une version, puis chaque jour), `idempotency-purge`
-  (1 h), et une tâche `import:<id>` par import prêt. Minuteries locales à chaque
+  (1 h), et une tâche `import:<id>` par import démarré (tri, puis lots). Minuteries locales à chaque
   instance : purge des caches d'état et des limiteurs, rechargement des JWKS (5 min).
 - Base de données (spec 015, REQ-015-4) : section `[database] url_file`, un fichier qui
   contient l'URL `postgres://…`, lu au démarrage ; l'URL est alors absente de la ligne de

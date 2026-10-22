@@ -164,8 +164,17 @@
     "report": "Report",
     "resume": "Resume",
     "cancel": "Cancel the import",
+    "sortFailed": "Sort failed",
+    "violations": {
+      "import": {
+        "missing-external-id": "Element {element} creates an object without an identifier in the source.",
+        "unknown-reference": "Element {element} uses a local reference that no element defines.",
+        "order": "The local references are defined twice or form a cycle."
+      }
+    },
     "states": {
       "uploading": "Uploading",
+      "sorting": "Sorting",
       "ready": "Ready",
       "running": "Running",
       "paused": "Paused",

@@ -1,9 +1,10 @@
 //! Imports (spec 006, REQ-006-17 to 19; task 006-21; design « Imports et tâches de
 //! fond », arbitrage of 2026-10-19): `POST /v1/imports` opens an import, `PUT
 //! …/chunks/{n}` deposits numbered chunks of at most [`MAX_CHUNK`] elements, `POST
-//! …/start` sorts and cuts them in batches run by the background task `import:<id>`,
-//! `…/resume` and `…/cancel` steer it, `GET …/{id}` follows it. Only its author sees an
-//! import: for anyone else it does not exist (404).
+//! …/start` hands them to the background task `import:<id>`, which sorts and cuts them in
+//! batches then runs them (H18, task 006-27), `…/resume` and `…/cancel` steer it, `GET
+//! …/{id}` follows it. Only its author sees an import: for anyone else it does not exist
+//! (404).
 
 use axum::Extension;
 use axum::body::Bytes;
@@ -11,10 +12,9 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use kartenn_service::authn::Principal;
-use kartenn_service::import::{ImportStatus, batches, import_status, open_import};
-use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::import::{ImportError, ImportStatus, import_status, open_import};
 use kartenn_service::port::ImportItem;
-use kartenn_store_pg::imports::{self, Deposit, ImportHeader, Start};
+use kartenn_store_pg::imports::{self, Deposit, ImportHeader};
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::{Deserialize, Serialize};
@@ -82,7 +82,7 @@ struct ImportDto {
     id: Uuid,
     /// The source of the elements.
     source: String,
-    /// `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.
+    /// `uploading`, `sorting`, `ready`, `running`, `paused`, `done` or `cancelled`.
     state: String,
     /// The chunks received.
     chunks: i64,
@@ -93,6 +93,11 @@ struct ImportDto {
     /// The report of the batches run.
     #[schema(value_type = Object)]
     report: Value,
+    /// Why its last sort failed, back to `uploading`: a problem `invalid-import` and its
+    /// violations; absent otherwise, cleared by the next start (H18).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Problem>)]
+    error: Option<Value>,
     /// Links.
     links: ImportLinks,
 }
@@ -130,7 +135,7 @@ async fn represented(api: &Api, id: Uuid, status: StatusCode) -> Result<Response
     let progress = import_status(&PgStore::new(api.pool.clone()), id)
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    let running = matches!(progress.state.as_str(), "ready" | "running");
+    let running = matches!(progress.state.as_str(), "sorting" | "ready" | "running");
     let mut response = (status, axum::Json(representation(id, header, progress))).into_response();
     if running {
         response
@@ -152,6 +157,7 @@ fn representation(id: Uuid, header: ImportHeader, progress: ImportStatus) -> Imp
             remaining: progress.remaining,
         },
         report: progress.report,
+        error: header.error,
         links: ImportLinks { this: href(id) },
     }
 }
@@ -353,14 +359,15 @@ async fn deposited(
     represented(api, id, status).await
 }
 
-/// `POST /v1/imports/{id}/start` → 202: sorted, cut in batches and ready.
+/// `POST /v1/imports/{id}/start` → 202: `sorting`, its error cleared; its task sorts and
+/// cuts it in batches, then runs them (H18). The request never sorts.
 #[utoipa::path(
     post,
     path = "/imports/{id}/start",
     operation_id = "start_import",
     tag = "imports",
     params(("id" = Uuid, Path, description = "The import.")),
-    responses((status = 202, description = "The import is ready to run.", body = ImportDto))
+    responses((status = 202, description = "The import is sorting, then runs.", body = ImportDto))
 )]
 async fn start(
     State(api): State<Api>,
@@ -368,14 +375,42 @@ async fn start(
     Path(id): Path<Uuid>,
 ) -> Result<Response, Problem> {
     owned(&api, &principal, id).await?;
-    match imports::start(&api.pool, id, |items| batches(items, MAX_OPERATIONS)).await? {
-        Start::Started => Ok(located(
-            represented(&api, id, StatusCode::ACCEPTED).await?,
-            id,
-        )),
-        Start::Closed => Err(conflict("the import is started already")),
-        Start::Invalid(e) => Err(e.into()),
+    if !imports::start(&api.pool, id).await? {
+        return Err(conflict("the import is started already"));
     }
+    Ok(located(
+        represented(&api, id, StatusCode::ACCEPTED).await?,
+        id,
+    ))
+}
+
+/// The `error` of an import whose elements cannot be sorted (H18): a problem
+/// `invalid-import` with its violation, the element in fault when there is one (its rank
+/// in the chunks read by increasing number).
+#[must_use]
+pub fn sort_error(error: &ImportError) -> Value {
+    let (rule, element) = match error {
+        ImportError::MissingExternalId(element) => ("import.missing-external-id", Some(*element)),
+        ImportError::UnknownReference { element, .. } => {
+            ("import.unknown-reference", Some(*element))
+        }
+        ImportError::Order => ("import.order", None),
+        _ => ("import.invalid", None),
+    };
+    let mut violation = json!({
+        "rule": rule,
+        "severity": "error",
+        "detail": error.to_string(),
+        "subjects": [],
+        "pointer": null,
+    });
+    if let Some(element) = element {
+        violation["element"] = json!(element);
+    }
+    let problem = Problem::new(ProblemKind::InvalidImport)
+        .detail(error.to_string())
+        .extension("violations", json!([violation]));
+    serde_json::to_value(problem).unwrap_or_default()
 }
 
 /// `POST /v1/imports/{id}/resume` → 202: a paused import is ready again.
@@ -418,7 +453,7 @@ async fn cancel(
     Path(id): Path<Uuid>,
 ) -> Result<Response, Problem> {
     owned(&api, &principal, id).await?;
-    let open = ["uploading", "ready", "running", "paused"];
+    let open = ["uploading", "sorting", "ready", "running", "paused"];
     if !imports::transition(&api.pool, id, &open, "cancelled", false).await? {
         return Err(conflict("the import is over"));
     }

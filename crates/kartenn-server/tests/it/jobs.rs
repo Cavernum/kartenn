@@ -162,18 +162,12 @@ async fn importer(pool: &PgPool) -> Uuid {
     identity
 }
 
-/// A domain, a network and `count` addresses of it, deposited in chunks of 5 000 and
-/// started: its task is due.
-async fn started_import(pool: &PgPool, count: u32) -> Uuid {
+/// A domain, a network and `count` addresses of it.
+fn addresses(count: u32) -> Vec<kartenn_service::port::ImportItem> {
     use kartenn_core::objects::{AddressUsage, Nature};
     use kartenn_service::port::ImportItem;
     use kartenn_service::{Operation, Ref};
 
-    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
-    let author = importer(pool).await;
-    let import = kartenn_service::import::open_import(&store, author, "legacy")
-        .await
-        .unwrap();
     let item = |external: String, operation| ImportItem {
         external_id: Some(external),
         operation,
@@ -209,6 +203,17 @@ async fn started_import(pool: &PgPool, count: u32) -> Uuid {
             },
         )
     }));
+    elements
+}
+
+/// `elements` deposited in chunks of 5 000 and started: the import is `sorting`, its task
+/// is due.
+async fn started_import(pool: &PgPool, elements: &[kartenn_service::port::ImportItem]) -> Uuid {
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let author = importer(pool).await;
+    let import = kartenn_service::import::open_import(&store, author, "legacy")
+        .await
+        .unwrap();
     for (n, chunk) in elements.chunks(5_000).enumerate() {
         let digest = [u8::try_from(n).unwrap()];
         let deposit = kartenn_store_pg::imports::deposit(
@@ -222,16 +227,45 @@ async fn started_import(pool: &PgPool, count: u32) -> Uuid {
         .unwrap();
         assert_eq!(deposit, kartenn_store_pg::imports::Deposit::Created);
     }
-    let start = kartenn_store_pg::imports::start(pool, import, |items| {
-        kartenn_service::import::batches(items, kartenn_service::pipeline::MAX_OPERATIONS)
-    })
-    .await
-    .unwrap();
-    assert!(matches!(start, kartenn_store_pg::imports::Start::Started));
+    assert!(
+        kartenn_store_pg::imports::start(pool, import)
+            .await
+            .unwrap()
+    );
     import
 }
 
-async fn count(pool: &PgPool, table: &str) -> i64 {
+/// The batches `elements` are cut in.
+fn batch_count(elements: Vec<kartenn_service::port::ImportItem>) -> usize {
+    kartenn_service::import::batches(elements, kartenn_service::pipeline::MAX_OPERATIONS)
+        .unwrap()
+        .len()
+}
+
+fn tasks(pool: &PgPool) -> Tasks {
+    Tasks {
+        store: kartenn_store_pg::write::PgStore::new(pool.clone()),
+        sources: kartenn_service::expected::Sources::none(),
+    }
+}
+
+async fn import_jobs(pool: &PgPool, import: Uuid) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM job WHERE name = $1")
+        .bind(format!("import:{import}"))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Makes only the imports due.
+async fn only_imports_due(pool: &PgPool) {
+    sqlx::query("UPDATE job SET due_at = now() + interval '1 day' WHERE name NOT LIKE 'import:%'")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn rows(pool: &PgPool, table: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
         .fetch_one(pool)
         .await
@@ -240,13 +274,9 @@ async fn count(pool: &PgPool, table: &str) -> i64 {
 
 #[kartenn_testing::pg_test]
 async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
-    // Only the import is due.
-    sqlx::query("UPDATE job SET due_at = now() + interval '1 day'")
-        .execute(&pool)
-        .await
-        .unwrap();
-    let addresses = 20_000;
-    let import = started_import(&pool, addresses).await;
+    only_imports_due(&pool).await;
+    let count = 20_000;
+    let import = started_import(&pool, &addresses(count)).await;
     let store = kartenn_store_pg::write::PgStore::new(pool.clone());
     let progress = || async {
         kartenn_service::import::import_status(&store, import)
@@ -254,18 +284,16 @@ async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
             .unwrap()
             .unwrap()
     };
-    let batches = progress().await.remaining;
+    let batches = batch_count(addresses(count));
     assert!(batches >= 4, "{batches}");
 
-    // REQ-006-18: the instance stops after its first batch, during the next.
+    // REQ-006-18: the instance sorts the import, then stops after its first batch,
+    // during the next.
     let lease = Duration::from_secs(1);
     let heartbeat = Duration::from_millis(200);
     let holder = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
-    let tasks = Tasks {
-        store: store.clone(),
-        sources: kartenn_service::expected::Sources::none(),
-    };
-    let running = tokio::spawn(async move { holder.tick(&tasks).await });
+    let first = tasks(&pool);
+    let running = tokio::spawn(async move { holder.tick(&first).await });
     while progress().await.applied == 0 {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
@@ -277,24 +305,78 @@ async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
     // Past the lease, another instance takes the import over at its first batch left.
     tokio::time::sleep(lease + Duration::from_millis(200)).await;
     let other = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
-    let tasks = Tasks {
-        store: store.clone(),
-        sources: kartenn_service::expected::Sources::none(),
-    };
     let name = format!("import:{import}");
-    assert_eq!(other.tick(&tasks).await, Some(name.clone()));
+    assert_eq!(other.tick(&tasks(&pool)).await, Some(name));
     let done = progress().await;
     assert_eq!(done.state, "done", "{done:?}");
     assert_eq!((done.applied, done.remaining), (batches, 0));
-    assert_eq!(count(&pool, "address").await, i64::from(addresses));
-    assert_eq!(count(&pool, "external_id").await, i64::from(addresses) + 2);
+    assert_eq!(rows(&pool, "address").await, i64::from(count));
+    assert_eq!(rows(&pool, "external_id").await, i64::from(count) + 2);
     // Over: its task is gone.
-    let jobs: i64 = sqlx::query_scalar("SELECT count(*) FROM job WHERE name = $1")
-        .bind(&name)
-        .fetch_one(&pool)
+    assert_eq!(import_jobs(&pool, import).await, 0);
+}
+
+/// H18: an instance that stops while it sorts leaves the import `sorting`, nothing
+/// recorded; past the lease, another sorts it and runs it.
+#[kartenn_testing::pg_test]
+async fn a_sort_stopped_is_taken_over_by_another_instance(pool: PgPool) {
+    only_imports_due(&pool).await;
+    let count = 2_000;
+    let import = started_import(&pool, &addresses(count)).await;
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let lease = Duration::from_secs(1);
+    let heartbeat = Duration::from_millis(200);
+    let holder = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
+    let running = tokio::spawn(async move { holder.tick(&Hanging).await });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    running.abort();
+    let stopped = kartenn_service::import::import_status(&store, import)
         .await
+        .unwrap()
         .unwrap();
-    assert_eq!(jobs, 0);
+    assert_eq!(stopped.state, "sorting");
+    assert_eq!(rows(&pool, "import_batch").await, 0);
+
+    tokio::time::sleep(lease + Duration::from_millis(200)).await;
+    let other = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
+    assert_eq!(
+        other.tick(&tasks(&pool)).await,
+        Some(format!("import:{import}"))
+    );
+    let done = kartenn_service::import::import_status(&store, import)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(done.state, "done", "{done:?}");
+    assert_eq!(done.applied, batch_count(addresses(count)));
+    assert_eq!(rows(&pool, "address").await, i64::from(count));
+    assert_eq!(import_jobs(&pool, import).await, 0);
+}
+
+/// H18: elements that cannot be sorted (a local defined twice) bring the import back to
+/// `uploading` with its error; its task is gone, nothing is recorded.
+#[kartenn_testing::pg_test]
+async fn an_unsorted_import_is_open_again_with_its_error(pool: PgPool) {
+    only_imports_due(&pool).await;
+    let mut elements = addresses(3);
+    let twice = elements[2].clone();
+    elements.push(twice);
+    let import = started_import(&pool, &elements).await;
+    let scheduler = Scheduler::new(pool.clone(), Uuid::now_v7());
+    assert_eq!(
+        scheduler.tick(&tasks(&pool)).await,
+        Some(format!("import:{import}"))
+    );
+    let header = kartenn_store_pg::imports::header(&pool, import)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(header.state, "uploading");
+    let error = header.error.expect("an error");
+    assert_eq!(error["type"], "urn:kartenn:problem:invalid-import");
+    assert_eq!(error["violations"][0]["rule"], "import.order");
+    assert_eq!(rows(&pool, "import_batch").await, 0);
+    assert_eq!(import_jobs(&pool, import).await, 0);
 }
 
 /// Runs of the background task `ticker.tick` (REQ-016-16).

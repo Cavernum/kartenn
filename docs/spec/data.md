@@ -141,6 +141,12 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   journal de leur transaction (une simulation ou un refus n'émet rien) ; ceux d'une
   tâche de fond n'ont pas de changeset (`outbox.changeset_id` nullable, 0052) et sont
   ordonnés sous `<module>:<tâche>`.
+- **Imports** (`import`, `import_batch`, migrations 0003, 0040, 0057 ; REQ-006-17 à 19,
+  006/H18) : états `uploading`, `sorting`, `ready`, `running`, `paused`, `done`,
+  `cancelled` ; morceaux numérotés dans `import_chunk` (empreinte, taille) ; `error`
+  (`jsonb`) garde le problème `invalid-import` du dernier tri échoué, effacé au
+  démarrage suivant ; lots créés par la tâche `import:<id>` en une transaction avec le
+  passage à `ready`.
 - **Pour le compte d'un demandeur** (0055, REQ-016-12, 13) : `changeset.on_behalf_of`
   (identité `requester`) ; l'audit le porte dans les `details` de chaque événement de la
   requête, pas dans une colonne, pour ne pas changer la forme des événements déjà
