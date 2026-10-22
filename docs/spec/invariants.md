@@ -90,7 +90,9 @@ Les modules livrés tiennent INV-30, 31 et 34 sur le jeu de référence augment�
 par `bench-core` après les budgets du noyau : VLAN (008, REQ-008-25 : 2·10⁴ groupes,
 10⁵ VLAN ; banc complet tenu le 2026-10-21) et machines (009, REQ-009-21 : 10⁵
 machines, 10³ clusters, 3·10⁵ interfaces et rattachements, plus un import de 10⁴
-machines ; variante réduite tenue, banc complet encore à relancer, tâche 009-12).
+machines ; banc complet tenu le 2026-10-22, p95 par le routeur : fiche d'une machine
+5,7 ms, page filtrée de 100 machines 36,8 ms, machines d'un /24 64 ms, création 29 ms ;
+import de 10⁴ machines en 61 s).
 
 Politique de flux (010, REQ-010-28 et 54) : banc `bench-policy` (010-19), qui tient lieu
 du prototype 010-1. **Variante réduite tenue** le 2026-10-22, avec la politique à la
