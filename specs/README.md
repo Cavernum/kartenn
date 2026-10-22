@@ -318,8 +318,8 @@ clôture par `core.object.dependents` ; demande soumise aussi à `prop.core.owne
 `waiver` ajoutée ; page coupée avant le filtre des droits ; non-conformités sans curseur ;
 jointures du noyau à l'assertion courante ; fenêtres d'échéance en constantes. Corrigé en
 route : une opération du noyau ajoutée par un module garde sa propre période (noyau, constat
-de 011-8). Contourné : héritiers d'une valeur datée dans le futur absents du différentiel
-des propriétés du noyau, rattrapés par l'index des origines (011-5).
+de 011-8) ; les héritiers d'une valeur datée dans le futur manquaient au différentiel des
+propriétés du noyau (constat de l'oracle de 011-5, `heritable()` corrigé).
 
 Reste : banc `bench-flow` (011-10), budgets de REQ-011-19 et de l'ADR 0031 ; tâche 011-11
 préparée, à cocher après le banc ; audit `spec-keeper` (relecture faite à la main).

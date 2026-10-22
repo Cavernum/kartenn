@@ -55,8 +55,8 @@ un état et une validité dérivés, sans date de fin obligatoire pour un flux c
   banc `bench-flow` (011-10, 10⁵ flux) ; le filtrage par service et valeurs d'axes reste
   une optimisation à mesurer.
 - L'oracle de la tâche 011-5 (recalcul complet après des suites aléatoires) est la garde
-  de cohérence ; il a montré que le différentiel des propriétés du noyau omet les héritiers
-  d'une valeur datée dans le futur, que la réévaluation rattrape par l'index des origines.
+  de cohérence ; il a montré que le différentiel des propriétés du noyau omettait les
+  héritiers d'une valeur datée dans le futur (corrigé dans le noyau, `heritable()`).
 - La restauration d'un flux ne rétablit que sa ligne ; ses tables dérivées sont recalculées
   par la réévaluation.
 - Le budget de la réévaluation est « à mesurer » jusqu'au banc 011-10.
