@@ -67,6 +67,7 @@ Machines et interfaces (009, en cours). Note de référence :
 - S32 signaux et score informatif.
 - S33 dossier, pré-vérification et permission « demander un flux ».
 - S34 API : collections au pluriel sous `/v1` (ADR 0026, clause 9).
+- S35 écriture d'une cellule de la matrice sous `If-Match` (amende S28, REQ-010-34).
 
 ## S1 — Périmètre
 - Décision : la 010 livre les vocabulaires (environnements, types de flux), le catalogue
@@ -502,3 +503,29 @@ Machines et interfaces (009, en cours). Note de référence :
 - Pourquoi : l'ADR 0026, acceptée, fixe la forme des chemins de module ; l'écart N13
   relevé à sa rédaction est ainsi résolu.
 - Décidé par : l'utilisateur (2026-10-21), sur la proposition de Claude
+
+## S35 — Écriture d'une cellule sous `If-Match` (amende S28, REQ-010-34)
+- Constat (2026-10-22, spec 017, Q-017-7) : `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}`
+  passe par `kit::submit` (opération sans objet ni `If-Match`) ; deux responsables qui
+  écrivent la même matrice : le dernier l'emporte sans le savoir. Toutes les autres
+  écritures de ressource exigent `If-Match` (006/H8). La matrice porte déjà un ETag
+  (empreinte de la vue d'un type de flux).
+- Options : (A) le client relit l'ETag avant d'écrire (contrôle non atomique) ;
+  (B) `PUT` sous `If-Match` de la matrice, comme toute écriture.
+- Décision : **B**. Le `PUT` d'une cellule exige `If-Match` portant l'ETag de la matrice
+  du type de flux lue au présent : absent → 428, périmé → 412 (006/H8). La comparaison
+  se fait dans la transaction d'écriture, sous le verrou `policy` (S17), en recalculant
+  la vue du type de flux avant le changeset : elle est atomique. L'opération
+  `policy.matrix.set` reçoit un membre facultatif `if_match` (l'ETag lu) ; la route le
+  remplit depuis l'en-tête ; dans un changeset composé (`POST /v1/changesets`), il reste
+  facultatif, et un écart y est la violation `policy.matrix.stale` (erreur, 422
+  `changeset-refused`). Plusieurs cellules d'un même type de flux dans un changeset sont
+  comparées à la matrice d'avant le changeset, pas à celle qu'ont laissée les opérations
+  précédentes.
+- Pourquoi : un contrat uniforme (toute écriture de ressource sous condition) ; la
+  matrice est l'écran où deux responsables travaillent le plus souvent en même temps.
+  Grain retenu : la matrice d'un type de flux, pas la cellule (l'ETag servi est celui
+  de la vue ; deux cellules distinctes d'un même type se gênent, ce qui est voulu : la
+  vue relue montre l'autre changement).
+- Décidé par : l'utilisateur (2026-10-22, Q-017-7, option B) ; grain, membre `if_match`
+  et violation du changeset composé : Claude, choix de conception

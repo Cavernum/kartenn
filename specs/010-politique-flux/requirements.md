@@ -226,13 +226,19 @@ Acceptation :
 Le module doit offrir une vue (environnement source × environnement destination × type
 de flux) des règles qui ne citent qu'une valeur d'environnement de chaque côté et un type
 de flux, en lecture et en écriture, avec trois états : `allow`, `deny`, `conditional`
-(autorisation qui exige des motifs) (S28, EB-11, N36).
+(autorisation qui exige des motifs) ; l'écriture d'une cellule doit exiger `If-Match`
+portant l'ETag de la matrice du type de flux, comparé de façon atomique (S28, S35,
+EB-11, N36, 006/H8).
 
 Acceptation :
 - Écrire la cellule `(prod, file, global)` en `conditional` crée une règle `allow` qui
   exige les motifs choisis ; la lire rend `conditional`.
 - Une règle multi-axes n'apparaît pas dans la vue ; la vue le signale par un décompte des
   règles hors vue.
+- `PUT` d'une cellule sans `If-Match` → 428 ; avec l'ETag d'une matrice modifiée depuis
+  (autre cellule du même type de flux écrite entre-temps) → 412, rien n'est écrit.
+- Changeset composé dont une opération `policy.matrix.set` porte un `if_match` périmé :
+  refusé (`policy.matrix.stale`).
 
 #### REQ-010-35 — Import de la politique existante
 Le module doit accepter, par un convertisseur hors ligne qui produit des changesets, une

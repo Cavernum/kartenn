@@ -464,3 +464,26 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     point d'étape dans `specs/README.md`. Reste : les budgets (010-1, 010-19), à reporter
     dans `docs/spec/invariants.md` § Performance et dans l'ADR 0030, puis l'audit
     spec-keeper.
+
+## P5 — Amendements
+
+- [ ] 21. Écriture d'une cellule de la matrice sous `If-Match` (S35) : la route
+  `set_cell` exige l'en-tête (428 absent, 412 périmé) et le passe dans le membre
+  `if_match` de `policy.matrix.set` ; `prepare_set` recalcule la vue du type de flux
+  dans la transaction, sous le verrou `policy`, et compare son empreinte à celle du
+  `GET` ; violation `policy.matrix.stale` (erreur) dans un changeset composé ; contrat
+  OpenAPI (en-tête `If-Match` requis, réponses 412 et 428) et SDK régénérés — REQ-010-34
+  — verify : `PUT` sans `If-Match` → 428 ; deux `PUT` du même type de flux sur l'ETag lu
+  une fois : le second → 412 et la cellule n'est pas écrite ; `PUT` avec l'ETag relu →
+  200 ; changeset composé à `if_match` périmé → 422 `policy.matrix.stale` ; sans
+  `if_match` → accepté comme avant ; `docs/spec/interfaces.md` et règles générées à jour
+  où : design « API » (ligne de la matrice, paragraphe « Livré par 010-18 ») ;
+  `crates/kartenn-policy/src/rest.rs` (`set_cell`, `show_matrix` pour l'ETag
+  `ETag::page`, déclaration `set_policy_matrix_cell` du contrat : imiter l'en-tête
+  `If-Match` des `PATCH` du même fichier) ; `crates/kartenn-rest/src/kit.rs` (`if_match`
+  ne lit qu'un UUID : une variante pour une empreinte, ou un `entity_tag` exposé) ;
+  `crates/kartenn-policy/src/matrix.rs` (`write::Set`, `prepare_set`, `view`) ;
+  `crates/kartenn-policy/src/rules.rs` (nouvelle règle) ; tests
+  `crates/kartenn-policy/tests/it/rest.rs` (`the_matrix_is_read_and_its_cells_are_set`
+  à compléter) et `tests/it/matrix.rs` ; `web/sdk/src/api/schema.d.ts`
+  - dépend de : 18
