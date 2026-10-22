@@ -533,7 +533,9 @@ in {
   };
 
   # The benches (ADR 0032) recreate the kartenn_bench database of the bench instance
-  # (k-pg-bench, port 5433; K_BENCH_DATABASE_URL to aim elsewhere) under `k-heavy --bench`.
+  # (k-pg-bench, port 5433; K_BENCH_DATABASE_URL to aim elsewhere) under `k-heavy --bench`,
+  # at the scale K_BENCH_SCALE: reduced by default, `full` only for a budget measure, run
+  # once by the orchestrator at the end of a series.
   env.K_BENCH_DATABASE_URL = benchDatabase;
 
   # Budgets of the properties (spec 003, REQ-003-26) on the reference dataset of

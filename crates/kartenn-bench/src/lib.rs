@@ -194,6 +194,15 @@ impl Scale {
         addresses_per_network: 10,
     };
 
+    /// Reduced dataset (`K_BENCH_SCALE=reduced`, the default of the benches): the 20
+    /// domains of the reference with a tenth of its networks, about 1.1·10⁴ networks and
+    /// 1.1·10⁵ addresses. Its verdicts check the benches, not the budgets (ADR 0032).
+    pub const REDUCED: Self = Self {
+        domains: 20,
+        networks_per_domain: 550,
+        addresses_per_network: 10,
+    };
+
     /// Small dataset for tests.
     pub const SMALL: Self = Self {
         domains: 20,
