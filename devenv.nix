@@ -403,6 +403,18 @@ in {
     '';
   };
 
+  # Budgets of the flow registry (REQ-011-19): the four modules on the dataset of the
+  # core, a policy of 10⁴ rules and 10⁵ flows: `bench-flow [seed] [small]`.
+  scripts.bench-flow = {
+    description = "Check the budgets of the flow registry on a fresh kartenn_bench database";
+    exec = ''
+      set -euo pipefail
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
+      cargo run --release -q -p kartenn-bench -- flow "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
+
   # Cost of access control (REQ-005-29) on the budgets of the core, for a person with 50
   # groups and 1 000 bindings: `bench-rbac [seed] [small]`.
   scripts.bench-rbac = {

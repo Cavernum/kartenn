@@ -16,6 +16,7 @@ use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
 pub mod core_budgets;
+pub mod flow_budgets;
 pub mod http;
 pub mod machine_budgets;
 pub mod policy_budgets;

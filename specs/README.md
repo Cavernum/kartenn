@@ -11,12 +11,13 @@
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées sauf REQ-007-32 (budgets du navigateur) | implémentée | [tasks](007-web-shell-plugins/tasks.md) (25/26, reste 24 : banc `bench-web`) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | implémentées, sauf REQ-009-21 (banc complet à relancer) | implémentée | [tasks](009-machines-interfaces/tasks.md) (13/14, reste 12 : banc complet) |
-| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée sauf REQ-010-28, 54 (budgets) | 010 en cours (ADR 0030) ; 011 implémentée sauf REQ-011-19 (budgets), ADR 0031 | [010](010-politique-flux/tasks.md) (17/20, restent les bancs 1, 19 et la synchronisation 20), [011](011-registre-flux/tasks.md) (9/11, restent le banc 10 et la synchronisation 11, préparée) |
+| [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée sauf REQ-010-28, 54 (budgets) | 010 en cours (ADR 0030) ; 011 implémentée sauf REQ-011-19 (budgets), ADR 0031 | [010](010-politique-flux/tasks.md) (17/21, restent les bancs 1, 19, la synchronisation 20 et l'amendement 21 : `If-Match` de la matrice, S35), [011](011-registre-flux/tasks.md) (9/13, restent le banc 10, la synchronisation 11, préparée, et les amendements 12 et 13 : demandes en attente lues, prolongation, F19, F20) |
 | [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
 | [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (9/10 : reste l'essai `compose.yaml`) |
 | [016-noyau-v0-2](016-noyau-v0-2/) | implémentées (N9 à remesurer au calme) | implémentée | [tasks](016-noyau-v0-2/tasks.md) (13/13) |
+| [017-plugins-politique-flux](017-plugins-politique-flux/) | validées (Q-017-1 à 7 arbitrées le 2026-10-22) ; prérequis : amendements 010/S35, 011/F19, F20 | validée ; maquettes à faire d'abord (U14) | [tasks](017-plugins-politique-flux/tasks.md) (0/24 ; 1 : maquettes ; 15 bloquée sur un amendement de la 010 à rédiger) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 

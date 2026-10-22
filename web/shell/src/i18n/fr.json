@@ -164,8 +164,17 @@
     "report": "Rapport",
     "resume": "Reprendre",
     "cancel": "Annuler l'import",
+    "sortFailed": "Tri impossible",
+    "violations": {
+      "import": {
+        "missing-external-id": "L'élément de rang {element} crée un objet sans identifiant dans la source.",
+        "unknown-reference": "L'élément de rang {element} utilise une référence locale qu'aucun élément ne définit.",
+        "order": "Les références locales sont définies deux fois ou forment un cycle."
+      }
+    },
     "states": {
       "uploading": "En téléversement",
+      "sorting": "En tri",
       "ready": "Prêt",
       "running": "En cours",
       "paused": "En pause",

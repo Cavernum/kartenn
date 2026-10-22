@@ -1446,7 +1446,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** `POST /v1/imports/{id}/start` → 202: sorted, cut in batches and ready. */
+    /**
+     * `POST /v1/imports/{id}/start` → 202: `sorting`, its error cleared; its task sorts and
+     *     cuts it in batches, then runs them (H18). The request never sorts.
+     */
     post: operations["start_import"];
     delete?: never;
     options?: never;
@@ -4572,6 +4575,7 @@ export interface components {
        * @description The elements received.
        */
       elements: number;
+      error?: components["schemas"]["Problem"] | null;
       /**
        * Format: uuid
        * @description Identifier.
@@ -4583,7 +4587,7 @@ export interface components {
       report: Record<string, never>;
       /** @description The source of the elements. */
       source: string;
-      /** @description `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`. */
+      /** @description `uploading`, `sorting`, `ready`, `running`, `paused`, `done` or `cancelled`. */
       state: string;
     };
     /**
@@ -4973,6 +4977,7 @@ export interface components {
          * @description The elements received.
          */
         elements: number;
+        error?: components["schemas"]["Problem"] | null;
         /**
          * Format: uuid
          * @description Identifier.
@@ -4984,7 +4989,7 @@ export interface components {
         report: Record<string, never>;
         /** @description The source of the elements. */
         source: string;
-        /** @description `uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`. */
+        /** @description `uploading`, `sorting`, `ready`, `running`, `paused`, `done` or `cancelled`. */
         state: string;
       }[];
       /** @description The links of the page. */
@@ -11582,7 +11587,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The import is ready to run. */
+      /** @description The import is sorting, then runs. */
       202: {
         headers: {
           [name: string]: unknown;

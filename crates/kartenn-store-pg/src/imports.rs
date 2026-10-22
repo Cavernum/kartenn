@@ -1,9 +1,9 @@
 //! Imports in batches (spec 004, REQ-004-28 to 30; tasks 004-18, 19), deposited by
-//! chunks and run as background tasks (spec 006, REQ-006-17 to 19; task 006-21).
+//! chunks, sorted and run as background tasks (spec 006, REQ-006-17 to 19; tasks 006-21,
+//! 27).
 
 use std::collections::HashMap;
 
-use kartenn_service::import::ImportError;
 use kartenn_service::port::{ImportBatch, ImportItem, ImportProgress, ImportRecord, StoreError};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -197,6 +197,8 @@ pub struct ImportHeader {
     pub chunks: i64,
     /// Elements deposited.
     pub elements: i64,
+    /// Why its last sort failed (H18), until the next start.
+    pub error: Option<serde_json::Value>,
 }
 
 /// An import without its elements, with the count of its chunks.
@@ -205,8 +207,9 @@ pub struct ImportHeader {
 ///
 /// Database errors.
 pub async fn header(pool: &PgPool, import: Uuid) -> Result<Option<ImportHeader>, StoreError> {
-    let row: Option<(Uuid, String, String, i64, i64)> = sqlx::query_as(
-        "SELECT i.author_id, i.source, i.state, count(c.n), coalesce(sum(c.size), 0)::bigint
+    let row: Option<(Uuid, String, String, i64, i64, Option<serde_json::Value>)> = sqlx::query_as(
+        "SELECT i.author_id, i.source, i.state, count(c.n), coalesce(sum(c.size), 0)::bigint,
+                i.error
            FROM import i LEFT JOIN import_chunk c ON c.import_id = i.id
           WHERE i.id = $1 GROUP BY i.id",
     )
@@ -214,15 +217,16 @@ pub async fn header(pool: &PgPool, import: Uuid) -> Result<Option<ImportHeader>,
     .fetch_optional(pool)
     .await
     .map_err(store_err)?;
-    Ok(
-        row.map(|(author, source, state, chunks, elements)| ImportHeader {
+    Ok(row.map(
+        |(author, source, state, chunks, elements, error)| ImportHeader {
             author,
             source,
             state,
             chunks,
             elements,
-        }),
-    )
+            error,
+        },
+    ))
 }
 
 /// The imports of `author`, the most recent first, after the key `after` (opening date,
@@ -321,50 +325,69 @@ pub async fn deposit(
     Ok(deposit)
 }
 
-/// What became of the start of an import.
-#[derive(Debug)]
-pub enum Start {
-    /// Sorted, cut in batches and ready; its task is due.
-    Started,
-    /// The import is not `uploading` (or is unknown).
-    Closed,
-    /// Its elements cannot be sorted; it stays `uploading`.
-    Invalid(ImportError),
-}
-
-/// Starts `import` (REQ-006-17): in one transaction, reads its chunks by increasing
-/// number, cuts them in batches with `plan`, records the batches, makes the import `ready`
-/// and its task due.
+/// Starts `import` (REQ-006-17, H18): an `uploading` import becomes `sorting`, loses the
+/// error of its previous sort and its task is due; the sort is left to the task. False if
+/// the import is not `uploading` (or is unknown). The start waits for the deposits in
+/// progress.
 ///
 /// # Errors
 ///
 /// Database errors.
-pub async fn start(
-    pool: &PgPool,
-    import: Uuid,
-    plan: impl FnOnce(Vec<ImportItem>) -> Result<Vec<Vec<ImportItem>>, ImportError>,
-) -> Result<Start, StoreError> {
+pub async fn start(pool: &PgPool, import: Uuid) -> Result<bool, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
-    let state: Option<String> =
-        sqlx::query_scalar("SELECT state FROM import WHERE id = $1 FOR UPDATE")
-            .bind(import)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(store_err)?;
-    if state.as_deref() != Some("uploading") {
-        return Ok(Start::Closed);
+    let started = sqlx::query(
+        "UPDATE import SET state = 'sorting', error = NULL WHERE id = $1 AND state = 'uploading'",
+    )
+    .bind(import)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?
+    .rows_affected()
+        == 1;
+    if started {
+        schedule(&mut tx, import).await?;
+    }
+    tx.commit().await.map_err(store_err)?;
+    Ok(started)
+}
+
+/// The elements of a `sorting` import, its chunks read by increasing number; `None` if the
+/// import is not `sorting`. Its chunks no longer change: they are deposited only while it
+/// is `uploading`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn sorting(pool: &PgPool, import: Uuid) -> Result<Option<Vec<ImportItem>>, StoreError> {
+    let state: Option<String> = sqlx::query_scalar("SELECT state FROM import WHERE id = $1")
+        .bind(import)
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)?;
+    if state.as_deref() != Some("sorting") {
+        return Ok(None);
     }
     let chunks: Vec<sqlx::types::Json<Vec<ImportItem>>> =
         sqlx::query_scalar("SELECT elements FROM import_chunk WHERE import_id = $1 ORDER BY n")
             .bind(import)
-            .fetch_all(&mut *tx)
+            .fetch_all(pool)
             .await
             .map_err(store_err)?;
-    let items = chunks.into_iter().flat_map(|chunk| chunk.0).collect();
-    let batches = match plan(items) {
-        Ok(batches) => batches,
-        Err(e) => return Ok(Start::Invalid(e)),
-    };
+    Ok(Some(chunks.into_iter().flat_map(|chunk| chunk.0).collect()))
+}
+
+/// Records the batches of a sorted import and makes it `ready`, in one transaction; false
+/// (and nothing recorded) if it is no longer `sorting`, cancelled meanwhile.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn sorted(
+    pool: &PgPool,
+    import: Uuid,
+    batches: &[Vec<ImportItem>],
+) -> Result<bool, StoreError> {
+    let mut tx = pool.begin().await.map_err(store_err)?;
     for (index, items) in batches.iter().enumerate() {
         sqlx::query(
             "INSERT INTO import_batch (import_id, idx, operations, state)
@@ -377,14 +400,52 @@ pub async fn start(
         .await
         .map_err(store_err)?;
     }
-    sqlx::query("UPDATE import SET state = 'ready' WHERE id = $1")
-        .bind(import)
-        .execute(&mut *tx)
-        .await
-        .map_err(store_err)?;
-    schedule(&mut tx, import).await?;
+    // Last, so that a cancel waits for the row only the time of the commit.
+    let ready =
+        sqlx::query("UPDATE import SET state = 'ready' WHERE id = $1 AND state = 'sorting'")
+            .bind(import)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?
+            .rows_affected()
+            == 1;
+    if ready {
+        tx.commit().await.map_err(store_err)?;
+    }
+    Ok(ready)
+}
+
+/// Brings a `sorting` import whose elements cannot be sorted back to `uploading` with
+/// `error`, and removes its task; false if it is no longer `sorting`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn unsorted(
+    pool: &PgPool,
+    import: Uuid,
+    error: &serde_json::Value,
+) -> Result<bool, StoreError> {
+    let mut tx = pool.begin().await.map_err(store_err)?;
+    let back = sqlx::query(
+        "UPDATE import SET state = 'uploading', error = $2 WHERE id = $1 AND state = 'sorting'",
+    )
+    .bind(import)
+    .bind(error)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?
+    .rows_affected()
+        == 1;
+    if back {
+        sqlx::query("DELETE FROM job WHERE name = $1")
+            .bind(job_name(import))
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?;
+    }
     tx.commit().await.map_err(store_err)?;
-    Ok(Start::Started)
+    Ok(back)
 }
 
 /// Moves `import` from one of `from` to `to`; with `run`, makes its task due. False if

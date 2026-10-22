@@ -5,7 +5,8 @@ import { expect, expectAccessible, test } from "../fixtures/index.ts";
 
 // Administration (spec 007, task 22; REQ-007-19): a service account and its secret shown
 // once, the audit search that finds its creation, the export saved as NDJSON; an import
-// followed, resumed and cancelled.
+// followed, resumed and cancelled; an import whose sort fails, open again with its error
+// (spec 006, H18).
 
 test("a service account, its secret shown once, its creation found in the audit and exported", async ({
   page,
@@ -109,7 +110,15 @@ async function pausingImport(page: Page, source: string): Promise<string> {
   );
 }
 
+/**
+ * The wait for the task of an import: the scheduler of the instance takes one due task
+ * every 5 s, the imports of both browsers after the tasks due at its start (006/H18: the
+ * sort too is the task's).
+ */
+const JOB_WAIT = 60_000;
+
 test("an import followed, resumed, then cancelled", async ({ page, login }, info) => {
+  test.slow();
   const source = `e2e-${info.project.name}-${Date.now()}`;
   await login("alice");
   const id = await pausingImport(page, source);
@@ -121,7 +130,7 @@ test("an import followed, resumed, then cancelled", async ({ page, login }, info
   await page.getByRole("link", { name: source }).click();
   await expect(page).toHaveURL(new RegExp(`/imports/${id}$`));
   const state = page.getByRole("status").filter({ hasText: "État" });
-  await expect(state).toHaveText("État : En pause", { timeout: 20_000 });
+  await expect(state).toHaveText("État : En pause", { timeout: JOB_WAIT });
   await expect(page.getByRole("heading", { name: "Rapport" })).toBeVisible();
   await expectAccessible(page);
 
@@ -131,11 +140,54 @@ test("an import followed, resumed, then cancelled", async ({ page, login }, info
   ]);
   expect(resumed.status()).toBe(202);
   // Its batch refused again, it pauses again.
-  await expect(state).toHaveText("État : En pause", { timeout: 20_000 });
+  await expect(state).toHaveText("État : En pause", { timeout: JOB_WAIT });
 
   await page.getByRole("button", { name: "Annuler l'import" }).click();
   await expect(state).toHaveText("État : Annulé");
   await expect(page.getByRole("button", { name: "Reprendre" })).toHaveCount(0);
+});
+
+test("an import whose sort fails is open again with its error", async ({ page, login }) => {
+  test.slow();
+  await login("alice");
+  // An address in a domain that no element defines: the sort of its task fails.
+  const id = await page.evaluate(async (source) => {
+    const json = { "content-type": "application/json" };
+    const opened = await fetch("/v1/imports", {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ source }),
+    });
+    const location = opened.headers.get("location")!;
+    await fetch(`${location}/chunks/0`, {
+      method: "PUT",
+      headers: json,
+      body: JSON.stringify({
+        elements: [
+          {
+            external_id: "e2e-stray",
+            operation: {
+              op: "create_address",
+              domain: { local: 7 },
+              address: "192.0.2.1",
+              usage: "host",
+            },
+          },
+        ],
+      }),
+    });
+    await fetch(`${location}/start`, { method: "POST" });
+    return location.split("/").pop()!;
+  }, `e2e-unsorted-${Date.now()}`);
+
+  await page.goto(`/imports/${id}`);
+  const state = page.getByRole("status").filter({ hasText: "État" });
+  await expect(state).toHaveText("État : En téléversement", { timeout: JOB_WAIT });
+  await expect(page.getByRole("heading", { name: "Tri impossible" })).toBeVisible();
+  await expect(
+    page.getByText("L'élément de rang 0 utilise une référence locale qu'aucun élément ne définit."),
+  ).toBeVisible();
+  await expectAccessible(page);
 });
 
 test("roles, bindings, issuers and identities, listed and accessible", async ({ page, login }) => {

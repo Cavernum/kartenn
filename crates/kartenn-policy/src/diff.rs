@@ -140,9 +140,9 @@ fn cited(rules: &[&Rule]) -> BTreeMap<AxisKey, (BTreeSet<AxisValue>, bool)> {
     out
 }
 
-/// The number of combinations [`classes`] yields for `rules`, counted without building
-/// them: an axis of `n` cited values has `n + 1` slots, as many singletons and pairs of
-/// slots on each side, and the shared class when a rule asks for the same value.
+/// The number of combinations [`classes`] gives for `rules`, without building them: per
+/// axis, n cited values and « another value » make n + 1 slots, taken one or two at a
+/// time on each side, plus the shared value when a rule asks for the same value.
 fn class_count(rules: &[&Rule]) -> usize {
     cited(rules)
         .values()
@@ -231,8 +231,8 @@ pub fn diff(before: &PolicySnapshot, after: &PolicySnapshot) -> PolicyDiff {
             .candidates(&service)
             .chain(after.candidates(&service))
             .collect();
-        // Counted before any is built: the classes of 50 cited values are 1,7·10⁶ pairs
-        // an axis, which a changeset of every rule would hold for each service at once.
+        // Counted before being built: the combinations of a large policy would not fit
+        // in memory (tasks 011-10, 010-19: 50 cited values make 1,7·10⁶ pairs an axis).
         let count = *counts
             .entry((
                 before.candidate_keys(&service),
@@ -307,6 +307,31 @@ mod tests {
 
     fn one(value: &str) -> BTreeSet<Slot> {
         BTreeSet::from([Slot::Value(value.into())])
+    }
+
+    #[test]
+    fn the_combinations_are_counted_as_built() {
+        let rules = [
+            rule(
+                "a",
+                Effect::Allow,
+                &[(ENV, &["prod", "dev"])],
+                &[(ENV, &["dev"])],
+                &["admin"],
+            ),
+            rule(
+                "b",
+                Effect::Deny,
+                &[(ENV, &["test"])],
+                &[(ENV, &["prod"])],
+                &["admin"],
+            ),
+        ];
+        let rules: Vec<&Rule> = rules.iter().collect();
+        let built: usize = classes(&rules).iter().map(|(_, p)| p.len()).product();
+        // Three cited values and « another »: 4 + 6 = 10 sets a side.
+        assert_eq!(built, 100);
+        assert_eq!(class_count(&rules), built);
     }
 
     #[test]
@@ -481,16 +506,6 @@ mod tests {
                 .map(|f| (f.candidate, f.before, f.after))
                 .collect();
             prop_assert_eq!(computed, oracle(&before, &after));
-        }
-
-        #[test]
-        fn the_count_is_that_of_the_classes(rules in arb_rules()) {
-            let rules: Vec<&Rule> = rules.iter().collect();
-            let built = classes(&rules)
-                .iter()
-                .map(|(_, pairs)| pairs.len())
-                .product::<usize>();
-            prop_assert_eq!(class_count(&rules), built);
         }
     }
 

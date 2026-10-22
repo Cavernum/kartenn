@@ -249,6 +249,15 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   tenus
   - où : `crates/kartenn-bench`
   - dépend de : 9
+  - en cours (2026-10-22) : banc `bench-flow` (`flow_budgets.rs`, politique au gabarit
+    du banc 010 sans motifs, conditions ni signaux), politique lue une fois par passe,
+    filtrage par service, différentiel de politique compté avant d'être construit (OOM).
+    Mesure de référence : demande 16 × 16 1,1 s (300 ms), reclassement de 10⁴ flux
+    17,8 s (3 s), changement de politique sur 10⁵ flux 96,5 s (60 s), page des
+    non-conformités 17,6 s (150 ms) ; tenus : règle d'un type de flux (5·10³ flux) 7,5 s,
+    page filtrée 140 ms. Reste : réévaluation ensembliste (étape 2 du design 011
+    « Réévaluation », un aller-retour par étape et non par flux) et requête des
+    non-conformités.
 - [ ] 11. Synchronisation de `docs/spec/`, ADR proposée → acceptée, amendement de l'ADR
   0026 (N38, N39)
   - où : skill `tech-specs`, mode sync
@@ -260,3 +269,58 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     écarts au design reportés (design, § « Écarts au design »), statuts `in-progress`.
     **N'attend plus que le banc 011-10** : budgets de REQ-011-19 et de l'ADR 0031 « à
     mesurer », relecture spec-keeper.
+
+## P5 — Amendements (spec 017)
+
+- [ ] 12. Demandes en attente servies par la lecture (F19) : `read::flows` ajoute, quand
+  `state` cite `requested` ou avec les filtres `review=pending` et `changeset=<id>`, les
+  propositions en attente à `as_of` qui portent `flow.request` (et, après la tâche 13,
+  les prolongations `flow.update`) ; ligne `id: null` (demande) avec le membre `review`
+  (`changeset`, `kind`, `triage` lu dans l'opération complétée, sans recalcul ; triage
+  étendu aux évaluations par paire s'il ne les garde pas) ; filtres applicables et
+  exclusions du design ; curseur sur le changeset ; droits `flow.flow.read`,
+  `flow.flow.review` sur l'entité ou demandeur, triage réduit ; contrat OpenAPI (schéma
+  `Flow` : `id` nullable, membre `review` ; paramètres `review`, `changeset`) et SDK
+  régénérés — REQ-011-5, 14, 17 — verify : demande sous réserve → 202, puis
+  `GET /v1/flows?state=requested` la rend avec `id` nul, son changeset et un triage égal
+  à celui de la réponse ; absente sans `requested` ; réduite pour le demandeur sans
+  lecture des extrémités, visible d'un instructeur, invisible sans droit sur l'entité ;
+  absente à un `as_of` antérieur et après rejet ; `changeset=<id>` rend la seule ligne ;
+  filtre par sous-arbre de préfixe : exclue ; `docs/spec/interfaces.md` à jour
+  - où : design « État dérivé » (paragraphe « Lecture des demandes en attente ») et
+    « API » ; `crates/kartenn-flow/src/read.rs` (`flows`, `Creation::Applied` à
+    compléter par `Creation::Pending`, `state_name`) ; `src/state.rs` (`state_at`,
+    `Creation::Pending`) ; `src/handler.rs` (`complete` : forme de `completed.triage`) ;
+    `src/rest.rs` (`list`, analyse des filtres, schéma de la ligne, déclaration du
+    contrat) ; lecture des propositions de la 004 (`GET /v1/proposals`,
+    `crates/kartenn-service`) ; tests `crates/kartenn-flow/tests/it/reads.rs` et
+    `tests/it/rest.rs` (lecture réduite du demandeur à imiter) ;
+    `web/sdk/src/api/schema.d.ts`
+  - dépend de : 9
+- [ ] 13. Prolongation d'un flux (F20) : `update` distingue raccourcissement et
+  prolongation (fin plus tardive ou retirée d'un flux daté) ; `complete` trie la portion
+  ajoutée ; `review` rend `REVIEW` pour une prolongation non automatique ; application
+  qui étend la version, l'ancre `core.owner` et les adresses développées, et réévalue la
+  portion ajoutée ; `check_review` (plafond depuis la décision), `flow.waiver.required`,
+  `flow.separation` contre le demandeur et l'auteur de la prolongation, nouvelle règle
+  `flow.update.ended` ; mesure `created` comptant les prolongations ; `PATCH` → 200 ou
+  202 `ChangesetPending` ; rejet consigné par `ended` (N38) ; contrat OpenAPI
+  (`FlowPatch.end` : plus tôt ou plus tard ; réponse 202) et SDK régénérés — REQ-011-4,
+  6, 22 — verify : un test par cas d'acceptation de REQ-011-4 (raccourcir 200 ;
+  prolongation sous réserve 202 puis approbation à 12 mois appliquée et à 13 mois
+  refusée ; prolongation refusée sans dérogation `flow.waiver.required`, avec dérogation
+  appliquée ; auteur qui approuve `flow.separation` ; flux expiré `flow.update.ended`) ;
+  prolongation automatique appliquée en 200 ; politique `flow.created ≥ 1` qui retient
+  une prolongation (REQ-011-6) ; `flow.expiry` annonce la nouvelle fin ; ligne
+  `review.kind = extension` servie par la tâche 12 ; `docs/spec/interfaces.md` et règles
+  générées à jour
+  - où : design « Opérations et règles » (paragraphe « Prolongation ») ;
+    `crates/kartenn-flow/src/handler.rs` (`complete` branche `update`, `plan_update`,
+    `review`, `apply_plan` branche `update`, `check_flow` autour de `check_review`) ;
+    `src/model.rs` (`check_review`, `REVIEW_MAX_MONTHS`, `WAIVER_MAX_MONTHS`) ;
+    `src/rules.rs` ; `src/approval.rs` et `src/pg.rs` (`written_counts`, `patch_flow`) ;
+    `src/rest.rs` (`FlowPatch`, réponses du `PATCH`) ; tests
+    `crates/kartenn-flow/tests/it/requests.rs` (triage et instruction à imiter),
+    `tests/it/approval.rs`, `tests/it/expiry.rs`, `tests/it/rest.rs` ;
+    `web/sdk/src/api/schema.d.ts`
+  - dépend de : 9 ; 12 pour la ligne `extension` de la lecture

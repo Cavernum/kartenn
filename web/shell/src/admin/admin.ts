@@ -76,7 +76,18 @@ export interface Import extends Record<string, unknown> {
   elements: number;
   batches: { applied: number; remaining: number };
   report: Record<string, unknown>;
+  /** Why its last sort failed (`invalid-import`), until the next start (006/H18). */
+  error?: ImportError;
   links: { self: string };
+}
+
+/** The problem of an import whose elements could not be sorted. */
+export interface ImportError {
+  type: string;
+  title: string;
+  detail: string | null;
+  status: number;
+  violations?: { rule: string; detail: string; element?: number }[];
 }
 
 /** What a write of the administration answers: a changeset applied, held or refused. */
@@ -134,4 +145,7 @@ export function exportName(now: Date): string {
 }
 
 /** The states of an import in which it may still be cancelled, or resumed (`paused`). */
-export const IMPORT_OPEN = ["uploading", "ready", "running", "paused"] as const;
+export const IMPORT_OPEN = ["uploading", "sorting", "ready", "running", "paused"] as const;
+
+/** The states of an import its background task is working on: read again until over. */
+export const IMPORT_BUSY = ["sorting", "ready", "running"] as const;
