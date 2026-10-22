@@ -5,7 +5,12 @@
 //! version of a policy object starts or ends ([`read::stable_span`]):
 //! - asserted **now** (`as_of` absent or not past), it holds until the policy changes: it
 //!   is kept under the revision, read first (one row) at each request;
-//! - asserted in the **past**, it never changes: no revision is read.
+//! - asserted in the **past**, it never changes: its revision does not count.
+//!
+//! An entry is kept for the [`Database`] it was read from, named in the row of the revision:
+//! two databases served by one process may share a revision, never a policy. A transaction
+//! that wrote the policy neither reads nor feeds the cache: its revision names a state that
+//! may still change or be rolled back.
 //!
 //! The entries live in one LRU of [`CAPACITY`] snapshots.
 
@@ -15,7 +20,7 @@ use kartenn_service::port::StoreError;
 use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 
-use crate::read;
+use crate::read::{self, Database};
 use crate::snapshot::PolicySnapshot;
 
 /// Snapshots kept by an instance (design: 16 past snapshots, plus the present ones).
@@ -26,6 +31,7 @@ pub const CAPACITY: usize = 16;
 pub const PAST: u64 = 0;
 
 struct Entry {
+    database: Database,
     /// `None`: asserted now, valid while the revision is `revision`.
     as_of: Option<OffsetDateTime>,
     revision: u64,
@@ -104,11 +110,19 @@ impl SnapshotCache {
         as_of: Option<OffsetDateTime>,
     ) -> Result<Arc<PolicySnapshot>, StoreError> {
         let as_of = as_of.filter(|t| *t < OffsetDateTime::now_utc());
-        let revision = match as_of {
-            None => read::revision(conn).await?,
-            Some(_) => PAST,
+        let (database, committed) = read::committed(conn).await?;
+        let Some(committed) = committed else {
+            // This transaction wrote the policy: read, not kept.
+            let revision = match as_of {
+                None => read::revision(conn).await?,
+                Some(_) => PAST,
+            };
+            let parts = read::parts(conn, valid_at, as_of, revision).await?;
+            self.lock().loads += 1;
+            return Ok(Arc::new(PolicySnapshot::new(parts)));
         };
-        if let Some(hit) = self.find(valid_at, as_of, revision) {
+        let revision = if as_of.is_none() { committed } else { PAST };
+        if let Some(hit) = self.find(database, valid_at, as_of, revision) {
             return Ok(hit);
         }
         let (from, until) = read::stable_span(conn, valid_at, as_of).await?;
@@ -118,10 +132,10 @@ impl SnapshotCache {
         inner.loads += 1;
         inner.clock += 1;
         let used = inner.clock;
-        // A present snapshot of an older revision will never be read again.
+        // A present snapshot of an older revision of this database will never be read again.
         inner
             .entries
-            .retain(|e| e.as_of.is_some() || e.revision == revision);
+            .retain(|e| e.as_of.is_some() || e.database != database || e.revision == revision);
         if inner.entries.len() >= CAPACITY
             && let Some(oldest) = inner
                 .entries
@@ -133,6 +147,7 @@ impl SnapshotCache {
             inner.entries.swap_remove(oldest);
         }
         inner.entries.push(Entry {
+            database,
             as_of,
             revision,
             from,
@@ -145,6 +160,7 @@ impl SnapshotCache {
 
     fn find(
         &self,
+        database: Database,
         valid_at: OffsetDateTime,
         as_of: Option<OffsetDateTime>,
         revision: u64,
@@ -153,7 +169,10 @@ impl SnapshotCache {
         inner.clock += 1;
         let clock = inner.clock;
         let entry = inner.entries.iter_mut().find(|e| {
-            e.as_of == as_of && (as_of.is_some() || e.revision == revision) && e.covers(valid_at)
+            e.database == database
+                && e.as_of == as_of
+                && (as_of.is_some() || e.revision == revision)
+                && e.covers(valid_at)
         })?;
         entry.used = clock;
         Some(entry.snapshot.clone())

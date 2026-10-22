@@ -283,6 +283,40 @@ pub async fn revision(conn: &mut PgConnection) -> Result<u64, StoreError> {
     Ok(u64::try_from(revision).unwrap_or_default())
 }
 
+/// The database a connection reads: the identifier of its cluster and its oid there. A
+/// revision names a state of the policy of one database only, so the caches of a process
+/// that serves several key their entries by it as well.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Database {
+    system: i64,
+    oid: i64,
+}
+
+/// The revision of the policy as committed and the [`Database`] it belongs to, in the same
+/// row: `None` for the revision when this transaction wrote the policy, its revision then
+/// naming a state that may still change or be rolled back, which no cache keeps.
+///
+/// The identity costs no round trip: it rides on the read of the revision, the oid from the
+/// catalogue cache, the identifier of the cluster from its control file.
+///
+/// # Errors
+/// A failure of the database.
+pub async fn committed(conn: &mut PgConnection) -> Result<(Database, Option<u64>), StoreError> {
+    let (revision, here, system, oid): (i64, Option<bool>, i64, i64) = sqlx::query_as(
+        "SELECT policy, xmin = xid(pg_current_xact_id_if_assigned()),
+                (SELECT system_identifier FROM pg_control_system()),
+                (SELECT oid::int8 FROM pg_database WHERE datname = current_database())
+           FROM policy.policy_revision",
+    )
+    .fetch_one(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok((
+        Database { system, oid },
+        (here != Some(true)).then(|| u64::try_from(revision).unwrap_or_default()),
+    ))
+}
+
 /// The span of valid time around `valid_at` over which the objects asserted at `as_of` do
 /// not change: the last start or end of a version at or before `valid_at`, and the first
 /// after it (`None`: unbounded). A snapshot read at `valid_at` holds over this span.

@@ -411,3 +411,67 @@ async fn the_reevaluation_agrees_with_a_full_recompute(pool: PgPool) {
         .unwrap();
     assert!(flows > 0);
 }
+
+async fn revision(pool: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT policy FROM policy.policy_revision")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Two databases at the same revision, with different policies, evaluated in one process
+/// (task 011-10; ADR 0031): each evaluation reads the policy of its own database. In `a`
+/// the rule « prod to dev » closes, in `b` an environment is added: a flow prod to dev is
+/// denied in `a`, allowed in `b`, and the oracle finds no drift in either.
+#[kartenn_testing::pg_test]
+async fn two_databases_at_one_revision_keep_their_own_policy(pool: PgPool) {
+    use sqlx::Connection;
+    let master = kartenn_testing::master_options();
+    let mut admin = sqlx::PgConnection::connect_with(&master).await.unwrap();
+    let template = kartenn_testing::ensure_template(&mut admin, &kartenn_store_pg::MIGRATOR)
+        .await
+        .unwrap();
+    let name = kartenn_testing::database_name(concat!(module_path!(), "::other"));
+    kartenn_testing::clone(&mut admin, &template, &name)
+        .await
+        .unwrap();
+    let other = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect_with(master.clone().database(&name))
+        .await
+        .unwrap();
+    let (a, b) = (Env::new(&pool).await, Env::new(&other).await);
+    let mut flows = Vec::new();
+    for env in [&a, &b] {
+        let source = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+        let destination = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+        env.applied(vec![flow("request", env.fields(source, destination).await)])
+            .await;
+        flows.push(flow_between(&env.pool, source, destination).await);
+    }
+    let rule = id_of(
+        &pool,
+        "SELECT id FROM policy.policy_rule WHERE key = $1",
+        "prod-dev",
+    )
+    .await;
+    a.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("policy.rule").unwrap(),
+        id: Ref::Id(rule),
+        expected: None,
+        cascade: false,
+    }])
+    .await;
+    b.applied(vec![policy("environment.create", json!({ "key": "test" }))])
+        .await;
+    assert_eq!(revision(&pool).await, revision(&other).await);
+    assert_eq!(summary(&pool, flows[0]).await, "denied");
+    assert_eq!(summary(&other, flows[1]).await, "allowed");
+    for pool in [&other, &pool, &other] {
+        assert!(drifting(pool).await.is_empty());
+    }
+    other.close().await;
+    kartenn_testing::drop_database(&mut admin, &name)
+        .await
+        .unwrap();
+}

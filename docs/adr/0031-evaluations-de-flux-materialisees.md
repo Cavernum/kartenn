@@ -59,8 +59,9 @@ un état et une validité dérivés, sans date de fin obligatoire pour un flux c
   par lot. La politique d'une révision validée est gardée par l'instance et partagée
   entre les transactions ; une transaction qui a écrit la politique relit la sienne (sa
   révision peut encore changer ou être annulée). Ce cache, comme celui de la 010 (ADR
-  0030), est indexé par le seul numéro de révision : il suppose une base par processus
-  et que toute écriture de la politique, validité temporelle comprise, incrémente la
+  0030), est indexé par la base (identifiant du cluster et oid de la base) et le numéro
+  de révision : plusieurs bases peuvent être servies par un même processus. Il suppose
+  que toute écriture de la politique, validité temporelle comprise, incrémente la
   révision.
 - L'oracle de la tâche 011-5 (recalcul complet après des suites aléatoires) est la garde
   de cohérence ; il a montré que le différentiel des propriétés du noyau omettait les

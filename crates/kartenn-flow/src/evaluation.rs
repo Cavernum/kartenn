@@ -22,7 +22,7 @@ use kartenn_policy::evaluate::{
 use kartenn_policy::model::{
     AxisKey, AxisValue, Carrier, ConditionKind, DossierField, Key, SignalKind,
 };
-use kartenn_policy::read;
+use kartenn_policy::read::{self, Database};
 use kartenn_policy::snapshot::{Parts, PolicySnapshot};
 use kartenn_service::port::StoreError;
 use sqlx::PgConnection;
@@ -343,34 +343,22 @@ impl Policies {
 /// A policy with the span of valid time it holds over, start included, end excluded.
 type Kept = (Option<OffsetDateTime>, Option<OffsetDateTime>, Arc<Loaded>);
 
-/// The policies of a committed revision, shared by the evaluations of the instance
-/// (task 011-10), as the cache of the queries of the 010 keeps its snapshots: a revision
-/// committed names one state of the policy, every write of it raising the revision.
-static COMMITTED: Mutex<Option<(u64, Vec<Kept>)>> = Mutex::new(None);
-
-/// The revision of the policy as committed; `None` when this transaction wrote it, its
-/// revision then naming a state that may still change or be rolled back.
-async fn committed_revision(conn: &mut PgConnection) -> Result<Option<u64>, StoreError> {
-    let (revision, here): (i64, Option<bool>) = sqlx::query_as(
-        "SELECT policy, xmin = xid(pg_current_xact_id_if_assigned())
-           FROM policy.policy_revision",
-    )
-    .fetch_one(&mut *conn)
-    .await
-    .map_err(|e| store(&e))?;
-    Ok((here != Some(true)).then(|| u64::try_from(revision).unwrap_or_default()))
-}
+/// The policies of a committed revision of a database, shared by the evaluations of the
+/// instance (task 011-10), as the cache of the queries of the 010 keeps its snapshots: a
+/// revision committed names one state of the policy of its database, every write of it
+/// raising the revision. Two databases served by the process may share a revision.
+static COMMITTED: Mutex<Option<(Database, u64, Vec<Kept>)>> = Mutex::new(None);
 
 /// The policy valid at `at` and the span it holds over: kept from a committed revision
 /// when the transaction did not write the policy, read otherwise.
 async fn load_at(conn: &mut PgConnection, at: OffsetDateTime) -> Result<Kept, StoreError> {
     let committed = || COMMITTED.lock().unwrap_or_else(PoisonError::into_inner);
-    let revision = committed_revision(conn).await?;
+    let (database, revision) = read::committed(conn).await?;
     if let Some(revision) = revision {
         let hit = committed()
             .as_ref()
-            .filter(|(r, _)| *r == revision)
-            .and_then(|(_, kept)| {
+            .filter(|(d, r, _)| *d == database && *r == revision)
+            .and_then(|(_, _, kept)| {
                 kept.iter()
                     .find(|(f, u, _)| f.is_none_or(|f| f <= at) && u.is_none_or(|u| at < u))
                     .cloned()
@@ -384,13 +372,16 @@ async fn load_at(conn: &mut PgConnection, at: OffsetDateTime) -> Result<Kept, St
     // Kept only when no write of the policy committed meanwhile.
     if let Some(revision) = revision
         && loaded.snapshot.revision() == revision
-        && committed_revision(conn).await? == Some(revision)
+        && read::committed(conn).await? == (database, Some(revision))
     {
         let mut shared = committed();
-        if shared.as_ref().is_none_or(|(r, _)| *r != revision) {
-            *shared = Some((revision, Vec::new()));
+        if shared
+            .as_ref()
+            .is_none_or(|(d, r, _)| *d != database || *r != revision)
+        {
+            *shared = Some((database, revision, Vec::new()));
         }
-        if let Some((_, kept)) = shared.as_mut() {
+        if let Some((_, _, kept)) = shared.as_mut() {
             if kept.len() >= KEPT {
                 kept.remove(0);
             }

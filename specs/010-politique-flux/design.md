@@ -169,8 +169,10 @@ que depuis une transaction qui n'a pas écrit la politique : la révision d'une 
 non validée peut encore changer ou être annulée, et nommerait un autre contenu après un
 rollback. La préparation de `policy.matrix.set` lit l'instantané avant toute écriture ;
 le registre de flux (011) relit sans le cache la politique d'une transaction qui l'a
-écrite. Le code ne garde pas lui-même cette condition. La clé ne nomme pas la base : le
-cache suppose une base par processus.
+écrite. Le cache garde aussi lui-même cette condition : une transaction qui a écrit la
+politique (`xmin` de la ligne de révision) la lit sans la garder. La clé nomme la base
+(identifiant du cluster et oid de la base, lus avec la révision) : deux bases servies
+par un même processus peuvent partager une révision, jamais une politique.
 
 ### Évaluation (REQ-010-11 à 15, 31, 32, 36 à 38)
 

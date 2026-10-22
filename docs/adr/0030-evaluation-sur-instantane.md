@@ -30,8 +30,11 @@ synchronisation (tâche 010-20), une fois l'implémentation faite.
    politique incrémente la révision et recharge le présent ; le passé, immuable, n'est
    jamais relu. Le cache n'est alimenté que depuis une transaction qui n'a pas écrit la
    politique : une révision non validée peut être annulée et nommer ensuite un autre
-   contenu (condition tenue par les appelants, non vérifiée par le cache). La clé ne
-   nomme pas la base : le cache suppose une base par processus.
+   contenu. Le cache le vérifie lui-même (`xmin` de la ligne de révision comparé à la
+   transaction courante) et lit alors la politique sans la garder. La clé nomme la base :
+   (identifiant du cluster `system_identifier`, oid de la base, révision), lus dans la
+   même ligne que la révision ; deux bases servies par un même processus peuvent partager
+   une révision, jamais une politique.
 3. **Deux étapes.** `evaluate` (domaine pur, `evaluate.rs`) rend d'abord le verdict :
    non classifié par axe → refus ; une règle `deny` qui s'applique l'emporte ; une règle
    `allow` donne l'autorisation, sous réserve si elle exige des motifs ; sinon refus par
