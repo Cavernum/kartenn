@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use kartenn_policy::cache::SnapshotCache;
-use kartenn_policy::matrix::{CellState, MatrixView, view};
+use kartenn_policy::matrix::{CellState, MatrixView, fingerprint, view};
 use kartenn_policy::model::Key;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -211,4 +211,41 @@ async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
         let outcome = env.submit(vec![operation]).await;
         assert!(rules(&outcome).contains(&rule), "{outcome:?}");
     }
+}
+
+/// Under `if_match` (S35): two cells of a changeset compared with the matrix before it are
+/// applied; the same tag once the matrix changed is `policy.matrix.stale`, nothing
+/// written; the tag read again is applied; without `if_match`, no comparison.
+#[kartenn_testing::pg_test]
+async fn a_cell_under_if_match_is_refused_once_the_matrix_changed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (file, _) = catalogue(&env).await;
+    let tag = fingerprint(&read(&env).await);
+    let tagged = json!({ "if_match": tag });
+    env.applied(vec![
+        set("prod", file, "dev", "allow", tagged.clone()),
+        set("dev", file, "prod", "allow", tagged.clone()),
+    ])
+    .await;
+    let rules_before = living_rules(&env.pool).await;
+    let outcome = env
+        .submit(vec![set("prod", file, "global", "allow", tagged)])
+        .await;
+    assert!(
+        rules(&outcome).contains(&"policy.matrix.stale"),
+        "{outcome:?}"
+    );
+    assert_eq!(living_rules(&env.pool).await, rules_before);
+    let quoted = format!("\"{}\"", fingerprint(&read(&env).await));
+    env.applied(vec![set(
+        "prod",
+        file,
+        "global",
+        "allow",
+        json!({ "if_match": quoted }),
+    )])
+    .await;
+    env.applied(vec![set("global", file, "prod", "allow", json!({}))])
+        .await;
+    assert_eq!(living_rules(&env.pool).await, rules_before + 2);
 }

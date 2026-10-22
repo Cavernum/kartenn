@@ -13963,7 +13963,10 @@ export interface operations {
   set_policy_matrix_cell: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description The ETag of the matrix of the flow type, read at present. */
+        "If-Match": string;
+      };
       path: {
         /** @description The environment of the source. */
         source: string;

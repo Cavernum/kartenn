@@ -187,7 +187,7 @@ fn answer<'a>(
         pointers: Pointers::Members(pointers),
         applied,
         location,
-        precondition: false,
+        precondition: None,
         shown,
     }
 }

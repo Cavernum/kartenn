@@ -370,7 +370,7 @@ async fn the_matrix_is_read_and_its_cells_are_set(pool: PgPool) {
         env.person(&["policy.catalogue.read", "policy.rule.admin"])
             .await,
     );
-    let (status, _, matrix) = call(
+    let (status, headers, matrix) = call(
         &admin,
         Method::GET,
         "/v1/policy-matrix?flow_type=admin",
@@ -381,13 +381,58 @@ async fn the_matrix_is_read_and_its_cells_are_set(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "{matrix}");
     assert_eq!(matrix["cells"][0]["source"], "prod");
     assert_eq!(matrix["cells"][0]["state"], "allow");
+    let etag = headers.etag.unwrap().to_str().unwrap().to_owned();
+    assert!(!etag.starts_with("W/"), "a strong tag: {etag}");
+    let deny = json!({ "state": "deny", "motive": "m",
+                       "texts": { "fr": { "body": "Pas de dev vers prod." } } });
+    let cell = format!("/v1/policy-matrix/dev/{flow_type}/prod");
+    // S35: without If-Match, 428.
+    let (status, _, body) = call(&admin, Method::PUT, &cell, Some(deny.clone()), &[]).await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED, "{body}");
     let (status, _, body) = call(
         &admin,
         Method::PUT,
-        &format!("/v1/policy-matrix/dev/{flow_type}/prod"),
-        Some(json!({ "state": "deny", "motive": "m",
-                     "texts": { "fr": { "body": "Pas de dev vers prod." } } })),
+        &cell,
+        Some(deny),
+        &[("if-match", &etag)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    // The same tag once the matrix changed: 412, the cell not written.
+    let other = format!("/v1/policy-matrix/dev/{flow_type}/dev");
+    let (status, _, body) = call(
+        &admin,
+        Method::PUT,
+        &other,
+        Some(json!({ "state": "allow", "motive": "m" })),
+        &[("if-match", &etag)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{body}");
+    let (_, headers, matrix) = call(
+        &admin,
+        Method::GET,
+        "/v1/policy-matrix?flow_type=admin",
+        None,
         &[],
+    )
+    .await;
+    assert!(
+        !matrix["cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["source"] == "dev" && c["destination"] == "dev"),
+        "{matrix}"
+    );
+    let reread = headers.etag.unwrap().to_str().unwrap().to_owned();
+    assert_ne!(reread, etag);
+    let (status, _, body) = call(
+        &admin,
+        Method::PUT,
+        &other,
+        Some(json!({ "state": "allow", "motive": "m" })),
+        &[("if-match", &reread)],
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");

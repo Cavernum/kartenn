@@ -58,7 +58,7 @@ const VALIDATION: Answer<'static> = Answer {
     pointers: Pointers::Operations,
     applied: axum::http::StatusCode::OK,
     location: None,
-    precondition: false,
+    precondition: None,
     shown: None,
 };
 

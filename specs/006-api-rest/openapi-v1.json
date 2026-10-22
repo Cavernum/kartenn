@@ -21460,6 +21460,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the matrix of the flow type, read at present.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {

@@ -14,7 +14,7 @@ use axum::extract::{RawQuery, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
-use kartenn_core::rules::{CHANGESET_CONFLICT, PROP_EXPECTED_MISMATCH, Severity, Violation};
+use kartenn_core::rules::{PROP_EXPECTED_MISMATCH, Severity, Violation};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::operations::PeriodSpec;
@@ -175,8 +175,9 @@ pub(crate) struct Answer<'a> {
     /// The created object `Location` names instead of the changeset; `None` without
     /// creation.
     pub location: Option<Location<'a>>,
-    /// A conflict on `If-Match` answers 412 instead of 422 (REQ-006-14).
-    pub precondition: bool,
+    /// The rule whose violation is a conflict on `If-Match`, answered 412 instead of 422
+    /// (REQ-006-14): the version of an object, or the matrix of a flow type (010/S35).
+    pub precondition: Option<&'static kartenn_core::rules::Rule>,
     /// A secret generated for the changeset, shown once as the member `secret` of the
     /// response applied or pending, never on a replay (design « Droits »).
     pub shown: Option<&'a Value>,
@@ -205,7 +206,7 @@ impl Answer<'_> {
         pointers: Pointers::Operations,
         applied: StatusCode::CREATED,
         location: Some(Location::Changeset),
-        precondition: false,
+        precondition: None,
         shown: None,
     };
 }
@@ -598,10 +599,12 @@ async fn refused(
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
     found.sort_by_key(|v| !v.is_error());
-    let conflict = answer.precondition && found.iter().any(|v| v.rule.id == CHANGESET_CONFLICT.id);
+    let conflict = answer
+        .precondition
+        .is_some_and(|rule| found.iter().any(|v| v.rule.id == rule.id));
     let problem = if conflict {
         Problem::new(ProblemKind::PreconditionFailed)
-            .detail("the object was modified since the version of If-Match")
+            .detail("the resource was modified since the entity tag of If-Match")
     } else {
         Problem::new(ProblemKind::ChangesetRefused).detail(format!(
             "the changeset is refused by {} violation(s)",

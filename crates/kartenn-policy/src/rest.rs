@@ -11,7 +11,6 @@
 //! object.
 
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
 
 use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, Request, State};
@@ -43,12 +42,13 @@ use crate::evaluate::{
     ConditionState, Decisive, Discard, Dossier, Evaluation, Outcome, Side, Synthesis,
     SynthesisVerdict, Verdict,
 };
-use crate::matrix::{MatrixView, view};
+use crate::matrix::{MatrixView, fingerprint, view};
 use crate::model::{AxisKey, AxisValue, DossierField, Key, Transport};
 use crate::module::{
     AXIS, CONDITION, EXEMPT_ROLE, FLOW_TYPE, INFERENCE_RULE, PATTERN, RULE, SERVICE, SIGNAL, VALUE,
     object_type,
 };
+use crate::rules::MATRIX_STALE;
 use crate::verdict::{
     Access, Answer, Empty, EndpointKind, EndpointRef, Object, Point, Query, QueryError, Source,
     query,
@@ -56,8 +56,7 @@ use crate::verdict::{
 
 /// The snapshots of the policy, shared by the requests of the process (REQ-010-16).
 fn cache() -> &'static SnapshotCache {
-    static CACHE: OnceLock<SnapshotCache> = OnceLock::new();
-    CACHE.get_or_init(SnapshotCache::new)
+    crate::cache::shared()
 }
 
 // ---------------------------------------------------------------- collections
@@ -696,16 +695,19 @@ async fn show_matrix(
         json!({"matrix": key.as_str()}),
     )
     .await?;
-    let matrix = matrix_dto(view(&snapshot, &key));
-    let tag = ETag::page(&serde_json::to_vec(&matrix).expect("a matrix serialises"));
-    Ok(respond(&headers, &moment, &tag, Json(matrix)))
+    let matrix = view(&snapshot, &key);
+    // Strong: the fingerprint fixes the bytes served, and a write names it (S35).
+    let tag = ETag::fingerprint(fingerprint(&matrix));
+    Ok(respond(&headers, &moment, &tag, Json(matrix_dto(matrix))))
 }
 
 /// The members a write of a cell may carry (REQ-010-34).
 const CELL_MEMBERS: &[&str] = &["state", "patterns", "texts", "label"];
 
 /// `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}`: `policy.matrix.set` of the
-/// cell, whose state the body gives (`allow`, `deny`, `conditional` or `none`).
+/// cell, whose state the body gives (`allow`, `deny`, `conditional` or `none`), under
+/// `If-Match` of the matrix of the flow type read at present (S35): 428 without, 412 when
+/// the matrix changed since.
 async fn set_cell(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -714,17 +716,23 @@ async fn set_cell(
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
+    let tag = kit::if_match_tag(
+        &headers,
+        "read the matrix of the flow type, then send its ETag in If-Match to set a cell",
+    )?;
     let mut fixed = Map::new();
     fixed.insert("source".into(), source.into());
     fixed.insert("destination".into(), destination.into());
     fixed.insert("flow_type".into(), json!({ "id": flow_type }));
-    kit::submit(
+    fixed.insert("if_match".into(), tag.into());
+    kit::submit_matched(
         &api,
         &principal,
         &context,
         &headers,
         &raw,
         ("policy.matrix.set", CELL_MEMBERS, fixed),
+        &MATRIX_STALE,
     )
     .await
 }
@@ -1841,6 +1849,11 @@ pub fn routes() -> ModuleRouter {
     .path("source", "The environment of the source.", false)
     .path("flow_type", "The flow type.", true)
     .path("destination", "The environment of the destination.", false)
+    .header(
+        "If-Match",
+        true,
+        "The ETag of the matrix of the flow type, read at present.",
+    )
     .body("application/json", "PolicyObject", true)
     .answers("200", "Set.", "ChangesetApplied")
     .answers("202", "Held for a decision.", "ChangesetPending")
