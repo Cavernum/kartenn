@@ -93,25 +93,38 @@ machines, 10³ clusters, 3·10⁵ interfaces et rattachements, plus un import de
 machines ; variante réduite tenue, banc complet encore à relancer, tâche 009-12).
 
 Politique de flux (010, REQ-010-28 et 54) : banc `bench-policy` (010-19), qui tient lieu
-du prototype 010-1. **Variante réduite tenue** le 2026-10-22, avec la politique à la
-taille du budget (10⁴ règles à 6 axes, 1 000 services, 50 conditions, 30 signaux) sur un
-jeu de 2,6·10⁴ adresses (p95 serveur ; charge 2 à 5) :
+du prototype 010-1. **Tenu au banc complet** le 2026-10-23, avec la politique à la taille
+du budget (10⁴ règles à 6 axes, 1 000 services, 50 conditions, 30 signaux, 2 000 règles
+d'inférence) sur le jeu de référence (1,06·10⁶ adresses ; p95 serveur ; charge 1,5 ; pic
+RSS du banc 1,6 Go) :
 
-| Budget | Mesuré (réduit) | Limite |
+| Budget | Mesuré | Limite |
 |---|---|---|
-| Instantané de la politique, lu à froid | 170 ms | — (information) |
-| Verdict d'une paire d'adresses pour un service | 18 ms | 50 ms |
-| Machine × machine 16 × 16, type de flux de 10 services | 30 ms | 300 ms |
-| Port brut couvert par 20 services | 22 ms | 100 ms |
-| Différentiel d'une interdiction sans terme | 730 ms | 1 s |
-| Rapport d'audit | 3,7 s | 10 min |
-| Suggestion de l'inférence pour un objet | 17 ms | 50 ms |
-| Contrôle de l'inférence, changeset de 10⁴ objets (ajouté) | 28 ms | 1 s |
-| Réévaluation complète de l'inférence | 40 s | 10 min |
+| Instantané de la politique, lu à froid | 137 ms | — (information) |
+| Verdict d'une paire d'adresses pour un service | 11 ms | 50 ms |
+| Machine × machine 16 × 16, type de flux de 10 services | 27 ms | 300 ms |
+| Port brut couvert par 20 services | 19 ms | 100 ms |
+| Différentiel d'une interdiction sans terme | 511 ms | 1 s |
+| Rapport d'audit | 21 s | 10 min |
+| Suggestion de l'inférence pour un objet | 6 ms | 50 ms |
+| Contrôle de l'inférence, changeset de 10⁴ objets (ajouté) | ≈ 0,3 s | 1 s |
+| Réévaluation complète de l'inférence | 218 s | 10 min |
 
-Le jeu de 10⁶ objets reste **à mesurer**. Le passage complet a été arrêté pendant le
-contrôle de l'inférence (lecture groupée des vues, corrigée depuis), et le rapport d'audit
-y avait pris environ 990 s, au-delà du budget. La lecture groupée N9 (016-4) est
+Le contrôle de l'inférence se mesure par différence des médianes de trois changesets de
+10⁴ adresses avec et sans la source (5,5 s et 5,9 s au passage retenu) : l'écart est
+dans le bruit, et la part de la source, chronométrée à part, est la lecture des vues
+(≈ 0,3 s). Le jeu complet a d'abord échoué sur trois budgets (2026-10-22) ; correctifs :
+- machine × machine, 1,5 s : les valeurs des machines lisaient toutes les affectations
+  du référentiel en plan générique, lues depuis par clé ;
+- rapport d'audit, 920 s : les fenêtres par identifiant triaient à chaque pas toutes
+  les lignes restantes (la clé primaire temporelle est un index GiST), elles suivent
+  depuis l'index keyset de leur table ; la rubrique des valeurs non portées cherchait
+  les affectations valeur par valeur, elle les lit depuis une fois ;
+- contrôle de l'inférence, +1,9 s : les vues du changeset hachaient toutes les origines
+  dans les plans personnalisés des premières exécutions, et les origines rafraîchies
+  par les valeurs par défaut étaient recalculées par la maintenance.
+
+La lecture groupée N9 (016-4) est
 mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).
 
 Registre de flux (011, REQ-011-19) : banc `bench-flow` (011-10), 10⁵ flux sur le jeu de
