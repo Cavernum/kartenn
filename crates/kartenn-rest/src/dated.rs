@@ -178,6 +178,18 @@ impl ETag {
         }
     }
 
+    /// The strong tag of a representation its producer fingerprints, `opaque` made of
+    /// hexadecimal digits: the matrix of a flow type, whose bytes the fingerprint fixes and
+    /// which a write names in `If-Match` (010/S35).
+    #[must_use]
+    pub fn fingerprint(opaque: String) -> Self {
+        debug_assert!(opaque.bytes().all(|b| b.is_ascii_hexdigit()));
+        Self {
+            weak: false,
+            opaque,
+        }
+    }
+
     /// The weak tag of a page: a digest of its content, which an equivalent page with
     /// other bytes would not keep (RFC 9110 §8.8.1).
     #[must_use]

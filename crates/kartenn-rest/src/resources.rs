@@ -791,7 +791,7 @@ pub(crate) async fn create(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::CREATED,
         location: Some(Location::Created(kind)),
-        precondition: false,
+        precondition: None,
         shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await
@@ -859,7 +859,7 @@ pub(crate) async fn modify(
         pointers: Pointers::Members(&patch.pointers),
         applied: StatusCode::OK,
         location: None,
-        precondition: true,
+        precondition: Some(&kartenn_core::rules::CHANGESET_CONFLICT),
         shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await
@@ -908,7 +908,7 @@ pub(crate) async fn close(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::OK,
         location: None,
-        precondition: true,
+        precondition: Some(&kartenn_core::rules::CHANGESET_CONFLICT),
         shown: None,
     };
     submit_answered(&api, &context, &request, &answer).await

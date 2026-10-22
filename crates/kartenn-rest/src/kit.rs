@@ -7,6 +7,7 @@
 use axum::body::Bytes;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use kartenn_core::rules::{CHANGESET_CONFLICT, Rule};
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
@@ -179,6 +180,17 @@ pub fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
     .map_err(|_| stale())
 }
 
+/// The opaque part of the strong entity tag `If-Match` names, for a resource whose tag is
+/// not a version (the matrix of a flow type, 010/S35): absent or `*` → 428 with `required`
+/// as detail, several or malformed → 400, weak → 412.
+///
+/// # Errors
+///
+/// As above.
+pub fn if_match_tag(headers: &HeaderMap, required: &str) -> Result<String, Problem> {
+    entity_tag(headers, required)
+}
+
 /// `POST /v1/<collection>` of a module: the members of the body, each one of `allowed`,
 /// make the operation `name` (`vlan.create_vlan`); 201 and `Location` to the object of
 /// `ty` it creates.
@@ -217,7 +229,7 @@ pub async fn create(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::CREATED,
         location: Some(Location::Module(ty)),
-        precondition: false,
+        precondition: None,
         shown: None,
     };
     submit_answered(api, context, &request, &answer).await
@@ -311,7 +323,7 @@ pub async fn modify_nullable(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::OK,
         location: None,
-        precondition: true,
+        precondition: Some(&CHANGESET_CONFLICT),
         shown: None,
     };
     submit_answered(api, context, &request, &answer).await
@@ -378,7 +390,7 @@ pub async fn act(
         pointers: Pointers::Members(&pointers),
         applied,
         location: None,
-        precondition: true,
+        precondition: Some(&CHANGESET_CONFLICT),
         shown: None,
     };
     submit_answered(api, context, &request, &answer).await
@@ -399,6 +411,37 @@ pub async fn submit(
     headers: &HeaderMap,
     raw: &Bytes,
     write: (&str, &[&str], Map<String, Value>),
+) -> Result<Response, Problem> {
+    submitted(api, principal, context, headers, raw, write, None).await
+}
+
+/// [`submit`] of an operation that checks by itself the entity tag `If-Match` named (the
+/// matrix of a flow type, 010/S35), carried in one of the members of `fixed`
+/// ([`if_match_tag`]): a violation of `stale` answers 412 instead of 422.
+///
+/// # Errors
+///
+/// 400, 415 for the body; 412 for `stale`; the problems of a changeset.
+pub async fn submit_matched(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    headers: &HeaderMap,
+    raw: &Bytes,
+    write: (&str, &[&str], Map<String, Value>),
+    stale: &'static Rule,
+) -> Result<Response, Problem> {
+    submitted(api, principal, context, headers, raw, write, Some(stale)).await
+}
+
+async fn submitted(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    headers: &HeaderMap,
+    raw: &Bytes,
+    write: (&str, &[&str], Map<String, Value>),
+    precondition: Option<&'static Rule>,
 ) -> Result<Response, Problem> {
     let (name, allowed, fixed) = write;
     let (reserved, mut members) = if raw.is_empty() {
@@ -432,7 +475,7 @@ pub async fn submit(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::OK,
         location: None,
-        precondition: false,
+        precondition,
         shown: None,
     };
     submit_answered(api, context, &request, &answer).await
@@ -493,7 +536,7 @@ pub async fn close(
         pointers: Pointers::Members(&pointers),
         applied: StatusCode::OK,
         location: None,
-        precondition: true,
+        precondition: Some(&CHANGESET_CONFLICT),
         shown: None,
     };
     submit_answered(api, context, &request, &answer).await
