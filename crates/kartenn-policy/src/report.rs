@@ -54,11 +54,33 @@ pub const STEPS: usize = 20;
 /// Days a report is kept after it was asked for (design « Rapport d'audit »).
 pub const RETENTION_DAYS: i32 = 30;
 
-/// The tables of the addressing tree a window goes over, with the domain of their rows.
-const TREE: [(&str, &str, &str); 3] = [
-    ("addressing_domain", "id", "domain"),
-    ("prefix", "domain_id", "prefix"),
-    ("address", "domain_id", "address"),
+/// The tables of the addressing tree a window goes over, with the domain of their rows and
+/// the leading columns of their keyset index (`<table>_keyset`, then `id`), each with its
+/// type: the primary key of a temporal table is a `GiST` index, which cannot hand out its
+/// rows by identifier, so a window by identifier sorted every row after the last one
+/// (920 s for the report at 10⁶ addresses, task 010-19).
+/// A table of the tree: name, column of the domain, kind, columns of the keyset and types.
+type TreeTable = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static [(&'static str, &'static str)],
+);
+
+const TREE: [TreeTable; 3] = [
+    ("addressing_domain", "id", "domain", &[("slug", "text")]),
+    (
+        "prefix",
+        "domain_id",
+        "prefix",
+        &[("domain_id", "uuid"), ("prefix", "cidr")],
+    ),
+    (
+        "address",
+        "domain_id",
+        "address",
+        &[("domain_id", "uuid"), ("address", "inet")],
+    ),
 ];
 
 /// The answer to [`request`].
@@ -473,23 +495,69 @@ async fn unclassified(
         p.next_rubric();
         return Ok(());
     };
-    let (table, domain, kind) = TREE[part % TREE.len()];
-    // `table` and `domain` come from `TREE`, never from an input.
+    let (table, domain, kind, keys) = TREE[part % TREE.len()];
+    // The window goes over the keyset index: after the key of the last node read, looked
+    // up by its identifier (in the history if it has left the table since).
+    let columns = |alias: &str| -> String {
+        keys.iter()
+            .map(|(c, _)| format!("{alias}.{c}"))
+            .chain(std::iter::once(format!("{alias}.id")))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let anchor: Option<Vec<String>> = match p.after_key {
+        None => None,
+        Some(after) => {
+            let texts = keys
+                .iter()
+                .map(|(c, _)| format!("{c}::text"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            // `table` and the columns come from `TREE`, never from an input.
+            let found: Option<Vec<String>> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT ARRAY[{texts}] FROM {table} WHERE id = $1
+                 UNION ALL
+                 SELECT ARRAY[{texts}] FROM {table}_history WHERE id = $1
+                 LIMIT 1"
+            )))
+            .bind(after)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+            Some(found.ok_or_else(|| {
+                StoreError(format!("the node {after} of the report window is gone"))
+            })?)
+        }
+    };
+    let after = if anchor.is_some() {
+        let bound = keys
+            .iter()
+            .enumerate()
+            .map(|(i, (_, ty))| format!("($5::text[])[{}]::{ty}", i + 1))
+            .chain(std::iter::once("$2::uuid".to_owned()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("AND ({}) > ({bound})", columns("t"))
+    } else {
+        String::new()
+    };
+    let (order, sorted) = (columns("t"), columns("w"));
     let window: Vec<(Uuid, Uuid, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH w AS (
-             SELECT id, {domain} AS domain FROM {table}
-              WHERE valid_period @> $1 AND ($2::uuid IS NULL OR id > $2)
-              ORDER BY id LIMIT $3)
-         SELECT w.id, w.domain,
+             SELECT t.*, t.{domain} AS in_domain FROM {table} t
+              WHERE t.valid_period @> $1 {after}
+              ORDER BY {order} LIMIT $3)
+         SELECT w.id, w.in_domain,
                 NOT EXISTS (SELECT 1 FROM property_origin o
                              WHERE o.object_id = w.id AND o.property_id = $4
                                AND o.valid_period @> $1 AND o.origin_object_id IS NOT NULL)
-           FROM w ORDER BY w.id"
+           FROM w ORDER BY {sorted}"
     )))
     .bind(p.valid_at)
     .bind(p.after_key)
     .bind(batch)
     .bind(property)
+    .bind(anchor)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
@@ -546,7 +614,7 @@ async fn transverse(
         "WITH w AS (
              SELECT object_id, origin_object_id FROM property_origin
               WHERE property_id = $4 AND valid_period @> $1
-                AND ($2::uuid IS NULL OR object_id > $2)
+                AND object_id > coalesce($2, '00000000-0000-0000-0000-000000000000'::uuid)
               ORDER BY object_id LIMIT $3)
          SELECT w.object_id, w.origin_object_id,
                 (SELECT array_agg(DISTINCT e.key ORDER BY e.key)
@@ -596,7 +664,8 @@ async fn anomalies(
 ) -> Result<(), StoreError> {
     let window: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT object_id, message FROM anomaly
-          WHERE rule_id = $1 AND closed_at IS NULL AND ($2::uuid IS NULL OR object_id > $2)
+          WHERE rule_id = $1 AND closed_at IS NULL
+            AND object_id > coalesce($2, '00000000-0000-0000-0000-000000000000'::uuid)
           ORDER BY object_id LIMIT $3",
     )
     .bind(rule)
