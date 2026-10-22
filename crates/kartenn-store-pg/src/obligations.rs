@@ -222,8 +222,55 @@ impl PgTx {
         start: Option<OffsetDateTime>,
     ) -> Result<Vec<Uuid>, StoreError> {
         let (kind, id, ty) = encode(scope);
-        sqlx::query_scalar(
+        // The candidates joined from `unnest` when given, rather than `$7 IS NULL OR id =
+        // ANY($7)`: under a generic plan that filter read every carrier and searched the
+        // array for each (an import of 10⁴ machines checks as many candidates).
+        let (from_carrier, among_entities, among_owned) = if candidates.is_some() {
+            (
+                // each candidate looked up by its identifier (`OFFSET 0` keeps the
+                // subquery apart): the statistics of the tables an import fills are stale
+                // within it, and a join let the planner scan them once per candidate; the
+                // scope inside, so that the tables of other kinds are not probed
+                "cand CROSS JOIN LATERAL (
+                     SELECT * FROM carrier_object x
+                     WHERE x.id = cand.id AND x.kind = ANY($2)
+                       AND CASE $4 WHEN 'domain' THEN x.domain_id = $5
+                                   WHEN 'object_type' THEN x.kind = $6
+                                   ELSE false END
+                     OFFSET 0) x",
+                "AND sub.id IN (SELECT id FROM cand)",
+                "JOIN cand ON cand.id = p.object_id",
+            )
+        } else {
+            ("carrier_object x", "", "")
+        };
+        // The branches of an entity scope only for one: elsewhere `sub` is empty, but the
+        // generic plan still looked up the owner of every candidate before joining it.
+        let entity_branches = if kind == "entity" {
+            format!(
+                "UNION ALL
+                 -- the entities of the subtree that carry the property
+                 SELECT sub.id, sub.vp FROM sub
+                 WHERE 'entity' = ANY($2) {among_entities}
+                 UNION ALL
+                 -- the objects whose resolved owner is in the subtree
+                 SELECT p.object_id, p.valid_period * a.valid_period * sub.vp * x.valid_period
+                 FROM property_origin p
+                 {among_owned}
+                 JOIN property_assignment a ON a.object_id = p.origin_object_id
+                     AND a.property_id = p.property_id AND a.kind = 'value'
+                     AND a.valid_period && p.valid_period
+                 JOIN sub ON sub.id = a.v_uuid AND sub.vp && (p.valid_period * a.valid_period)
+                 JOIN carrier_object x ON x.id = p.object_id AND x.kind = ANY($2)
+                     AND x.valid_period && (p.valid_period * a.valid_period * sub.vp)
+                 WHERE p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')"
+            )
+        } else {
+            String::new()
+        };
+        let sql = format!(
             "WITH RECURSIVE w AS (SELECT tstzrange(coalesce($8::timestamptz, now()), NULL) AS r),
+             cand AS (SELECT DISTINCT id FROM unnest($7::uuid[]) AS u(id)),
              -- scope entity: the entity and its descendants, over the time of the link
              sub(id, vp, depth) AS (
                  SELECT e.id, e.valid_period * w.r, 0 FROM entity e, w
@@ -235,28 +282,12 @@ impl PgTx {
              ),
              scoped AS (
                  SELECT x.id, x.valid_period * w.r AS vp
-                 FROM carrier_object x, w
+                 FROM {from_carrier}, w
                  WHERE x.kind = ANY($2) AND x.valid_period && w.r
-                   AND ($7::uuid[] IS NULL OR x.id = ANY($7))
                    AND CASE $4 WHEN 'domain' THEN x.domain_id = $5
                                WHEN 'object_type' THEN x.kind = $6
                                ELSE false END
-                 UNION ALL
-                 -- the entities of the subtree that carry the property
-                 SELECT sub.id, sub.vp FROM sub
-                 WHERE 'entity' = ANY($2) AND ($7::uuid[] IS NULL OR sub.id = ANY($7))
-                 UNION ALL
-                 -- the objects whose resolved owner is in the subtree
-                 SELECT p.object_id, p.valid_period * a.valid_period * sub.vp * x.valid_period
-                 FROM property_origin p
-                 JOIN property_assignment a ON a.object_id = p.origin_object_id
-                     AND a.property_id = p.property_id AND a.kind = 'value'
-                     AND a.valid_period && p.valid_period
-                 JOIN sub ON sub.id = a.v_uuid AND sub.vp && (p.valid_period * a.valid_period)
-                 JOIN carrier_object x ON x.id = p.object_id AND x.kind = ANY($2)
-                     AND x.valid_period && (p.valid_period * a.valid_period * sub.vp)
-                 WHERE p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
-                   AND ($7::uuid[] IS NULL OR p.object_id = ANY($7))
+                 {entity_branches}
              ),
              o AS (
                  SELECT id, range_agg(vp) AS life FROM scoped WHERE NOT isempty(vp) GROUP BY id
@@ -276,17 +307,18 @@ impl PgTx {
              SELECT o.id FROM o LEFT JOIN c ON c.id = o.id
              WHERE c.covered IS NULL OR NOT c.covered @> o.life
              ORDER BY o.id",
-        )
-        .bind(property)
-        .bind(carriers)
-        .bind(heritable)
-        .bind(kind)
-        .bind(id)
-        .bind(ty)
-        .bind(candidates)
-        .bind(start)
-        .fetch_all(&mut *self.tx)
-        .await
-        .map_err(store_err)
+        );
+        sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(property)
+            .bind(carriers)
+            .bind(heritable)
+            .bind(kind)
+            .bind(id)
+            .bind(ty)
+            .bind(candidates)
+            .bind(start)
+            .fetch_all(&mut *self.tx)
+            .await
+            .map_err(store_err)
     }
 }
