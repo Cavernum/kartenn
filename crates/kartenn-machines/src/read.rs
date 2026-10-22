@@ -408,8 +408,12 @@ pub async fn machine_values_of_addresses(
                            ELSE (SELECT o.origin_object_id FROM {origin} o
                                   WHERE o.object_id = h.machine_id AND o.property_id = w.id
                                   LIMIT 1) END AS origin) src ON true
-           LEFT JOIN {assignment} a
-             ON a.object_id = src.origin AND a.property_id = w.id
+           -- The assignment of the origin by its key, behind an `OFFSET 0` fence: joined
+           -- whole, the generic plan read every current assignment of the referential for
+           -- each row (1.4 s for 32 addresses at 2·10⁵ assignments, task 010-19).
+           LEFT JOIN LATERAL (
+               SELECT * FROM {assignment} x
+                WHERE x.object_id = src.origin AND x.property_id = w.id OFFSET 0) a ON true
           ORDER BY h.address_id, h.machine_id, h.interface_id, w.rank"
     )))
     .bind(time(valid_at))
