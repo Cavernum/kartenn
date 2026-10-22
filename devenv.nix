@@ -53,8 +53,20 @@
       }
       export K_PG_HELD=1
     fi
+    # Each command runs in its own systemd scope under a memory ceiling (K_HEAVY_MEM, in
+    # percent of the RAM: 35 per slot, 60 for --all): a runaway build or bench is killed
+    # alone, inside its scope. Without it, the kernel's global OOM killer hits the
+    # terminal's scope, and systemd then stops the whole terminal (OOMPolicy=stop).
     run() {
       export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
+      if [ -z "''${K_HEAVY_SCOPED:-}" ] && command -v systemd-run >/dev/null 2>&1 \
+        && [ -S "''${XDG_RUNTIME_DIR:-/nonexistent}/bus" ]; then
+        export K_HEAVY_SCOPED=1
+        if [ "$all" -eq 1 ]; then pct=''${K_HEAVY_MEM:-60}; else pct=''${K_HEAVY_MEM:-35}; fi
+        exec systemd-run --user --scope --quiet --collect \
+          -p MemoryMax="$pct%" -p MemorySwapMax=2G \
+          ${pkgs.coreutils}/bin/nice -n 10 "$@"
+      fi
       exec ${pkgs.coreutils}/bin/nice -n 10 "$@"
     }
     [ -z "''${K_HEAVY_HELD:-}" ] || run "$@"
