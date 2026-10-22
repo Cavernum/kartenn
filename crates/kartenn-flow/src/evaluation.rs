@@ -5,9 +5,12 @@
 //!
 //! It reads the transaction, not the pool: an address created, classified or attached in
 //! the same changeset counts. The policy is loaded at each call, never from the cache of
-//! the queries, since a changeset may raise a revision it then rolls back (a simulation).
+//! the queries, since a changeset may raise a revision it then rolls back (a simulation);
+//! a pass over the flows after the writes of a changeset reads it through [`Policies`],
+//! which lives as long as the pass (task 011-10).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use kartenn_core::period::Instant;
 use kartenn_machines::read::{addresses_of_interface, addresses_of_machine, instant};
@@ -229,27 +232,111 @@ async fn dossier(
     Ok(Dossier { fields, values })
 }
 
+/// The policy an evaluation reads at an instant: its snapshot and the axes it may read.
+pub(crate) struct Loaded {
+    snapshot: PolicySnapshot,
+    axes: BTreeSet<AxisKey>,
+    machine_axes: Vec<String>,
+}
+
+impl Loaded {
+    /// The policy valid at `at` as the transaction sees it.
+    async fn read(conn: &mut PgConnection, at: OffsetDateTime) -> Result<Self, StoreError> {
+        let revision = read::revision(conn).await?;
+        let parts = read::parts(conn, at, None, revision).await?;
+        let axes = axes_read(&parts);
+        let machine_axes = parts
+            .axes
+            .iter()
+            .filter(|axis| axis.carrier == Carrier::Machine)
+            .map(|axis| axis.key.to_string())
+            .collect();
+        Ok(Self {
+            snapshot: PolicySnapshot::new(parts),
+            axes,
+            machine_axes,
+        })
+    }
+}
+
+/// Policies kept by one pass, the oldest dropped first when full.
+const KEPT: usize = 16;
+
+/// The policies read by one pass over the flows once every write of a changeset is done:
+/// the policy no longer changes in the transaction, and a snapshot read at an instant holds
+/// over the span where no version of a policy object starts or ends
+/// ([`read::stable_span`]). It lives as long as the pass, never beyond its transaction.
+#[derive(Default)]
+pub(crate) struct Policies {
+    kept: Vec<(Option<OffsetDateTime>, Option<OffsetDateTime>, Arc<Loaded>)>,
+}
+
+impl Policies {
+    /// The policy valid at `at`, read once per stable span.
+    async fn at(
+        &mut self,
+        conn: &mut PgConnection,
+        at: OffsetDateTime,
+    ) -> Result<Arc<Loaded>, StoreError> {
+        let covers = |from: &Option<OffsetDateTime>, until: &Option<OffsetDateTime>| {
+            from.is_none_or(|f| f <= at) && until.is_none_or(|u| at < u)
+        };
+        if let Some((_, _, hit)) = self.kept.iter().find(|(f, u, _)| covers(f, u)) {
+            return Ok(hit.clone());
+        }
+        let (from, until) = read::stable_span(conn, at, None).await?;
+        let loaded = Arc::new(Loaded::read(conn, at).await?);
+        if self.kept.len() >= KEPT {
+            self.kept.remove(0);
+        }
+        self.kept.push((from, until, loaded.clone()));
+        Ok(loaded)
+    }
+}
+
 /// Evaluates `flow` at `at` on the state of the transaction (REQ-011-8, 11, 21).
 ///
 /// # Errors
 ///
 /// A failure of the database.
-#[allow(clippy::too_many_lines)] // the steps of design 010 « Évaluation », in their order
 pub async fn evaluate_flow(
     conn: &mut PgConnection,
     flow: &Flow,
     at: OffsetDateTime,
 ) -> Result<Evaluated, StoreError> {
-    let revision = read::revision(conn).await?;
-    let parts = read::parts(conn, at, None, revision).await?;
-    let axes = axes_read(&parts);
-    let machine_axes: Vec<String> = parts
-        .axes
-        .iter()
-        .filter(|axis| axis.carrier == Carrier::Machine)
-        .map(|axis| axis.key.to_string())
-        .collect();
-    let snapshot = PolicySnapshot::new(parts);
+    let policy = Loaded::read(conn, at).await?;
+    evaluate_with(conn, &policy, flow, at).await
+}
+
+/// [`evaluate_flow`] in a pass over the flows after the writes of a changeset, the policy
+/// read through `policies`.
+///
+/// # Errors
+///
+/// A failure of the database.
+pub(crate) async fn evaluate_in(
+    conn: &mut PgConnection,
+    policies: &mut Policies,
+    flow: &Flow,
+    at: OffsetDateTime,
+) -> Result<Evaluated, StoreError> {
+    let policy = policies.at(conn, at).await?;
+    evaluate_with(conn, &policy, flow, at).await
+}
+
+/// Evaluates `flow` at `at` against `policy`.
+#[allow(clippy::too_many_lines)] // the steps of design 010 « Évaluation », in their order
+async fn evaluate_with(
+    conn: &mut PgConnection,
+    policy: &Loaded,
+    flow: &Flow,
+    at: OffsetDateTime,
+) -> Result<Evaluated, StoreError> {
+    let Loaded {
+        snapshot,
+        axes,
+        machine_axes,
+    } = policy;
     let service: Option<String> = sqlx::query_scalar(
         "SELECT key FROM policy.policy_service WHERE id = $1 AND valid_period @> $2",
     )
@@ -317,7 +404,7 @@ pub async fn evaluate_flow(
     }
     let side = |id: Uuid| -> Side {
         let mut values = BTreeMap::new();
-        for axis in &axes {
+        for axis in axes {
             let key = axis.to_string();
             let found = machine
                 .get(&(id, key.clone()))
@@ -340,7 +427,7 @@ pub async fn evaluate_flow(
         for (b, _) in &destination {
             let evaluation = match &service {
                 Some(service) => evaluate(
-                    &snapshot,
+                    snapshot,
                     &side(*a),
                     &side(*b),
                     service,
