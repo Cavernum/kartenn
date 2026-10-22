@@ -685,10 +685,10 @@ pub trait WriteTx {
         id: Uuid,
     ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
 
-    /// Records that `changeset` wrote the object `id` or its assignments.
+    /// Records that `changeset` wrote the objects `ids` or their assignments.
     fn touch(
         &mut self,
-        id: Uuid,
+        ids: &[Uuid],
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
@@ -1133,11 +1133,12 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<(Uuid, InheritTree)>, StoreError>> + Send;
 
-    /// The object and the objects below it in its tree (addressing, entities or sites),
-    /// from the start of `period` on.
+    /// The objects and the objects below them in their trees (addressing, entities, sites
+    /// or a module), from the start of `period` on, each once: one read for every object
+    /// of a changeset, not one per object.
     fn subtree(
         &mut self,
-        object: Uuid,
+        objects: &[Uuid],
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
@@ -1148,10 +1149,11 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
-    /// `(property, object)` pairs whose origin is `origin` from the start of `period` on.
+    /// `(property, object)` pairs whose origin is one of `origins` from the start of
+    /// `period` on, each once.
     fn inheritors(
         &mut self,
-        origin: Uuid,
+        origins: &[Uuid],
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<(Uuid, Uuid)>, StoreError>> + Send;
 

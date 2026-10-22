@@ -38,21 +38,23 @@ pub(crate) fn store(e: &sqlx::Error) -> StoreError {
     StoreError(e.to_string())
 }
 
-/// The identifier of the property `key` declared at `at`.
-pub(crate) async fn property(
+/// The identifiers of the properties `core.owner` and `core.site` declared at `at`, in one
+/// read: each operation of the module is completed with both.
+pub(crate) async fn owner_and_site(
     conn: &mut PgConnection,
-    key: &str,
     at: Option<OffsetDateTime>,
-) -> Result<Option<Uuid>, StoreError> {
-    sqlx::query_scalar(
-        "SELECT id FROM public.property_declaration
-          WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+) -> Result<(Option<Uuid>, Option<Uuid>), StoreError> {
+    let rows: Vec<(String, Uuid)> = sqlx::query_as(
+        "SELECT key, id FROM public.property_declaration
+          WHERE key IN ('core.owner', 'core.site')
+            AND valid_period @> coalesce($1::timestamptz, now())",
     )
-    .bind(key)
     .bind(at)
-    .fetch_optional(conn)
+    .fetch_all(conn)
     .await
-    .map_err(|e| store(&e))
+    .map_err(|e| store(&e))?;
+    let id = |key: &str| rows.iter().find(|(k, _)| k == key).map(|(_, id)| *id);
+    Ok((id("core.owner"), id("core.site")))
 }
 
 /// A refusal of the module before writing: a failed statement would abort the
@@ -312,15 +314,21 @@ pub(crate) async fn name_duplicates(
     conn: &mut PgConnection,
     ids: &[Uuid],
 ) -> Result<Vec<(Uuid, Uuid, String)>, StoreError> {
+    // Each machine by its identifier, then the machines of its name by the index of the
+    // names alone, the other conditions outside (`OFFSET 0` keeps each lookup apart):
+    // within an import the statistics of the table are stale, and the planner crossed
+    // the index of the identifiers (`id <> a.id`, every machine) for each machine.
     sqlx::query_as(
         "SELECT DISTINCT a.id, b.id, a.name
-           FROM machines.machine a
-           JOIN machines.machine b
-             ON b.name = a.name AND b.id <> a.id AND b.valid_period && a.valid_period
+           FROM unnest($1::uuid[]) AS u(id)
+           CROSS JOIN LATERAL (
+               SELECT * FROM machines.machine a WHERE a.id = u.id OFFSET 0) a
+           CROSS JOIN LATERAL (
+               SELECT * FROM machines.machine b WHERE b.name = a.name OFFSET 0) b
            CROSS JOIN LATERAL (
                SELECT CASE WHEN a.valid_period * b.valid_period @> now() THEN now()
                            ELSE lower(a.valid_period * b.valid_period) END AS at) t
-          WHERE a.id = ANY($1)
+          WHERE b.id <> a.id AND b.valid_period && a.valid_period
             AND public.kartenn_owner(a.id, t.at) = public.kartenn_owner(b.id, t.at)
           ORDER BY a.id, b.id",
     )

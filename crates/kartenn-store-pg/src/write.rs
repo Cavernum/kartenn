@@ -77,32 +77,18 @@ impl kartenn_service::module::ModuleTx for PgTx {
     ) -> kartenn_service::module::BoxFuture<'_, Result<(), WriteError>> {
         Box::pin(async move {
             let (a, b) = bounds(period)?;
-            // Already registered over the period: a new version of its record.
-            let rewritten = self
-                .guarded(
-                    sqlx::AssertSqlSafe(format!(
-                        "UPDATE module_object SET parent_id = $2, domain_id = $3, changeset_id = $6
-                         WHERE id = $1 AND valid_period && {}",
-                        period_sql(4, 5)
-                    )),
-                    vec![
-                        Bind::Uuid(row.id),
-                        Bind::OptUuid(row.parent),
-                        Bind::OptUuid(row.domain),
-                        Bind::Time(a),
-                        Bind::Time(b),
-                        Bind::Uuid(changeset),
-                    ],
-                    row.id,
-                )
-                .await?;
-            if rewritten > 0 {
-                return Ok(());
-            }
+            // Already registered over the period: a new version of its record; else a new
+            // record. One statement, so one write under its savepoint, rather than an
+            // update that finds nothing for each object created, then the insert.
+            let period = period_sql(6, 7);
             let sql = format!(
-                "INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
-                 VALUES ($1, $2, $3, $4, $5, {}, $8)",
-                period_sql(6, 7)
+                "WITH up AS (
+                     UPDATE module_object SET parent_id = $4, domain_id = $5, changeset_id = $8
+                     WHERE id = $1 AND valid_period && {period}
+                     RETURNING 1)
+                 INSERT INTO module_object (id, module, kind, parent_id, domain_id, valid_period, changeset_id)
+                 SELECT $1, $2, $3, $4, $5, {period}, $8
+                 WHERE NOT EXISTS (SELECT 1 FROM up)"
             );
             let binds = vec![
                 Bind::Uuid(row.id),
@@ -890,19 +876,23 @@ async fn record_operations(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
 ) -> Result<(), StoreError> {
-    for (ordinal, op) in journal.request.operations.iter().enumerate() {
-        let payload = serde_json::to_value(op).map_err(store_err)?;
-        sqlx::query(
-            "INSERT INTO changeset_operation (changeset_id, ordinal, payload) VALUES ($1, $2, $3)
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(journal.id)
-        .bind(i32::try_from(ordinal).map_err(store_err)?)
-        .bind(payload)
-        .execute(&mut **tx)
-        .await
-        .map_err(store_err)?;
+    if journal.request.operations.is_empty() {
+        return Ok(());
     }
+    // One statement for all of them, each at its rank in the array (an import batch holds
+    // up to 10⁴ operations).
+    let payloads = serde_json::to_value(&journal.request.operations).map_err(store_err)?;
+    sqlx::query(
+        "INSERT INTO changeset_operation (changeset_id, ordinal, payload)
+         SELECT $1, (o.n - 1)::int, o.payload
+           FROM jsonb_array_elements($2::jsonb) WITH ORDINALITY AS o(payload, n)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(journal.id)
+    .bind(payloads)
+    .execute(&mut **tx)
+    .await
+    .map_err(store_err)?;
     Ok(())
 }
 
@@ -1046,12 +1036,14 @@ impl WriteTx for PgTx {
         .map_err(store_err)
     }
 
-    async fn touch(&mut self, id: Uuid, changeset: Uuid) -> Result<(), StoreError> {
+    async fn touch(&mut self, ids: &[Uuid], changeset: Uuid) -> Result<(), StoreError> {
+        // Each object once: an upsert cannot write the same row twice.
         sqlx::query(
-            "INSERT INTO object_version (object_id, changeset_id) VALUES ($1, $2)
+            "INSERT INTO object_version (object_id, changeset_id)
+             SELECT DISTINCT id, $2::uuid FROM unnest($1::uuid[]) AS u(id)
              ON CONFLICT (object_id) DO UPDATE SET changeset_id = excluded.changeset_id",
         )
-        .bind(id)
+        .bind(ids)
         .bind(changeset)
         .execute(&mut *self.tx)
         .await
@@ -2508,19 +2500,31 @@ impl WriteTx for PgTx {
 
     async fn subtree(
         &mut self,
-        object: Uuid,
+        objects: &[Uuid],
         period: Option<Period>,
     ) -> Result<Vec<Uuid>, StoreError> {
+        if objects.is_empty() {
+            return Ok(Vec::new());
+        }
         let (a, _) = bounds(period)?;
+        // The roots joined from `unnest` rather than filtered by `= ANY`: a join keeps the
+        // index of each table under a generic plan.
         sqlx::query_scalar(
             "WITH w AS (SELECT tstzrange(coalesce($2::timestamptz, now()), NULL) AS r),
-                  o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
-                        WHERE id = $1 AND valid_period && w.r),
-                  anchor AS (SELECT id, parent_id, valid_period FROM entity
-                             UNION ALL SELECT id, parent_id, valid_period FROM site
-                             UNION ALL SELECT id, parent_id, valid_period FROM module_object)
+                  roots AS (SELECT DISTINCT id FROM unnest($1::uuid[]) AS u(id)),
+                  o AS (SELECT DISTINCT x.domain_id, x.value, x.kind
+                        FROM roots JOIN addressing_object x ON x.id = roots.id, w
+                        WHERE x.valid_period && w.r),
+                  -- inlined: cited twice, a materialised CTE would copy every entity,
+                  -- site and object of a module at each call, where each reference
+                  -- inlined walks the index of its id or its parent
+                  anchor AS NOT MATERIALIZED (
+                      SELECT id, parent_id, valid_period FROM entity
+                      UNION ALL SELECT id, parent_id, valid_period FROM site
+                      UNION ALL SELECT id, parent_id, valid_period FROM module_object)
              -- three branches rather than an OR, so that each uses its index
-             SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
+             SELECT x.id FROM roots JOIN addressing_object x ON x.id = roots.id, w
+             WHERE x.valid_period && w.r
              UNION
              SELECT x.id FROM addressing_object x, o, w
              WHERE o.kind = 'domain' AND x.domain_id = o.domain_id AND x.valid_period && w.r
@@ -2533,15 +2537,16 @@ impl WriteTx for PgTx {
              -- the window
              SELECT id FROM (
                  WITH RECURSIVE d(id, vp, depth) AS (
-                     SELECT a.id, a.valid_period * w.r, 0 FROM anchor a, w
-                     WHERE a.id = $1 AND a.valid_period && w.r
+                     SELECT a.id, a.valid_period * w.r, 0
+                     FROM roots JOIN anchor a ON a.id = roots.id, w
+                     WHERE a.valid_period && w.r
                      UNION ALL
                      SELECT c.id, c.valid_period * d.vp, d.depth + 1
                      FROM d JOIN anchor c ON c.parent_id = d.id AND c.valid_period && d.vp
                      WHERE d.depth < 1000)
                  SELECT id FROM d) a",
         )
-        .bind(object)
+        .bind(objects)
         .bind(a)
         .fetch_all(&mut *self.tx)
         .await
@@ -2567,16 +2572,20 @@ impl WriteTx for PgTx {
 
     async fn inheritors(
         &mut self,
-        origin: Uuid,
+        origins: &[Uuid],
         period: Option<Period>,
     ) -> Result<Vec<(Uuid, Uuid)>, StoreError> {
+        if origins.is_empty() {
+            return Ok(Vec::new());
+        }
         let (a, _) = bounds(period)?;
         sqlx::query_as(
-            "SELECT DISTINCT property_id, object_id FROM property_origin
-             WHERE origin_object_id = $1
-               AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
+            "SELECT DISTINCT p.property_id, p.object_id
+               FROM (SELECT DISTINCT id FROM unnest($1::uuid[]) AS u(id)) o
+               JOIN property_origin p ON p.origin_object_id = o.id
+              WHERE p.valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)",
         )
-        .bind(origin)
+        .bind(origins)
         .bind(a)
         .fetch_all(&mut *self.tx)
         .await

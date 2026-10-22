@@ -221,6 +221,15 @@ impl PgTx {
         start: Option<OffsetDateTime>,
     ) -> Result<(), StoreError> {
         self.diff_table().await?;
+        // An excluded object has no entry (`ex` leaves it out): left out before the
+        // statement, which then reads nothing for the objects an import creates, rather
+        // than their origins and a search of the excluded for each.
+        let excluded_set: std::collections::HashSet<&Uuid> = excluded.iter().collect();
+        let objects: Vec<Uuid> = objects
+            .iter()
+            .filter(|o| !excluded_set.contains(o))
+            .copied()
+            .collect();
         if objects.is_empty() {
             return Ok(());
         }
@@ -234,7 +243,7 @@ impl PgTx {
             .map_err(store_err)?;
         sqlx::query(sqlx::AssertSqlSafe(record_sql()))
             .bind(property)
-            .bind(objects)
+            .bind(&objects)
             .bind(from)
             .bind(heritable)
             .bind(closed_list)
