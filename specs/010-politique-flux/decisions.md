@@ -68,6 +68,8 @@ Machines et interfaces (009, en cours). Note de référence :
 - S33 dossier, pré-vérification et permission « demander un flux ».
 - S34 API : collections au pluriel sous `/v1` (ADR 0026, clause 9).
 - S35 écriture d'une cellule de la matrice sous `If-Match` (amende S28, REQ-010-34).
+- S36 aperçu de l'inférence dans le différentiel du changeset, servi par la simulation
+  (amende S11 et S19, REQ-010-55) : **proposée, en attente de validation**.
 
 ## S1 — Périmètre
 - Décision : la 010 livre les vocabulaires (environnements, types de flux), le catalogue
@@ -529,3 +531,45 @@ Machines et interfaces (009, en cours). Note de référence :
   vue relue montre l'autre changement).
 - Décidé par : l'utilisateur (2026-10-22, Q-017-7, option B) ; grain, membre `if_match`
   et violation du changeset composé : Claude, choix de conception
+
+## S36 — Aperçu de l'inférence dans le différentiel (amende S11 et S19, REQ-010-55)
+- Statut : **proposée, en attente de validation** par l'utilisateur (rédigée par Claude
+  le 2026-10-22). Rien n'en est implémenté avant l'arbitrage (tâche 010-22).
+- Constat (2026-10-22, spec 017, REQ-017-34, tâche 017-15) : avant d'écrire une règle
+  d'inférence, le responsable veut voir les nœuds qu'elle toucherait et les écarts
+  qu'elle ouvrirait ou fermerait. Aucune lecture ne le sert : la suggestion
+  (REQ-010-51) se lit nœud par nœud sur les règles déjà écrites ; les écarts
+  (REQ-010-48) n'existent qu'après application, par la tâche de fond ; le différentiel
+  du changeset (S11) ne couvre que les règles de politique, pas l'inférence.
+- Options :
+  (A) l'inférence contribue au différentiel du changeset, lu par la simulation
+  existante (`POST /v1/changesets?simulate=true`, REQ-004-9) et, une fois soumis, par
+  `GET /v1/changesets/{id}/diff?section=…` ;
+  (B) une route dédiée `QUERY /v1/inference-rules/preview` dont le corps est un
+  brouillon de règle ;
+  (C) l'interface calcule l'aperçu elle-même en lisant les règles et l'arbre.
+- Décision proposée : **A**. Quand un changeset crée, modifie ou clôt une règle
+  d'inférence, la contribution du module (section `policy.combinations`, ADR 0026
+  clause 13) ajoute une ligne `policy.inference.summary` (décomptes) et une ligne
+  `policy.inference.node` par nœud dont l'**attendu** change entre l'état d'avant et
+  celui d'après le changeset, avec l'écart d'avant et d'après. Les écarts se comptent
+  en nœuds et en nœuds d'origine (l'unité des anomalies `policy.inference.mismatch`).
+  Portée : les sous-arbres des nœuds où une règle touchée (avant ou après, exceptions
+  comprises) correspond ; au-delà de 10⁵ nœuds dans la portée, la ligne de synthèse
+  donne le seul décompte de la portée (`truncated: true`), sans lignes de nœuds. La
+  tâche de fond `policy.inference_check` reste seule à lever les anomalies.
+- Pourquoi : aucun contrat nouveau (ni route, ni permission, ni problème) ; l'aperçu
+  porte sur ce qui sera réellement écrit, changeset composé compris (règle et ses
+  exceptions, reclassement dans le même changeset) ; les droits sont ceux de
+  l'écriture, puisque la simulation exige les permissions des opérations (une règle qui
+  cite un domaine ne s'évalue que dans ce domaine, que son auteur administre) ;
+  l'approbateur d'un changeset retenu voit le même aperçu. (B) dupliquerait la
+  validation des opérations et la simulation ; (C) exposerait au client tout l'arbre et
+  toutes les règles, et dupliquerait le moteur.
+- Coût : le différentiel d'un changeset de règles d'inférence s'allonge, simulé ou
+  appliqué ; borné par la portée (10⁵ nœuds) et chiffré dans REQ-010-55 (à confirmer
+  par le banc 010-19).
+- Hors décision : une mesure d'approbation sur les écarts ouverts (`policy.inference_opens`,
+  REQ-010-20) ; à proposer à part si le besoin s'en fait sentir.
+- Décidé par : **en attente** (proposition de Claude ; grain, bornes, ordre des lignes
+  et date d'évaluation : choix de conception de Claude, à confirmer avec l'option)

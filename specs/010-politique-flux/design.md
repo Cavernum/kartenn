@@ -281,6 +281,83 @@ Moteur pur (`kartenn-policy/src/inference.rs`) sur l'arbre d'adressage :
 - **Valeur par défaut** : à la création seule, attendu unique, si le nœud n'hérite de
   rien ; provenance `source:policy.inference@<révision>#<règle>`.
 
+### Aperçu de l'inférence (REQ-010-55, S36)
+
+> Statut : **proposé, en attente de validation** (S36). Rien de cette section n'est
+> implémenté avant l'arbitrage (tâche 010-22).
+
+Aucune route nouvelle : l'aperçu est une contribution de l'inférence au différentiel du
+changeset, lue par la simulation et par la lecture du différentiel.
+
+**Entrée.** `POST /v1/changesets?simulate=true` (REQ-004-9, 006/H2), corps d'une
+soumission ordinaire : opérations `policy.inference_rule.create`, `…update` ou la
+clôture d'une règle, seules ou dans un changeset composé (règle et ses exceptions,
+reclassement de nœuds). Le plugin `policy` (017, tâche 017-15) y envoie le brouillon du
+formulaire.
+
+**Sortie.** Réponse 200 de simulation (violations, anomalies, différentiel) ; dans la
+section du module `policy.combinations` (le contrat donne une section par module ;
+`policy.reclassified` y est déjà un genre de ligne), deux genres de ligne :
+
+| Genre | `object` | Contenu |
+|---|---|---|
+| `policy.inference.summary` | nul ; une ligne par axe visé par une règle touchée | `after` : `{axis, valid_at, scope, scope_exact, changed, opens, closes, origins_opened, origins_closed, truncated}` |
+| `policy.inference.node` | le nœud | `before` et `after` : `{axis, revision, expected, candidates, rule, declared, origin, deviates}` |
+
+- `expected` : l'ensemble attendu unique, ou `null` ; `candidates` : les ensembles à
+  égalité (REQ-010-45), vide sinon ; `rule` : la clé de la règle retenue (de
+  l'exception la plus profonde) ; `revision` : la révision du jeu d'avant, et celle que
+  le changeset donnera ; `declared` : l'ensemble déclaré résolu, `origin` son nœud
+  d'origine ; `deviates` : l'écart de REQ-010-47.
+- Ordre des lignes : synthèse(s), puis les nœuds qui entrent en écart, ceux qui en
+  sortent, puis les autres, chacun dans l'ordre de l'arbre (domaine, préfixe).
+- Pagination : la simulation rend le décompte et les 100 premières lignes de la section
+  (échantillon commun) ; un changeset soumis, appliqué ou retenu se lit par
+  `GET /v1/changesets/{id}/diff?section=policy.combinations`, page par page
+  (`links.next`).
+
+**Calcul**, après les écritures, dans la transaction du changeset :
+
+1. Règles touchées : les règles racines dont le changeset écrit la racine ou une
+   exception, dans leur version d'avant et d'après.
+2. Portée : les nœuds où l'une de ces versions correspond (critères de la racine, domaine
+   cité compris : `infer::rules_at` l'ajoute en critère), plus leurs sous-arbres
+   (transmission, REQ-010-43). Les critères indexés (préfixe, domaine, famille, type
+   d'objet) filtrent en SQL ; les autres s'évaluent en mémoire sur ce reste. Décompte
+   d'abord : au-delà de 10⁵ nœuds, la synthèse ne porte que `scope` (borne supérieure si
+   le filtre indexé l'a déjà dépassé : `scope_exact: false`) et `truncated: true`, sans
+   ligne de nœud ni décompte d'écarts.
+3. Pour chaque nœud de la portée : attendu d'avant (règles et valeurs déclarées hors du
+   changeset) et d'après (dans la transaction), par `inference::expected` sur sa chaîne ;
+   écart d'avant et d'après par `inference::mismatch`. Seuls les nœuds dont l'attendu ou
+   l'écart change sont gardés (`changed`).
+4. Écarts : `opens`, `closes` comptent les nœuds ; `origins_opened` les nœuds d'origine
+   qui gagnent un héritier en écart sans porter d'anomalie `policy.inference.mismatch`
+   ouverte, `origins_closed` ceux dont l'anomalie ouverte perd tous ses héritiers en
+   écart. Aucune anomalie n'est levée ni close ici : la tâche de fond
+   `policy.inference_check` reste seule à le faire, après application.
+
+**Temps.** `valid_at` : le début de validité le plus tôt des opérations d'inférence du
+changeset, à défaut le présent ; règles, arbre et valeurs déclarées sont lus à cette
+date. `as_of` : l'état connu à la transaction (avant) et l'état qu'elle écrit (après).
+La section d'un changeset appliqué est figée à son calcul : la relire plus tard ne
+réévalue rien ; elle porte son `valid_at`.
+
+**Droits.** Ceux de l'écriture : le pipeline exige des opérations, simulées ou non,
+`policy.inference.admin` sur le domaine cité, sinon globale (REQ-010-46) ; 403 sinon.
+Une règle qui cite un domaine ne s'évalue que dans ce domaine : la portée ne sort pas
+de ce que son auteur administre. La relecture d'un changeset soumis suit la règle
+commune du différentiel (`core.changeset.read`) ; les valeurs d'un axe sensible sont
+masquées sans `prop.<clé>.read`, comme dans le différentiel des propriétés (REQ-005-21).
+
+**Erreurs.** Aucun problème nouveau : opérations invalides
+(`policy.inference.regex_invalid`, `criterion_invalid`, `depth`) → 422
+`changeset-refused`, sans section ; permission manquante → 403. Une portée trop grande
+n'est pas une erreur (`truncated`).
+
+**Approbation.** Aucune mesure nouvelle : `policy.opens` et `policy.closes` restent
+celles du différentiel de politique (REQ-010-20).
+
 ### Rapport d'audit (REQ-010-22, 23)
 
 Tâche de fond `policy.report` (ADR 0023, genre de module N14) déclenchée par `POST
@@ -316,6 +393,7 @@ développées d'une machine lisible mais non lisibles une à une sont omises et 
 | `GET /v1/verdicts?source=…&destination=…&service=…` | variante simple |
 | `GET /v1/{collection}/{id}/suggestion?axis=…` | suggestion d'inférence (route transverse du noyau, ADR 0026 clause 9) |
 | `POST /v1/policy-reports`, `GET /v1/policy-reports/{id}`, `GET …/items` | rapport d'audit |
+| `POST /v1/changesets?simulate=true`, `GET /v1/changesets/{id}/diff?section=policy.combinations` (routes du noyau) | aperçu d'une règle d'inférence : lignes `policy.inference.*` (REQ-010-55 ; **S36 proposée, en attente de validation**) |
 
 Problèmes : `urn:kartenn:problem:policy-query-too-large` (422) ; les violations de
 changeset suivent REQ-006-21.
@@ -423,6 +501,9 @@ M7 (section des rattachements changés) est un besoin de la 011.
 | Règle sans terme, sélecteur de flux = un service | applicable à toute paire (« service interdit » si `deny`) |
 | `valid_at` futur | lecture datée normale (états programmés) |
 | Texte absent dans la langue demandée | langue par défaut de l'instance, langue indiquée |
+| Aperçu d'inférence : portée > 10⁵ nœuds (S36, proposée) | synthèse seule, `truncated: true`, pas d'erreur ; les anomalies viendront de la tâche de fond |
+| Aperçu d'inférence : candidats à égalité après le changeset | ligne de nœud avec `candidates`, jamais en écart (REQ-010-45, 47) |
+| Aperçu d'inférence : règle future (`valid_from` à venir) | évaluée à ce début de validité, pas au présent |
 
 ## Alternatives considérées
 
@@ -439,6 +520,9 @@ M7 (section des rattachements changés) est un besoin de la 011.
 - **Évaluation en SQL** : plus lente qu'en mémoire pour une politique de 10⁴ règles ;
   gardée pour le rapport d'audit.
 - **Différentiel par nœud** : combinatoire (S11).
+- **Route dédiée d'aperçu de l'inférence** (`QUERY /v1/inference-rules/preview`) et
+  **aperçu calculé par le client** : écartés au profit du différentiel du changeset
+  (S36, proposée).
 
 ## Risques et migration
 
@@ -462,7 +546,9 @@ M7 (section des rattachements changés) est un besoin de la 011.
   jamais ; permuter les règles ne change rien ; l'issue ne dépend jamais des signaux.
 - **Conditions et signaux** : un test par genre ; dossier absent.
 - **Inférence** : un test par exigence de la section G ; oracle sur arbres aléatoires
-  pour le départage (priorité, profondeur, candidats multiples).
+  pour le départage (priorité, profondeur, candidats multiples). Aperçu (S36, proposé) :
+  les nœuds changés d'une simulation égalent ceux dont `inference::expected` diffère,
+  évalué nœud par nœud sur tout l'arbre avant et après, sur de petits arbres aléatoires.
 - **Différentiel** : comparaison avec le produit cartésien complet évalué avant et après
   sur de petites politiques aléatoires.
 - **Intégration** (PostgreSQL) : verdicts datés, obligation par domaine et par axe,

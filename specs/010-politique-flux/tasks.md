@@ -564,3 +564,34 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   (412 de trop, sans danger) ; les réponses 412 et 428 restent sous `default` du
   contrat, comme pour les `PATCH` ; dépendance `sha2` (déjà dans l'espace de travail)
   ajoutée à la fonctionnalité `pg` ; le cache de clichés devient `cache::shared`.
+- [ ] 22. Aperçu de l'inférence dans le différentiel (S36, **proposée, en attente de
+  validation : ne pas commencer avant l'arbitrage**) : quand un changeset écrit une
+  règle d'inférence, la contribution ajoute à `policy.combinations` les lignes
+  `policy.inference.summary` (par axe : `valid_at`, `scope`, `scope_exact`, `changed`,
+  `opens`, `closes`, `origins_opened`, `origins_closed`, `truncated`) et
+  `policy.inference.node` (attendu, candidats, règle, révision, déclaré, origine, écart,
+  avant et après) ; portée = sous-arbres des nœuds où une version touchée correspond,
+  décompte d'abord, synthèse seule au-delà de 10⁵ nœuds ; ordre : entrées en écart,
+  sorties, autres ; aucune anomalie levée ; `docs/spec/interfaces.md` (lignes de la
+  section) et contrat OpenAPI si le schéma des lignes y figure — REQ-010-55 — verify :
+  simulation d'une règle `prod` sur 12 nœuds dont 3 déclarés `dev` → 12 changés,
+  3 ouverts, 3 origines ouvertes, aucune écriture ni anomalie ; clôture de la règle
+  appliquée → 3 fermés ; règle surclassée → aucun nœud changé ; candidats à égalité →
+  `candidates`, pas d'écart ; règle future → évaluée à son `valid_from` ; portée
+  > 10⁵ (seuil abaissé par paramètre de test) → `truncated` sans ligne de nœud ;
+  simulation sans `policy.inference.admin` sur le domaine cité → 403 ; oracle proptest
+  (nœuds changés = nœuds dont `expected` diffère sur tout l'arbre) ; banc 010-19 étendu
+  (< 1 s pour 10⁴ nœuds, < 10 s pour 10⁵)
+  où : design « Aperçu de l'inférence » et « Différentiel de politique » ;
+  `crates/kartenn-policy/src/contribution.rs` (`section`, imiter `reclassified`,
+  `summary_row` et les constantes de genre ; `writes_policy` pour reconnaître une règle
+  d'inférence touchée) ; `crates/kartenn-policy/src/infer.rs` (`rules_at`, `chain`,
+  `tested` : règles avant et après, chaîne d'un nœud) ;
+  `crates/kartenn-policy/src/inference.rs` (`expected`, `mismatch`) ;
+  `crates/kartenn-policy/src/mismatch.rs` (`declared`, `heirs`, `scope` : valeur
+  déclarée, origine et héritiers) ; `crates/kartenn-policy/src/load.rs` (`State::Before`
+  / `After`) ; tests : `crates/kartenn-policy/tests/it/differential.rs` (copier
+  `simulated` et `a_reclassified_node_counts_its_heirs`) et `tests/it/inference.rs`
+  (arbres de fixture) ; `crates/kartenn-bench` pour le banc
+  - dépend de : 15, 18 ; arbitrage de S36
+  - débloque : 017-15
