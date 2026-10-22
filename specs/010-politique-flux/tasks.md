@@ -467,7 +467,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P5 — Amendements
 
-- [ ] 21. Écriture d'une cellule de la matrice sous `If-Match` (S35) : la route
+- [x] 21. Écriture d'une cellule de la matrice sous `If-Match` (S35) : la route
   `set_cell` exige l'en-tête (428 absent, 412 périmé) et le passe dans le membre
   `if_match` de `policy.matrix.set` ; `prepare_set` recalcule la vue du type de flux
   dans la transaction, sous le verrou `policy`, et compare son empreinte à celle du
@@ -487,3 +487,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   `crates/kartenn-policy/tests/it/rest.rs` (`the_matrix_is_read_and_its_cells_are_set`
   à compléter) et `tests/it/matrix.rs` ; `web/sdk/src/api/schema.d.ts`
   - dépend de : 18
+  — `matrix::fingerprint` (SHA-256 tronqué à 32 chiffres hexadécimaux des membres de la
+  vue) est l'ETag du `GET`, devenu fort (`ETag::fingerprint`) puisque `If-Match` exige
+  une comparaison forte ; `set_cell` lit l'en-tête par `kit::if_match_tag` (428, 400,
+  412 pour un ETag faible) et soumet par `kit::submit_matched`, qui répond 412 à la
+  violation qu'on lui nomme (`Answer.precondition` devient la règle de conflit, plus un
+  booléen). `prepare_set` lit la révision de la politique puis compare l'empreinte de
+  la vue au présent (`completed.revision`, `completed.stale`) ; `plan_set` refuse un tag
+  périmé (`policy.matrix.stale`) et reporte la révision dans le plan ; à l'écriture,
+  sous le verrou `policy`, `matrix::check_set` exige que la révision n'ait bougé que par
+  ce changeset. Le membre `if_match` accepte l'ETag avec ou sans guillemets. Tests :
+  `tests/it/rest.rs` (`the_matrix_is_read_and_its_cells_are_set` : ETag fort, 428, 200,
+  412 sans écriture, 200 sur l'ETag relu), `tests/it/matrix.rs`
+  (`a_cell_under_if_match_is_refused_once_the_matrix_changed` : deux cellules sur un même
+  tag dans un changeset, tag périmé refusé sans écriture, tag relu, sans `if_match`).
+  Contrat, SDK, `docs/spec/interfaces.md`, `regles-modules.md` et design à jour.
+  choix : contrôle atomique par la révision plutôt qu'en prenant le verrou `policy` dans
+  `prepare` (il précéderait les verrous de domaine : risque d'interblocage avec un
+  changeset composé) ; un changeset concurrent qui écrit la politique entre la
+  comparaison et le verrou rend le tag périmé même s'il n'a pas touché ce type de flux
+  (412 de trop, sans danger) ; les réponses 412 et 428 restent sous `default` du
+  contrat, comme pour les `PATCH` ; dépendance `sha2` (déjà dans l'espace de travail)
+  ajoutée à la fonctionnalité `pg` ; le cache de clichés devient `cache::shared`.
