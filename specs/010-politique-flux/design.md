@@ -133,6 +133,7 @@ Validation sur l'état final (règles du module, identifiants stables REQ-002-37
 | `policy.rule.flow_selector_empty` | erreur | ni type ni service |
 | `policy.rule.unknown_axis` | erreur | terme ou « même valeur » sur une propriété non désignée |
 | `policy.rule.conditional_deny` | erreur | motifs requis sur une règle `deny` |
+| `policy.matrix.stale` | erreur | `policy.matrix.set` sous `if_match` alors que la matrice du type de flux a changé (S35) |
 | `policy.text.missing` | erreur | règle `deny`, motif ou condition sans texte dans la langue par défaut |
 | `policy.condition.params_invalid`, `policy.signal.params_invalid` | erreur | paramètres hors du schéma du genre |
 | `policy.inference.regex_invalid` | erreur | expression non ancrée, > 256 caractères, hors syntaxe linéaire |
@@ -320,9 +321,12 @@ des services ne sont pas servis ; la clôture d'un environnement passe par
 409 avec son `Location`. Une interdiction posée dans la matrice exige un texte
 pédagogique (`texts.fr`). **Amendé par S35** : le `PUT` d'une cellule n'est plus une
 opération sans `If-Match` ; la route lit l'en-tête (428, 412) et le passe dans le membre
-`if_match` de `policy.matrix.set` ; `prepare_set` recalcule la vue du type de flux sous
-le verrou `policy` et compare son empreinte (violation `policy.matrix.stale` dans un
-changeset composé, 412 par la route). Tâches de fond : `policy.inference_check` (60 s, écart
+`if_match` de `policy.matrix.set` ; `prepare_set` lit la révision de la politique,
+recalcule la vue du type de flux au présent et compare son empreinte (`matrix::fingerprint`,
+ETag fort servi par le `GET`) ; l'écriture, sous le verrou `policy`, confirme que la
+révision n'a bougé que par ce changeset (`matrix::check_set`), ce qui rend la comparaison
+atomique sans prendre le verrou avant ceux des domaines (violation `policy.matrix.stale`
+dans un changeset composé, 412 par la route). Tâches de fond : `policy.inference_check` (60 s, écart
 d'inférence, amendement 4 de l'ADR 0026) et `policy.report` (5 s).
 
 ## Exigences envers le noyau, le contrat de module et la 009

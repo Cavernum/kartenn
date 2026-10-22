@@ -164,8 +164,36 @@ pub fn view(snapshot: &PolicySnapshot, flow_type: &Key) -> MatrixView {
     }
 }
 
+/// The fingerprint of `view`, the strong `ETag` of its matrix (S35): 32 hexadecimal digits of
+/// the SHA-256 of its members in order, which fix the bytes the route serves.
 #[cfg(feature = "pg")]
-pub(crate) use write::{plan_set, prepare_set};
+#[must_use]
+pub fn fingerprint(view: &MatrixView) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
+    let cells: Vec<serde_json::Value> = view
+        .cells
+        .iter()
+        .map(|c| {
+            serde_json::json!([
+                c.source.as_str(),
+                c.destination.as_str(),
+                c.state.as_str(),
+                c.patterns.iter().map(Key::as_str).collect::<Vec<_>>(),
+                c.rules.iter().map(Key::as_str).collect::<Vec<_>>(),
+            ])
+        })
+        .collect();
+    let canonical = serde_json::json!([view.flow_type.as_str(), view.outside, cells]);
+    let digest = Sha256::digest(canonical.to_string().as_bytes());
+    digest[..16].iter().fold(String::new(), |mut hex, b| {
+        let _ = write!(hex, "{b:02x}");
+        hex
+    })
+}
+
+#[cfg(feature = "pg")]
+pub(crate) use write::{check_set, plan_set, prepare_set};
 
 /// `policy.matrix.set`: the write of a cell, translated into an operation on its rule.
 #[cfg(feature = "pg")]
@@ -173,6 +201,7 @@ mod write {
     use kartenn_core::rules::Violation;
     use kartenn_service::module::ModulePlan;
     use kartenn_service::operations::{ModuleOperation, Ref};
+    use kartenn_service::port::WriteError;
     use kartenn_service::{ObjectKind, Operation};
     use serde::{Deserialize, Serialize};
     use serde_json::{Map, Value, json};
@@ -180,17 +209,25 @@ mod write {
     use sqlx::types::time::OffsetDateTime;
     use uuid::Uuid;
 
+    use super::Key;
     use crate::codec;
     use crate::handler::{invalid, plan};
     use crate::model::Label;
     use crate::module::{ENVIRONMENT, RULE};
-    use crate::rules::RULE_CONDITIONAL_DENY;
+    use crate::rules::{MATRIX_STALE, RULE_CONDITIONAL_DENY};
 
     /// What the transaction tells of the cell before the plan.
     #[derive(Debug, Default, Serialize, Deserialize)]
     struct Completed {
         /// The rule of the cell, when one lives at the date.
         existing: Option<Uuid>,
+        /// Under `if_match`: the revision of the policy the matrix was compared at, which
+        /// the write confirms under the key `policy` (S35).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        revision: Option<u64>,
+        /// Under `if_match`: the matrix of the flow type no longer has that tag.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        stale: bool,
     }
 
     #[derive(Debug, Deserialize)]
@@ -208,6 +245,9 @@ mod write {
         texts: Option<Value>,
         #[serde(default)]
         label: Option<String>,
+        /// The `ETag` of the matrix of the flow type read at present (S35); none: no check.
+        #[serde(default)]
+        if_match: Option<String>,
         #[serde(default)]
         completed: Completed,
     }
@@ -243,8 +283,47 @@ mod write {
         .await
     }
 
-    /// Completes `policy.matrix.set` with the rule of its cell, read in the transaction.
-    /// A flow type created in the same changeset has no rule yet.
+    /// Whether the matrix of `flow_type` at present has the tag `if_match` (S35), and the
+    /// revision of the policy read before it. Every operation of the changeset is
+    /// prepared before the first is applied: the matrix compared is the one before the
+    /// changeset. A flow type absent at present has no matrix: the tag is stale.
+    async fn compared(
+        conn: &mut PgConnection,
+        flow_type: Option<Ref>,
+        if_match: &str,
+    ) -> Result<(u64, bool), kartenn_service::StoreError> {
+        let revision = crate::read::revision(conn).await?;
+        let Some(Ref::Id(flow_type)) = flow_type else {
+            return Ok((revision, true));
+        };
+        let found: Option<(String, OffsetDateTime)> = sqlx::query_as(
+            "SELECT key, now() FROM policy.policy_flow_type
+             WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(flow_type)
+        .fetch_optional(&mut *conn)
+        .await
+        .map_err(|e| crate::pg::store(&e))?;
+        let Some((key, now)) = found else {
+            return Ok((revision, true));
+        };
+        let Ok(key) = Key::new(&key) else {
+            return Ok((revision, true));
+        };
+        let snapshot = crate::cache::shared().snapshot(conn, now, None).await?;
+        let tag = if_match
+            .strip_prefix('"')
+            .and_then(|t| t.strip_suffix('"'))
+            .unwrap_or(if_match);
+        Ok((
+            revision,
+            super::fingerprint(&super::view(&snapshot, &key)) != tag,
+        ))
+    }
+
+    /// Completes `policy.matrix.set` with the rule of its cell, read in the transaction,
+    /// and, under `if_match`, with the comparison of the matrix (S35). A flow type created
+    /// in the same changeset has no rule yet.
     pub(crate) async fn prepare_set(
         conn: &mut PgConnection,
         operation: &mut ModuleOperation,
@@ -262,6 +341,11 @@ mod write {
             .get("flow_type")
             .and_then(|v| serde_json::from_value::<Ref>(v.clone()).ok());
         let mut completed = Completed::default();
+        if let Some(if_match) = text("if_match") {
+            let (revision, stale) = compared(conn, flow_type, &if_match).await?;
+            completed.revision = Some(revision);
+            completed.stale = stale;
+        }
         if let (Some(source), Some(destination), Some(Ref::Id(flow_type))) =
             (text("source"), text("destination"), flow_type)
         {
@@ -284,7 +368,77 @@ mod write {
         resolve: &dyn Fn(Ref) -> Option<Uuid>,
     ) -> Result<ModulePlan, Violation> {
         let set = decode(operation)?;
-        let _ = set.local;
+        let _ = (set.local, &set.if_match);
+        if set.completed.stale {
+            return Err(stale(operation));
+        }
+        let mut planned = planned_set(operation, object, resolve, set)?;
+        if let (Some(revision), Value::Object(data)) = (set_revision(operation), &mut planned.data)
+        {
+            data.insert("revision".into(), revision.into());
+        }
+        Ok(planned)
+    }
+
+    /// `policy.matrix.stale` for `operation`.
+    fn stale(operation: &ModuleOperation) -> Violation {
+        Violation::new(
+            &MATRIX_STALE,
+            format!(
+                "{}: the matrix of the flow type changed since the ETag of if_match",
+                operation.tag()
+            ),
+        )
+    }
+
+    /// The revision of the policy the matrix of `operation` was compared at.
+    fn set_revision(operation: &ModuleOperation) -> Option<u64> {
+        operation
+            .body
+            .get("completed")
+            .and_then(|c| c.get("revision"))
+            .and_then(Value::as_u64)
+    }
+
+    /// Under the key `policy`, before the write of the cell: the policy has the revision
+    /// its matrix was compared at, less the one this changeset raised (S35). Another
+    /// changeset that wrote the policy in between makes the tag stale.
+    ///
+    /// # Errors
+    /// `policy.matrix.stale`; a failure of the database.
+    pub(crate) async fn check_set(
+        conn: &mut PgConnection,
+        data: &Value,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let Some(compared) = data.get("revision").and_then(Value::as_u64) else {
+            return Ok(());
+        };
+        let before: i64 = sqlx::query_scalar(
+            "SELECT policy - CASE WHEN policy_by = $1 THEN 1 ELSE 0 END
+               FROM policy.policy_revision",
+        )
+        .bind(changeset)
+        .fetch_one(conn)
+        .await
+        .map_err(|e| WriteError::Store(crate::pg::store(&e)))?;
+        if u64::try_from(before).ok() == Some(compared) {
+            Ok(())
+        } else {
+            Err(WriteError::Rule(Violation::new(
+                &MATRIX_STALE,
+                "the matrix of the flow type changed since the ETag of if_match",
+            )))
+        }
+    }
+
+    /// The plan of the cell itself, once its tag is checked.
+    fn planned_set(
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        set: Set,
+    ) -> Result<ModulePlan, Violation> {
         for value in [&set.source, &set.destination] {
             if value.is_empty() {
                 return Err(invalid(operation, "an environment is a value key"));

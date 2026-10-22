@@ -15,7 +15,7 @@ workspace = true
 [features]
 # The handler in the write pipeline and the storage in PostgreSQL (design 010, « Données »,
 # « Opérations »).
-pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:kartenn-machines", "dep:thiserror"]
+pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:sha2", "dep:kartenn-machines", "dep:thiserror"]
 # The offline converter of an existing policy into a changeset (REQ-010-35, 53; S28).
 import = ["pg", "dep:toml_edit"]
 # Its routes under `/v1`, mounted by kartenn-server (REQ-010-27, design « API »).
@@ -37,6 +37,8 @@ kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
+# The fingerprint of a matrix view, its ETag under If-Match (S35).
+sha2 = { version = "0.11.1", optional = true }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "uuid", "time", "json"], optional = true }
 thiserror = { version = "2.0.21", optional = true }
 # The rule files of the existing inference, read in their written order (REQ-010-53).

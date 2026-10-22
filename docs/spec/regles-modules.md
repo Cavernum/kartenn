@@ -53,6 +53,7 @@ spécification du module.
 | `policy.rule.unknown_axis` | erreur | Une règle ne cite que des propriétés désignées comme axes de la politique. | REQ-010-8, REQ-010-29 | 010/S22 |
 | `policy.rule.term_empty` | erreur | Un terme d'un sélecteur d'extrémité admet au moins une valeur. | REQ-010-8 | 010/S23 |
 | `policy.rule.conditional_deny` | erreur | Seule une autorisation peut exiger des motifs. | REQ-010-8, REQ-010-32 | 010/S25 |
+| `policy.matrix.stale` | erreur | L'écriture d'une cellule qui porte l'empreinte de la matrice de son type de flux ne s'applique que si la matrice n'a pas changé depuis. | REQ-010-34 | 010/S35 |
 | `policy.text.missing` | erreur | Une interdiction, un motif et une condition portent un texte pédagogique dans la langue par défaut. | REQ-010-33 | 010/S29 |
 | `policy.text.invalid` | erreur | Un texte pédagogique est non vide, sans caractère de contrôle hors saut de ligne, d'au plus 4 000 caractères. | REQ-010-33 | 010/S29 |
 | `policy.condition.params_invalid` | erreur | Les paramètres d'une condition d'admissibilité respectent le schéma de son genre. | REQ-010-36 | 010/S30 |

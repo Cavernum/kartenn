@@ -41,6 +41,8 @@ rules! {
         "Un terme d'un sélecteur d'extrémité admet au moins une valeur.";
     RULE_CONDITIONAL_DENY = "policy.rule.conditional_deny", Error, ["REQ-010-8", "REQ-010-32"], "010/S25",
         "Seule une autorisation peut exiger des motifs.";
+    MATRIX_STALE = "policy.matrix.stale", Error, ["REQ-010-34"], "010/S35",
+        "L'écriture d'une cellule qui porte l'empreinte de la matrice de son type de flux ne s'applique que si la matrice n'a pas changé depuis.";
     TEXT_MISSING = "policy.text.missing", Error, ["REQ-010-33"], "010/S29",
         "Une interdiction, un motif et une condition portent un texte pédagogique dans la langue par défaut.";
     TEXT_INVALID = "policy.text.invalid", Error, ["REQ-010-33"], "010/S29",

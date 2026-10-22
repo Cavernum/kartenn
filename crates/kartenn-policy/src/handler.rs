@@ -501,6 +501,8 @@ impl Handler {
         let id = planned.object;
         let name = planned.kind.as_str();
         let table = table_of(planned.kind);
+        // A cell written under `if_match` (S35), now under the key `policy`.
+        crate::matrix::check_set(connection(tx)?, &planned.data, changeset).await?;
         let (columns, written) = if let Some(row) = planned.data.get("create") {
             (row, true)
         } else if let Some(patch) = planned.data.get("update") {

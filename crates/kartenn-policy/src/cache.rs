@@ -52,6 +52,13 @@ struct Inner {
     loads: u64,
 }
 
+/// The snapshots of the policy, shared by the requests and the writes of the process
+/// (REQ-010-16; the matrix under `If-Match`, S35).
+pub(crate) fn shared() -> &'static SnapshotCache {
+    static CACHE: std::sync::OnceLock<SnapshotCache> = std::sync::OnceLock::new();
+    CACHE.get_or_init(SnapshotCache::new)
+}
+
 /// The snapshots of the policy an instance has read, shared by its requests.
 #[derive(Default)]
 pub struct SnapshotCache {
