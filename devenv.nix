@@ -32,6 +32,9 @@
   # phase).
   # `k-heavy --all <command>` takes every slot, in order, for the timing-sensitive end-to-end
   # journeys: a build beside them stretches browser timeouts.
+  # A waiting caller says on stderr who holds what, since when, and repeats it every
+  # 5 min; it gives up with code 75 after K_HEAVY_WAIT minutes (45 for a lock, no limit
+  # for a slot by default; 0 for no limit).
   kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
     set -uo pipefail
     pg=0
@@ -51,20 +54,55 @@
     [ "$jobs" -ge 1 ] || jobs=1
     dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
     mkdir -p "$dir"
+    flock=${pkgs.util-linux}/bin/flock
+    now() { ${pkgs.coreutils}/bin/date +%s; }
+    # Who holds what: `<name>.who` holds the pid, the time, the worktree and the command of
+    # the holder. The command is exec'd under the lock, so nothing removes the file on
+    # exit: the next holder overwrites it, and a waiter ignores it once its pid is dead.
+    cmd=$(printf '%s ' "$@" | ${pkgs.coreutils}/bin/tr '\n' ' ' | ${pkgs.coreutils}/bin/cut -c1-100)
+    claim() { printf '%s\n%s\n%s\n%s\n' "$$" "$(now)" "$PWD" "''${cmd% }" >"$dir/$1.who"; }
+    holder() {
+      local pid since tree what
+      { read -r pid; read -r since; read -r tree; read -r what; } <"$dir/$1.who" 2>/dev/null
+      if [ -n "''${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "tenu par $what ($tree) depuis $(( ($(now) - since) / 60 )) min"
+      else
+        echo "tenu par un processus inconnu"
+      fi
+    }
+    # Waits for the lock <name> on <fd>, one line every 5 min, for <limit> minutes at most
+    # (empty or 0: no limit), then exits with 75 (EX_TEMPFAIL).
+    acquire() {
+      local fd=$1 name=$2 limit=$3 waited=0 step
+      if ! "$flock" -n "$fd"; then
+        while :; do
+          echo "k-heavy : attente du verrou $name, $(holder "$name")" >&2
+          step=300
+          if [ -n "$limit" ] && [ "$limit" -gt 0 ]; then
+            [ $(( limit * 60 - waited )) -ge "$step" ] || step=$(( limit * 60 - waited ))
+          fi
+          "$flock" -w "$step" "$fd" && break
+          waited=$(( waited + step ))
+          if [ -n "$limit" ] && [ "$limit" -gt 0 ] && [ "$waited" -ge $(( limit * 60 )) ]; then
+            echo "k-heavy : verrou $name toujours $(holder "$name") ; abandon après $limit min" \
+              "(K_HEAVY_WAIT=<minutes> pour attendre plus, 0 sans limite)" >&2
+            exit 75
+          fi
+        done
+      fi
+      claim "$name"
+    }
+    # Minutes of waiting: 45 for the locks, no limit for the slots, unless K_HEAVY_WAIT.
+    lockwait=''${K_HEAVY_WAIT:-45}
+    slotwait=''${K_HEAVY_WAIT:-}
     if [ "$bench" -eq 1 ] && [ -z "''${K_BENCH_HELD:-}" ]; then
       exec 7>"$dir/bench"
-      ${pkgs.util-linux}/bin/flock -n 7 || {
-        echo "k-heavy: instance des bancs occupée, attente…" >&2
-        ${pkgs.util-linux}/bin/flock 7
-      }
+      acquire 7 bench "$lockwait"
       export K_BENCH_HELD=1
     fi
     if [ "$pg" -eq 1 ] && [ -z "''${K_PG_HELD:-}" ]; then
       exec 8>"$dir/pg"
-      ${pkgs.util-linux}/bin/flock -n 8 || {
-        echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
-        ${pkgs.util-linux}/bin/flock 8
-      }
+      acquire 8 pg "$lockwait"
       export K_PG_HELD=1
     fi
     # Each command runs in its own systemd scope under a memory ceiling (K_HEAVY_MEM, in
@@ -87,28 +125,40 @@
     if [ "$all" -eq 1 ]; then
       # In order, blocking: two --all callers cannot deadlock, and a plain caller never
       # waits while holding a slot.
-      echo "k-heavy: réservation de tous les créneaux…" >&2
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
         exec {fd}>"$dir/slot.$i"
-        ${pkgs.util-linux}/bin/flock "$fd"
+        acquire "$fd" "slot.$i" "$slotwait"
       done
       export K_HEAVY_HELD=all
       jobs=$(${pkgs.coreutils}/bin/nproc)
       run "$@"
     fi
-    waited=0
+    # Any free slot: polled every 5 s, a line every 5 min while all are taken.
+    begun=$(now)
+    told=0
     while :; do
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
         exec 9>"$dir/slot.$i"
         # The lock stays held by the command (and its children) through the inherited fd.
-        if ${pkgs.util-linux}/bin/flock -n 9; then
-          [ "$waited" -eq 0 ] || echo "k-heavy: créneau $i obtenu" >&2
+        if "$flock" -n 9; then
+          claim "slot.$i"
+          [ "$told" -eq 0 ] || echo "k-heavy : créneau $i obtenu" >&2
           export K_HEAVY_HELD=$i
           run "$@"
         fi
         exec 9>&-
       done
-      [ "$waited" -eq 1 ] || { echo "k-heavy: $slots créneau(x) occupé(s), attente…" >&2; waited=1; }
+      waited=$(( $(now) - begun ))
+      if [ -n "$slotwait" ] && [ "$slotwait" -gt 0 ] && [ "$waited" -ge $(( slotwait * 60 )) ]; then
+        echo "k-heavy : aucun créneau libre après $slotwait min, abandon" >&2
+        exit 75
+      fi
+      if [ "$told" -eq 0 ] || [ $(( $(now) - told )) -ge 300 ]; then
+        for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
+          echo "k-heavy : attente d'un créneau, slot.$i $(holder "slot.$i")" >&2
+        done
+        told=$(now)
+      fi
       sleep 5
     done
   '';
