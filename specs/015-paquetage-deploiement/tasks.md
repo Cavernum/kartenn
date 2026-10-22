@@ -1,6 +1,6 @@
 ---
-status: in-progress
-updated: 2026-10-21
+status: implemented
+updated: 2026-10-22
 ---
 
 # 015 — Paquetage et déploiement : tâches
@@ -184,13 +184,13 @@ après l'autre.
 
 ## P3 — Exploitation
 
-- [ ] 8. Documentation de l'exploitant : `docs/exploitation/` et `compose.yaml`
+- [x] 8. Documentation de l'exploitant : `docs/exploitation/` et `compose.yaml`
   d'essai — REQ-015-13 — verify : procédures d'amorçage, de mise à jour et de
   sauvegarde-restauration jouées (VM de la tâche 7 ou essai consigné dans la note) ;
   `compose.yaml` démarré une fois avec l'image de la tâche 6
   où : design « Documentation » ; ADR 0019 (audit exporté) ; spec 007 W4
   dépend de : 6, 7
-  — en cours (2026-10-21), **non cochée** : `docs/exploitation/` (`README.md`,
+  — fait (2026-10-22) : `docs/exploitation/` (`README.md`,
   `nixos.md`, `oci.md`, `configuration.md`, `amorcage.md`, `plugins.md` avec
   l'avertissement W4, `mise-a-jour.md`, `sauvegarde.md`, `observabilite.md`,
   `versions.md`), `compose.yaml` et `initdb.sql` d'essai. `configuration.md` est tenue à
@@ -199,8 +199,28 @@ après l'autre.
   `checks.vm` : amorçage (`kartenn-breakglass`, connexion, `/v1/me`), mise à jour (base en
   retard, migration interrompue puis rejouée) et sauvegarde-restauration (`pg_dump`,
   `dropdb`, `pg_restore --no-owner --role=kartenn`, migration, instances prêtes, mêmes
-  personnes, `audit verify` : 7 sceaux, 37 événements). **Reste** : essai `compose.yaml`
-  à jouer, aucun moteur de conteneurs sur la machine de développement.
+  personnes, `audit verify` : 7 sceaux, 37 événements). Essai `compose.yaml` joué le
+  2026-10-22 avec Podman 5.8 (`podman compose`, délégué à `docker-compose` 5.6 ;
+  `podman-compose` absent) et l'image de `nix build .#oci` chargée par `podman load`
+  (`localhost/kartenn:0.1.0`) : `up -d` → migration (`deployed`) puis `/health/ready`
+  200 ; `compose run --rm migrate breakglass create … secours 4 /run/secrets/keyring`,
+  `POST /v1/auth/breakglass` (TOTP) 204, `GET /v1/me` : `administrator`, portée globale ;
+  dernière ligne de `_sqlx_migrations` retirée → 503, `stop kartenn`, `run --rm migrate`,
+  `start kartenn` → 200 ; `pg_dump` (rôle propriétaire), `dropdb`, `createdb --owner`,
+  `pg_restore --no-owner --role=kartenn`, migration, 200, même compte reconnecté,
+  `audit verify` : 7 sceaux, 39 événements ; enfin `down --volumes`, nouvel `up -d` sur
+  une base neuve → 200, et `down --volumes`. Défaut trouvé : la connexion est refusée en HTTP clair (`TLS
+  required`) ; l'essai publiait l'instance en HTTP sur 8080, il la publie désormais en
+  HTTPS sur `127.0.0.1:8443` (`[http.tls]`, certificat autosigné généré par `openssl`,
+  `oci.md`).
+  choix : secrets de l'essai en `chmod 0644` : les secrets de Compose sont des montages
+  du fichier, avec ses droits sur l'hôte, et l'image tourne sous 65532 ; port publié sur
+  la seule boucle locale (mots de passe d'exemple) ; `secrets/` et `kartenn.dump` ignorés
+  par git.
+  écart : la « base en retard » ne se simule plus en retirant la dernière ligne de
+  `_sqlx_migrations` : la migration 0057 (`ADD COLUMN error`, tâche 006-27) ne repasse
+  pas sur une base migrée (essai : colonne défaite à la main avant le rejeu). `checks.vm`
+  (tâche 7) fait ce rejeu et doit être revu, comme sa note le prévoyait.
   choix : `compose.yaml` est volontairement sous `docs/exploitation/` et non à la racine :
   c'est un essai documenté de l'image, pas un déploiement ni un outil de développement ;
   son service `migrate` monte aussi le trousseau, pour l'amorçage

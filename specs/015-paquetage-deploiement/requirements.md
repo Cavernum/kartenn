@@ -1,13 +1,12 @@
 ---
 status: implemented
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # 015 — Paquetage et déploiement : exigences
 
-> Implémentées, avec une exception : REQ-015-13 n'est pas entièrement vérifiée, l'essai
-> `docs/exploitation/compose.yaml` restant à jouer (tâche 8 ; aucun moteur de conteneurs
-> sur la machine de développement). Les autres procédures sont jouées dans la VM.
+> Implémentées et vérifiées : les procédures de l'exploitant sont jouées dans la VM du
+> module et, pour l'image OCI, par l'essai `docs/exploitation/compose.yaml` (tâche 8).
 
 ## Résumé
 
