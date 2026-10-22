@@ -2516,9 +2516,13 @@ impl WriteTx for PgTx {
             "WITH w AS (SELECT tstzrange(coalesce($2::timestamptz, now()), NULL) AS r),
                   o AS (SELECT DISTINCT domain_id, value, kind FROM addressing_object, w
                         WHERE id = $1 AND valid_period && w.r),
-                  anchor AS (SELECT id, parent_id, valid_period FROM entity
-                             UNION ALL SELECT id, parent_id, valid_period FROM site
-                             UNION ALL SELECT id, parent_id, valid_period FROM module_object)
+                  -- inlined: cited twice, a materialised CTE would copy every entity,
+                  -- site and object of a module at each call, where each reference
+                  -- inlined walks the index of its id or its parent
+                  anchor AS NOT MATERIALIZED (
+                      SELECT id, parent_id, valid_period FROM entity
+                      UNION ALL SELECT id, parent_id, valid_period FROM site
+                      UNION ALL SELECT id, parent_id, valid_period FROM module_object)
              -- three branches rather than an OR, so that each uses its index
              SELECT x.id FROM addressing_object x, w WHERE x.id = $1 AND x.valid_period && w.r
              UNION
