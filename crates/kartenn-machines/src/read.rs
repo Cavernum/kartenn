@@ -129,7 +129,10 @@ async fn addresses_where(
                 a.primary_for_family AS primary
            FROM {interface} i
            JOIN {attachment} a ON a.interface_id = i.id
-           JOIN {address} x ON x.id = a.address_id
+           -- The address by its identifier, never a scan of the addresses (OFFSET 0 keeps
+           -- the planner from hashing them all, task 011-10).
+           JOIN LATERAL (SELECT * FROM {address} y WHERE y.id = a.address_id OFFSET 0) x
+             ON TRUE
            {role}
           WHERE {filter} = ANY($3)
           ORDER BY {filter}, i.name, x.address"
