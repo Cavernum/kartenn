@@ -369,7 +369,7 @@ async fn measure(
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
             .fetch_one(pool)
             .await?;
-    let owned = data
+    let assignments = data
         .domains
         .iter()
         .map(|d| {
@@ -381,7 +381,7 @@ async fn measure(
             })
         })
         .collect();
-    import(&store, author, "bench-policy-owners", owned).await?;
+    import(&store, author, "bench-policy-owners", assignments).await?;
     sync(&store, &declarations).await?;
     let sources = Sources::none().with(Arc::new(kartenn_policy::infer::InferenceSource));
 
