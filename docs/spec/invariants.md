@@ -63,6 +63,19 @@ mesure INV-30 à 34 pour une personne à 1 000 liaisons et 50 groupes, avec et s
 contrôle d'accès ; les changesets de 10⁴ objets et les imports prennent la même décision
 une fois par changeset ou par lot.
 
+Les bancs tournent sur une instance PostgreSQL à part (port 5433, `k-pg-bench`), sous le
+verrou `k-heavy --bench`, et à deux échelles ([ADR 0032](../adr/0032-instance-postgresql-des-bancs.md)) :
+
+- `K_BENCH_SCALE=reduced`, par défaut : les volumes divisés par 10 environ (jeu de 20
+  domaines, 1,1·10⁴ réseaux, 1,1·10⁵ adresses, et ce qui en dérive : flux, machines,
+  VLAN, règles), quelques minutes par banc. Les budgets sont vérifiés, mais la dernière
+  ligne rappelle qu'un banc réduit ne vaut pas mesure de budget ;
+- `K_BENCH_SCALE=full` : le jeu de référence, seule mesure qui coche une tâche de budget.
+
+Un agent d'implémentation n'utilise que l'échelle réduite, pour vérifier qu'un banc tourne
+et repérer une régression grossière. La mesure `full` qui coche une tâche de budget est
+lancée une fois, par l'orchestrateur, en fin de série.
+
 | ID | Budget | Test |
 |---|---|---|
 | INV-30 | Lecture d'un objet < 50 ms | Bancs `bench-core`, `bench-rbac`, `bench-http` |

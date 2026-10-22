@@ -42,9 +42,17 @@ const HOT: usize = 10_000;
 /// The policy, of the size of the banc 010 (REQ-010-28): 50 environments, 20 flow types
 /// of 50 services each, and for each flow type and source environment a rule per block
 /// of [`BLOCK`] destination environments, 20 × 50 × 10 = 10⁴ rules. A smaller dataset
-/// gets 10 environments, 400 rules.
+/// keeps the reference ratio of a rule per ten flows, in whole blocks, with at least
+/// 10 environments (400 rules): 15 environments, 900 rules, at the reduced scale.
 const ENVIRONMENTS: usize = 50;
 const SMALL_ENVIRONMENTS: usize = 10;
+
+/// The environments of a policy of about `flows / 10` rules (4·e² of them), in whole
+/// blocks, between [`SMALL_ENVIRONMENTS`] and [`ENVIRONMENTS`].
+fn environments_for(flows: usize) -> usize {
+    let e = (flows / 10 / (FLOW_TYPES / BLOCK)).isqrt();
+    (e / BLOCK * BLOCK).clamp(SMALL_ENVIRONMENTS, ENVIRONMENTS)
+}
 const FLOW_TYPES: usize = 20;
 const SERVICES_PER_TYPE: usize = 50;
 const BLOCK: usize = 5;
@@ -184,12 +192,14 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         ..
     } = prepare(database, data, seed).await?;
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(11));
-    let reference = data.addresses.len() >= FLOWS * 2;
-    let environments = if reference {
-        ENVIRONMENTS
+    // The flows: 10⁵ on the reference dataset, else a tenth of the addresses, as there.
+    let (flows, hot_flows) = if data.addresses.len() >= FLOWS * 2 {
+        (FLOWS, HOT)
     } else {
-        SMALL_ENVIRONMENTS
+        let flows = data.addresses.len() / 10;
+        (flows, flows / 10)
     };
+    let environments = environments_for(flows);
 
     // The deployment of a build with the four modules, as `vlan_budgets` does: the
     // declarations without their obligations, an owner on each loaded domain, then all.
@@ -396,12 +406,6 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     };
 
     // The flows, allowed by construction (a denied one needs a waiver).
-    let (flows, hot_flows) = if reference {
-        (FLOWS, HOT)
-    } else {
-        let flows = data.addresses.len() / 2;
-        (flows, flows / 10)
-    };
     let others: Vec<usize> = (2..zones.len()).collect();
     let mut drawn = HashSet::new();
     let mut items = Vec::with_capacity(flows);

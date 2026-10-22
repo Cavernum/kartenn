@@ -1,3 +1,10 @@
+//! Scale (ADR 0032): `small` as last argument is the dataset of the tests; otherwise
+//! `K_BENCH_SCALE=reduced` (the default, about a tenth of the volumes) or `full` (the
+//! reference dataset). The first line of the output names the scale; below `full`, the
+//! last one says that the verdicts are not a budget measure. An implementation agent runs
+//! the reduced scale only; the full measure that ticks a budget task is run once, by the
+//! orchestrator, at the end of a series.
+//!
 //! `kartenn-bench gen <seed> <output-dir> [small]`: writes the synthetic dataset as
 //! PostgreSQL `COPY` text files (`domains.tsv`, `prefixes.tsv`, `ranges.tsv`,
 //! `addresses.tsv`) and prints counts and timing.
@@ -36,11 +43,67 @@ use std::time::Instant;
 use anyhow::{Context, bail};
 use kartenn_bench::{Scale, generate};
 
-fn scale(rest: &[String]) -> Scale {
-    if rest.first().map(String::as_str) == Some("small") {
-        Scale::SMALL
-    } else {
-        Scale::REFERENCE
+/// The scale of a run (ADR 0032): `small` as last argument, for tests; otherwise
+/// `K_BENCH_SCALE`, `reduced` (default, about a tenth of the volumes) or `full` (the
+/// reference dataset, the only one whose verdict is a budget measure).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Level {
+    Full,
+    Reduced,
+    Small,
+}
+
+impl Level {
+    fn of(rest: &[String]) -> anyhow::Result<Self> {
+        if rest.first().map(String::as_str) == Some("small") {
+            return Ok(Self::Small);
+        }
+        match std::env::var("K_BENCH_SCALE").as_deref() {
+            Ok("full") => Ok(Self::Full),
+            Ok("reduced" | "") | Err(std::env::VarError::NotPresent) => Ok(Self::Reduced),
+            Ok(other) => bail!("K_BENCH_SCALE must be `reduced` or `full`, not `{other}`"),
+            Err(e) => bail!("K_BENCH_SCALE: {e}"),
+        }
+    }
+
+    const fn scale(self) -> Scale {
+        match self {
+            Self::Full => Scale::REFERENCE,
+            Self::Reduced => Scale::REDUCED,
+            Self::Small => Scale::SMALL,
+        }
+    }
+
+    /// The first line of the output.
+    const fn announce(self) -> &'static str {
+        match self {
+            Self::Full => "échelle complète (K_BENCH_SCALE=full) : mesure de budget",
+            Self::Reduced => {
+                "échelle réduite (K_BENCH_SCALE=reduced, volumes ÷ 10 environ) ; \
+                 K_BENCH_SCALE=full pour une mesure de budget"
+            }
+            Self::Small => "échelle de test (small)",
+        }
+    }
+
+    /// The last line of the output, after the verdicts, below the full scale.
+    const fn caveat(self) -> Option<&'static str> {
+        match self {
+            Self::Full => None,
+            Self::Reduced => Some("échelle réduite : ne vaut pas mesure de budget"),
+            Self::Small => Some("échelle de test : ne vaut pas mesure de budget"),
+        }
+    }
+
+    fn verdict(self, report: &str, ok: bool, failure: &str) -> anyhow::Result<()> {
+        print!("{report}");
+        if let Some(caveat) = self.caveat() {
+            println!("{caveat}");
+        }
+        if !ok {
+            bail!("{failure}");
+        }
+        Ok(())
     }
 }
 
@@ -52,7 +115,9 @@ fn main() -> anyhow::Result<()> {
             if ["props", "core", "rbac", "http", "flow"].contains(&command.as_str()) =>
         {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let data = generate(seed, scale(rest));
+            let level = Level::of(rest)?;
+            println!("{}", level.announce());
+            let data = generate(seed, level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
             let (report, ok) = match command.as_str() {
                 "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
@@ -63,15 +128,14 @@ fn main() -> anyhow::Result<()> {
                 }
                 _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
             };
-            print!("{report}");
-            if !ok {
-                bail!("a budget is exceeded");
-            }
-            Ok(())
+            level.verdict(&report, ok, "a budget is exceeded")
         }
         [command, database, seed, rest @ ..] if command == "seed" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let data = generate(seed, scale(rest));
+            // The standard output is the ids of the seeded domain (`bench-web`).
+            let level = Level::of(rest)?;
+            eprintln!("{}", level.announce());
+            let data = generate(seed, level.scale());
             let line = tokio::runtime::Runtime::new()?
                 .block_on(kartenn_bench::core_budgets::seed(database, &data, seed))?;
             print!("{line}");
@@ -79,20 +143,19 @@ fn main() -> anyhow::Result<()> {
         }
         [command, database, seed, rest @ ..] if command == "telemetry" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let small = rest.first().map(String::as_str) == Some("small");
-            let data = generate(seed, scale(rest));
+            let level = Level::of(rest)?;
+            println!("{}", level.announce());
+            let data = generate(seed, level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
+            let small = level == Level::Small;
             let (report, ok) =
                 runtime.block_on(kartenn_bench::telemetry::run(database, &data, seed, small))?;
-            print!("{report}");
-            if !ok {
-                bail!("an overhead is exceeded");
-            }
-            Ok(())
+            level.verdict(&report, ok, "an overhead is exceeded")
         }
+        // A child of `telemetry`: the same scale, through the same argument or environment.
         [command, database, seed, config, result, rest @ ..] if command == "telemetry-run" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let data = generate(seed, scale(rest));
+            let data = generate(seed, Level::of(rest)?.scale());
             tokio::runtime::Runtime::new()?.block_on(kartenn_bench::telemetry::measure(
                 database,
                 &data,
@@ -112,8 +175,10 @@ fn generate_files(seed: &str, dir: &str, rest: &[String]) -> anyhow::Result<()> 
     let dir = PathBuf::from(dir);
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
+    let level = Level::of(rest)?;
+    println!("{}", level.announce());
     let started = Instant::now();
-    let data = generate(seed, scale(rest));
+    let data = generate(seed, level.scale());
     let generated = started.elapsed();
 
     let open = |name: &str| -> anyhow::Result<BufWriter<File>> {

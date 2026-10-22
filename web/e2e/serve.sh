@@ -52,9 +52,10 @@ budgets)
   rm -rf "$state/plugins"
   mkdir -p "$state/plugins"
   cp -R web/e2e/budgets/plugins/. web/dist/plugins/example "$state/plugins/"
-  database="${DATABASE_URL%/*}/kartenn_bench"
-  psql "$DATABASE_URL" -q -c 'DROP DATABASE IF EXISTS kartenn_bench WITH (FORCE)' \
-    -c 'CREATE DATABASE kartenn_bench'
+  # The bench instance of `k-pg-bench` (ADR 0032), started by `bench-web`.
+  database=${K_BENCH_DATABASE_URL:-postgres://kartenn@127.0.0.1:5433/kartenn_bench}
+  PGOPTIONS='-c client_min_messages=warning' psql "${database%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"${database##*/}\" WITH (FORCE)" \
+    -c "CREATE DATABASE \"${database##*/}\""
   "$release/kartenn-server" migrate "$database" >/dev/null
   "$release/kartenn-bench" seed "$database" "${BENCH_SEED:-42}" ${BENCH_SMALL:+small} \
     >"$state/budgets.env"

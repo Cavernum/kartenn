@@ -33,8 +33,8 @@ use crate::props::{Budget, p95, progress};
 use crate::vlan_budgets::{app, get, import, reader, sync};
 
 /// Machines, clusters and interfaces per machine of the reference dataset (REQ-009-21);
-/// a smaller dataset gets a machine per three of its addresses and as many clusters as a
-/// hundredth of the machines.
+/// a smaller dataset keeps the reference ratio of a machine per ten of its addresses, as
+/// many clusters as a hundredth of the machines, and imports a tenth of the machines.
 const MACHINES: usize = 100_000;
 const CLUSTERS: usize = 1_000;
 const INTERFACES: usize = 3;
@@ -219,7 +219,7 @@ pub(crate) async fn run(
     let (machines, clusters) = if data.addresses.len() >= MACHINES * INTERFACES {
         (MACHINES, CLUSTERS)
     } else {
-        let machines = data.addresses.len() / INTERFACES;
+        let machines = data.addresses.len() / 10;
         (machines, machines.div_ceil(100))
     };
     let addresses: Vec<Uuid> = data
@@ -384,11 +384,7 @@ pub(crate) async fn run(
     progress(&format!("machines measures: {:?}", started.elapsed()));
 
     // The import of the acceptance of REQ-009-19, in a domain of its own.
-    let imported = if machines == MACHINES {
-        IMPORTED
-    } else {
-        IMPORTED / 10
-    };
+    let imported = (machines * IMPORTED / MACHINES).max(1);
     let owner: Uuid =
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
             .fetch_one(pool)

@@ -21,36 +21,88 @@
   # its share of the cores (K_HEAVY_JOBS to override); the others wait their turn.
   # Re-entrant: a heavy command run under a slot does not take a second one. Variables
   # stay out of the KARTENN_ prefix, which the server reads as its configuration.
-  # `k-heavy --pg <command>` also takes the exclusive lock of the shared PostgreSQL: the
-  # #[sqlx::test] runs of two worktrees would drop each other's test databases, and the
-  # benches recreate kartenn_bench. The lock is taken *before* the slot: a command waiting
-  # for PostgreSQL holds no slot, so the cores stay free for builds meanwhile. Nothing may
-  # ask for the lock while holding a slot (k-check takes them phase by phase).
+  # `k-heavy --pg <command>` also takes the exclusive lock of the shared PostgreSQL (5432):
+  # the #[sqlx::test] runs of two worktrees would drop each other's test databases, and the
+  # end-to-end journeys own kartenn_e2e and fixed ports (k-check, db-prepare, k-web-e2e).
+  # `k-heavy --bench <command>` takes the exclusive lock of the bench instance instead
+  # (5433, k-pg-bench, ADR 0032): the benches recreate kartenn_bench there, so a bench and
+  # a k-check no longer wait for each other. Locks are taken in the order bench, pg, then
+  # the slot: a command waiting for a lock holds no slot, so the cores stay free for builds
+  # meanwhile. Nothing may ask for a lock while holding a slot (k-check takes them phase by
+  # phase).
   # `k-heavy --all <command>` takes every slot, in order, for the timing-sensitive end-to-end
   # journeys: a build beside them stretches browser timeouts.
+  # A waiting caller says on stderr who holds what, since when, and repeats it every
+  # 5 min; it gives up with code 75 after K_HEAVY_WAIT minutes (45 for a lock, no limit
+  # for a slot by default; 0 for no limit).
   kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
     set -uo pipefail
     pg=0
+    bench=0
     all=0
     while :; do
       case "''${1:-}" in
         --pg) pg=1; shift ;;
+        --bench) bench=1; shift ;;
         --all) all=1; shift ;;
         *) break ;;
       esac
     done
-    [ $# -gt 0 ] || { echo "usage: k-heavy [--pg] [--all] <command> [args…]" >&2; exit 2; }
+    [ $# -gt 0 ] || { echo "usage: k-heavy [--bench] [--pg] [--all] <command> [args…]" >&2; exit 2; }
     slots=''${K_HEAVY_SLOTS:-2}
     jobs=''${K_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
     [ "$jobs" -ge 1 ] || jobs=1
     dir=''${XDG_RUNTIME_DIR:-/tmp}/kartenn-heavy-$(${pkgs.coreutils}/bin/id -u)
     mkdir -p "$dir"
+    flock=${pkgs.util-linux}/bin/flock
+    now() { ${pkgs.coreutils}/bin/date +%s; }
+    # Who holds what: `<name>.who` holds the pid, the time, the worktree and the command of
+    # the holder. The command is exec'd under the lock, so nothing removes the file on
+    # exit: the next holder overwrites it, and a waiter ignores it once its pid is dead.
+    cmd=$(printf '%s ' "$@" | ${pkgs.coreutils}/bin/tr '\n' ' ' | ${pkgs.coreutils}/bin/cut -c1-100)
+    claim() { printf '%s\n%s\n%s\n%s\n' "$$" "$(now)" "$PWD" "''${cmd% }" >"$dir/$1.who"; }
+    holder() {
+      local pid since tree what
+      { read -r pid; read -r since; read -r tree; read -r what; } <"$dir/$1.who" 2>/dev/null
+      if [ -n "''${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "tenu par $what ($tree) depuis $(( ($(now) - since) / 60 )) min"
+      else
+        echo "tenu par un processus inconnu"
+      fi
+    }
+    # Waits for the lock <name> on <fd>, one line every 5 min, for <limit> minutes at most
+    # (empty or 0: no limit), then exits with 75 (EX_TEMPFAIL).
+    acquire() {
+      local fd=$1 name=$2 limit=$3 waited=0 step
+      if ! "$flock" -n "$fd"; then
+        while :; do
+          echo "k-heavy : attente du verrou $name, $(holder "$name")" >&2
+          step=300
+          if [ -n "$limit" ] && [ "$limit" -gt 0 ]; then
+            [ $(( limit * 60 - waited )) -ge "$step" ] || step=$(( limit * 60 - waited ))
+          fi
+          "$flock" -w "$step" "$fd" && break
+          waited=$(( waited + step ))
+          if [ -n "$limit" ] && [ "$limit" -gt 0 ] && [ "$waited" -ge $(( limit * 60 )) ]; then
+            echo "k-heavy : verrou $name toujours $(holder "$name") ; abandon après $limit min" \
+              "(K_HEAVY_WAIT=<minutes> pour attendre plus, 0 sans limite)" >&2
+            exit 75
+          fi
+        done
+      fi
+      claim "$name"
+    }
+    # Minutes of waiting: 45 for the locks, no limit for the slots, unless K_HEAVY_WAIT.
+    lockwait=''${K_HEAVY_WAIT:-45}
+    slotwait=''${K_HEAVY_WAIT:-}
+    if [ "$bench" -eq 1 ] && [ -z "''${K_BENCH_HELD:-}" ]; then
+      exec 7>"$dir/bench"
+      acquire 7 bench "$lockwait"
+      export K_BENCH_HELD=1
+    fi
     if [ "$pg" -eq 1 ] && [ -z "''${K_PG_HELD:-}" ]; then
       exec 8>"$dir/pg"
-      ${pkgs.util-linux}/bin/flock -n 8 || {
-        echo "k-heavy: PostgreSQL de test occupé, attente…" >&2
-        ${pkgs.util-linux}/bin/flock 8
-      }
+      acquire 8 pg "$lockwait"
       export K_PG_HELD=1
     fi
     # Each command runs in its own systemd scope under a memory ceiling (K_HEAVY_MEM, in
@@ -73,31 +125,143 @@
     if [ "$all" -eq 1 ]; then
       # In order, blocking: two --all callers cannot deadlock, and a plain caller never
       # waits while holding a slot.
-      echo "k-heavy: réservation de tous les créneaux…" >&2
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
         exec {fd}>"$dir/slot.$i"
-        ${pkgs.util-linux}/bin/flock "$fd"
+        acquire "$fd" "slot.$i" "$slotwait"
       done
       export K_HEAVY_HELD=all
       jobs=$(${pkgs.coreutils}/bin/nproc)
       run "$@"
     fi
-    waited=0
+    # Any free slot: polled every 5 s, a line every 5 min while all are taken.
+    begun=$(now)
+    told=0
     while :; do
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
         exec 9>"$dir/slot.$i"
         # The lock stays held by the command (and its children) through the inherited fd.
-        if ${pkgs.util-linux}/bin/flock -n 9; then
-          [ "$waited" -eq 0 ] || echo "k-heavy: créneau $i obtenu" >&2
+        if "$flock" -n 9; then
+          claim "slot.$i"
+          [ "$told" -eq 0 ] || echo "k-heavy : créneau $i obtenu" >&2
           export K_HEAVY_HELD=$i
           run "$@"
         fi
         exec 9>&-
       done
-      [ "$waited" -eq 1 ] || { echo "k-heavy: $slots créneau(x) occupé(s), attente…" >&2; waited=1; }
+      waited=$(( $(now) - begun ))
+      if [ -n "$slotwait" ] && [ "$slotwait" -gt 0 ] && [ "$waited" -ge $(( slotwait * 60 )) ]; then
+        echo "k-heavy : aucun créneau libre après $slotwait min, abandon" >&2
+        exit 75
+      fi
+      if [ "$told" -eq 0 ] || [ $(( $(now) - told )) -ge 300 ]; then
+        for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
+          echo "k-heavy : attente d'un créneau, slot.$i $(holder "slot.$i")" >&2
+        done
+        told=$(now)
+      fi
       sleep 5
     done
   '';
+  # The PostgreSQL instance of the benches (ADR 0032): the package, the configuration and
+  # the initial roles and databases of services.postgres, on port 5433, its data shared
+  # by every worktree.
+  pgBench = let
+    pg = config.services.postgres;
+    value = v:
+      if builtins.isBool v
+      then lib.boolToString v
+      else if builtins.isString v
+      then "'${lib.replaceStrings ["'"] ["''"] v}'"
+      else toString v;
+    settings =
+      builtins.removeAttrs pg.settings ["listen_addresses" "port" "unix_socket_directories"];
+    conf = lib.concatStrings (lib.mapAttrsToList (k: v: "${k} = ${value v}\n") settings);
+    initial =
+      lib.concatMapStrings (db:
+        if db.user or null == null
+        then "CREATE DATABASE \"${db.name}\";\n"
+        else ''
+          CREATE ROLE "${db.user}" LOGIN;
+          CREATE DATABASE "${db.name}" OWNER "${db.user}";
+        '')
+      pg.initialDatabases
+      + pg.initialScript;
+  in
+    pkgs.writeShellScriptBin "k-pg-bench" ''
+      set -euo pipefail
+      export PATH=${lib.makeBinPath [pg.package pkgs.coreutils pkgs.util-linux]}:$PATH
+      base=''${XDG_STATE_HOME:-$HOME/.local/state}/kartenn/pg-bench
+      data=$base/data
+      port=5433
+      ready() { pg_isready -q -h 127.0.0.1 -p "$port"; }
+      ready && exit 0
+      mkdir -p "$base"
+      exec 6>"$base/lock"
+      flock 6
+      ready && exit 0
+      config() {
+        { printf '%s' ${lib.escapeShellArg conf}
+          echo "listen_addresses = '$1'"
+          echo "port = $port"
+          echo "unix_socket_directories = '$base'"
+        } >"$2/postgresql.conf"
+      }
+      if [ ! -f "$data/PG_VERSION" ]; then
+        # Once, under the lock: a directory moved into place only when complete.
+        echo "k-pg-bench : initialisation de $data" >&2
+        rm -rf "$base/data.new"
+        initdb -D "$base/data.new" --locale=C --encoding=UTF8 --auth=trust >"$base/initdb.log"
+        config "" "$base/data.new"
+        pg_ctl -D "$base/data.new" -l "$base/initdb.log" -w start >/dev/null
+        printf '%s' ${lib.escapeShellArg initial} |
+          psql -h "$base" -p "$port" -d postgres -q -v ON_ERROR_STOP=1 -f -
+        pg_ctl -D "$base/data.new" -m fast -w stop >/dev/null
+        mv "$base/data.new" "$data"
+      fi
+      config 127.0.0.1 "$data"
+      echo "k-pg-bench : démarrage de l'instance des bancs (127.0.0.1:$port)" >&2
+      if command -v systemd-run >/dev/null 2>&1 && [ -S "''${XDG_RUNTIME_DIR:-/nonexistent}/bus" ]; then
+        # A transient user unit: the instance outlives the terminal and the k-heavy scope.
+        if ! systemctl --user is-active --quiet kartenn-pg-bench; then
+          systemctl --user reset-failed kartenn-pg-bench 2>/dev/null || true
+          systemd-run --user --unit=kartenn-pg-bench --collect --quiet \
+            --description="PostgreSQL des bancs kartenn (ADR 0032)" \
+            -p KillSignal=SIGINT -p KillMode=mixed \
+            ${pg.package}/bin/postgres -D "$data"
+        fi
+      else
+        # Without the descriptors of k-heavy: the server would hold its locks forever.
+        (
+          for fd in /proc/$$/fd/*; do
+            n=''${fd##*/}
+            [ "$n" -le 2 ] || eval "exec $n>&-" 2>/dev/null || true
+          done
+          pg_ctl -D "$data" -l "$base/postgres.log" -w start >/dev/null
+        )
+      fi
+      for _ in $(seq 1 120); do
+        ready && exit 0
+        sleep 0.5
+      done
+      echo "k-pg-bench : l'instance ne répond pas sur 127.0.0.1:$port" \
+        "(journalctl --user -u kartenn-pg-bench, ou $base/postgres.log)" >&2
+      exit 1
+    '';
+  # A bench script (ADR 0032): under the bench lock, on a kartenn_bench database recreated
+  # in the bench instance; `<name> [seed] [small]`.
+  benchDatabase = "postgres://kartenn@127.0.0.1:5433/kartenn_bench";
+  bench = command: description: {
+    inherit description;
+    exec = ''
+      set -euo pipefail
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench "$0" "$@"
+      k-pg-bench
+      bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
+      PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
+        -c "CREATE DATABASE \"''${bench##*/}\""
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"}
+    '';
+  };
   # Development console (D35, spec 012/L17): OpenObserve shows logs, traces and metrics
   # in one UI (http://127.0.0.1:5080). Development-only credentials, bound to loopback;
   # the header is the Basic encoding of the same pair.
@@ -124,6 +288,7 @@ in {
     pkgs.sqlx-cli
     pkgs.cargo-nextest
     kHeavy
+    pgBench
     pkgs.sccache
     # Frontend: language servers for Claude Code's LSP tool and the editor, and the
     # browser of Claude Code (claude.code.mcpServers.playwright).
@@ -367,74 +532,47 @@ in {
     '';
   };
 
+  # The benches (ADR 0032) recreate the kartenn_bench database of the bench instance
+  # (k-pg-bench, port 5433; K_BENCH_DATABASE_URL to aim elsewhere) under `k-heavy --bench`,
+  # at the scale K_BENCH_SCALE: reduced by default, `full` only for a budget measure, run
+  # once by the orchestrator at the end of a series.
+  env.K_BENCH_DATABASE_URL = benchDatabase;
+
   # Budgets of the properties (spec 003, REQ-003-26) on the reference dataset of
-  # REQ-002-45, in a database recreated for the run: `bench-properties [seed] [small]`.
-  scripts.bench-properties = {
-    description = "Check the budgets of the properties on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- props "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  # REQ-002-45: `bench-properties [seed] [small]`.
+  scripts.bench-properties =
+    bench "props" "Check the budgets of the properties on a fresh kartenn_bench database";
 
   # Budgets of the core (REQ-002-45, REQ-004-38) on the same dataset with three years of
   # history: `bench-core [seed] [small]`.
-  scripts.bench-core = {
-    description = "Check the budgets of the core on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- core "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  scripts.bench-core =
+    bench "core" "Check the budgets of the core on a fresh kartenn_bench database";
 
   # Budgets of the flow registry (REQ-011-19): the four modules on the dataset of the
   # core, a policy of 10⁴ rules and 10⁵ flows: `bench-flow [seed] [small]`.
-  scripts.bench-flow = {
-    description = "Check the budgets of the flow registry on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- flow "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  scripts.bench-flow =
+    bench "flow" "Check the budgets of the flow registry on a fresh kartenn_bench database";
 
   # Cost of access control (REQ-005-29) on the budgets of the core, for a person with 50
   # groups and 1 000 bindings: `bench-rbac [seed] [small]`.
-  scripts.bench-rbac = {
-    description = "Measure the cost of access control on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- rbac "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  scripts.bench-rbac =
+    bench "rbac" "Measure the cost of access control on a fresh kartenn_bench database";
 
   # The budgets of the core through HTTP, then 200 users and 50 writes per second
   # (REQ-006-39): `bench-http [seed] [small]`.
-  scripts.bench-http = {
-    description = "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- http "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  scripts.bench-http =
+    bench "http" "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
 
   # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
   # the Playwright project `budgets` against kartenn-server in release on the dataset of
-  # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`.
+  # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`. It also takes the
+  # PostgreSQL lock: the journeys of k-web-e2e use the same fixed ports and web/e2e/.state.
   scripts.bench-web = lib.mkIf hasWeb {
     description = "Check the budgets of the browser on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg "$0" "$@"
+      k-pg-bench
       export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
       [ "''${2:-}" != small ] || export BENCH_SMALL=1
       pnpm -C web --filter @kartenn/shell build >/dev/null
@@ -445,15 +583,8 @@ in {
 
   # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
-  scripts.bench-telemetry = {
-    description = "Measure the cost of the telemetry on a fresh kartenn_bench database";
-    exec = ''
-      set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
-      psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS kartenn_bench' -c 'CREATE DATABASE kartenn_bench'
-      cargo run --release -q -p kartenn-bench -- telemetry "''${DATABASE_URL%/*}/kartenn_bench" "''${1:-42}" ''${2:+"$2"}
-    '';
-  };
+  scripts.bench-telemetry =
+    bench "telemetry" "Measure the cost of the telemetry on a fresh kartenn_bench database";
 
   # Observability (D35): the applications send OTLP to the collector
   # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP with
