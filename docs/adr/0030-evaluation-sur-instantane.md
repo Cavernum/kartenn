@@ -50,6 +50,20 @@ synchronisation (tâche 010-20), une fois l'implémentation faite.
 - Une instance garde au plus 16 instantanés (≈ 5 Mo chacun pour le jeu du budget,
   estimation du design).
 - Le différentiel de politique (010-9) compare deux instantanés de la même transaction.
-- Les budgets REQ-010-28 et 54 restent **à mesurer** : prototype (010-1) et banc
-  `bench-policy` (010-19). Ils seront reportés ici et dans
+- Budgets REQ-010-28 et 54 (banc `bench-policy`, 010-19, qui tient lieu du prototype
+  010-1). En variante réduite (politique à la taille du budget, jeu de 2,6·10⁴ adresses ;
+  2026-10-22), l'évaluation sur instantané tient tout :
+  - instantané de 10⁴ règles lu à froid en 170 ms ;
+  - verdict d'une paire en 18 ms (limite 50 ms) ;
+  - machine × machine 16 × 16 en 30 ms (limite 300 ms) ;
+  - différentiel en 730 ms (limite 1 s).
+
+  Trois correctifs y ont contribué :
+  - le différentiel compte ses paires de classes avant de les construire (sinon 29 Go
+    en mémoire) ;
+  - une requête de conformité évalue une seule fois chaque paire d'extrémités
+    distinctes ;
+  - l'instantané indexe les axes cités par service.
+
+  Le jeu de 10⁶ objets reste à mesurer : chiffres et rapport d'audit dans
   [`docs/spec/invariants.md`](../spec/invariants.md).

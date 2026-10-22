@@ -79,11 +79,27 @@ par `bench-core` après les budgets du noyau : VLAN (008, REQ-008-25 : 2·10⁴ 
 machines, 10³ clusters, 3·10⁵ interfaces et rattachements, plus un import de 10⁴
 machines ; variante réduite tenue, banc complet encore à relancer, tâche 009-12).
 
-Politique de flux (010, REQ-010-28 et 54 : instantané de 10⁴ règles à 6 axes, lecture
-groupée de 512 adresses × 6 axes, requête de conformité, différentiel d'une politique) :
-**à mesurer** par le prototype (010-1) et le banc `bench-policy` (010-19). Seule mesure
-disponible : la lecture groupée N9 (016-4), 16,3 ms pour 30 ms au banc
-`bench-properties` réduit (2026-10-21).
+Politique de flux (010, REQ-010-28 et 54) : banc `bench-policy` (010-19), qui tient lieu
+du prototype 010-1. **Variante réduite tenue** le 2026-10-22, avec la politique à la
+taille du budget (10⁴ règles à 6 axes, 1 000 services, 50 conditions, 30 signaux) sur un
+jeu de 2,6·10⁴ adresses (p95 serveur ; charge 2 à 5) :
+
+| Budget | Mesuré (réduit) | Limite |
+|---|---|---|
+| Instantané de la politique, lu à froid | 170 ms | — (information) |
+| Verdict d'une paire d'adresses pour un service | 18 ms | 50 ms |
+| Machine × machine 16 × 16, type de flux de 10 services | 30 ms | 300 ms |
+| Port brut couvert par 20 services | 22 ms | 100 ms |
+| Différentiel d'une interdiction sans terme | 730 ms | 1 s |
+| Rapport d'audit | 3,7 s | 10 min |
+| Suggestion de l'inférence pour un objet | 17 ms | 50 ms |
+| Contrôle de l'inférence, changeset de 10⁴ objets (ajouté) | 28 ms | 1 s |
+| Réévaluation complète de l'inférence | 40 s | 10 min |
+
+Le jeu de 10⁶ objets reste **à mesurer**. Le passage complet a été arrêté pendant le
+contrôle de l'inférence (lecture groupée des vues, corrigée depuis), et le rapport d'audit
+y avait pris environ 990 s, au-delà du budget. La lecture groupée N9 (016-4) est
+mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).
 
 ## Audit et journalisation (spec 012, ADR 0019)
 
