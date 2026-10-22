@@ -131,3 +131,22 @@ async fn outcome_changed_and_closed(pool: PgPool) {
     .await;
     assert_eq!(events(&pool, "closed", id).await.len(), 1);
 }
+
+/// REQ-011-7, F20: a flow announced at J-7, then extended, is announced anew for its new
+/// end.
+#[kartenn_testing::pg_test]
+async fn an_extended_flow_is_announced_for_its_new_end(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let near = dated(&env, 5, Some(5 * DAY)).await;
+    run(&env).await;
+    env.applied(vec![flow(
+        "update",
+        serde_json::json!({ "id": { "id": near }, "end": crate::requests::later(20) }),
+    )])
+    .await;
+    run(&env).await;
+    let expiring = events(&pool, "expiring", near).await;
+    assert_eq!(expiring.len(), 2, "{expiring:?}");
+    assert_eq!(expiring[0]["data"]["days"], 7);
+    assert_eq!(expiring[1]["data"]["days"], 30);
+}
