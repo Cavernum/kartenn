@@ -693,9 +693,10 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let (at, _) = pg::bounds(period);
             let conn = connection(tx)?;
+            let (owner_property, site_property) = pg::owner_and_site(conn, at).await?;
             let mut completed = Completed {
-                owner_property: pg::property(conn, "core.owner", at).await?,
-                site_property: pg::property(conn, "core.site", at).await?,
+                owner_property,
+                site_property,
                 owner: None,
                 machine: None,
             };

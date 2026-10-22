@@ -38,21 +38,23 @@ pub(crate) fn store(e: &sqlx::Error) -> StoreError {
     StoreError(e.to_string())
 }
 
-/// The identifier of the property `key` declared at `at`.
-pub(crate) async fn property(
+/// The identifiers of the properties `core.owner` and `core.site` declared at `at`, in one
+/// read: each operation of the module is completed with both.
+pub(crate) async fn owner_and_site(
     conn: &mut PgConnection,
-    key: &str,
     at: Option<OffsetDateTime>,
-) -> Result<Option<Uuid>, StoreError> {
-    sqlx::query_scalar(
-        "SELECT id FROM public.property_declaration
-          WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+) -> Result<(Option<Uuid>, Option<Uuid>), StoreError> {
+    let rows: Vec<(String, Uuid)> = sqlx::query_as(
+        "SELECT key, id FROM public.property_declaration
+          WHERE key IN ('core.owner', 'core.site')
+            AND valid_period @> coalesce($1::timestamptz, now())",
     )
-    .bind(key)
     .bind(at)
-    .fetch_optional(conn)
+    .fetch_all(conn)
     .await
-    .map_err(|e| store(&e))
+    .map_err(|e| store(&e))?;
+    let id = |key: &str| rows.iter().find(|(k, _)| k == key).map(|(_, id)| *id);
+    Ok((id("core.owner"), id("core.site")))
 }
 
 /// A refusal of the module before writing: a failed statement would abort the
