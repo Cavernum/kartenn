@@ -2479,6 +2479,17 @@
             "format": "int64",
             "type": "integer"
           },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Problem",
+                "description": "Why its last sort failed, back to `uploading`: a problem `invalid-import` and its\nviolations; absent otherwise, cleared by the next start (H18)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "description": "Identifier.",
             "format": "uuid",
@@ -2497,7 +2508,7 @@
             "type": "string"
           },
           "state": {
-            "description": "`uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.",
+            "description": "`uploading`, `sorting`, `ready`, `running`, `paused`, `done` or `cancelled`.",
             "type": "string"
           }
         },
@@ -3561,6 +3572,17 @@
                   "format": "int64",
                   "type": "integer"
                 },
+                "error": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem",
+                      "description": "Why its last sort failed, back to `uploading`: a problem `invalid-import` and its\nviolations; absent otherwise, cleared by the next start (H18)."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "id": {
                   "description": "Identifier.",
                   "format": "uuid",
@@ -3579,7 +3601,7 @@
                   "type": "string"
                 },
                 "state": {
-                  "description": "`uploading`, `ready`, `running`, `paused`, `done`, `failed` or `cancelled`.",
+                  "description": "`uploading`, `sorting`, `ready`, `running`, `paused`, `done` or `cancelled`.",
                   "type": "string"
                 }
               },
@@ -17227,7 +17249,7 @@
                 }
               }
             },
-            "description": "The import is ready to run."
+            "description": "The import is sorting, then runs."
           },
           "default": {
             "content": {
@@ -17240,7 +17262,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/imports/{id}/start` → 202: sorted, cut in batches and ready.",
+        "summary": "`POST /v1/imports/{id}/start` → 202: `sorting`, its error cleared; its task sorts and\ncuts it in batches, then runs them (H18). The request never sorts.",
         "tags": [
           "imports"
         ]

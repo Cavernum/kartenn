@@ -1,7 +1,8 @@
-//! Imports deposited by chunks (spec 006, REQ-006-17 to 19; task 006-21): a million
+//! Imports deposited by chunks (spec 006, REQ-006-17 to 19; tasks 006-21, 27): a million
 //! elements in a hundred chunks, one resent; a different chunk under a number already
 //! received, a chunk too large; the import is its author's; start, resume and cancel
-//! guarded by the state.
+//! guarded by the state; `start` answers before the sort, left to the background task,
+//! whose failure shows in the import (H18).
 
 use crate::common;
 
@@ -127,6 +128,41 @@ fn element(i: u32) -> ImportItem {
     }
 }
 
+/// The identifier of the import at `path`.
+fn id_of(path: &str) -> Uuid {
+    path.trim_start_matches("/v1/imports/").parse().unwrap()
+}
+
+/// What the task `import:<id>` does first (`kartenn_server::jobs::Tasks`, H18): sorts a
+/// `sorting` import into batches, `ready`, or back to `uploading` with its error.
+async fn sort(pool: &PgPool, import: Uuid) {
+    let items = kartenn_store_pg::imports::sorting(pool, import)
+        .await
+        .unwrap()
+        .expect("a sorting import");
+    match kartenn_service::import::batches(items, kartenn_service::pipeline::MAX_OPERATIONS) {
+        Ok(batches) => {
+            kartenn_store_pg::imports::sorted(pool, import, &batches)
+                .await
+                .unwrap();
+        }
+        Err(e) => {
+            let error = kartenn_rest::imports::sort_error(&e);
+            kartenn_store_pg::imports::unsorted(pool, import, &error)
+                .await
+                .unwrap();
+        }
+    }
+}
+
+async fn import_jobs(pool: &PgPool, import: Uuid) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM job WHERE name = $1")
+        .bind(format!("import:{import}"))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
 fn chunk(elements: std::ops::Range<u32>) -> Value {
     json!({ "elements": elements.map(element).collect::<Vec<_>>() })
 }
@@ -151,15 +187,9 @@ async fn open(app: &Router) -> String {
 
 #[kartenn_testing::pg_test]
 async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
-    // `start` sorts the million elements into batches inside the request (design 006,
-    // « Imports et tâches de fond ») : about 11 s on a quiet machine, past the 30 s delay
-    // of the transport layer once the whole suite loads the machine, which then answers
-    // 503. The delay is not what this test checks (see the test below), hence a long one.
-    let settings = Settings {
-        request_timeout: Duration::from_secs(300),
-        ..Settings::default()
-    };
-    let app = app_with(&pool, person(&pool).await, generous(), settings);
+    // The delay of the transport layer as configured by default: `start` no longer sorts
+    // the million elements in the request (H18), it answers well under it.
+    let app = app_as(&pool, person(&pool).await, generous());
     let import = open(&app).await;
     for n in 0..100_u32 {
         let body = chunk(n * 10_000..(n + 1) * 10_000);
@@ -187,16 +217,36 @@ async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
     .await;
     assert_eq!(large.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
+    let begun = std::time::Instant::now();
     let started = send(&app, post(&format!("{import}/start"))).await;
     assert_eq!(started.status(), StatusCode::ACCEPTED);
+    assert!(
+        begun.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        begun.elapsed()
+    );
     assert_eq!(started.headers()[header::LOCATION], import.as_str());
+    assert_eq!(started.headers()[header::RETRY_AFTER], "5");
+    let body = json_of(started).await;
+    assert_eq!(body["state"], "sorting");
+    assert_eq!(body["chunks"], 100);
+    assert_eq!(body["elements"], 1_000_000);
+    assert_eq!(body["batches"], json!({"applied": 0, "remaining": 0}));
+    assert!(body.get("error").is_none(), "{body}");
+    let due: bool = sqlx::query_scalar("SELECT due_at <= now() FROM job WHERE name = $1")
+        .bind(format!("import:{}", id_of(&import)))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(due);
+
+    // Its task sorts it.
+    sort(&pool, id_of(&import)).await;
     let shown = send(&app, get(&import)).await;
     assert_eq!(shown.status(), StatusCode::OK);
     assert_eq!(shown.headers()[header::RETRY_AFTER], "5");
     let body = json_of(shown).await;
     assert_eq!(body["state"], "ready");
-    assert_eq!(body["chunks"], 100);
-    assert_eq!(body["elements"], 1_000_000);
     // A creation counts two operations: 5 000 elements by batch of 10 000 operations.
     assert_eq!(body["batches"], json!({"applied": 0, "remaining": 200}));
     let elements: i64 =
@@ -205,15 +255,6 @@ async fn a_million_elements_in_a_hundred_chunks(pool: PgPool) {
             .await
             .unwrap();
     assert_eq!(elements, 1_000_000);
-    let due: bool = sqlx::query_scalar("SELECT due_at <= now() FROM job WHERE name = $1")
-        .bind(format!(
-            "import:{}",
-            import.trim_start_matches("/v1/imports/")
-        ))
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert!(due);
 }
 
 #[kartenn_testing::pg_test]
@@ -285,8 +326,9 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     let author = person(&pool).await;
     let app = app_as(&pool, author, generous());
     let import = open(&app).await;
-    // An address whose domain no element defines: the import does not sort, 422, and
-    // stays open.
+    let id = id_of(&import);
+    // An address whose domain no element defines: started (202), the import does not
+    // sort and is open again, with its error (H18).
     let stray = json!({"elements": [element(1)]});
     let response = send(
         &app,
@@ -294,16 +336,20 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     )
     .await;
     assert_eq!(response.status(), StatusCode::CREATED);
-    let refused = send(&app, post(&format!("{import}/start"))).await;
-    assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(
-        json_of(refused).await["type"],
-        "urn:kartenn:problem:invalid-import"
-    );
-    assert_eq!(
-        json_of(send(&app, get(&import)).await).await["state"],
-        "uploading"
-    );
+    let started = send(&app, post(&format!("{import}/start"))).await;
+    assert_eq!(started.status(), StatusCode::ACCEPTED);
+    assert_eq!(json_of(started).await["state"], "sorting");
+    sort(&pool, id).await;
+    let shown = send(&app, get(&import)).await;
+    assert!(shown.headers().get(header::RETRY_AFTER).is_none());
+    let shown = json_of(shown).await;
+    assert_eq!(shown["state"], "uploading");
+    assert_eq!(shown["error"]["type"], "urn:kartenn:problem:invalid-import");
+    assert_eq!(shown["error"]["status"], 422);
+    let violation = &shown["error"]["violations"][0];
+    assert_eq!(violation["rule"], "import.unknown-reference");
+    assert_eq!(violation["element"], 0);
+    assert_eq!(import_jobs(&pool, id).await, 0);
     // Chunks read by increasing number, gaps allowed: the domain comes in chunk 0.
     let domain = json!({"elements": [element(0)]});
     let response = send(
@@ -315,10 +361,10 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     // Only a paused import resumes.
     let early = send(&app, post(&format!("{import}/resume"))).await;
     assert_eq!(early.status(), StatusCode::CONFLICT);
-    assert_eq!(
-        send(&app, post(&format!("{import}/start"))).await.status(),
-        StatusCode::ACCEPTED
-    );
+    // Started again: its error is cleared.
+    let started = send(&app, post(&format!("{import}/start"))).await;
+    assert_eq!(started.status(), StatusCode::ACCEPTED);
+    assert!(json_of(started).await.get("error").is_none());
     // Started: no more chunks, no second start.
     let late = send(
         &app,
@@ -329,8 +375,9 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     let twice = send(&app, post(&format!("{import}/start"))).await;
     assert_eq!(twice.status(), StatusCode::CONFLICT);
 
-    // Paused by its run (here by hand), it resumes and its task is due again.
-    let id: Uuid = import.trim_start_matches("/v1/imports/").parse().unwrap();
+    // Sorted, then paused by its run (here by hand), it resumes and its task is due
+    // again.
+    sort(&pool, id).await;
     sqlx::query("UPDATE import SET state = 'paused' WHERE id = $1")
         .bind(id)
         .execute(&pool)
@@ -346,12 +393,7 @@ async fn the_state_guards_the_actions(pool: PgPool) {
     let resumed = send(&app, post(&format!("{import}/resume"))).await;
     assert_eq!(resumed.status(), StatusCode::ACCEPTED);
     assert_eq!(json_of(resumed).await["state"], "ready");
-    let jobs: i64 = sqlx::query_scalar("SELECT count(*) FROM job WHERE name = $1")
-        .bind(format!("import:{id}"))
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(jobs, 1);
+    assert_eq!(import_jobs(&pool, id).await, 1);
 
     // Cancelled once; then over.
     let cancelled = send(&app, post(&format!("{import}/cancel"))).await;
@@ -382,36 +424,42 @@ async fn a_chunk_weighs_its_thousands_on_the_quota(pool: PgPool) {
     assert_eq!(statuses[2], StatusCode::TOO_MANY_REQUESTS, "{statuses:?}");
 }
 
-/// A `start` cut by the delay of the transport layer answers 503 and changes nothing:
-/// its transaction is dropped, the import is still `uploading`, and a new `start`
-/// succeeds.
+/// A `sorting` import cancels; its sort, ending after, records nothing (H18).
 #[kartenn_testing::pg_test]
-async fn a_start_cut_by_the_delay_leaves_the_import_uploading(pool: PgPool) {
-    let author = person(&pool).await;
-    let app = app_as(&pool, author, generous());
-    let hasty = app_with(
-        &pool,
-        author,
-        generous(),
-        Settings {
-            request_timeout: Duration::from_millis(1),
-            ..Settings::default()
-        },
-    );
+async fn a_sorting_import_cancels_and_its_sort_records_nothing(pool: PgPool) {
+    let app = app_as(&pool, person(&pool).await, generous());
     let import = open(&app).await;
-    for n in 0..3_u32 {
-        let body = chunk(n * 10_000..(n + 1) * 10_000);
-        let response = send(
-            &app,
-            with_body("PUT", &format!("{import}/chunks/{n}"), &body),
-        )
-        .await;
-        assert_eq!(response.status(), StatusCode::CREATED, "{n}");
-    }
-    let cut = send(&hasty, post(&format!("{import}/start"))).await;
-    assert_eq!(cut.status(), StatusCode::SERVICE_UNAVAILABLE);
-    let shown = json_of(send(&app, get(&import)).await).await;
-    assert_eq!(shown["state"], "uploading");
+    let id = id_of(&import);
+    let response = send(
+        &app,
+        with_body("PUT", &format!("{import}/chunks/0"), &chunk(0..3)),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
     let started = send(&app, post(&format!("{import}/start"))).await;
     assert_eq!(started.status(), StatusCode::ACCEPTED);
+    let items = kartenn_store_pg::imports::sorting(&pool, id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(items.len(), 3);
+    let cancelled = send(&app, post(&format!("{import}/cancel"))).await;
+    assert_eq!(cancelled.status(), StatusCode::OK);
+    assert_eq!(json_of(cancelled).await["state"], "cancelled");
+    let batches =
+        kartenn_service::import::batches(items, kartenn_service::pipeline::MAX_OPERATIONS).unwrap();
+    let ready = kartenn_store_pg::imports::sorted(&pool, id, &batches)
+        .await
+        .unwrap();
+    assert!(!ready);
+    let shown = json_of(send(&app, get(&import)).await).await;
+    assert_eq!(shown["state"], "cancelled");
+    assert_eq!(shown["batches"], json!({"applied": 0, "remaining": 0}));
+    // No longer sorting: nothing to sort.
+    assert!(
+        kartenn_store_pg::imports::sorting(&pool, id)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }

@@ -98,10 +98,11 @@ impl Runner for Tasks {
 }
 
 impl Tasks {
-    /// Runs the batches left of `import` (REQ-006-18), each a changeset of its author, then
-    /// removes its task once the import is over, paused or cancelled; a failure keeps the
-    /// task, run again one period later.
+    /// Sorts a `sorting` import (H18), then runs the batches left of `import`
+    /// (REQ-006-18), each a changeset of its author, and removes its task once the import
+    /// is over, paused or cancelled; a failure keeps the task, run again one period later.
     async fn import(&self, import: Uuid) -> anyhow::Result<()> {
+        self.sort(import).await?;
         let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(self.store.pool().clone());
         let status = kartenn_service::import::run_import(
             &self.store,
@@ -112,12 +113,47 @@ impl Tasks {
         .await
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
         let state = status.as_ref().map(|s| s.state.as_str());
-        if !matches!(state, Some("ready" | "running")) {
+        if !matches!(state, Some("sorting" | "ready" | "running")) {
             kartenn_store_pg::imports::unschedule(self.store.pool(), import)
                 .await
                 .map_err(|e| anyhow::anyhow!(e.0))?;
         }
         tracing::info!(name: "job.import", %import, state = state.unwrap_or("unknown"), "import run");
+        Ok(())
+    }
+
+    /// Sorts and cuts in batches the elements of `import` if it is `sorting`: it becomes
+    /// `ready`, or `uploading` with its `error` when they cannot be sorted. The sort runs
+    /// off the runtime threads, so that the lease is renewed meanwhile; an instance that
+    /// stops leaves the import `sorting`, sorted again by the next.
+    async fn sort(&self, import: Uuid) -> anyhow::Result<()> {
+        let pool = self.store.pool();
+        let Some(items) = kartenn_store_pg::imports::sorting(pool, import)
+            .await
+            .map_err(|e| anyhow::anyhow!(e.0))?
+        else {
+            return Ok(());
+        };
+        let planned = tokio::task::spawn_blocking(move || {
+            kartenn_service::import::batches(items, kartenn_service::pipeline::MAX_OPERATIONS)
+        })
+        .await?;
+        match planned {
+            Ok(batches) => {
+                kartenn_store_pg::imports::sorted(pool, import, &batches)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.0))?;
+                tracing::info!(name: "job.import.sorted", %import, batches = batches.len(), "import sorted");
+            }
+            Err(kartenn_service::import::ImportError::Store(e)) => anyhow::bail!(e.0),
+            Err(e) => {
+                let error = kartenn_rest::imports::sort_error(&e);
+                kartenn_store_pg::imports::unsorted(pool, import, &error)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.0))?;
+                tracing::info!(name: "job.import.unsorted", %import, error = %e, "import not sorted");
+            }
+        }
         Ok(())
     }
 }
