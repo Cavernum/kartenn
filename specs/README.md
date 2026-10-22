@@ -334,5 +334,5 @@ prolongation (F20, 011-13) livrées ; synchronisation 011-11 et audit `spec-keep
 le 2026-10-22. Reste, à arbitrer : la réévaluation complète de fond de REQ-011-19
 (< 5 min) n'est portée par aucune tâche de fond, donc non mesurée ; REQ-011-4 dit encore
 qu'un changement d'extrémité ou de service crée un nouveau flux, le code le refuse
-(`flow.update.identity`, écart noté au design) ; les caches de politique (010, 011) sont
-indexés par la seule révision (une base par processus supposée).
+(`flow.update.identity`, écart noté au design). Les caches de politique (010, 011) sont
+indexés par la base et la révision : plusieurs bases peuvent partager un processus.
