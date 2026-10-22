@@ -4,6 +4,7 @@
 mod support;
 
 mod axes;
+mod cache;
 mod catalogue;
 mod coherence;
 mod dated;
