@@ -255,11 +255,14 @@ pub(crate) struct Maintained {
 
 /// Brings the materialised origins in line with the writes of the changeset (the four
 /// maintenance rules of the 003 design): new objects, assignments written or removed,
-/// closed objects and properties, declarations whose carriers or tree changed.
+/// closed objects and properties, declarations whose carriers or tree changed. The origins
+/// in `fresh` (per property, refreshed by the default values and still holding) count as
+/// recomputed without being computed again.
 #[allow(clippy::too_many_lines)] // one walk of the plan, then its reads in batches
 pub(crate) async fn maintain<T: WriteTx>(
     tx: &mut T,
     planned: &[Planned],
+    fresh: &BTreeMap<Uuid, BTreeSet<Uuid>>,
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<Maintained, StoreError> {
@@ -378,7 +381,7 @@ pub(crate) async fn maintain<T: WriteTx>(
     }
     inheritors(tx, &origins, &mut targets, period).await?;
     let tree = (heritable, targets, everything);
-    refresh(tx, tree, revalued, affected, (period, changeset)).await
+    refresh(tx, tree, fresh, revalued, affected, (period, changeset)).await
 }
 
 /// The object a planned operation creates in a tree, with its kind.
@@ -417,10 +420,12 @@ type PerProperty = HashMap<Uuid, BTreeSet<Uuid>>;
 
 /// Recomputes the origins of `targets`, and of every object of the tree for the
 /// properties in `everything` (003/design: a row per carrier or heir, whatever the
-/// carriers); what was done, with the origins revalued and the objects affected.
+/// carriers); what was done, with the origins revalued and the objects affected. The
+/// objects of `fresh` are counted as recomputed, their origins already up to date.
 async fn refresh<T: WriteTx>(
     tx: &mut T,
     (heritable, mut targets, everything): (HashMap<Uuid, InheritTree>, PerProperty, BTreeSet<Uuid>),
+    fresh: &BTreeMap<Uuid, BTreeSet<Uuid>>,
     revalued: PerProperty,
     mut affected: PerProperty,
     (period, changeset): (Option<Period>, Uuid),
@@ -446,8 +451,18 @@ async fn refresh<T: WriteTx>(
     }
     for (property, objects) in targets {
         let objects: Vec<Uuid> = objects.into_iter().collect();
-        tx.refresh_origins(property, &heritable[&property], &objects, period, changeset)
-            .await?;
+        let stale: Vec<Uuid> = match fresh.get(&property) {
+            Some(done) => objects
+                .iter()
+                .filter(|o| !done.contains(o))
+                .copied()
+                .collect(),
+            None => objects.clone(),
+        };
+        if !stale.is_empty() {
+            tx.refresh_origins(property, &heritable[&property], &stale, period, changeset)
+                .await?;
+        }
         affected.entry(property).or_default().extend(&objects);
         out.recomputed.insert(property, objects);
     }

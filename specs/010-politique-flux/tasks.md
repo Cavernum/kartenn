@@ -13,7 +13,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
 
 ## P0 — Prérequis
 
-- [ ] 1. **Prototype** des budgets (REQ-010-28, 54) sur le jeu de 10⁶ objets : instantané
+- [x] 1. **Prototype** des budgets (REQ-010-28, 54) sur le jeu de 10⁶ objets : instantané
   de 10⁴ règles à 6 axes, lecture groupée de 512 adresses × 6 axes (N9), machine ×
   machine 16 × 16 avec conditions et signaux, différentiel d'une interdiction sans terme,
   inférence (2 000 règles, contrôle de 10⁴ objets) ; résultats dans
@@ -23,10 +23,9 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     `docs/spikes/003-resolution.md`
   - dépend de : —
   — absorbée par la tâche 19 (2026-10-22) : le code étant écrit, le banc réel
-  `bench-policy` tient lieu de prototype ; pas de `docs/spikes/010-verdicts.md`. **Non
-  cochée** : seule la variante réduite a été mesurée de bout en bout (voir tâche 19) ; le
-  jeu de 10⁶ objets reste à passer. Aucun budget n'a dû être amendé : ceux qui échouaient
-  ont été tenus par des correctifs du code.
+  `bench-policy` tient lieu de prototype ; pas de `docs/spikes/010-verdicts.md`. Cochée
+  le 2026-10-23 avec la tâche 19 : banc complet tenu. Aucun budget n'a dû être amendé :
+  ceux qui échouaient ont été tenus par des correctifs du code.
 - [x] 2. Lecture groupée des valeurs résolues de plusieurs propriétés avec explication
   (N9) — verify : 512 objets × 6 propriétés < 30 ms au banc ; mêmes résultats que la
   lecture unitaire
@@ -457,7 +456,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   demandé et lu sous `policy.rule.admin` (il nomme des nœuds de tout le référentiel ;
   404 sinon), une demande pendant une autre répond 409 avec le `Location` de la première ;
   les filtres `transport`/`port` des services ne sont pas servis (entrées en `jsonb`).
-- [ ] 19. Banc `bench-policy` bloquant en CI — REQ-010-28, 54 — verify : budgets tenus
+- [x] 19. Banc `bench-policy` bloquant en CI — REQ-010-28, 54 — verify : budgets tenus
   - où : `crates/kartenn-bench`
   - dépend de : 13, 15
   — banc écrit, **non coché** (2026-10-22) : `kartenn-bench/src/policy_budgets.rs`
@@ -476,10 +475,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   différentiel (paires comptées avant d'être construites, 29 Go → 0,3 Go ; candidates
   comparées par clés), verdicts (une évaluation par paire de points distincts), chaînes
   de l'inférence et vues des sources lues ensemble, machines d'un /24 (1,8 s → 1,7 ms),
-  origines descendantes (plus d'une heure → jointure). Reste : un passage complet
-  (`K_BENCH_SCALE=full`, ADR 0032), le report de ses chiffres dans l'ADR 0030 et
-  `docs/spec/invariants.md` § Performance (à la place de la variante réduite), puis
-  cocher 1 et 19.
+  origines descendantes (plus d'une heure → jointure).
+  — fait (2026-10-23) : **banc complet tenu** (`K_BENCH_SCALE=full`, 1,06·10⁶ adresses,
+  9 min, pic RSS 1,6 Go) : paire 11 ms / 50, machine × machine 27 ms / 300, port brut
+  19 ms / 100, différentiel 511 ms / 1 s, rapport 21 s / 10 min, suggestion 6 ms / 50,
+  contrôle de 10⁴ objets dans le bruit (≈ 0,3 s chronométrés) / 1 s, réévaluation
+  complète 218 s / 10 min ; chiffres reportés dans l'ADR 0030 et
+  `docs/spec/invariants.md` § Performance. Le passage du 2026-10-22 échouait sur trois
+  budgets, tenus par des correctifs : valeurs des machines lues par clé
+  (`kartenn-machines/src/read.rs`, `machine_values_of_addresses`, 1,5 s → 27 ms) ;
+  fenêtres du rapport sur l'index keyset de leur table et valeurs portées lues une fois
+  (`kartenn-policy/src/report.rs`, 920 s → 21 s) ; vues du changeset derrière des
+  barrières `OFFSET 0` (`kartenn-store-pg/src/expected.rs`, `views_of`, 1,3 s → 0,3 s)
+  et origines rafraîchies par les valeurs par défaut non recalculées par la maintenance
+  (`kartenn-service/src/expected.rs`, `Defaults::fresh`, 0,35 s) ; le banc tire les
+  adresses de la suggestion depuis les règles (dix minutes hors mesure → 30 ms).
+  choix : les items de la rubrique `unclassified` suivent l'ordre de l'index keyset
+  (domaine, valeur, identifiant) et non plus l'identifiant seul. Le banc n'est pas
+  branché en CI (pas de CI du dépôt) : « bloquant » = le script échoue si un budget
+  est dépassé.
 - [x] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées
   - où : skill `tech-specs`, mode sync
   - dépend de : 17, 18, 19

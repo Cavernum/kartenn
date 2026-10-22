@@ -256,17 +256,19 @@ async fn views<T: WriteTx>(
 /// an assignment of the property in the changeset receives the expected value when the
 /// source gives exactly one candidate, with the provenance `source:<id>@<revision>`. The
 /// objects of a property are evaluated in one call. Returns the assignments written, to
-/// resolve them like the others.
+/// resolve them like the others, and per property the objects whose origins it brought up
+/// to date and that no default of that property can have moved since.
 pub(crate) async fn defaults<T: WriteTx>(
     tx: &mut T,
     sources: &Sources,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
-) -> Result<Vec<Planned>, WriteError> {
+) -> Result<Defaults, WriteError> {
+    let mut out = Defaults::default();
     let created = created(planned);
     if created.is_empty() {
-        return Ok(Vec::new());
+        return Ok(out);
     }
     let assigned: BTreeSet<(Uuid, Uuid)> = planned
         .iter()
@@ -280,7 +282,6 @@ pub(crate) async fn defaults<T: WriteTx>(
             _ => None,
         })
         .collect();
-    let mut written = Vec::new();
     for (property, declaration) in tx.with_expected(period).await? {
         let Some(expected) = &declaration.expected else {
             continue;
@@ -304,10 +305,11 @@ pub(crate) async fn defaults<T: WriteTx>(
         // the objects just created are materialised first, so that their view shows what
         // they inherit; the maintenance after the defaults recomputes them.
         let skip_inheriting = !source.defaults_when_inheriting();
+        let mut refreshed = Vec::new();
         if skip_inheriting && let Some(tree) = &declaration.inherit {
-            let targets: Vec<Uuid> = wanted.iter().map(|(o, _)| *o).collect();
-            if !targets.is_empty() {
-                tx.refresh_origins(property, tree, &targets, period, changeset)
+            refreshed = wanted.iter().map(|(o, _)| *o).collect();
+            if !refreshed.is_empty() {
+                tx.refresh_origins(property, tree, &refreshed, period, changeset)
                     .await?;
             }
         }
@@ -321,6 +323,7 @@ pub(crate) async fn defaults<T: WriteTx>(
             })
             .collect();
         if found.is_empty() {
+            out.fresh.insert(property, refreshed.into_iter().collect());
             continue;
         }
         let objects: Vec<ObjectView> = found.iter().map(|(v, _)| v.clone()).collect();
@@ -331,6 +334,7 @@ pub(crate) async fn defaults<T: WriteTx>(
         let answers = source
             .expected_many(&key, &objects, ctx, tx.module_tx())
             .await?;
+        let before = out.written.len();
         for ((view, kind), answer) in found.iter().zip(answers) {
             let (Some(suggestion), Some(kind)) = (answer.single(), kind) else {
                 continue;
@@ -347,15 +351,30 @@ pub(crate) async fn defaults<T: WriteTx>(
                 changeset,
             )
             .await?;
-            written.push(Planned::Assign {
+            out.written.push(Planned::Assign {
                 object: view.id,
                 kind: *kind,
                 property,
                 values: Some(values),
             });
         }
+        // Without a default of the property, the origins refreshed above still hold.
+        if out.written.len() == before {
+            out.fresh.insert(property, refreshed.into_iter().collect());
+        }
     }
-    Ok(written)
+    Ok(out)
+}
+
+/// What [`defaults`] did.
+#[derive(Debug, Default)]
+pub(crate) struct Defaults {
+    /// The assignments written.
+    pub(crate) written: Vec<Planned>,
+    /// Per property, the objects whose origins were refreshed and still hold: the
+    /// maintenance need not compute them again (a changeset of 10⁴ objects paid it twice,
+    /// task 010-19).
+    pub(crate) fresh: BTreeMap<Uuid, BTreeSet<Uuid>>,
 }
 
 /// Deviations (REQ-003-24, REQ-016-5): on every touched object of a carrier kind, when the

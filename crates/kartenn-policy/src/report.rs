@@ -54,11 +54,33 @@ pub const STEPS: usize = 20;
 /// Days a report is kept after it was asked for (design « Rapport d'audit »).
 pub const RETENTION_DAYS: i32 = 30;
 
-/// The tables of the addressing tree a window goes over, with the domain of their rows.
-const TREE: [(&str, &str, &str); 3] = [
-    ("addressing_domain", "id", "domain"),
-    ("prefix", "domain_id", "prefix"),
-    ("address", "domain_id", "address"),
+/// The tables of the addressing tree a window goes over, with the domain of their rows and
+/// the leading columns of their keyset index (`<table>_keyset`, then `id`), each with its
+/// type: the primary key of a temporal table is a `GiST` index, which cannot hand out its
+/// rows by identifier, so a window by identifier sorted every row after the last one
+/// (920 s for the report at 10⁶ addresses, task 010-19).
+/// A table of the tree: name, column of the domain, kind, columns of the keyset and types.
+type TreeTable = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static [(&'static str, &'static str)],
+);
+
+const TREE: [TreeTable; 3] = [
+    ("addressing_domain", "id", "domain", &[("slug", "text")]),
+    (
+        "prefix",
+        "domain_id",
+        "prefix",
+        &[("domain_id", "uuid"), ("prefix", "cidr")],
+    ),
+    (
+        "address",
+        "domain_id",
+        "address",
+        &[("domain_id", "uuid"), ("address", "inet")],
+    ),
 ];
 
 /// The answer to [`request`].
@@ -473,23 +495,69 @@ async fn unclassified(
         p.next_rubric();
         return Ok(());
     };
-    let (table, domain, kind) = TREE[part % TREE.len()];
-    // `table` and `domain` come from `TREE`, never from an input.
+    let (table, domain, kind, keys) = TREE[part % TREE.len()];
+    // The window goes over the keyset index: after the key of the last node read, looked
+    // up by its identifier (in the history if it has left the table since).
+    let columns = |alias: &str| -> String {
+        keys.iter()
+            .map(|(c, _)| format!("{alias}.{c}"))
+            .chain(std::iter::once(format!("{alias}.id")))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let anchor: Option<Vec<String>> = match p.after_key {
+        None => None,
+        Some(after) => {
+            let texts = keys
+                .iter()
+                .map(|(c, _)| format!("{c}::text"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            // `table` and the columns come from `TREE`, never from an input.
+            let found: Option<Vec<String>> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT ARRAY[{texts}] FROM {table} WHERE id = $1
+                 UNION ALL
+                 SELECT ARRAY[{texts}] FROM {table}_history WHERE id = $1
+                 LIMIT 1"
+            )))
+            .bind(after)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+            Some(found.ok_or_else(|| {
+                StoreError(format!("the node {after} of the report window is gone"))
+            })?)
+        }
+    };
+    let after = if anchor.is_some() {
+        let bound = keys
+            .iter()
+            .enumerate()
+            .map(|(i, (_, ty))| format!("($5::text[])[{}]::{ty}", i + 1))
+            .chain(std::iter::once("$2::uuid".to_owned()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("AND ({}) > ({bound})", columns("t"))
+    } else {
+        String::new()
+    };
+    let (order, sorted) = (columns("t"), columns("w"));
     let window: Vec<(Uuid, Uuid, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH w AS (
-             SELECT id, {domain} AS domain FROM {table}
-              WHERE valid_period @> $1 AND ($2::uuid IS NULL OR id > $2)
-              ORDER BY id LIMIT $3)
-         SELECT w.id, w.domain,
+             SELECT t.*, t.{domain} AS in_domain FROM {table} t
+              WHERE t.valid_period @> $1 {after}
+              ORDER BY {order} LIMIT $3)
+         SELECT w.id, w.in_domain,
                 NOT EXISTS (SELECT 1 FROM property_origin o
                              WHERE o.object_id = w.id AND o.property_id = $4
                                AND o.valid_period @> $1 AND o.origin_object_id IS NOT NULL)
-           FROM w ORDER BY w.id"
+           FROM w ORDER BY {sorted}"
     )))
     .bind(p.valid_at)
     .bind(p.after_key)
     .bind(batch)
     .bind(property)
+    .bind(anchor)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
@@ -546,7 +614,7 @@ async fn transverse(
         "WITH w AS (
              SELECT object_id, origin_object_id FROM property_origin
               WHERE property_id = $4 AND valid_period @> $1
-                AND ($2::uuid IS NULL OR object_id > $2)
+                AND object_id > coalesce($2, '00000000-0000-0000-0000-000000000000'::uuid)
               ORDER BY object_id LIMIT $3)
          SELECT w.object_id, w.origin_object_id,
                 (SELECT array_agg(DISTINCT e.key ORDER BY e.key)
@@ -596,7 +664,8 @@ async fn anomalies(
 ) -> Result<(), StoreError> {
     let window: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT object_id, message FROM anomaly
-          WHERE rule_id = $1 AND closed_at IS NULL AND ($2::uuid IS NULL OR object_id > $2)
+          WHERE rule_id = $1 AND closed_at IS NULL
+            AND object_id > coalesce($2, '00000000-0000-0000-0000-000000000000'::uuid)
           ORDER BY object_id LIMIT $3",
     )
     .bind(rule)
@@ -662,28 +731,37 @@ async fn whole(
                             OR coalesce(r.destination -> a.property_key, '[]') ? e.key))
               ORDER BY a.property_key, e.key"
         }
-        // A value cited by a rule that no object carries.
+        // A value cited by a rule that no object carries: the values carried by the
+        // axes cited, read once, rather than a search of the assignments for each value
+        // cited (an `OR` on `v_uuid` and `v_uuids` that no index serves: minutes for 10⁴
+        // rules, task 010-19).
         "unborne_values" => {
-            "SELECT r.id, jsonb_build_object('rule', r.key, 'side', s.side, 'axis', t.key,
-                                             'value', x.v)
-               FROM policy.policy_rule r
-               CROSS JOIN LATERAL (VALUES ('source', r.source), ('destination', r.destination))
-                    AS s(side, sel)
-               CROSS JOIN LATERAL jsonb_each(s.sel) AS t(key, vals)
-               CROSS JOIN LATERAL jsonb_array_elements_text(t.vals) AS x(v)
-              WHERE r.valid_period @> $1
-                AND NOT EXISTS (
-                    SELECT 1 FROM property_declaration d
-                      JOIN property_declaration l
-                        ON l.key = coalesce(d.type_params->>'values_of', d.key)
-                       AND l.valid_period @> $1
-                      JOIN property_enum_value e
-                        ON e.property_id = l.id AND e.key = x.v AND e.valid_period @> $1
-                      JOIN property_assignment a
-                        ON a.property_id = d.id AND a.kind = 'value' AND a.valid_period @> $1
-                       AND (a.v_uuid = e.id OR e.id = ANY(a.v_uuids))
-                     WHERE d.key = t.key AND d.valid_period @> $1)
-              ORDER BY r.key, s.side, t.key, x.v"
+            "WITH cited AS (
+                 SELECT r.id, r.key, s.side, t.key AS axis, x.v
+                   FROM policy.policy_rule r
+                   CROSS JOIN LATERAL (VALUES ('source', r.source),
+                                              ('destination', r.destination)) AS s(side, sel)
+                   CROSS JOIN LATERAL jsonb_each(s.sel) AS t(key, vals)
+                   CROSS JOIN LATERAL jsonb_array_elements_text(t.vals) AS x(v)
+                  WHERE r.valid_period @> $1),
+             borne AS (
+                 SELECT DISTINCT d.key AS axis, e.key AS value
+                   FROM property_declaration d
+                   JOIN property_declaration l
+                     ON l.key = coalesce(d.type_params->>'values_of', d.key)
+                    AND l.valid_period @> $1
+                   JOIN property_assignment a
+                     ON a.property_id = d.id AND a.kind = 'value' AND a.valid_period @> $1
+                   CROSS JOIN LATERAL (SELECT a.v_uuid UNION ALL SELECT unnest(a.v_uuids))
+                        AS u(id)
+                   JOIN property_enum_value e
+                     ON e.id = u.id AND e.property_id = l.id AND e.valid_period @> $1
+                  WHERE d.valid_period @> $1 AND d.key IN (SELECT axis FROM cited))
+             SELECT c.id, jsonb_build_object('rule', c.key, 'side', c.side, 'axis', c.axis,
+                                             'value', c.v)
+               FROM cited c
+              WHERE NOT EXISTS (SELECT 1 FROM borne b WHERE b.axis = c.axis AND b.value = c.v)
+              ORDER BY c.key, c.side, c.axis, c.v"
         }
         // An `allow` rule every flow of which a `deny` rule covers: the deny's terms are
         // looser on both sides, its « same value » axes among the allow's, its flows wider.

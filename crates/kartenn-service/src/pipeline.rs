@@ -2371,8 +2371,9 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
         }
     };
     let mut all = planned.to_vec();
-    all.extend(defaults);
-    let maintained = crate::resolution::maintain(tx, &all, period, changeset).await?;
+    all.extend(defaults.written);
+    let maintained =
+        crate::resolution::maintain(tx, &all, &defaults.fresh, period, changeset).await?;
     let refreshed = &maintained.affected;
     crate::resolution::check_obligations(tx, &all, refreshed, period, violations).await?;
     if has_errors(violations) {
