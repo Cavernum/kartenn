@@ -11,7 +11,7 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - **Sécurité d'accès** : OIDC multi-émetteurs (humains) et Basic sur TLS (machines, secours) (D13) ; RBAC composable avec liaisons portées, sur des groupes kartenn (D36, amendée par la 025).
 - **Qualité** : budgets p95 chiffrés et bancs d'essai en CI (D14) ; OCI, module NixOS, OpenTelemetry (D35) ; AGPL-3.0 (D37).
 - **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
-- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) ; la bibliothèque Python et la CLI (023) s'implémentent dès maintenant (D31 amendée).
+- **Feuille de route** (D31 amendée) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = modèle de calcul (hyperviseurs, VM, conteneurs, Kubernetes) ; v0.4 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) ; la bibliothèque Python et la CLI (023) s'implémentent dès maintenant.
 
 ## D1 — Source de vérité et sens de « contrôler »
 - Décision : l'outil est déclaratif et constitue la source de vérité. « Contrôler » veut dire qu'une validation de cohérence est bloquante : aucune incohérence n'est acceptée en écriture. Pas de découverte ni de pilotage actif pour l'instant.
@@ -242,6 +242,19 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Garde-fou : les specs de Politique et Flux sont **écrites avant de figer le noyau** de v0.1, pour que le noyau les accueille sans refonte. Un prototype de résolution d'héritage sur 10⁶ nœuds est fait en v0.1.
 - Rejeté : Politique dans le MVP, tout dans le MVP.
 - Décidé par : l'utilisateur
+- Amendement (spec 019, 2026-10-22) : la **v0.3** devient le **modèle de calcul** :
+  machines physiques, hyperviseurs, VM, conteneurs, pods et nœuds Kubernetes, et
+  l'interaction avec Kubernetes (synchronisation en lecture d'abord). **Passerelles,
+  routes et NAT** glissent d'un cran, en **v0.4** ; l'ordre de la suite est inchangé
+  (atteignabilité effective, connecteur de la source historique, MCP, TUI). Le sort
+  des autres mentions « v0.3 » de la 010 et de la 011 (flux constatés, connecteurs de
+  ticketing, campagnes de revue) est une question de la 019 (Q-019-13), à trancher avec
+  elle.
+- Pourquoi (amendement) : sujet retenu par l'utilisateur pour la v0.3. Lecture de
+  Claude : la politique de la v0.2 vise des adresses et des machines ; elle doit pouvoir
+  viser les charges conteneurisées, dont l'adresse change sans cesse, avant que
+  l'atteignabilité (routes, NAT) ne les traverse.
+- Décidé par (amendement) : l'utilisateur (2026-10-22)
 - Amendement (spec 022, A7, 2026-10-23) : les **événements poussés** (spec 022, flux SSE alimenté par l'outbox) sont une brique transverse qui précède les specs de réécriture du web (020, 021, à venir) ; la bibliothèque cliente et ses commandes `watch` en consomment le contrat.
 - Décidé par (amendement) : l'utilisateur
 - Amendement (spec 023, A6, 2026-10-23) : la **bibliothèque cliente Python et la CLI** (spec 023) s'implémentent **dès maintenant**, en parallèle de la v0.2, et non « ensuite ». Le MCP et la TUI restent « ensuite ».
