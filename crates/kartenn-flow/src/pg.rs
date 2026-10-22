@@ -187,25 +187,40 @@ pub(crate) async fn close_dependents(
     at: Option<OffsetDateTime>,
     changeset: Uuid,
 ) -> Result<(), StoreError> {
-    end_rows(conn, BY_FLOW, flow, at, changeset).await
+    end_rows(conn, BY_FLOW, &[flow], at, changeset).await
 }
 
+/// Ends at `at` (now when `None`) the rows of `tables` of the flows `flows` and removes
+/// those that start later; a batch locks its rows in the order of the flows first (F13).
 async fn end_rows(
     conn: &mut PgConnection,
     tables: &[&str],
-    flow: Uuid,
+    flows: &[Uuid],
     at: Option<OffsetDateTime>,
     changeset: Uuid,
 ) -> Result<(), StoreError> {
     for table in tables {
+        if flows.len() > 1 {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "SELECT 1 FROM {table}
+                  WHERE flow_id = ANY($1)
+                    AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
+                  ORDER BY flow_id FOR UPDATE"
+            )))
+            .bind(flows)
+            .bind(at)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+        }
         sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE {table}
                 SET valid_period = tstzrange(lower(valid_period), coalesce($2::timestamptz, now())),
                     changeset_id = $3
-              WHERE flow_id = $1 AND valid_period @> coalesce($2::timestamptz, now())
+              WHERE flow_id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())
                 AND lower(valid_period) < coalesce($2::timestamptz, now())"
         )))
-        .bind(flow)
+        .bind(flows)
         .bind(at)
         .bind(changeset)
         .execute(&mut *conn)
@@ -213,9 +228,9 @@ async fn end_rows(
         .map_err(|e| store(&e))?;
         sqlx::query(sqlx::AssertSqlSafe(format!(
             "DELETE FROM {table}
-              WHERE flow_id = $1 AND lower(valid_period) >= coalesce($2::timestamptz, now())"
+              WHERE flow_id = ANY($1) AND lower(valid_period) >= coalesce($2::timestamptz, now())"
         )))
-        .bind(flow)
+        .bind(flows)
         .bind(at)
         .execute(&mut *conn)
         .await
@@ -395,11 +410,40 @@ pub(crate) async fn load(conn: &mut PgConnection, id: Uuid) -> Result<Option<Sto
     .fetch_optional(conn)
     .await
     .map_err(|e| store(&e))?;
-    let Some((r, from, to)) = row else {
-        return Ok(None);
-    };
+    Ok(row.and_then(|(r, from, to)| stored(&r, from, to)))
+}
+
+/// The last version of each of the flows `ids` in the transaction, with the start of its
+/// first version: one query for the batch.
+pub(crate) async fn load_many(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<BTreeMap<Uuid, (Stored, OffsetDateTime)>, StoreError> {
+    let rows: Vec<(
+        Uuid,
+        Value,
+        OffsetDateTime,
+        Option<OffsetDateTime>,
+        OffsetDateTime,
+    )> = sqlx::query_as(
+        "SELECT DISTINCT ON (id) id, to_jsonb(f) - 'valid_period', lower(valid_period),
+                upper(valid_period), min(lower(valid_period)) OVER (PARTITION BY id)
+           FROM flow.flow f WHERE id = ANY($1) ORDER BY id, lower(valid_period) DESC",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(id, r, from, to, start)| Some((id, (stored(&r, from, to)?, start))))
+        .collect())
+}
+
+/// A version of a flow read as JSON, over [`from`, `to`).
+fn stored(r: &Value, from: OffsetDateTime, to: Option<OffsetDateTime>) -> Option<Stored> {
     let Ok(period) = Period::new(instant(from), to.map(instant)) else {
-        return Ok(None);
+        return None;
     };
     let text = |key: &str| r.get(key).and_then(Value::as_str).unwrap_or_default();
     let uuid = |key: &str| {
@@ -444,10 +488,10 @@ pub(crate) async fn load(conn: &mut PgConnection, id: Uuid) -> Result<Option<Sto
         entity: uuid("entity_id").unwrap_or_default(),
         period,
     };
-    Ok(Some(Stored {
+    Some(Stored {
         flow,
         reviewed_by: uuid("reviewed_by"),
-    }))
+    })
 }
 
 /// Whether the object `id` of `kind` exists over the whole `period`.
@@ -542,7 +586,7 @@ pub(crate) async fn insert_waiver(
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     // A waiver replaces, from its start, the waiver in force (a recertification).
-    end_rows(conn, &["flow.flow_waiver"], flow, from, changeset).await?;
+    end_rows(conn, &["flow.flow_waiver"], &[flow], from, changeset).await?;
     sqlx::query(
         "INSERT INTO flow.flow_waiver (flow_id, reason, accepted_risk, granted_by,
                                        valid_period, changeset_id)
@@ -623,23 +667,69 @@ pub(crate) async fn rule_id(
         .map_err(|e| store(&e))
 }
 
-/// The evaluation of `flow` at `at` as stored (design 011 « Données »): the rules and
-/// conditions it names resolved to their identifiers at `at`.
-pub(crate) async fn state_of(
+/// The evaluations of flows at `at` as stored (design 011 « Données »), in their order:
+/// the rules and conditions they name resolved to their identifiers at `at`, one query
+/// for the batch each.
+pub(crate) async fn states_of(
     conn: &mut PgConnection,
-    evaluated: &Evaluated,
+    evaluated: &[Evaluated],
     at: OffsetDateTime,
-) -> Result<State, StoreError> {
+) -> Result<Vec<State>, StoreError> {
+    let pairs = || evaluated.iter().flat_map(|e| e.pairs.iter());
+    let rules: BTreeSet<String> = pairs()
+        .filter_map(|p| decisive_rule(&p.evaluation.decisive))
+        .collect();
+    let conditions: BTreeSet<String> = pairs()
+        .flat_map(|p| p.evaluation.conditions.iter())
+        .filter(|c| c.state == kartenn_policy::evaluate::ConditionState::Unmet)
+        .map(|c| c.condition.to_string())
+        .collect();
+    let ids = async |conn: &mut PgConnection,
+                     table: &str,
+                     keys: BTreeSet<String>|
+           -> Result<BTreeMap<String, Vec<Uuid>>, StoreError> {
+        let mut out: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+        if keys.is_empty() {
+            return Ok(out);
+        }
+        let keys: Vec<String> = keys.into_iter().collect();
+        let rows: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT key, id FROM {table} WHERE key = ANY($1) AND valid_period @> $2 ORDER BY id"
+        )))
+        .bind(&keys)
+        .bind(at)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))?;
+        for (key, id) in rows {
+            out.entry(key).or_default().push(id);
+        }
+        Ok(out)
+    };
+    let rules = ids(&mut *conn, "policy.policy_rule", rules).await?;
+    let conditions = ids(&mut *conn, "policy.policy_condition", conditions).await?;
+    Ok(evaluated
+        .iter()
+        .map(|e| state_from(e, &rules, &conditions))
+        .collect())
+}
+
+/// The evaluation `evaluated` as stored, the keys of the rules and conditions it names
+/// resolved through `rules` and `conditions`.
+fn state_from(
+    evaluated: &Evaluated,
+    rules: &BTreeMap<String, Vec<Uuid>>,
+    conditions: &BTreeMap<String, Vec<Uuid>>,
+) -> State {
     let mut rows: BTreeMap<(Uuid, Uuid), Row> = BTreeMap::new();
     for pair in &evaluated.pairs {
         if rows.contains_key(&(pair.source, pair.destination)) {
             continue;
         }
         let e = &pair.evaluation;
-        let decisive = match decisive_rule(&e.decisive) {
-            Some(key) => rule_id(conn, &key, at).await?,
-            None => None,
-        };
+        let decisive = decisive_rule(&e.decisive)
+            .and_then(|key| rules.get(&key))
+            .and_then(|ids| ids.first().copied());
         let combination: serde_json::Map<String, Value> = e
             .combination
             .iter()
@@ -650,25 +740,15 @@ pub(crate) async fn state_of(
                 )
             })
             .collect();
-        let unmet: Vec<String> = e
+        let unmet: BTreeSet<Uuid> = e
             .conditions
             .iter()
             .filter(|c| c.state == kartenn_policy::evaluate::ConditionState::Unmet)
-            .map(|c| c.condition.to_string())
+            .filter_map(|c| conditions.get(&c.condition.to_string()))
+            .flatten()
+            .copied()
             .collect();
-        let unmet: Vec<Uuid> = if unmet.is_empty() {
-            Vec::new()
-        } else {
-            sqlx::query_scalar(
-                "SELECT id FROM policy.policy_condition
-                  WHERE key = ANY($1) AND valid_period @> $2 ORDER BY id",
-            )
-            .bind(&unmet)
-            .bind(at)
-            .fetch_all(&mut *conn)
-            .await
-            .map_err(|e| store(&e))?
-        };
+        let unmet: Vec<Uuid> = unmet.into_iter().collect();
         rows.insert(
             (pair.source, pair.destination),
             Row {
@@ -689,7 +769,7 @@ pub(crate) async fn state_of(
         let set: BTreeSet<Uuid> = addresses.iter().copied().collect();
         set.into_iter().collect()
     };
-    Ok(State {
+    State {
         sources: sorted(&evaluated.sources),
         destinations: sorted(&evaluated.destinations),
         rows: rows.into_values().collect(),
@@ -699,30 +779,32 @@ pub(crate) async fn state_of(
             allowed: i32::try_from(s.allowed).unwrap_or(i32::MAX),
             denied: i32::try_from(s.denied).unwrap_or(i32::MAX),
         }),
-    })
+    }
 }
 
-/// The stored evaluation of `flow` from `from` on, cut where any of its rows starts or
-/// ends: each piece with the state that holds over it.
+/// The stored evaluation of each of `flows` from `from` on, cut where any of its rows
+/// starts or ends: each piece with the state that holds over it. One query per table for
+/// the batch.
 #[allow(clippy::too_many_lines)] // three tables read back into one state per piece
 pub(crate) async fn read_states(
     conn: &mut PgConnection,
-    flow: Uuid,
+    flows: &[Uuid],
     from: OffsetDateTime,
-) -> Result<Vec<Segment>, StoreError> {
+) -> Result<BTreeMap<Uuid, Vec<Segment>>, StoreError> {
     type Span = (OffsetDateTime, Option<OffsetDateTime>);
-    let endpoints: Vec<(String, Uuid, OffsetDateTime, Option<OffsetDateTime>)> = sqlx::query_as(
-        "SELECT side, address_id, lower(valid_period), upper(valid_period)
-           FROM flow.flow_endpoint_address
-          WHERE flow_id = $1 AND valid_period && tstzrange($2, NULL)",
-    )
-    .bind(flow)
-    .bind(from)
-    .fetch_all(&mut *conn)
-    .await
-    .map_err(|e| store(&e))?;
+    let all_endpoints: Vec<(String, Uuid, OffsetDateTime, Option<OffsetDateTime>, Uuid)> =
+        sqlx::query_as(
+            "SELECT side, address_id, lower(valid_period), upper(valid_period), flow_id
+               FROM flow.flow_endpoint_address
+              WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
+        )
+        .bind(flows)
+        .bind(from)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
     #[allow(clippy::type_complexity)] // the columns of an evaluation
-    let evaluations: Vec<(
+    let all_evaluations: Vec<(
         Uuid,
         Uuid,
         String,
@@ -735,193 +817,291 @@ pub(crate) async fn read_states(
         Option<i32>,
         OffsetDateTime,
         Option<OffsetDateTime>,
+        Uuid,
     )> = sqlx::query_as(
         "SELECT source_address_id, destination_address_id, verdict, pending, outcome, reason,
                 decisive_id, combination, unmet_conditions, score,
-                lower(valid_period), upper(valid_period)
+                lower(valid_period), upper(valid_period), flow_id
            FROM flow.flow_evaluation
-          WHERE flow_id = $1 AND valid_period && tstzrange($2, NULL)",
+          WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
     )
-    .bind(flow)
+    .bind(flows)
     .bind(from)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    let summaries: Vec<(
+    #[allow(clippy::type_complexity)] // the columns of a summary
+    let all_summaries: Vec<(
         String,
         String,
         i32,
         i32,
         OffsetDateTime,
         Option<OffsetDateTime>,
+        Uuid,
     )> = sqlx::query_as(
-        "SELECT summary, outcome, allowed, denied, lower(valid_period), upper(valid_period)
+        "SELECT summary, outcome, allowed, denied, lower(valid_period), upper(valid_period),
+                flow_id
                FROM flow.flow_summary
-              WHERE flow_id = $1 AND valid_period && tstzrange($2, NULL)",
+              WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
     )
-    .bind(flow)
+    .bind(flows)
     .bind(from)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    let mut cuts: BTreeSet<OffsetDateTime> = BTreeSet::from([from]);
-    let spans = endpoints
-        .iter()
-        .map(|e| (e.2, e.3))
-        .chain(evaluations.iter().map(|e| (e.10, e.11)))
-        .chain(summaries.iter().map(|s| (s.4, s.5)));
-    for (lower, upper) in spans {
-        cuts.extend(
-            [lower, upper.unwrap_or(from)]
-                .into_iter()
-                .filter(|t| *t > from),
-        );
+    let mut endpoints_of: BTreeMap<Uuid, Vec<_>> = BTreeMap::new();
+    for e in &all_endpoints {
+        endpoints_of.entry(e.4).or_default().push(e);
     }
-    let covers =
-        |(lower, upper): Span, at: OffsetDateTime| lower <= at && upper.is_none_or(|u| u > at);
-    let cuts: Vec<OffsetDateTime> = cuts.into_iter().collect();
-    let mut out = Vec::new();
-    for (i, at) in cuts.iter().enumerate() {
-        let mut state = State::default();
-        for (side, address, lower, upper) in &endpoints {
-            if covers((*lower, *upper), *at) {
-                if side == "source" {
-                    state.sources.push(*address);
-                } else {
-                    state.destinations.push(*address);
+    let mut evaluations_of: BTreeMap<Uuid, Vec<_>> = BTreeMap::new();
+    for e in &all_evaluations {
+        evaluations_of.entry(e.12).or_default().push(e);
+    }
+    let mut summaries_of: BTreeMap<Uuid, Vec<_>> = BTreeMap::new();
+    for s in &all_summaries {
+        summaries_of.entry(s.6).or_default().push(s);
+    }
+    let mut all = BTreeMap::new();
+    for flow in flows {
+        let endpoints = endpoints_of.remove(flow).unwrap_or_default();
+        let evaluations = evaluations_of.remove(flow).unwrap_or_default();
+        let summaries = summaries_of.remove(flow).unwrap_or_default();
+        let mut cuts: BTreeSet<OffsetDateTime> = BTreeSet::from([from]);
+        let spans = endpoints
+            .iter()
+            .map(|e| (e.2, e.3))
+            .chain(evaluations.iter().map(|e| (e.10, e.11)))
+            .chain(summaries.iter().map(|s| (s.4, s.5)));
+        for (lower, upper) in spans {
+            cuts.extend(
+                [lower, upper.unwrap_or(from)]
+                    .into_iter()
+                    .filter(|t| *t > from),
+            );
+        }
+        let covers =
+            |(lower, upper): Span, at: OffsetDateTime| lower <= at && upper.is_none_or(|u| u > at);
+        let cuts: Vec<OffsetDateTime> = cuts.into_iter().collect();
+        let mut out = Vec::new();
+        for (i, at) in cuts.iter().enumerate() {
+            let mut state = State::default();
+            for (side, address, lower, upper, _) in &endpoints {
+                if covers((*lower, *upper), *at) {
+                    if side == "source" {
+                        state.sources.push(*address);
+                    } else {
+                        state.destinations.push(*address);
+                    }
                 }
             }
-        }
-        state.sources.sort_unstable();
-        state.destinations.sort_unstable();
-        for e in &evaluations {
-            if covers((e.10, e.11), *at) {
-                let mut unmet = e.8.clone();
-                unmet.sort_unstable();
-                state.rows.push(Row {
-                    source: e.0,
-                    destination: e.1,
-                    verdict: e.2.clone(),
-                    pending: e.3,
-                    outcome: e.4.clone(),
-                    reason: e.5.clone(),
-                    decisive: e.6,
-                    combination: e.7.clone(),
-                    unmet,
-                    score: e.9,
-                });
+            state.sources.sort_unstable();
+            state.destinations.sort_unstable();
+            for e in &evaluations {
+                if covers((e.10, e.11), *at) {
+                    let mut unmet = e.8.clone();
+                    unmet.sort_unstable();
+                    state.rows.push(Row {
+                        source: e.0,
+                        destination: e.1,
+                        verdict: e.2.clone(),
+                        pending: e.3,
+                        outcome: e.4.clone(),
+                        reason: e.5.clone(),
+                        decisive: e.6,
+                        combination: e.7.clone(),
+                        unmet,
+                        score: e.9,
+                    });
+                }
             }
-        }
-        state.rows.sort_by_key(|r| (r.source, r.destination));
-        state.summary = summaries
-            .iter()
-            .find(|s| covers((s.4, s.5), *at))
-            .map(|s| Summary {
-                verdict: s.0.clone(),
-                outcome: s.1.clone(),
-                allowed: s.2,
-                denied: s.3,
+            state.rows.sort_by_key(|r| (r.source, r.destination));
+            state.summary = summaries
+                .iter()
+                .find(|s| covers((s.4, s.5), *at))
+                .map(|s| Summary {
+                    verdict: s.0.clone(),
+                    outcome: s.1.clone(),
+                    allowed: s.2,
+                    denied: s.3,
+                });
+            out.push(Segment {
+                from: *at,
+                to: cuts.get(i + 1).copied(),
+                state,
+                revision: 0,
             });
-        out.push(Segment {
-            from: *at,
-            to: cuts.get(i + 1).copied(),
-            state,
-            revision: 0,
-        });
+        }
+        all.insert(*flow, out);
     }
-    Ok(out)
+    Ok(all)
 }
 
-/// Rewrites the evaluation of `flow` from `from` on with `segments` (design 011
-/// « Réévaluation », step 3): the rows from `from` on are ended or removed, then each
-/// segment written with its addresses, one row per pair and its summary.
+/// Rewrites the evaluation of each of `flows` from `from` on with its segments (design
+/// 011 « Réévaluation », step 3): the rows from `from` on are ended or removed, then each
+/// segment written with its addresses, one row per pair and its summary. One statement
+/// per table for the batch, the rows locked in the order of the flows (F13).
+#[allow(clippy::too_many_lines)] // one batch per derived table
 pub(crate) async fn write_states(
     conn: &mut PgConnection,
-    flow: Uuid,
+    flows: &[(Uuid, Vec<Segment>)],
     from: OffsetDateTime,
-    segments: &[Segment],
     changeset: Uuid,
 ) -> Result<(), StoreError> {
-    end_rows(conn, DERIVED, flow, Some(from), changeset).await?;
-    for segment in segments.iter().filter(|s| !s.state.is_empty()) {
-        write_state(conn, flow, segment, changeset).await?;
+    if flows.is_empty() {
+        return Ok(());
     }
-    Ok(())
-}
-
-async fn write_state(
-    conn: &mut PgConnection,
-    flow: Uuid,
-    segment: &Segment,
-    changeset: Uuid,
-) -> Result<(), StoreError> {
-    let (from, to, state) = (segment.from, segment.to, &segment.state);
-    for (side, addresses) in [
-        ("source", &state.sources),
-        ("destination", &state.destinations),
-    ] {
-        for address in addresses {
-            sqlx::query(
-                "INSERT INTO flow.flow_endpoint_address (flow_id, side, address_id, valid_period,
-                                                         changeset_id)
-                 VALUES ($1, $2, $3, tstzrange($4, $5), $6)",
-            )
-            .bind(flow)
-            .bind(side)
-            .bind(address)
-            .bind(from)
-            .bind(to)
-            .bind(changeset)
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| store(&e))?;
+    let ids: Vec<Uuid> = flows.iter().map(|(id, _)| *id).collect();
+    end_rows(conn, DERIVED, &ids, Some(from), changeset).await?;
+    let segments = || {
+        flows.iter().flat_map(|(flow, segments)| {
+            segments
+                .iter()
+                .filter(|s| !s.state.is_empty())
+                .map(move |s| (*flow, s))
+        })
+    };
+    // The addresses of the endpoints.
+    let (mut flow_ids, mut sides, mut addresses, mut lowers, mut uppers) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for (flow, segment) in segments() {
+        for (side, found) in [
+            ("source", &segment.state.sources),
+            ("destination", &segment.state.destinations),
+        ] {
+            for address in found {
+                flow_ids.push(flow);
+                sides.push(side);
+                addresses.push(*address);
+                lowers.push(segment.from);
+                uppers.push(segment.to);
+            }
         }
     }
-    for row in &state.rows {
+    if !flow_ids.is_empty() {
+        sqlx::query(
+            "INSERT INTO flow.flow_endpoint_address (flow_id, side, address_id, valid_period,
+                                                     changeset_id)
+             SELECT f, s, a, tstzrange(l, u), $6
+               FROM unnest($1::uuid[], $2::text[], $3::uuid[], $4::timestamptz[],
+                           $5::timestamptz[]) AS x(f, s, a, l, u)",
+        )
+        .bind(&flow_ids)
+        .bind(&sides)
+        .bind(&addresses)
+        .bind(&lowers)
+        .bind(&uppers)
+        .bind(changeset)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
+    }
+    // One row per pair of addresses.
+    let mut e = Evaluations::default();
+    for (flow, segment) in segments() {
+        for row in &segment.state.rows {
+            e.flows.push(flow);
+            e.sources.push(row.source);
+            e.destinations.push(row.destination);
+            e.verdicts.push(row.verdict.as_str());
+            e.pending.push(row.pending);
+            e.outcomes.push(row.outcome.as_str());
+            e.reasons.push(row.reason.as_str());
+            e.decisive.push(row.decisive);
+            e.combinations.push(&row.combination);
+            let unmet: Vec<String> = row.unmet.iter().map(ToString::to_string).collect();
+            e.unmet.push(format!("{{{}}}", unmet.join(",")));
+            e.scores.push(row.score);
+            e.revisions.push(segment.revision);
+            e.lowers.push(segment.from);
+            e.uppers.push(segment.to);
+        }
+    }
+    if !e.flows.is_empty() {
         sqlx::query(
             "INSERT INTO flow.flow_evaluation (flow_id, source_address_id, destination_address_id,
                     verdict, pending, outcome, reason, decisive_id, combination, unmet_conditions,
                     score, policy_revision, valid_period, changeset_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, tstzrange($13, $14), $15)",
+             SELECT f, s, d, v, p, o, r, dc, c, u::uuid[], sc, rv, tstzrange(l, up), $15
+               FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::text[], $5::bool[],
+                           $6::text[], $7::text[], $8::uuid[], $9::jsonb[], $10::text[],
+                           $11::int4[], $12::int8[], $13::timestamptz[], $14::timestamptz[])
+                    AS x(f, s, d, v, p, o, r, dc, c, u, sc, rv, l, up)",
         )
-        .bind(flow)
-        .bind(row.source)
-        .bind(row.destination)
-        .bind(&row.verdict)
-        .bind(row.pending)
-        .bind(&row.outcome)
-        .bind(&row.reason)
-        .bind(row.decisive)
-        .bind(&row.combination)
-        .bind(&row.unmet)
-        .bind(row.score)
-        .bind(segment.revision)
-        .bind(from)
-        .bind(to)
+        .bind(&e.flows)
+        .bind(&e.sources)
+        .bind(&e.destinations)
+        .bind(&e.verdicts)
+        .bind(&e.pending)
+        .bind(&e.outcomes)
+        .bind(&e.reasons)
+        .bind(&e.decisive)
+        .bind(&e.combinations)
+        .bind(&e.unmet)
+        .bind(&e.scores)
+        .bind(&e.revisions)
+        .bind(&e.lowers)
+        .bind(&e.uppers)
         .bind(changeset)
         .execute(&mut *conn)
         .await
         .map_err(|e| store(&e))?;
     }
-    if let Some(s) = &state.summary {
+    // The summaries.
+    let (mut flow_ids, mut verdicts, mut outcomes, mut allowed, mut denied) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut lowers, mut uppers) = (Vec::new(), Vec::new());
+    for (flow, segment) in segments() {
+        if let Some(s) = &segment.state.summary {
+            flow_ids.push(flow);
+            verdicts.push(s.verdict.as_str());
+            outcomes.push(s.outcome.as_str());
+            allowed.push(s.allowed);
+            denied.push(s.denied);
+            lowers.push(segment.from);
+            uppers.push(segment.to);
+        }
+    }
+    if !flow_ids.is_empty() {
         sqlx::query(
             "INSERT INTO flow.flow_summary (flow_id, summary, outcome, allowed, denied,
                                             valid_period, changeset_id)
-             VALUES ($1, $2, $3, $4, $5, tstzrange($6, $7), $8)",
+             SELECT f, s, o, a, d, tstzrange(l, u), $8
+               FROM unnest($1::uuid[], $2::text[], $3::text[], $4::int4[], $5::int4[],
+                           $6::timestamptz[], $7::timestamptz[]) AS x(f, s, o, a, d, l, u)",
         )
-        .bind(flow)
-        .bind(&s.verdict)
-        .bind(&s.outcome)
-        .bind(s.allowed)
-        .bind(s.denied)
-        .bind(from)
-        .bind(to)
+        .bind(&flow_ids)
+        .bind(&verdicts)
+        .bind(&outcomes)
+        .bind(&allowed)
+        .bind(&denied)
+        .bind(&lowers)
+        .bind(&uppers)
         .bind(changeset)
         .execute(&mut *conn)
         .await
         .map_err(|e| store(&e))?;
     }
     Ok(())
+}
+
+/// The columns of a batch of rows of `flow.flow_evaluation`.
+#[derive(Default)]
+struct Evaluations<'a> {
+    flows: Vec<Uuid>,
+    sources: Vec<Uuid>,
+    destinations: Vec<Uuid>,
+    verdicts: Vec<&'a str>,
+    pending: Vec<bool>,
+    outcomes: Vec<&'a str>,
+    reasons: Vec<&'a str>,
+    decisive: Vec<Option<Uuid>>,
+    combinations: Vec<&'a Value>,
+    unmet: Vec<String>,
+    scores: Vec<Option<i32>>,
+    revisions: Vec<i64>,
+    lowers: Vec<OffsetDateTime>,
+    uppers: Vec<Option<OffsetDateTime>>,
 }
 
 /// Freezes the evaluation of `flow` at its registration (REQ-011-23): written once.

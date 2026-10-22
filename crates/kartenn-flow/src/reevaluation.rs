@@ -10,7 +10,7 @@
 //! read starts or ends; the evaluation is rewritten only when it differs from the stored
 //! one, contiguous equal segments merged.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{DiffContext, DiffRow, DiffSection};
@@ -20,7 +20,7 @@ use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::evaluation::{Policies, evaluate_in};
+use crate::evaluation::{LOT, Policies, evaluate_many};
 use crate::model::Flow;
 use crate::pg::{self, store};
 
@@ -350,93 +350,159 @@ impl Pass {
     }
 }
 
-/// The instants in (`from`, `to`) where what the evaluation of `flow` reads may change:
-/// a version of the policy, an attachment of an endpoint, an origin or a value of an
-/// endpoint, of an address it develops into or of a machine holding one, a version of a
-/// prefix endpoint (design 011 « Réévaluation », step 2).
+/// A flow to evaluate anew over [`from`, `to`).
+struct Window<'a> {
+    id: Uuid,
+    flow: &'a Flow,
+    from: OffsetDateTime,
+    to: Option<OffsetDateTime>,
+}
+
+/// For each of `windows`, in their order, the instants in (`from`, `to`) where what the
+/// evaluation of its flow reads may change: a version of the policy, an attachment of an
+/// endpoint, an origin or a value of an endpoint, of an address it develops into or of a
+/// machine holding one, a version of a prefix endpoint (design 011 « Réévaluation »,
+/// step 2). One query for the batch; each window is not empty.
 async fn boundaries(
     conn: &mut PgConnection,
     pass: &mut Pass,
-    flow: &Flow,
-    from: OffsetDateTime,
-    to: Option<OffsetDateTime>,
-) -> Result<Vec<OffsetDateTime>, StoreError> {
-    let inside = |b: &OffsetDateTime| *b > from && to.is_none_or(|t| *b < t);
-    let mut bounds: Vec<OffsetDateTime> = pass
-        .policy_bounds(conn)
-        .await?
-        .iter()
-        .copied()
-        .filter(inside)
-        .collect();
-    let own: Vec<OffsetDateTime> = sqlx::query_scalar(
-        "WITH ends AS (SELECT unnest($1::uuid[]) AS id),
+    windows: &[&Window<'_>],
+) -> Result<Vec<Vec<OffsetDateTime>>, StoreError> {
+    let policy: Vec<OffsetDateTime> = pass.policy_bounds(conn).await?.to_vec();
+    let (mut end_flows, mut end_ids) = (Vec::new(), Vec::new());
+    let (mut ids, mut froms, mut tos) = (Vec::new(), Vec::new(), Vec::new());
+    for w in windows {
+        for end in [w.flow.source.id, w.flow.destination.id] {
+            end_flows.push(w.id);
+            end_ids.push(end);
+        }
+        ids.push(w.id);
+        froms.push(w.from);
+        tos.push(w.to);
+    }
+    let own: Vec<(Uuid, OffsetDateTime)> = sqlx::query_as(
+        "WITH w AS (SELECT f AS flow_id, tstzrange(l, u) AS r
+                      FROM unnest($3::uuid[], $4::timestamptz[], $5::timestamptz[]) AS x(f, l, u)),
+              ends AS (SELECT e.flow_id, e.id, w.r
+                         FROM unnest($1::uuid[], $2::uuid[]) AS e(flow_id, id)
+                         JOIN w USING (flow_id)),
               att AS (
-                  SELECT a.valid_period, a.address_id, i.machine_id
-                    FROM machines.attachment a
+                  SELECT e.flow_id, e.r, a.valid_period, a.address_id, i.machine_id
+                    FROM ends e
+                    JOIN machines.attachment a ON a.interface_id = e.id
                     JOIN machines.interface i ON i.id = a.interface_id
-                   WHERE a.valid_period && $2
-                     AND (a.interface_id IN (SELECT id FROM ends)
-                          OR i.machine_id IN (SELECT id FROM ends)
-                          OR a.address_id IN (SELECT id FROM ends))),
-              objs AS (SELECT id FROM ends UNION SELECT address_id FROM att
-                       UNION SELECT machine_id FROM att),
+                   WHERE a.valid_period && e.r
+                  UNION
+                  SELECT e.flow_id, e.r, a.valid_period, a.address_id, i.machine_id
+                    FROM ends e
+                    JOIN machines.interface i ON i.machine_id = e.id
+                    JOIN machines.attachment a ON a.interface_id = i.id
+                   WHERE a.valid_period && e.r
+                  UNION
+                  SELECT e.flow_id, e.r, a.valid_period, a.address_id, i.machine_id
+                    FROM ends e
+                    JOIN machines.attachment a ON a.address_id = e.id
+                    JOIN machines.interface i ON i.id = a.interface_id
+                   WHERE a.valid_period && e.r),
+              objs AS (SELECT flow_id, r, id FROM ends
+                       UNION SELECT flow_id, r, address_id FROM att
+                       UNION SELECT flow_id, r, machine_id FROM att),
               origins AS (
-                  SELECT o.valid_period, o.origin_object_id, o.property_id
-                    FROM public.property_origin o
-                   WHERE o.object_id IN (SELECT id FROM objs) AND o.valid_period && $2),
+                  SELECT s.flow_id, s.r, o.valid_period, o.origin_object_id, o.property_id
+                    FROM objs s
+                    JOIN public.property_origin o ON o.object_id = s.id
+                   WHERE o.valid_period && s.r),
               periods AS (
-                  SELECT valid_period FROM att
-                  UNION ALL SELECT valid_period FROM origins
-                  UNION ALL SELECT a.valid_period FROM public.property_assignment a
+                  SELECT flow_id, r, valid_period FROM att
+                  UNION ALL SELECT flow_id, r, valid_period FROM origins
+                  UNION ALL SELECT o.flow_id, o.r, a.valid_period
+                              FROM public.property_assignment a
                               JOIN origins o ON a.object_id = o.origin_object_id
                                             AND a.property_id = o.property_id
-                             WHERE a.valid_period && $2
-                  UNION ALL SELECT valid_period FROM public.prefix
-                             WHERE id IN (SELECT id FROM ends) AND valid_period && $2)
-         SELECT DISTINCT b FROM periods,
+                             WHERE a.valid_period && o.r
+                  UNION ALL SELECT e.flow_id, e.r, p.valid_period
+                              FROM ends e JOIN public.prefix p ON p.id = e.id
+                             WHERE p.valid_period && e.r)
+         SELECT DISTINCT flow_id, b FROM periods,
                 LATERAL (VALUES (lower(valid_period)), (upper(valid_period))) v(b)
-          WHERE b > lower($2) AND (upper($2) IS NULL OR b < upper($2))",
+          WHERE b > lower(r) AND (upper(r) IS NULL OR b < upper(r))",
     )
-    .bind(vec![flow.source.id, flow.destination.id])
-    .bind(sqlx::postgres::types::PgRange::from((
-        std::ops::Bound::Included(from),
-        to.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded),
-    )))
+    .bind(&end_flows)
+    .bind(&end_ids)
+    .bind(&ids)
+    .bind(&froms)
+    .bind(&tos)
     .fetch_all(conn)
     .await
     .map_err(|e| store(&e))?;
-    bounds.extend(own);
-    bounds.sort_unstable();
-    bounds.dedup();
-    Ok(bounds)
+    let mut of: BTreeMap<Uuid, Vec<OffsetDateTime>> = BTreeMap::new();
+    for (flow, b) in own {
+        of.entry(flow).or_default().push(b);
+    }
+    Ok(windows
+        .iter()
+        .map(|w| {
+            let inside = |b: &OffsetDateTime| *b > w.from && w.to.is_none_or(|t| *b < t);
+            let mut bounds: Vec<OffsetDateTime> = policy.iter().copied().filter(inside).collect();
+            bounds.extend(of.remove(&w.id).unwrap_or_default());
+            bounds.sort_unstable();
+            bounds.dedup();
+            bounds
+        })
+        .collect())
 }
 
-/// The evaluation of `flow` over [`from`, `to`), one segment per stretch where what it
-/// reads holds still.
+/// The evaluation of each of `windows` over its window, in their order, one segment per
+/// stretch where what it reads holds still: the flows evaluated at a same instant are
+/// evaluated together (design 011 « Réévaluation », step 2).
 async fn evaluate_over(
     conn: &mut PgConnection,
     pass: &mut Pass,
-    flow: &Flow,
-    from: OffsetDateTime,
-    to: Option<OffsetDateTime>,
-) -> Result<Vec<Segment>, StoreError> {
-    if to.is_some_and(|t| t <= from) {
-        return Ok(Vec::new());
+    windows: &[Window<'_>],
+) -> Result<Vec<Vec<Segment>>, StoreError> {
+    let live: Vec<usize> = (0..windows.len())
+        .filter(|&i| windows[i].to.is_none_or(|t| t > windows[i].from))
+        .collect();
+    let of_live: Vec<&Window<'_>> = live.iter().map(|&i| &windows[i]).collect();
+    let bounds = boundaries(conn, pass, &of_live).await?;
+    let mut cuts: Vec<Vec<OffsetDateTime>> = vec![Vec::new(); windows.len()];
+    let mut at: BTreeMap<OffsetDateTime, Vec<(usize, usize)>> = BTreeMap::new();
+    for (&i, bounds) in live.iter().zip(bounds) {
+        cuts[i] = std::iter::once(windows[i].from).chain(bounds).collect();
+        for (j, t) in cuts[i].iter().enumerate() {
+            at.entry(*t).or_default().push((i, j));
+        }
     }
-    let mut cuts = vec![from];
-    cuts.extend(boundaries(conn, pass, flow, from, to).await?);
-    let mut out = Vec::with_capacity(cuts.len());
-    for (i, at) in cuts.iter().enumerate() {
-        let evaluated = evaluate_in(conn, &mut pass.policies, flow, *at).await?;
-        out.push(Segment {
-            from: *at,
-            to: cuts.get(i + 1).copied().or(to),
-            state: pg::state_of(conn, &evaluated, *at).await?,
-            revision: i64::try_from(evaluated.revision).unwrap_or(i64::MAX),
-        });
+    let mut found: Vec<Vec<Option<(State, i64)>>> =
+        cuts.iter().map(|c| vec![None; c.len()]).collect();
+    for (t, items) in at {
+        let flows: Vec<&Flow> = items.iter().map(|&(i, _)| windows[i].flow).collect();
+        let evaluated = evaluate_many(conn, &mut pass.policies, &flows, t).await?;
+        let states = pg::states_of(conn, &evaluated, t).await?;
+        for ((&(i, j), state), e) in items.iter().zip(states).zip(&evaluated) {
+            found[i][j] = Some((state, i64::try_from(e.revision).unwrap_or(i64::MAX)));
+        }
     }
-    Ok(out)
+    Ok(windows
+        .iter()
+        .zip(cuts)
+        .zip(found)
+        .map(|((w, cuts), found)| {
+            cuts.iter()
+                .zip(found)
+                .enumerate()
+                .filter_map(|(j, (from, found))| {
+                    let (state, revision) = found?;
+                    Some(Segment {
+                        from: *from,
+                        to: cuts.get(j + 1).copied().or(w.to),
+                        state,
+                        revision,
+                    })
+                })
+                .collect()
+        })
+        .collect())
 }
 
 /// A flow whose evaluation the changeset rewrote: its state at the start of the window
@@ -447,37 +513,67 @@ struct Rewritten {
     after: State,
 }
 
-/// Evaluates `flow` anew from `now` on and rewrites its evaluation if it differs from
-/// the stored one (design 011 « Réévaluation », steps 2 and 3).
+/// The evaluation of each of the flows `ids` computed anew from `now` on, and the one
+/// stored, both merged, with the start of its window; in the order of `ids`, a flow that
+/// no longer exists left out. Each step reads the batch at once (design 011
+/// « Réévaluation », step 2).
+async fn fresh(
+    conn: &mut PgConnection,
+    pass: &mut Pass,
+    ids: &[Uuid],
+    now: OffsetDateTime,
+) -> Result<Vec<(Uuid, OffsetDateTime, Vec<Segment>, Vec<Segment>)>, StoreError> {
+    let loaded = pg::load_many(conn, ids).await?;
+    let windows: Vec<Window<'_>> = ids
+        .iter()
+        .filter_map(|id| {
+            let (stored, start) = loaded.get(id)?;
+            Some(Window {
+                id: *id,
+                flow: &stored.flow,
+                from: (*start).max(now),
+                to: stored.flow.period.end().map(pg::time),
+            })
+        })
+        .collect();
+    let wanted = evaluate_over(conn, pass, &windows).await?;
+    let present: Vec<Uuid> = windows.iter().map(|w| w.id).collect();
+    let mut held = pg::read_states(conn, &present, now).await?;
+    Ok(windows
+        .iter()
+        .zip(wanted)
+        .map(|(w, wanted)| {
+            let held = merged(held.remove(&w.id).unwrap_or_default());
+            (w.id, w.from, held, merged(wanted))
+        })
+        .collect())
+}
+
+/// Evaluates the flows `ids` anew from `now` on and rewrites the evaluation of those that
+/// differ from the stored one (design 011 « Réévaluation », steps 2 and 3), in the order
+/// of `ids`.
 async fn reevaluate(
     conn: &mut PgConnection,
     pass: &mut Pass,
-    id: Uuid,
+    ids: &[Uuid],
     now: OffsetDateTime,
     changeset: Uuid,
-) -> Result<Option<Rewritten>, StoreError> {
-    let Some(stored) = pg::load(conn, id).await? else {
-        return Ok(None);
-    };
-    let start: Option<OffsetDateTime> =
-        sqlx::query_scalar("SELECT min(lower(valid_period)) FROM flow.flow WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *conn)
-            .await
-            .map_err(|e| store(&e))?;
-    let from = start.map_or(now, |s| s.max(now));
-    let to = stored.flow.period.end().map(pg::time);
-    let wanted = merged(evaluate_over(conn, pass, &stored.flow, from, to).await?);
-    let held = merged(pg::read_states(conn, id, now).await?);
-    if same(&held, &wanted) {
-        return Ok(None);
+) -> Result<Vec<Rewritten>, StoreError> {
+    let mut out = Vec::new();
+    let mut writes = Vec::new();
+    for (flow, from, held, wanted) in fresh(conn, pass, ids, now).await? {
+        if same(&held, &wanted) {
+            continue;
+        }
+        out.push(Rewritten {
+            flow,
+            before: state_at(&held, from),
+            after: state_at(&wanted, from),
+        });
+        writes.push((flow, wanted));
     }
-    pg::write_states(conn, id, now, &wanted, changeset).await?;
-    Ok(Some(Rewritten {
-        flow: id,
-        before: state_at(&held, from),
-        after: state_at(&wanted, from),
-    }))
+    pg::write_states(conn, &writes, now, changeset).await?;
+    Ok(out)
 }
 
 /// Re-evaluates every flow the changeset of `context` touches and gives the section
@@ -502,10 +598,12 @@ pub(crate) async fn section(
     let mut rows = Vec::new();
     // Every write of the changeset is done: the policy holds still over the pass.
     let mut pass = Pass::default();
-    for id in touched(conn, context).await? {
-        let Some(r) = reevaluate(conn, &mut pass, id, now, context.changeset).await? else {
-            continue;
-        };
+    let touched = touched(conn, context).await?;
+    let mut rewritten = Vec::new();
+    for lot in touched.chunks(LOT) {
+        rewritten.extend(reevaluate(conn, &mut pass, lot, now, context.changeset).await?);
+    }
+    for r in rewritten {
         if r.before.is_empty() || r.before.verdicts() == r.after.verdicts() {
             continue;
         }
@@ -563,23 +661,13 @@ pub async fn drift(conn: &mut PgConnection) -> Result<Vec<Uuid>, StoreError> {
     .map_err(|e| store(&e))?;
     let mut out = Vec::new();
     for id in living {
-        let Some(stored) = pg::load(conn, id).await? else {
-            continue;
-        };
-        let start: Option<OffsetDateTime> =
-            sqlx::query_scalar("SELECT min(lower(valid_period)) FROM flow.flow WHERE id = $1")
-                .bind(id)
-                .fetch_one(&mut *conn)
-                .await
-                .map_err(|e| store(&e))?;
-        let from = start.map_or(now, |s| s.max(now));
-        let to = stored.flow.period.end().map(pg::time);
-        // The oracle shares nothing between flows: a policy read for each.
+        // The oracle shares nothing between flows: a policy read for each, one flow a
+        // batch.
         let mut pass = Pass::default();
-        let wanted = merged(evaluate_over(conn, &mut pass, &stored.flow, from, to).await?);
-        let held = merged(pg::read_states(conn, id, now).await?);
-        if !same(&held, &wanted) {
-            out.push(id);
+        for (flow, _, held, wanted) in fresh(conn, &mut pass, &[id], now).await? {
+            if !same(&held, &wanted) {
+                out.push(flow);
+            }
         }
     }
     Ok(out)
