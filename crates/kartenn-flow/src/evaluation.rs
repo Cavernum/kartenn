@@ -4,13 +4,14 @@
 //! pair of addresses for its service, their summary.
 //!
 //! It reads the transaction, not the pool: an address created, classified or attached in
-//! the same changeset counts. The policy is loaded at each call, never from the cache of
-//! the queries, since a changeset may raise a revision it then rolls back (a simulation);
-//! a pass over the flows after the writes of a changeset reads it through [`Policies`],
-//! which lives as long as the pass (task 011-10).
+//! the same changeset counts. The policy of a committed revision is kept for the instance
+//! (task 011-10); a transaction that wrote the policy reads its own at each call, since a
+//! changeset may raise a revision it then rolls back (a simulation). A pass over the flows
+//! after the writes of a changeset reads it through [`Policies`], which lives as long as
+//! the pass, and evaluates its flows by batches.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use kartenn_core::period::Instant;
 use kartenn_machines::read::{addresses_of_interfaces, addresses_of_machines, instant};
@@ -199,6 +200,7 @@ async fn tree_values(
              ON e.id = a.v_uuid OR e.id = ANY(a.v_uuids)
           WHERE o.object_id = ANY($1) AND o.valid_period @> $3",
     )
+    .persistent(false)
     .bind(objects)
     .bind(keys)
     .bind(at)
@@ -328,14 +330,74 @@ impl Policies {
         if let Some((_, _, hit)) = self.kept.iter().find(|(f, u, _)| covers(f, u)) {
             return Ok(hit.clone());
         }
-        let (from, until) = read::stable_span(conn, at, None).await?;
-        let loaded = Arc::new(Loaded::read(conn, at).await?);
+        let kept = load_at(conn, at).await?;
+        let loaded = kept.2.clone();
         if self.kept.len() >= KEPT {
             self.kept.remove(0);
         }
-        self.kept.push((from, until, loaded.clone()));
+        self.kept.push(kept);
         Ok(loaded)
     }
+}
+
+/// A policy with the span of valid time it holds over, start included, end excluded.
+type Kept = (Option<OffsetDateTime>, Option<OffsetDateTime>, Arc<Loaded>);
+
+/// The policies of a committed revision, shared by the evaluations of the instance
+/// (task 011-10), as the cache of the queries of the 010 keeps its snapshots: a revision
+/// committed names one state of the policy, every write of it raising the revision.
+static COMMITTED: Mutex<Option<(u64, Vec<Kept>)>> = Mutex::new(None);
+
+/// The revision of the policy as committed; `None` when this transaction wrote it, its
+/// revision then naming a state that may still change or be rolled back.
+async fn committed_revision(conn: &mut PgConnection) -> Result<Option<u64>, StoreError> {
+    let (revision, here): (i64, Option<bool>) = sqlx::query_as(
+        "SELECT policy, xmin = xid(pg_current_xact_id_if_assigned())
+           FROM policy.policy_revision",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    Ok((here != Some(true)).then(|| u64::try_from(revision).unwrap_or_default()))
+}
+
+/// The policy valid at `at` and the span it holds over: kept from a committed revision
+/// when the transaction did not write the policy, read otherwise.
+async fn load_at(conn: &mut PgConnection, at: OffsetDateTime) -> Result<Kept, StoreError> {
+    let committed = || COMMITTED.lock().unwrap_or_else(PoisonError::into_inner);
+    let revision = committed_revision(conn).await?;
+    if let Some(revision) = revision {
+        let hit = committed()
+            .as_ref()
+            .filter(|(r, _)| *r == revision)
+            .and_then(|(_, kept)| {
+                kept.iter()
+                    .find(|(f, u, _)| f.is_none_or(|f| f <= at) && u.is_none_or(|u| at < u))
+                    .cloned()
+            });
+        if let Some(hit) = hit {
+            return Ok(hit);
+        }
+    }
+    let (from, until) = read::stable_span(conn, at, None).await?;
+    let loaded = Arc::new(Loaded::read(conn, at).await?);
+    // Kept only when no write of the policy committed meanwhile.
+    if let Some(revision) = revision
+        && loaded.snapshot.revision() == revision
+        && committed_revision(conn).await? == Some(revision)
+    {
+        let mut shared = committed();
+        if shared.as_ref().is_none_or(|(r, _)| *r != revision) {
+            *shared = Some((revision, Vec::new()));
+        }
+        if let Some((_, kept)) = shared.as_mut() {
+            if kept.len() >= KEPT {
+                kept.remove(0);
+            }
+            kept.push((from, until, loaded.clone()));
+        }
+    }
+    Ok((from, until, loaded))
 }
 
 /// Evaluates `flow` at `at` on the state of the transaction (REQ-011-8, 11, 21).
@@ -348,7 +410,7 @@ pub async fn evaluate_flow(
     flow: &Flow,
     at: OffsetDateTime,
 ) -> Result<Evaluated, StoreError> {
-    let policy = Loaded::read(conn, at).await?;
+    let (_, _, policy) = load_at(conn, at).await?;
     one(evaluate_with(conn, &policy, &[flow], at).await?)
 }
 

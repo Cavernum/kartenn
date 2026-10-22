@@ -26,13 +26,6 @@ const BY_FLOW: &[&str] = &[
     "flow.flow_summary",
 ];
 
-/// The derived tables of the evaluation of a flow, rewritten by a new evaluation.
-const DERIVED: &[&str] = &[
-    "flow.flow_endpoint_address",
-    "flow.flow_evaluation",
-    "flow.flow_summary",
-];
-
 /// An instant as PostgreSQL reads it.
 pub(crate) fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")
@@ -207,6 +200,7 @@ async fn end_rows(
                     AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)
                   ORDER BY flow_id FOR UPDATE"
             )))
+            .persistent(false)
             .bind(flows)
             .bind(at)
             .execute(&mut *conn)
@@ -220,6 +214,7 @@ async fn end_rows(
               WHERE flow_id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())
                 AND lower(valid_period) < coalesce($2::timestamptz, now())"
         )))
+        .persistent(false)
         .bind(flows)
         .bind(at)
         .bind(changeset)
@@ -230,6 +225,7 @@ async fn end_rows(
             "DELETE FROM {table}
               WHERE flow_id = ANY($1) AND lower(valid_period) >= coalesce($2::timestamptz, now())"
         )))
+        .persistent(false)
         .bind(flows)
         .bind(at)
         .execute(&mut *conn)
@@ -430,6 +426,7 @@ pub(crate) async fn load_many(
                 upper(valid_period), min(lower(valid_period)) OVER (PARTITION BY id)
            FROM flow.flow f WHERE id = ANY($1) ORDER BY id, lower(valid_period) DESC",
     )
+    .persistent(false)
     .bind(ids)
     .fetch_all(conn)
     .await
@@ -798,6 +795,7 @@ pub(crate) async fn read_states(
                FROM flow.flow_endpoint_address
               WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
         )
+        .persistent(false)
         .bind(flows)
         .bind(from)
         .fetch_all(&mut *conn)
@@ -825,6 +823,7 @@ pub(crate) async fn read_states(
            FROM flow.flow_evaluation
           WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
     )
+    .persistent(false)
     .bind(flows)
     .bind(from)
     .fetch_all(&mut *conn)
@@ -845,6 +844,7 @@ pub(crate) async fn read_states(
                FROM flow.flow_summary
               WHERE flow_id = ANY($1) AND valid_period && tstzrange($2, NULL)",
     )
+    .persistent(false)
     .bind(flows)
     .bind(from)
     .fetch_all(&mut *conn)
@@ -937,34 +937,95 @@ pub(crate) async fn read_states(
     Ok(all)
 }
 
-/// Rewrites the evaluation of each of `flows` from `from` on with its segments (design
-/// 011 « Réévaluation », step 3): the rows from `from` on are ended or removed, then each
-/// segment written with its addresses, one row per pair and its summary. One statement
-/// per table for the batch, the rows locked in the order of the flows (F13).
+/// What one derived table holds of `segments` from their start on: the pieces where it
+/// holds rows, contiguous equal pieces merged.
+fn view<T: PartialEq>(
+    segments: &[Segment],
+    of: impl Fn(&State) -> Option<T>,
+) -> Vec<(OffsetDateTime, Option<OffsetDateTime>, T)> {
+    let mut out: Vec<(OffsetDateTime, Option<OffsetDateTime>, T)> = Vec::new();
+    for s in segments {
+        let Some(held) = of(&s.state) else {
+            continue;
+        };
+        if let Some(last) = out.last_mut()
+            && last.1 == Some(s.from)
+            && last.2 == held
+        {
+            last.1 = s.to;
+            continue;
+        }
+        out.push((s.from, s.to, held));
+    }
+    out
+}
+
+/// Whether the table viewed through `of` holds other rows for `wanted` than for `held`.
+fn differs<T: PartialEq>(
+    held: &[Segment],
+    wanted: &[Segment],
+    of: impl Fn(&State) -> Option<T>,
+) -> bool {
+    view(held, &of) != view(wanted, &of)
+}
+
+/// Rewrites the evaluation of each of `flows`, its stored segments then those wanted,
+/// from `from` on (design 011 « Réévaluation », step 3): in each derived table whose rows
+/// change, the rows from `from` on are ended or removed, then each segment written with
+/// its addresses, one row per pair and its summary; a table whose rows hold is left as
+/// is. One statement per table for the batch, the rows locked in the order of the flows
+/// (F13).
 #[allow(clippy::too_many_lines)] // one batch per derived table
 pub(crate) async fn write_states(
     conn: &mut PgConnection,
-    flows: &[(Uuid, Vec<Segment>)],
+    flows: &[(Uuid, Vec<Segment>, Vec<Segment>)],
     from: OffsetDateTime,
     changeset: Uuid,
 ) -> Result<(), StoreError> {
     if flows.is_empty() {
         return Ok(());
     }
-    let ids: Vec<Uuid> = flows.iter().map(|(id, _)| *id).collect();
-    end_rows(conn, DERIVED, &ids, Some(from), changeset).await?;
-    let segments = || {
-        flows.iter().flat_map(|(flow, segments)| {
-            segments
-                .iter()
-                .filter(|s| !s.state.is_empty())
-                .map(move |s| (*flow, s))
+    let pick = |changed: &dyn Fn(&[Segment], &[Segment]) -> bool| -> BTreeSet<Uuid> {
+        flows
+            .iter()
+            .filter(|(_, held, wanted)| changed(held, wanted))
+            .map(|(id, _, _)| *id)
+            .collect()
+    };
+    let endpoints = pick(&|h, w| {
+        differs(h, w, |s| {
+            (!s.sources.is_empty() || !s.destinations.is_empty())
+                .then(|| (s.sources.clone(), s.destinations.clone()))
         })
+    });
+    let evaluations = pick(&|h, w| differs(h, w, |s| (!s.rows.is_empty()).then(|| s.rows.clone())));
+    let summaries = pick(&|h, w| differs(h, w, |s| s.summary.clone()));
+    for (table, ids) in [
+        ("flow.flow_endpoint_address", &endpoints),
+        ("flow.flow_evaluation", &evaluations),
+        ("flow.flow_summary", &summaries),
+    ] {
+        if !ids.is_empty() {
+            let ids: Vec<Uuid> = ids.iter().copied().collect();
+            end_rows(conn, &[table], &ids, Some(from), changeset).await?;
+        }
+    }
+    let segments = |of: &BTreeSet<Uuid>| {
+        flows
+            .iter()
+            .filter(|(id, _, _)| of.contains(id))
+            .flat_map(|(flow, _, segments)| {
+                segments
+                    .iter()
+                    .filter(|s| !s.state.is_empty())
+                    .map(move |s| (*flow, s))
+            })
+            .collect::<Vec<_>>()
     };
     // The addresses of the endpoints.
     let (mut flow_ids, mut sides, mut addresses, mut lowers, mut uppers) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for (flow, segment) in segments() {
+    for (flow, segment) in segments(&endpoints) {
         for (side, found) in [
             ("source", &segment.state.sources),
             ("destination", &segment.state.destinations),
@@ -998,7 +1059,7 @@ pub(crate) async fn write_states(
     }
     // One row per pair of addresses.
     let mut e = Evaluations::default();
-    for (flow, segment) in segments() {
+    for (flow, segment) in segments(&evaluations) {
         for row in &segment.state.rows {
             e.flows.push(flow);
             e.sources.push(row.source);
@@ -1051,7 +1112,7 @@ pub(crate) async fn write_states(
     let (mut flow_ids, mut verdicts, mut outcomes, mut allowed, mut denied) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let (mut lowers, mut uppers) = (Vec::new(), Vec::new());
-    for (flow, segment) in segments() {
+    for (flow, segment) in segments(&summaries) {
         if let Some(s) = &segment.state.summary {
             flow_ids.push(flow);
             verdicts.push(s.verdict.as_str());

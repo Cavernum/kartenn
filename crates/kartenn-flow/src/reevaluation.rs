@@ -286,12 +286,27 @@ async fn touched(
             }
         }
     }
+    // A flow is no endpoint nor service: its own differential (its anchor) names it only.
+    let objects: Vec<Uuid> = objects.difference(&written).copied().collect();
     let written: Vec<Uuid> = written.into_iter().collect();
-    let objects: Vec<Uuid> = objects.into_iter().collect();
     // A write of the policy concerns the flows of the services it may change the verdicts
     // of, or every flow (task 011-10).
     let policy = PolicyWrites::of(context.touched);
     let services = policy.services(conn).await?;
+    if !policy.everything && objects.is_empty() && services.is_empty() {
+        // The flows written only, through their index.
+        return sqlx::query_scalar(
+            "SELECT DISTINCT f.id FROM flow.flow f
+              WHERE f.id = ANY($1)
+                AND (upper(f.valid_period) IS NULL OR upper(f.valid_period) > now())
+              ORDER BY f.id",
+        )
+        .persistent(false)
+        .bind(&written)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e));
+    }
     sqlx::query_scalar(
         "SELECT DISTINCT f.id FROM flow.flow f
           WHERE (upper(f.valid_period) IS NULL OR upper(f.valid_period) > now())
@@ -427,6 +442,7 @@ async fn boundaries(
                 LATERAL (VALUES (lower(valid_period)), (upper(valid_period))) v(b)
           WHERE b > lower(r) AND (upper(r) IS NULL OR b < upper(r))",
     )
+    .persistent(false)
     .bind(&end_flows)
     .bind(&end_ids)
     .bind(&ids)
@@ -570,7 +586,7 @@ async fn reevaluate(
             before: state_at(&held, from),
             after: state_at(&wanted, from),
         });
-        writes.push((flow, wanted));
+        writes.push((flow, held, wanted));
     }
     pg::write_states(conn, &writes, now, changeset).await?;
     Ok(out)
