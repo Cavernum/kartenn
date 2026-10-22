@@ -262,3 +262,8 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
   le contrat).
 - Mois calendaires en UTC, jour borné à la fin du mois ; un flux sans paire d'adresses est
   `denied` et `noncompliant`.
+- Réévaluation (011-10) : lots de 512 flux, chaque étape lue en une requête par lot, les
+  flux d'un même instant évalués ensemble ; seules les tables dérivées dont les lignes
+  changent sont réécrites. La politique d'une révision validée est gardée par l'instance
+  (comme le cache des requêtes de la 010) ; une transaction qui a écrit la politique relit
+  la sienne. Index B-tree sur `flow_id` des tables dérivées (migration 0002 du module).
