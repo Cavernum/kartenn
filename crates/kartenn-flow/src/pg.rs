@@ -1262,3 +1262,65 @@ pub(crate) fn triage_json(evaluated: &Evaluated) -> Value {
         "pairs": evaluated.pairs.len(),
     })
 }
+
+/// The triage of a request as its completed operation keeps it (REQ-011-5, 21; F19): the
+/// summary of [`triage_json`], the unmet conditions, score and warnings of its decisive
+/// pair, and its evaluations by pair in the form of the answer of `POST /v1/flows`, the
+/// rules and conditions they name resolved at `at`. The read of the pending requests
+/// serves it as is, never recomputed.
+///
+/// # Errors
+///
+/// A failure of the database.
+pub(crate) async fn triage_of(
+    conn: &mut PgConnection,
+    evaluated: &Evaluated,
+    at: OffsetDateTime,
+) -> Result<Value, StoreError> {
+    let mut triage = triage_json(evaluated);
+    let state = states_of(conn, std::slice::from_ref(evaluated), at)
+        .await?
+        .pop()
+        .unwrap_or_default();
+    let revision = i64::try_from(evaluated.revision).unwrap_or(i64::MAX);
+    let worst = evaluated.summary.as_ref().and_then(|s| {
+        evaluated
+            .pairs
+            .iter()
+            .find(|p| p.evaluation.outcome == s.outcome)
+    });
+    let decisive = worst.and_then(|p| {
+        state
+            .rows
+            .iter()
+            .find(|r| r.source == p.source && r.destination == p.destination)
+    });
+    triage["unmet_conditions"] = json!(decisive.map(|r| r.unmet.clone()).unwrap_or_default());
+    triage["score"] = json!(decisive.and_then(|r| r.score));
+    let warnings: Vec<String> = worst
+        .into_iter()
+        .flat_map(|p| p.evaluation.signals.iter().map(ToString::to_string))
+        .collect();
+    triage["warnings"] = json!(warnings);
+    triage["evaluations"] = Value::Array(
+        state
+            .rows
+            .iter()
+            .map(|r| {
+                json!({
+                    "source": r.source,
+                    "destination": r.destination,
+                    "verdict": r.verdict,
+                    "outcome": r.outcome,
+                    "reason": r.reason,
+                    "decisive": r.decisive,
+                    "combination": r.combination,
+                    "unmet_conditions": r.unmet,
+                    "score": r.score,
+                    "policy_revision": revision,
+                })
+            })
+            .collect(),
+    );
+    Ok(triage)
+}

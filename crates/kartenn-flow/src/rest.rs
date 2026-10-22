@@ -8,7 +8,7 @@
 //! predicate of the core (ADR 0021); its requester reads it too, with the explanation
 //! reduced (REQ-010-25). A flow the caller may not read answers as an absent one.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, RawQuery, State};
@@ -25,7 +25,7 @@ use kartenn_rest::kit::{
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_store_pg::rbac::{ReadScope, readable};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sqlx::types::time::OffsetDateTime;
 use utoipa::ToSchema;
@@ -33,11 +33,12 @@ use utoipa::openapi::path::HttpMethod;
 use utoipa::openapi::{RefOr, Schema};
 use uuid::Uuid;
 
+use crate::handler::REVIEW;
 use crate::model::EndpointKind;
 use crate::module::{FLOW, flow_type};
 use crate::read::{
-    self, AxisValue, Dates, EvaluationView, FlowFilter, FlowView, Nonconformity,
-    NonconformityFilter,
+    self, AxisValue, Cursor, Dates, EvaluationView, FlowFilter, FlowView, Nonconformity,
+    NonconformityFilter, Review,
 };
 use crate::state::FlowState;
 
@@ -92,9 +93,15 @@ const FILTERS: &[(&str, &str)] = &[
     ("kind", "`requested` or `observed`."),
     (
         "state",
-        "`requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, \
-         `expired` or `withdrawn`.",
+        "One or more of `requested`, `rejected`, `scheduled`, `active`, `noncompliant`, \
+         `waived`, `expired` and `withdrawn`, separated by commas. Citing `requested` adds \
+         the requests pending a review, without identifier, after the applied flows.",
     ),
+    (
+        "review",
+        "`pending`: only the reviews pending, requests and extensions, with their triage.",
+    ),
+    ("changeset", "A proposal: only the rows pending its review."),
     ("summary", "`allowed`, `partial` or `denied`."),
     ("outcome", "`automatic`, `review` or `noncompliant`."),
     ("decisive", "The decisive rule or pattern of an evaluation."),
@@ -117,12 +124,15 @@ const NONCONFORMITY_FILTERS: &[&str] =
     &["entity", "requester", "rule", "from", "to", "state", "kind"];
 
 /// A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its
-/// derived state, summary and outcome at the date.
+/// derived state, summary and outcome at the date. A request pending a review (F19) has
+/// no identifier yet, and carries its `review`.
 #[derive(Debug, Serialize, ToSchema)]
 #[schema(as = Flow)]
 pub struct FlowDto {
-    /// Its identifier.
-    pub id: Uuid,
+    /// Its identifier; `null` for a request pending a review (the flow exists once
+    /// applied).
+    #[schema(required = true)]
+    pub id: Option<Uuid>,
     /// Its fields as stored: kind, endpoints, service, external references, justification,
     /// requester, entity…
     #[schema(value_type = Object)]
@@ -139,12 +149,63 @@ pub struct FlowDto {
     pub outcome: Option<String>,
     /// Whether a waiver covers the date.
     pub waived: bool,
+    /// The review the row awaits, for a request or an extension pending one (F19).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review: Option<ReviewDto>,
+}
+
+/// The review a row awaits (F19): the proposal to review, the kind of the change, and the
+/// triage that held it, as the operation keeps it, never recomputed.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = FlowReview)]
+pub struct ReviewDto {
+    /// The proposal to review.
+    pub changeset: Uuid,
+    /// `request` (a new flow) or `extension` (a later end of a flow).
+    pub kind: String,
+    /// The triage; `null` when the request named an endpoint not yet created.
+    pub triage: Option<TriageDto>,
+}
+
+/// The triage of a request (REQ-011-21), as its operation keeps it. Reduced for a reader
+/// without the read of the flow (REQ-010-25): the decisive element and the addresses are
+/// not named.
+#[derive(Debug, Default, Serialize, Deserialize, ToSchema)]
+#[schema(as = FlowTriage)]
+pub struct TriageDto {
+    /// `allowed`, `partial` or `denied`; `null` when an endpoint holds no address.
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// `automatic`, `review` or `noncompliant`.
+    #[serde(default)]
+    pub outcome: Option<String>,
+    /// The decisive element of the worst pair; `null` when reduced.
+    #[serde(default)]
+    pub decisive: Option<String>,
+    /// The key of the decisive rule, if any.
+    #[serde(default)]
+    pub rule: Option<String>,
+    /// The conditions not met by the decisive pair.
+    #[serde(default)]
+    pub unmet_conditions: Vec<Uuid>,
+    /// The informative score of the decisive pair.
+    #[serde(default)]
+    pub score: Option<i32>,
+    /// The warnings (risk signals) of the decisive pair.
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// The revision of the policy it was computed against.
+    #[serde(default, rename(deserialize = "revision"))]
+    pub policy_revision: Option<i64>,
+    /// The evaluations by pair of addresses.
+    #[serde(default)]
+    pub evaluations: Vec<EvaluationDto>,
 }
 
 /// An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never
 /// recomputed. Reduced for a requester without the read of the flow (REQ-010-25): the
 /// addresses and the decisive element are not named.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[schema(as = FlowEvaluation)]
 pub struct EvaluationDto {
     /// The source address; `null` when reduced.
@@ -283,7 +344,24 @@ fn rfc3339(at: OffsetDateTime) -> String {
         .expect("an instant formats")
 }
 
-fn flow_dto(view: FlowView) -> FlowDto {
+/// A row as served; the triage of a review reduced when `reduced` (REQ-010-25).
+fn flow_dto(view: FlowView, reduced: bool) -> FlowDto {
+    let review = view.review.map(|r| ReviewDto {
+        changeset: r.changeset,
+        kind: r.kind.to_owned(),
+        triage: r.triage.map(|t| {
+            let mut triage: TriageDto = serde_json::from_value(t).unwrap_or_default();
+            if reduced {
+                triage.decisive = None;
+                for e in &mut triage.evaluations {
+                    e.source = None;
+                    e.destination = None;
+                    e.decisive = None;
+                }
+            }
+            triage
+        }),
+    });
     FlowDto {
         id: view.id,
         fields: view.flow,
@@ -293,6 +371,7 @@ fn flow_dto(view: FlowView) -> FlowDto {
         summary: view.summary,
         outcome: view.outcome,
         waived: view.waived,
+        review,
     }
 }
 
@@ -406,9 +485,19 @@ fn filter_of(wanted: &BTreeMap<&str, &str>) -> Result<FlowFilter, Problem> {
                 other => return Err(kit::bad(format!("{other} is not a kind of flow"))),
             },
             "state" => {
-                filter.state =
-                    Some(state(value).ok_or_else(|| kit::bad(format!("{value} is not a state")))?);
+                for name in value.split(',') {
+                    let state =
+                        state(name).ok_or_else(|| kit::bad(format!("{name} is not a state")))?;
+                    if !filter.states.contains(&state) {
+                        filter.states.push(state);
+                    }
+                }
             }
+            "review" => match value {
+                "pending" => filter.review_pending = true,
+                other => return Err(kit::bad(format!("review is `pending`, not {other}"))),
+            },
+            "changeset" => filter.changeset = Some(uuid(name, value)?),
             "summary" => match value {
                 "allowed" | "partial" | "denied" => filter.summary = Some(value.to_owned()),
                 other => return Err(kit::bad(format!("{other} is not a summary"))),
@@ -515,28 +604,44 @@ async fn page_of<F, Fut>(
     fetch: F,
 ) -> Result<Response, Problem>
 where
-    F: FnOnce(Dates, Option<Uuid>, i64, Page) -> Fut,
+    F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
     Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page), Problem>>,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
-    let after = page
-        .after()
-        .map(|key| serde_json::from_value::<Uuid>(key.clone()))
-        .transpose()
-        .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?;
+    let after = page.after().map(cursor_of).transpose()?;
     let (moment, scope) = reading(api, principal, &page).await?;
     let size = usize::from(page.size);
     let (mut rows, page) = fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
-        let last = rows[size - 1].id;
-        let cursor = page.next(&api.ring, collection, &moment, json!(last));
+        let cursor = page.next(
+            &api.ring,
+            collection,
+            &moment,
+            cursor_json(rows[size - 1].cursor()),
+        );
         next_href(path, &cursor)
     });
-    let ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let ids: Vec<Uuid> = rows.iter().filter_map(|r| r.id).collect();
     let seen = visible(api, &scope, principal, moment.valid_at, &ids).await?;
-    rows.retain(|r| seen.contains(&r.id));
-    let ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
+    let mut items = Vec::with_capacity(rows.len());
+    let (mut ids, mut changesets) = (Vec::new(), Vec::new());
+    for row in rows {
+        match (row.id, &row.review) {
+            (Some(id), _) if seen.contains(&id) => {
+                ids.push(id);
+                items.push(flow_dto(row, false));
+            }
+            (None, Some(review)) => {
+                if let Some(&reduced) = reviews.get(&(review.changeset, review.ordinal)) {
+                    changesets.push(review.changeset);
+                    items.push(flow_dto(row, reduced));
+                }
+            }
+            _ => {}
+        }
+    }
     kit::record_read(
         api,
         context,
@@ -547,11 +652,72 @@ where
             "filters": page.filters,
             "valid_at": rfc3339(moment.valid_at),
             "as_of": rfc3339(moment.as_of()),
+            "changesets": changesets,
         }),
     )
     .await?;
-    let items: Vec<FlowDto> = rows.into_iter().map(flow_dto).collect();
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
+}
+
+/// The cursor of a page: the identifier of the last flow, or `{changeset, ordinal}` of
+/// the last request pending a review (F19).
+fn cursor_json(cursor: Cursor) -> Value {
+    match cursor {
+        Cursor::Flow(id) => json!(id),
+        Cursor::Pending { changeset, ordinal } => {
+            json!({ "changeset": changeset, "ordinal": ordinal })
+        }
+    }
+}
+
+fn cursor_of(key: &Value) -> Result<Cursor, Problem> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Pending {
+        changeset: Uuid,
+        ordinal: i32,
+    }
+    if let Ok(id) = serde_json::from_value::<Uuid>(key.clone()) {
+        return Ok(Cursor::Flow(id));
+    }
+    serde_json::from_value::<Pending>(key.clone())
+        .map(|p| Cursor::Pending {
+            changeset: p.changeset,
+            ordinal: p.ordinal,
+        })
+        .map_err(|_| Problem::new(ProblemKind::InvalidCursor))
+}
+
+/// The requests pending a review among `rows` the caller reads, by proposal and rank,
+/// each with whether its triage is reduced (F19, REQ-011-17): under `flow.flow.read` or
+/// `flow.flow.review` on the entity of the request, in full; as its requester, reduced
+/// (REQ-010-25).
+async fn reviews_seen(
+    api: &Api,
+    scope: &ReadScope,
+    principal: &Principal,
+    at: OffsetDateTime,
+    rows: &[FlowView],
+) -> Result<HashMap<(Uuid, i32), bool>, Problem> {
+    let reviews: Vec<&Review> = rows.iter().filter_map(|r| r.review.as_ref()).collect();
+    if reviews.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let entities: Vec<Uuid> = reviews.iter().filter_map(|r| r.entity).collect();
+    let readable = readable_entities(api, scope, at, &entities).await?;
+    let reviewer = api
+        .authorizer()
+        .visibility(&principal.subject(), REVIEW, at)
+        .await?;
+    Ok(reviews
+        .into_iter()
+        .filter_map(|r| {
+            let full = r.entity.is_some_and(|e| {
+                readable.contains(&e) || reviewer.global || reviewer.entities.contains(&e)
+            });
+            (full || r.requester == principal.identity).then_some(((r.changeset, r.ordinal), !full))
+        })
+        .collect())
 }
 
 /// `GET`/`QUERY /v1/flows`: by identifier, filtered (REQ-011-14), those the caller reads.
@@ -607,6 +773,13 @@ async fn of_object(
         &path,
         |dates, after, limit, page| async move {
             wanted(&page, &[])?;
+            let after = match after {
+                None => None,
+                Some(Cursor::Flow(id)) => Some(id),
+                Some(Cursor::Pending { .. }) => {
+                    return Err(Problem::new(ProblemKind::InvalidCursor));
+                }
+            };
             let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
             let rows = read::of_object(&mut conn, dates, kind, id, after, limit).await?;
             Ok((rows, page))
@@ -646,9 +819,16 @@ async fn flow_at(api: &Api, id: Uuid, moment: &Moment) -> Result<FlowView, Probl
     // The list ordered by identifier from the one before `id`: its first row is `id` when
     // it lives at the date.
     let before = predecessor(id);
-    let rows = read::flows(&mut conn, dates(moment), &FlowFilter::default(), before, 1).await?;
+    let rows = read::flows(
+        &mut conn,
+        dates(moment),
+        &FlowFilter::default(),
+        before.map(Cursor::Flow),
+        1,
+    )
+    .await?;
     rows.into_iter()
-        .find(|r| r.id == id)
+        .find(|r| r.id == Some(id))
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))
 }
 
@@ -681,7 +861,7 @@ async fn show(
         &headers,
         &moment,
         &ETag::version(version),
-        Json(flow_dto(view)),
+        Json(flow_dto(view, false)),
     ))
 }
 
@@ -849,7 +1029,7 @@ async fn request(
     let now = kit::now(&api).await?;
     let moment = DateParams::default().at(now, api.bound)?;
     if let Ok(view) = flow_at(&api, id, &moment).await {
-        answer.insert("flow".into(), json!(flow_dto(view)));
+        answer.insert("flow".into(), json!(flow_dto(view, false)));
     }
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
     let evaluations: Vec<EvaluationDto> = read::evaluations(&mut conn, dates(&moment), id)
@@ -867,6 +1047,8 @@ async fn request(
 fn schemas() -> Vec<(String, RefOr<Schema>)> {
     let mut schemas = Vec::new();
     schemas_of::<FlowDto>(&mut schemas);
+    schemas_of::<ReviewDto>(&mut schemas);
+    schemas_of::<TriageDto>(&mut schemas);
     schemas_of::<EvaluationDto>(&mut schemas);
     schemas_of::<NonconformityDto>(&mut schemas);
     schemas_of::<FlowRequestDto>(&mut schemas);

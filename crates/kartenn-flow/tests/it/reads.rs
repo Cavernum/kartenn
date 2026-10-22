@@ -38,7 +38,7 @@ async fn list(pool: &PgPool, filter: FlowFilter) -> Vec<Uuid> {
         .await
         .unwrap()
         .into_iter()
-        .map(|v| v.id)
+        .filter_map(|v| v.id)
         .collect()
 }
 
@@ -164,7 +164,7 @@ async fn filter_by_state_summary_outcome_decisive_waiver_and_end(pool: PgPool) {
     let t = two(&pool).await;
     for filter in [
         FlowFilter {
-            state: Some(FlowState::Active),
+            states: vec![FlowState::Active],
             ..FlowFilter::default()
         },
         FlowFilter {
@@ -183,7 +183,7 @@ async fn filter_by_state_summary_outcome_decisive_waiver_and_end(pool: PgPool) {
         assert_eq!(list(&pool, filter).await.len(), 2);
     }
     let noncompliant = FlowFilter {
-        state: Some(FlowState::Noncompliant),
+        states: vec![FlowState::Noncompliant],
         ..FlowFilter::default()
     };
     assert!(list(&pool, noncompliant).await.is_empty());
@@ -242,7 +242,7 @@ async fn filter_by_subtree_axis_and_machine(pool: PgPool) {
             .await
             .unwrap()
             .into_iter()
-            .map(|v: FlowView| v.id)
+            .filter_map(|v: FlowView| v.id)
             .collect();
     assert_eq!(of_network, [t.first]);
     drop(conn);
@@ -387,7 +387,7 @@ async fn a_requester_sees_their_nonconformities_only(pool: PgPool) {
     .unwrap();
     assert!(theirs.is_empty());
     let noncompliant = FlowFilter {
-        state: Some(FlowState::Noncompliant),
+        states: vec![FlowState::Noncompliant],
         ..FlowFilter::default()
     };
     drop(conn);

@@ -4309,7 +4309,8 @@ export interface components {
     };
     /**
      * @description A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its
-     *     derived state, summary and outcome at the date.
+     *     derived state, summary and outcome at the date. A request pending a review (F19) has
+     *     no identifier yet, and carries its `review`.
      */
     Flow: {
       /**
@@ -4319,11 +4320,13 @@ export interface components {
       fields: Record<string, never>;
       /**
        * Format: uuid
-       * @description Its identifier.
+       * @description Its identifier; `null` for a request pending a review (the flow exists once
+       *     applied).
        */
-      id: string;
+      id: string | null;
       /** @description Its outcome at the date, if evaluated there. */
       outcome?: string | null;
+      review?: components["schemas"]["FlowReview"] | null;
       /** @description Its derived state at the date. */
       state: string;
       /** @description Its summary at the date, if evaluated there. */
@@ -4467,6 +4470,51 @@ export interface components {
        *     "id": { "id": … } }`.
        */
       source: Record<string, never>;
+    };
+    /**
+     * @description The review a row awaits (F19): the proposal to review, the kind of the change, and the
+     *     triage that held it, as the operation keeps it, never recomputed.
+     */
+    FlowReview: {
+      /**
+       * Format: uuid
+       * @description The proposal to review.
+       */
+      changeset: string;
+      /** @description `request` (a new flow) or `extension` (a later end of a flow). */
+      kind: string;
+      triage?: components["schemas"]["FlowTriage"] | null;
+    };
+    /**
+     * @description The triage of a request (REQ-011-21), as its operation keeps it. Reduced for a reader
+     *     without the read of the flow (REQ-010-25): the decisive element and the addresses are
+     *     not named.
+     */
+    FlowTriage: {
+      /** @description The decisive element of the worst pair; `null` when reduced. */
+      decisive?: string | null;
+      /** @description The evaluations by pair of addresses. */
+      evaluations?: components["schemas"]["FlowEvaluation"][];
+      /** @description `automatic`, `review` or `noncompliant`. */
+      outcome?: string | null;
+      /**
+       * Format: int64
+       * @description The revision of the policy it was computed against.
+       */
+      policy_revision?: number | null;
+      /** @description The key of the decisive rule, if any. */
+      rule?: string | null;
+      /**
+       * Format: int32
+       * @description The informative score of the decisive pair.
+       */
+      score?: number | null;
+      /** @description `allowed`, `partial` or `denied`; `null` when an endpoint holds no address. */
+      summary?: string | null;
+      /** @description The conditions not met by the decisive pair. */
+      unmet_conditions?: string[];
+      /** @description The warnings (risk signals) of the decisive pair. */
+      warnings?: string[];
     };
     /** @description The body of `POST /v1/flows/{id}/waiver` (REQ-011-9). */
     FlowWaiver: {
@@ -10712,8 +10760,12 @@ export interface operations {
         flow_type?: string;
         /** @description `requested` or `observed`. */
         kind?: string;
-        /** @description `requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` or `withdrawn`. */
+        /** @description One or more of `requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` and `withdrawn`, separated by commas. Citing `requested` adds the requests pending a review, without identifier, after the applied flows. */
         state?: string;
+        /** @description `pending`: only the reviews pending, requests and extensions, with their triage. */
+        review?: string;
+        /** @description A proposal: only the rows pending its review. */
+        changeset?: string;
         /** @description `allowed`, `partial` or `denied`. */
         summary?: string;
         /** @description `automatic`, `review` or `noncompliant`. */

@@ -1845,22 +1845,36 @@
         "type": "object"
       },
       "Flow": {
-        "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date.",
+        "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date. A request pending a review (F19) has\nno identifier yet, and carries its `review`.",
         "properties": {
           "fields": {
             "description": "Its fields as stored: kind, endpoints, service, external references, justification,\nrequester, entity…",
             "type": "object"
           },
           "id": {
-            "description": "Its identifier.",
+            "description": "Its identifier; `null` for a request pending a review (the flow exists once\napplied).",
             "format": "uuid",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "outcome": {
             "description": "Its outcome at the date, if evaluated there.",
             "type": [
               "string",
               "null"
+            ]
+          },
+          "review": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlowReview",
+                "description": "The review the row awaits, for a request or an extension pending one (F19)."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "state": {
@@ -2221,6 +2235,108 @@
           "data_nature",
           "entity"
         ],
+        "type": "object"
+      },
+      "FlowReview": {
+        "description": "The review a row awaits (F19): the proposal to review, the kind of the change, and the\ntriage that held it, as the operation keeps it, never recomputed.",
+        "properties": {
+          "changeset": {
+            "description": "The proposal to review.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`request` (a new flow) or `extension` (a later end of a flow).",
+            "type": "string"
+          },
+          "triage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlowTriage",
+                "description": "The triage; `null` when the request named an endpoint not yet created."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "changeset",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "FlowTriage": {
+        "description": "The triage of a request (REQ-011-21), as its operation keeps it. Reduced for a reader\nwithout the read of the flow (REQ-010-25): the decisive element and the addresses are\nnot named.",
+        "properties": {
+          "decisive": {
+            "description": "The decisive element of the worst pair; `null` when reduced.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evaluations": {
+            "description": "The evaluations by pair of addresses.",
+            "items": {
+              "$ref": "#/components/schemas/FlowEvaluation"
+            },
+            "type": "array"
+          },
+          "outcome": {
+            "description": "`automatic`, `review` or `noncompliant`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy_revision": {
+            "description": "The revision of the policy it was computed against.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rule": {
+            "description": "The key of the decisive rule, if any.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "description": "The informative score of the decisive pair.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "summary": {
+            "description": "`allowed`, `partial` or `denied`; `null` when an endpoint holds no address.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unmet_conditions": {
+            "description": "The conditions not met by the decisive pair.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "description": "The warnings (risk signals) of the decisive pair.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "FlowWaiver": {
@@ -15799,9 +15915,27 @@
             }
           },
           {
-            "description": "`requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` or `withdrawn`.",
+            "description": "One or more of `requested`, `rejected`, `scheduled`, `active`, `noncompliant`, `waived`, `expired` and `withdrawn`, separated by commas. Citing `requested` adds the requests pending a review, without identifier, after the applied flows.",
             "in": "query",
             "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`pending`: only the reviews pending, requests and extensions, with their triage.",
+            "in": "query",
+            "name": "review",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A proposal: only the rows pending its review.",
+            "in": "query",
+            "name": "changeset",
             "required": false,
             "schema": {
               "type": "string"

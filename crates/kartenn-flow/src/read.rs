@@ -1,7 +1,8 @@
 //! Reads of the registry (task 011-7; REQ-011-14, 15, 16, 25; design 011 « Lecture et
 //! filtres », « Non-conformités »): the flows at a date filtered by their fields, the
 //! flows of an object, the evaluations of a flow at (`valid_at`, `as_of`) without
-//! recomputing, and the non-conformities.
+//! recomputing, and the non-conformities. On request, the list adds the requests pending a
+//! review at `as_of`, read in their proposals with their triage (task 011-12, F19).
 //!
 //! The rights are the routes' (task 011-9): these reads filter nothing by the reader,
 //! except the non-conformities, which [`NonconformityFilter::requester`] narrows to the
@@ -13,6 +14,7 @@ use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgConnection, Postgres, QueryBuilder, Row};
 use uuid::Uuid;
 
+use crate::handler;
 use crate::model::EndpointKind;
 use crate::pg::{self, store};
 use crate::state::{Creation, FlowState, StateFacts, Summary, state_at};
@@ -52,8 +54,13 @@ pub struct FlowFilter {
     pub flow_type: Option<Uuid>,
     /// `requested` or `observed`.
     pub kind: Option<String>,
-    /// The derived state at the date.
-    pub state: Option<FlowState>,
+    /// The derived states at the date, any of them; none for any state. Citing
+    /// `requested` adds the requests pending at `as_of` (F19).
+    pub states: Vec<FlowState>,
+    /// Only the reviews pending at `as_of`, requests and extensions (`review=pending`, F19).
+    pub review_pending: bool,
+    /// Only the pending rows of this proposal (`changeset=<id>`, F19).
+    pub changeset: Option<Uuid>,
     /// The summary at the date.
     pub summary: Option<String>,
     /// The outcome at the date.
@@ -74,11 +81,157 @@ pub struct FlowFilter {
     pub axis: Option<AxisValue>,
 }
 
-/// A flow as listed: its fields, its derived state and its summary at the date.
+impl FlowFilter {
+    /// Whether the rows pending a review are read (F19): on request only, `requested`
+    /// cited, `review=pending` or `changeset=<id>`, and no state cited that excludes them.
+    #[must_use]
+    pub fn wants_pending(&self) -> bool {
+        let requested = self.states.contains(&FlowState::Requested);
+        (self.states.is_empty() || requested)
+            && (requested || self.review_pending || self.changeset.is_some())
+    }
+
+    /// Whether the applied flows are read: not for the pending reviews nor a proposal, nor
+    /// when `requested` is the only state cited (an applied flow never is).
+    #[must_use]
+    pub fn wants_applied(&self) -> bool {
+        !self.review_pending
+            && self.changeset.is_none()
+            && (self.states.is_empty() || self.states.iter().any(|s| *s != FlowState::Requested))
+    }
+
+    /// Whether a row pending a review passes the filters (F19), read in the request and
+    /// its triage; a filter on the expanded addresses, a machine or an axis excludes it (no
+    /// address is expanded before the application). `services`: those of the flow type
+    /// filtered.
+    fn passes(&self, row: &FlowView, services: Option<&[Uuid]>) -> bool {
+        let Some(review) = &row.review else {
+            return false;
+        };
+        if self.within_prefix.is_some() || self.machine.is_some() || self.axis.is_some() {
+            return false;
+        }
+        let f = &row.flow;
+        let id_at = |key: &str| f.get(key).and_then(|v| v.as_str()?.parse::<Uuid>().ok());
+        let text_at = |key: &str| f.get(key).and_then(Value::as_str);
+        if let Some((kind, id)) = self.endpoint {
+            let name = pg::kind_name(kind);
+            let side = |s: &str| {
+                text_at(&format!("{s}_kind")) == Some(name) && id_at(&format!("{s}_id")) == Some(id)
+            };
+            if !side("source") && !side("destination") {
+                return false;
+            }
+        }
+        let service = id_at("service_id");
+        if self.service.is_some() && service != self.service {
+            return false;
+        }
+        if services.is_some_and(|s| !service.is_some_and(|id| s.contains(&id))) {
+            return false;
+        }
+        if self
+            .kind
+            .as_deref()
+            .is_some_and(|k| text_at("kind") != Some(k))
+        {
+            return false;
+        }
+        if self.summary.is_some() && row.summary != self.summary {
+            return false;
+        }
+        if self.outcome.is_some() && row.outcome != self.outcome {
+            return false;
+        }
+        if let Some(decisive) = self.decisive {
+            let decisive = decisive.to_string();
+            let named = review
+                .triage
+                .as_ref()
+                .and_then(|t| t.get("evaluations"))
+                .and_then(Value::as_array)
+                .is_some_and(|pairs| {
+                    pairs
+                        .iter()
+                        .any(|p| p.get("decisive").and_then(Value::as_str) == Some(&decisive))
+                });
+            if !named {
+                return false;
+            }
+        }
+        if self.waived == Some(true) {
+            return false;
+        }
+        if self
+            .ending_before
+            .is_some_and(|before| row.end.is_none_or(|end| end >= before))
+        {
+            return false;
+        }
+        if self.entity.is_some() && review.entity != self.entity {
+            return false;
+        }
+        if self.requester.is_some_and(|r| r != review.requester) {
+            return false;
+        }
+        if let Some((system, id)) = &self.external_ref {
+            let system = system.to_string();
+            let cited = f
+                .get("external_refs")
+                .and_then(Value::as_array)
+                .is_some_and(|refs| {
+                    refs.iter().any(|r| {
+                        r.get("system").and_then(Value::as_str) == Some(&system)
+                            && r.get("id").and_then(Value::as_str) == Some(id.as_str())
+                    })
+                });
+            if !cited {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+/// Where a page of flows starts again: after an applied flow, or after a row pending a
+/// review (F19), the rows pending following the applied flows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cursor {
+    /// After the applied flow of this identifier.
+    Flow(Uuid),
+    /// After the operation `ordinal` of the proposal `changeset`.
+    Pending {
+        /// The proposal.
+        changeset: Uuid,
+        /// The rank of the operation in the proposal.
+        ordinal: i32,
+    },
+}
+
+/// The review a row awaits (F19): its proposal, the kind of the change, and the triage its
+/// completed operation keeps, never recomputed.
+#[derive(Debug, Clone)]
+pub struct Review {
+    /// The proposal to review.
+    pub changeset: Uuid,
+    /// The rank of the operation in the proposal.
+    pub ordinal: i32,
+    /// `request` (a new flow) or `extension` (a later end of a flow, F20).
+    pub kind: &'static str,
+    /// The triage as the completed operation keeps it, if the request was triaged.
+    pub triage: Option<Value>,
+    /// The entity of the request, when named by identifier.
+    pub entity: Option<Uuid>,
+    /// The requester: the identity the proposal is for.
+    pub requester: Uuid,
+}
+
+/// A flow as listed: its fields, its derived state and its summary at the date; or a
+/// request pending a review, without identifier, with its review (F19).
 #[derive(Debug, Clone)]
 pub struct FlowView {
-    /// Its identifier.
-    pub id: Uuid,
+    /// Its identifier; `None` for a request pending a review.
+    pub id: Option<Uuid>,
     /// Its last version as asserted, as stored (without its period).
     pub flow: Value,
     /// The start of its period.
@@ -93,6 +246,22 @@ pub struct FlowView {
     pub outcome: Option<String>,
     /// Whether a waiver covers the date.
     pub waived: bool,
+    /// The review it awaits, for a row pending one (F19).
+    pub review: Option<Review>,
+}
+
+impl FlowView {
+    /// The cursor after this row.
+    #[must_use]
+    pub fn cursor(&self) -> Cursor {
+        match (&self.review, self.id) {
+            (Some(r), None) => Cursor::Pending {
+                changeset: r.changeset,
+                ordinal: r.ordinal,
+            },
+            (_, id) => Cursor::Flow(id.unwrap_or_default()),
+        }
+    }
 }
 
 /// The name a state is shown under.
@@ -140,13 +309,214 @@ fn dated_query(dates: Dates, head: &str) -> QueryBuilder<Postgres> {
 }
 
 /// The flows at `dates` that pass `filter`, ordered by identifier, at most `limit` after
-/// `after` (REQ-011-14).
+/// `after` (REQ-011-14); then, when the filter asks for them, the requests pending a review
+/// at `as_of`, by proposal and rank of operation (REQ-011-5, F19).
 ///
 /// # Errors
 ///
 /// A failure of the database.
-#[allow(clippy::too_many_lines)] // one clause per filter of REQ-011-14
 pub async fn flows(
+    conn: &mut PgConnection,
+    dates: Dates,
+    filter: &FlowFilter,
+    after: Option<Cursor>,
+    limit: i64,
+) -> Result<Vec<FlowView>, StoreError> {
+    let mut out = Vec::new();
+    let in_pending = matches!(after, Some(Cursor::Pending { .. }));
+    if filter.wants_applied() && !in_pending {
+        let after = match after {
+            Some(Cursor::Flow(id)) => Some(id),
+            _ => None,
+        };
+        out = applied(conn, dates, filter, after, limit).await?;
+    }
+    let left = limit - i64::try_from(out.len()).unwrap_or(i64::MAX);
+    if filter.wants_pending() && left > 0 {
+        let after = match after {
+            Some(Cursor::Pending { changeset, ordinal }) => Some((changeset, ordinal)),
+            _ => None,
+        };
+        out.extend(pending(conn, dates, filter, after, left).await?);
+    }
+    Ok(out)
+}
+
+/// The proposals pending at `as_of` (now when null, `$1`), of the kind `proposal`:
+/// submitted before, not ended then (004). A proposal pending at a date expires after it: the bound
+/// keeps the history read short; the end of a proposal not applied is the instant of its
+/// event in the journal (012), or its submission when the journal no longer holds it.
+const PENDING_NOW: &str = "c.kind = 'proposal' AND c.state = 'pending'";
+const PENDING_AT: &str = "c.kind = 'proposal' AND c.submitted_at <= $1::timestamptz
+    AND (c.expires_at IS NULL OR c.expires_at > $1::timestamptz)
+    AND (c.state = 'pending'
+      OR (c.state = 'applied' AND c.applied_at > $1::timestamptz)
+      OR (c.state NOT IN ('pending', 'applied') AND coalesce(
+            (SELECT min(e.occurred_at) FROM audit.event e
+              WHERE e.target_ids @> ARRAY[c.id]
+                AND e.name IN ('changeset.state.rejected', 'changeset.state.withdrawn',
+                               'changeset.state.expired', 'changeset.state.stale')),
+            c.submitted_at) > $1::timestamptz))";
+
+/// The requests pending a review at `dates.as_of` that pass `filter`, by proposal and rank
+/// of operation, at most `limit` after `after` (F19): each one as its completed operation
+/// keeps it, with its triage, never recomputed; `valid_at` does not set them aside.
+///
+/// # Errors
+///
+/// A failure of the database.
+async fn pending(
+    conn: &mut PgConnection,
+    dates: Dates,
+    filter: &FlowFilter,
+    after: Option<(Uuid, i32)>,
+    limit: i64,
+) -> Result<Vec<FlowView>, StoreError> {
+    type PendingRow = (Uuid, i32, Value, Uuid, OffsetDateTime);
+    let rows: Vec<PendingRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT c.id, (o.ordinal - 1)::int, b.body, coalesce(c.on_behalf_of, c.author_id),
+                c.submitted_at
+           FROM changeset c
+           CROSS JOIN LATERAL jsonb_array_elements(c.request -> 'operations')
+                WITH ORDINALITY AS o(op, ordinal)
+           CROSS JOIN LATERAL (SELECT jsonb_path_query_first(
+                o.op, 'lax $.** ? (@.op == \"flow.request\")') AS body) b
+          WHERE {} AND b.body IS NOT NULL
+            AND ($2::uuid IS NULL OR c.id = $2)
+            AND ($3::uuid IS NULL OR (c.id, o.ordinal - 1) > ($3, $4::int))
+          ORDER BY c.id, o.ordinal",
+        if dates.as_of.is_some() {
+            PENDING_AT
+        } else {
+            PENDING_NOW
+        }
+    )))
+    .bind(dates.as_of)
+    .bind(filter.changeset)
+    .bind(after.map(|(c, _)| c))
+    .bind(after.map_or(0, |(_, o)| o))
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    let services: Option<Vec<Uuid>> = match filter.flow_type {
+        Some(flow_type) => Some(
+            sqlx::query_scalar(
+                "SELECT id FROM policy.policy_service
+                  WHERE flow_type_id = $1 AND valid_period @> $2",
+            )
+            .bind(flow_type)
+            .bind(dates.valid_at)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?,
+        ),
+        None => None,
+    };
+    let state = state_name(state_at(
+        &StateFacts {
+            creation: Creation::Pending,
+            period: kartenn_core::period::Period::new(pg::instant(dates.valid_at), None)
+                .map_err(|e| StoreError(e.to_string()))?,
+            closed_early: false,
+            summary: None,
+            waived: false,
+        },
+        pg::instant(dates.valid_at),
+    ));
+    let mut out = Vec::new();
+    for (changeset, ordinal, body, requester, submitted) in rows {
+        let Value::Object(body) = body else {
+            continue;
+        };
+        let row = pending_view(changeset, ordinal, &body, requester, submitted, state);
+        if !filter.passes(&row, services.as_deref()) {
+            continue;
+        }
+        out.push(row);
+        if i64::try_from(out.len()).unwrap_or(i64::MAX) >= limit {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+/// A request pending a review as listed (F19): its fields in the form of a stored flow,
+/// without identifier, its period as completed, and its review.
+fn pending_view(
+    changeset: Uuid,
+    ordinal: i32,
+    body: &serde_json::Map<String, Value>,
+    requester: Uuid,
+    submitted: OffsetDateTime,
+    state: &'static str,
+) -> FlowView {
+    let completed = body.get("completed");
+    let micros = |key: &str| {
+        completed
+            .and_then(|c| c.get(key))
+            .and_then(Value::as_i64)
+            .map(|m| pg::time(kartenn_core::period::Instant(m)))
+    };
+    let triage = completed
+        .and_then(|c| c.get("triage"))
+        .filter(|t| t.is_object())
+        .cloned();
+    let side = |name: &str| {
+        let kind = body
+            .get(name)
+            .and_then(|e| e.get("kind"))
+            .and_then(Value::as_str);
+        (kind, handler::endpoint_id(body, name).map(|(_, id)| id))
+    };
+    let (source_kind, source_id) = side("source");
+    let (destination_kind, destination_id) = side("destination");
+    let entity = handler::id_of(body, "entity");
+    let text = |key: &str| {
+        triage
+            .as_ref()
+            .and_then(|t| t.get(key))
+            .and_then(Value::as_str)
+    };
+    let flow = json!({
+        "id": null,
+        "kind": body.get("kind").and_then(Value::as_str).unwrap_or("requested"),
+        "source_kind": source_kind,
+        "source_id": source_id,
+        "destination_kind": destination_kind,
+        "destination_id": destination_id,
+        "service_id": handler::id_of(body, "service"),
+        "external_refs": body.get("external_refs").cloned().unwrap_or_else(|| json!([])),
+        "justification": body.get("justification"),
+        "requester_id": requester,
+        "on_behalf_of": body.get("on_behalf_of"),
+        "entity_id": entity,
+        "reviewed_by": null,
+        "changeset_id": changeset,
+    });
+    FlowView {
+        id: None,
+        flow,
+        start: micros("start").unwrap_or(submitted),
+        end: micros("end"),
+        state,
+        summary: text("summary").map(str::to_owned),
+        outcome: Some(text("outcome").unwrap_or("review").to_owned()),
+        waived: false,
+        review: Some(Review {
+            changeset,
+            ordinal,
+            kind: "request",
+            triage,
+            entity,
+            requester,
+        }),
+    }
+}
+
+/// The applied flows at `dates` that pass `filter`, ordered by identifier, at most `limit`
+/// after `after` (REQ-011-14).
+#[allow(clippy::too_many_lines)] // one clause per filter of REQ-011-14
+async fn applied(
     conn: &mut PgConnection,
     dates: Dates,
     filter: &FlowFilter,
@@ -341,7 +711,7 @@ pub async fn flows(
     }
     q.push(" ORDER BY f.id");
     // The state is derived in memory: the page is cut after it.
-    if filter.state.is_none() {
+    if filter.states.is_empty() {
         q.push(" LIMIT ");
         q.push_bind(limit);
     }
@@ -370,11 +740,11 @@ pub async fn flows(
             },
             at,
         );
-        if filter.state.is_some_and(|s| s != state) {
+        if !filter.states.is_empty() && !filter.states.contains(&state) {
             continue;
         }
         out.push(FlowView {
-            id: row.try_get("id").map_err(|e| store(&e))?,
+            id: Some(row.try_get("id").map_err(|e| store(&e))?),
             flow: row.try_get("flow").map_err(|e| store(&e))?,
             start,
             end,
@@ -382,6 +752,7 @@ pub async fn flows(
             summary,
             outcome: row.try_get("outcome").map_err(|e| store(&e))?,
             waived: covered,
+            review: None,
         });
         if i64::try_from(out.len()).unwrap_or(i64::MAX) >= limit {
             break;
@@ -427,7 +798,7 @@ pub async fn of_object(
             ..FlowFilter::default()
         },
     };
-    flows(conn, dates, &filter, after, limit).await
+    applied(conn, dates, &filter, after, limit).await
 }
 
 /// One evaluation of a flow by pair of addresses, as stored (REQ-011-16).
