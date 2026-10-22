@@ -13995,7 +13995,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The matrix; its revision is its ETag. */
+      /** @description The matrix; its fingerprint is its strong ETag. */
       200: {
         headers: {
           [name: string]: unknown;

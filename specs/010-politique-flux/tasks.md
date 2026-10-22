@@ -476,17 +476,25 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   différentiel (paires comptées avant d'être construites, 29 Go → 0,3 Go ; candidates
   comparées par clés), verdicts (une évaluation par paire de points distincts), chaînes
   de l'inférence et vues des sources lues ensemble, machines d'un /24 (1,8 s → 1,7 ms),
-  origines descendantes (plus d'une heure → jointure). Reste : un passage complet,
-  puis cocher 1 et 19.
-- [ ] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées
+  origines descendantes (plus d'une heure → jointure). Reste : un passage complet
+  (`K_BENCH_SCALE=full`, ADR 0032), le report de ses chiffres dans l'ADR 0030 et
+  `docs/spec/invariants.md` § Performance (à la place de la variante réduite), puis
+  cocher 1 et 19.
+- [x] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées
   - où : skill `tech-specs`, mode sync
   - dépend de : 17, 18, 19
-  - en cours (2026-10-22) : synchronisation faite pour les tâches 2 à 18 — `docs/spec/`
+  - fait (2026-10-22) : synchronisation des tâches 2 à 18 et 21 — `docs/spec/`
     (architecture, data, interfaces, invariants INV-24, 62, 63 ; permissions et règles
     régénérées), ADR 0030 écrite et acceptée, design corrigé là où le code fait foi,
-    point d'étape dans `specs/README.md`. Reste : les budgets (010-1, 010-19), à reporter
-    dans `docs/spec/invariants.md` § Performance et dans l'ADR 0030, puis l'audit
-    spec-keeper.
+    point d'étape dans `specs/README.md`. Audit spec-keeper : cache de l'instantané
+    décrit comme cache du processus partagé entre requêtes et préparations d'écriture
+    (design, ADR 0030 ; alimenté seulement hors d'une transaction qui a écrit la
+    politique, une base par processus supposée), description du `GET` de la matrice
+    (empreinte, ETag fort) corrigée dans le contrat et le SDK, verrous nommés en 1024
+    seaux (amendement de l'ADR 0015) et instance des bancs (ADR 0032) reportés dans
+    l'architecture et § Performance. Les budgets ne sont reportés qu'en **variante
+    réduite**, comme telle (ADR 0030, `docs/spec/invariants.md` § Performance) : leur
+    report sur le jeu complet appartient à 010-1 et 010-19, qui restent ouvertes.
 
 ## P5 — Amendements
 
@@ -501,8 +509,8 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   200 ; changeset composé à `if_match` périmé → 422 `policy.matrix.stale` ; sans
   `if_match` → accepté comme avant ; `docs/spec/interfaces.md` et règles générées à jour
   où : design « API » (ligne de la matrice, paragraphe « Livré par 010-18 ») ;
-  `crates/kartenn-policy/src/rest.rs` (`set_cell`, `show_matrix` pour l'ETag
-  `ETag::page`, déclaration `set_policy_matrix_cell` du contrat : imiter l'en-tête
+  `crates/kartenn-policy/src/rest.rs` (`set_cell`, `show_matrix` pour l'ETag, livré en
+  `ETag::fingerprint` ; déclaration `set_policy_matrix_cell` du contrat : imiter l'en-tête
   `If-Match` des `PATCH` du même fichier) ; `crates/kartenn-rest/src/kit.rs` (`if_match`
   ne lit qu'un UUID : une variante pour une empreinte, ou un `entity_tag` exposé) ;
   `crates/kartenn-policy/src/matrix.rs` (`write::Set`, `prepare_set`, `view`) ;

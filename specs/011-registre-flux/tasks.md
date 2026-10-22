@@ -256,24 +256,30 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     (migration 0002), politique d'une révision validée gardée par l'instance, candidats
     d'un service indexés dans l'instantané (010), adresses d'une machine lues par
     identifiant (009), non-conformités lues depuis les synthèses refusées.
-    Mesure (seed 42, 10⁵ flux, pic mémoire du banc 1,6 Go), avant → après (budget) :
-    demande 16 × 16 1,1 s → 297 ms (300 ms, marge mince : ~210 ms sont le différentiel
+    Mesure au banc complet (`K_BENCH_SCALE=full`, seed 42, 10⁵ flux, pic mémoire du
+    banc 1,6 Go), avant → après (budget) : demande 16 × 16 1,1 s → 297 ms (300 ms, marge mince : ~210 ms sont le différentiel
     des propriétés du noyau pour l'ancre `core.owner`) ; reclassement de 10⁴ flux
     17,8 s → 2,4 s (3 s) ; changement de politique sur 10⁵ flux 96,5 s → 12,8 s (60 s) ;
     règle d'un type de flux (5·10³ flux) 7,5 s → 2,0 s (60 s) ; page filtrée 140 →
     130 ms (150 ms) ; non-conformités 17,6 s → 26 ms (150 ms). Non mesuré : la
     réévaluation de fond (5 min), faute de tâche de fond qui la porte.
-- [ ] 11. Synchronisation de `docs/spec/`, ADR proposée → acceptée, amendement de l'ADR
+- [x] 11. Synchronisation de `docs/spec/`, ADR proposée → acceptée, amendement de l'ADR
   0026 (N38, N39)
   - où : skill `tech-specs`, mode sync
   - dépend de : 10
-  - préparée (2026-10-22) pour les tâches 1 à 9 : `docs/spec/` (data : schéma `flow` ;
-    interfaces : routes des flux ; invariants INV-64 à 66 ; permissions et règles
-    générées), [ADR 0031](../../docs/adr/0031-evaluations-de-flux-materialisees.md)
-    acceptée, amendements N38 et N39 de l'ADR 0026 et de la 004 déjà faits par la 016,
-    écarts au design reportés (design, § « Écarts au design »), statuts `in-progress`.
-    **N'attend plus que le banc 011-10** : budgets de REQ-011-19 et de l'ADR 0031 « à
-    mesurer », relecture spec-keeper.
+  - fait (2026-10-22) pour les tâches 1 à 10, 12 et 13 : `docs/spec/` (data : schéma
+    `flow`, migrations 0001 et 0002 ; interfaces : routes des flux, F19, F20 ; invariants
+    INV-64 à 66 ; permissions et règles générées),
+    [ADR 0031](../../docs/adr/0031-evaluations-de-flux-materialisees.md) acceptée, avec
+    la réévaluation ensembliste, le cache de politique partagé et les budgets du banc
+    complet ; amendements N38 et N39 de l'ADR 0026 et de la 004 déjà faits par la 016 ;
+    écarts au design reportés (design, § « Écarts au design », ceux résorbés par F19 et
+    F20 signalés comme tels) ; budgets de `bench-flow` dans `docs/spec/invariants.md`
+    § Performance ; audit spec-keeper. Statuts laissés `in-progress` : la réévaluation
+    complète de fond de REQ-011-19 (< 5 min) n'est portée par aucune tâche de fond, donc
+    non mesurée (à arbitrer : tâche à créer ou exigence à amender) ; REQ-011-4 (« changer
+    une extrémité crée un nouveau flux ») diverge du code qui refuse (`flow.update.identity`,
+    écart du design), à arbitrer.
 
 ## P5 — Amendements (spec 017)
 

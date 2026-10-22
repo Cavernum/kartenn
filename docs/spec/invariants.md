@@ -114,6 +114,23 @@ contrôle de l'inférence (lecture groupée des vues, corrigée depuis), et le r
 y avait pris environ 990 s, au-delà du budget. La lecture groupée N9 (016-4) est
 mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).
 
+Registre de flux (011, REQ-011-19) : banc `bench-flow` (011-10), 10⁵ flux sur le jeu de
+référence, politique au gabarit du banc 010 sans motifs, conditions ni signaux. **Tenu**
+au banc complet le 2026-10-22 (p95 serveur) :
+
+| Budget | Mesuré | Limite |
+|---|---|---|
+| Demande machine × machine 16 × 16, triage compris | 297 ms | 300 ms |
+| Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,4 s | 3 s |
+| Réévaluation de 10⁵ flux par un changement de politique | 12,8 s | 60 s |
+| Règle d'un type de flux (5·10³ flux) | 2,0 s | 60 s |
+| Page filtrée de flux | 130 ms | 150 ms |
+| Page de non-conformités | 26 ms | 150 ms |
+
+La marge de la demande est mince : environ 210 ms sont le différentiel des propriétés du
+noyau pour l'ancre `core.owner`. La réévaluation complète en tâche de fond (< 5 min)
+n'est **pas mesurée** : aucune tâche de fond ne la porte encore.
+
 ## Audit et journalisation (spec 012, ADR 0019)
 
 | ID | Invariant | Garantie | Test |

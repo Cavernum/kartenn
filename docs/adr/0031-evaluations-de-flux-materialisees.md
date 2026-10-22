@@ -52,11 +52,26 @@ un état et une validité dérivés, sans date de fin obligatoire pour un flux c
 ## Consequences
 
 - Une écriture de la politique réévalue tous les flux vivants : le coût est borné par le
-  banc `bench-flow` (011-10, 10⁵ flux) ; le filtrage par service et valeurs d'axes reste
-  une optimisation à mesurer.
+  banc `bench-flow` (011-10, 10⁵ flux). La réévaluation est ensembliste : lots de 512
+  flux, une requête par étape et par lot, flux d'un même instant évalués ensemble, seules
+  les tables dérivées dont les lignes changent réécrites ; index B-tree sur `flow_id`
+  (migration 0002 du module), les clés `WITHOUT OVERLAPS` étant des GiST lents à sonder
+  par lot. La politique d'une révision validée est gardée par l'instance et partagée
+  entre les transactions ; une transaction qui a écrit la politique relit la sienne (sa
+  révision peut encore changer ou être annulée). Ce cache, comme celui de la 010 (ADR
+  0030), est indexé par le seul numéro de révision : il suppose une base par processus
+  et que toute écriture de la politique, validité temporelle comprise, incrémente la
+  révision.
 - L'oracle de la tâche 011-5 (recalcul complet après des suites aléatoires) est la garde
   de cohérence ; il a montré que le différentiel des propriétés du noyau omettait les
   héritiers d'une valeur datée dans le futur (corrigé dans le noyau, `heritable()`).
 - La restauration d'un flux ne rétablit que sa ligne ; ses tables dérivées sont recalculées
   par la réévaluation.
-- Le budget de la réévaluation est « à mesurer » jusqu'au banc 011-10.
+- Budgets de REQ-011-19 tenus au banc `bench-flow` (2026-10-22, 10⁵ flux, p95 serveur) :
+  demande 16 × 16 en 297 ms (limite 300 ms, marge mince : le différentiel des propriétés
+  du noyau pour l'ancre `core.owner` en prend environ 210) ; réévaluation de 10⁴ flux
+  dans un changeset en 2,4 s (3 s) ; changement de politique sur 10⁵ flux en 12,8 s
+  (60 s) ; règle d'un type de flux (5·10³ flux) en 2,0 s (60 s) ; page filtrée en 130 ms
+  (150 ms) ; non-conformités en 26 ms (150 ms), lues depuis les synthèses refusées. La
+  réévaluation complète de fond (< 5 min) n'est pas mesurée : aucune tâche de fond ne la
+  porte encore.

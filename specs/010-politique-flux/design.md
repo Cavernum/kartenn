@@ -160,10 +160,17 @@ par service (développement des types en services à la construction), motifs, c
 signaux, textes. Chargé par une requête par table à (`valid_at`, `as_of`) via les
 lectures datées du noyau (REQ-004-17).
 
-Cache par instance : l'instantané du **présent** est gardé sous la révision ; une
-lecture de la révision (une ligne) précède chaque requête, un changement recharge. Les
-instantanés passés (`as_of` < maintenant, immuables) sont gardés dans un cache LRU de
-16 entrées. Taille : ≈ 5 Mo pour le jeu du budget.
+Cache du processus (`cache::shared()`), partagé entre les requêtes et les préparations
+d'écriture (matrice sous `If-Match`, S35) : l'instantané du **présent** est gardé sous la
+révision ; une lecture de la révision (une ligne) précède chaque requête, un changement
+recharge. Les instantanés passés (`as_of` < maintenant, immuables) sont gardés dans un
+cache LRU de 16 entrées. Taille : ≈ 5 Mo pour le jeu du budget. Le cache n'est alimenté
+que depuis une transaction qui n'a pas écrit la politique : la révision d'une écriture
+non validée peut encore changer ou être annulée, et nommerait un autre contenu après un
+rollback. La préparation de `policy.matrix.set` lit l'instantané avant toute écriture ;
+le registre de flux (011) relit sans le cache la politique d'une transaction qui l'a
+écrite. Le code ne garde pas lui-même cette condition. La clé ne nomme pas la base : le
+cache suppose une base par processus.
 
 ### Évaluation (REQ-010-11 à 15, 31, 32, 36 à 38)
 
