@@ -2,6 +2,7 @@
 //! politique »).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use crate::model::{
     Axis, AxisKey, AxisValue, Condition, Effect, FlowType, Key, Locale, Pattern, Rule, Service,
@@ -46,14 +47,22 @@ pub struct PolicySnapshot {
     pub(crate) values: BTreeMap<(AxisKey, AxisValue), ValueAttributes>,
     pub(crate) flow_types: BTreeMap<Key, FlowType>,
     pub(crate) services: BTreeMap<Key, Service>,
-    pub(crate) rules: BTreeMap<Key, Rule>,
+    pub(crate) rules: BTreeMap<Key, Arc<Rule>>,
     pub(crate) patterns: BTreeMap<Key, Pattern>,
     pub(crate) conditions: BTreeMap<Key, Condition>,
     pub(crate) signals: BTreeMap<Key, Signal>,
     /// Rules whose flow selector covers each service, types expanded to services.
-    by_service: BTreeMap<Key, Vec<Key>>,
+    by_service: BTreeMap<Key, Arc<Candidates>>,
     /// Rules of each pattern.
     by_pattern: BTreeMap<Key, Vec<Key>>,
+}
+
+/// The candidate rules of a service, by key, and the axes they cite (task 011-10: read
+/// once per snapshot, not once per evaluation).
+#[derive(Debug, Clone, Default)]
+struct Candidates {
+    rules: Vec<Arc<Rule>>,
+    cited: BTreeSet<AxisKey>,
 }
 
 impl PolicySnapshot {
@@ -61,19 +70,51 @@ impl PolicySnapshot {
     #[must_use]
     pub fn new(parts: Parts) -> Self {
         let services: BTreeMap<Key, Service> = index(parts.services, |s: &Service| s.key.clone());
-        let rules: BTreeMap<Key, Rule> = index(parts.rules, |r: &Rule| r.key.clone());
-        let mut by_service: BTreeMap<Key, Vec<Key>> =
-            services.keys().map(|k| (k.clone(), Vec::new())).collect();
+        let rules: BTreeMap<Key, Arc<Rule>> = parts
+            .rules
+            .into_iter()
+            .map(|r| (r.key.clone(), Arc::new(r)))
+            .collect();
+        // The rules citing each flow type and each service, by key.
+        let mut of_type: BTreeMap<&Key, Vec<&Arc<Rule>>> = BTreeMap::new();
+        let mut of_service: BTreeMap<&Key, Vec<&Arc<Rule>>> = BTreeMap::new();
+        for rule in rules.values() {
+            for flow_type in &rule.flows.flow_types {
+                of_type.entry(flow_type).or_default().push(rule);
+            }
+            for service in &rule.flows.services {
+                of_service.entry(service).or_default().push(rule);
+            }
+        }
+        let candidates = |of: &[&[&Arc<Rule>]]| -> Arc<Candidates> {
+            let covering: BTreeMap<&Key, &Arc<Rule>> = of
+                .iter()
+                .flat_map(|rules| rules.iter())
+                .map(|r| (&r.key, *r))
+                .collect();
+            let rules: Vec<Arc<Rule>> = covering.into_values().cloned().collect();
+            let cited = rules.iter().flat_map(|r| r.axes()).cloned().collect();
+            Arc::new(Candidates { rules, cited })
+        };
+        // The services of a flow type no rule names share its candidates.
+        let mut of_types: BTreeMap<&Key, Arc<Candidates>> = BTreeMap::new();
+        let by_service: BTreeMap<Key, Arc<Candidates>> = services
+            .values()
+            .map(|service| {
+                let typed: &[&Arc<Rule>] =
+                    of_type.get(&service.flow_type).map_or(&[], Vec::as_slice);
+                let found = match of_service.get(&service.key) {
+                    Some(named) => candidates(&[typed, named]),
+                    None => of_types
+                        .entry(&service.flow_type)
+                        .or_insert_with(|| candidates(&[typed]))
+                        .clone(),
+                };
+                (service.key.clone(), found)
+            })
+            .collect();
         let mut by_pattern: BTreeMap<Key, Vec<Key>> = BTreeMap::new();
         for rule in rules.values() {
-            for service in services.values() {
-                if (rule.flows.services.contains(&service.key)
-                    || rule.flows.flow_types.contains(&service.flow_type))
-                    && let Some(rules) = by_service.get_mut(&service.key)
-                {
-                    rules.push(rule.key.clone());
-                }
-            }
             if let Some(pattern) = &rule.pattern {
                 by_pattern
                     .entry(pattern.clone())
@@ -133,12 +174,12 @@ impl PolicySnapshot {
     /// A rule by key.
     #[must_use]
     pub fn rule(&self, key: &Key) -> Option<&Rule> {
-        self.rules.get(key)
+        self.rules.get(key).map(AsRef::as_ref)
     }
 
     /// Every rule, by key.
     pub fn rules(&self) -> impl Iterator<Item = &Rule> {
-        self.rules.values()
+        self.rules.values().map(AsRef::as_ref)
     }
 
     /// A pattern by key.
@@ -167,8 +208,15 @@ impl PolicySnapshot {
         self.by_service
             .get(service)
             .into_iter()
-            .flatten()
-            .filter_map(|k| self.rules.get(k))
+            .flat_map(|c| c.rules.iter().map(AsRef::as_ref))
+    }
+
+    /// The axes the candidate rules of a service cite, in order.
+    pub fn cited(&self, service: &Key) -> impl Iterator<Item = &AxisKey> {
+        self.by_service
+            .get(service)
+            .into_iter()
+            .flat_map(|c| c.cited.iter())
     }
 
     /// Rules of a pattern of a given effect that cover the service.
@@ -182,7 +230,7 @@ impl PolicySnapshot {
             .get(pattern)
             .into_iter()
             .flatten()
-            .filter_map(|k| self.rules.get(k))
+            .filter_map(|k| self.rules.get(k).map(AsRef::as_ref))
             .filter(move |r| {
                 r.effect == effect
                     && self.services.get(service).is_some_and(|s| {
