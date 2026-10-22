@@ -19,7 +19,8 @@ use sqlx::types::Uuid;
 /// 2027-01-01T00:00:00Z, in microseconds.
 const NEW_YEAR: i64 = 1_798_761_600_000_000;
 
-/// The class of the named locks of the store (`write.rs`, REQ-008-27).
+/// The class of the named locks of the store (`write.rs`, REQ-008-27); the second key is
+/// the bucket `hashtext(key) & 1023` (ADR 0015, amendment of 2026-10-22).
 const NAMED_LOCK_CLASS: i32 = 0x6b61_726b;
 
 impl Env {
@@ -63,7 +64,7 @@ async fn concurrent_same_vid_one_wins(pool: PgPool) {
     // Hold the key of the group, as the store takes it, so that both submissions queue
     // behind it; then release them together.
     let mut holder = pool.begin().await.unwrap();
-    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2))")
+    sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2) & 1023)")
         .bind(NAMED_LOCK_CLASS)
         .bind(format!("vlan.group:{group}"))
         .execute(&mut *holder)

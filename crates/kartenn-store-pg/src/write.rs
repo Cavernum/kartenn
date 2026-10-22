@@ -34,8 +34,12 @@ pub(crate) const EVENT_SOURCE: &str = "urn:kartenn:instance";
 const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennN"
 
 /// First key of the two-key advisory locks named by module operations (REQ-008-27),
-/// whose second key is the hash of the name.
+/// whose second key is the bucket of the hash of the name.
 const NAMED_LOCK_CLASS: i32 = 0x6b61_726b; // "kark"
+
+/// Number of buckets the named lock keys fall into (a power of two): the most locks a
+/// transaction takes for its named keys, whatever their number (ADR 0015).
+const NAMED_LOCK_BUCKETS: i32 = 1024;
 
 impl kartenn_service::module::ModuleTx for PgTx {
     fn connection(&mut self) -> &mut (dyn std::any::Any + Send) {
@@ -967,18 +971,25 @@ impl WriteTx for PgTx {
     }
 
     async fn lock_keys(&mut self, keys: &[String]) -> Result<(), StoreError> {
-        let mut keys = keys.to_vec();
-        keys.sort_unstable();
-        keys.dedup();
-        for key in keys {
-            // The two-key form, in its own class: never the lock of a domain.
-            sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2))")
-                .bind(NAMED_LOCK_CLASS)
-                .bind(key)
-                .execute(&mut *self.tx)
-                .await
-                .map_err(store_err)?;
+        if keys.is_empty() {
+            return Ok(());
         }
+        // One lock per bucket of the hash of the key, never per key: a large changeset
+        // would otherwise exhaust the shared lock table (ADR 0015, amendment of
+        // 2026-10-22). The two-key form, in its own class: never the lock of a domain.
+        // The outer ORDER BY makes PostgreSQL call the volatile lock function after the
+        // sort, so the buckets are taken in ascending order.
+        sqlx::query(
+            "SELECT pg_advisory_xact_lock($1, b)
+             FROM (SELECT DISTINCT hashtext(k) & $3 AS b FROM unnest($2::text[]) k) s
+             ORDER BY b",
+        )
+        .bind(NAMED_LOCK_CLASS)
+        .bind(keys)
+        .bind(NAMED_LOCK_BUCKETS - 1)
+        .execute(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
         Ok(())
     }
 

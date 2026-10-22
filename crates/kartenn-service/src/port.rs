@@ -653,8 +653,12 @@ pub trait WriteTx {
         public_space: bool,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
-    /// Takes the named lock keys of module operations, after the domains, in canonical
-    /// order, until the end of the transaction (REQ-008-27; amendment of ADR 0015).
+    /// Takes the named lock keys of module operations, after the domains, until the end
+    /// of the transaction (REQ-008-27; amendments of ADR 0015). A key is held through its
+    /// bucket, one of a fixed number (1024) of hash buckets: the same key always falls in
+    /// the same bucket, the buckets are taken in ascending order, and a transaction holds
+    /// at most one lock per bucket however many keys it names. Two keys sharing a bucket
+    /// serialize needlessly, never too little.
     fn lock_keys(&mut self, keys: &[String])
     -> impl Future<Output = Result<(), StoreError>> + Send;
 
