@@ -876,19 +876,23 @@ async fn record_operations(
     tx: &mut Transaction<'static, Postgres>,
     journal: &Journal<'_>,
 ) -> Result<(), StoreError> {
-    for (ordinal, op) in journal.request.operations.iter().enumerate() {
-        let payload = serde_json::to_value(op).map_err(store_err)?;
-        sqlx::query(
-            "INSERT INTO changeset_operation (changeset_id, ordinal, payload) VALUES ($1, $2, $3)
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(journal.id)
-        .bind(i32::try_from(ordinal).map_err(store_err)?)
-        .bind(payload)
-        .execute(&mut **tx)
-        .await
-        .map_err(store_err)?;
+    if journal.request.operations.is_empty() {
+        return Ok(());
     }
+    // One statement for all of them, each at its rank in the array (an import batch holds
+    // up to 10⁴ operations).
+    let payloads = serde_json::to_value(&journal.request.operations).map_err(store_err)?;
+    sqlx::query(
+        "INSERT INTO changeset_operation (changeset_id, ordinal, payload)
+         SELECT $1, (o.n - 1)::int, o.payload
+           FROM jsonb_array_elements($2::jsonb) WITH ORDINALITY AS o(payload, n)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(journal.id)
+    .bind(payloads)
+    .execute(&mut **tx)
+    .await
+    .map_err(store_err)?;
     Ok(())
 }
 
