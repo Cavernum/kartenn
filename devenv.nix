@@ -230,7 +230,14 @@
             ${pg.package}/bin/postgres -D "$data"
         fi
       else
-        pg_ctl -D "$data" -l "$base/postgres.log" -w start >/dev/null
+        # Without the descriptors of k-heavy: the server would hold its locks forever.
+        (
+          for fd in /proc/$$/fd/*; do
+            n=''${fd##*/}
+            [ "$n" -le 2 ] || eval "exec $n>&-" 2>/dev/null || true
+          done
+          pg_ctl -D "$data" -l "$base/postgres.log" -w start >/dev/null
+        )
       fi
       for _ in $(seq 1 120); do
         ready && exit 0
