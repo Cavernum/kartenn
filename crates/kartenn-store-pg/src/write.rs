@@ -1036,12 +1036,14 @@ impl WriteTx for PgTx {
         .map_err(store_err)
     }
 
-    async fn touch(&mut self, id: Uuid, changeset: Uuid) -> Result<(), StoreError> {
+    async fn touch(&mut self, ids: &[Uuid], changeset: Uuid) -> Result<(), StoreError> {
+        // Each object once: an upsert cannot write the same row twice.
         sqlx::query(
-            "INSERT INTO object_version (object_id, changeset_id) VALUES ($1, $2)
+            "INSERT INTO object_version (object_id, changeset_id)
+             SELECT DISTINCT id, $2::uuid FROM unnest($1::uuid[]) AS u(id)
              ON CONFLICT (object_id) DO UPDATE SET changeset_id = excluded.changeset_id",
         )
-        .bind(id)
+        .bind(ids)
         .bind(changeset)
         .execute(&mut *self.tx)
         .await

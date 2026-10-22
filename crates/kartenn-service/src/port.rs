@@ -685,10 +685,10 @@ pub trait WriteTx {
         id: Uuid,
     ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
 
-    /// Records that `changeset` wrote the object `id` or its assignments.
+    /// Records that `changeset` wrote the objects `ids` or their assignments.
     fn touch(
         &mut self,
-        id: Uuid,
+        ids: &[Uuid],
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 

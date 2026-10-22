@@ -1207,14 +1207,20 @@ async fn lock_targets<T: WriteTx>(
 /// Writes the planned operations in order, collecting every violation (REQ-004-7).
 /// A conflict when the version of `id` at the start of `period` was not written by
 /// `expected` (REQ-004-11).
+/// The versions of the objects written before, still in `touched`, are recorded first.
 async fn conflict<T: WriteTx>(
     tx: &mut T,
     id: Uuid,
     expected: Option<Uuid>,
+    (touched, changeset): (&mut Vec<Uuid>, Uuid),
 ) -> Result<Option<Violation>, StoreError> {
     let Some(expected) = expected else {
         return Ok(None);
     };
+    if !touched.is_empty() {
+        tx.touch(touched, changeset).await?;
+        touched.clear();
+    }
     let current = tx.version(id).await?;
     if current == Some(expected) {
         return Ok(None);
@@ -1461,6 +1467,9 @@ async fn apply<T: WriteTx>(
     violations: &mut Vec<Violation>,
 ) -> Result<Vec<(Uuid, Prefix)>, StoreError> {
     let mut former = Vec::new();
+    // The objects written, whose version is recorded in one statement: at the end, or
+    // before a version is compared (`conflict`).
+    let mut touched: Vec<Uuid> = Vec::new();
     for ((p, &period), &origin) in planned.iter().zip(periods).zip(origins) {
         let found = violations.len();
         let written = match p {
@@ -1509,7 +1518,7 @@ async fn apply<T: WriteTx>(
                 change,
                 expected,
             } => {
-                if let Some(v) = conflict(tx, *id, *expected).await? {
+                if let Some(v) = conflict(tx, *id, *expected, (&mut touched, changeset)).await? {
                     violations.push(v.at(origin));
                     continue;
                 }
@@ -1518,7 +1527,7 @@ async fn apply<T: WriteTx>(
             Planned::Close {
                 kind, id, expected, ..
             } => {
-                if let Some(v) = conflict(tx, *id, *expected).await? {
+                if let Some(v) = conflict(tx, *id, *expected, (&mut touched, changeset)).await? {
                     violations.push(v.at(origin));
                     continue;
                 }
@@ -1536,7 +1545,9 @@ async fn apply<T: WriteTx>(
                     .await
             }
             Planned::Expect { id, expected, .. } => {
-                if let Some(v) = conflict(tx, *id, Some(*expected)).await? {
+                if let Some(v) =
+                    conflict(tx, *id, Some(*expected), (&mut touched, changeset)).await?
+                {
                     violations.push(v.at(origin));
                 }
                 continue;
@@ -1555,10 +1566,13 @@ async fn apply<T: WriteTx>(
                 Planned::Policy(_) | Planned::Rbac(_) | Planned::BindExternal { .. }
             )
         {
-            tx.touch(p.object(), changeset).await?;
+            touched.push(p.object());
         }
         record(written, violations)?;
         ascribe(&mut violations[found..], origin);
+    }
+    if !touched.is_empty() {
+        tx.touch(&touched, changeset).await?;
     }
     Ok(former)
 }
