@@ -277,7 +277,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
 
 ## P5 — Amendements (spec 017)
 
-- [ ] 12. Demandes en attente servies par la lecture (F19) : `read::flows` ajoute, quand
+- [x] 12. Demandes en attente servies par la lecture (F19) : `read::flows` ajoute, quand
   `state` cite `requested` ou avec les filtres `review=pending` et `changeset=<id>`, les
   propositions en attente à `as_of` qui portent `flow.request` (et, après la tâche 13,
   les prolongations `flow.update`) ; ligne `id: null` (demande) avec le membre `review`
@@ -302,6 +302,43 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     `tests/it/rest.rs` (lecture réduite du demandeur à imiter) ;
     `web/sdk/src/api/schema.d.ts`
   - dépend de : 9
+  - fait (2026-10-22) : `src/read.rs` — `FlowFilter` porte `states` (liste),
+    `review_pending`, `changeset` ; `flows` lit les flux appliqués (`applied`) puis, sur
+    demande (`wants_pending`), les lignes en attente (`pending`) : propositions en attente
+    à `as_of` dont une opération est `flow.request` ou `flow.update` triée, chacune rendue
+    par `pending_view` (`id` nul, champs à la forme d'un flux stocké, période complétée)
+    ou `extension_view` (`id` du flux, champs de `completed.current`, période = portion
+    ajoutée), état `requested` par `state_at` (`Creation::Pending`), `Review` (changeset,
+    rang, `kind`, triage tel que gardé, entité, demandeur) ; filtres par `FlowFilter::passes`
+    ; curseur `Cursor::Flow | Pending { changeset, ordinal }`. `src/pg.rs` —
+    `triage_of` : le triage complété porte conditions non remplies, score et
+    avertissements de la paire décisive et les évaluations par paire (forme de
+    `FlowEvaluation`), pour la demande (`handler::triage`) et la prolongation
+    (`complete`). `src/rest.rs` — `Flow.id` nullable (toujours présent), membre `review`
+    (`FlowReview`, `FlowTriage`) omis hors attente, filtres `state` (liste), `review`,
+    `changeset`, droits par `reviews_seen` (lecture ou instruction sur l'entité : complet ;
+    demandeur : réduit), changesets lus journalisés ; contrat et SDK régénérés ;
+    `docs/spec/interfaces.md`. Tests : `tests/it/rest.rs`
+    (`a_pending_request_is_read_with_its_triage` : 202 puis ligne `id` nul, triage égal à
+    celui de l'opération, réduit pour le demandeur, complet pour un lecteur, vu d'un
+    instructeur, invisible d'un lecteur d'une autre entité, absent sans `requested`, à un
+    `as_of` antérieur, avec un préfixe, après rejet, présent à un `as_of` entre soumission
+    et rejet ; `changeset=<id>`, `review=pending`, `state=active,requested` et filtres lus
+    dans la demande ; `pending_requests_are_paged_after_the_applied_flows` ;
+    `a_patch_shortens_or_holds_an_extension` : ligne `extension`).
+  - choix : « triage égal à celui de la réponse » vérifié contre le triage de l'opération
+    complétée (la réponse 202 ne porte que le changeset, `interfaces.md`) ; propositions
+    de sorte `proposal` seulement (une approbation n'est pas une instruction) ; fin d'une
+    proposition à une date passée : `applied_at`, sinon l'événement
+    `changeset.state.{rejected,withdrawn,expired,stale}` du journal (012), à défaut la
+    soumission ; candidates bornées par `expires_at > as_of` ; `changeset=<id>` ne rend que
+    les lignes en attente ; « réduit » = vu comme demandeur seulement (même règle que
+    `GET /v1/flows/{id}/evaluations`), l'instructeur voit le triage complet ; ligne
+    d'une demande aux champs d'un flux stocké (`source_kind`, `service_id`…), extrémité
+    nommée par nom local → `null` ; `decisive` filtre sur les évaluations par paire du
+    triage ; conditions, score et avertissements du triage pris sur la paire décisive ;
+    curseur `(changeset, rang)` (plusieurs demandes par proposition) ; prolongation à
+    l'état `requested`, période = portion ajoutée.
 - [x] 13. Prolongation d'un flux (F20) : `update` distingue raccourcissement et
   prolongation (fin plus tardive ou retirée d'un flux daté) ; `complete` trie la portion
   ajoutée ; `review` rend `REVIEW` pour une prolongation non automatique ; application
@@ -352,9 +389,9 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     sans dérogation puis appliquée avec ; séparation par `on_behalf_of` ; flux expiré ;
     politique `flow.created ≥ 1` ; rejet consigné), `tests/it/expiry.rs` (nouvelle fin
     annoncée), `tests/it/rest.rs` (`PATCH` 200 puis 202).
-    **Reste** : la ligne `review.kind = extension` de la lecture, à vérifier après la
-    fusion de la tâche 12 (absente de cette base) ; la prolongation porte son triage dans
-    `completed.triage` et le flux dans `id`.
+    Ligne `review.kind = extension` de la lecture : servie par la tâche 12 après sa
+    fusion (test `a_patch_shortens_or_holds_an_extension`, `GET /v1/flows?review=pending`
+    rend la prolongation avec l'`id` du flux et son triage).
   - choix : la prolongation garde le droit de l'`update` (`flow.flow.write`, plus
     `prop.core.owner.write` pour l'ancre) ; `approve_review` inscrit l'instructeur de
     maintenant à la fin du flux (un flux daté n'était pas couvert jusqu'à l'infini) et ne
