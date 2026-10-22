@@ -1837,7 +1837,7 @@ pub fn routes() -> ModuleRouter {
     .params::<DatesParams>()
     .answers(
         "200",
-        "The matrix; its revision is its ETag.",
+        "The matrix; its fingerprint is its strong ETag.",
         "PolicyMatrix",
     )
     .build();
