@@ -71,10 +71,11 @@ impl PgTx {
     /// order of `objects`, those that do not exist at `at` left out. The properties are
     /// read from the objects down, each behind an `OFFSET 0` fence: in the generic plan of
     /// the prepared statement, `object_id = ANY($1)` filtered every assignment of each
-    /// property, linearly in the objects (minutes for 10⁴ objects, task 010-19). The own
-    /// assignments are read once per object, then joined to their declarations: the
-    /// planner otherwise probed each object once per own declaration (0.7 s for 10⁴
-    /// objects in a changeset at 10⁶ addresses, 0.28 s since).
+    /// property, linearly in the objects (minutes for 10⁴ objects, task 010-19); in the
+    /// custom plans of the first executions, the origins were hashed whole (2.3 s for 10⁴
+    /// objects at 10⁶ addresses, 0.2 s behind the fence). The own assignments are read
+    /// once per object, then joined to their declarations: the planner otherwise probed
+    /// each object once per own declaration.
     pub(crate) async fn views_of(
         &mut self,
         objects: &[Uuid],
@@ -106,11 +107,17 @@ impl PgTx {
                          OFFSET 0) a)
                  SELECT p.object_id, d.key, ({json})::text
                  FROM t, unnest($1::uuid[]) AS o(id)
-                 JOIN property_origin p ON p.object_id = o.id
-                 JOIN property_assignment a ON a.object_id = p.origin_object_id AND a.property_id = p.property_id
+                 CROSS JOIN LATERAL (
+                     SELECT * FROM property_origin p
+                      WHERE p.object_id = o.id AND p.valid_period @> t.at
+                     OFFSET 0) p
+                 CROSS JOIN LATERAL (
+                     SELECT * FROM property_assignment a
+                      WHERE a.object_id = p.origin_object_id AND a.property_id = p.property_id
+                        AND a.valid_period @> t.at
+                     OFFSET 0) a
                  JOIN property_declaration d ON d.id = p.property_id
-                 WHERE p.valid_period @> t.at AND a.valid_period @> t.at
-                   AND d.valid_period @> t.at
+                 WHERE d.valid_period @> t.at
                  UNION ALL
                  SELECT a.object_id, d.key, ({json})::text
                  FROM t, own a
