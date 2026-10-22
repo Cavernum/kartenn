@@ -731,28 +731,37 @@ async fn whole(
                             OR coalesce(r.destination -> a.property_key, '[]') ? e.key))
               ORDER BY a.property_key, e.key"
         }
-        // A value cited by a rule that no object carries.
+        // A value cited by a rule that no object carries: the values carried by the
+        // axes cited, read once, rather than a search of the assignments for each value
+        // cited (an `OR` on `v_uuid` and `v_uuids` that no index serves: minutes for 10⁴
+        // rules, task 010-19).
         "unborne_values" => {
-            "SELECT r.id, jsonb_build_object('rule', r.key, 'side', s.side, 'axis', t.key,
-                                             'value', x.v)
-               FROM policy.policy_rule r
-               CROSS JOIN LATERAL (VALUES ('source', r.source), ('destination', r.destination))
-                    AS s(side, sel)
-               CROSS JOIN LATERAL jsonb_each(s.sel) AS t(key, vals)
-               CROSS JOIN LATERAL jsonb_array_elements_text(t.vals) AS x(v)
-              WHERE r.valid_period @> $1
-                AND NOT EXISTS (
-                    SELECT 1 FROM property_declaration d
-                      JOIN property_declaration l
-                        ON l.key = coalesce(d.type_params->>'values_of', d.key)
-                       AND l.valid_period @> $1
-                      JOIN property_enum_value e
-                        ON e.property_id = l.id AND e.key = x.v AND e.valid_period @> $1
-                      JOIN property_assignment a
-                        ON a.property_id = d.id AND a.kind = 'value' AND a.valid_period @> $1
-                       AND (a.v_uuid = e.id OR e.id = ANY(a.v_uuids))
-                     WHERE d.key = t.key AND d.valid_period @> $1)
-              ORDER BY r.key, s.side, t.key, x.v"
+            "WITH cited AS (
+                 SELECT r.id, r.key, s.side, t.key AS axis, x.v
+                   FROM policy.policy_rule r
+                   CROSS JOIN LATERAL (VALUES ('source', r.source),
+                                              ('destination', r.destination)) AS s(side, sel)
+                   CROSS JOIN LATERAL jsonb_each(s.sel) AS t(key, vals)
+                   CROSS JOIN LATERAL jsonb_array_elements_text(t.vals) AS x(v)
+                  WHERE r.valid_period @> $1),
+             borne AS (
+                 SELECT DISTINCT d.key AS axis, e.key AS value
+                   FROM property_declaration d
+                   JOIN property_declaration l
+                     ON l.key = coalesce(d.type_params->>'values_of', d.key)
+                    AND l.valid_period @> $1
+                   JOIN property_assignment a
+                     ON a.property_id = d.id AND a.kind = 'value' AND a.valid_period @> $1
+                   CROSS JOIN LATERAL (SELECT a.v_uuid UNION ALL SELECT unnest(a.v_uuids))
+                        AS u(id)
+                   JOIN property_enum_value e
+                     ON e.id = u.id AND e.property_id = l.id AND e.valid_period @> $1
+                  WHERE d.valid_period @> $1 AND d.key IN (SELECT axis FROM cited))
+             SELECT c.id, jsonb_build_object('rule', c.key, 'side', c.side, 'axis', c.axis,
+                                             'value', c.v)
+               FROM cited c
+              WHERE NOT EXISTS (SELECT 1 FROM borne b WHERE b.axis = c.axis AND b.value = c.v)
+              ORDER BY c.key, c.side, c.axis, c.v"
         }
         // An `allow` rule every flow of which a `deny` rule covers: the deny's terms are
         // looser on both sides, its « same value » axes among the allow's, its flows wider.
