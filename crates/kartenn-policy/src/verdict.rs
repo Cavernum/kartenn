@@ -480,9 +480,32 @@ pub async fn query<R: Reader, A: Authorizer>(
         return Ok(answer);
     }
     let requested = query.object.requested();
-    for (i, (a, _)) in source.points.iter().enumerate() {
-        for (j, (b, _)) in destination.points.iter().enumerate() {
-            let (ea, eb) = (&points[a].0, &points[b].0);
+    // The addresses of a machine mostly resolve the same values: each distinct pair of
+    // endpoints is evaluated once per service, its evaluation shared by the pairs of
+    // points that resolve it (machine × machine, REQ-010-28).
+    let classes = |developed: &Developed| -> (Vec<&Endpoint>, Vec<usize>) {
+        let mut distinct: Vec<&Endpoint> = Vec::new();
+        let class = developed
+            .points
+            .iter()
+            .map(|(id, _)| {
+                let endpoint = &points[id].0;
+                distinct
+                    .iter()
+                    .position(|e| *e == endpoint)
+                    .unwrap_or_else(|| {
+                        distinct.push(endpoint);
+                        distinct.len() - 1
+                    })
+            })
+            .collect();
+        (distinct, class)
+    };
+    let (source_endpoints, source_class) = classes(&source);
+    let (destination_endpoints, destination_class) = classes(&destination);
+    let mut evaluated: BTreeMap<(usize, usize, usize), Evaluation> = BTreeMap::new();
+    for (i, ca) in source_class.iter().enumerate() {
+        for (j, cb) in destination_class.iter().enumerate() {
             if services.is_empty() {
                 answer.evaluations.push(PairEvaluation {
                     source: i,
@@ -490,18 +513,24 @@ pub async fn query<R: Reader, A: Authorizer>(
                     evaluation: unknown_service(),
                 });
             }
-            for service in &services {
+            for (k, service) in services.iter().enumerate() {
+                let evaluation = evaluated
+                    .entry((*ca, *cb, k))
+                    .or_insert_with(|| {
+                        evaluate(
+                            &snapshot,
+                            source_endpoints[*ca],
+                            destination_endpoints[*cb],
+                            service,
+                            requested,
+                            query.dossier.as_ref(),
+                        )
+                    })
+                    .clone();
                 answer.evaluations.push(PairEvaluation {
                     source: i,
                     destination: j,
-                    evaluation: evaluate(
-                        &snapshot,
-                        ea,
-                        eb,
-                        service,
-                        requested,
-                        query.dossier.as_ref(),
-                    ),
+                    evaluation,
                 });
             }
         }

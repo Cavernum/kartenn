@@ -52,6 +52,8 @@ pub struct PolicySnapshot {
     pub(crate) signals: BTreeMap<Key, Signal>,
     /// Rules whose flow selector covers each service, types expanded to services.
     by_service: BTreeMap<Key, Vec<Key>>,
+    /// The axes the candidate rules of each service cite.
+    cited_by_service: BTreeMap<Key, Vec<AxisKey>>,
     /// Rules of each pattern.
     by_pattern: BTreeMap<Key, Vec<Key>>,
 }
@@ -64,13 +66,37 @@ impl PolicySnapshot {
         let rules: BTreeMap<Key, Rule> = index(parts.rules, |r: &Rule| r.key.clone());
         let mut by_service: BTreeMap<Key, Vec<Key>> =
             services.keys().map(|k| (k.clone(), Vec::new())).collect();
+        let mut of_type: BTreeMap<&Key, Vec<&Key>> = BTreeMap::new();
+        for service in services.values() {
+            of_type
+                .entry(&service.flow_type)
+                .or_default()
+                .push(&service.key);
+        }
         let mut by_pattern: BTreeMap<Key, Vec<Key>> = BTreeMap::new();
+        // The axes cited by the rules of each flow type and of each service by name: a
+        // service's are those of its type and its own.
+        let mut cited: BTreeMap<&Key, BTreeSet<&AxisKey>> = BTreeMap::new();
+        let mut cited_by_name: BTreeMap<&Key, BTreeSet<&AxisKey>> = BTreeMap::new();
         for rule in rules.values() {
-            for service in services.values() {
-                if (rule.flows.services.contains(&service.key)
-                    || rule.flows.flow_types.contains(&service.flow_type))
-                    && let Some(rules) = by_service.get_mut(&service.key)
-                {
+            for t in &rule.flows.flow_types {
+                cited.entry(t).or_default().extend(rule.axes());
+            }
+            for s in &rule.flows.services {
+                cited_by_name.entry(s).or_default().extend(rule.axes());
+            }
+            // The services the rule covers, each once: by type, then by name.
+            let covered: BTreeSet<&Key> = rule
+                .flows
+                .flow_types
+                .iter()
+                .filter_map(|t| of_type.get(t))
+                .flatten()
+                .copied()
+                .chain(rule.flows.services.iter())
+                .collect();
+            for service in covered {
+                if let Some(rules) = by_service.get_mut(service) {
                     rules.push(rule.key.clone());
                 }
             }
@@ -81,6 +107,19 @@ impl PolicySnapshot {
                     .push(rule.key.clone());
             }
         }
+        let cited_by_service = services
+            .values()
+            .map(|s| {
+                let axes: BTreeSet<&AxisKey> = cited
+                    .get(&s.flow_type)
+                    .into_iter()
+                    .chain(cited_by_name.get(&s.key))
+                    .flatten()
+                    .copied()
+                    .collect();
+                (s.key.clone(), axes.into_iter().cloned().collect())
+            })
+            .collect();
         Self {
             revision: parts.revision,
             default_locale: parts.default_locale,
@@ -97,8 +136,16 @@ impl PolicySnapshot {
             conditions: index(parts.conditions, |c: &Condition| c.key.clone()),
             signals: index(parts.signals, |s: &Signal| s.key.clone()),
             by_service,
+            cited_by_service,
             by_pattern,
         }
+    }
+
+    /// The axes the candidate rules of a service cite, in key order.
+    pub(crate) fn cited_axes(&self, service: &Key) -> &[AxisKey] {
+        self.cited_by_service
+            .get(service)
+            .map_or(&[], Vec::as_slice)
     }
 
     /// Revision of the policy.
@@ -169,6 +216,11 @@ impl PolicySnapshot {
             .into_iter()
             .flatten()
             .filter_map(|k| self.rules.get(k))
+    }
+
+    /// The keys of the candidate rules of a service, in their order.
+    pub(crate) fn candidate_keys(&self, service: &Key) -> &[Key] {
+        self.by_service.get(service).map_or(&[], Vec::as_slice)
     }
 
     /// Rules of a pattern of a given effect that cover the service.
