@@ -307,19 +307,79 @@ pub(crate) async fn patch_flow(
 /// Marks `flow` as written by the operation `op` of the changeset of this transaction, for
 /// the rules on the final state (design 011 « Opérations et règles »).
 pub(crate) async fn mark(conn: &mut PgConnection, flow: Uuid, op: &str) -> Result<(), StoreError> {
+    mark_at(conn, flow, op, None).await
+}
+
+/// [`mark`], with the instant the operation concerns: the end an extension starts from.
+pub(crate) async fn mark_at(
+    conn: &mut PgConnection,
+    flow: Uuid,
+    op: &str,
+    at: Option<OffsetDateTime>,
+) -> Result<(), StoreError> {
     sqlx::query(
-        "CREATE TEMP TABLE IF NOT EXISTS flow_written (flow_id uuid NOT NULL, op text NOT NULL)
+        "CREATE TEMP TABLE IF NOT EXISTS flow_written (flow_id uuid NOT NULL, op text NOT NULL,
+                                                       at timestamptz)
          ON COMMIT DROP",
     )
     .execute(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    sqlx::query("INSERT INTO pg_temp.flow_written VALUES ($1, $2)")
+    sqlx::query("INSERT INTO pg_temp.flow_written VALUES ($1, $2, $3)")
         .bind(flow)
         .bind(op)
+        .bind(at)
         .execute(conn)
         .await
         .map_err(|e| store(&e))?;
+    Ok(())
+}
+
+/// The end the flow was extended from in this transaction, the earliest (F20).
+pub(crate) async fn extended_from(
+    conn: &mut PgConnection,
+    flow: Uuid,
+) -> Result<Option<OffsetDateTime>, StoreError> {
+    let exists: bool = sqlx::query_scalar("SELECT to_regclass('pg_temp.flow_written') IS NOT NULL")
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
+    if !exists {
+        return Ok(None);
+    }
+    sqlx::query_scalar(
+        "SELECT min(at) FROM pg_temp.flow_written WHERE flow_id = $1 AND op = 'extend'",
+    )
+    .bind(flow)
+    .fetch_one(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// Extends the last version of the flow `id`, ending at `from`, to `to` (F20): the version
+/// asserted before is kept in the history.
+pub(crate) async fn extend_flow(
+    conn: &mut PgConnection,
+    id: Uuid,
+    from: OffsetDateTime,
+    to: Option<OffsetDateTime>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let extended = sqlx::query(
+        "UPDATE flow.flow SET valid_period = tstzrange(lower(valid_period), $3),
+                              changeset_id = $4
+          WHERE id = $1 AND upper(valid_period) = $2",
+    )
+    .bind(id)
+    .bind(from)
+    .bind(to)
+    .bind(changeset)
+    .execute(conn)
+    .await
+    .map_err(|e| written(&e, id))?;
+    if extended.rows_affected() == 0 {
+        return Err(WriteError::NoVersion(id));
+    }
     Ok(())
 }
 
@@ -339,8 +399,8 @@ pub(crate) async fn marks(conn: &mut PgConnection, flow: Uuid) -> Result<Vec<Str
         .map_err(|e| store(&e))
 }
 
-/// The flows this transaction created or prolonged (`request`, `register`) and those it
-/// waived (`waive`): the measures `created` and `waiver` (REQ-011-6).
+/// The flows this transaction created or extended (`request`, `register`, `extend`) and
+/// those it waived (`waive`): the measures `created` and `waiver` (REQ-011-6, F20).
 pub(crate) async fn written_counts(conn: &mut PgConnection) -> Result<(u64, u64), StoreError> {
     let exists: bool = sqlx::query_scalar("SELECT to_regclass('pg_temp.flow_written') IS NOT NULL")
         .fetch_one(&mut *conn)
@@ -350,7 +410,7 @@ pub(crate) async fn written_counts(conn: &mut PgConnection) -> Result<(u64, u64)
         return Ok((0, 0));
     }
     let (created, waived): (i64, i64) = sqlx::query_as(
-        "SELECT count(DISTINCT flow_id) FILTER (WHERE op IN ('request', 'register')),
+        "SELECT count(DISTINCT flow_id) FILTER (WHERE op IN ('request', 'register', 'extend')),
                 count(DISTINCT flow_id) FILTER (WHERE op = 'waive')
            FROM pg_temp.flow_written",
     )

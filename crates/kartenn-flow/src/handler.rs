@@ -37,8 +37,8 @@ use crate::model::{
 use crate::module::FLOW;
 use crate::pg;
 use crate::rules::{
-    ENDPOINT_INVALID, FIELD_INVALID, REVIEW_END_REQUIRED, REVIEW_REQUIRED, UPDATE_IDENTITY,
-    VERDICT_PARTIAL, WAIVER_INVALID, WAIVER_REQUIRED,
+    ENDPOINT_INVALID, FIELD_INVALID, REVIEW_END_REQUIRED, REVIEW_REQUIRED, SEPARATION,
+    UPDATE_ENDED, UPDATE_IDENTITY, VERDICT_PARTIAL, WAIVER_INVALID, WAIVER_REQUIRED,
 };
 
 /// The permission whose holder reviews a request (REQ-011-22).
@@ -64,7 +64,7 @@ fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Completed {
-    /// `core.owner`, to anchor a new flow on its entity.
+    /// `core.owner`, to anchor a new flow, or the portion an extension adds, on its entity.
     owner_property: Option<Uuid>,
     /// The start of the operation, in microseconds: the anchor of a dated flow is bounded to
     /// its life, from here to `end`.
@@ -76,8 +76,12 @@ struct Completed {
     end_invalid: bool,
     /// The evaluation of a request against the policy (REQ-011-21).
     triage: Option<Value>,
-    /// The identity of a flow updated: its endpoints, service and kind.
+    /// The identity of a flow updated: its endpoints, service and kind; its entity, its
+    /// end (microseconds) and whether that end has passed.
     current: Option<Value>,
+    /// Whether the end is removed (`end: null`): a dated flow is extended (F20).
+    #[serde(default)]
+    end_removed: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -220,6 +224,12 @@ fn instant_at(micros: i64) -> OffsetDateTime {
     pg::time(Instant(micros))
 }
 
+/// Whether an update of a flow ending at `current` (microseconds) to `end`, or with its end
+/// removed, extends it (F20): a later end, or none.
+fn extends(current: i64, end: Option<i64>, removed: bool) -> bool {
+    end.map_or(removed, |end| end > current)
+}
+
 async fn now(conn: &mut PgConnection) -> Result<OffsetDateTime, StoreError> {
     sqlx::query_scalar("SELECT now()")
         .fetch_one(conn)
@@ -260,16 +270,39 @@ impl Handler {
                 }
             }
             "update" => {
+                completed.end_removed = operation.body.get("end").is_some_and(Value::is_null);
                 if let Some(id) = id_of(&operation.body, "id")
                     && let Some(stored) = pg::load(conn, id).await?
                 {
                     let f = &stored.flow;
+                    let current_end = f.period.end();
+                    let today = pg::instant(now(conn).await?);
+                    let ended = current_end.is_some_and(|e| e <= today);
                     completed.current = Some(json!({
                         "source": [pg::kind_name(f.source.kind), f.source.id],
                         "destination": [pg::kind_name(f.destination.kind), f.destination.id],
                         "service": f.service,
                         "kind": if f.kind == FlowKind::Observed { "observed" } else { "requested" },
+                        "entity": f.entity,
+                        "end": current_end.map(|e| e.0),
+                        "ended": ended,
                     }));
+                    // An extension is triaged on the portion it adds, against the policy of
+                    // the day (F20), and anchored there.
+                    if let Some(from) = current_end
+                        && !ended
+                        && extends(from.0, completed.end, completed.end_removed)
+                    {
+                        let from_time = pg::time(from);
+                        completed.owner_property =
+                            pg::property(conn, "core.owner", Some(from_time)).await?;
+                        let mut added = f.clone();
+                        if let Ok(period) = Period::new(from, completed.end.map(Instant)) {
+                            added.period = period;
+                            let evaluated = evaluate_flow(conn, &added, from_time).await?;
+                            completed.triage = Some(pg::triage_json(&evaluated));
+                        }
+                    }
                 }
             }
             _ => {}
@@ -477,14 +510,68 @@ impl Handler {
         if let Some(p) = input.personal_data {
             patch.insert("personal_data".into(), Value::Bool(p));
         }
+        // A later end, or none on a dated flow: an extension (F20), anchored on the portion
+        // it adds, triaged there; a flow that has ended is not extended.
+        let current = c.current.as_ref();
+        let extension = current
+            .and_then(|cur| cur["end"].as_i64())
+            .filter(|&from| extends(from, c.end, c.end_removed));
+        let mut core = Vec::new();
+        if let (Some(from), Some(current)) = (extension, current) {
+            if current["ended"] == true {
+                return Err(Violation::new(
+                    &UPDATE_ENDED,
+                    "a flow that has ended is not extended: request a new flow",
+                )
+                .with_subjects([id]));
+            }
+            core.push(Self::extension_anchor(operation, &c, id, from)?);
+        }
         Ok(ModulePlan {
             kind: flow_kind(),
             object: id,
             creates: matches!(input.id, Ref::Local(_)),
             domains: Vec::new(),
             keys: vec!["flow".into()],
-            core: Vec::new(),
-            data: json!({ "op": "update", "patch": patch, "end": c.end }),
+            core,
+            data: json!({
+                "op": "update",
+                "patch": patch,
+                "end": c.end,
+                "extend": extension,
+                "triage": c.triage,
+            }),
+        })
+    }
+
+    /// The anchor `core.owner` of the flow `id` over the portion an extension adds, from
+    /// `from` to the new end (F20).
+    fn extension_anchor(
+        operation: &ModuleOperation,
+        c: &Completed,
+        id: Uuid,
+        from: i64,
+    ) -> Result<Operation, Violation> {
+        let owner = c
+            .owner_property
+            .ok_or_else(|| invalid(operation, "core.owner is not declared"))?;
+        let entity = c
+            .current
+            .as_ref()
+            .and_then(|cur| cur["entity"].as_str())
+            .and_then(|s| s.parse::<Uuid>().ok())
+            .ok_or_else(|| invalid(operation, "the flow has no entity"))?;
+        Ok(Operation::Within {
+            period: PeriodSpec {
+                start: from,
+                end: c.end,
+            },
+            operation: Box::new(Operation::AssignProperty {
+                object: Ref::Id(id),
+                kind: ObjectKind::Module(flow_kind()),
+                property: Ref::Id(owner),
+                values: vec![RawInput::Text(entity.to_string())],
+            }),
         })
     }
 
@@ -521,6 +608,41 @@ impl Handler {
             core: Vec::new(),
             data,
         })
+    }
+
+    /// Extends the flow of `plan`, ending at `from`, to `end` (F20): its version, and the
+    /// object of the module registered over the portion added; its evaluation is the
+    /// re-evaluation's (`diff`), its anchor a core operation of the plan.
+    async fn extend(
+        tx: &mut dyn ModuleTx,
+        plan: &ModulePlan,
+        from: i64,
+        end: Option<i64>,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
+        let conn = connection(tx)?;
+        pg::extend_flow(
+            conn,
+            plan.object,
+            instant_at(from),
+            end.map(instant_at),
+            changeset,
+        )
+        .await?;
+        pg::mark_at(conn, plan.object, "extend", Some(instant_at(from))).await?;
+        let span = Period::new(Instant(from), end.map(Instant))
+            .map_err(|e| WriteError::Store(StoreError(e.to_string())))?;
+        tx.register(
+            ModuleObjectRow {
+                id: plan.object,
+                kind: plan.kind,
+                parent: None,
+                domain: None,
+            },
+            Some(span),
+            changeset,
+        )
+        .await
     }
 
     async fn apply_plan(
@@ -563,6 +685,10 @@ impl Handler {
                 .await?;
             }
             "update" => {
+                let extension = plan.data["extend"].as_i64();
+                if let Some(from) = extension {
+                    Self::extend(tx, plan, from, end, changeset).await?;
+                }
                 let conn = connection(tx)?;
                 let patch = plan.data["patch"].clone();
                 if patch.as_object().is_some_and(|p| !p.is_empty()) {
@@ -570,7 +696,7 @@ impl Handler {
                         .await?;
                 }
                 pg::mark(conn, plan.object, &op).await?;
-                if let Some(end) = end {
+                if let Some(end) = end.filter(|_| extension.is_none()) {
                     tx.close_versioned(
                         pg::FLOW_TABLE,
                         plan.object,
@@ -590,18 +716,24 @@ impl Handler {
             }
             "approve_review" => {
                 let conn = connection(tx)?;
+                let current_end = pg::load(conn, plan.object)
+                    .await?
+                    .and_then(|s| s.flow.period.end());
                 // Only the validator of a proposal reviews it (REQ-016-11); joined outside
-                // a validation, the reviewer stays empty and the rules refuse it.
+                // a validation, the reviewer stays empty and the rules refuse it. Recorded
+                // from now to the end of the flow (a dated flow, when extended).
                 pg::patch_flow(
                     conn,
                     plan.object,
                     &json!({ "reviewed_by": actors.validator }),
-                    (None, None),
+                    (None, current_end.map(pg::time)),
                     changeset,
                 )
                 .await?;
                 pg::mark(conn, plan.object, &op).await?;
-                if let Some(end) = end {
+                // The end approved shortens the flow; at or beyond its end, it is checked
+                // only (`check_review`).
+                if let Some(end) = end.filter(|&e| current_end.is_none_or(|c| e < c.0)) {
                     tx.close_versioned(
                         pg::FLOW_TABLE,
                         plan.object,
@@ -629,7 +761,8 @@ impl Handler {
         changeset: Uuid,
         out: &mut Vec<Violation>,
     ) -> Result<(), StoreError> {
-        let validating = tx.actors().validator.is_some();
+        let actors = tx.actors();
+        let validating = actors.validator.is_some();
         let conn = connection(tx)?;
         let marks = pg::marks(conn, id).await?;
         if marks.is_empty() {
@@ -715,23 +848,75 @@ impl Handler {
                 .await?;
             }
         }
-        if marks.iter().any(|m| m == "approve_review") {
+        let approving = marks.iter().any(|m| m == "approve_review");
+        let extended = pg::extended_from(conn, id).await?;
+        if let Some(from) = extended {
+            // The portion an extension adds is triaged as a request (F20): applied at its
+            // validation only reviewed and, denied, waived.
+            let at_time = pg::time(pg::instant(from).max(now_instant));
+            let evaluated = evaluate_in(conn, policies, flow, at_time).await?;
+            let summary = evaluated.summary;
+            let compliant = summary.is_some_and(|s| {
+                s.verdict == SynthesisVerdict::Allowed && s.outcome == PolicyOutcome::Automatic
+            });
+            let denied = summary.is_none_or(|s| s.verdict == SynthesisVerdict::Denied);
+            if summary.is_some_and(|s| s.verdict == SynthesisVerdict::Partial) {
+                out.push(subjects(Violation::new(
+                    &VERDICT_PARTIAL,
+                    "only part of the pairs of addresses of the flow is allowed",
+                )));
+            }
+            if !compliant && validating {
+                let triage = pg::triage_json(&evaluated);
+                let why = triage["decisive"]
+                    .as_str()
+                    .unwrap_or("no address")
+                    .to_owned();
+                if !approving {
+                    out.push(subjects(Violation::new(
+                        &REVIEW_REQUIRED,
+                        format!(
+                            "the extension of the flow is not compliant without review ({why})"
+                        ),
+                    )));
+                }
+                if denied && pg::waiver_at(conn, id, at_time).await?.is_none() {
+                    out.push(subjects(Violation::new(
+                        &WAIVER_REQUIRED,
+                        format!("the policy denies the extension of the flow ({why}) and no waiver covers it"),
+                    )));
+                }
+            }
+        }
+        if approving {
             match stored.reviewed_by {
                 None => out.push(subjects(Violation::new(
                     &REVIEW_REQUIRED,
                     "an approval of review is joined by the validator of a proposal",
                 ))),
-                Some(reviewer) => out.extend(
-                    model::check_review(
-                        reviewer,
-                        flow.requester,
-                        now_instant,
-                        flow.period.end(),
-                        REVIEW_MAX_MONTHS,
-                    )
-                    .into_iter()
-                    .map(subjects),
-                ),
+                Some(reviewer) => {
+                    out.extend(
+                        model::check_review(
+                            reviewer,
+                            flow.requester,
+                            now_instant,
+                            flow.period.end(),
+                            REVIEW_MAX_MONTHS,
+                        )
+                        .into_iter()
+                        .map(subjects),
+                    );
+                    // The author of an extension, or whom it is for, does not review it.
+                    if extended.is_some()
+                        && reviewer != flow.requester
+                        && [actors.author, actors.on_behalf_of].contains(&Some(reviewer))
+                    {
+                        out.push(subjects(Violation::new(
+                            &SEPARATION,
+                            "the author of the extension of a flow does not review it",
+                        )));
+                    }
+                }
             }
         }
         if marks.iter().any(|m| m == "waive")
@@ -802,7 +987,10 @@ impl ModuleHandler for Handler {
     }
 
     fn review(&self, plan: &ModulePlan) -> Option<&'static str> {
-        if plan.data["op"] != "request" {
+        // A request, and the extension of a flow (F20), are triaged.
+        let triaged = plan.data["op"] == "request"
+            || (plan.data["op"] == "update" && plan.data["extend"].is_i64());
+        if !triaged {
             return None;
         }
         let triage = &plan.data["triage"];
@@ -943,10 +1131,17 @@ impl ModuleHandler for Handler {
             };
             let conn = connection(tx)?;
             for operation in &context.operations {
-                if operation.name != "request" {
-                    continue;
-                }
-                let Some(entity) = id_of(&operation.body, "entity") else {
+                // A request, or an extension (its triage recorded, F20): the flow keeps its
+                // end.
+                let completed = operation.body.get("completed");
+                let entity = match operation.name.as_str() {
+                    "request" => id_of(&operation.body, "entity"),
+                    "update" if completed.is_some_and(|c| c["triage"].is_object()) => completed
+                        .and_then(|c| c["current"]["entity"].as_str())
+                        .and_then(|s| s.parse().ok()),
+                    _ => None,
+                };
+                let Some(entity) = entity else {
                     continue;
                 };
                 let evaluation = operation

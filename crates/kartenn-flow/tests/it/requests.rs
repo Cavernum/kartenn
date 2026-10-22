@@ -27,7 +27,7 @@ use sqlx::types::time::OffsetDateTime;
 
 /// What a requester holds on the entity (REQ-011-17): the request, and the anchor of the
 /// flow it creates (`core.owner`, set by the module in the changeset).
-const REQUEST: &[&str] = &["flow.flow.request", "prop.core.owner.write"];
+pub(crate) const REQUEST: &[&str] = &["flow.flow.request", "prop.core.owner.write"];
 
 pub(crate) struct Env {
     pub(crate) pool: PgPool,
@@ -132,7 +132,7 @@ impl Env {
         env
     }
 
-    async fn person(&self) -> Uuid {
+    pub(crate) async fn person(&self) -> Uuid {
         sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
         )
@@ -245,7 +245,7 @@ impl Env {
         })
     }
 
-    async fn flows(&self) -> i64 {
+    pub(crate) async fn flows(&self) -> i64 {
         sqlx::query_scalar("SELECT count(*) FROM flow.flow")
             .fetch_one(&self.pool)
             .await
@@ -253,26 +253,26 @@ impl Env {
     }
 }
 
-fn grants(subject: Uuid, permissions: &[&str]) -> Grants {
+pub(crate) fn grants(subject: Uuid, permissions: &[&str]) -> Grants {
     permissions
         .iter()
         .fold(Grants::new(), |g, p| g.everywhere(subject, p))
 }
 
-fn later(days: i64) -> String {
+pub(crate) fn later(days: i64) -> String {
     let at = OffsetDateTime::now_utc() + time::Duration::days(days);
     at.format(&time::format_description::well_known::Rfc3339)
         .unwrap()
 }
 
-fn rules(outcome: &Outcome) -> Vec<&'static str> {
+pub(crate) fn rules(outcome: &Outcome) -> Vec<&'static str> {
     match outcome {
         Outcome::Refused { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),
         other => panic!("not refused: {other:?}"),
     }
 }
 
-fn proposal(outcome: &Outcome) -> Uuid {
+pub(crate) fn proposal(outcome: &Outcome) -> Uuid {
     match outcome {
         Outcome::Pending {
             changeset,
@@ -284,7 +284,7 @@ fn proposal(outcome: &Outcome) -> Uuid {
 }
 
 /// The rules that refused a validation, whichever way it was refused.
-fn refusals(result: &Result<Outcome, RequestError>) -> Vec<&'static str> {
+pub(crate) fn refusals(result: &Result<Outcome, RequestError>) -> Vec<&'static str> {
     match result {
         Ok(Outcome::FailedRevalidation { violations, .. }) => {
             violations.iter().map(|v| v.rule.id).collect()

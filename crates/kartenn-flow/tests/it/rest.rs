@@ -480,3 +480,66 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
     }
     assert_eq!(seen, ["active", "requested", "requested"]);
 }
+
+/// `PATCH /v1/flows/{id}` under the version read, as a JSON Merge Patch.
+async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/v1/flows/{id}"))
+        .header(header::AUTHORIZATION, "Bearer t")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let etag = response.headers()[header::ETAG].clone();
+    let request = Request::builder()
+        .method(Method::PATCH)
+        .uri(format!("/v1/flows/{id}"))
+        .header(header::AUTHORIZATION, "Bearer t")
+        .header(header::CONTENT_TYPE, kartenn_rest::kit::MERGE_PATCH)
+        .header(header::IF_MATCH, etag)
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// REQ-011-4, 18, F20: `PATCH` applies an earlier end (200) and holds for a review an
+/// extension whose added portion is allowed under reserve (202, the changeset pending).
+#[kartenn_testing::pg_test]
+async fn a_patch_shortens_or_holds_an_extension(pool: PgPool) {
+    use crate::extensions::{WRITE, instructed, parties, under_reserve};
+    let env = Env::new(&pool).await;
+    under_reserve(&env).await;
+    let a = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let b = env.address("10.3.0.0/24", "10.3.0.1", "prod").await;
+    let (requester, reviewer, _, authorizer) = parties(&env).await;
+    let id = instructed(&env, &authorizer, (requester, reviewer), (a, b), 200, None).await;
+    let writer = env.app(env.granted(&[WRITE, &["flow.flow.read"]].concat()).await);
+
+    let (status, answer) = patch(
+        &writer,
+        id,
+        &json!({ "end": crate::requests::later(150), "motive": "m" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+
+    let (status, answer) = patch(
+        &writer,
+        id,
+        &json!({ "end": crate::requests::later(300), "motive": "m" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    assert_eq!(
+        (answer["kind"].as_str(), answer["state"].as_str()),
+        (Some("proposal"), Some("pending")),
+        "{answer}"
+    );
+}

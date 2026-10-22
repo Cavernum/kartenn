@@ -1157,7 +1157,7 @@ export interface paths {
     delete: operations["close_flow"];
     options?: never;
     head?: never;
-    /** Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4). */
+    /** Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4). An extension (a later end, or `end: null` on a dated flow) is triaged: applied when automatic, otherwise held for a review (F20). */
     patch: operations["modify_flow"];
     trace?: never;
   };
@@ -4426,7 +4426,10 @@ export interface components {
     FlowPatch: {
       /** @description The natures of the data carried. */
       data_nature?: string[] | null;
-      /** @description An earlier end. */
+      /**
+       * @description An earlier end, applied; or a later one, or `null` on a dated flow: an extension,
+       *     triaged on the portion it adds and held for a review unless automatic (F20).
+       */
       end?: string | null;
       /** @description The external references. */
       external_refs?: Record<string, never>[] | null;
@@ -10973,7 +10976,7 @@ export interface operations {
           "application/json": components["schemas"]["ChangesetApplied"];
         };
       };
-      /** @description Held for a decision. */
+      /** @description Held for a review or a decision. */
       202: {
         headers: {
           [name: string]: unknown;

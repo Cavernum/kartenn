@@ -3,6 +3,7 @@
 
 mod approval;
 mod expiry;
+mod extensions;
 mod reads;
 mod reevaluation;
 mod references;

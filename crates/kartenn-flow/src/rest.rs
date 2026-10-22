@@ -318,7 +318,8 @@ pub struct FlowPatchDto {
     data_nature: Option<Vec<Uuid>>,
     /// Whether personal data are carried.
     personal_data: Option<bool>,
-    /// An earlier end.
+    /// An earlier end, applied; or a later one, or `null` on a dated flow: an extension,
+    /// triaged on the portion it adds and held for a review unless automatic (F20).
     end: Option<String>,
     /// The motive of the changeset.
     motive: Option<String>,
@@ -1145,13 +1146,19 @@ pub fn routes() -> ModuleRouter {
     let modify_op = op(
         "modify_flow",
         "flow",
-        "Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4).",
+        "Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4). \
+         An extension (a later end, or `end: null` on a dated flow) is triaged: applied when \
+         automatic, otherwise held for a review (F20).",
     )
     .path("id", the, true)
     .header("If-Match", true, "The version read, as its ETag.")
     .body(MERGE_PATCH, "FlowPatch", true)
     .answers("200", "Modified.", "ChangesetApplied")
-    .answers("202", "Held for a decision.", "ChangesetPending")
+    .answers(
+        "202",
+        "Held for a review or a decision.",
+        "ChangesetPending",
+    )
     .build();
     let close_op = op("close_flow", "flow", "Closes the flow.")
         .path("id", the, true)
@@ -1175,7 +1182,7 @@ pub fn routes() -> ModuleRouter {
                  Path(id): Path<Uuid>,
                  headers: HeaderMap,
                  raw: Bytes| async move {
-                    kit::modify(
+                    kit::modify_nullable(
                         &api,
                         &principal,
                         &context,
@@ -1183,8 +1190,7 @@ pub fn routes() -> ModuleRouter {
                         &headers,
                         &raw,
                         flow_type(),
-                        "flow.update",
-                        UPDATE_MEMBERS,
+                        ("flow.update", UPDATE_MEMBERS, &["end"]),
                     )
                     .await
                 },
