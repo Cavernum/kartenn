@@ -542,4 +542,24 @@ async fn a_patch_shortens_or_holds_an_extension(pool: PgPool) {
         (Some("proposal"), Some("pending")),
         "{answer}"
     );
+
+    // F19: the extension pending is read as a review of the flow, its added portion
+    // triaged; the flow itself stays listed as applied.
+    let changeset = answer["changeset"]["id"].as_str().unwrap().to_owned();
+    let (status, page) = call(&writer, Method::GET, "/v1/flows?review=pending", None).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let [row] = items(&page).as_slice() else {
+        panic!("one row: {page}");
+    };
+    assert_eq!(row["id"], id.to_string(), "{row}");
+    assert_eq!(row["review"]["kind"], "extension");
+    assert_eq!(row["review"]["changeset"], changeset.as_str());
+    let triage = &row["review"]["triage"];
+    assert!(triage["outcome"].is_string(), "{row}");
+    assert!(
+        !triage["evaluations"].as_array().unwrap().is_empty(),
+        "{row}"
+    );
+    let (_, page) = call(&writer, Method::GET, "/v1/flows", None).await;
+    assert!(items(&page).iter().all(|i| i["review"].is_null()), "{page}");
 }

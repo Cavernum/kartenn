@@ -254,12 +254,12 @@ impl FlowView {
     /// The cursor after this row.
     #[must_use]
     pub fn cursor(&self) -> Cursor {
-        match (&self.review, self.id) {
-            (Some(r), None) => Cursor::Pending {
+        match &self.review {
+            Some(r) => Cursor::Pending {
                 changeset: r.changeset,
                 ordinal: r.ordinal,
             },
-            (_, id) => Cursor::Flow(id.unwrap_or_default()),
+            None => Cursor::Flow(self.id.unwrap_or_default()),
         }
     }
 }
@@ -380,7 +380,8 @@ async fn pending(
            CROSS JOIN LATERAL jsonb_array_elements(c.request -> 'operations')
                 WITH ORDINALITY AS o(op, ordinal)
            CROSS JOIN LATERAL (SELECT jsonb_path_query_first(
-                o.op, 'lax $.** ? (@.op == \"flow.request\")') AS body) b
+                o.op, 'lax $.** ? (@.op == \"flow.request\" || @.op == \"flow.update\")')
+                AS body) b
           WHERE {} AND b.body IS NOT NULL
             AND ($2::uuid IS NULL OR c.id = $2)
             AND ($3::uuid IS NULL OR (c.id, o.ordinal - 1) > ($3, $4::int))
@@ -428,7 +429,14 @@ async fn pending(
         let Value::Object(body) = body else {
             continue;
         };
-        let row = pending_view(changeset, ordinal, &body, requester, submitted, state);
+        let row = if body.get("op").and_then(Value::as_str) == Some("flow.update") {
+            match extension_view(changeset, ordinal, &body, requester, state) {
+                Some(row) => row,
+                None => continue,
+            }
+        } else {
+            pending_view(changeset, ordinal, &body, requester, submitted, state)
+        };
         if !filter.passes(&row, services.as_deref()) {
             continue;
         }
@@ -438,6 +446,73 @@ async fn pending(
         }
     }
     Ok(out)
+}
+
+/// An extension pending a review as listed (F19, F20), when its operation was triaged
+/// (an update that only shortens or edits is not): the identifier of the flow, its fields
+/// as the completion read them (`completed.current`), the portion it adds as period —
+/// from the current end to the new one — and its review.
+fn extension_view(
+    changeset: Uuid,
+    ordinal: i32,
+    body: &serde_json::Map<String, Value>,
+    requester: Uuid,
+    state: &'static str,
+) -> Option<FlowView> {
+    let completed = body.get("completed")?;
+    let triage = completed.get("triage").filter(|t| t.is_object()).cloned()?;
+    let current = completed.get("current")?;
+    let time = |v: Option<&Value>| {
+        v.and_then(Value::as_i64)
+            .map(|m| pg::time(kartenn_core::period::Instant(m)))
+    };
+    let start = time(current.get("end"))?;
+    let side = |name: &str| {
+        let pair = current.get(name).and_then(Value::as_array);
+        (
+            pair.and_then(|p| p.first()).cloned(),
+            pair.and_then(|p| p.get(1)).cloned(),
+        )
+    };
+    let (source_kind, source_id) = side("source");
+    let (destination_kind, destination_id) = side("destination");
+    let entity = current
+        .get("entity")
+        .and_then(|e| e.as_str()?.parse::<Uuid>().ok());
+    let id = handler::id_of(body, "id");
+    let text = |key: &str| triage.get(key).and_then(Value::as_str).map(str::to_owned);
+    let flow = json!({
+        "id": id,
+        "kind": current.get("kind"),
+        "source_kind": source_kind,
+        "source_id": source_id,
+        "destination_kind": destination_kind,
+        "destination_id": destination_id,
+        "service_id": current.get("service"),
+        "external_refs": body.get("external_refs"),
+        "justification": body.get("justification"),
+        "requester_id": requester,
+        "entity_id": entity,
+        "changeset_id": changeset,
+    });
+    Some(FlowView {
+        id,
+        flow,
+        start,
+        end: time(completed.get("end")),
+        state,
+        summary: text("summary"),
+        outcome: Some(text("outcome").unwrap_or_else(|| "review".to_owned())),
+        waived: false,
+        review: Some(Review {
+            changeset,
+            ordinal,
+            kind: "extension",
+            triage: Some(triage),
+            entity,
+            requester,
+        }),
+    })
 }
 
 /// A request pending a review as listed (F19): its fields in the form of a stored flow,

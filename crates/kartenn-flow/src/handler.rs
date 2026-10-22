@@ -300,7 +300,8 @@ impl Handler {
                         if let Ok(period) = Period::new(from, completed.end.map(Instant)) {
                             added.period = period;
                             let evaluated = evaluate_flow(conn, &added, from_time).await?;
-                            completed.triage = Some(pg::triage_json(&evaluated));
+                            completed.triage =
+                                Some(pg::triage_of(conn, &evaluated, from_time).await?);
                         }
                     }
                 }

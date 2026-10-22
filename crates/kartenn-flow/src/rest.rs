@@ -630,15 +630,16 @@ where
     let (mut ids, mut changesets) = (Vec::new(), Vec::new());
     for row in rows {
         match (row.id, &row.review) {
-            (Some(id), _) if seen.contains(&id) => {
-                ids.push(id);
-                items.push(flow_dto(row, false));
-            }
-            (None, Some(review)) => {
+            (id, Some(review)) => {
                 if let Some(&reduced) = reviews.get(&(review.changeset, review.ordinal)) {
                     changesets.push(review.changeset);
+                    ids.extend(id);
                     items.push(flow_dto(row, reduced));
                 }
+            }
+            (Some(id), None) if seen.contains(&id) => {
+                ids.push(id);
+                items.push(flow_dto(row, false));
             }
             _ => {}
         }
