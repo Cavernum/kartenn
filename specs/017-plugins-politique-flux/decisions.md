@@ -1,11 +1,11 @@
 # 017 — Plugins Politique et Flux : journal des décisions
 
-Brouillon du 2026-10-22, **sans entretien**. Ce journal ne consigne que les choix déjà
-fixés par la 007 (shell et plugins), la 010 (politique de flux), la 011 (registre de
-flux) et leurs précédents d'interface (008, 009) ; il ne prête aucune réponse à
-l'utilisateur. Les points que ces specs ne tranchent pas sont listés en fin de journal
-comme **questions ouvertes**, avec options et recommandation ; ils attendent un
-arbitrage avant l'implémentation.
+Brouillon du 2026-10-22, **sans entretien**. Ce journal consigne les choix déjà fixés
+par la 007 (shell et plugins), la 010 (politique de flux), la 011 (registre de flux) et
+leurs précédents d'interface (008, 009). Les points que ces specs ne tranchaient pas
+étaient listés comme questions ; **l'utilisateur les a arbitrées le 2026-10-22**
+(Q-017-1 à 7, en fin de journal) et a ajouté une phase de maquettes (U14). La spec est
+validée ; trois réponses amendent les specs de module (010/S35, 011/F19, 011/F20).
 
 Cadre : 007/W1 à W18 (en particulier W4, W5, W6, W9, W10, W11, W14) ; 010/S15, S28, S29,
 S31, S33, N36 ; 011/F5, F6, F10, F12, F15, F17 ; plugins `web/plugins/vlan` (008, tâche
@@ -31,8 +31,16 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - U10 instruction : routes des changesets (004) avec les opérations de revue du module.
 - U11 échéances : événements émis par le serveur ; l'interface les liste, ne les émet pas.
 - U12 accessibilité : WCAG 2.2 AA, axe-core bloquant (W14).
-- U13 périmètre : aucune route nouvelle ; tout besoin de route est une question ouverte.
-- Questions ouvertes : Q-017-1 à Q-017-7, à arbitrer.
+- U13 périmètre : routes servies, plus les amendements 010/S35, 011/F19 et F20 livrés
+  avant les écrans qui en dépendent (amendée).
+- U14 maquettes des écrans validées par l'utilisateur avant tout développement web.
+- Q-017-1 (A) le plugin `policy` simule son ensemble et rend les sections.
+- Q-017-2 (A) recherche dans le lisible et identifiant collé.
+- Q-017-3 (B) file d'instruction lue par `GET /v1/flows` (011/F19).
+- Q-017-4 (B) prolongation instruite d'un flux (011/F20).
+- Q-017-5 tous les objets de la 010 en écriture ; inférence comprise.
+- Q-017-6 (A) flux d'une machine ou d'une interface par les filtres de la liste.
+- Q-017-7 (B) `PUT` de la matrice sous `If-Match` (010/S35).
 
 ## U1 — Deux plugins, un par module
 - Décision : `web/plugins/policy/` (manifeste `"module": "policy"`) et
@@ -73,8 +81,7 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - Décision : un objet de politique ou un flux s'écrit par sa route de ressource (motif
   obligatoire, `If-Match` de la lecture ; 412 → relire en gardant la saisie ; 202 → le
   changeset en attente ; 422 → violations sur les champs) ; un ensemble de changements se
-  compose et se simule avant soumission (voir Q-017-1 pour le lieu de l'affichage du
-  différentiel).
+  compose et se simule avant soumission, dans le plugin (Q-017-1, A).
 - Pourquoi : W10, REQ-007-25, 26.
 - Décidé par : hérité de 007/W10
 
@@ -114,7 +121,8 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 ## U9 — Vue matricielle
 - Décision : la matrice (environnement source × environnement destination, pour un type
   de flux) se lit par `GET /v1/policy-matrix?flow_type=` et s'écrit cellule par cellule
-  par `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` (`policy.matrix.set`) :
+  par `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` (`policy.matrix.set`,
+  sous `If-Match` de la matrice : 010/S35, Q-017-7) :
   états `allow`, `deny`, `conditional` (motifs requis) ou `none` (clôture de la règle) ;
   une cellule absente vaut refus par défaut ; le décompte `outside` des règles hors vue
   est affiché ; une interdiction exige un texte pédagogique (`texts.fr`).
@@ -155,10 +163,30 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - Pourquoi : consigne de la demande ; une route nouvelle relève de la spec du module
   (amendement de la 010 ou de la 011), pas d'une spec d'interface.
 - Décidé par : consigne de la demande (2026-10-22)
+- Amendé le 2026-10-22 (arbitrage de Q-017-3, 4, 5, 7) : les amendements de module
+  décidés avec la 017 (010/S35, tâche 010-21 ; 011/F19, tâche 011-12 ; 011/F20, tâche
+  011-13) sont des prérequis : une tâche d'écran qui en dépend le dit dans `dépend de :`.
+  Un écran qui demanderait une route encore non spécifiée reste une tâche, bloquée sur
+  un amendement de module **à rédiger**, nommé dans sa ligne `dépend de :` (aperçu
+  d'une règle d'inférence, Q-017-5) ; aucune route n'est inventée par la 017.
+- Décidé par (amendement) : l'utilisateur (2026-10-22)
 
-## Questions ouvertes
+## U14 — Maquettes avant le développement web
+- Décision : avant toute tâche d'écran des plugins `policy` et `flow`, une phase de
+  maquettes : les écrans des deux plugins (vues, formulaires, matrice, différentiel,
+  requête de conformité, demande, file d'instruction, échéances, non-conformités,
+  administration du catalogue et de l'inférence) sont maquettés et **validés par
+  l'utilisateur** ; toute tâche web de la 017 en dépend. Les tâches d'amendement de la
+  010 et de la 011 n'en dépendent pas. Une maquette validée qui contredit le design le
+  fait amender avant l'écran.
+- Pourquoi : les écrans sont nombreux et écrits à la main sur un schéma générique ;
+  corriger une maquette coûte moins qu'un Custom Element livré.
+- Décidé par : l'utilisateur (2026-10-22)
 
-Chaque question porte des options et la recommandation de Claude ; aucune n'est tranchée.
+## Questions arbitrées
+
+Chaque question porte ses options, la recommandation de Claude et la décision de
+l'utilisateur.
 
 ### Q-017-1 — Où montrer le différentiel d'un changement de politique
 - Constat : la simulation (`POST /v1/changesets?simulate=true`) rend les sections de
@@ -173,6 +201,12 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   changeset ; (C) les deux, A d'abord.
 - Recommandation : **A** pour la 017 (aucun changement du shell ni du SDK) ; B comme
   amendement ultérieur de la 007 si d'autres modules en ont besoin.
+- Décision : **A**. Le plugin `policy` compose son ensemble en préparation, le simule
+  (`POST /v1/changesets?simulate=true`) et rend les sections de différentiel de la
+  politique (et `flow.flows` si `flow` est actif) ; il offre la vue des sections d'un
+  changeset en attente. Aucun changement du shell ni du SDK ; le rendu générique par le
+  shell (B) viendra plus tard, hors de cette spec.
+- Décidé par : l'utilisateur (2026-10-22)
 
 ### Q-017-2 — Désigner une extrémité sans lire le référentiel
 - Constat : un demandeur muni de `flow.flow.request` (ou `policy.flow.request`) peut
@@ -187,6 +221,9 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   par un outil appelant l'API.
 - Recommandation : **A** pour la 017 ; **B** à instruire comme amendement de la 011 si
   les demandeurs sans lecture sont nombreux (c'est le cas d'usage UC-1 par excellence).
+- Décision : **A**. Le formulaire cherche parmi les objets que le demandeur lit et
+  accepte un identifiant collé ; aucun changement du serveur.
+- Décidé par : l'utilisateur (2026-10-22)
 
 ### Q-017-3 — File d'instruction : les demandes en attente ne sont pas des flux lisibles
 - Constat : REQ-011-5 promet l'état `requested`, mais la lecture des flux
@@ -201,6 +238,11 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   avec l'évaluation du triage et le changeset à instruire.
 - Recommandation : **B** (l'écart est dans la 011, la file s'en déduit sans lectures en
   N+1) ; A seulement comme repli si B attend.
+- Décision : **B**. L'écart de la 011 se corrige d'abord (011/F19, tâche 011-12) :
+  `GET /v1/flows?state=requested` sert les demandes en attente avec l'évaluation du
+  triage et le changeset à instruire ; la file du plugin la lit (avec `review=pending`
+  pour y joindre les prolongations, 011/F20). Pas de repli A.
+- Décidé par : l'utilisateur (2026-10-22)
 
 ### Q-017-4 — Renouveler un flux instruit à son échéance
 - Constat : `PATCH /v1/flows/{id}` ne fait que raccourcir (écart du design 011) ; seule
@@ -210,6 +252,12 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   triage, l'ancien expire) ; (B) amender la 011 : prolongation par `update` avec
   réévaluation et instruction.
 - Recommandation : **A** pour la 017 ; signaler l'incohérence de REQ-011-6 à la 011.
+- Décision : **B**. La 011 est amendée (011/F20, tâche 011-13) : `PATCH /v1/flows/{id}`
+  prolonge aussi ; la prolongation est triée et instruite comme une demande (plafonds
+  F5 et F6, séparation F12) ; REQ-011-6 devient cohérente. Le plugin offre
+  « prolonger » sur un flux daté non terminé ; la nouvelle demande pré-remplie reste
+  pour un flux terminé ou pour changer d'extrémité ou de service.
+- Décidé par : l'utilisateur (2026-10-22)
 
 ### Q-017-5 — Périmètre des écrans d'administration de la politique
 - Constat : la 010 sert onze collections (axes, valeurs, environnements, types de flux,
@@ -221,6 +269,19 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   REQ-010-35) ; (C) lecture seule partout sauf la matrice.
 - Recommandation : **B** ; l'inférence et ses suggestions (UC-5) relèvent du panneau des
   propriétés du shell et d'une spec ultérieure.
+- Décision : **tous** les objets de la 010 sont modifiables dans le plugin `policy` :
+  axes, valeurs (description), environnements, types de flux, services, règles, motifs,
+  conditions d'admissibilité, signaux, rôles exemptés et règles d'inférence (critères,
+  exceptions, priorité), chacun selon les opérations que sa collection sert
+  (`crates/kartenn-policy/src/rest.rs:COLLECTIONS`). Inférence : la 010 sert déjà
+  l'attendu et son explication par nœud (routes transverses du noyau
+  `GET /v1/{collection}/{id}/properties/{key}/suggestion` et `…/explanation`) et les
+  écarts comme anomalies (`policy.inference.mismatch`) ; le plugin les rend (action sur
+  les fiches `address` et `prefix`, vue des écarts). L'aperçu de l'effet d'une règle
+  d'inférence avant écriture (nœuds qui correspondraient, écarts ouverts ou fermés) n'a
+  pas de route : il reste une tâche, bloquée sur un amendement de la 010 à rédiger
+  (section de différentiel ou simulation de l'inférence).
+- Décidé par : l'utilisateur (2026-10-22) ; constat des routes servies : Claude
 
 ### Q-017-6 — Flux d'une machine ou d'une interface
 - Constat : `GET /v1/{machines,interfaces}/{id}/flows` existe, mais il n'y a pas de fiche
@@ -229,6 +290,8 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   dans son URL ; le plugin `machines` pourra y lier sa fiche plus tard (lien par URL, sans
   import) ; (B) amender la 007 pour des fiches d'objets de module.
 - Recommandation : **A**.
+- Décision : **A**, comme recommandé.
+- Décidé par : l'utilisateur (2026-10-22)
 
 ### Q-017-7 — Écritures concurrentes de la matrice
 - Constat : `PUT /v1/policy-matrix/…` n'exige pas d'`If-Match` ; deux responsables qui
@@ -238,3 +301,8 @@ Chaque question porte des options et la recommandation de Claude ; aucune n'est 
   prévient si la révision a changé (contrôle non atomique) ; (B) amender la 010 : `PUT`
   sous `If-Match` de la matrice.
 - Recommandation : **A** pour la 017, **B** à proposer à la 010 (choix de contrat).
+- Décision : **B**. La 010 est amendée (010/S35, tâche 010-21) : le `PUT` d'une cellule
+  exige `If-Match` comme toute écriture (006/H8 : 428 absent, 412 périmé) ; une
+  opération `policy.matrix.set` d'un changeset composé porte l'ETag lu dans son membre
+  `if_match`. Le plugin n'a plus de contrôle client non atomique.
+- Décidé par : l'utilisateur (2026-10-22)

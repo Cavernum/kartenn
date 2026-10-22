@@ -41,6 +41,10 @@ l'amendement de D30 (validité dérivée).
 - F16 sorte de flux : `requested`, `observed` réservée à la v0.3.
 - F17 non-conformités consultables.
 - F18 rien ne se prolonge seul.
+- F19 demandes en attente servies par la lecture des flux (`state=requested`), avec le
+  triage et le changeset à instruire (amende F4, F11, F15).
+- F20 prolongation d'un flux : triée et instruite comme une demande (amende F4, F5 ;
+  écart « `update` ne fait que raccourcir » levé).
 
 ## F1 — Périmètre
 - Décision : la 011 livre le registre des flux déclarés, leur cycle de vie, leur
@@ -261,3 +265,73 @@ l'amendement de D30 (validité dérivée).
   service agissant pour un demandeur identifié. L'état et la validité sont calculés.
 - Pourquoi : D1, Q16, EB-18.
 - Décidé par : l'utilisateur (Q16)
+
+## F19 — Demandes en attente servies par la lecture (amende F4, F11, F15)
+- Constat (2026-10-22, spec 017, Q-017-3) : REQ-011-5 promet l'état `requested` et le
+  design le fait venir des propositions en attente, mais la lecture des flux
+  (`crates/kartenn-flow/src/read.rs`, `flows`) ne rend que des flux appliqués
+  (`Creation::Applied`) : une demande en attente n'existe que comme proposition
+  (`GET /v1/proposals`, `GET /v1/changesets/{id}`), et l'évaluation de son triage n'est
+  lisible nulle part comme telle. Une file d'instruction devrait lire chaque changeset
+  et recalculer l'évaluation (N+1, politique du jour).
+- Options : (A) laisser le client bâtir la file depuis les propositions ; (B) servir les
+  demandes en attente par `GET /v1/flows?state=requested`, avec leur triage et le
+  changeset à instruire.
+- Décision : **B**. `GET` et `QUERY /v1/flows` rendent, quand le filtre `state` cite
+  `requested`, une ligne par proposition en attente qui porte une opération
+  `flow.request` : la demande telle que l'opération complétée la garde, `state:
+  requested`, `id: null` (le flux n'existe qu'à l'application) et un membre `review` :
+  changeset à instruire, nature (`request`), évaluation du triage (synthèse, issue,
+  élément décisif, conditions non remplies, score, avertissements, révision de
+  politique, évaluations par paire) lue dans l'opération, **sans recalcul**. Le même
+  membre `review` (nature `extension`) décrit une prolongation en attente d'un flux
+  appliqué (F20) ; le filtre `review=pending` rend les deux (demandes et prolongations
+  en attente), le filtre `changeset=<id>` la ligne d'une proposition. Sans `requested`
+  dans `state`, la liste reste celle des flux appliqués (aucune ligne à `id` nul pour
+  les clients actuels). Droits : lecture de l'entité (`flow.flow.read`), instruction
+  (`flow.flow.review` sur l'entité) ou demandeur de la ligne (`flow.flow.request`) ;
+  évaluation réduite (REQ-010-25) pour qui ne lit pas les extrémités. Datation : une
+  demande est `requested` à `as_of` si sa proposition était soumise et non terminée à
+  cette date (horodatages de la 004) ; `valid_at` ne l'écarte pas.
+- Pourquoi : l'écart est dans la 011 (REQ-011-5 non tenue) ; la file d'instruction se
+  lit en une requête, avec l'évaluation qui a décidé du triage, sous les droits du
+  serveur.
+- Rejeté : recalculer l'évaluation à la lecture (elle peut différer du triage et coûte
+  une évaluation par ligne) ; état stocké (F4).
+- Décidé par : l'utilisateur (2026-10-22, Q-017-3, option B) ; forme de la ligne
+  (`id` nul, membre `review`), filtres `review` et `changeset`, lignes en attente
+  seulement sur demande explicite : Claude, choix de conception
+
+## F20 — Prolongation d'un flux (amende F4, F5 ; REQ-011-4, 6)
+- Constat (2026-10-22, spec 017, Q-017-4) : `PATCH /v1/flows/{id}` (`update`) ne fait
+  que raccourcir la période (écart au design, « le code fait foi ») ; seule une
+  dérogation se recertifie. REQ-011-6 et F5 nomment pourtant la « prolongation d'un
+  flux » (déclencheur `flow.created`), et F4 « renouveler = prolonger la période par
+  changeset ».
+- Options : (A) renouveler par une nouvelle demande pré-remplie (nouveau flux, l'ancien
+  expire) ; (B) amender la 011 : prolongation par `update`, réévaluée et instruite.
+- Décision : **B**. Un `update` dont la fin est postérieure à la fin courante, ou qui
+  retire la fin d'un flux daté, est une **prolongation** ; avancer la fin reste un
+  raccourcissement immédiat. La prolongation est **triée comme une demande**
+  (REQ-011-21) : le flux est évalué, avec son dossier, sur la portion ajoutée et contre
+  la politique du jour ; synthèse `allowed` et issue `automatic` → appliquée (200) ;
+  sinon **proposition à instruire** (202), même si l'auteur détient `flow.flow.write`
+  (N39). L'instructeur l'approuve par `approve_review` : fin obligatoire, au plus
+  `review_max_months` après la date de la décision (F5) ; si la portion ajoutée est
+  refusée, une dérogation (`waive`) au plus `waiver_max_months` après son octroi et pas
+  au-delà de la fin du flux (F6) ; il la rejette avec un motif (non-conformité, F17 ; le
+  flux garde sa fin). Séparation des tâches (F12) : l'instructeur et l'auteur de la
+  dérogation sont distincts du demandeur du flux et de l'auteur de la prolongation (ou
+  de son « pour le compte de »). Droit de demander une prolongation : `flow.flow.request`
+  (explication réduite) ou `flow.flow.write` sur l'entité. Un flux arrivé à sa fin
+  (`expired`, `withdrawn`) ne se prolonge pas (`flow.update.ended`) : il se renouvelle
+  par une nouvelle demande. La prolongation compte pour le déclencheur `flow.created`.
+- Pourquoi : un flux instruit garde son identité et son historique à l'échéance, au lieu
+  d'un nouveau flux par an ; l'instruction et ses plafonds s'appliquent comme à la
+  demande, rien ne se prolonge seul (F18).
+- Rejeté : prolongation directe sous `flow.flow.write` (contournerait l'instruction et
+  les plafonds) ; prolongation d'un flux expiré (son historique dirait « actif » sur une
+  période où il ne l'était pas).
+- Décidé par : l'utilisateur (2026-10-22, Q-017-4, option B, plafonds F5 et F6 et
+  séparation F12 respectés) ; plafond compté depuis la décision, refus d'un flux
+  terminé, retrait de la fin traité comme prolongation : Claude, choix de conception

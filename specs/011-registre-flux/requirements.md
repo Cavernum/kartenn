@@ -75,7 +75,21 @@ aussi ces flux (D33, REQ-004-25, 26).
 Le module doit permettre de modifier les références externes, la justification, les
 responsables, la nature des données et la période d'un flux ; changer une extrémité ou
 le service crée un nouveau flux (le précédent est clos), pour que l'historique d'un flux
-garde un sens constant.
+garde un sens constant. Avancer la fin s'applique sans instruction ; une **prolongation**
+(fin plus tardive, ou fin retirée d'un flux daté) doit être triée comme une demande
+(REQ-011-21) sur la portion ajoutée, contre la politique du jour, et instruite si elle
+n'est pas automatique (REQ-011-22) ; un flux terminé ne se prolonge pas (F20).
+
+Acceptation :
+- Avancer la fin d'un flux actif : appliqué (200), sans instruction.
+- Prolonger de 6 mois un flux instruit dont la portion ajoutée est `allowed` sous
+  réserve : proposition à instruire (202), le flux garde sa fin jusqu'à l'approbation ;
+  approuvée avec une fin à 13 mois de la décision : refusée
+  (`flow.review.end_required`).
+- Prolongation dont la portion ajoutée est refusée par une règle `deny` : approuvable
+  seulement avec une dérogation (`flow.waiver.required` sinon).
+- L'auteur de la prolongation l'approuve lui-même : refusé (`flow.separation`).
+- Prolonger un flux `expired` : refusé (`flow.update.ended`).
 
 #### REQ-011-20 — Sorte de flux
 Le module doit porter la sorte de chaque flux et refuser, en v0.2, la sorte `observed`
@@ -100,10 +114,11 @@ Acceptation :
 
 #### REQ-011-22 — Instruction
 Le module doit permettre à un instructeur (`flow.flow.review` sur l'entité, distinct du
-demandeur) d'**approuver** une proposition à instruire (avec une date de fin
-obligatoire, au plus `[flow] review_max_months`, 12 par défaut ; une dérogation si le
+demandeur et de l'auteur d'une prolongation) d'**approuver** une proposition à
+instruire, demande ou prolongation (avec une date de fin obligatoire, au plus
+`[flow] review_max_months` après la décision, 12 par défaut ; une dérogation si le
 verdict est refusé, REQ-011-9) ou de la **rejeter** avec un motif obligatoire et la
-règle en cause, ce qui crée une non-conformité (F5, F17, UC-3).
+règle en cause, ce qui crée une non-conformité (F5, F17, F20, UC-3).
 
 Acceptation :
 - Le demandeur approuve sa propre demande : refusé (séparation des tâches, C1).
@@ -114,10 +129,19 @@ Acceptation :
 Le module doit restituer pour chaque flux, à une date, l'état `requested`, `rejected`,
 `scheduled`, `active`, `noncompliant`, `waived`, `expired` ou `withdrawn`, dérivé du
 changeset de création, de la période, de l'évaluation courante et de la dérogation, sans
-écriture d'état (F4).
+écriture d'état (F4). Les demandes en attente doivent être servies par la lecture des
+flux (`state=requested`), chacune avec le changeset à instruire et l'évaluation de son
+triage, lue sans recalcul (F19).
 
 Acceptation :
 - Proposition en attente : `requested` ; rejetée : `rejected`.
+- `GET /v1/flows?state=requested` rend la demande en attente avec `id` nul, son
+  changeset et l'évaluation du triage (issue `review`, motif attendu) égale à celle de
+  la réponse 202 ; sans `requested` dans `state`, elle n'apparaît pas.
+- Le demandeur la lit avec une évaluation réduite ; un instructeur (`flow.flow.review`
+  sur l'entité) la lit ; un utilisateur sans droit sur l'entité ne la voit pas.
+- À un `as_of` antérieur à sa soumission, elle n'apparaît pas ; après son rejet, elle
+  n'apparaît plus.
 - Flux conforme sans date de fin, appliqué : `active` aussi longtemps que son verdict
   est `allowed`.
 - Une règle `deny` ajoutée le 1er mai le rend refusé : `noncompliant` à partir du 1er
@@ -133,11 +157,15 @@ EB-17, EB-18).
 
 #### REQ-011-6 — Approbation
 Le module doit fournir aux politiques d'approbation (REQ-004-40) les déclencheurs
-`flow.created` (création ou prolongation d'un flux), `flow.breaks` (au moins N flux qui
-passent de `allowed` ou `partial` à `denied`) et `flow.waiver` (octroi ou prolongation
-d'une dérogation). Seul `flow.breaks` s'applique par défaut : à son installation, le
-module doit créer une politique d'approbation active `flow.breaks ≥ 1`, que
-l'administrateur peut désactiver (F5, F8, EB-25).
+`flow.created` (création ou prolongation d'un flux, REQ-011-4), `flow.breaks` (au moins
+N flux qui passent de `allowed` ou `partial` à `denied`) et `flow.waiver` (octroi ou
+prolongation d'une dérogation). Seul `flow.breaks` s'applique par défaut : à son
+installation, le module doit créer une politique d'approbation active `flow.breaks ≥ 1`,
+que l'administrateur peut désactiver (F5, F8, F20, EB-25).
+
+Acceptation :
+- Politique `flow.created ≥ 1` active : une prolongation triée automatique est retenue
+  pour approbation comme une création.
 
 #### REQ-011-7 — Échéances et événements
 Le module doit émettre `org.kartenn.flow.expiring` 30 et 7 jours (réglable) avant la fin
@@ -219,7 +247,9 @@ Acceptation :
 Le module doit permettre de filtrer les flux à une date par : extrémité (exacte, préfixe
 et son sous-arbre, machine et ses adresses), service, type de flux, sorte, état,
 synthèse, issue, règle décisive, dérogation, échéance avant une date, entité, demandeur,
-référence externe, valeur d'un axe d'une extrémité (application, propriétaire) (F11).
+référence externe, valeur d'un axe d'une extrémité (application, propriétaire) ; et
+par instruction en attente (`review=pending` : demandes et prolongations) ou par
+changeset (F11, F19).
 
 #### REQ-011-15 — Flux d'un objet
 Le module doit lister, pour un objet (adresse, préfixe, interface, machine), les flux
@@ -258,7 +288,8 @@ Acceptation :
 Le module doit exposer, de manière additive et selon la clause 9 de l'ADR 0026,
 `/v1/flows` (liste, filtres, `QUERY`, routes de ressource), `/v1/flows/{id}/evaluations`,
 `/v1/flow-nonconformities`, et les flux d'un objet ; l'instruction passe par les routes
-des changesets de la 004 (approbation, rejet motivé) (F15).
+des changesets de la 004 (approbation, rejet motivé) ; `PATCH /v1/flows/{id}` répond 202
+avec le changeset en attente pour une prolongation à instruire (F15, F20).
 
 ### G. Performance
 

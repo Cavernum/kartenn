@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-22
 ---
 
@@ -10,11 +10,14 @@ updated: 2026-10-22
 Écrans des modules Politique (010) et Flux (011), livrés comme deux plugins de première
 partie du shell (007/W6) : `web/plugins/policy/` pour l'équipe sécurité qui écrit et
 éprouve la politique, `web/plugins/flow/` pour le demandeur qui dépose un flux et pour
-l'instructeur qui le tranche. Ils ne s'appuient que sur la surface REST servie au
-2026-10-22 ; tout besoin de route nouvelle est une question ouverte
-([`decisions.md`](decisions.md), Q-017-1 à 7).
+l'instructeur qui le tranche. Ils s'appuient sur la surface REST servie au 2026-10-22
+et sur trois amendements de module décidés avec eux : `If-Match` de la matrice
+(010/S35), demandes en attente lues comme des flux (011/F19), prolongation instruite
+(011/F20). Les questions Q-017-1 à 7 sont arbitrées
+([`decisions.md`](decisions.md)) ; les écrans suivent des maquettes validées par
+l'utilisateur (U14).
 
-Décisions : [`decisions.md`](decisions.md) (U1–U13) ; 007/W4 à W14 ; 010/S15, S28, S29,
+Décisions : [`decisions.md`](decisions.md) (U1–U14, Q-017-1 à 7) ; 007/W4 à W14 ; 010/S15, S28, S29,
 S31, S33, N36 ; 011/F5, F6, F10, F12, F17. Exigences servies : REQ-010 et REQ-011
 (table de traçabilité en fin de document). Précédents : plugins `vlan` (008, tâche 17)
 et `machines` (009, tâche 13).
@@ -22,7 +25,8 @@ et `machines` (009, tâche 13).
 ### Vocabulaire
 
 - **Responsable sécurité** : utilisateur qui détient `policy.rule.admin` (et, selon
-  l'objet, les autres `policy.*.admin`) ; écrit la politique et lit le rapport d'audit.
+  l'objet, les autres `policy.*.admin`, `policy.inference.admin` pour l'inférence) ;
+  écrit la politique et lit le rapport d'audit.
 - **Demandeur** : utilisateur qui détient `flow.flow.request` (et `policy.flow.request`
   pour la pré-vérification) sur l'entité de la demande.
 - **Instructeur** : utilisateur qui détient `flow.flow.review` (et, pour une dérogation,
@@ -114,16 +118,20 @@ Acceptation :
 Quand le responsable sécurité change l'état d'une cellule, le plugin doit exiger les
 motifs d'une cellule `conditional` et le texte d'une cellule `deny`, ajouter le
 changement à l'ensemble en préparation, et soumettre l'ensemble par
-`PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` (un appel par cellule) ou par
-un changeset composé ; une réponse 202 doit mener au changeset en attente. [REQ-010-34,
-20, U9 ; Q-017-1, Q-017-7]
+`PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` (un appel par cellule, sous
+`If-Match` de la matrice lue) ou par un changeset composé dont chaque opération
+`policy.matrix.set` porte cet ETag (`if_match`) ; une réponse 202 doit mener au
+changeset en attente ; un 412 ou un refus `policy.matrix.stale` doit relire la matrice
+en gardant l'ensemble en préparation. [REQ-010-34, 20, U9 ; Q-017-1, Q-017-7 ;
+010/S35]
 
 Acceptation :
 - Écrire `(prod, file, global)` en `conditional` avec le motif `object-storage-relay` :
   relue, la cellule rend `conditional` et son motif.
 - `none` sur une cellule existante clôt sa règle ; la cellule redevient vide.
-- Si la révision de la matrice a changé depuis la lecture, le plugin le dit avant
-  d'envoyer (Q-017-7, option A).
+- Une autre cellule du même type de flux écrite entre la lecture et l'envoi : 412 (ou
+  `policy.matrix.stale`), la matrice relue, l'ensemble en préparation intact et
+  resoumis sur le nouvel ETag.
 
 #### REQ-017-8 — Différentiel avant soumission
 Avant de soumettre un ensemble en préparation, le plugin `policy` doit le simuler
@@ -153,15 +161,78 @@ Acceptation :
 
 #### REQ-017-10 — Catalogue
 Le plugin `policy` doit lister et montrer services (couples transport/ports, type de
-flux), types de flux et environnements, et en permettre la création, la modification et
-la clôture à qui détient l'administration correspondante ; il doit lister en lecture
-seule les axes, valeurs d'axes, conditions d'admissibilité, signaux, rôles exemptés et
-règles d'inférence. [REQ-010-2, 4, 5, 29, 30, 36, 37 ; Q-017-5]
+flux), types de flux et environnements, et en permettre la création, la modification
+(description d'un environnement) et la clôture à qui détient l'administration
+correspondante. [REQ-010-2, 4, 5 ; Q-017-5]
 
 Acceptation :
 - Service à plus de 1 024 ports d'un transport : l'avertissement
   `policy.service.wide_ports` est affiché, l'écriture aboutit.
 - Clore un type de flux qu'un service cite : refus, liste des objets qui le citent.
+
+#### REQ-017-30 — Axes et valeurs
+Le plugin `policy` doit lister et montrer les axes (propriété, porteurs, visé ou non par
+l'inférence) et leurs valeurs (libellé, description, transverse, rang), et permettre à
+qui détient `policy.axis.admin` de désigner, modifier et retirer un axe et de décrire
+ses valeurs ; les valeurs elles-mêmes (la liste fermée) restent déclarées par la
+propriété du noyau. [REQ-010-29, 30 ; Q-017-5]
+
+Acceptation :
+- Désigner une propriété liste fermée comme axe porté par la machine : relu, l'axe
+  l'indique ; retirer un axe qu'une règle cite : refus, objets qui le citent listés.
+- Donner un rang aux valeurs de sensibilité : relues dans l'ordre du rang.
+
+#### REQ-017-31 — Conditions, signaux, rôles exemptés
+Le plugin `policy` doit lister, montrer, créer, modifier et clore les conditions
+d'admissibilité (sélecteur, exigence, textes), les signaux de risque (sorte,
+paramètres, poids) et les rôles exemptés (création et clôture), sous
+`policy.rule.admin`, avec les mêmes parcours d'écriture que les règles. [REQ-010-26,
+36, 37 ; Q-017-5 ; U5]
+
+Acceptation :
+- Condition sans texte pédagogique : envoi refusé côté client ; forcé,
+  `policy.text.missing` placé sur le champ.
+- Modifier le poids d'un signal : la simulation de l'ensemble annonce les flux dont le
+  score change (section `flow.flows`, si `flow` est actif).
+
+#### REQ-017-32 — Règles d'inférence
+Le plugin `policy` doit lister, montrer (avec historique et révision du jeu), créer,
+modifier et clore les règles d'inférence : axe visé, valeurs attendues, critères pris
+dans la liste fermée du serveur, exceptions imbriquées (profondeur au plus 4), priorité
+explicite, domaine cité ; sous `policy.inference.admin` (sur le domaine cité, ou
+global). [REQ-010-40 à 46, 50 ; Q-017-5]
+
+Acceptation :
+- Exception de profondeur 5 : refusée côté client ; forcée, `policy.inference.depth`
+  placée sur l'exception.
+- Expression régulière invalide : `policy.inference.regex_invalid` sur le critère.
+- Règle qui cite un domaine hors du périmètre de l'utilisateur : 403 affiché sans perte
+  de saisie.
+
+#### REQ-017-33 — Attendus et écarts d'inférence
+Le plugin `policy` doit offrir sur les fiches `address` et `prefix` une action « Attendu
+d'inférence » qui montre, pour un axe visé, le ou les attendus et leur explication
+(règle et chaîne d'exceptions, révision, nœud de correspondance, critères et valeurs
+observées, règles écartées) par les routes de suggestion et d'explication du noyau ;
+et une vue des écarts (anomalies `policy.inference.mismatch` : nœud d'origine, décompte
+des héritiers en écart), acquittables. [REQ-010-45, 47 à 49, 51]
+
+Acceptation :
+- Deux candidats à égalité : tous affichés, aucun retenu, aucun écart signalé.
+- Acquitter un écart : il quitte la liste des écarts ouverts.
+
+#### REQ-017-34 — Aperçu d'une règle d'inférence
+Avant d'écrire une règle d'inférence, le plugin `policy` doit montrer les nœuds qui
+lui correspondraient et les écarts qu'elle ouvrirait ou fermerait. [REQ-010-48, 49 ;
+Q-017-5]
+
+Condition : aucune route ne sert cet aperçu au 2026-10-22 ; l'exigence attend un
+amendement de la 010 **à rédiger** (section de différentiel ou simulation de
+l'inférence), avant lequel elle n'est pas implémentée (U13).
+
+Acceptation :
+- Règle `prod` sur un préfixe de 12 nœuds dont 3 déclarés `dev` : aperçu de 12 nœuds et
+  de 3 écarts ouverts, sans écriture.
 
 ### C. Éprouver la politique
 
@@ -248,13 +319,17 @@ Acceptation :
 #### REQ-017-17 — Liste des flux
 Le plugin `flow` doit lister les flux à la date du contexte (`GET /v1/flows`) avec les
 filtres de REQ-011-14 portés par l'URL, l'état dérivé, la synthèse, l'issue et la
-dérogation ; « Mes demandes » est la même liste filtrée sur `requester` = l'utilisateur.
-[REQ-011-5, 14, 17, U4 ; Q-017-6]
+dérogation ; « Mes demandes » est la même liste filtrée sur `requester` = l'utilisateur,
+demandes en attente comprises (`state=requested`, 011/F19). [REQ-011-5, 14, 17, U4 ;
+Q-017-6]
 
 Acceptation :
 - Lien `?state=noncompliant&service=<ssh>` rejoué dans un autre onglet : même liste.
 - Filtres `machine=` et `endpoint=interface:<id>` acceptés (flux d'une machine, d'une
   interface).
+- Une demande en attente du demandeur figure dans « Mes demandes », état `requested`,
+  sans lien de fiche de flux (pas encore d'identifiant), avec le lien vers son
+  changeset.
 
 #### REQ-017-18 — Fiche d'un flux
 Le plugin `flow` doit montrer un flux : champs, période, état, évaluation de
@@ -277,17 +352,21 @@ Acceptation :
 ### F. Instruire (instructeur)
 
 #### REQ-017-20 — File d'instruction
-Le plugin `flow` doit lister à l'instructeur les demandes en attente qu'il peut
-instruire, avec demandeur, entité, extrémités, service, issue, élément décisif, score et
-avertissements, et ne pas lui offrir d'instruire ses propres demandes. [REQ-011-21, 22,
+Le plugin `flow` doit lister à l'instructeur les demandes et prolongations en attente
+qu'il peut instruire (`GET /v1/flows?review=pending`, 011/F19), avec nature (demande ou
+prolongation), demandeur, entité, extrémités, service, issue, élément décisif, score et
+avertissements de l'évaluation du triage, sans recalcul ni lecture par changeset, et ne
+pas lui offrir d'instruire ses propres demandes ou prolongations. [REQ-011-5, 21, 22,
 UC-3 ; Q-017-3]
 
 Acceptation :
 - Une demande de l'instructeur lui-même figure sans bouton de décision.
+- La file de 100 demandes se charge en une requête par page (aucune lecture par
+  changeset).
 
 #### REQ-017-21 — Approuver ou rejeter
-Quand l'instructeur approuve une demande, le plugin doit exiger une date de fin d'au plus
-12 mois (plafond `review_max_months`) et, si le verdict est refusé, une dérogation
+Quand l'instructeur approuve une demande ou une prolongation, le plugin doit exiger une
+date de fin d'au plus 12 mois après la décision (plafond `review_max_months`) et, si le verdict est refusé, une dérogation
 (motif, risque accepté, fin au plus tôt de celle du flux et de la date d'octroi plus 6
 mois), puis valider le changeset avec les opérations de revue `approve_review` et
 `waive` ; quand il rejette, exiger un motif et rejeter le changeset. Les refus du serveur
@@ -311,7 +390,8 @@ Acceptation :
 #### REQ-017-23 — Échéances
 Le plugin `flow` doit lister les flux datés et les dérogations dont la fin tombe dans les
 30 jours, distinguer ceux à 7 jours, et offrir depuis chaque ligne la recertification
-d'une dérogation ou le renouvellement d'un flux. [REQ-011-7, U11 ; Q-017-4]
+d'une dérogation ou la prolongation du flux (REQ-017-25). [REQ-011-7, U11 ; Q-017-4 ;
+011/F20]
 
 Acceptation :
 - Un flux qui finit dans 6 jours apparaît marqué « J-7 » ; un flux sans fin n'apparaît
@@ -328,14 +408,21 @@ U6]
 Acceptation :
 - Texte rédigé en français, utilisateur en anglais : texte français, langue indiquée.
 
-#### REQ-017-25 — Modifier ou clore un flux
+#### REQ-017-25 — Modifier, prolonger ou clore un flux
 Le plugin `flow` doit permettre de modifier les références, la justification, les
-responsables, la nature des données d'un flux, d'avancer sa fin (`PATCH`) et de le clore
-(`DELETE`), sous `If-Match`. [REQ-011-4]
+responsables, la nature des données d'un flux, d'avancer sa fin, de le prolonger
+(`PATCH`) et de le clore (`DELETE`), sous `If-Match` ; une prolongation doit montrer
+avant l'envoi la pré-vérification de la portion ajoutée (requête de conformité avec le
+dossier du flux), puis, sur 202, qu'elle part à l'instruction avec le lien vers son
+changeset. [REQ-011-4, 22 ; 011/F20 ; Q-017-4]
 
 Acceptation :
 - Changer une extrémité ou le service n'est pas proposé ; le plugin offre « nouvelle
   demande pré-remplie ».
+- Prolonger un flux instruit dont la portion ajoutée est sous réserve : 202, la fiche
+  garde l'ancienne fin et signale la prolongation en attente.
+- « Prolonger » est absent d'un flux `expired` ou `withdrawn` (seule la nouvelle demande
+  pré-remplie est offerte).
 
 ### G. Transverse
 
@@ -387,12 +474,12 @@ Acceptation :
 | REQ-010-22, 23 (rapport d'audit) | 14 |
 | REQ-010-24, 25 (droits, explication réduite) | 12, 26 |
 | REQ-010-26 (versionnement, lecture datée) | 4, 26 |
-| REQ-010-29, 30, 36, 37 (axes, conditions, signaux) | 10 (lecture seule, Q-017-5) |
+| REQ-010-26, 29, 30, 36, 37 (axes, valeurs, conditions, signaux, rôles exemptés) | 30, 31 |
 | REQ-010-34 (vue matricielle) | 6, 7 |
-| REQ-010-40 à 54 (inférence) | 10 (liste des règles seulement, Q-017-5) |
+| REQ-010-40 à 51 (inférence) | 32, 33, 34 (34 après un amendement de la 010) |
 | REQ-011-1, 2 (contenu, extrémités) | 15 |
-| REQ-011-4 (modification) | 25 |
-| REQ-011-5, 14, 15 (état, filtres, flux d'un objet) | 17, 19 |
+| REQ-011-4 (modification, prolongation) | 23, 25 |
+| REQ-011-5, 14, 15 (état, demandes en attente, filtres, flux d'un objet) | 17, 19, 20 |
 | REQ-011-7 (échéances) | 23 |
 | REQ-011-9 (dérogation) | 21, 22 |
 | REQ-011-13 (différentiel des flux) | 8, 9 |
@@ -404,24 +491,26 @@ Acceptation :
 Non couvertes par l'interface : REQ-010-1, 3, 17, 21 (classification et obligations :
 panneau des propriétés et administration du shell) ; REQ-010-35, 53 (import hors ligne) ;
 REQ-011-3, 8, 10 à 12, 20, 24 (règles du serveur, rendues par les écrans ci-dessus) ;
-REQ-010-28, 54, REQ-011-19 (budgets serveur).
+REQ-010-28, 52, 54, REQ-011-19 (valeur par défaut d'inférence, budgets serveur).
 
 ## Non-objectifs
 
-- Toute route nouvelle ou tout changement de contrat de la 010, de la 011 ou du SDK
-  (U13) : les besoins sont aux questions ouvertes.
+- Toute route nouvelle ou tout changement de contrat hors des amendements 010/S35,
+  011/F19 et F20 (U13) ; l'aperçu d'une règle d'inférence (REQ-017-34) attend un
+  amendement de la 010 à rédiger.
 - Rendu générique des sections de module dans le shell (Q-017-1, option B : amendement
   de la 007).
 - Fiches shell des objets de module (machine, interface, objets de politique) (U3).
-- Écriture des axes, valeurs, conditions, signaux, rôles exemptés et règles
-  d'inférence ; suggestions d'inférence (Q-017-5).
 - Classification des nœuds : faite par le panneau des propriétés du shell (003, 007).
 - Notifications d'échéance : événements sortants du serveur (U11).
 - Campagnes de revue, flux constatés (v0.3, 010 et 011).
 
 ## Questions ouvertes
 
-- [ ] Q-017-1 à Q-017-7 ([`decisions.md`](decisions.md), « Questions ouvertes ») : à
-  arbitrer par l'utilisateur avant la tâche 1. (utilisateur)
-- [ ] Écart de la 011 relevé en rédigeant (Q-017-3) : REQ-011-5 promet l'état
-  `requested`, que la lecture des flux ne rend jamais. (Claude, à signaler à la 011)
+- [x] Q-017-1 à Q-017-7 ([`decisions.md`](decisions.md), « Questions arbitrées ») :
+  arbitrées par l'utilisateur le 2026-10-22.
+- [x] Écart de la 011 relevé en rédigeant (Q-017-3) : REQ-011-5 promettait l'état
+  `requested`, que la lecture des flux ne rendait pas ; corrigé par 011/F19 (tâche
+  011-12).
+- [ ] Amendement de la 010 pour l'aperçu d'une règle d'inférence (REQ-017-34) : à
+  rédiger avant la tâche qui l'implémente. (Claude, à proposer à l'utilisateur)

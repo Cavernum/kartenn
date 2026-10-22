@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-22
 ---
 
@@ -35,19 +35,23 @@ flowchart LR
 Deux plugins de première partie (U1), écrits comme `web/plugins/vlan` et
 `web/plugins/machines` (U2) : un manifeste, un `src/index.ts` qui définit des Custom
 Elements par `definePlugin`, des catalogues FR et EN, un test Vitest par le bac à sable
-du SDK. Aucun changement du shell, du SDK ni du serveur (U13) ; les besoins qui en
-demanderaient un sont les questions Q-017-1 à 7 de [`decisions.md`](decisions.md). Le
-design suit les recommandations de ces questions et marque chaque point qui en dépend.
+du SDK. Aucun changement du shell ni du SDK ; côté serveur, trois amendements de module
+décidés avec la 017 et livrés avant les écrans qui en dépendent (U13) : `If-Match` de
+la matrice (010/S35, tâche 010-21), demandes en attente lues comme des flux (011/F19,
+tâche 011-12), prolongation instruite (011/F20, tâche 011-13). Le design suit les
+arbitrages de Q-017-1 à 7 ([`decisions.md`](decisions.md)) ; les écrans suivent les
+maquettes validées par l'utilisateur (U14), qui priment sur les descriptions d'écran
+ci-dessous en cas d'écart (le design est alors amendé).
 
 ## Rôles et permissions
 
 | Rôle (vocabulaire) | Permissions utiles | Écrans |
 |---|---|---|
-| Responsable sécurité | `policy.catalogue.read`, `policy.rule.admin`, `policy.service.admin`, `policy.flow_type.admin`, `policy.environment.admin`, `policy.verdict.read` | règles, motifs, matrice, catalogue, différentiel, requête, rapport |
+| Responsable sécurité | `policy.catalogue.read`, `policy.rule.admin`, `policy.service.admin`, `policy.flow_type.admin`, `policy.environment.admin`, `policy.axis.admin`, `policy.inference.admin`, `policy.verdict.read` | règles, motifs, matrice, catalogue complet, inférence, différentiel, requête, rapport |
 | Approbateur de politique | `core.changeset.approve` (politique d'approbation `policy.*`) | vue des sections d'un changeset (puis validation dans le shell) |
 | Lecteur | `policy.catalogue.read`, `policy.verdict.read`, `flow.flow.read` (rôle livré `reader`) | lectures, requête de conformité complète |
 | Demandeur | `flow.flow.request`, `policy.flow.request`, `prop.core.owner.write` sur l'entité | demande, pré-vérification réduite, mes demandes, mes non-conformités |
-| Instructeur | `flow.flow.review`, `flow.flow.waive`, `flow.flow.read` sur l'entité | file d'instruction, décision, dérogations, échéances |
+| Instructeur | `flow.flow.review`, `flow.flow.waive`, `flow.flow.read` sur l'entité | file d'instruction (demandes et prolongations), décision, dérogations, échéances |
 
 Aucun rôle livré ne porte les permissions du demandeur ni de l'instructeur ; les parcours
 E2E les créent par l'API (`/v1/roles`, `/v1/bindings`). Une vue nomme dans le manifeste
@@ -65,15 +69,17 @@ alternatives n'en nomme aucune et décide elle-même par `context.user.has()` (U
 |---|---|---|---|---|---|
 | view | `rules` | `policy-rules` | — | `policy.catalogue.read` | 4, 5 |
 | view | `matrix` | `policy-matrix` | — | `policy.catalogue.read` | 6, 7, 8 |
-| view | `catalogue` | `policy-catalogue` | — | `policy.catalogue.read` | 10 |
+| view | `catalogue` | `policy-catalogue` | — | `policy.catalogue.read` | 10, 30, 31 |
+| view | `inference` | `policy-inference` | — | `policy.catalogue.read` | 32, 33, 34 |
 | view | `compliance` | `policy-compliance` | — | (aucune : `policy.verdict.read` ou `policy.flow.request`) | 11, 12 |
 | view | `changes` | `policy-changes` | — | `policy.catalogue.read` | 8, 9 |
 | view | `reports` | `policy-reports` | — | `policy.rule.admin` | 14 |
 | action | `check` | `policy-check` | `address`, `prefix` | (aucune, décidée par l'élément) | 13 |
+| action | `expected` | `policy-expected` | `address`, `prefix` | `policy.catalogue.read` | 33 |
 
 Sous-chemins des vues (`/x/policy/<vue>/<reste>`, `web/shell/src/router.ts`) :
 `rules/<id>`, `rules/new`, `matrix?flow_type=<clé>`, `catalogue/<collection>/<id>`,
-`changes/<changeset>`, `reports/<id>` ; filtres et dates dans la requête de l'URL (W9).
+`inference/<id>`, `inference/mismatches`, `changes/<changeset>`, `reports/<id>` ; filtres et dates dans la requête de l'URL (W9).
 
 #### Règles et motifs (REQ-017-4, 5)
 
@@ -107,12 +113,14 @@ serveur reste juge (`policy.text.missing`).
 - Écriture : choisir une cellule ouvre un panneau (état, motifs pour `conditional`,
   texte `fr` pour `deny`, libellé) ; le changement va dans l'**ensemble en préparation**
   du plugin (mémoire de la vue, perdu à la fermeture de l'onglet, rien hors du
-  navigateur avant la soumission, comme le brouillon de W10). Avant soumission, le plugin
-  relit l'ETag de la matrice et prévient si la révision a changé (Q-017-7, A).
+  navigateur avant la soumission, comme le brouillon de W10). L'ensemble garde l'ETag de
+  la matrice lue pour chaque type de flux touché (010/S35, Q-017-7).
 - Soumission (Q-017-1, A) : l'ensemble devient un changeset composé d'opérations
-  `policy.matrix.set` (enveloppe de module) soumis par `POST /v1/changesets` avec un motif
-  et une clé d'idempotence ; une seule cellule peut passer par le `PUT` de la cellule.
-  201 → matrice relue ; 202 → lien vers `changes/<changeset>`.
+  `policy.matrix.set` (enveloppe de module), chacune avec `if_match` = l'ETag lu, soumis
+  par `POST /v1/changesets` avec un motif et une clé d'idempotence ; une seule cellule
+  peut passer par le `PUT` de la cellule, sous `If-Match`. 201 → matrice relue ; 202 →
+  lien vers `changes/<changeset>` ; 412 ou `policy.matrix.stale` → matrice relue,
+  ensemble gardé, nouvel ETag repris à la soumission suivante.
 
 #### Ensemble en préparation et différentiel (REQ-017-8, 9 ; Q-017-1)
 
@@ -143,17 +151,50 @@ sequenceDiagram
 - La section `flow.flows` n'est demandée que si `flow` figure dans `modules` des
   capacités ; le plugin `policy` la lit comme des données, sans dépendre du plugin `flow`.
 
-#### Catalogue (REQ-017-10 ; Q-017-5)
+#### Catalogue (REQ-017-10, 30, 31 ; Q-017-5)
+
+Tous les objets de la 010 s'écrivent dans le plugin (Q-017-5), selon les opérations que
+leur collection sert (`crates/kartenn-policy/src/rest.rs:COLLECTIONS`) :
 
 | Collection | Écriture | Permission |
 |---|---|---|
 | `/v1/services` (filtres `key`, `flow_type`) | création, modification (`label`, `flow_type`, `entries`), clôture | `policy.service.admin` |
-| `/v1/flow-types` | création, modification, clôture | `policy.flow_type.admin` |
-| `/v1/environments` | création (`policy.environment.create`), clôture (`policy.environment.close`) | `policy.environment.admin` |
-| `/v1/policy-axes`, `/v1/policy-values`, `/v1/admissibility-conditions`, `/v1/risk-signals`, `/v1/policy-exempt-roles`, `/v1/inference-rules` | lecture seule | — |
+| `/v1/flow-types` | création, modification (`label`, `description`), clôture | `policy.flow_type.admin` |
+| `/v1/environments` | création (`policy.environment.create`), description (`policy.value.describe` par `/v1/policy-values`), clôture (`policy.environment.close`) | `policy.environment.admin` |
+| `/v1/policy-axes` | désignation (`property`, `carrier`, `inference`), modification (`carrier`, `inference`), retrait | `policy.axis.admin` |
+| `/v1/policy-values` (filtre `axis`) | description (`label`, `description`, `transverse`, `rank`) ; ni création ni clôture : la liste des valeurs est celle de la propriété du noyau | `policy.axis.admin` |
+| `/v1/admissibility-conditions` | création, modification, clôture (texte pédagogique exigé) | `policy.rule.admin` |
+| `/v1/risk-signals` | création (`key`, `kind`, `params`, `weight`), modification, clôture | `policy.rule.admin` |
+| `/v1/policy-exempt-roles` | création (`role`), clôture | `policy.rule.admin` |
+| `/v1/inference-rules` | voir « Inférence » | `policy.inference.admin` |
 
-Le catalogue sert aussi de source aux listes de choix des formulaires (règles, requête,
-demande de flux).
+Chaque collection a la même forme d'écran : liste datée et filtrée, fiche avec
+historique, formulaire dont les membres sont ceux de `COLLECTIONS` (un formulaire
+générique piloté par une table de membres par collection, typé localement comme
+`PolicyObject`), écriture par la route de ressource (U5). Une modification qui change
+des verdicts (signal, condition, rôle exempté) peut passer par l'ensemble en
+préparation pour être simulée avant soumission. Le catalogue sert aussi de source aux
+listes de choix des formulaires (règles, requête, demande de flux).
+
+#### Inférence (REQ-017-32 à 34 ; Q-017-5)
+
+| Écran | Routes | Permission d'écriture |
+|---|---|---|
+| Règles d'inférence : liste, fiche, historique, révision du jeu | `GET /v1/inference-rules`, `…/{id}`, `…/history` | — |
+| Créer, modifier, clore une règle (axe visé, attendus, critères, exceptions imbriquées ≤ 4, priorité, domaine) | `POST /v1/inference-rules`, `PATCH …/{id}` (`If-Match`), `DELETE …/{id}` | `policy.inference.admin` (sur le domaine cité, sinon globale) |
+| Attendu d'un nœud et son explication (action `expected`) | `GET /v1/{addresses,prefixes}/{id}/properties/{key}/suggestion`, `…/explanation` (routes transverses du noyau) | — |
+| Écarts (`inference/mismatches`) | `GET /v1/anomalies?rule=policy.inference.mismatch`, `POST /v1/anomalies/{id}/acknowledgement` | acquittement selon le noyau |
+| Aperçu d'une règle avant écriture (REQ-017-34) | **aucune route** : attend un amendement de la 010 à rédiger (section de différentiel ou simulation de l'inférence) | — |
+
+Formulaire d'une règle : critères pris dans la liste fermée du serveur (préfixe, famille,
+domaine, type d'objet, site et entité, valeur d'une autre propriété, nom par expression
+régulière…, REQ-010-42) ; exceptions éditées en arbre, profondeur bornée côté client
+à 4 (`policy.inference.depth` du serveur fait foi) ; violations
+`policy.inference.regex_invalid`, `criterion_invalid`, `depth` placées sur leur critère
+ou leur exception ; avertissement `policy.inference.conflict` affiché. L'explication
+d'un attendu montre la règle et sa chaîne d'exceptions, la révision, le nœud de
+correspondance, chaque critère et sa valeur observée, les règles écartées (trois au
+plus) ; plusieurs candidats à égalité sont tous montrés, sans écart.
 
 #### Requête de conformité (REQ-017-11 à 13)
 
@@ -209,7 +250,7 @@ navigateur (aucune route d'export). Toutes ces lectures sont sous `policy.rule.a
 | action | `request-from` | `flow-request-from` | `address`, `prefix` | `flow.flow.request` | 15 |
 
 Sous-chemins : `flows/<id>`, `request?source=<sorte>:<id>&from=<flux>` (pré-remplissage
-depuis une fiche ou un flux à renouveler), `review/<changeset>`.
+depuis une fiche, ou depuis un flux terminé ou à remplacer), `review/<changeset>`.
 
 #### Demande (REQ-017-15, 16 ; Q-017-2)
 
@@ -253,9 +294,9 @@ sequenceDiagram
 | Écran | Routes |
 |---|---|
 | Liste, filtres de REQ-011-14 dans l'URL (`endpoint`, `prefix`, `machine`, `service`, `flow_type`, `kind`, `state`, `summary`, `outcome`, `decisive`, `waived`, `ending_before`, `entity`, `requester`, `external_ref`, `axis`) | `GET /v1/flows` ; `QUERY /v1/flows` si l'URL dépasse 2 000 caractères |
-| « Mes demandes » | `GET /v1/flows?requester=<context.user.identity>` et propositions en attente (voir Instruction) |
+| « Mes demandes » | `GET /v1/flows?requester=<context.user.identity>&state=…,requested` (demandes en attente comprises, 011/F19) |
 | Fiche | `GET /v1/flows/{id}`, `…/evaluations`, `…/history` |
-| Modifier, avancer la fin, clore | `PATCH /v1/flows/{id}` (`FlowPatch`, `If-Match`), `DELETE /v1/flows/{id}` (`If-Match`) |
+| Modifier, avancer la fin, prolonger, clore | `PATCH /v1/flows/{id}` (`FlowPatch`, `If-Match` ; prolongation → 200 ou 202 `ChangesetPending`, 011/F20), `DELETE /v1/flows/{id}` (`If-Match`) |
 | Onglet « Flux » | `GET /v1/addresses/{id}/flows`, `GET /v1/prefixes/{id}/flows` |
 | Flux d'une machine, d'une interface | liste filtrée `machine=<id>`, `endpoint=interface:<id>` (Q-017-6, A) |
 
@@ -264,28 +305,31 @@ Fiche : état dérivé à la date, synthèse et issue, dérogation (fin, motif, 
 révision de politique) ; réduites (adresses et élément décisif `null`) pour le
 demandeur sans `flow.flow.read`, rendues sans complément (U8). Changer une extrémité ou
 le service n'est pas offert : « nouvelle demande pré-remplie » ouvre `request?from=<id>`.
+« Prolonger » (flux daté non terminé, Q-017-4 B) : nouvelle fin, pré-vérification de la
+portion ajoutée par `QUERY /v1/verdicts` avec le dossier du flux, `PATCH` ; sur 202, la
+fiche garde l'ancienne fin et affiche « prolongation en attente » avec le lien vers son
+changeset (ligne `review.kind = extension` de la lecture, 011/F19). Un flux terminé
+n'offre que la nouvelle demande pré-remplie.
 
 #### Instruction (REQ-017-20, 21 ; Q-017-3)
 
-Selon l'arbitrage de Q-017-3 :
-
-- **Option B (recommandée)**, après amendement de la 011 : la file est
-  `GET /v1/flows?state=requested`, chaque ligne portant l'évaluation du triage et le
-  changeset à instruire.
-- **Option A (repli)**, sans changement du serveur : `GET /v1/proposals` (propositions en
-  attente), puis `GET /v1/changesets/{id}` pour chacune, gardées celles qui contiennent
-  l'opération `request` du module `flow` ; l'évaluation est recalculée par
-  `QUERY /v1/verdicts` avec le dossier de la demande, sous les droits de l'instructeur, et
-  marquée « recalculée à la politique du jour ».
+File (Q-017-3, B ; après la tâche 011-12) : `GET /v1/flows?review=pending` (filtres de
+la liste, page de 100, curseur), chaque ligne portant `review` : changeset à instruire,
+nature (`request` : demande, `id` nul ; `extension` : prolongation d'un flux existant)
+et évaluation du triage (synthèse, issue, élément décisif, conditions non remplies,
+score, avertissements, évaluations par paire), lue telle quelle, sans recalcul. La fiche
+d'instruction `review/<changeset>` relit la ligne par `changeset=<id>` et le changeset
+par `GET /v1/changesets/{id}` (motif, auteur, `on_behalf_of`, état pour `If-Match`).
 
 Décision (`review/<changeset>`) :
 
 | Geste | Route | Corps |
 |---|---|---|
-| Approuver | `POST /v1/changesets/{id}/validation` (`If-Match` : état du changeset) | `operations` : `approve_review` (`flow`, `end` ≤ début + 12 mois) ; si la synthèse est `denied`, aussi `waive` (`reason`, `accepted_risk`, `end` ≤ min(fin du flux, octroi + 6 mois)) |
+| Approuver | `POST /v1/changesets/{id}/validation` (`If-Match` : état du changeset) | `operations` : `approve_review` (`flow`, `end` ≤ date de la décision + 12 mois, demande ou prolongation) ; si la synthèse est `denied`, aussi `waive` (`reason`, `accepted_risk`, `end` ≤ min(fin du flux, octroi + 6 mois)) |
 | Rejeter | `POST /v1/changesets/{id}/rejection` | `motive` (obligatoire) ; la règle en cause vient de l'évaluation du triage |
 
-Les boutons sont absents si l'auteur du changeset (ou `on_behalf_of`) est l'utilisateur ;
+Les boutons sont absents si l'auteur du changeset (ou `on_behalf_of`), ou pour une
+prolongation le demandeur du flux, est l'utilisateur ;
 le serveur reste juge (`flow.separation`, 403 sans `flow.flow.review`, REQ-016-11).
 
 #### Dérogations et échéances (REQ-017-22, 23 ; Q-017-4)
@@ -296,7 +340,7 @@ le serveur reste juge (`flow.separation`, 403 sans `flow.flow.review`, REQ-016-1
 - Échéances : `GET /v1/flows?ending_before=<maintenant + 30 j>` (la lecture couvre la fin
   du flux et celle d'une dérogation en cours) ; marque « J-7 » si la plus proche des deux
   fins tombe dans 7 jours ; tri par fin croissante. Actions : recertifier (dérogation),
-  renouveler (flux daté : nouvelle demande pré-remplie, Q-017-4, A).
+  prolonger (flux daté, Q-017-4, B ; voir « Flux, fiche, onglet »).
 
 #### Non-conformités (REQ-017-24)
 
@@ -359,11 +403,15 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
 - Formulaire de règle sur un schéma générique (`PolicyObject`) : les membres ne sont pas
   typés par le contrat ; un test Vitest par membre accepté (`objects.rs:SPECS`) et le
   parcours E2E protègent contre une dérive.
-- File d'instruction en option A (Q-017-3) : lectures en N+1 et évaluation recalculée à
-  la politique du jour, qui peut différer du triage ; bornée à une page de 100
-  propositions.
-- Matrice sans `If-Match` (Q-017-7) : contrôle client non atomique, une écriture
-  concurrente reste possible entre la relecture et la soumission.
+- Dépendance aux amendements de module (010-21, 011-12, 011-13) : les écrans de la
+  matrice en écriture, de la file d'instruction et de la prolongation attendent leur
+  livraison ; les autres avancent sans eux.
+- Grain de l'`If-Match` de la matrice (010/S35) : la matrice d'un type de flux, pas la
+  cellule ; deux responsables sur des cellules distinctes d'un même type se voient
+  refuser l'un l'autre (412) et doivent relire, ce que l'ensemble en préparation absorbe.
+- Formulaires du catalogue complet (Q-017-5) : onze collections, dont l'inférence et ses
+  exceptions en arbre ; un formulaire générique piloté par table limite le code, au prix
+  d'une ergonomie moins fine (les maquettes, U14, en décident).
 - Demandeurs sans lecture du référentiel (Q-017-2) : l'option A les cantonne aux
   identifiants collés, ce qui peut rendre le formulaire inutilisable pour eux.
 - Budgets (REQ-017-29) : le banc navigateur de la 007 n'existe pas encore (007, tâche
@@ -387,5 +435,6 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
 ## ADR
 
 Aucune : les plugins appliquent l'ADR 0025 (contrat des plugins) et les décisions de la
-007. Un arbitrage B de Q-017-1 (rendu des sections par le shell) ou de Q-017-2, 3, 4, 7
-(amendements de la 010 ou de la 011) se consignera dans la spec concernée.
+007. Les amendements de contrat décidés avec la 017 sont consignés dans la spec de leur
+module (010/S35, 011/F19, F20) ; l'aperçu d'une règle d'inférence attend un amendement
+de la 010 à rédiger.

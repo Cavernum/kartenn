@@ -88,6 +88,24 @@ alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 `update` refuse le changement d'extrémité ou de service (REQ-011-4) : le client crée un
 nouveau flux et clôt l'ancien dans le même changeset.
 
+**Prolongation (F20, amende l'écart « `update` ne fait que raccourcir »).** `update`
+compare la fin demandée à la fin courante (lue par `complete`, comme l'identité) :
+plus tôt → raccourcissement, appliqué comme aujourd'hui (`close_versioned`) ; plus tard,
+ou retirée sur un flux daté → prolongation. `complete` trie alors la portion ajoutée
+(`triage` sur `[fin courante, nouvelle fin)`, dossier du flux, politique du jour) et
+range le triage dans l'opération complétée ; `review` du module rend `REVIEW` si la
+synthèse n'est pas `allowed` ou l'issue pas `automatic`, comme pour `request`. À
+l'application (après approbation s'il le faut), la version du flux est étendue
+(`patch_flow` sur la nouvelle période, ancre `core.owner` et adresses développées
+prolongées), l'évaluation est recalculée sur la portion ajoutée et
+`flow_notice` annoncera la nouvelle fin. Contrôles : `check_review` sur la fin approuvée
+(plafond compté depuis la décision), `flow.waiver.required` si la portion ajoutée est
+refusée sans `waive`, `flow.separation` contre le demandeur du flux **et** l'auteur de
+la prolongation (ou son `on_behalf_of`), `flow.update.ended` (erreur, nouvelle règle)
+pour un flux dont la fin est passée. La mesure `created` compte les prolongations
+(`pg::written_counts`). Un rejet passe par le crochet `ended` (N38) comme une demande :
+`flow_rejection` garde la prolongation refusée, le flux garde sa fin.
+
 ### État dérivé (REQ-011-5, 24)
 
 Fonction de lecture, dans l'ordre : changeset de création en attente → `requested` ;
@@ -97,6 +115,27 @@ version a été raccourcie par `close` ; sinon synthèse courante `denied` → `
 une dérogation couvre `valid_at`, `noncompliant` sinon ; sinon `active`. Un flux sans
 fin ne passe jamais `expired` (validité dérivée). Les flux `requested` viennent des
 propositions en attente (lecture de leurs opérations, N24).
+
+**Lecture des demandes en attente (F19, corrige l'écart : `read::flows` ne rendait que
+des flux appliqués).** Quand `state` cite `requested` (ou avec `review=pending`,
+`changeset=<id>`), `read::flows` ajoute aux flux appliqués les propositions en attente
+à `as_of` (004 : soumises, non terminées) dont une opération est `flow.request` ou une
+prolongation `flow.update` ; chaque ligne est la demande telle que l'opération complétée
+la garde (`id: null` pour une demande, l'`id` du flux pour une prolongation) avec un
+membre `review` : `changeset`, `kind` (`request` | `extension`), `triage` (synthèse,
+issue, élément décisif, conditions non remplies, score, avertissements, révision de
+politique, évaluations par paire) lu dans `completed.triage`, sans recalcul. Si
+l'opération complétée ne garde que la synthèse, le triage y est étendu aux évaluations
+par paire (forme de la réponse de `POST /v1/flows`). Filtres appliqués aux lignes en
+attente : extrémité exacte, service, type de flux, sorte, entité, demandeur, référence
+externe, synthèse, issue, règle décisive (lus dans la demande et son triage) ; les
+filtres par sous-arbre de préfixe, machine développée et valeur d'axe les excluent (pas
+d'adresses développées avant l'application). Pagination : avec `requested` seul ou
+`review=pending`, curseur sur l'identifiant du changeset ; `requested` combiné à
+d'autres états : les lignes en attente suivent les flux appliqués. Droits : prédicat
+RBAC sur l'entité de la demande pour `flow.flow.read` et `flow.flow.review`, ou
+demandeur de la ligne (`flow.flow.request`) ; triage réduit (REQ-010-25) pour qui ne
+lit pas les extrémités.
 
 ### Réévaluation (REQ-011-11 à 13)
 
@@ -159,8 +198,8 @@ de la 005 sur `entity_id` (ADR 0021).
 
 | Route | Rôle |
 |---|---|
-| `GET /v1/flows`, `QUERY /v1/flows` | liste filtrée, datée |
-| `GET /v1/flows/{id}`, `POST /v1/flows`, `PATCH`, `DELETE` | ressource ; `POST` trie (REQ-011-21) et rend l'évaluation |
+| `GET /v1/flows`, `QUERY /v1/flows` | liste filtrée, datée ; demandes en attente avec `state=requested`, instructions en attente avec `review=pending`, une proposition avec `changeset=<id>` (F19) |
+| `GET /v1/flows/{id}`, `POST /v1/flows`, `PATCH`, `DELETE` | ressource ; `POST` trie (REQ-011-21) et rend l'évaluation ; `PATCH` d'une prolongation trie de même : 200 appliquée, 202 `ChangesetPending` à instruire (F20) |
 | `GET /v1/flows/{id}/evaluations` | évaluations par paire, datées, avec explications (réduites selon REQ-010-25) |
 | `GET /v1/flow-nonconformities` | non-conformités filtrées |
 | `GET /v1/{collection}/{id}/flows` | flux d'un objet (REQ-011-15), pour adresses, préfixes, interfaces, machines |
@@ -189,7 +228,8 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 | Flux expiré dont la politique change | pas de réévaluation hors de sa période |
 | Flux conforme sans fin dont la politique change | réévalué ; `noncompliant` s'il bascule, sans écriture d'état |
 | Dérogation échue, flux toujours refusé | `noncompliant` à la date de fin ; anomalie ouverte par la tâche `flow.expiry` |
-| Prolongation d'un flux daté ou d'une dérogation | réévaluée sur la nouvelle portion contre la politique du jour |
+| Prolongation d'un flux daté ou d'une dérogation | réévaluée sur la nouvelle portion contre la politique du jour ; celle d'un flux est triée et instruite si elle n'est pas automatique (F20) |
+| Prolongation d'un flux `expired` ou `withdrawn` | refusée (`flow.update.ended`) : nouvelle demande (F20) |
 | Demande sans dossier complet | issue `review` (condition « dossier ») : instruction |
 | Port sans service | refusé, issue `review` (REQ-010-14) : instruction ; l'instructeur fait ajouter le service ou rejette |
 
@@ -249,8 +289,11 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 - Le refus de clore une extrémité citée passe par la règle générique du noyau
   `core.object.dependents` (008-7), qui liste les flux, et non par `flow.referenced`.
 - Opérations : l'écriture directe de maintenance s'appelle `flow.flow.register` (sans
-  route dédiée : `POST /v1/changesets`) ; `update` ne fait que raccourcir la période ;
-  route `POST /v1/flows/{id}/waiver` ajoutée (F6).
+  route dédiée : `POST /v1/changesets`) ; `update` ne fait que raccourcir la période
+  (**amendé par F20** : prolongation triée et instruite, tâche 13) ; route
+  `POST /v1/flows/{id}/waiver` ajoutée (F6).
+- Lectures : les demandes en attente ne sont pas servies (**amendé par F19** : tâche
+  12).
 - La demande d'un flux exige aussi `prop.core.owner.write` sur l'entité : le flux est
   ancré par une affectation ordinaire de `core.owner`, bornée à sa vie.
 - Lectures : le prédicat RBAC est appliqué par les routes ; une page est coupée avant le

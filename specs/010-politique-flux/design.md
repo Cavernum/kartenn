@@ -301,7 +301,7 @@ développées d'une machine lisible mais non lisibles une à une sont omises et 
 |---|---|
 | `GET /v1/{policy-axes,environments,flow-types,services,policy-rules,policy-patterns,admissibility-conditions,risk-signals,inference-rules}` | listes datées, filtres (`flow_type`, `axis`, `value`, `effect`, `pattern`, `transport`, `port`) |
 | `GET …/{id}`, `POST`, `PATCH`, `DELETE` | routes de ressource enveloppant un changeset (006/H2) |
-| `GET /v1/policy-matrix?flow_type=…`, `PUT /v1/policy-matrix/{src}/{flow_type}/{dst}` | vue matricielle (REQ-010-34) |
+| `GET /v1/policy-matrix?flow_type=…`, `PUT /v1/policy-matrix/{src}/{flow_type}/{dst}` | vue matricielle (REQ-010-34) ; le `PUT` exige `If-Match` (ETag de la matrice du type de flux : 428 absent, 412 périmé, S35) |
 | `QUERY /v1/verdicts` | corps `{source, destination, service | transport+port | flow_type, dossier?, valid_at, as_of, locale?}` ; extrémités par `{kind, id}` |
 | `GET /v1/verdicts?source=…&destination=…&service=…` | variante simple |
 | `GET /v1/{collection}/{id}/suggestion?axis=…` | suggestion d'inférence (route transverse du noyau, ADR 0026 clause 9) |
@@ -318,7 +318,11 @@ des services ne sont pas servis ; la clôture d'un environnement passe par
 `policy.environment.close`. Le rapport d'audit est demandé et lu sous
 `policy.rule.admin` (404 sinon) ; une demande pendant qu'un autre rapport tourne répond
 409 avec son `Location`. Une interdiction posée dans la matrice exige un texte
-pédagogique (`texts.fr`). Tâches de fond : `policy.inference_check` (60 s, écart
+pédagogique (`texts.fr`). **Amendé par S35** : le `PUT` d'une cellule n'est plus une
+opération sans `If-Match` ; la route lit l'en-tête (428, 412) et le passe dans le membre
+`if_match` de `policy.matrix.set` ; `prepare_set` recalcule la vue du type de flux sous
+le verrou `policy` et compare son empreinte (violation `policy.matrix.stale` dans un
+changeset composé, 412 par la route). Tâches de fond : `policy.inference_check` (60 s, écart
 d'inférence, amendement 4 de l'ADR 0026) et `policy.report` (5 s).
 
 ## Exigences envers le noyau, le contrat de module et la 009
