@@ -39,11 +39,15 @@ use crate::{Dataset, Nature, Prefix};
 /// Flows of the reference dataset (REQ-011-19), and those that leave the hot container.
 const FLOWS: usize = 100_000;
 const HOT: usize = 10_000;
-/// Environments and flow types of the policy: a rule per cell (source, destination, flow
-/// type), 50 × 50 × 4 = 10⁴ on the reference dataset (the size of the banc 010).
+/// The policy, of the size of the banc 010 (REQ-010-28): 50 environments, 20 flow types
+/// of 50 services each, and for each flow type and source environment a rule per block
+/// of [`BLOCK`] destination environments, 20 × 50 × 10 = 10⁴ rules. A smaller dataset
+/// gets 10 environments, 400 rules.
 const ENVIRONMENTS: usize = 50;
 const SMALL_ENVIRONMENTS: usize = 10;
-const FLOW_TYPES: usize = 4;
+const FLOW_TYPES: usize = 20;
+const SERVICES_PER_TYPE: usize = 50;
+const BLOCK: usize = 5;
 /// Entities that own the domains and the flows, in turn.
 const ENTITIES: usize = 20;
 /// Machines of the requests 16 × 16, two by request, and their addresses.
@@ -52,9 +56,9 @@ const PER_MACHINE: usize = 16;
 /// Rounds of the reclassification of the hot and the cold containers.
 const ROUNDS: usize = 3;
 
-/// A cell of the policy is a deny when this holds, an allow otherwise.
+/// The rule of a cell is a deny when this holds, an allow otherwise.
 const fn denied(source: usize, destination: usize, flow_type: usize) -> bool {
-    (source + destination + flow_type).is_multiple_of(5)
+    (source + destination / BLOCK + flow_type).is_multiple_of(5)
 }
 
 fn environment(e: usize) -> String {
@@ -71,6 +75,14 @@ fn op(module: &str, name: &str, fields: Value) -> anyhow::Result<Operation> {
 fn item(operation: Operation) -> ImportItem {
     ImportItem {
         external_id: None,
+        operation,
+    }
+}
+
+/// An item that creates an object, which an import names (`import.rs`).
+fn named(external_id: String, operation: Operation) -> ImportItem {
+    ImportItem {
+        external_id: Some(external_id),
         operation,
     }
 }
@@ -258,7 +270,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .await?;
     progress(&format!("flow modules: {:?}", started.elapsed()));
 
-    // The policy: environments, flow types with one service each, a rule per cell.
+    // The policy: environments, flow types and their services, the rules.
     let t = Instant::now();
     let mut items = Vec::new();
     for e in 0..environments {
@@ -269,44 +281,62 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         )?));
     }
     for k in 0..FLOW_TYPES {
-        items.push(item(op(
-            "policy",
-            "flow_type.create",
-            json!({"local": k + 1, "key": format!("type{k}"), "label": format!("Type {k}")}),
-        )?));
-        items.push(item(op(
-            "policy",
-            "service.create",
-            json!({"key": format!("svc{k}"), "label": format!("Service {k}"),
-                   "flow_type": {"local": k + 1},
-                   "entries": [{"transport": "tcp", "ports": 1000 + k}]}),
-        )?));
+        items.push(named(
+            format!("type-{k}"),
+            op(
+                "policy",
+                "flow_type.create",
+                json!({"local": k + 1, "key": format!("type{k:02}"),
+                       "label": format!("Type {k}")}),
+            )?,
+        ));
+        for s in 0..SERVICES_PER_TYPE {
+            items.push(named(
+                format!("service-{k}-{s}"),
+                op(
+                    "policy",
+                    "service.create",
+                    json!({"key": format!("svc{k:02}-{s:02}"),
+                           "label": format!("Service {k}-{s}"),
+                           "flow_type": {"local": k + 1},
+                           "entries": [{"transport": "tcp",
+                                        "ports": 1000 + k * SERVICES_PER_TYPE + s}]}),
+                )?,
+            ));
+        }
     }
-    for i in 0..environments {
-        for j in 0..environments {
-            for k in 0..FLOW_TYPES {
-                let deny = denied(i, j, k);
+    for k in 0..FLOW_TYPES {
+        for i in 0..environments {
+            for b in 0..environments.div_ceil(BLOCK) {
+                let deny = denied(i, b * BLOCK, k);
+                let destinations: Vec<String> = (b * BLOCK..((b + 1) * BLOCK).min(environments))
+                    .map(environment)
+                    .collect();
                 let mut rule = json!({
-                    "key": format!("r-{i}-{j}-{k}"),
-                    "label": format!("{} vers {} ({k})", environment(i), environment(j)),
+                    "key": format!("r-{k}-{i}-{b}"),
+                    "label": format!("{} vers le bloc {b} ({k})", environment(i)),
                     "effect": if deny { "deny" } else { "allow" },
                     "flow_types": [{"local": k + 1}],
                     "source": {"policy.environment": [environment(i)]},
-                    "destination": {"policy.environment": [environment(j)]},
+                    "destination": {"policy.environment": destinations},
                 });
                 if deny {
                     rule["texts"] = json!({"fr": {"body": "Flux interdit par le banc."}});
                 }
-                items.push(item(op("policy", "rule.create", rule)?));
+                items.push(named(
+                    format!("rule-{k}-{i}-{b}"),
+                    op("policy", "rule.create", rule)?,
+                ));
             }
         }
     }
-    let rules = environments * environments * FLOW_TYPES;
+    let rules = FLOW_TYPES * environments * environments.div_ceil(BLOCK);
     import(&store, author, "bench-flow-policy", items).await?;
     writeln!(
         report,
-        "INFO policy: {environments} environments, {FLOW_TYPES} flow types, {rules} rules, \
-         loaded in {:?}",
+        "INFO policy: {environments} environments, {FLOW_TYPES} flow types, {} services, \
+         {rules} rules (no pattern, condition nor signal), loaded in {:?}",
+        FLOW_TYPES * SERVICES_PER_TYPE,
         t.elapsed()
     )?;
     progress(&format!("policy: {:?}", started.elapsed()));
@@ -353,9 +383,17 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     )
     .fetch_all(&pool)
     .await?;
-    if services.len() != FLOW_TYPES {
-        bail!("{} services, {FLOW_TYPES} expected", services.len());
+    if services.len() != FLOW_TYPES * SERVICES_PER_TYPE {
+        bail!(
+            "{} services, {} expected",
+            services.len(),
+            FLOW_TYPES * SERVICES_PER_TYPE
+        );
     }
+    // A service of the flow type `k`.
+    let service = |k: usize, rng: &mut ChaCha8Rng| {
+        services[k * SERVICES_PER_TYPE + rng.random_range(0..SERVICES_PER_TYPE)]
+    };
 
     // The flows, allowed by construction (a denied one needs a waiver).
     let (flows, hot_flows) = if reference {
@@ -382,20 +420,24 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         }
         let source = s.addresses[rng.random_range(0..s.addresses.len())];
         let destination = d.addresses[rng.random_range(0..d.addresses.len())];
-        if source == destination || !drawn.insert((source, destination, k)) {
+        let used = service(k, &mut rng);
+        if source == destination || !drawn.insert((source, destination, used)) {
             continue;
         }
-        items.push(item(op(
-            "flow",
-            "register",
-            json!({
-                "source": {"kind": "address", "id": {"id": source}},
-                "destination": {"kind": "address", "id": {"id": destination}},
-                "service": {"id": services[k]},
-                "external_refs": [{"system": Uuid::nil(), "id": format!("BENCH-{n}")}],
-                "entity": {"id": entities[n % ENTITIES]},
-            }),
-        )?));
+        items.push(named(
+            format!("flow-{n}"),
+            op(
+                "flow",
+                "register",
+                json!({
+                    "source": {"kind": "address", "id": {"id": source}},
+                    "destination": {"kind": "address", "id": {"id": destination}},
+                    "service": {"id": used},
+                    "external_refs": [{"system": Uuid::nil(), "id": format!("BENCH-{n}")}],
+                    "entity": {"id": entities[n % ENTITIES]},
+                }),
+            )?,
+        ));
     }
     let t = Instant::now();
     import(&store, author, "bench-flow-flows", items).await?;
@@ -422,7 +464,9 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let mut machine_items = Vec::new();
     let mut pairs = Vec::new();
     let mut local = 0;
-    let mut add_machine = |zone: &Zone, m: usize, items: &mut Vec<ImportItem>| {
+    // Each machine takes the next addresses of its container: an address has one interface.
+    let mut taken = vec![0; zones.len()];
+    let mut add_machine = |addresses: &[Uuid], m: usize, items: &mut Vec<ImportItem>| {
         local += 2;
         let (machine, interface) = (local - 1, local);
         items.push(ImportItem {
@@ -434,13 +478,15 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                        "owner": {"id": entities[m % ENTITIES]}}),
             )?,
         });
-        items.push(item(op(
-            "machines",
-            "create_interface",
-            json!({"local": interface, "machine": {"local": machine}, "name": "eth0"}),
-        )?));
-        let start = (m * PER_MACHINE) % zone.addresses.len().saturating_sub(PER_MACHINE).max(1);
-        for a in &zone.addresses[start..start + PER_MACHINE] {
+        items.push(named(
+            format!("bench-flow-interface-{m}"),
+            op(
+                "machines",
+                "create_interface",
+                json!({"local": interface, "machine": {"local": machine}, "name": "eth0"}),
+            )?,
+        ));
+        for a in addresses {
             items.push(item(op(
                 "machines",
                 "attach_address",
@@ -456,15 +502,19 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                 break 'pairs;
             }
             let (a, b) = (&zones[x], &zones[y]);
-            if x == y || a.addresses.len() < PER_MACHINE || b.addresses.len() < PER_MACHINE {
+            let free = |z: usize| zones[z].addresses.len() >= taken[z] + PER_MACHINE;
+            if x == y || !free(x) || !free(y) {
                 continue;
             }
             let Some(k) = (0..FLOW_TYPES).find(|&k| !denied(a.environment, b.environment, k))
             else {
                 continue;
             };
-            add_machine(a, m, &mut machine_items)?;
-            add_machine(b, m + 1, &mut machine_items)?;
+            for (z, n) in [(x, m), (y, m + 1)] {
+                let addresses = &zones[z].addresses[taken[z]..taken[z] + PER_MACHINE];
+                taken[z] += PER_MACHINE;
+                add_machine(addresses, n, &mut machine_items)?;
+            }
             pairs.push((m, m + 1, k));
             m += 2;
         }
@@ -473,6 +523,14 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         bail!("no pair of containers for the machines 16 × 16");
     }
     import(&store, author, "bench-flow-machines", machine_items).await?;
+    // Measured in a steady state: without fresh statistics after these imports, the
+    // planner of the resolution of the properties may choose a plan seconds slow.
+    sqlx::raw_sql(
+        "VACUUM ANALYZE machines.machine, machines.interface, machines.attachment, \
+         module_object, property_origin, property_assignment",
+    )
+    .execute(&pool)
+    .await?;
     let machines: HashMap<String, Uuid> = sqlx::query_as::<_, (String, Uuid)>(
         "SELECT e.external_id, e.object_id FROM external_id e
           WHERE e.source = 'bench-flow-machines'",
@@ -501,7 +559,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                 "local": 1,
                 "source": {"kind": "machine", "id": {"id": machine(a)?}},
                 "destination": {"kind": "machine", "id": {"id": machine(b)?}},
-                "service": {"id": services[k]},
+                "service": {"id": services[k * SERVICES_PER_TYPE]},
                 "external_refs": [{"system": Uuid::nil(), "id": format!("BENCH-M-{n}")}],
                 "entity": {"id": entities[n % ENTITIES]},
             }),
@@ -551,35 +609,47 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     });
     progress(&format!("reclassification: {:?}", started.elapsed()));
 
-    // A write of the policy, which re-evaluates every living flow (011-5).
-    let operations = vec![
-        op(
-            "policy",
-            "flow_type.create",
-            json!({"local": 1, "key": "bench-new", "label": "Nouveau"}),
-        )?,
-        op(
-            "policy",
-            "rule.create",
-            json!({"key": "bench-new", "label": "Nouvelle règle", "effect": "allow",
-                   "flow_types": [{"local": 1}],
-                   "source": {"policy.environment": [environment(0)]},
-                   "destination": {"policy.environment": [environment(1)]}}),
-        )?,
-    ];
-    let (elapsed, outcome) = timed(&store, author, operations).await?;
-    if !matches!(outcome, Outcome::Applied { .. }) {
-        bail!("the write of the policy not applied: {outcome:?}");
-    }
-    budgets.push(Budget {
-        name: "re-evaluate every flow on a write of the policy",
-        limit: Duration::from_mins(1),
-        measured: elapsed,
-        note: format!(
-            "{flows} living flows, a new flow type and its rule; no background job \
-             re-evaluates them otherwise (F14: covered by this budget)"
+    // Writes of the policy: a rule re-evaluates the flows of its flow type, a new
+    // environment every living flow (no background job re-evaluates them otherwise, F14).
+    let (first, concerned): (Uuid, i64) = sqlx::query_as(
+        "SELECT t.id, (SELECT count(*) FROM flow.flow f JOIN policy.policy_service s
+                         ON s.id = f.service_id WHERE s.flow_type_id = t.id)
+           FROM policy.policy_flow_type t WHERE t.key = 'type00'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    let rule = op(
+        "policy",
+        "rule.create",
+        json!({"key": "bench-new", "label": "Nouvelle règle", "effect": "allow",
+               "flow_types": [{"id": first}],
+               "source": {"policy.environment": [environment(0)]},
+               "destination": {"policy.environment": [environment(1)]}}),
+    )?;
+    let environment = op("policy", "environment.create", json!({"key": "bench-new"}))?;
+    for (name, operation, note) in [
+        (
+            "re-evaluate the flows of a flow type on a rule written",
+            rule,
+            format!("{concerned} flows of the 50 services of the flow type of a new rule"),
         ),
-    });
+        (
+            "re-evaluate every flow on a write of the policy",
+            environment,
+            format!("{flows} living flows, a new environment"),
+        ),
+    ] {
+        let (elapsed, outcome) = timed(&store, author, vec![operation]).await?;
+        if !matches!(outcome, Outcome::Applied { .. }) {
+            bail!("a write of the policy not applied: {outcome:?}");
+        }
+        budgets.push(Budget {
+            name,
+            limit: Duration::from_mins(1),
+            measured: elapsed,
+            note,
+        });
+    }
     progress(&format!("policy write: {:?}", started.elapsed()));
 
     // Filtered pages through the router of the module.
@@ -612,7 +682,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let mut rows = 0;
     for _ in 0..100 {
         let entity = entities[rng.random_range(0..ENTITIES)];
-        let service = services[rng.random_range(0..FLOW_TYPES)];
+        let service = services[rng.random_range(0..services.len())];
         let uri = format!("/v1/flows?entity={entity}&service={service}&page_size=100");
         let (elapsed, page) = get(&app, &uri).await?;
         rows += page["items"].as_array().map_or(0, Vec::len);
