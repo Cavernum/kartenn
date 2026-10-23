@@ -351,6 +351,12 @@ Acceptation :
 - Deux onglets modifient le même préfixe : le second reçoit 412 et retrouve sa saisie
   après relecture.
 
+*Amendée par la 021 (2026-10-23, utilisateur)* : l'édition en place d'une table ou d'un
+arbre ajoute par défaut une opération au brouillon (« Brouillon (n) »), soumis en lot avec
+un seul motif ; Ctrl+Entrée applique cette seule édition tout de suite par la
+modification rapide, le motif étant alors demandé ; le motif reste obligatoire dans les
+deux cas (REQ-021-15, 16).
+
 #### REQ-007-26 — Brouillon local simulé
 Le shell doit accumuler les opérations d'un brouillon dans le navigateur (IndexedDB, par
 utilisateur et par onglet), relancer la simulation à chaque changement (différentiel,

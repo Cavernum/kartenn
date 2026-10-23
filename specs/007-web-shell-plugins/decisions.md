@@ -156,6 +156,10 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
   déconnexion et rattaché à l'identité, jamais relu par un autre utilisateur.
 - Décidé par : recommandation acceptée
 
+- Amendement (021, 2026-10-23, utilisateur) : l'édition en place va au brouillon par
+  défaut, appliqué en lot avec un seul motif ; Ctrl+Entrée applique une seule édition par
+  la modification rapide, motif demandé (REQ-007-25 amendée, 021/X15).
+
 ## W11 — Mécanique de l'i18n
 - Décision : **vue-i18n dans le shell, exposé par le SDK**. Catalogues JSON par langue ;
   le SDK fournit `locale`, `t()` et les formats (`Intl`, fuseau affiché en clair). Chaque

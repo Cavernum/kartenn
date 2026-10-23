@@ -18,7 +18,8 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 
 ## Synthèse
 - U1 deux plugins de première partie, `policy` et `flow`, chacun lié à son module.
-- U2 écrits avec le seul SDK public, en Custom Elements sans framework (précédent 008, 009).
+- ~~U2 écrits avec le seul SDK public, en Custom Elements sans framework~~ : remplacée le
+  2026-10-23 (Vue 3 et `@kartenn/ui` par l'import map, DOM léger ; § « Amendement »).
 - U3 points d'extension : les quatre de W5 ; les fiches du shell ne couvrent que les types
   du noyau.
 - U4 contexte temporel : W9 ; lectures datées, écritures au présent seulement.
@@ -33,7 +34,8 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - U12 accessibilité : WCAG 2.2 AA, axe-core bloquant (W14).
 - U13 périmètre : routes servies, plus les amendements 010/S35, 011/F19 et F20 livrés
   avant les écrans qui en dépendent (amendée).
-- U14 maquettes des écrans validées par l'utilisateur avant tout développement web.
+- U14 maquettes des écrans validées par l'utilisateur avant tout développement web ;
+  remplacée le 2026-10-23 : maquettes au catalogue avec les vrais composants (§ « Amendement »).
 - Q-017-1 (A) le plugin `policy` simule son ensemble et rend les sections.
 - Q-017-2 (A) recherche dans le lisible et identifiant collé.
 - Q-017-3 (B) file d'instruction lue par `GET /v1/flows` (011/F19).
@@ -54,6 +56,7 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - Décidé par : hérité de 007/W6, 010 et 011 (« Non-objectifs »)
 
 ## U2 — Forme des plugins
+*Remplacée le 2026-10-23 (§ « Amendement — socle 020 et 021 »).*
 - Décision : TypeScript, Custom Elements sans framework, `@kartenn/sdk` seul (client
   typé, contexte, i18n, brouillon), licence MPL-2.0, catalogues `i18n/fr.json` et
   `i18n/en.json`, tests Vitest par le bac à sable du SDK, construction par `serve.sh`.
@@ -172,6 +175,8 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
 - Décidé par (amendement) : l'utilisateur (2026-10-22)
 
 ## U14 — Maquettes avant le développement web
+*Remplacée le 2026-10-23 pour la forme des maquettes (§ « Amendement — socle 020 et 021 ») ;
+le principe (maquettes validées avant tout développement web) reste.*
 - Décision : avant toute tâche d'écran des plugins `policy` et `flow`, une phase de
   maquettes : les écrans des deux plugins (vues, formulaires, matrice, différentiel,
   requête de conformité, demande, file d'instruction, échéances, non-conformités,
@@ -183,21 +188,24 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
   corriger une maquette coûte moins qu'un Custom Element livré.
 - Décidé par : l'utilisateur (2026-10-22)
 
-## Amendement proposé — socle 020 et 021 (2026-10-23, en attente d'arbitrage)
+## Amendement — socle 020 et 021 (accepté le 2026-10-23 par l'utilisateur)
 
-Les arbitrages web du 2026-10-23 (D-2, D-3, D-8) changent le socle de la 017. Proposé
-par les specs [020](../020-systeme-de-design/decisions.md) (A1) et
-[021](../021-shell-v2/decisions.md) (A1), à confirmer par l'utilisateur :
-- **U2 amendée** : les plugins `policy` et `flow` s'écrivent avec le framework partagé et
+Les arbitrages web du 2026-10-23 (D-1 : Vue 3, D-2, D-3, D-8) changent le socle de la 017,
+qui s'aligne sur les specs [020](../020-systeme-de-design/decisions.md) et
+[021](../021-shell-v2/decisions.md). U2 et U14 sont **remplacées** :
+- **U2 remplacée** : les plugins `policy` et `flow` s'écrivent avec le framework partagé et
   `@kartenn/ui` par l'import map, en DOM léger (ADR 0038), et non plus en Custom Elements
   sans framework ; le Custom Element reste la frontière d'extension (hôte mince). Ils
   lisent par le cache du SDK 2.0 (ADR 0037) et suivent les règles d'édition, de filtres,
   de libellés et de codes de la 021.
-- **U14 amendée** : les maquettes se construisent dans le catalogue `/_ui/ecrans/` avec
+- **U14 remplacée** : les maquettes se construisent dans le catalogue `/_ui/ecrans/` avec
   les vrais composants (020, REQ-020-25), après les maquettes E1 à E10 de la 020, et non
   plus en pages statiques hors du build ; la validation reste consignée ici (U14).
-- **Ordre** : les tâches web de la 017 attendent la phase 5 de la 021 (plugins VLAN et
-  Machines portés) ; les tâches d'amendement de la 010 et de la 011 n'en dépendent pas.
+- **Ordre** : les tâches web de la 017 attendent le socle de la 020 et de la 021
+  (`@kartenn/ui`, SDK 2.0, hôte des plugins du nouveau shell, plugins VLAN et Machines
+  portés) ; elles s'écrivent dans l'arborescence du nouveau shell (`web/v2/plugins/`,
+  021, § « Migration ») ; les tâches d'amendement de la 010 et de la 011 n'en dépendent
+  pas.
 - U3 à U13 inchangées.
 
 ## Questions arbitrées

@@ -18,12 +18,13 @@ sont indépendantes, 6, 7 et 13 suivent 5, 9 suit 8 et 010-21, 10 suit 9 ; dans 
 20 et 21 suivent 16, 18 suit 17 et 011-13, 19 suit 16 et 011-12. Pas plus de trois
 sous-agents d'implémentation à la fois (CLAUDE.md).
 
-> *Amendement proposé le 2026-10-23 (specs 020 et 021, en attente d'arbitrage ;
-> [`decisions.md`](decisions.md), § « Amendement proposé — socle 020 et 021 »)* : la
-> tâche 1 se fait au catalogue `/_ui/ecrans/` avec `@kartenn/ui`, après la tâche 15 de la
-> 020 ; les tâches web suivantes s'écrivent sur le framework partagé et `@kartenn/ui`, en
-> DOM léger, après la phase 5 de la 021 (tâches 021-17 à 19). Les lignes `où :` qui
-> renvoient aux écrans actuels pour le style seront corrigées à l'arbitrage (021-20).
+> *Amendement accepté le 2026-10-23 ([`decisions.md`](decisions.md), § « Amendement —
+> socle 020 et 021 »)* : la tâche 1 se fait au catalogue `/_ui/ecrans/` du nouveau shell
+> avec `@kartenn/ui`, après la tâche 15 de la 020 ; les tâches web suivantes s'écrivent en
+> Vue 3 sur `@kartenn/ui` et le SDK 2.0, en DOM léger, sous `web/v2/plugins/policy` et
+> `web/v2/plugins/flow`, après les tâches 021-17 à 19 (socle de la 020 et de la 021).
+> Les chemins `web/plugins/<module>` des lignes `où :` désignent l'existant à imiter ; le
+> code nouveau va sous `web/v2/`.
 
 ## P0 — Maquettes
 
@@ -35,11 +36,10 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
   échéances, non-conformités — U14, REQ-017-4 à 34 — verify : validation de
   l'utilisateur consignée dans `decisions.md` (U14, date) ; écarts au design reportés
   dans le design avant la tâche 2 ; aucun code de production
-  où : `specs/017-plugins-politique-flux/maquettes/` (pages statiques, hors du build) ;
-  design « Plugin `policy` », « Plugin `flow` » ; écrans existants des plugins
-  `web/plugins/vlan`, `web/plugins/machines` et du shell (`web/shell/src/views/`) pour le
-  style
-  dépend de : —
+  où : catalogue du nouveau shell, `web/v2/shell/src/_ui/ecrans/` (020, § « Maquettes »),
+  avec les composants de `@kartenn/ui` ; design « Plugin `policy` », « Plugin `flow` » ;
+  maquettes E1 à E10 de la 020 pour le style
+  dépend de : 020-15
 
 ## P1 — Squelettes
 

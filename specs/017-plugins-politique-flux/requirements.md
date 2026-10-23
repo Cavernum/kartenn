@@ -17,10 +17,12 @@ et sur trois amendements de module décidés avec eux : `If-Match` de la matrice
 ([`decisions.md`](decisions.md)) ; les écrans suivent des maquettes validées par
 l'utilisateur (U14).
 
-*Amendement proposé le 2026-10-23* : les maquettes et les plugins de la 017 s'appuient
+*Amendement accepté le 2026-10-23* : les maquettes et les plugins de la 017 s'appuient
 sur le système de design de la [020](../020-systeme-de-design/requirements.md) et le shell
-v2 de la [021](../021-shell-v2/requirements.md) (U2 et U14 amendées, en attente
-d'arbitrage ; [`decisions.md`](decisions.md), § « Amendement proposé »).
+v2 de la [021](../021-shell-v2/requirements.md) : Vue 3 et `@kartenn/ui` par l'import
+map, DOM léger, maquettes au catalogue avec les vrais composants (U2 et U14 remplacées ;
+[`decisions.md`](decisions.md), § « Amendement — socle 020 et 021 »). Les mentions de
+Custom Elements « sans framework » ci-dessous se lisent avec cet amendement.
 
 Décisions : [`decisions.md`](decisions.md) (U1–U14, Q-017-1 à 7) ; 007/W4 à W14 ; 010/S15, S28, S29,
 S31, S33, N36 ; 011/F5, F6, F10, F12, F17. Exigences servies : REQ-010 et REQ-011

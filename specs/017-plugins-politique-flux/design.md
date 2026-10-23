@@ -32,6 +32,11 @@ flowchart LR
   flo -->|REST /v1| api
 ```
 
+*Amendement du 2026-10-23* : les deux plugins s'écrivent en Vue 3 sur `@kartenn/ui` et le
+SDK 2.0, en DOM léger, dans `web/v2/plugins/` (U2 remplacée ; specs 020, 021) ; le
+paragraphe suivant décrit la forme initiale, dont restent le manifeste, les catalogues et
+le bac à sable.
+
 Deux plugins de première partie (U1), écrits comme `web/plugins/vlan` et
 `web/plugins/machines` (U2) : un manifeste, un `src/index.ts` qui définit des Custom
 Elements par `definePlugin`, des catalogues FR et EN, un test Vitest par le bac à sable
@@ -387,9 +392,8 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
 
 - Un seul plugin « politique et flux » : rejeté, U1 (un module retiré doit emporter ses
   écrans ; publics distincts).
-- Vue framework (Vue 3) dans les plugins : permis par W7, rejeté pour garder la forme de
-  la 008 et de la 009 (U2) ; à reconsidérer si la matrice et les formulaires de règles
-  deviennent trop lourds en Custom Elements nus.
+- Vue framework (Vue 3) dans les plugins : d'abord rejeté pour garder la forme de la 008
+  et de la 009 (U2) ; **retenu le 2026-10-23** (U2 remplacée, ADR 0038).
 - Écrire chaque cellule de la matrice immédiatement (`PUT` à chaque clic) : rejeté, le
   responsable ne verrait pas le différentiel d'un ensemble de changements (UC-7).
 - Passer par le brouillon du shell (`draft.add`) : le brouillon simule, mais n'affiche
