@@ -10,6 +10,7 @@ pub mod authn;
 pub mod authz;
 mod cascade;
 pub mod declarations;
+pub mod events;
 pub mod expected;
 mod global;
 pub mod import;

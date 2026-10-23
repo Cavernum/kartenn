@@ -15,6 +15,7 @@ pub mod cursor;
 mod cycle;
 pub mod dated;
 pub mod error;
+pub mod events;
 pub mod filter;
 pub mod health;
 pub mod imports;
@@ -79,6 +80,7 @@ pub fn api_with(
         .merge(imports::routes())
         .merge(audit::routes())
         .merge(capabilities::routes())
+        .merge(events::routes())
         .merge(openapi::routes())
         .merge(modules::graph())
         .merge(modules::routes(modules));

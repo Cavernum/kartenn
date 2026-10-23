@@ -143,6 +143,13 @@ events! {
     AUDIT_READ = "audit.events.read", Info, High, ["criteria", "count"], ["REQ-012-17"],
         "API Activity 6003 / Read", "database",
         "Le journal d'audit a été consulté ou exporté.";
+    STREAM_OPENED = "events.stream.opened", Info, Low, ["criteria", "resumed"], ["REQ-022-24"],
+        "API Activity 6003 / Read", "database",
+        "Un flux d'événements a été ouvert (filtres, reprise par curseur).";
+    STREAM_CLOSED = "events.stream.closed", Info, Low,
+        ["cause", "duration_ms", "delivered", "resets", "targets_omitted"], ["REQ-022-24"],
+        "API Activity 6003 / Read", "database",
+        "Un flux d'événements s'est fermé : sa cause, sa durée, les événements et remises à zéro écrits, les objets notifiés (bornés par `audit.read_ids_max`, les autres comptés).";
     // Operation.
     SYS_STARTED = "sys.instance.started", Info, Normal, ["version"], ["REQ-012-8"],
         "Application Lifecycle 6002 / Start", "process",

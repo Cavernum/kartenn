@@ -151,6 +151,18 @@ impl Settings {
     }
 }
 
+/// Set by the server on each request: closes its connection, whatever its requests in
+/// flight (an event stream whose client no longer reads, spec 022, REQ-022-21).
+#[derive(Debug, Clone, Default)]
+pub struct ConnectionKill(pub std::sync::Arc<tokio::sync::Notify>);
+
+impl ConnectionKill {
+    /// Closes the connection.
+    pub fn kill(&self) {
+        self.0.notify_one();
+    }
+}
+
 /// Set by the server on each request: whether its connection is TLS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConnectionTls(pub bool);

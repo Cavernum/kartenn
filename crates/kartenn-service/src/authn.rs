@@ -426,6 +426,30 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
     ip: Option<IpAddr>,
     at: Instant,
 ) -> Result<Principal, AuthnError> {
+    authenticate_service_secret(
+        identities, hasher, journal, aggregator, name, secret, ip, at,
+    )
+    .await
+    .map(|(principal, _)| principal)
+}
+
+/// [`authenticate_service`], with the identifier of the secret presented: an event
+/// stream opened with it ends when it is revoked (spec 022, REQ-022-18).
+///
+/// # Errors
+///
+/// As [`authenticate_service`].
+#[allow(clippy::too_many_arguments)] // those of `authenticate_service`
+pub async fn authenticate_service_secret<I: Identities, H: SecretHasher, J: AuditJournal>(
+    identities: &I,
+    hasher: &H,
+    journal: &J,
+    aggregator: &FailureAggregator,
+    name: &str,
+    secret: &str,
+    ip: Option<IpAddr>,
+    at: Instant,
+) -> Result<(Principal, Uuid), AuthnError> {
     let source = Source {
         ip,
         user_agent: None,
@@ -434,6 +458,7 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
         .service_account(name)
         .await
         .map_err(AuthnError::Store)?;
+    let mut used = None;
     let reason = match &account {
         None => "unknown",
         Some(a) if a.disabled => "disabled",
@@ -447,7 +472,10 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
                 None => "secret",
                 Some(s) if s.revoked => "revoked",
                 Some(s) if s.expires_at.is_some_and(|e| e <= at) => "expired",
-                Some(_) => "",
+                Some(s) => {
+                    used = Some(s.id);
+                    ""
+                }
             }
         }
     };
@@ -468,16 +496,19 @@ pub async fn authenticate_service<I: Identities, H: SecretHasher, J: AuditJourna
         .await?;
         return Err(AuthnError::Refused);
     }
-    let Some(account) = account else {
+    let (Some(account), Some(used)) = (account, used) else {
         return Err(AuthnError::Refused);
     };
-    Ok(Principal {
-        identity: account.id,
-        kind: IdentityKind::ServiceAccount,
-        issuer: None,
-        groups: Vec::new(),
-        method: Method::Basic,
-    })
+    Ok((
+        Principal {
+            identity: account.id,
+            kind: IdentityKind::ServiceAccount,
+            issuer: None,
+            groups: Vec::new(),
+            method: Method::Basic,
+        },
+        used,
+    ))
 }
 
 /// A person who completed a login at `issuer` as `subject` (REQ-005-1, 2): its identity,

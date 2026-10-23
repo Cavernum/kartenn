@@ -108,6 +108,32 @@ struct Limits {
     idempotency_retention_seconds: u32,
 }
 
+/// The bounds of the filters of the event stream.
+#[derive(Debug, Serialize, ToSchema)]
+struct EventFilters {
+    /// Most qualified types in `types`.
+    types: usize,
+    /// Most domains in `domains`.
+    domains: usize,
+    /// Most objects in `objects`.
+    objects: usize,
+}
+
+/// The event stream `GET /v1/events` (spec 022, REQ-022-23).
+#[derive(Debug, Serialize, ToSchema)]
+struct EventsCapability {
+    /// The bounds of its filters.
+    filters: EventFilters,
+    /// Most objects an event names before it names types.
+    event_objects: usize,
+    /// Open streams per identity.
+    streams_per_identity: usize,
+    /// How long an instance keeps an event for a resumption, in seconds.
+    ring_seconds: u64,
+    /// Seconds of silence before a comment.
+    heartbeat_seconds: u64,
+}
+
 /// The capabilities of the build.
 #[derive(Debug, Serialize, ToSchema)]
 struct Capabilities {
@@ -123,6 +149,8 @@ struct Capabilities {
     ui_plugins: Vec<UiPlugin>,
     /// The limits.
     limits: Limits,
+    /// The event stream; `null` when it is off.
+    events: Option<EventsCapability>,
 }
 
 /// The routes of the capabilities, under `/v1`.
@@ -184,6 +212,7 @@ async fn capabilities(
     State(api): State<Api>,
     limit: Option<Extension<BodyLimit>>,
     web: Option<Extension<Arc<Web>>>,
+    hub: Option<Extension<Arc<crate::events::hub::Hub>>>,
 ) -> Result<Response, Problem> {
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let declared = property_read::declarations(&api.pool, now, None, None, i64::MAX)
@@ -223,6 +252,17 @@ async fn capabilities(
             body_bytes,
             idempotency_retention_seconds: IDEMPOTENCY_RETENTION_HOURS.unsigned_abs() * 3_600,
         },
+        events: hub.map(|Extension(hub)| EventsCapability {
+            filters: EventFilters {
+                types: kartenn_service::events::MAX_TYPES,
+                domains: kartenn_service::events::MAX_DOMAINS,
+                objects: kartenn_service::events::MAX_OBJECTS,
+            },
+            event_objects: hub.settings.bound,
+            streams_per_identity: hub.settings.per_identity,
+            ring_seconds: hub.settings.ring_age.as_secs(),
+            heartbeat_seconds: hub.settings.heartbeat.as_secs(),
+        }),
     })
     .into_response())
 }

@@ -11,6 +11,7 @@ pub mod breakglass;
 pub mod changesets;
 pub mod clock;
 mod diff;
+pub mod events;
 mod expected;
 pub mod explain;
 pub mod filter;

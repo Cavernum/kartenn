@@ -17,6 +17,7 @@ mod cycle;
 mod dated;
 mod diff_sections;
 mod errors;
+mod events;
 mod filter;
 mod imports;
 mod modules;

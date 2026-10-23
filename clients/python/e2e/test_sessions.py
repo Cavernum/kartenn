@@ -656,8 +656,7 @@ def test_watch_without_the_stream(cli: Cli) -> None:
 def test_watch(cli: Cli) -> None:
     """Maquette § 15: the stream of the 022, when the server serves it."""
     capabilities = json.loads(cli("capabilities", "-o", "json").out)
-    if not capabilities.get("events"):
-        pytest.skip("spec 022 (GET /v1/events) pas encore servie par kartenn-server")
+    assert capabilities.get("events"), "the server serves the stream of the 022"
     process = subprocess.Popen(
         cli.argv("watch", "--types", "core.prefix", "-o", "ndjson"),
         env=cli.environ(),

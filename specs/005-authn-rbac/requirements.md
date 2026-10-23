@@ -72,6 +72,7 @@ Acceptation :
 - La pseudonymisation de la 004 efface le nom et conserve l'identifiant interne.
 
 #### REQ-005-3 — État d'une identité
+*Amendée par la 022 (A6, REQ-022-18, 2026-10-23) : un flux d'événements ouvert, qui n'a pas de « requête suivante », est fermé dans les 10 s.*
 kartenn doit permettre de désactiver une identité et de révoquer toutes ses sessions
 (horodatage « révoqué après »), par changeset ; une identité désactivée ou une session
 antérieure à la révocation doit être refusée à la requête suivante. [K10]
@@ -115,6 +116,7 @@ Acceptation :
   rafraîchissement.
 
 #### REQ-005-7 — Durées de session
+*Amendée par la 022 (A6, REQ-022-18, 2026-10-23) : un flux d'événements n'est pas une activité de session ; il est fermé à l'échéance.*
 kartenn doit fermer une session après 30 minutes d'inactivité et 8 heures au plus depuis
 la connexion (réglables, sans dépasser 1 h et 24 h) ; il doit rafraîchir les groupes
 auprès de l'émetteur à l'expiration du jeton d'accès. [K10, 800-63B §2.2]

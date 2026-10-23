@@ -1,9 +1,10 @@
 //! Response compression (REQ-006-32; layer 10): `zstd`, `br` or `gzip` after
-//! `Accept-Encoding`, above 1 KiB, never for a response that shows a secret.
+//! `Accept-Encoding`, above 1 KiB, never for a response that shows a secret nor for the
+//! event stream.
 
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponseParts, ResponseParts};
-use tower_http::compression::predicate::{Predicate, SizeAbove};
+use tower_http::compression::predicate::{NotForContentType, Predicate, SizeAbove};
 use tower_http::compression::{CompressionLayer, CompressionLevel};
 
 /// Compressed from this size up: more than 1 KiB.
@@ -47,5 +48,10 @@ pub fn layer() -> CompressionLayer<impl Predicate> {
         .gzip(true)
         .no_deflate()
         .quality(CompressionLevel::Default)
-        .compress_when(SizeAbove::new(MIN_SIZE).and(NotSecret))
+        .compress_when(
+            SizeAbove::new(MIN_SIZE)
+                .and(NotSecret)
+                // The event stream is never compressed (spec 022, REQ-022-13).
+                .and(NotForContentType::SSE),
+        )
 }

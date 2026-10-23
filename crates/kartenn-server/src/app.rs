@@ -488,6 +488,7 @@ pub async fn run(
                 config.audit.read_audit(),
                 config.telemetry.names().into(),
                 config.web.as_ref(),
+                &config.events,
                 modules.clone(),
             )
             .await?,
@@ -495,6 +496,9 @@ pub async fn run(
         None => None,
     };
 
+    if let (Some(api), Some(instruments)) = (&api, &instruments) {
+        api.measure_events(instruments);
+    }
     let store = kartenn_store_pg::write::PgStore::new(pool.clone())
         .with_instance(instance.clone())
         .with_modules(modules.clone());
@@ -535,6 +539,7 @@ pub async fn run(
             _ = seal.tick() => seal_all(&pool, key.as_ref(), &instance).await,
             _ = relay.tick() => {
                 relay_all(&pool, &journal, &mut sinks, instruments.as_ref(), &mut throttle, &audit_status).await;
+                Api::count_events(api.as_ref(), instruments.as_ref());
             }
             _ = drops.tick() => warn_drops(&telemetry.outputs, &mut dropped_seen),
             _ = clock.tick() => check_clock(&pool, instruments.as_ref()).await,
@@ -684,13 +689,19 @@ struct Api {
     /// The plugins of the shell, read again on `SIGHUP` and by `watcher` (spec 007).
     plugins: Option<Arc<kartenn_rest::web::Plugins>>,
     watcher: Option<JoinHandle<()>>,
+    /// The event stream (spec 022): its hub, and its reader stopped by `reader_stop`.
+    events: Option<(
+        Arc<kartenn_rest::events::hub::Hub>,
+        watch::Sender<bool>,
+        JoinHandle<()>,
+    )>,
     #[cfg(unix)]
     hangup: Option<tokio::signal::unix::Signal>,
 }
 
 impl Api {
     /// Binds the address, reads the certificate, and serves in the background.
-    #[allow(clippy::too_many_arguments)] // the parts of the instance, built by `run`
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // the parts of the instance, built by `run`
     async fn start(
         http: &crate::config::Http,
         pool: &PgPool,
@@ -700,6 +711,7 @@ impl Api {
         read_audit: kartenn_service::reads::ReadAudit,
         outputs: Arc<[String]>,
         web: Option<&crate::config::Web>,
+        events: &crate::config::Events,
         modules: Arc<kartenn_service::module::ModuleRegistry>,
     ) -> anyhow::Result<Self> {
         let (web, plugins, watcher) = serve_web(web, &modules)?;
@@ -759,8 +771,33 @@ impl Api {
             outputs,
             modules,
         };
+        // The event stream (spec 022): its hub, its ring loaded, then its reader.
+        let events = if events.enabled {
+            let hub = kartenn_rest::events::hub::Hub::new(
+                events.settings(http.public_origin.clone()),
+                pool.clone(),
+                objects.ring.clone(),
+                objects.modules.clone(),
+            );
+            let reader = kartenn_rest::events::reader::Reader::start(hub.clone(), pool.clone())
+                .await
+                .map_err(|e| anyhow!("loading the ring of the event stream: {}", e.0))?;
+            let (reader_stop, reader_stopped) = watch::channel(false);
+            let checks = tokio::spawn(hub.clone().watch(reader_stopped.clone()));
+            let task = tokio::spawn(async move {
+                reader.run(reader_stopped).await;
+                checks.abort();
+            });
+            Some((hub, reader_stop, task))
+        } else {
+            None
+        };
+        let mut v1 = kartenn_rest::v1_with(objects, crate::modules::routers());
+        if let Some((hub, ..)) = &events {
+            v1 = v1.layer(axum::Extension(hub.clone()));
+        }
         let app = kartenn_rest::router_with_web(
-            kartenn_rest::v1_with(objects, crate::modules::routers()),
+            v1,
             Arc::new(kartenn_rest::health::PgReadiness::new(
                 pool.clone(),
                 audit.clone(),
@@ -793,6 +830,7 @@ impl Api {
             authn,
             plugins,
             watcher,
+            events,
             #[cfg(unix)]
             hangup,
         })
@@ -812,6 +850,42 @@ impl Api {
                 }
             }
         }
+    }
+
+    /// The histograms of the event stream recorded by `instruments` (REQ-022-25).
+    fn measure_events(&self, instruments: &Instruments) {
+        if let Some((hub, ..)) = &self.events {
+            let _ = hub
+                .stats
+                .recorder
+                .set(Arc::new(EventHistograms(instruments.clone())));
+        }
+    }
+
+    /// Copies the counts of the event stream to the gauges (REQ-022-25).
+    fn count_events(api: Option<&Self>, instruments: Option<&Instruments>) {
+        use std::sync::atomic::Ordering::Relaxed;
+        let (Some((hub, ..)), Some(instruments)) =
+            (api.and_then(|api| api.events.as_ref()), instruments)
+        else {
+            return;
+        };
+        let stats = &hub.stats;
+        let reasons = ["too_old", "invalid_cursor", "overflow", "rights_changed"];
+        let mut gauges = instruments
+            .gauges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        gauges.events = kartenn_telemetry::otel::EventGauges {
+            streams: hub.open_streams() as u64,
+            delivered: stats.delivered.load(Relaxed),
+            dropped: stats.dropped.load(Relaxed),
+            resets: reasons
+                .iter()
+                .zip(&stats.resets)
+                .map(|(r, n)| (*r, n.load(Relaxed)))
+                .collect(),
+        };
     }
 
     /// Records the refusals of the windows over, and purges the states and failures of the
@@ -839,6 +913,13 @@ impl Api {
     async fn stop(self, journal: &PgAuditJournal) {
         if let Some(watcher) = &self.watcher {
             watcher.abort();
+        }
+        // The streams first: refused, then each writes its `retry:` and ends, so that the
+        // drain does not wait on them (REQ-022-12).
+        if let Some((hub, reader_stop, reader)) = &self.events {
+            hub.shutdown();
+            let _ = reader_stop.send(true);
+            reader.abort();
         }
         let _ = self.stop.send(());
         let _ = self.server.await;
@@ -886,5 +967,18 @@ async fn stop(telemetry: Telemetry, finish: impl Future<Output = ()>) -> Report 
     }
     Report {
         lost_technical: lost,
+    }
+}
+
+/// The histograms of the event stream, on the instruments of the instance.
+struct EventHistograms(Instruments);
+
+impl kartenn_rest::events::hub::Recorder for EventHistograms {
+    fn lag(&self, seconds: f64) {
+        self.0.events_lag.record(seconds, &[]);
+    }
+
+    fn reader_pass(&self, seconds: f64) {
+        self.0.events_reader.record(seconds, &[]);
     }
 }

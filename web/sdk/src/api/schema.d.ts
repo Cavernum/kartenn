@@ -1023,6 +1023,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/events`: the stream of the changes the caller may read (REQ-022-1). */
+    get: operations["events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/flow-nonconformities": {
     parameters: {
       query?: never;
@@ -3899,6 +3916,7 @@ export interface components {
     Capabilities: {
       /** @description The major versions of the API served. */
       api_versions: string[];
+      events?: components["schemas"]["EventsCapability"] | null;
       /** @description The limits. */
       limits: components["schemas"]["Limits"];
       /** @description The modules of the build. */
@@ -4291,6 +4309,103 @@ export interface components {
     EnumValueItem: {
       /** @description Its key. */
       key: string;
+    };
+    /** @description The data of `changes`: keys and revisions, never values (REQ-022-4, 5). */
+    EventChanges: {
+      /**
+       * Format: uuid
+       * @description The changeset, the revision of every object named; absent for a background
+       *     task.
+       */
+      changeset?: string | null;
+      /** @description The addressing domains written, those the subscriber may read. */
+      domains: string[];
+      /** @description The CloudEvents identifier of an event of a module. */
+      event?: string | null;
+      /** @description The objects written; absent when `truncated` names types alone. */
+      objects?: components["schemas"]["EventObject"][] | null;
+      /** @description `<module>:<task>`, for an event of a background task. */
+      task?: string | null;
+      /** @description A broad invalidation: every object of `types` may have changed. */
+      truncated?: boolean | null;
+      /** @description The types of a broad invalidation. */
+      types?: string[] | null;
+    };
+    /** @description The data of `changeset`: a pending changeset changed state (REQ-022-17). */
+    EventChangeset: {
+      /**
+       * Format: uuid
+       * @description The changeset.
+       */
+      changeset: string;
+      /** @description `pending`, `applied`, `rejected`, `withdrawn`, `expired`, `failed_revalidation`. */
+      state: string;
+    };
+    /** @description The bounds of the filters of the event stream. */
+    EventFilters: {
+      /** @description Most domains in `domains`. */
+      domains: number;
+      /** @description Most objects in `objects`. */
+      objects: number;
+      /** @description Most qualified types in `types`. */
+      types: number;
+    };
+    /** @description The data of `labels`: the labels changed (spec 018). */
+    EventLabels: {
+      /** @description The new revision of the labels. */
+      revision: string;
+    };
+    /** @description An object named by `changes`. */
+    EventObject: {
+      /**
+       * Format: uuid
+       * @description Its identifier.
+       */
+      id: string;
+      /** @description Its qualified type. */
+      type: string;
+    };
+    /** @description The data of `ready`. */
+    EventReady: {
+      /**
+       * Format: int64
+       * @description Seconds of silence before a comment.
+       */
+      heartbeat: number;
+      /**
+       * Format: uuid
+       * @description The instance that serves the stream.
+       */
+      instance: string;
+      /**
+       * Format: int64
+       * @description How long the ring of the instance keeps an event, in seconds.
+       */
+      ring_seconds: number;
+    };
+    /** @description The data of `reset`: invalidate everything (REQ-022-8, 18, 21). */
+    EventReset: {
+      /** @description `too_old`, `invalid_cursor`, `overflow`, `rights_changed`. */
+      reason: string;
+    };
+    /** @description The event stream `GET /v1/events` (spec 022, REQ-022-23). */
+    EventsCapability: {
+      /** @description Most objects an event names before it names types. */
+      event_objects: number;
+      /** @description The bounds of its filters. */
+      filters: components["schemas"]["EventFilters"];
+      /**
+       * Format: int64
+       * @description Seconds of silence before a comment.
+       */
+      heartbeat_seconds: number;
+      /**
+       * Format: int64
+       * @description How long an instance keeps an event for a resumption, in seconds.
+       */
+      ring_seconds: number;
+      /** @description Open streams per identity. */
+      streams_per_identity: number;
     };
     /** @description The source of the expected values of a property (REQ-003-23). */
     Expected: {
@@ -10391,6 +10506,103 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  events: {
+    parameters: {
+      query?: {
+        /**
+         * @description Qualified types of object (`core.prefix`, `vlan.vlan`), comma separated, 32 at
+         *     most.
+         */
+        types?: string;
+        /** @description Addressing domains, comma separated, 32 at most. */
+        domains?: string;
+        /** @description Objects watched, comma separated, 100 at most. */
+        objects?: string;
+        /**
+         * @description Kinds of event among `changes`, `changeset`, `labels`; `ready` and `reset` always
+         *     come.
+         */
+        kinds?: string;
+        /**
+         * @description The cursor to resume after, when the header `Last-Event-ID` cannot be set (a new
+         *     `EventSource`).
+         */
+        last_event_id?: string;
+      };
+      header?: {
+        /** @description The cursor to resume after. */
+        "Last-Event-ID"?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": string;
+        };
+      };
+      /** @description A filter unknown or out of bounds (`events.filter.invalid`). */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A cookie session from another origin. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description `Accept` does not admit `text/event-stream`. */
+      406: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Too many streams for the identity (`Retry-After`). */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Too many streams for the instance, or it stops (`Retry-After`). */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
         };
       };
       /** @description A problem (RFC 9457). */

@@ -189,6 +189,12 @@ impl ReadScope {
         Self(None)
     }
 
+    /// The visibility of the read permission of each kind; `None` for everything.
+    #[must_use]
+    pub const fn kinds(&self) -> Option<&std::collections::BTreeMap<&'static str, Visibility>> {
+        self.0.as_ref()
+    }
+
     /// The scope as the JSON argument of `kartenn_scopes`; `None` for everything.
     #[must_use]
     pub fn to_json(&self) -> Option<serde_json::Value> {

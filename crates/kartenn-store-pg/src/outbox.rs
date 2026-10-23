@@ -13,8 +13,29 @@
 
 use std::future::Future;
 
-use sqlx::PgPool;
+use kartenn_service::StoreError;
 use sqlx::types::Uuid;
+use sqlx::{PgConnection, PgPool};
+
+/// The channel the shared reader of the event stream listens on (spec 022, E1; ADR
+/// 0034): notified, with an empty payload, by every transaction that writes the outbox.
+pub const CHANNEL: &str = "kartenn_outbox";
+
+/// Notifies [`CHANNEL`] in the transaction of `conn`: delivered at its commit only, and
+/// once per transaction however many times it is called (PostgreSQL merges identical
+/// notifications of a transaction).
+///
+/// # Errors
+///
+/// Database errors.
+pub(crate) async fn notify(conn: &mut PgConnection) -> Result<(), StoreError> {
+    sqlx::query("SELECT pg_notify($1, '')")
+        .bind(CHANNEL)
+        .execute(conn)
+        .await
+        .map_err(|e| StoreError(e.to_string()))?;
+    Ok(())
+}
 
 /// An event to deliver, in CloudEvents 1.0 JSON form.
 #[derive(Debug, Clone, PartialEq)]

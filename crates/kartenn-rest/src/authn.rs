@@ -162,6 +162,13 @@ pub struct Authenticated {
     pub cookie: Option<Vec<String>>,
     /// When the session ends unless seen again (Unix seconds), for a session cookie.
     pub ends_at: Option<i64>,
+    /// When the session ends if this request is no activity of it (Unix seconds): the
+    /// event stream (spec 022, REQ-022-18).
+    pub quiet_end: Option<i64>,
+    /// When the credentials expire (Unix seconds): the `exp` of an access token.
+    pub credentials_end: Option<i64>,
+    /// The secret of a service account presented by `Basic`.
+    pub secret: Option<Uuid>,
 }
 
 impl From<Principal> for Authenticated {
@@ -171,6 +178,9 @@ impl From<Principal> for Authenticated {
             session: None,
             cookie: None,
             ends_at: None,
+            quiet_end: None,
+            credentials_end: None,
+            secret: None,
         }
     }
 }
@@ -413,6 +423,7 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             Session::unseal(&self.ring, &chunks).map_err(|_| Refusal::Unauthenticated)?;
         let mut principal = principal_of(&session);
         let last = session.seen;
+        let quiet_end = session.ends_at(seconds(self.idle), seconds(self.absolute));
         if let Err(e) = session.check(at, seconds(self.idle), seconds(self.absolute)) {
             let end = if e == SessionError::Idle {
                 SessionEnd::Idle
@@ -470,6 +481,9 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             session: Some(session),
             cookie,
             ends_at,
+            quiet_end: Some(quiet_end),
+            credentials_end: None,
+            secret: None,
         })
     }
 
@@ -507,14 +521,16 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             .check(&self.identities, &self.journal, &principal, None, source)
             .await
             .map_err(|e| refusal(&e, Refusal::InvalidToken))?;
-        Ok(principal.into())
+        let mut authenticated = Authenticated::from(principal);
+        authenticated.credentials_end = verified.expires;
+        Ok(authenticated)
     }
 
     async fn basic(&self, header: &str, source: Source) -> Result<Authenticated, Refusal> {
         let Some((name, secret)) = parse_basic(header) else {
             return Err(self.failed(Method::Basic, "malformed", source).await);
         };
-        authn::authenticate_service(
+        authn::authenticate_service_secret(
             &self.identities,
             &self.ring,
             &self.journal,
@@ -525,7 +541,11 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             kartenn_service::audit::now(),
         )
         .await
-        .map(Authenticated::from)
+        .map(|(principal, used)| {
+            let mut authenticated = Authenticated::from(principal);
+            authenticated.secret = Some(used);
+            authenticated
+        })
         .map_err(|e| refusal(&e, Refusal::Unauthenticated))
     }
 
@@ -873,6 +893,9 @@ pub async fn layer(
         session,
         cookie,
         ends_at,
+        quiet_end,
+        credentials_end,
+        secret,
     } = match authenticator.authenticate(proof, source.clone()).await {
         Ok(authenticated) => authenticated,
         Err(refusal) => {
@@ -908,9 +931,28 @@ pub async fn layer(
     if let Some(ends_at) = ends_at {
         request.extensions_mut().insert(SessionEnds(ends_at));
     }
+    if let Some(end) = quiet_end {
+        request
+            .extensions_mut()
+            .insert(crate::events::QuietEnd(end));
+    }
+    if let Some(secret) = secret {
+        request
+            .extensions_mut()
+            .insert(crate::events::ServiceSecret(secret));
+    }
+    if let Some(end) = credentials_end {
+        request
+            .extensions_mut()
+            .insert(crate::events::CredentialsEnd(end));
+    }
     let mut response = next.run(request).await;
     if let Some(cookie) = cookie
         && response.extensions().get::<cookies::Ended>().is_none()
+        && response
+            .extensions()
+            .get::<crate::events::NotActivity>()
+            .is_none()
     {
         cookies::append(
             response.headers_mut(),

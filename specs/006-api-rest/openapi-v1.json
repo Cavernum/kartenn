@@ -634,6 +634,17 @@
             },
             "type": "array"
           },
+          "events": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EventsCapability",
+                "description": "The event stream; `null` when it is off."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "limits": {
             "$ref": "#/components/schemas/Limits",
             "description": "The limits."
@@ -1724,6 +1735,229 @@
         },
         "required": [
           "key"
+        ],
+        "type": "object"
+      },
+      "EventChanges": {
+        "description": "The data of `changes`: keys and revisions, never values (REQ-022-4, 5).",
+        "properties": {
+          "changeset": {
+            "description": "The changeset, the revision of every object named; absent for a background\ntask.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "domains": {
+            "description": "The addressing domains written, those the subscriber may read.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "event": {
+            "description": "The CloudEvents identifier of an event of a module.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objects": {
+            "description": "The objects written; absent when `truncated` names types alone.",
+            "items": {
+              "$ref": "#/components/schemas/EventObject"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "task": {
+            "description": "`<module>:<task>`, for an event of a background task.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "truncated": {
+            "description": "A broad invalidation: every object of `types` may have changed.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "types": {
+            "description": "The types of a broad invalidation.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "domains"
+        ],
+        "type": "object"
+      },
+      "EventChangeset": {
+        "description": "The data of `changeset`: a pending changeset changed state (REQ-022-17).",
+        "properties": {
+          "changeset": {
+            "description": "The changeset.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "description": "`pending`, `applied`, `rejected`, `withdrawn`, `expired`, `failed_revalidation`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeset",
+          "state"
+        ],
+        "type": "object"
+      },
+      "EventFilters": {
+        "description": "The bounds of the filters of the event stream.",
+        "properties": {
+          "domains": {
+            "description": "Most domains in `domains`.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "objects": {
+            "description": "Most objects in `objects`.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "types": {
+            "description": "Most qualified types in `types`.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "types",
+          "domains",
+          "objects"
+        ],
+        "type": "object"
+      },
+      "EventLabels": {
+        "description": "The data of `labels`: the labels changed (spec 018).",
+        "properties": {
+          "revision": {
+            "description": "The new revision of the labels.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "EventObject": {
+        "description": "An object named by `changes`.",
+        "properties": {
+          "id": {
+            "description": "Its identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": {
+            "description": "Its qualified type.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      },
+      "EventReady": {
+        "description": "The data of `ready`.",
+        "properties": {
+          "heartbeat": {
+            "description": "Seconds of silence before a comment.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "instance": {
+            "description": "The instance that serves the stream.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ring_seconds": {
+            "description": "How long the ring of the instance keeps an event, in seconds.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "instance",
+          "heartbeat",
+          "ring_seconds"
+        ],
+        "type": "object"
+      },
+      "EventReset": {
+        "description": "The data of `reset`: invalidate everything (REQ-022-8, 18, 21).",
+        "properties": {
+          "reason": {
+            "description": "`too_old`, `invalid_cursor`, `overflow`, `rights_changed`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "EventsCapability": {
+        "description": "The event stream `GET /v1/events` (spec 022, REQ-022-23).",
+        "properties": {
+          "event_objects": {
+            "description": "Most objects an event names before it names types.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/EventFilters",
+            "description": "The bounds of its filters."
+          },
+          "heartbeat_seconds": {
+            "description": "Seconds of silence before a comment.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ring_seconds": {
+            "description": "How long an instance keeps an event for a resumption, in seconds.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "streams_per_identity": {
+            "description": "Open streams per identity.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters",
+          "event_objects",
+          "streams_per_identity",
+          "ring_seconds",
+          "heartbeat_seconds"
         ],
         "type": "object"
       },
@@ -15212,6 +15446,163 @@
         "tags": [
           "policy"
         ]
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "events",
+        "parameters": [
+          {
+            "description": "Qualified types of object (`core.prefix`, `vlan.vlan`), comma separated, 32 at\nmost.",
+            "in": "query",
+            "name": "types",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Addressing domains, comma separated, 32 at most.",
+            "in": "query",
+            "name": "domains",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Objects watched, comma separated, 100 at most.",
+            "in": "query",
+            "name": "objects",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Kinds of event among `changes`, `changeset`, `labels`; `ready` and `reset` always\ncome.",
+            "in": "query",
+            "name": "kinds",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The cursor to resume after, when the header `Last-Event-ID` cannot be set (a new\n`EventSource`).",
+            "in": "query",
+            "name": "last_event_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The cursor to resume after.",
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A filter unknown or out of bounds (`events.filter.invalid`)."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A cookie session from another origin."
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`Accept` does not admit `text/event-stream`."
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many streams for the identity (`Retry-After`)."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many streams for the instance, or it stops (`Retry-After`)."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/events`: the stream of the changes the caller may read (REQ-022-1).",
+        "tags": [
+          "operations"
+        ],
+        "x-kartenn-events": {
+          "changes": {
+            "$ref": "#/components/schemas/EventChanges"
+          },
+          "changeset": {
+            "$ref": "#/components/schemas/EventChangeset"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/EventLabels"
+          },
+          "ready": {
+            "$ref": "#/components/schemas/EventReady"
+          },
+          "reset": {
+            "$ref": "#/components/schemas/EventReset"
+          }
+        }
       }
     },
     "/v1/flow-nonconformities": {

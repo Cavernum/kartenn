@@ -103,6 +103,11 @@ pub(crate) struct Client {
 }
 
 impl Server {
+    /// Its address.
+    pub(crate) fn address(&self) -> SocketAddr {
+        self.address
+    }
+
     /// A new connection in `version`; in TLS, the version is the one ALPN chose.
     pub(crate) async fn connect(&self, version: Version) -> Client {
         let tcp = TcpStream::connect(self.address).await.unwrap();

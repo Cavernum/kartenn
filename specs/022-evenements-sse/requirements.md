@@ -27,8 +27,9 @@ délestage), 012 (audit, télémétrie), 016 (clés d'ordre, REQ-016-14, 15) ; A
 0020, 0022. Sources primaires : § Références de [`design.md`](design.md).
 
 **Validée le 2026-10-23** : l'utilisateur a arbitré A1 à A8 et retenu les réponses
-recommandées aux questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Rien n'est
-encore implémenté.
+recommandées aux questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Implémentée le
+2026-10-23 (tâches 2 à 13, 15 à 18 ; la 14, facultative, reste ouverte), budgets mesurés à
+l'échelle réduite seulement.
 
 **Lecteurs du flux.** Un seul flux, deux façons de le lire : le shell web par
 `EventSource` (cookie de session BFF, `Origin` vérifié) ; la CLI, la bibliothèque Python
@@ -83,6 +84,7 @@ Acceptation :
 - `types=inconnu.truc` → 400 (`events.filter.invalid`).
 
 #### REQ-022-3 — Sortes d'événement
+*Amendée par la 018 (REQ-018-18, 2026-10-23) : sorte `labels`.*
 kartenn doit émettre les sortes (champ `event:`) suivantes, et aucune autre sans
 amender cette spec : `ready` (ouverture), `changes` (objets écrits par un changeset ou
 une tâche de fond), `changeset` (état d'un changeset en attente, pour son auteur et ses

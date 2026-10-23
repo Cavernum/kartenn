@@ -45,6 +45,145 @@ pub struct Config {
     /// subcommand.
     #[serde(default)]
     pub database: Option<Database>,
+    /// The event stream `GET /v1/events` (spec 022).
+    #[serde(default)]
+    pub events: Events,
+}
+
+/// The event stream (spec 022): on by default with the API.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Events {
+    /// Serve `GET /v1/events` (REQ-022-1); off, the route answers 404.
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// Keep-alive after this silence, 5 to 60 s (REQ-022-10).
+    #[serde(default = "heartbeat_s")]
+    pub heartbeat_s: u64,
+    /// Most objects an event names before it names types (REQ-022-5).
+    #[serde(default = "event_objects")]
+    pub event_objects: usize,
+    /// How long the ring keeps an event, in seconds (REQ-022-7).
+    #[serde(default = "ring_seconds")]
+    pub ring_seconds: u64,
+    /// Most events in the ring.
+    #[serde(default = "ring_events")]
+    pub ring_events: usize,
+    /// Events waiting per connection (REQ-022-21).
+    #[serde(default = "buffer")]
+    pub buffer: usize,
+    /// Open streams per instance (REQ-022-22).
+    #[serde(default = "max_streams")]
+    pub max_streams: usize,
+    /// Open streams per identity.
+    #[serde(default = "per_identity")]
+    pub per_identity: usize,
+    /// The fallback poll of the reader, in milliseconds (REQ-022-20).
+    #[serde(default = "poll_ms")]
+    pub poll_ms: u64,
+    /// `retry:` at the opening, drawn between these milliseconds (REQ-022-11).
+    #[serde(default = "retry_min_ms")]
+    pub retry_min_ms: u64,
+    /// See [`Self::retry_min_ms`].
+    #[serde(default = "retry_max_ms")]
+    pub retry_max_ms: u64,
+    /// `Incremental: ?1` on the stream (RFC 10036).
+    #[serde(default)]
+    pub incremental: bool,
+}
+
+const fn yes() -> bool {
+    true
+}
+const fn heartbeat_s() -> u64 {
+    15
+}
+const fn event_objects() -> usize {
+    kartenn_service::events::DEFAULT_BOUND
+}
+const fn ring_seconds() -> u64 {
+    900
+}
+const fn ring_events() -> usize {
+    10_000
+}
+const fn buffer() -> usize {
+    256
+}
+const fn max_streams() -> usize {
+    5_000
+}
+const fn per_identity() -> usize {
+    16
+}
+const fn poll_ms() -> u64 {
+    1_000
+}
+const fn retry_min_ms() -> u64 {
+    1_000
+}
+const fn retry_max_ms() -> u64 {
+    3_000
+}
+
+impl Default for Events {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            heartbeat_s: heartbeat_s(),
+            event_objects: event_objects(),
+            ring_seconds: ring_seconds(),
+            ring_events: ring_events(),
+            buffer: buffer(),
+            max_streams: max_streams(),
+            per_identity: per_identity(),
+            poll_ms: poll_ms(),
+            retry_min_ms: retry_min_ms(),
+            retry_max_ms: retry_max_ms(),
+            incremental: false,
+        }
+    }
+}
+
+impl Events {
+    /// The settings of the hub, `public_origin` that of `[http]`.
+    #[must_use]
+    pub fn settings(&self, public_origin: Option<String>) -> kartenn_rest::events::hub::Settings {
+        kartenn_rest::events::hub::Settings {
+            heartbeat: std::time::Duration::from_secs(self.heartbeat_s),
+            bound: self.event_objects,
+            ring_age: std::time::Duration::from_secs(self.ring_seconds),
+            ring_max: self.ring_events,
+            buffer: self.buffer,
+            max_streams: self.max_streams,
+            per_identity: self.per_identity,
+            poll: std::time::Duration::from_millis(self.poll_ms),
+            retry_open: (self.retry_min_ms, self.retry_max_ms),
+            incremental: self.incremental,
+            public_origin,
+            ..kartenn_rest::events::hub::Settings::default()
+        }
+    }
+}
+
+fn check_events(events: &Events) -> Result<(), String> {
+    if !(5..=60).contains(&events.heartbeat_s) {
+        return Err("events.heartbeat_s: between 5 and 60".into());
+    }
+    if events.event_objects == 0
+        || events.ring_seconds == 0
+        || events.ring_events == 0
+        || events.buffer == 0
+        || events.max_streams == 0
+        || events.per_identity == 0
+        || events.poll_ms == 0
+    {
+        return Err("events: bounds and intervals must be positive".into());
+    }
+    if events.retry_min_ms > events.retry_max_ms {
+        return Err("events.retry_min_ms: at most retry_max_ms".into());
+    }
+    Ok(())
 }
 
 /// Where the database is (spec 015, REQ-015-4, design « Configuration de la base »).
@@ -819,6 +958,7 @@ fn check(config: &Config) -> Result<(), ConfigError> {
     if let Some(http) = &config.http {
         check_http(http).map_err(ConfigError::Invalid)?;
     }
+    check_events(&config.events).map_err(ConfigError::Invalid)?;
     if let Some(root) = config.web.as_ref().and_then(|web| web.root.as_ref()) {
         kartenn_rest::web::Shell::open(root).map_err(|e| ConfigError::Invalid(e.to_string()))?;
     }

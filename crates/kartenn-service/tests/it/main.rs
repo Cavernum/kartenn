@@ -17,6 +17,7 @@ mod audit_verify;
 mod cascade;
 mod declarations;
 mod diff;
+mod events_floor;
 mod expected;
 mod explain;
 mod filter;

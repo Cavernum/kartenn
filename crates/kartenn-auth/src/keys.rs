@@ -22,6 +22,8 @@ pub enum Purpose {
     Totp,
     /// The pagination cursors of the API (spec 006, REQ-006-8).
     Cursor,
+    /// The cursors of the event stream (spec 022, REQ-022-6), encrypted.
+    EventCursor,
 }
 
 impl Purpose {
@@ -32,6 +34,7 @@ impl Purpose {
             Self::ServiceSecret => b"kartenn/service-secret/v1",
             Self::Totp => b"kartenn/totp/v1",
             Self::Cursor => b"kartenn/cursor/v1",
+            Self::EventCursor => b"kartenn/event-cursor/v1",
         }
     }
 }

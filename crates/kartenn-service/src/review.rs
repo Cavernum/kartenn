@@ -220,6 +220,21 @@ fn kind(found: &PendingChangeset) -> PendingKind {
 
 /// Whether `validator` may decide a pending changeset: the approval permission on its
 /// perimeter for an approval, the write permissions it requires for a proposal.
+/// Whether `subject` could decide `found` (REQ-004-41, 42): not its author, and every
+/// right it requires held; the event stream tells them its state (spec 022, REQ-022-17).
+///
+/// # Errors
+///
+/// [`StoreError`] on infrastructure failure.
+pub async fn may_validate<A: Authorizer>(
+    authorizer: &A,
+    found: &PendingChangeset,
+    subject: &Subject,
+) -> Result<bool, StoreError> {
+    Ok(found.request.author != subject.id
+        && may_decide(authorizer, found, subject).await?.is_empty())
+}
+
 async fn may_decide<A: Authorizer>(
     authorizer: &A,
     found: &PendingChangeset,
