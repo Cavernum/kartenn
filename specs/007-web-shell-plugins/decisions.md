@@ -156,6 +156,10 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
   déconnexion et rattaché à l'identité, jamais relu par un autre utilisateur.
 - Décidé par : recommandation acceptée
 
+- Amendement (021, 2026-10-23, utilisateur) : l'édition en place va au brouillon par
+  défaut, appliqué en lot avec un seul motif ; Ctrl+Entrée applique une seule édition par
+  la modification rapide, motif demandé (REQ-007-25 amendée, 021/X15).
+
 ## W11 — Mécanique de l'i18n
 - Décision : **vue-i18n dans le shell, exposé par le SDK**. Catalogues JSON par langue ;
   le SDK fournit `locale`, `t()` et les formats (`Intl`, fuseau affiché en clair). Chaque
@@ -170,6 +174,7 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - Décidé par : recommandation acceptée
 
 ## W12 — Composants d'interface
+*Remplacée par la 020 (2026-10-23) : `@kartenn/ui`, Reka UI encadré (REQ-020-33).*
 - Décision : **primitives sans style et jetons CSS**. Reka UI pour les primitives
   accessibles (dialogues, menus, onglets, listes déroulantes) ; CSS propre fondé sur des
   jetons de design (propriétés personnalisées, modes clair et sombre) qui traversent le
@@ -182,6 +187,7 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - Décidé par : recommandation acceptée
 
 ## W13 — Budgets du navigateur
+*Remplacée par 021/X30 (2026-10-23).*
 - Décision : **budgets bloquants en CI**, mesurés par Playwright sur le jeu à 10⁶
   objets, CPU ralenti ×4 : shell initial ≤ 300 Ko gzip hors plugins (découpé par
   route) ; premier écran utile ≤ 2 s après connexion ; rendu d'une page de 100 lignes
@@ -224,6 +230,8 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - Décidé par : recommandation acceptée
 
 ## W17 — Choix de conduite tranchés sans question
+*Précisée (021, 2026-10-23) : le cache de lectures du SDK (ADR 0037) n'est pas un magasin
+d'état d'application ; l'état de vue reste dans l'URL.*
 Peu coûteux à défaire, invisibles de l'extérieur ; à reprendre dans le design.
 - **Changements de l'API** : additifs seulement (006/H12). `ui_plugins` gagne l'URL du
   point d'entrée, l'empreinte SRI, la plage de SDK, les points d'extension et les

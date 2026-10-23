@@ -146,6 +146,10 @@ Non-objectifs :
 | [0032](../adr/0032-instance-postgresql-des-bancs.md) | Instance PostgreSQL dédiée aux bancs (5433, `k-pg-bench`), verrou `k-heavy --bench`, attentes bornées, échelles réduite et complète | accepted |
 | [0033](../adr/0033-publication-des-versions.md) | Publication des versions : notes par git-cliff, étiquettes signées par le mainteneur, CI et release GitHub Actions appelant des scripts neutres, image sur GHCR | accepted |
 | [0035](../adr/0035-clients-decouverts-depuis-le-contrat.md) | Clients Python découverts depuis le contrat : ressources dérivées des conventions REST et de `x-kartenn`, cache par révision, port de transport sur httpx2 (spec 023) | proposed |
+| [0036](../adr/0036-systeme-de-design-kartenn-ui.md) | Système de design : jetons, CSS en `@layer`, Stylelint strict, Geist, Lucide, bibliothèque `@kartenn/ui` en Vue 3 sur Reka UI encadré, grille maison, catalogue et captures bloquantes (spec 020) | accepted |
+| [0037](../adr/0037-couche-de-donnees-du-client.md) | Couche de données du client web : `@tanstack/query-core` dans le SDK, clés datées, préchargement, invalidation par le flux SSE, optimisme au présent seulement (spec 021) | accepted |
+| [0038](../adr/0038-partage-des-composants-avec-les-plugins.md) | `vue` et `@kartenn/ui` partagés avec les plugins par l'import map, DOM léger en première partie ; amende l'ADR 0025 (specs 020, 021) | accepted |
+| [0039](../adr/0039-outillage-claude-qualite-interface.md) | Outillage Claude pour la qualité de l'interface : `ui-reviewer`, `a11y-auditor`, skill `kartenn-ui`, hook après édition, `bench-web` dans `bench-runner` | accepted |
 
 ## Questions ouvertes
 

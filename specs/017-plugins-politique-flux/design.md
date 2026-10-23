@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-22
+updated: 2026-10-23
 ---
 
 # 017 — Plugins Politique et Flux : conception
@@ -9,39 +9,53 @@ updated: 2026-10-22
 
 ```mermaid
 flowchart LR
-  subgraph shell[Shell 007]
-    nav[navigation, fiches address/prefix, bandeau du temps, /proposals]
+  subgraph shell[Shell v2 021]
+    nav[barre latérale, palette, fiches, barre d'état, /proposals « À instruire »]
+    draft[brouillon du shell + simulation]
+    home[Accueil : tuiles widget]
   end
-  subgraph pol[web/plugins/policy]
+  subgraph pol[web/v2/plugins/policy]
     rules[règles et motifs]
-    matrix[matrice]
-    prep[ensemble en préparation + simulation]
+    matrix[matrice, effet simulé en pied]
     query[requête de conformité]
-    report[rapport d'audit]
+    report[rapports d'audit]
   end
-  subgraph flo[web/plugins/flow]
+  subgraph flo[web/v2/plugins/flow]
     req[demande + pré-vérification]
-    list[flux, fiche, onglet]
+    list[flux, fiche, onglets]
     review[instruction]
     exp[échéances, dérogations]
     nc[non-conformités]
   end
-  shell -->|SDK : contexte, i18n, client| pol
-  shell -->|SDK| flo
+  matrix -->|draft.add policy.matrix.set| draft
+  draft -->|sections policy.*, flow.flows| matrix
+  nav -->|action « Instruire dans Flux »| review
+  pol -->|widget| home
+  flo -->|widget| home
+  shell -->|SDK 1.0 : contexte, cache, i18n, brouillon| pol
+  shell -->|SDK 1.0| flo
   pol -->|REST /v1| api[(kartenn-server : modules policy, flow)]
   flo -->|REST /v1| api
 ```
 
-Deux plugins de première partie (U1), écrits comme `web/plugins/vlan` et
-`web/plugins/machines` (U2) : un manifeste, un `src/index.ts` qui définit des Custom
-Elements par `definePlugin`, des catalogues FR et EN, un test Vitest par le bac à sable
-du SDK. Aucun changement du shell ni du SDK ; côté serveur, trois amendements de module
-décidés avec la 017 et livrés avant les écrans qui en dépendent (U13) : `If-Match` de
-la matrice (010/S35, tâche 010-21), demandes en attente lues comme des flux (011/F19,
-tâche 011-12), prolongation instruite (011/F20, tâche 011-13). Le design suit les
-arbitrages de Q-017-1 à 7 ([`decisions.md`](decisions.md)) ; les écrans suivent les
-maquettes validées par l'utilisateur (U14), qui priment sur les descriptions d'écran
-ci-dessous en cas d'écart (le design est alors amendé).
+Deux plugins de première partie (U1) écrits en **Vue 3 sur `@kartenn/ui` et le SDK 1.0**,
+partagés par l'import map, rendus en **DOM léger** (ADR 0036 à 0038 ; U2 remplacée le
+2026-10-23), sous `web/v2/plugins/policy` et `web/v2/plugins/flow`, sur le modèle des
+plugins VLAN et Machines portés par la 021 (tâches 021-17, 18) : un manifeste (plages
+`sdk`, `ui`, `framework`, espace, lettre `g`), des composants monofichiers montés par
+l'hôte mince de chaque point d'extension, des catalogues FR et EN, des tests Vitest par le
+bac à sable du SDK. Lectures par le cache du SDK (clés datées, invalidation par le flux
+d'événements, ADR 0037) ; écritures par le brouillon du shell ou la modification rapide
+(021/X15) ; libellés par le dictionnaire de la 018. Côté serveur, les amendements
+décidés avec la 017 (U13) : `If-Match` de la matrice (010/S35, tâche 010-21), demandes en
+attente lues comme des flux (011/F19, tâche 011-12), prolongation instruite (011/F20,
+tâche 011-13), plus ceux que la planche des squelettes a demandés (tâches 021-28 à 31 :
+filtres déclarés, curseur des non-conformités, liste des rapports, aperçu d'une règle
+d'inférence, 010/S36). Le design suit les arbitrages de Q-017-1 à 7, amendés le
+2026-10-23 ([`decisions.md`](decisions.md), § « Amendement — socle 020 et 021 ») ; les
+écrans suivent les maquettes construites au catalogue du nouveau shell et validées par
+l'utilisateur (U14 remplacée), qui priment sur les descriptions ci-dessous en cas
+d'écart (le design est alors amendé).
 
 ## Rôles et permissions
 
@@ -62,8 +76,10 @@ alternatives n'en nomme aucune et décide elle-même par `context.user.has()` (U
 
 ### Plugin `policy` (REQ-017-1, 3)
 
-`web/plugins/policy/` (MPL-2.0), paquet `@kartenn/plugin-policy`, manifeste
-`"module": "policy"`, `"sdk": "^0.1"`. Éléments (préfixe `policy-`, REQ-007-5) :
+`web/v2/plugins/policy/` (MPL-2.0), paquet `@kartenn/plugin-policy`, manifeste
+`"module": "policy"`, `"sdk": "^1.0.0"`, `"ui": "^1.0.0"`, `"framework": "^3.5.0"`,
+`"space": "policy"` ; lettres `g t` (matrice) et `g q` (conformité). Éléments (préfixe
+`policy-`, REQ-007-5) :
 
 | Point | id | Élément | Objets | Permission | Exigences |
 |---|---|---|---|---|---|
@@ -76,8 +92,10 @@ alternatives n'en nomme aucune et décide elle-même par `context.user.has()` (U
 | view | `reports` | `policy-reports` | — | `policy.rule.admin` | 14 |
 | action | `check` | `policy-check` | `address`, `prefix` | (aucune, décidée par l'élément) | 13 |
 | action | `expected` | `policy-expected` | `address`, `prefix` | `policy.catalogue.read` | 33 |
+| action | `effect` | `policy-effect` | `changeset` (avec une section `policy.*`) | `policy.catalogue.read` | 9 |
+| widget | `home` | `policy-home` | — | `policy.catalogue.read` | 35 |
 
-Sous-chemins des vues (`/x/policy/<vue>/<reste>`, `web/shell/src/router.ts`) :
+Sous-chemins des vues (`/x/policy/<vue>/<reste>`, routeur du nouveau shell, 021) :
 `rules/<id>`, `rules/new`, `matrix?flow_type=<clé>`, `catalogue/<collection>/<id>`,
 `inference/<id>`, `inference/mismatches`, `changes/<changeset>`, `reports/<id>` ; filtres et dates dans la requête de l'URL (W9).
 
@@ -106,48 +124,53 @@ serveur reste juge (`policy.text.missing`).
   cellule absente de `cells` est vide (refus par défaut) ; `outside` affiché avec un
   lien vers `rules?flow_type=<id>`, les règles hors vue marquées (une règle est dans la
   vue si une cellule la cite dans `rules`).
-- Rendu : `<table>` à en-têtes de lignes (`scope="row"`) et de colonnes, une cellule
-  focalisable par le motif « grille » de l'APG (flèches, Origine, Fin) ; état lu par un
+- Rendu : `DataGrid` de `@kartenn/ui` (motif APG Grid, 020) à en-têtes de lignes et de
+  colonnes (flèches, Origine, Fin) ; état lu par un
   libellé et une icône (« autoriser », « interdire », « sous motif », « par défaut :
   refus »), la couleur ne fait que doubler (U12).
 - Écriture : choisir une cellule ouvre un panneau (état, motifs pour `conditional`,
-  texte `fr` pour `deny`, libellé) ; le changement va dans l'**ensemble en préparation**
-  du plugin (mémoire de la vue, perdu à la fermeture de l'onglet, rien hors du
-  navigateur avant la soumission, comme le brouillon de W10). L'ensemble garde l'ETag de
-  la matrice lue pour chaque type de flux touché (010/S35, Q-017-7).
-- Soumission (Q-017-1, A) : l'ensemble devient un changeset composé d'opérations
-  `policy.matrix.set` (enveloppe de module), chacune avec `if_match` = l'ETag lu, soumis
-  par `POST /v1/changesets` avec un motif et une clé d'idempotence ; une seule cellule
-  peut passer par le `PUT` de la cellule, sous `If-Match`. 201 → matrice relue ; 202 →
-  lien vers `changes/<changeset>` ; 412 ou `policy.matrix.stale` → matrice relue,
-  ensemble gardé, nouvel ETag repris à la soumission suivante.
+  texte `fr` pour `deny`, libellé) ; le changement va au **brouillon du shell**
+  (`draft.add` d'une opération `policy.matrix.set` avec `if_match` = l'ETag de la matrice
+  lue, 010/S35, Q-017-7) : la cellule passe à l'état « en brouillon » (020), le compteur
+  « Brouillon (n) » monte. Il n'y a plus d'ensemble propre au plugin (Q-017-1 amendée,
+  021/X36).
+- Soumission : celle du brouillon du shell, en lot avec un seul motif et une clé
+  d'idempotence (021/X15) ; Ctrl+Entrée applique une seule cellule tout de suite par le
+  `PUT` de la cellule sous `If-Match`, motif demandé. 201 → matrice relue ; 202 → lien vers
+  `changes/<changeset>` ; 412 ou `policy.matrix.stale` → matrice relue, brouillon gardé,
+  l'opération reprend le nouvel ETag à la soumission suivante.
 
-#### Ensemble en préparation et différentiel (REQ-017-8, 9 ; Q-017-1)
+#### Effet simulé et différentiel (REQ-017-8, 9 ; Q-017-1 amendée)
 
 ```mermaid
 sequenceDiagram
   participant R as Responsable sécurité
-  participant P as policy-matrix / policy-rules
+  participant M as policy-matrix / policy-rules
+  participant B as Brouillon du shell (021)
   participant A as API
-  R->>P: change des cellules, une règle
-  P->>A: POST /v1/changesets?simulate=true (opérations de l'ensemble)
-  A-->>P: violations, sections policy.combinations, policy.reclassified, flow.flows (décompte, 100 premières lignes)
-  P-->>R: s'ouvre / se ferme / sous réserve ; flux qui cassent ou guérissent
-  R->>P: soumettre (motif)
-  P->>A: POST /v1/changesets (Idempotency-Key)
-  A-->>P: 201 appliqué | 202 retenu (policy.opens…)
-  P-->>R: matrice relue | lien changes/<id>
+  R->>M: change des cellules, une règle
+  M->>B: draft.add(policy.matrix.set, if_match)
+  B->>A: POST /v1/changesets?simulate=true (tout le brouillon, débrayé)
+  A-->>B: violations, sections policy.combinations, policy.reclassified, flow.flows
+  B-->>M: sections de la dernière simulation (SDK)
+  M-->>R: pied de matrice : s'ouvre / se ferme / sous réserve ; flux qui cassent ou guérissent
+  R->>B: soumettre le brouillon (motif)
+  B->>A: POST /v1/changesets (Idempotency-Key)
+  A-->>B: 201 appliqué | 202 retenu (policy.opens…)
+  B-->>R: matrice relue | lien changes/<id>
 ```
 
-- La simulation est relancée après une pause de saisie (même délai que le brouillon du
-  shell) et à la demande.
+- La simulation est celle du brouillon du shell (relancée après une pause de saisie) ; le
+  plugin lit ses sections par le SDK et les rend en **pied de matrice** ; le panneau du
+  brouillon les rend aussi (021).
 - Rendu d'une section : décompte par nature (`opens`, `closes`, `pending` ; `breaks`,
   `heals`, `outcome`), puis lignes (combinaison source, destination, service, élément
   décisif avant et après) ; « voir tout » mène à `changes/<id>` une fois soumis.
 - Vue `changes/<changeset>` : `GET /v1/changesets/{id}` (motif, état, auteur, politique
   d'approbation), puis `GET /v1/changesets/{id}/diff?section=policy.combinations` (et
   `policy.reclassified`, `flow.flows`) page par page (`links.next`) ; lien vers la fiche du
-  changeset du shell (`/changesets/<id>`) où l'approbateur valide ou rejette.
+  changeset du shell (`/changesets/<id>`) où l'approbateur valide ou rejette ; l'action
+  `effect` (« Effet sur la politique ») y mène depuis la fiche d'un changeset.
 - La section `flow.flows` n'est demandée que si `flow` figure dans `modules` des
   capacités ; le plugin `policy` la lit comme des données, sans dépendre du plugin `flow`.
 
@@ -172,8 +195,8 @@ Chaque collection a la même forme d'écran : liste datée et filtrée, fiche av
 historique, formulaire dont les membres sont ceux de `COLLECTIONS` (un formulaire
 générique piloté par une table de membres par collection, typé localement comme
 `PolicyObject`), écriture par la route de ressource (U5). Une modification qui change
-des verdicts (signal, condition, rôle exempté) peut passer par l'ensemble en
-préparation pour être simulée avant soumission. Le catalogue sert aussi de source aux
+des verdicts (signal, condition, rôle exempté) peut être ajoutée au brouillon du shell
+pour être simulée avant soumission. Le catalogue sert aussi de source aux
 listes de choix des formulaires (règles, requête, demande de flux).
 
 #### Inférence (REQ-017-32 à 34 ; Q-017-5)
@@ -184,7 +207,7 @@ listes de choix des formulaires (règles, requête, demande de flux).
 | Créer, modifier, clore une règle (axe visé, attendus, critères, exceptions imbriquées ≤ 4, priorité, domaine) | `POST /v1/inference-rules`, `PATCH …/{id}` (`If-Match`), `DELETE …/{id}` | `policy.inference.admin` (sur le domaine cité, sinon globale) |
 | Attendu d'un nœud et son explication (action `expected`) | `GET /v1/{addresses,prefixes}/{id}/properties/{key}/suggestion`, `…/explanation` (routes transverses du noyau) | — |
 | Écarts (`inference/mismatches`) | `GET /v1/anomalies?rule=policy.inference.mismatch`, `POST /v1/anomalies/{id}/acknowledgement` | acquittement selon le noyau |
-| Aperçu d'une règle avant écriture (REQ-017-34) | **aucune route** : attend un amendement de la 010 à rédiger (section de différentiel ou simulation de l'inférence) | — |
+| Aperçu d'une règle avant écriture (REQ-017-34) | route de l'amendement 010/S36 (accepté le 2026-10-23), servie par la tâche 021-31 | — |
 
 Formulaire d'une règle : critères pris dans la liste fermée du serveur (préfixe, famille,
 domaine, type d'objet, site et entité, valeur d'une autre propriété, nom par expression
@@ -226,6 +249,7 @@ plus) ; plusieurs candidats à égalité sont tous montrés, sans écart.
 
 #### Rapport d'audit (REQ-017-14)
 
+Liste des rapports : `GET /v1/policy-reports` (état, date, lanceur ; tâche 021-30).
 `POST /v1/policy-reports` (`valid_at`) → 201 et `Location`, ou 409 avec le `Location` du
 rapport en cours ; la vue relit `GET /v1/policy-reports/{id}` toutes les 5 s tant que
 l'état n'est pas `done` (la tâche `policy.report` tourne toutes les 5 s) ; décompte par
@@ -236,8 +260,9 @@ navigateur (aucune route d'export). Toutes ces lectures sont sous `policy.rule.a
 
 ### Plugin `flow` (REQ-017-2, 3)
 
-`web/plugins/flow/` (MPL-2.0), paquet `@kartenn/plugin-flow`, manifeste
-`"module": "flow"`. Éléments (préfixe `flow-`) :
+`web/v2/plugins/flow/` (MPL-2.0), paquet `@kartenn/plugin-flow`, manifeste
+`"module": "flow"`, mêmes plages que `policy`, `"space": "flows"`, lettre `g f`. Éléments
+(préfixe `flow-`) :
 
 | Point | id | Élément | Objets | Permission | Exigences |
 |---|---|---|---|---|---|
@@ -246,8 +271,10 @@ navigateur (aucune route d'export). Toutes ces lectures sont sous `policy.rule.a
 | view | `review` | `flow-review` | — | `flow.flow.review` | 20, 21 |
 | view | `expiring` | `flow-expiring` | — | `flow.flow.read` | 22, 23 |
 | view | `nonconformities` | `flow-nonconformities` | — | (aucune : lecture ou demande) | 24 |
-| tab | `flows` | `flow-tab` | `address`, `prefix` | `flow.flow.read` | 19 |
+| tab | `flows` | `flow-tab` | `address`, `prefix`, `machines.machine`, `machines.interface` | `flow.flow.read` | 19 |
 | action | `request-from` | `flow-request-from` | `address`, `prefix` | `flow.flow.request` | 15 |
+| action | `review-in-flow` | `flow-review-in-flow` | `changeset` (issu d'une demande ou d'une prolongation) | `flow.flow.review` | 20 |
+| widget | `home` | `flow-home` | — | (aucune : lecture ou demande) | 35 |
 
 Sous-chemins : `flows/<id>`, `request?source=<sorte>:<id>&from=<flux>` (pré-remplissage
 depuis une fiche, ou depuis un flux terminé ou à remplacer), `review/<changeset>`.
@@ -297,8 +324,8 @@ sequenceDiagram
 | « Mes demandes » | `GET /v1/flows?requester=<context.user.identity>&state=…,requested` (demandes en attente comprises, 011/F19) |
 | Fiche | `GET /v1/flows/{id}`, `…/evaluations`, `…/history` |
 | Modifier, avancer la fin, prolonger, clore | `PATCH /v1/flows/{id}` (`FlowPatch`, `If-Match` ; prolongation → 200 ou 202 `ChangesetPending`, 011/F20), `DELETE /v1/flows/{id}` (`If-Match`) |
-| Onglet « Flux » | `GET /v1/addresses/{id}/flows`, `GET /v1/prefixes/{id}/flows` |
-| Flux d'une machine, d'une interface | liste filtrée `machine=<id>`, `endpoint=interface:<id>` (Q-017-6, A) |
+| Onglet « Flux » des adresses et préfixes | `GET /v1/addresses/{id}/flows`, `GET /v1/prefixes/{id}/flows` |
+| Onglet « Flux » des machines et interfaces (types de module, 021/X40) | liste filtrée `machine=<id>`, `endpoint=interface:<id>` (Q-017-6, A) |
 
 Fiche : état dérivé à la date, synthèse et issue, dérogation (fin, motif, risque),
 évaluations par paire (verdict, issue, élément décisif, conditions non remplies, score,
@@ -320,6 +347,12 @@ et évaluation du triage (synthèse, issue, élément décisif, conditions non r
 score, avertissements, évaluations par paire), lue telle quelle, sans recalcul. La fiche
 d'instruction `review/<changeset>` relit la ligne par `changeset=<id>` et le changeset
 par `GET /v1/changesets/{id}` (motif, auteur, `on_behalf_of`, état pour `If-Match`).
+
+Deux files liées (021/X37) : « Instruction » (cette vue, compteur dans l'espace Flux) et
+« À instruire » du shell (`/proposals`). Sur une ligne d'« À instruire » dont le
+changeset vient d'une demande ou d'une prolongation de flux, l'action `review-in-flow`
+(« Instruire dans Flux ») remplace « Valider », qui n'ajouterait pas l'opération de revue
+`approve_review`, et ouvre `review/<changeset>`.
 
 Décision (`review/<changeset>`) :
 
@@ -345,19 +378,27 @@ le serveur reste juge (`flow.separation`, 403 sans `flow.flow.review`, REQ-016-1
 #### Non-conformités (REQ-017-24)
 
 `GET /v1/flow-nonconformities` avec `entity`, `requester`, `rule`, `from`, `to`, `state`,
-`kind`, dates du contexte (une page, sans curseur : la vue l'indique si la page est
-pleine) ; ligne : état (`rejected`, `noncompliant`, `waived`), date, motif, règle
+`kind`, dates du contexte, paginée par curseur (tâche 021-29) ; ligne : état (`rejected`, `noncompliant`, `waived`), date, motif, règle
 (`rule_key`, `rule_label`) et texte (`rule_texts`, langue de l'utilisateur, repli `fr`
 indiqué), lien vers le flux ou le changeset rejeté. Acquitter un flux `noncompliant` :
 anomalie lue par `GET /v1/anomalies?rule=flow.verdict.denied` (rapprochée par l'objet),
 puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
 `requester=<context.user.identity>`.
 
+### Tuiles de l'Accueil (REQ-017-35)
+
+Point `widget` (021/X38), au plus une tuile par plugin, en lecture seule :
+- `policy-home` : écarts d'inférence ouverts (`GET /v1/anomalies?rule=policy.inference.mismatch`,
+  décompte) et dernier rapport d'audit (état, date ; `GET /v1/policy-reports`) ;
+- `flow-home` : à instruire (`GET /v1/flows?review=pending`, décompte, si
+  `flow.flow.review`), échéances J-7, mes demandes en attente.
+Décomptes relus par le flux d'événements, jamais par sondage ; chaque ligne mène à sa vue.
+
 ### Temps, droits, langue (REQ-017-26, 3)
 
-- Chaque élément s'abonne au contexte du SDK et relit ses données à un changement de
-  `valid_at`, `as_of` ou de langue (REQ-007-14) ; hors présent, aucun formulaire
-  d'écriture ni bouton de soumission n'est rendu (W9).
+- Chaque vue lit par le cache du SDK, dont les clés portent `valid_at`, `as_of` et la
+  langue (ADR 0037) ; sous `as_of`, aucune écriture ; sous `valid_at` seul, brouillon
+  daté seulement (021/X5, W9).
 - Les erreurs sont des `ApiProblem` du SDK : traduites par `type`, 412 → « relire en
   gardant la saisie », 422 → violations sur les champs, 404 → « absent ou non autorisé ».
 - Catalogues sous l'espace de noms du plugin ; codes de règles du serveur traduits par
@@ -369,8 +410,8 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
   pas d'erreur.
 - Cellule `conditional` sans motif : refusée côté client ; `deny` avec motifs :
   `policy.rule.conditional_deny` du serveur affichée.
-- Changeset retenu (202) pendant que l'ensemble en préparation contient d'autres
-  cellules : l'ensemble est vidé de ce qui a été soumis, le reste demeure.
+- Soumission du brouillon retenue (202) : le brouillon est vidé (soumis en un changeset),
+  la matrice relue montre l'état appliqué, le lien mène à `changes/<id>`.
 - Requête de conformité au-delà de 64 adresses par extrémité ou 10⁴ évaluations : 422
   `policy-query-too-large`, invitation à restreindre.
 - Demande dont la pré-vérification et le triage divergent (politique changée entre
@@ -378,8 +419,7 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
   pré-vérification.
 - Flux sans paire d'adresses : `denied` et `noncompliant` (écart du design 011) ; la
   fiche le dit (« aucune adresse à la date »).
-- Liste de non-conformités pleine (pas de curseur) : la vue invite à restreindre les
-  filtres.
+- Liste de non-conformités longue : parcourue par curseur (021-29).
 - Instructeur qui est aussi le demandeur « pour le compte de » : traité comme le
   demandeur (boutons absents).
 
@@ -387,14 +427,14 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
 
 - Un seul plugin « politique et flux » : rejeté, U1 (un module retiré doit emporter ses
   écrans ; publics distincts).
-- Vue framework (Vue 3) dans les plugins : permis par W7, rejeté pour garder la forme de
-  la 008 et de la 009 (U2) ; à reconsidérer si la matrice et les formulaires de règles
-  deviennent trop lourds en Custom Elements nus.
+- Custom Elements sans framework (forme initiale de la 008 et de la 009, U2) : remplacé
+  le 2026-10-23 par Vue 3 et `@kartenn/ui` partagés (ADR 0038).
 - Écrire chaque cellule de la matrice immédiatement (`PUT` à chaque clic) : rejeté, le
-  responsable ne verrait pas le différentiel d'un ensemble de changements (UC-7).
-- Passer par le brouillon du shell (`draft.add`) : le brouillon simule, mais n'affiche
-  pas les sections de module ; garder l'ensemble dans le plugin évite d'amender la 007
-  (Q-017-1).
+  responsable ne verrait pas le différentiel d'un ensemble de changements (UC-7) ; reste
+  possible pour une cellule par Ctrl+Entrée.
+- Ensemble en préparation propre au plugin (Q-017-1, option A initiale) : remplacé le
+  2026-10-23 par le brouillon du shell, qui simule et dont le panneau rend les sections de
+  module (021/X36) : un seul lieu de soumission.
 - Édition de la politique en texte (TOML) dans l'interface : rejetée, l'import hors ligne
   (REQ-010-35) couvre ce besoin.
 
@@ -408,33 +448,33 @@ puis `POST /v1/anomalies/{id}/acknowledgement`. « Mes non-conformités » :
   livraison ; les autres avancent sans eux.
 - Grain de l'`If-Match` de la matrice (010/S35) : la matrice d'un type de flux, pas la
   cellule ; deux responsables sur des cellules distinctes d'un même type se voient
-  refuser l'un l'autre (412) et doivent relire, ce que l'ensemble en préparation absorbe.
+  refuser l'un l'autre (412) et doivent relire, ce que le brouillon du shell absorbe
+  (opérations gardées, ETag repris).
 - Formulaires du catalogue complet (Q-017-5) : onze collections, dont l'inférence et ses
   exceptions en arbre ; un formulaire générique piloté par table limite le code, au prix
-  d'une ergonomie moins fine (les maquettes, U14, en décident).
+  d'une ergonomie moins fine (les maquettes du catalogue en décident).
 - Demandeurs sans lecture du référentiel (Q-017-2) : l'option A les cantonne aux
   identifiants collés, ce qui peut rendre le formulaire inutilisable pour eux.
-- Budgets (REQ-017-29) : le banc navigateur de la 007 n'existe pas encore (007, tâche
-  24) ; mesure indicative d'ici là.
+- Budgets (REQ-017-29) : ceux de la 021 (REQ-021-30), mesurés par `bench-web`.
 
 ## Stratégie de test
 
 - Vitest (bac à sable du SDK, `fetch` simulé typé par le contrat) : rendu de chaque
-  élément ; matrice (états, `outside`, clavier, cellule absente = défaut) ; ensemble en
-  préparation et rendu des sections simulées ; requête complète et réduite (aucun appel
+  composant ; matrice (états, `outside`, clavier, cellule absente = défaut) ; opérations
+  `policy.matrix.set` ajoutées au brouillon et rendu des sections simulées en pied de
+  matrice ; tuiles ; action « Instruire dans Flux » ; requête complète et réduite (aucun appel
   sortant en réduit) ; formulaire de demande (refus client, 201, 202, idempotence) ;
   décision d'instruction (corps de validation, boutons absents pour le demandeur) ;
   échéances (J-30, J-7) ; clés FR = EN.
 - Test serveur : plugins publiés seulement avec leur module
   (`crates/kartenn-rest/tests/it/plugins.rs`, sur les manifestes et catalogues du dépôt).
 - Parcours Playwright (Chromium, Firefox, axe-core à chaque étape) :
-  `web/e2e/journeys/policy.spec.ts` (responsable sécurité) et
-  `web/e2e/journeys/flow.spec.ts` (demandeur, instructeur ; deux identités de
-  `web/e2e/users.toml`).
+  `web/v2/e2e/journeys/policy.spec.ts` (responsable sécurité) et
+  `web/v2/e2e/journeys/flow.spec.ts` (demandeur, instructeur ; deux identités) ; captures
+  comparées aux maquettes validées (020).
 
 ## ADR
 
-Aucune : les plugins appliquent l'ADR 0025 (contrat des plugins) et les décisions de la
-007. Les amendements de contrat décidés avec la 017 sont consignés dans la spec de leur
-module (010/S35, 011/F19, F20) ; l'aperçu d'une règle d'inférence attend un amendement
-de la 010 à rédiger.
+Aucune propre : les plugins appliquent les ADR 0025, 0036, 0037 et 0038 et les décisions
+de la 020 et de la 021. Les amendements de contrat sont consignés dans la spec de leur
+module (010/S35, S36, 011/F19, F20) et portés par les tâches serveur de la 021.

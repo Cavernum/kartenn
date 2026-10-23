@@ -351,6 +351,12 @@ Acceptation :
 - Deux onglets modifient le même préfixe : le second reçoit 412 et retrouve sa saisie
   après relecture.
 
+*Amendée par la 021 (2026-10-23, utilisateur)* : l'édition en place d'une table ou d'un
+arbre ajoute par défaut une opération au brouillon (« Brouillon (n) »), soumis en lot avec
+un seul motif ; Ctrl+Entrée applique cette seule édition tout de suite par la
+modification rapide, le motif étant alors demandé ; le motif reste obligatoire dans les
+deux cas (REQ-021-15, 16).
+
 #### REQ-007-26 — Brouillon local simulé
 Le shell doit accumuler les opérations d'un brouillon dans le navigateur (IndexedDB, par
 utilisateur et par onglet), relancer la simulation à chaque changement (différentiel,
@@ -421,6 +427,8 @@ Acceptation :
 ### J. Budgets
 
 #### REQ-007-32 — Budgets du navigateur
+*Remplacée par REQ-021-30 (2026-10-23) : 300 Ko gzip modules partagés compris, 50 Ko par
+plugin, INP, navigation en cache, CLS, trames perdues, mémoire.*
 Le shell doit tenir, mesuré par Playwright sur le jeu à 10⁶ objets, CPU ralenti ×4 :
 shell initial ≤ 300 Ko gzip hors plugins (découpé par route) ; premier écran utile ≤ 2 s
 après la connexion ; rendu d'une page de 100 lignes ≤ 100 ms après la réponse ; arbre à
