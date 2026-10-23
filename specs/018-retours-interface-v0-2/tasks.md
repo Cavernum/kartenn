@@ -305,7 +305,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `forget_labels`, disque dans `<catalogue>/labels/` par serveur, profil et langue ; lu
   à une date : ni gardé ni conditionnel) ; `Client.labels(lang)` et
   `AsyncClient.labels(lang)` ; `events()`/`aevents()` rendent obsolètes les
-  dictionaires en mémoire à `labels`, `ready` et `reset` ; paramètre `profile` des
+  dictionnaires en mémoire à `labels`, `ready` et `reset` ; paramètre `profile` des
   clients (posé par `from_profile` et la CLI). CLI : `Output.labels` en table seulement
   (et sans `--keys`), `Runtime.label_of` : valeur de liste fermée d'une colonne de
   propriété par le dictionnaire (lu seulement pour une telle colonne ; sans lui, la
@@ -315,10 +315,18 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   (`clients/python/kartenn/tests/test_labels.py`), `test_cli_shows_labels_in_tables`
   (`kartenn-cli/tests/test_reads.py`).
 
-- [ ] 13. Banc du dictionnaire : complet par langue p95 < 50 ms, 304 p95 < 10 ms, taille
+- [x] 13. Banc du dictionnaire : complet par langue p95 < 50 ms, 304 p95 < 10 ms, taille
   < 1 Mo sur le jeu des bancs — REQ-018-20 — verify : `bench-core` dans les budgets
   où : `crates/kartenn-bench/src/{core_budgets.rs,http.rs}`
   dépend de : 10
+  fait : mesures dans `http.rs` (`bench-http`, qui sert le routeur réel avec
+  l'authentification ; `bench-core` mesure le service sans HTTP) : dictionnaire complet
+  d'une langue (`fr`, `en` en alternance, budget 50 ms), même lecture sous son `ETag`
+  (304, budget 10 ms), taille non compressée (< 1 Mo) ; la lecture des libellés stockés
+  sert de mesure « service ». Jeu des bancs : valeurs des propriétés de `props.rs`
+  libellées en français et en anglais. `bench-http 1 small` (2026-10-24) : 12 060
+  octets, p95 2,4 ms (complet) et 2,3 ms (304), tous les budgets tenus ; mesure à
+  l'échelle de test, la pleine échelle reste à passer.
 
 ## Flux C — Suggestions
 
