@@ -130,6 +130,9 @@ unauthenticated = "Reconnectez-vous : kartenn login"
 [render]
 masked = "‹masquée›"
 
+[completion]
+help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."
+
 [filter]
 unknown = "Filtre inconnu : {option}. Filtres : {filters}, --prop CLÉ[:OP]=VALEUR."
 

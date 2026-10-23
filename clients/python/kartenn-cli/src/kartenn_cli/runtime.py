@@ -247,9 +247,12 @@ class Runtime:
             click.echo(line, err=True)
         return catalog
 
-    def tree(self, *, discover: bool = False) -> tuple[Catalog, Layout] | None:
+    def tree(
+        self, *, discover: bool = False, cached: bool = False
+    ) -> tuple[Catalog, Layout] | None:
         """The catalog and its layout: from the cache when it holds one, else discovered;
-        discovered anyway with `discover` (capabilities read at most once a minute)."""
+        discovered anyway with `discover` (capabilities read at most once a minute);
+        never with `cached` (a completion)."""
         from kartenn_cli.tree import layout  # noqa: PLC0415
 
         if self.profile is None:
@@ -258,6 +261,8 @@ class Runtime:
         if kept is not None and (kept[2] or not discover):
             return kept[0], kept[1]
         catalog = None if discover else self.cached_catalog()
+        if catalog is None and cached:
+            return None
         discovered = catalog is None
         if catalog is None:
             catalog = self.catalog

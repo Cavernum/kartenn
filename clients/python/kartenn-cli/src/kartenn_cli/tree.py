@@ -176,9 +176,18 @@ def _type(param: Param) -> click.ParamType[Any, Any] | None:
     return None
 
 
-def query_option(param: Param, *, section: str, multiple: bool = False) -> click.Option:
-    """The option of a query parameter of the contract."""
+def query_option(
+    param: Param, *, section: str, multiple: bool = False, catalog: Catalog | None = None
+) -> click.Option:
+    """The option of a query parameter of the contract; the slugs of the objects it names
+    complete from the server."""
     kind = _type(param)
+    completer = None
+    if catalog is not None and kind is None:
+        from kartenn_cli.complete import reference_completer, reference_of  # noqa: PLC0415
+
+        collection = reference_of(param.name, catalog)
+        completer = reference_completer(collection) if collection else None
     return Option(
         [f"--{_option_name(param.name)}", param.name],
         type=kind,
@@ -186,6 +195,7 @@ def query_option(param: Param, *, section: str, multiple: bool = False) -> click
         help=first_line(param.description) or None,
         section=section,
         metavar=None if kind is not None else param.name.upper().replace("_", "-"),
+        shell_complete=completer,
     )
 
 

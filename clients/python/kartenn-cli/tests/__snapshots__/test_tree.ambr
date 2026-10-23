@@ -210,7 +210,7 @@
     audit, bindings, identities, issuer-attachments, roles, service-accounts
   
   Outils:
-    log-filters, config
+    log-filters, completion, config
   
   '''
 # ---

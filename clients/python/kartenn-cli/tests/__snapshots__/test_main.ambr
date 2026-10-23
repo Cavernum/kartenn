@@ -37,7 +37,7 @@
     -h, --help            Cette aide.
   
   Outils:
-    config
+    completion, config
   
   '''
 # ---

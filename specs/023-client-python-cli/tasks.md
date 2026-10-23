@@ -526,12 +526,29 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     conformément à Q-023-9. Le flux S (`x-kartenn`) n'est pas encore sur main : tests sur
     un contrat simulé qui le porte. Une sortie `ndjson --all` écrit la page 1 avant de
     demander la page 2 (testé).
-- [ ] 19. Complétion bash, zsh et fish (`shell_complete`) : catalogue, énumérations, clés
+- [x] 19. Complétion bash, zsh et fish (`shell_complete`) : catalogue, énumérations, clés
   et valeurs de propriétés, slugs ; cache de 5 min sans valeur masquée ; délai d'une
   seconde au plus — REQ-023-24 — verify : scripts générés ; complétions testées dans les
   trois shells (pexpect) ; serveur muet → propositions locales en moins d'une seconde
   - où : `clients/python/kartenn-cli/src/kartenn_cli/complete.py` ; maquette § 5
   - dépend de : 18
+  - choix : `kartenn completion bash|zsh|fish` écrit le script de click
+    (`_KARTENN_COMPLETE`). Commandes, options et énumérations : catalogue en cache
+    seulement (jamais de découverte pendant une complétion) ; clés de propriétés :
+    `capabilities.properties` en cache ; valeurs d'une liste fermée :
+    `GET /v1/property-declarations/{clé}/values`, proposées `clé=valeur` avec le
+    libellé en aide ; slugs : un filtre `x` nomme la collection `xs`, `xes` ou `xies`
+    si elle existe (`domain`, `entity`, `flow_type`…), valeurs `slug` ou `key` de sa
+    première page de 200. Lecture au serveur dans un fil démon attendu 0,8 s ; tout
+    échec ou retard ne propose rien et n'écrit rien. Cache des valeurs : un fichier
+    0600 par serveur sous `$XDG_CACHE_HOME/kartenn/complete/`, 5 min, sans élément
+    `masked`. Tests : protocole de click pour les trois shells ; bash et zsh réels sous
+    pexpect (nouvelle dépendance de développement, avec `types-pexpect`) ; fish absent
+    de la machine, son test réel est sauté (protocole testé). Budget : l'import de la
+    bibliothèque coûtait l'essentiel (180 ms en médiane pour `kartenn vlan <TAB>`) ;
+    `kartenn/__init__.py` charge désormais ses noms au premier usage (commit à part) :
+    complétion locale 78 à 83 ms en médiane, 110 à 124 ms au p95 sur la machine
+    partagée chargée (budget 100 ms au p95, à confirmer par le banc de la tâche 27).
 - [ ] 20. Écritures :
   - `create`, `update`, `close`, `edit` (fichier 0600, 412 → réouverture) ;
   - `--dry-run`, `--into-changeset`, `--require-applied` ;

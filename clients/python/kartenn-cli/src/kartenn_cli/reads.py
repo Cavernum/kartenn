@@ -161,11 +161,13 @@ def _cursor(link: str | None) -> str | None:
 def list_params(command: VerbCommand) -> list[click.Parameter]:
     """The parameters of `list`: filters, `--prop`, dates, pages and output."""
     from kartenn_cli.commands import output_params  # noqa: PLC0415
+    from kartenn_cli.complete import complete_prop  # noqa: PLC0415
     from kartenn_cli.tree import query_option  # noqa: PLC0415
 
     section = "help.section.filters"
     params: list[click.Parameter] = [
-        query_option(param, section=section, multiple=True) for param in command.operation.filters
+        query_option(param, section=section, multiple=True, catalog=command.catalog)
+        for param in command.operation.filters
     ]
     params.append(
         Option(
@@ -174,6 +176,7 @@ def list_params(command: VerbCommand) -> list[click.Parameter]:
             metavar="metavar.prop",
             help="opt.prop",
             section=section,
+            shell_complete=complete_prop,
         )
     )
     params += date_params(freeze=True)

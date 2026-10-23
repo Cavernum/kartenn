@@ -35,6 +35,7 @@ __all__ = ["KartennGroup", "cli", "main"]
 # Static commands: module, attribute, section of the root help.
 STATIC: dict[str, tuple[str, str, str]] = {
     "config": ("kartenn_cli.config", "config_group", "tools"),
+    "completion": ("kartenn_cli.complete", "completion_command", "tools"),
 }
 # Static commands shown with their help in the root help; the others by name only.
 STATIC_DESCRIBED = frozenset({"api", "changeset", "import"})
@@ -110,6 +111,8 @@ class KartennGroup(TGroup):
         the server cannot be reached: the local commands stay."""
         found = _runtime(ctx)
         try:
+            if ctx.resilient_parsing:
+                return found.tree(cached=True)
             return found.tree()
         except _handled() as error:
             if "_tree_failed" not in found.__dict__:
