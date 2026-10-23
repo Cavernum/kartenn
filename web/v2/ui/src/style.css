@@ -7,5 +7,6 @@
 @import "./styles/layers.css";
 @import "./styles/reset.css";
 @import "./tokens/tokens.css";
+@import "./tokens/fonts.css";
 @import "./styles/base.css";
 @import "./styles/utilities.css";

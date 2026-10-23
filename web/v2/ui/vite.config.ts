@@ -14,6 +14,9 @@ export default defineConfig({
   build: {
     target: "es2022",
     cssCodeSplit: false,
+    // Library mode inlines the fonts into this sheet: it is a check of the package, not
+    // what kartenn serves. The shell builds the sources of @kartenn/ui as an application,
+    // where the fonts are fingerprinted files under /assets/ (design « Typographie »).
     lib: {
       entry: { index: fileURLToPath(new URL("src/index.ts", import.meta.url)) },
       formats: ["es"],

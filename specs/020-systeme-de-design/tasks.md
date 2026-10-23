@@ -133,6 +133,17 @@ emploient.
     `crates/kartenn-rest/src/web.rs` (types de média : `woff2` déjà servi) ;
     `web/shell/scripts/size.mjs`
   - dépend de : 4
+  - fait en partie : `web/v2/ui/src/fonts/` (quatre `woff2` variables droits, latin et
+    latin étendu, tirés sans retouche de `@fontsource-variable/geist` et `geist-mono`
+    5.3.0, 83 708 octets ; `OFL-Geist.txt`, `OFL-GeistMono.txt`), `tokens/fonts.css`
+    (`@font-face` en `@layer tokens`, `swap`, replis métriques `"Geist Fallback"` et
+    `"Geist Mono Fallback"` sur Arial ou Liberation, `size-adjust` et surcharges
+    calculés par fontTools) ; `test/fonts.test.ts` (fichiers, signature WOFF2, ≤ 120 Ko,
+    déclarations, licence). Le build en bibliothèque de `@kartenn/ui` incorpore les
+    polices en `data:` (mode bibliothèque de Vite) : c'est le build du shell qui les
+    sert en fichiers à empreinte. Restent, avec le shell (tâches 8, 9) : préchargement
+    dans `index.html`, parcours sans requête hors origine, capture de la colonne de
+    chiffres.
 - [ ] 7. Icônes : `@kartenn/ui/icons` (réexport de la liste fermée Lucide, trait 1,5,
   tailles 16 et 20) ; icônes métier dessinées (liste du design § « Icônes ») ; composant
   `Icon` (`aria-hidden` par défaut, nom obligatoire si porteuse de sens) — REQ-020-15 —
