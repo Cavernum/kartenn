@@ -274,13 +274,22 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   (un corps au présent reste identique d'une lecture à l'autre). `labels` ajouté à
   `CORE_COLLECTIONS`. Contrat et `schema.d.ts` régénérés.
 
-- [ ] 11. Événement SSE `labels` : ligne de la table de traduction outbox → SSE, remise à
+- [x] 11. Événement SSE `labels` : ligne de la table de traduction outbox → SSE, remise à
   toute connexion, contrat OpenAPI de `/v1/events` ; amendement de 022/R2 —
   REQ-018-18 ; R23 — verify : `a_label_change_is_pushed_as_a_labels_event` (vrai
   serveur, flux ouvert)
   où : `kartenn-service::events` (022-3, sortes) et le répartiteur (022-8) ;
   `specs/022-evenements-sse/{decisions.md (R2),design.md (« Format »)}`
   dépend de : 7, 022-3, 022-8
+  fait : la 022 (fusionnée) traduisait déjà `org.kartenn.labels.changed` en sorte
+  `labels` (`kartenn_service::events`, `Kind::Labels`, remise sans filtre `types`,
+  contrat de `/v1/events` et `REQ-022-3` amendés). Ajouts : le lecteur
+  (`kartenn_rest::events::reader`) joint au compteur de l'outbox l'empreinte des
+  libellés compilés du build, pour que la révision poussée soit celle que sert
+  `GET /v1/labels` ; amendement daté de 022/R2 et ligne de la table de traduction du
+  design de la 022 ; test `a_label_change_is_pushed_as_a_labels_event`
+  (`kartenn-rest/tests/it/events.rs` : flux ouvert par une identité sans droit, rôle
+  relibellé, `labels` reçu avec `revision` seule, égale à celle du dictionnaire).
 
 - [ ] 12. Bibliothèque et CLI Python : `client.labels(lang)`, cache par révision dans le
   cache XDG, `If-None-Match`, invalidation par `labels` et `ready`, `resolve` avec repli ;

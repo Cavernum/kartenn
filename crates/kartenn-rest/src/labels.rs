@@ -116,7 +116,7 @@ impl CodeCatalogue {
 }
 
 /// The catalogue of the build of `registry`, computed once per set of modules.
-fn catalogue(registry: &ModuleRegistry) -> Arc<CodeCatalogue> {
+pub(crate) fn catalogue(registry: &ModuleRegistry) -> Arc<CodeCatalogue> {
     static BUILT: OnceLock<Mutex<HashMap<Vec<String>, Arc<CodeCatalogue>>>> = OnceLock::new();
     let modules: Vec<String> = registry
         .modules()

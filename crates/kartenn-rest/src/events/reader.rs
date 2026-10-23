@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use kartenn_service::StoreError;
-use kartenn_service::events::{Notice, OutboxRow, translate};
+use kartenn_service::events::{Body, Notice, OutboxRow, translate};
 use kartenn_store_pg::events::{Floor, administrative, kinds, raise, read, recent, sweep};
 use kartenn_store_pg::outbox::{CHANNEL, Event};
 use sqlx::PgPool;
@@ -95,7 +95,21 @@ async fn notices(hub: &Hub, pool: &PgPool, events: &[Event]) -> Result<Vec<Notic
                 &kind_of,
             )
         })
+        .map(|notice| with_revision_of_build(hub, notice))
         .collect())
+}
+
+/// A `labels` notice carries the revision of the dictionary, `<stored>-<compiled>`, as
+/// `GET /v1/labels` serves it (spec 018, R22, R23): the outbox knows the stored one, the
+/// build its fingerprint.
+fn with_revision_of_build(hub: &Hub, mut notice: Notice) -> Notice {
+    if let Body::Labels { revision } = &mut notice.body
+        && !revision.contains('-')
+    {
+        let digest = crate::labels::catalogue(hub.modules());
+        *revision = format!("{revision}-{}", digest.digest());
+    }
+    notice
 }
 
 /// The reader: its floor and the numbers it read above it.

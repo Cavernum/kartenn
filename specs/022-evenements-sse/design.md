@@ -110,6 +110,7 @@ Traduction outbox → SSE (lecteur, pur, testable sans base) :
 | `org.kartenn.changeset.applied` | `changes` | `data.objects` (UUID), typés par `changeset_operation` et les sections du différentiel (ADR 0026, clause 13) ; effets dérivés (héritage 003, reclassification D34, flux 011) → `types` |
 | `org.kartenn.changeset.<état>` | `changeset` | le changeset (visibilité : auteur et valideurs possibles) |
 | `org.kartenn.<module>.<nom>` | `changes` si le module déclare l'objet (`subject`) et son type, sinon **non remis** | `subject` |
+| `org.kartenn.labels.changed` (018) | `labels`, remise à toute connexion, sans filtre `types` | aucun : `data` `{"revision": "<compteur>-<empreinte>"}`, la révision que sert `GET /v1/labels` (le lecteur joint au compteur de l'outbox l'empreinte des libellés compilés du build) |
 
 Le typage des objets est la seule lecture supplémentaire du lecteur : une requête par
 passe, groupée sur tous les changesets de la passe (`changeset_operation` par

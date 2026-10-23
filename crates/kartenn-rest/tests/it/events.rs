@@ -432,6 +432,64 @@ async fn the_opening_refuses_what_it_cannot_serve(pool: PgPool) {
     );
 }
 
+/// REQ-018-18 (spec 018, R23): a changeset that changes labels reaches every open
+/// stream, even one that reads nothing, as `labels` with the revision of the
+/// dictionary only; the dictionary then serves that revision.
+#[kartenn_testing::pg_test]
+async fn a_label_change_is_pushed_as_a_labels_event(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let nobody = person(&pool, &[], ("global", None)).await;
+    let app = app(&pool, &ring, &i.hub, nobody);
+    let (response, mut client) = open(&app, "/v1/events", None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(client.next(WAIT).await.unwrap().event, "ready");
+    let writer = author(&pool).await;
+    apply(
+        &pool,
+        writer,
+        vec![Operation::SetRole {
+            key: "auditor".into(),
+            labels: [
+                ("fr".to_owned(), "Auditeur".to_owned()),
+                ("en".to_owned(), "Auditor".to_owned()),
+            ]
+            .into(),
+            entries: vec!["core.audit.read".into()],
+        }],
+    )
+    .await;
+    let pushed = client
+        .next_of("labels", WAIT)
+        .await
+        .expect("a labels event");
+    let revision = data(&pushed)["revision"].as_str().unwrap().to_owned();
+    assert_eq!(
+        data(&pushed)
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["revision"],
+        "nothing else: {}",
+        pushed.data
+    );
+    let read = app
+        .clone()
+        .oneshot(
+            Request::get("/v1/labels?spaces=state")
+                .header(header::AUTHORIZATION, "Bearer t")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+    let bytes = read.into_body().collect().await.unwrap().to_bytes();
+    let dictionary: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(dictionary["revision"], revision.as_str());
+}
+
 /// REQ-022-2, 16: a filter by type, a subscriber who reads one domain only: nothing of
 /// the other, no trace of it.
 #[kartenn_testing::pg_test]
