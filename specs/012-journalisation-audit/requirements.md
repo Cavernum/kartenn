@@ -238,6 +238,7 @@ Acceptation :
   l'événement `audit.events.read` est enregistré.
 
 #### REQ-012-18 — Lectures
+*Amendée par la 022 (A4, R24, REQ-022-24, 2026-10-23) : le flux `/v1/events` est audité par connexion (`events.stream.opened`, `closed`) ; au-delà de la borne, log technique DEBUG `events.delivery`.*
 kartenn doit enregistrer un événement d'audit pour chaque requête de lecture de l'API
 (acteur, critères, identifiants des objets renvoyés, jamais les valeurs), en criticité
 `low` ; le nombre d'identifiants enregistrés par événement doit être réglable, ceux qui

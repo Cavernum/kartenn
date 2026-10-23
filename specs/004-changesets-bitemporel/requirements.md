@@ -316,6 +316,7 @@ d'écraser la modification ultérieure.
 ### J. Événements sortants
 
 #### REQ-004-36 — Événement par changeset
+*Amendée par la 022 (E1, 2026-10-23) : la transaction qui écrit l'outbox appelle aussi `pg_notify('kartenn_outbox', '')` (ADR 0034).*
 Quand un changeset est appliqué, kartenn doit émettre un événement (identifiant du
 changeset, objets touchés, différentiel résumé) écrit dans la même transaction que les
 données.

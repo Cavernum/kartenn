@@ -155,7 +155,7 @@ n'est **pas mesurée** : aucune tâche de fond ne la porte encore.
 
 | ID | Invariant | Garantie | Test |
 |---|---|---|---|
-| INV-50 | Toute écriture, tout refus d'autorisation et toute lecture de l'API produit un événement d'audit attribué ; s'il ne peut être écrit, l'action n'a pas lieu (échec fermé) | App + Base (même transaction) | `kartenn-service/tests/audit_events.rs`, `audit_reads.rs`, `audit_journal.rs` |
+| INV-50 | Toute écriture, tout refus d'autorisation et toute lecture de l'API produit un événement d'audit attribué (le flux `/v1/events` : un par connexion, amendé par la 022/A4) ; s'il ne peut être écrit, l'action n'a pas lieu (échec fermé) | App + Base (même transaction) | `kartenn-service/tests/audit_events.rs`, `audit_reads.rs`, `audit_journal.rs` |
 | INV-51 | Le journal d'audit est en ajout seul pour le rôle applicatif | Base (droits) | `kartenn-store-pg/tests/audit_schema.rs` |
 | INV-52 | Toute altération, suppression ou insertion dans un lot scellé est détectée par `audit verify` | Chaîne SHA-256, signature facultative | `kartenn-service/tests/audit_verify.rs` |
 | INV-53 | Un événement n'est purgé qu'une fois scellé et livré à chaque sortie | Purge conditionnelle | `kartenn-telemetry/tests/audit_retention.rs` |

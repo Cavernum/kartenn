@@ -25,13 +25,16 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     MCP 2025-03-26, `connect-src` et `EventSource`, `Origin` sur un `GET` de même
     origine, bloc `id:` sans donnée, RFC 9220, `WebSocketStream`, déploiement de
     RFC 10036, OpenAPI 3.2), à lever avant les tâches 9 et 15.
-- [ ] 2. ADR 0034 « Événements poussés par SSE, vue volatile de l'outbox » (proposée) ;
+- [x] 2. ADR 0034 « Événements poussés par SSE, vue volatile de l'outbox » (proposée) ;
   amendements arbitrés : REQ-006-30, 32 (A5), REQ-012-18 et INV-50 (A4, R24),
   REQ-005-3, 7 (A6), REQ-004-36 (`NOTIFY`, E1) ; D7 et D31 déjà amendées (A1, A7) —
   verify : liens croisés ; `specs/README.md` à jour
   - où : `docs/adr/0018-outbox-ordonnee-par-domaine.md` (forme), decisions § Arbitrages ;
     marqueur « *Amendée par la 022 …* » comme REQ-004-37
   - dépend de : 1
+  - fait : `docs/adr/0034-evenements-pousses-sse.md` (proposée), indexée dans
+    `docs/spec/README.md` ; marqueurs sur REQ-004-36, REQ-005-3, 7, REQ-006-30, 32,
+    REQ-012-18 ; INV-50 précisé (audit par connexion pour le flux).
 
 ## P1 — Domaine pur
 

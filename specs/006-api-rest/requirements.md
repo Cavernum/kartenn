@@ -381,6 +381,7 @@ Acceptation :
   20/s par adresse ; la 21ᵉ écriture d'une rafale immédiate → 429.
 
 #### REQ-006-30 — Délestage
+*Amendée par la 022 (A5, REQ-022-22, 2026-10-23) : `/v1/events` ne compte pas dans ce plafond ; il a les siens.*
 Tant que le nombre de requêtes en cours d'une instance atteint son plafond (2 × la
 taille du pool par défaut), kartenn doit répondre aussitôt 503 avec `Retry-After`, sans
 solliciter la base ; aucune file d'attente dans kartenn (amendé le 2026-10-18 : la
@@ -394,6 +395,7 @@ Si un corps de requête dépasse la limite configurée (16 Mio par défaut) ou p
 [H14, RFC 9110 §15.5.14]
 
 #### REQ-006-32 — Transport
+*Amendée par la 022 (A5, REQ-022-13, 2026-10-23) : `/v1/events` n'est jamais compressé.*
 kartenn doit servir HTTP/1.1 et HTTP/2, terminer TLS lui-même (rustls) ou derrière un
 proxy selon la configuration, et compresser les réponses de plus de 1 Kio selon
 `Accept-Encoding` (`zstd`, `br`, `gzip`, `Vary: Accept-Encoding`), sauf celles qui
