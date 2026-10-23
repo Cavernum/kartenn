@@ -27,7 +27,8 @@ flowchart TB
   S -- "shell, plugins, import map, CSP (007)" --> Navigateur
 ```
 
-L'import map désigne `@kartenn/sdk`, le framework **[D-1]**, `@kartenn/ui` et sa feuille ;
+L'import map désigne `@kartenn/sdk`, `vue` (D-1 : Vue 3, build *runtime* de production sans
+compilateur), `@kartenn/ui` et sa feuille ;
 le shell et les plugins de première partie les marquent `external` (ADR 0038). Le
 `QueryClient` vit dans le SDK, l'adaptateur au framework dans `@kartenn/ui` (ADR 0037).
 
@@ -58,7 +59,7 @@ sont gardées, amendées ou remplacées ainsi.
 | W1 à W6, W8, W9, W14 à W16, W18 | gardées | — |
 | W7 (SDK seule instance partagée) | amendée | ADR 0038 |
 | W10 (écriture) | amendée | édition en place (X15) |
-| W11 (vue-i18n) | gardée **[D-1]** | bibliothèque i18n du framework retenu |
+| W11 (vue-i18n) | gardée | D-1 : Vue 3 |
 | W12 (Reka UI, jetons) | remplacée | 020, ADR 0036 |
 | W13 (budgets) | remplacée | X30 |
 | W17 (état dans l'URL, sans magasin global) | gardée, précisée | le cache du SDK n'est pas un magasin d'application : l'état de vue reste dans l'URL |
@@ -355,7 +356,7 @@ Manifeste (ajouts) :
 }
 ```
 
-- `framework` **[D-1]** (`^3.5.0` pour Vue, `^19.0.0` pour React) ; un plugin sans framework
+- `framework` : plage de `vue` (`^3.5.0`) ; un plugin sans framework
   ne déclare ni `ui` ni `framework` s'il n'importe pas `@kartenn/ui`.
 - `go` : lettre de navigation `g` + lettre proposée, refusée si elle est prise.
 - Import map servie (exemple, empreintes omises) :
@@ -364,8 +365,8 @@ Manifeste (ajouts) :
 { "imports": {
     "@kartenn/sdk": "/assets/sdk-<hash>.js",
     "@kartenn/ui": "/assets/ui-<hash>.js",
-    "<framework>": "/assets/<framework>-<hash>.js" },
-  "integrity": { "/assets/sdk-<hash>.js": "sha384-…", "/assets/ui-<hash>.js": "sha384-…", "/assets/<framework>-<hash>.js": "sha384-…" } }
+    "vue": "/assets/vue-<hash>.js" },
+  "integrity": { "/assets/sdk-<hash>.js": "sha384-…", "/assets/ui-<hash>.js": "sha384-…", "/assets/vue-<hash>.js": "sha384-…" } }
 ```
 
   La feuille `@kartenn/ui/style.css` est liée par `index.html` (`<link rel=stylesheet
@@ -377,7 +378,11 @@ Manifeste (ajouts) :
 ## Budgets (REQ-021-30)
 
 Projet Playwright `budgets` de `bench-web` (existant), Chromium, CPU ralenti ×4 par CDP,
-jeu à 10⁶ objets.
+jeu à 10⁶ objets. Les seuils de trames perdues, de flèches et de mémoire viennent du
+prototype D-1 (sans ralenti : 0,2 % de trames perdues, Flèche bas p75 ≈ 15 ms, tas de 19 à
+25 Mo par écran) : 2 % et 100 ms laissent la marge du ralenti ×4 ; 64 Mo couvrent
+l'écran le plus lourd et le cache de 50 navigations. Ils se resserrent après le premier
+passage complet.
 
 | Budget | Seuil | Mesure |
 |---|---|---|
@@ -388,15 +393,16 @@ jeu à 10⁶ objets.
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
 | Navigation en cache | ≤ 100 ms | clic sur un lien déjà préchargé → marque `k:view` |
 | CLS | ≤ 0,05 | `layout-shift` sans entrée récente, premier écran et 10 navigations |
-| Arbre de 10⁵ | ≤ 5 % de trames perdues | défilement scénarisé de 10⁴ lignes ; trames comptées par `requestAnimationFrame` contre la cadence attendue (et tâches longues > 50 ms : aucune, existant) |
-| Mémoire | ≤ plafond **[D-1]** | CDP `Performance.getMetrics` `JSHeapUsedSize` après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
+| Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
+| Flèche bas (arbre, grille) | ≤ 100 ms, p75 | 50 appuis ; du `timeStamp` du `keydown` au premier `requestAnimationFrame` après le focus attendu |
+| Mémoire | ≤ 64 Mo | CDP `Performance.getMetrics` `JSHeapUsedSize` après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
 | Plugin lent | écarté à 5 s | existant |
 
 ## Migration depuis le shell actuel
 
 | Phase | Contenu | Spec | Sortie vérifiable |
 |---|---|---|---|
-| 0 | Arbitrages, prototype D-1, ADR 0036 à 0039, outillage Claude, Stylelint | 020 (P0), 021 (tâche 1) | ADR acceptées ; agents, skill et hook en place |
+| 0 | Arbitrages, prototype D-1 (fait : Vue 3), ADR 0036 à 0039, outillage Claude, Stylelint | 020 (P0), 021 (tâche 1, faite) | ADR acceptées ; agents, skill et hook en place |
 | 1 | Jetons, police, icônes, catalogue nu, maquettes E1 à E10 validées | 020 (P1 à P3) | validations consignées ; captures de référence |
 | 2 | `@kartenn/ui` complet | 020 (P4, P5) | catalogue, captures, scripts APG, budgets de la bibliothèque |
 | 3 | SDK 2.0 : cache, clés, préchargement, écritures, flux (après 022-9, 10), import map étendue, manifeste | 021 (P1) | tests Vitest du cache ; parcours de fraîcheur à deux navigateurs |
@@ -414,17 +420,22 @@ jeu à 10⁶ objets.
   (logique), `session`, `plugins/loader.ts` et `registry.ts`, i18n et ses catalogues
   (clés reprises), `web/e2e` (parcours réécrits par zone), `bench-web`, `size.mjs`.
 
-## Dépend de D-1
+## Pile retenue (D-1 tranché le 2026-10-23 : Vue 3)
 
-| Point | Vue 3 | React 19 |
-|---|---|---|
-| Adaptateur du cache | `@tanstack/vue-query` sur le `QueryClient` du SDK | `@tanstack/react-query` sur le même |
-| Routeur et préchargement | vue-router, gardes `beforeResolve`, `meta.queries` | routeur à chargeurs (préchargement à l'intention natif) |
-| i18n | vue-i18n (W11, sans `eval`) | bibliothèque équivalente sans `eval` (à choisir) |
-| Hôte de plugin | `createApp` par élément, `provide` du contexte | `createRoot` par élément, fournisseur de contexte |
-| Plage `framework` | `^3.5` | `^19` |
-| Plafond de mémoire | mesuré au prototype | mesuré au prototype |
-| D17, ADR 0011 | inchangées | à amender (framework du shell) |
+Prototype : [`docs/spikes/005-framework-web.md`](../../docs/spikes/005-framework-web.md) ;
+React 19 et React Aria rejetés (poids double, tas de 116 Mo sur la table de 10⁴ lignes,
+tri et filtre de 130 à 260 ms).
+
+| Point | Retenu |
+|---|---|
+| Adaptateur du cache | `@tanstack/vue-query` (`VueQueryPlugin`) sur le `QueryClient` du SDK, dans `@kartenn/ui` |
+| Routeur et préchargement | vue-router ; `meta.queries` ; garde `beforeResolve` qui attend au plus 100 ms |
+| i18n | vue-i18n (W11, build sans compilateur de messages à l'exécution, sans `eval`) |
+| Hôte de plugin | `createApp` par élément, `provide` du contexte et du `QueryClient`, démontage à `disconnectedCallback` |
+| Import map | `vue` en build *runtime* de production (pas de compilateur de gabarits : CSP sans `unsafe-eval`) ; plage `framework: "^3.5.0"` |
+| Données d'arbre et de grille | `shallowRef`/`markRaw` : la réactivité est portée par le cache, pas par les nœuds |
+| Composants | `@kartenn/ui` : Reka UI encadré, grille maison (020, REQ-020-33) |
+| D17, ADR 0011 | inchangées |
 
 ## Erreurs et cas limites
 
@@ -456,8 +467,8 @@ jeu à 10⁶ objets.
 
 ## Risques
 
-- **D-1 tardif** : P1 de la 021 (SDK 2.0, cache, flux) ne dépend pas du framework et peut
-  avancer ; P2 et P3 attendent.
+- **Reka UI** : contournements de comportements non documentés (020, REQ-020-33) ; une
+  montée de version de Reka casse au plus des scripts clavier, jamais un écran en silence.
 - **Contrat 022 et ETag composite** : la comparaison sur `version` suppose ce champ dans
   les corps ; à vérifier sur chaque ressource (tâche 3) ; à défaut, relecture
   conditionnelle (304), plus coûteuse mais correcte.
@@ -480,8 +491,7 @@ jeu à 10⁶ objets.
 
 [0037](../../docs/adr/0037-couche-de-donnees-du-client.md) (couche de données),
 [0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) (partage avec les
-plugins, amende 0025), proposées ; ADR 0011 et D17 amendées seulement si D-1 change le
-framework.
+plugins, amende 0025), proposées, D-1 résolu (Vue 3) ; ADR 0011 et D17 inchangées.
 
 ## Références
 

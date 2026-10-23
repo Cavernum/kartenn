@@ -13,7 +13,10 @@ fusionnée).
 
 ## Arbitrages rendus (2026-10-23, utilisateur)
 
-- **D-1** framework : prototype comparatif en cours ; D17 et l'ADR 0011 inchangées.
+- **D-1 framework : Vue 3** (« Franchement on va prendre vue »), après le prototype
+  comparatif Vue 3 + Reka UI contre React 19 + React Aria (tâche 021-1, faite ;
+  [`005-framework-web.md`](../../docs/spikes/005-framework-web.md)) ; D17 et l'ADR 0011
+  inchangées.
 - **D-2** framework et `@kartenn/ui` par l'import map (amende l'ADR 0025).
 - **D-3** DOM léger pour les plugins de première partie.
 - **D-5** `@tanstack/query-core` dans le SDK, adaptateur fin selon D-1, invalidation par
@@ -55,7 +58,7 @@ fusionnée).
 - X27 DOM léger en première partie ; tiers au choix ; exemple sans framework.
 - X28 i18n de la 007 gardée.
 - X29 WCAG 2.2 AA étendu ; consultation à 320 px, édition ≥ 1024 px.
-- X30 budgets étendus, bloquants.
+- X30 budgets étendus, bloquants, resserrés par le prototype D-1.
 - X31 bascule en place, par zones.
 - X32 déplacement à parent déclaré : cibles vérifiées (cycle, type, droits, présent) avant mise en évidence.
 - X33 aucun optimisme pour un déplacement ; le serveur reste seul juge.
@@ -145,9 +148,11 @@ fusionnée).
 
 ## X30 — Budgets
 - Décision : table du design ; shell initial ≤ 300 Ko gzip **framework et `@kartenn/ui`
-  compris** ; plugin ≤ 50 Ko gzip hors partagés ; plafond de mémoire après D-1.
+  compris** ; plugin ≤ 50 Ko gzip hors partagés ; arbre ≤ 2 % de trames perdues (au lieu
+  des 5 % de D-10) ; Flèche bas p75 ≤ 100 ms ; tas ≤ 64 Mo.
 - Pourquoi : D-10 ; le partage par l'import map déplace le framework des plugins vers le
-  shell.
+  shell ; le prototype D-1 mesure 0,2 % de trames perdues, des flèches à ≈ 15 ms et 19 à
+  25 Mo de tas par écran sans ralenti : les seuils de D-10 laissaient trop de marge.
 - Décidé par : l'utilisateur (D-10) ; 50 Ko et périmètre des 300 Ko : choix de Claude
   (Q-021-11)
 
@@ -184,9 +189,8 @@ fusionnée).
   la 010 a renommé `policy.read` en `policy.catalogue.read` (« trois segments exigés »).
   La 021 n'affiche que les noms servis ; le renommage relève de la 018. *Recommandation* :
   pas de renommage dans la 021 ; dépendance notée.
-- **A7 — D17 et ADR 0011** : inchangées tant que D-1 garde Vue ; amendées (shell en
-  React) si le prototype retient React. *Recommandation* : trancher D-1 avant la phase 2 ;
-  rien dans la 021 n'est perdu dans un cas comme dans l'autre hors P2 à P5.
+- ~~**A7 — D17 et ADR 0011**~~ : close le 2026-10-23 : D-1 retient Vue 3, D17 et
+  l'ADR 0011 restent telles quelles.
 - **A8 — 007/W17** (« sans magasin global ») : le `QueryClient` est un cache de lectures,
   pas un magasin d'état d'application. *Recommandation* : pas d'amendement ; préciser W17
   (l'état de vue reste dans l'URL).
@@ -209,8 +213,9 @@ fusionnée).
   par amendement.
 - **Q-021-6** — Lettres de `g` (table du design) : *Recommandation* : la table ; une
   lettre de plugin proposée au manifeste, refusée si prise.
-- **Q-021-7** — Plafond de mémoire : *Recommandation* : mesure au prototype D-1 (tas
-  après 10⁴ lignes et 50 navigations), plafond = mesure × 1,5, fixé à la tâche du banc.
+- ~~**Q-021-7**~~ — Plafond de mémoire : close par le prototype D-1 (19 à 25 Mo par
+  écran) : 64 Mo après 10⁴ lignes et 50 navigations (écran le plus lourd et cache) ;
+  resserré après le premier passage complet du banc.
 - **Q-021-8** — Délai du préchargement au survol : *Recommandation* : 60 ms (entre les
   50 ms d'un routeur courant et les 100 ms de l'étude).
 - **Q-021-9** — `staleTime` des objets au présent (30 s) avec le flux actif :

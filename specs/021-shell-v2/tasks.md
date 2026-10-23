@@ -9,29 +9,26 @@ Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A9 et les questio
 à 14 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`, `k-web-e2e` pour les écrans, `k-check` pour les tâches qui touchent le
 serveur) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
-**[D-1]** : la tâche attend l'issue du prototype de framework. Commandes lourdes par
-`k-heavy`.
+D-1 est tranché (Vue 3, tâche 1 faite) : plus aucune tâche ne l'attend. Commandes lourdes
+par `k-heavy`.
 
-Ordre (design, § « Migration ») : tâche 1 (prototype D-1) ; la 020 jusqu'à sa tâche 15
-(maquettes validées) ; P1 (SDK 2.0) en parallèle de la 020, sans attendre D-1 sauf la
-tâche 8 ; P2 (écrans) par zones, chacune après les composants qu'elle emploie (020, P4) ;
+Ordre (design, § « Migration ») : la 020 jusqu'à sa tâche 15 (maquettes validées) ; P1
+(SDK 2.0) en parallèle de la 020 ; P2 (écrans) par zones, chacune après les composants qu'elle emploie (020, P4) ;
 P3 (plugins) ; P4 (budgets, clôture). Trois sous-agents d'implémentation au plus, et
 aucun en parallèle sur `@kartenn/ui` (020).
 
 ## P0 — Décision du framework
 
-- [ ] 1. Prototype D-1 : la même grille éditable (10⁴ lignes virtualisées, édition au
-  clavier, états `draft`/`review`/`error`) et le même arbre éditable (10⁵ nœuds, enfants
-  paginés, déplacement au clavier) en Vue 3 + Reka UI et en React 19 + React Aria, sur les
-  jetons de la 020 ; mesures : INP des interactions, trames perdues, tas après défilement,
-  poids gzip ; violations CSP ; axe ; scripts APG ; lisibilité du code écrit par un agent.
-  Résultat consigné dans `docs/spikes/` et arbitré par l'utilisateur ; plafond de mémoire
-  proposé (Q-021-7) ; si React : amendements de D17 et de l'ADR 0011 rédigés — D-1,
-  REQ-021-30 — verify : tableau comparatif, chiffres reproductibles par une commande
-  - où : `docs/spikes/001-gist-exclusions.md` (forme d'un compte rendu de prototype) ;
-    hors du build (`web/spikes/d1-*`, supprimé après la décision) ; 020 design § « Dépend
-    de D-1 », 021 design § « Dépend de D-1 »
-  - dépend de : 020-5 (jetons)
+- [x] 1. Prototype D-1 : la même grille éditable (10⁴ lignes virtualisées, édition au
+  clavier, filtres typés, erreur codée) et le même arbre éditable (10⁵ nœuds, 1 000
+  enfants sous un nœud, déplacement au clavier) en Vue 3 + Reka UI et en React 19 + React
+  Aria ; mesures : latences, trames perdues, tas, poids gzip ; violations CSP ; axe ;
+  scripts APG — D-1, REQ-021-30 — verify : tableau comparatif, chiffres reproductibles
+  - où : [`docs/spikes/005-framework-web.md`](../../docs/spikes/005-framework-web.md)
+  - dépend de : —
+  - fait le 2026-10-23 : **Vue 3** retenu par l'utilisateur ; D17 et ADR 0011 inchangées ;
+    leçons reprises dans l'ADR 0036 et la 020 (REQ-020-33) ; budgets fixés à partir des
+    mesures (REQ-020-29, REQ-021-30 : tas ≤ 64 Mo, Q-021-7 close).
 
 ## P1 — SDK 2.0 (phase 3)
 
@@ -85,19 +82,20 @@ aucun en parallèle sur `@kartenn/ui` (020).
   sans squelette ; marque `k:view` ≤ 100 ms (banc, tâche 22)
   - où : `web/shell/src/router.ts` ; `web/shell/src/plugins/loader.ts` (`modulepreload`)
     ; `web/shell/src/data/recent.ts`
-  - dépend de : 2 ; **[D-1]** pour la garde du routeur
+  - dépend de : 2
 - [ ] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
   avec empreinte) ; manifeste `ui`, `framework`, `space`, `go` validés côté serveur et
   publiés dans `ui_plugins` (ajout additif) ; plages vérifiées au chargement ; adaptateur
   du cache dans `@kartenn/ui` ; API `commands`, `shortcuts`, `label` — REQ-021-25, 26 —
   verify : plugin `ui: ^3` sur `ui` 1.x → `incompatible` ; CSP inchangée hors empreinte de
-  l'import map ; `k-check` (manifeste) **[D-1]**
+  l'import map ; `k-check` (manifeste) ; `vue` servi en build *runtime* (aucun
+  `new Function` sous la CSP)
   - où : `web/shell/vite.config.ts` (`sharedSdk`) ; `crates/kartenn-rest/src/web/plugins.rs`
     (`Manifest`, `sdk_range`), `capabilities.rs` ; `crates/kartenn-rest/src/web.rs`
     (`import_map`, `csp`) ; `web/sdk/src/semver.ts` ; `web/shell/src/plugins/loader.ts`
-  - dépend de : 2, 1 ; 020-4
+  - dépend de : 2 ; 020-4
 
-## P2 — Écrans du shell, par zones (phase 4) [D-1]
+## P2 — Écrans du shell, par zones (phase 4)
 
 Chaque zone : vues 1.x remplacées, parcours de bout en bout réécrits et verts, captures
 comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
@@ -175,7 +173,7 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
     `session/*`, `views/{AboutView,LoginView}.vue`
   - dépend de : 9
 
-## P3 — Plugins (phase 5) [D-1]
+## P3 — Plugins (phase 5)
 
 - [ ] 17. Plugin VLAN réécrit avec le framework partagé et `@kartenn/ui`, DOM léger,
   espace `network`, filtres typés, édition en place — REQ-021-27 — verify : parcours
@@ -210,16 +208,17 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
   - où : `web/e2e/journeys/accessibility.spec.ts`
   - dépend de : 16
 - [ ] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
-  perdues de l'arbre, tas JS, plafond par plugin, shell avec modules partagés —
+  perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
+  plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
   REQ-021-30 — verify : tableau rendu par `bench-runner` ; un budget dépassé → sortie non
   nulle ; mesure complète lancée une fois par l'orchestrateur (ADR 0032)
   - où : `web/e2e/budgets/budgets.spec.ts`, `web/e2e/budgets.config.ts`,
     `web/shell/scripts/size.mjs`, `devenv.nix` `scripts.bench-web` (vers la ligne 641) ;
     design § « Budgets »
-  - dépend de : 18, 19 ; 1 (plafond de mémoire)
+  - dépend de : 18, 19
 - [ ] 23. Synchronisation : la 007 marquée « partie client remplacée par la 021 » (table
   du design § « Ce qui reste de la 007 ») ; `docs/spec/` (architecture web, budgets du
-  navigateur) ; ADR 0037, 0038 acceptées ; D17 et ADR 0011 amendées si D-1 l'a voulu ;
+  navigateur) ; ADR 0037, 0038 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart bloquant
   - où : forme des synchronisations précédentes (007, tâche 25 ; 022, tâche 18)
   - dépend de : 22

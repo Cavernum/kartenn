@@ -33,8 +33,10 @@ D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; specs 007, 
 [`web-navigateur.md`](../../docs/reference/web-navigateur.md).
 
 **Brouillon du 2026-10-23.** Restent les « Arbitrages demandés » et les questions Q-021-1
-à 14 de [`decisions.md`](decisions.md). Le framework (D-1) attend un prototype : les
-points qui en dépendent sont marqués **[D-1]**. Rien n'est implémenté.
+à 14 de [`decisions.md`](decisions.md). Le framework est tranché (D-1, 2026-10-23, après
+prototype : [`005-framework-web.md`](../../docs/spikes/005-framework-web.md)) : **Vue 3**,
+avec Reka UI encadré (020, REQ-020-33) ; D17 et l'ADR 0011 inchangées. Rien n'est
+implémenté.
 
 Ordre (D31 amendée) : la 022 précède ; la 020 fournit jetons, composants et maquettes
 validées avant tout écran ; la 017 (Politique, Flux) vient après, sur ce socle.
@@ -368,7 +370,7 @@ Acceptation :
 - Un plugin sans framework lit par le `QueryClient` et reçoit les invalidations.
 
 #### REQ-021-26 — Modules partagés et manifeste
-L'import map doit désigner `@kartenn/sdk`, le framework **[D-1]**, `@kartenn/ui` et sa
+L'import map doit désigner `@kartenn/sdk`, `vue` (build *runtime* sans compilateur), `@kartenn/ui` et sa
 feuille, chacun avec son empreinte ; le manifeste d'un plugin doit pouvoir déclarer les
 plages `ui` et `framework`, vérifiées au chargement comme `sdk`, et l'espace de ses
 entrées. [X26, ADR 0038, REQ-007-5, 9]
@@ -406,10 +408,12 @@ modules partagés ; premier écran utile ≤ 2 s ; page de 100 lignes ≤ 100 ms
 200 ms** au 75ᵉ centile de chaque interaction scénarisée (ouvrir un nœud, filtrer, éditer
 une cellule, changer d'onglet, ouvrir la palette) ; **navigation entre routes en cache ≤
 100 ms** jusqu'à la marque de rendu ; **CLS ≤ 0,05** au premier écran et à chaque
-navigation ; arbre de 10⁵ nœuds défilé avec **≤ 5 % de trames perdues** ; **tas JS** après
-10⁴ lignes défilées et 50 navigations ≤ un plafond fixé après le prototype D-1 ; plugin
-lent écarté à 5 s. Mesures sur Chromium, CPU ralenti ×4, jeu à 10⁶ objets. [X30, D-10,
-REQ-007-32, D14] **[D-1]** pour le plafond de mémoire.
+navigation ; arbre de 10⁵ nœuds défilé avec **≤ 2 % de trames perdues** et aucune tâche
+longue ; Flèche bas dans l'arbre et dans une grille ≤ 100 ms au 75ᵉ centile ; **tas JS**
+après 10⁴ lignes défilées et 50 navigations **≤ 64 Mo** ; plugin lent écarté à 5 s.
+Mesures sur Chromium, CPU ralenti ×4, jeu à 10⁶ objets. Les seuils tirés du prototype D-1
+(trames perdues, flèches, tas) se resserrent après le premier passage complet, jamais ne
+se relâchent sans décision. [X30, D-10, REQ-007-32, D14, REQ-020-29]
 
 Acceptation :
 - `bench-web` : chaque mesure sous son budget, sortie non nulle sinon ; tableau rendu par
