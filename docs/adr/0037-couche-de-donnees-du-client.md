@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-23
 ---
 
@@ -94,7 +94,7 @@ Décisions D7 (amendée), D8, D10, D11 ; ADR 0005, 0018, 0022 ; 007/W8 à W10, W
 
 ## Consequences
 
-- Le SDK passe en **version majeure 2.0** (contrat public, ADR 0025) : `QueryClient`
+- Le SDK passe en **version 1.0** (réécriture : le SDK repart à 1.0, sans couche de compatibilité ; contrat public, ADR 0025) : `QueryClient`
   partagé, fabriques de clés, flux d'événements, contexte réactif ; seuls des plugins de
   première partie existent, c'est le moment.
 - La dépendance `@tanstack/query-core` entre dans le SDK (MIT) ; elle est singleton par

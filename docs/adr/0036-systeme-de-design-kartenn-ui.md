@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-23
 ---
 
@@ -136,7 +136,7 @@ les deux piles) a conduit l'utilisateur à retenir Vue 3. Règles qui en découl
   développement : Stylelint et ses règles, les paquets de police et d'icônes (ADR 0024
   étendue).
 - `web/shell/src/styles/base.css` et les jetons actuels sont remplacés ; les noms de la
-  liste `tokens` du SDK suivent les nouveaux noms (version majeure du SDK, spec 021).
+  liste `tokens` du SDK suivent les nouveaux noms (SDK 1.0, spec 021).
 - `k-web-check` ajoute Stylelint et les captures ; `k-web-e2e` garde les parcours sur
   Chromium et Firefox ; les références de captures se régénèrent par une commande devenv
   dédiée, jamais hors de devenv.
