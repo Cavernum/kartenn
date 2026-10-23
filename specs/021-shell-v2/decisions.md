@@ -4,7 +4,7 @@ Rédigé le 2026-10-23 à partir des arbitrages rendus le même jour par l'utili
 web D-1 à D-12, brief, direction) et de ses retours sur les maquettes du 2026-10-22. Les
 décisions X1 à X31 traduisent ces arbitrages en choix de conception ; les choix peu
 coûteux à défaire sont marqués « choix de Claude ». Restent : les **arbitrages demandés**
-et les **questions** Q-021-1 à 14.
+et les **questions** encore ouvertes (Q-021-2, 3, 5, 6, 8 à 11, 14).
 
 Cadre : D7 (amendée), D8, D10, D11, D17, D31 (amendée), D34, D36 de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; 007/W1 à W18 ; 017/U2,
@@ -59,7 +59,7 @@ fusionnée).
 - X28 i18n de la 007 gardée.
 - X29 WCAG 2.2 AA étendu ; consultation à 320 px, édition ≥ 1024 px.
 - X30 budgets étendus, bloquants, resserrés par le prototype D-1.
-- X31 bascule en place, par zones.
+- X31 bascule en un bloc : nouveau shell complet dans `web/v2/`, un commit de bascule.
 - X32 déplacement à parent déclaré : cibles vérifiées (cycle, type, droits, présent) avant mise en évidence.
 - X33 aucun optimisme pour un déplacement ; le serveur reste seul juge.
 - X34 invariant d'affichage des arbres, test de propriété de bout en bout.
@@ -73,12 +73,12 @@ fusionnée).
 - Décidé par : choix de Claude (Q-021-5)
 
 ## X5 — Contexte temporel
-- Décision : forme du brief (pastille, bande ambre) ; règles de W9 et REQ-007-23
-  inchangées : `as_of` → aucune écriture ; `valid_at` seul → brouillon permis avec
-  `valid_from`, édition en place et modification rapide désactivées.
-- Pourquoi : le brief dit « écritures désactivées » ; W9 distinguait déjà les deux cas et
-  l'écriture au futur passe par la date d'effet d'un changeset.
-- Décidé par : à confirmer (Q-021-13)
+- Décision : forme du brief (pastille, bande ambre) ; règles de W9 gardées :
+  `valid_at` seul → lecture datée, brouillon daté permis (`valid_from` prérempli),
+  édition en place et modification rapide désactivées, la bande ne dit pas « écritures
+  désactivées » ; `as_of` passé → lecture seule, toute écriture désactivée.
+- Pourquoi : l'écriture au futur passe par la date d'effet d'un changeset (W9).
+- Décidé par : l'utilisateur (2026-10-23, Q-021-13)
 
 ## X7, X8 — Raccourcis
 - Décision : table du design ; un registre unique ; un seul écouteur ; touches ignorées
@@ -91,14 +91,14 @@ fusionnée).
 - Décidé par : l'utilisateur (jeu) ; règles : choix de Claude
 
 ## X15 — Édition en place
-- Décision : une édition de cellule ajoute une opération au brouillon (sans motif à
-  chaque cellule) ; Ctrl+Entrée applique tout de suite par la modification rapide, motif
-  demandé en ligne.
+- Décision : une édition de cellule ajoute une opération au brouillon (« Brouillon (n) »),
+  appliqué en lot avec un seul motif ; Ctrl+Entrée applique cette seule édition tout de
+  suite par la modification rapide, motif demandé alors.
 - Pourquoi : REQ-007-25 exige un motif à chaque modification rapide : à la cellule, ce
   serait une friction ; le brouillon groupe plusieurs cellules en un changeset, avec un
   motif, une simulation et une revue éventuelle.
 - Rejeté : application directe à chaque cellule ; brouillon seul (pas de chemin rapide).
-- Décidé par : à arbitrer (Q-021-1, A4)
+- Décidé par : l'utilisateur (2026-10-23, Q-021-1) ; REQ-007-25 amendée
 
 ## X17 — Arbres à parent déduit
 - Décision : aucun déplacement (glisser, couper-coller, « Déplacer vers… ») dans l'arbre
@@ -153,22 +153,25 @@ fusionnée).
 - Pourquoi : D-10 ; le partage par l'import map déplace le framework des plugins vers le
   shell ; le prototype D-1 mesure 0,2 % de trames perdues, des flèches à ≈ 15 ms et 19 à
   25 Mo de tas par écran sans ralenti : les seuils de D-10 laissaient trop de marge.
-- Décidé par : l'utilisateur (D-10) ; 50 Ko et périmètre des 300 Ko : choix de Claude
-  (Q-021-11)
+- Décidé par : l'utilisateur (D-10 ; 2 % de trames perdues confirmé le 2026-10-23) ; 50 Ko
+  et périmètre des 300 Ko : choix de Claude (Q-021-11)
 
-## X31 — Bascule
-- Décision : en place, par zones, parcours verts à chaque commit.
-- Pourquoi : une seule application à maintenir ; la v0.1 sort avant, avec l'interface
-  actuelle.
-- Rejeté : paquet parallèle `web/shell2`.
-- Décidé par : à confirmer (Q-021-4)
+## X31 — Bascule en un bloc
+- Décision : le nouveau shell est écrit complètement avant de remplacer l'ancien ; il vit
+  sur `main` dans `web/v2/` (espace pnpm distinct, étape d'intégration continue propre,
+  non servi) ; l'ancien ne reçoit que des correctifs ; liste de parité et parcours portés
+  avant la bascule ; un seul commit branche le nouveau et supprime l'ancien.
+- Pourquoi : jamais d'interface mêlant deux styles ; le SDK 2.0 et l'import map étendue
+  sont incompatibles avec l'ancien shell et ses plugins, qui ne peuvent donc pas
+  coexister dans le même espace.
+- Rejeté : bascule en place par zones (recommandation initiale de Claude) ; branche
+  longue hors de `main` (divergence, conflits).
+- Décidé par : l'utilisateur (2026-10-23, Q-021-4)
 
 ## Arbitrages demandés
 
-- **A1 — 017/U2** (plugins Politique et Flux « en Custom Elements sans framework ») :
-  contredit D-2/D-3 et l'ADR 0038. *Recommandation* : amender U2 (note posée dans la 017) ;
-  les plugins de la 017 s'écrivent avec le framework partagé et `@kartenn/ui`, en DOM
-  léger, après la phase 5.
+- ~~**A1 — 017/U2**~~ : close le 2026-10-23 : la 017 s'aligne (U2 et U14 remplacées),
+  ses tâches web attendent le socle de la 020 et de la 021.
 - **A2 — ADR 0025 et 007/W7** (le SDK, seule instance partagée ; un plugin embarque son
   framework) : amendés par l'ADR 0038. *Recommandation* : accepter l'ADR 0038 avec la 021 ;
   le reste de l'ADR 0025 est inchangé.
@@ -178,10 +181,8 @@ fusionnée).
   *Recommandation* : amender ce paragraphe de la 022 : comparer `changeset` à la `version`
   du corps ; invalider aussi les requêtes qui montrent l'objet ; sans `version`, relire en
   `If-None-Match`. Amendement de forme, sans effet sur le serveur.
-- **A4 — REQ-007-25** (motif obligatoire à chaque modification rapide) et édition en
-  place : *Recommandation* : garder REQ-007-25 ; l'édition en place passe par le
-  brouillon par défaut (X15), le motif est demandé à la soumission ou en ligne pour
-  Ctrl+Entrée.
+- ~~**A4 — REQ-007-25**~~ : close le 2026-10-23 : édition en place vers le brouillon,
+  appliqué en lot avec un motif ; Ctrl+Entrée avec motif ; REQ-007-25 amendée.
 - **A5 — REQ-007-32** (« shell ≤ 300 Ko gzip hors plugins ») : le framework et
   `@kartenn/ui`, partagés, entrent désormais dans le shell. *Recommandation* : garder le
   plafond de 300 Ko en y comptant les modules partagés ; ajouter le plafond par plugin.
@@ -194,20 +195,21 @@ fusionnée).
 - **A8 — 007/W17** (« sans magasin global ») : le `QueryClient` est un cache de lectures,
   pas un magasin d'état d'application. *Recommandation* : pas d'amendement ; préciser W17
   (l'état de vue reste dans l'URL).
-- **A9 — Brief « écritures désactivées hors présent »** et W9 (brouillon permis sous
-  `valid_at`) : *Recommandation* : garder W9 (X5, Q-021-13).
+- ~~**A9 — Brief « écritures désactivées hors présent »**~~ : close le 2026-10-23 : W9
+  gardée, la bande ne dit pas « écritures désactivées » sous `valid_at` seul.
 
 ## Questions
 
-- **Q-021-1** — Édition en place : brouillon par défaut et Ctrl+Entrée pour appliquer
-  (recommandé), application directe avec motif, ou brouillon seul ?
+- ~~**Q-021-1**~~ — Édition en place : close le 2026-10-23 : brouillon par défaut, appliqué en lot avec un
+  motif ; Ctrl+Entrée applique une seule édition, motif demandé.
 - **Q-021-2** — L'arbre des préfixes n'a aucun déplacement (X17, décidé) ; quels arbres
   à parent déclaré offrent le déplacement en v0.2, et « Changer de domaine… » au menu si
   l'opération existe ? *Recommandation* :
   hébergement d'une machine (cluster) et ancrage d'un groupe de VLAN, rien d'autre.
 - **Q-021-3** — Un flux par navigateur : verrou `navigator.locks` et `BroadcastChannel`
   (recommandé) ou `SharedWorker` ? Repli : un flux par onglet.
-- **Q-021-4** — Bascule en place par zones (recommandé) ou paquet parallèle ?
+- ~~**Q-021-4**~~ — Bascule : close le 2026-10-23 : en un bloc, nouveau shell complet dans `web/v2/`
+  (contre la recommandation « par zones »).
 - **Q-021-5** — Liste des espaces et leurs libellés (Référentiel, Changesets,
   Administration, Réseau, Machines, Sécurité) : *Recommandation* : celle-ci, extensible
   par amendement.
@@ -224,9 +226,7 @@ fusionnée).
   plugins pour les valeurs de code (états, types, espaces) ; clés seules pour les valeurs
   de données (environnements, axes).
 - **Q-021-11** — Plafond par plugin : *Recommandation* : 50 Ko gzip hors partagés.
-- **Q-021-12** — Petites largeurs : *Recommandation* : consultation lisible à 320 px CSS ;
-  édition et administration à partir de 1024 px, message en dessous.
-- **Q-021-13** — Sous `valid_at` seul, brouillon permis (W9, recommandé) ou toute
-  écriture désactivée (lecture littérale du brief) ?
+- ~~**Q-021-12**~~ — Petites largeurs : close le 2026-10-23 : lecture dès 320 px, édition dès 1024 px.
+- ~~**Q-021-13**~~ — Sous `valid_at` seul : close le 2026-10-23 : brouillon daté permis (W9).
 - **Q-021-14** — Couche de compatibilité SDK 1.x : *Recommandation* : aucune ; seuls des
   plugins de première partie existent, portés en phase 5.

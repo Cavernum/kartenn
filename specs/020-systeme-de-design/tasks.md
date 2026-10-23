@@ -9,6 +9,9 @@ Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A6 et les questio
 à 10 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
 D-1 est tranché (Vue 3, Reka UI encadré : REQ-020-33) ; les marques **[D-1]** sont levées.
+Bascule en un bloc (021, § « Migration », 2026-10-23) : tout le code nouveau va sous
+`web/v2/` (espace pnpm distinct, non servi) ; les chemins `web/shell`, `web/sdk`, `web/e2e`
+des lignes `où :` désignent l'existant à reprendre ou à imiter.
 Commandes lourdes par `k-heavy`.
 
 Ordre : P0, P1, puis P2. P3 (version visuelle et
@@ -40,7 +43,7 @@ emploient.
   - où : `.claude/agents/test-runner.md`, `bench-runner.md` (forme, frontmatter
     `tools`, `model`) ; `.claude/hooks/fin-tache.sh` (forme d'un hook) ; ADR 0039
   - dépend de : —
-- [ ] 3. Stylelint et lint du code : `web/stylelint.config.js` (règles du design,
+- [ ] 3. Stylelint et lint du code : `web/v2/stylelint.config.js` (règles du design,
   § « Architecture CSS », dont la règle maison des couches et la liste fermée des
   composants flottants à ombre) ; interdiction des éléments interactifs bruts et du style
   en chaîne dans les écrans et plugins ; intégrés à `k-web-check` et au hook
@@ -54,9 +57,9 @@ emploient.
 
 ## P1 — Jetons, police, icônes
 
-- [ ] 4. Paquet `web/ui` (`@kartenn/ui`, MPL-2.0) : `package.json` (`vue`, `reka-ui` en
+- [ ] 4. Paquet `web/v2/ui` (`@kartenn/ui`, MPL-2.0) : `package.json` (`vue`, `reka-ui` en
   version exacte, `@tanstack/vue-virtual`), `LICENSE`, `src/index.ts`, `src/style.css`
-  (ordre des couches en tête), espace pnpm — REQ-020-12, 30, 33 — verify : `pnpm -C web/ui
+  (ordre des couches en tête), espace pnpm — REQ-020-12, 30, 33 — verify : `pnpm -C web/v2/ui
   build` produit `style.css` et le module ; test de licences vert ; test : Reka sans `^`
   ni `~`
   - où : `web/sdk/package.json` et `web/sdk/LICENSE` (forme MPL-2.0) ;
@@ -89,7 +92,7 @@ emploient.
   `Icon` (`aria-hidden` par défaut, nom obligatoire si porteuse de sens) — REQ-020-15 —
   verify : planche relue par l'utilisateur avec les maquettes (Q-020-7) ; test de type :
   icône porteuse de sens sans nom → erreur de compilation
-  - où : design § « Icônes » ; `web/ui/src/icons/`
+  - où : design § « Icônes » ; `web/v2/ui/src/icons/`
   - dépend de : 4
 
 ## P2 — Catalogue et captures
@@ -123,7 +126,7 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
   `IconButton`, `TextField`, `Kbd`, `StatusBadge`, `KeyLabel`, `EnvChip`, `CodeBadge` —
   REQ-020-16, 17, 21, 22 — verify : pages de catalogue et capture d'alignement (bouton,
   champ, pastille, bouton-icône côte à côte)
-  - où : design § « Inventaire » (lignes 1 à 4, 22 à 24, 28) ; `web/ui/src/components/`
+  - où : design § « Inventaire » (lignes 1 à 4, 22 à 24, 28) ; `web/v2/ui/src/components/`
   - dépend de : 9
 - [ ] 11. Version visuelle : `SidebarNav`, `Breadcrumb`, `DatePill`, `DraftCounter`,
   `TimeBand`, `Tabs`, `Menu`, `Drawer`, `Dialog`, `CommandPalette` — REQ-020-16 —
@@ -135,13 +138,13 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
   `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` (données statiques, sans
   virtualisation) — REQ-020-16, 19, 20, 23 — verify : pages de catalogue, captures
   (ligne en brouillon, en revue, cellule invalide)
-  - où : design § « Inventaire » (lignes 6, 20, 21, 25, 26, 29) ; `web/ui/src/fixtures/`
+  - où : design § « Inventaire » (lignes 6, 20, 21, 25, 26, 29) ; `web/v2/ui/src/fixtures/`
   - dépend de : 11
 - [ ] 13. Maquettes E1 à E5 (référentiel, fiche d'un préfixe, liste d'adresses, changeset
   et revue, brouillon) en clair et en sombre — REQ-020-25 — verify : captures de
   référence ; revue `ui-reviewer` contre le brief, écarts listés ; poids de la
   bibliothèque mesuré (Q-020-9)
-  - où : design § « Maquettes » ; `web/shell/src/_ui/ecrans/` ; écrans actuels
+  - où : design § « Maquettes » ; `web/v2/shell/src/_ui/ecrans/` ; écrans actuels
     `web/shell/src/views/`, `record/`, `changesets/`, `draft/` (contenu, pas le style)
   - dépend de : 12
 - [ ] 14. Maquettes E6 à E10 (lecture au passé, administration, palette et aide, états,
@@ -160,7 +163,7 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
 ## P4 — Composants complets (un agent, en séquence)
 
 Pour chaque famille : tous les états de l'inventaire, script clavier APG
-(`web/e2e/components/<nom>.spec.ts`), instantané ARIA, captures, axe, revue
+(`web/v2/e2e/components/<nom>.spec.ts`), instantané ARIA, captures, axe, revue
 `a11y-auditor` puis `ui-reviewer`, ligne du skill `kartenn-ui` complétée.
 
 - [ ] 16. `Button`, `IconButton`, `Kbd`, `ShortcutHint`, `Tooltip` — REQ-020-16 à 18,

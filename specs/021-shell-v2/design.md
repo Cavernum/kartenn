@@ -398,27 +398,58 @@ passage complet.
 | Mémoire | ≤ 64 Mo | CDP `Performance.getMetrics` `JSHeapUsedSize` après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
 | Plugin lent | écarté à 5 s | existant |
 
-## Migration depuis le shell actuel
+## Migration depuis le shell actuel (bascule en un bloc, décidée le 2026-10-23)
+
+Le nouveau shell s'écrit **en entier** à côté de l'ancien, sur `main`, puis le remplace en
+un commit.
+
+```
+web/                 ancien shell, SDK 1.x, plugins, e2e : servis ; correctifs seulement
+web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres) ; non servi
+  sdk/               @kartenn/sdk 2.0 (repris de web/sdk)
+  ui/                @kartenn/ui (020)
+  shell/             nouveau shell (catalogue /_ui compris)
+  plugins/           vlan, machines, example, puis policy et flow (017)
+  e2e/               parcours portés, captures, budgets
+  stylelint.config.js
+```
+
+- **Pourquoi un espace distinct** : le SDK 2.0 et l'import map étendue (ADR 0037, 0038)
+  sont incompatibles avec l'ancien shell et ses plugins ; deux paquets `@kartenn/sdk` de
+  versions majeures différentes ne cohabitent pas dans un même espace pnpm.
+- **Intégration continue** : `scripts/ci.sh` gagne une étape `web/v2` (Prettier, ESLint,
+  Stylelint, vue-tsc, Vitest, captures, parcours) ; devenv gagne `k-web2-check` et
+  `k-web2-e2e` (pendants de `k-web-check`, `k-web-e2e`, sous `k-heavy`). Les parcours du
+  nouveau shell tournent contre kartenn-server avec `[web] root` et `[web] plugins_dir`
+  pointés sur les builds de `web/v2/` (configuration de test), jamais en production.
+- **Ancien shell** : correctifs seulement ; un correctif qui touche un comportement est
+  reporté dans la liste de parité.
+- **Liste de parité** (`web/v2/PARITE.md`, tâche 26) : chaque route, écran, action, point
+  d'extension et parcours de l'ancien shell et de ses plugins, avec son équivalent dans
+  le nouveau, son parcours porté et son état ; la bascule exige qu'elle soit entièrement
+  cochée.
+- **Bascule** (tâche 27) : un seul commit qui déplace `web/v2/*` à la place de `web/*`,
+  branche le build dans `[web] root`, les paquets Nix et OCI (015) et `bench-web`, et
+  supprime l'ancien shell, l'ancien SDK et les anciens plugins ; parcours, captures et
+  `bench-web` verts sur ce commit.
 
 | Phase | Contenu | Spec | Sortie vérifiable |
 |---|---|---|---|
-| 0 | Arbitrages, prototype D-1 (fait : Vue 3), ADR 0036 à 0039, outillage Claude, Stylelint | 020 (P0), 021 (tâche 1, faite) | ADR acceptées ; agents, skill et hook en place |
+| 0 | Arbitrages, prototype D-1 (fait : Vue 3), ADR 0036 à 0039, outillage Claude, Stylelint, espace `web/v2/` et son étape d'intégration continue | 020 (P0), 021 (tâches 1, 25) | ADR acceptées ; `web/v2` vert en CI |
 | 1 | Jetons, police, icônes, catalogue nu, maquettes E1 à E10 validées | 020 (P1 à P3) | validations consignées ; captures de référence |
 | 2 | `@kartenn/ui` complet | 020 (P4, P5) | catalogue, captures, scripts APG, budgets de la bibliothèque |
 | 3 | SDK 2.0 : cache, clés, préchargement, écritures, flux (après 022-9, 10), import map étendue, manifeste | 021 (P1) | tests Vitest du cache ; parcours de fraîcheur à deux navigateurs |
-| 4 | Écrans du shell par zones : cadre, référentiel, changesets et brouillon, administration, hôte des plugins | 021 (P2) | parcours verts à chaque zone ; captures ; `bench-web` étendu |
-| 5 | Portage des plugins VLAN, Machines ; plugin d'exemple passé au SDK 2.0, toujours sans framework | 021 (P3) | parcours `vlan`, `machines`, `example` verts |
-| 6 | Plugins Politique et Flux | 017 (amendée) | selon la 017 |
+| 4 | Écrans du nouveau shell : cadre, référentiel, changesets et brouillon, administration, hôte des plugins | 021 (P2) | parcours portés verts dans `web/v2/e2e` ; captures ; budgets |
+| 5 | Plugins VLAN, Machines, exemple dans `web/v2/plugins` | 021 (P3) | parcours `vlan`, `machines`, `example` portés et verts |
+| 6 | Plugins Politique et Flux dans `web/v2/plugins` (avant ou après la bascule) | 017 (amendée) | selon la 017 |
+| 7 | Liste de parité cochée, puis commit de bascule | 021 (tâches 26, 27) | ancien shell supprimé ; tout vert |
 
-- Bascule **en place**, zone par zone, dans `web/shell` : chaque zone remplace ses vues et
-  ses parcours dans le même commit ; entre deux zones, `main` mêle l'ancien et le nouveau
-  style, ce qu'admet une branche non livrée (la v0.1 sort avec l'interface actuelle)
-  (Q-021-4).
-- **Jeté** : `web/shell/src/styles/base.css`, `tokens.css`, `data/DataTable.vue`,
-  `admin/PagedTable.vue`, l'arbre actuel, les vues ; le DOM impératif des plugins VLAN et
-  Machines. **Gardé** : routeur et routes, `rights/`, `draft/` (logique), `time/`
-  (logique), `session`, `plugins/loader.ts` et `registry.ts`, i18n et ses catalogues
-  (clés reprises), `web/e2e` (parcours réécrits par zone), `bench-web`, `size.mjs`.
+- **Repris de l'existant** (copié dans `web/v2/` puis adapté) : routeur et routes,
+  `rights/`, `draft/` (logique), `time/` (logique), `session`, `plugins/loader.ts` et
+  `registry.ts`, i18n et ses catalogues (clés reprises), le client HTTP du SDK, les
+  parcours de `web/e2e` (portés), `bench-web`, `size.mjs`. **Non repris** : `base.css`,
+  `tokens.css`, `DataTable.vue`, `PagedTable.vue`, l'arbre actuel, les vues, le DOM
+  impératif des plugins VLAN et Machines.
 
 ## Pile retenue (D-1 tranché le 2026-10-23 : Vue 3)
 
@@ -456,9 +487,9 @@ tri et filtre de 130 à 260 ms).
 
 ## Alternatives considérées
 
-- **Nouveau paquet `web/shell2`** servi à la bascule : pas de mélange de styles sur
-  `main`, mais deux shells à maintenir, des parcours en double et une bascule en un bloc
-  (Q-021-4).
+- **Bascule en place, zone par zone** (recommandation initiale) : une seule application,
+  mais un `main` qui mêle deux styles et un SDK 1.x/2.0 impossible à faire cohabiter ;
+  rejetée par l'utilisateur au profit de la bascule en un bloc depuis `web/v2/` (X31).
 - **SharedWorker pour le flux unique** : un seul `EventSource` sans élection, mais absent
   de certains navigateurs mobiles et plus dur à déboguer ; le verrou et le canal suffisent.
 - **Édition en place qui applique directement** : plus rapide pour une valeur, mais motif
@@ -482,7 +513,7 @@ tri et filtre de 130 à 260 ms).
 |---|---|
 | Vitest (SDK) | clés et normalisation, fraîcheur par famille, 304, optimisme et retour, 202, 412, index des dépendants, flux (événements simulés : `ready`, `changes`, `truncated`, `reset`, doublons), élection du flux entre onglets (simulée) |
 | Vitest (shell) | registre des raccourcis (conflits, portée, désactivation), modèle des filtres tiré du contrat, `label`, éditabilité d'une cellule |
-| Playwright parcours | déplacements : cibles refusées, refus du serveur après acceptation du client, attente sans optimisme ; test de propriété de l'arbre (graine fixée, rejouable) ; par zone ; fraîcheur à deux navigateurs ; édition en place (brouillon, appliquer, 202, 412) ; raccourcis ; palette ; lecture au passé ; plugins |
+| Playwright parcours (`web/v2/e2e`) | déplacements : cibles refusées, refus du serveur après acceptation du client, attente sans optimisme ; test de propriété de l'arbre (graine fixée, rejouable) ; parcours de l'ancien shell portés (liste de parité) ; fraîcheur à deux navigateurs ; édition en place (brouillon, appliquer, 202, 412) ; raccourcis ; palette ; lecture au passé ; plugins |
 | Playwright captures | écrans clés comparés aux maquettes validées (020) |
 | axe, clavier | chaque étape ; scripts APG des composants (020) |
 | `bench-web` | REQ-021-30 |

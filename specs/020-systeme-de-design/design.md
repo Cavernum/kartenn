@@ -7,7 +7,7 @@ updated: 2026-10-23
 
 ## Vue d'ensemble
 
-Un paquet `@kartenn/ui` (`web/ui/`, MPL-2.0) porte **tout** le vocabulaire visuel : jetons,
+Un paquet `@kartenn/ui` (`web/v2/ui/`, MPL-2.0) porte **tout** le vocabulaire visuel : jetons,
 couches CSS, police, icônes, composants. Le shell et les plugins de première partie
 l'importent par l'import map (ADR 0038) ; un plugin tiers sans framework reçoit au moins
 les jetons et la feuille. Le catalogue `/_ui` du shell montre chaque composant dans chaque
@@ -64,7 +64,7 @@ Décrit par traits ; aucune référence nommée.
 
 ## Jetons (REQ-020-4 à 11)
 
-Un seul fichier, `web/ui/src/tokens/tokens.css`, en `@layer tokens`. Trois blocs :
+Un seul fichier, `web/v2/ui/src/tokens/tokens.css`, en `@layer tokens`. Trois blocs :
 `:root` (clair, compacte), mode sombre (`@media (prefers-color-scheme: dark)` sous
 `:root:not([data-theme="light"])`, et `:root[data-theme="dark"]`), densité confortable
 (`:root[data-density="comfortable"]`). Noms en `--k-<rôle>-<variante>`.
@@ -137,9 +137,10 @@ violet « en revue » pour trois environnements : la palette proposée les rend 
 | `--k-env-5` (ardoise) | `#4a5a70` | `#9aa8bc` |
 | `--k-env-6` (brun) | `#7a5230` | `#c89b72` |
 
-Attribution : par défaut, teinte déduite de la clé de l'environnement (empreinte stable
-modulo 6), donc identique pour tous les utilisateurs ; une attribution explicite par
-l'administrateur demanderait un attribut côté module Politique (Q-020-1).
+Attribution (décidée le 2026-10-23) : teinte déduite de la clé de l'environnement
+(empreinte stable modulo 6), donc identique pour tous les utilisateurs ; plus tard, un
+choix de l'administrateur parmi les six par un attribut de la valeur (avec les libellés de
+la 018), qui prime sur l'empreinte.
 
 ### Espacement, rayons, bordures, élévation (REQ-020-9)
 
@@ -221,7 +222,7 @@ web/ui/src/
 - Classes : `k-<composant>` et `k-<composant>__<partie>`, état en attribut ARIA ou
   `data-state` (pas de classe d'état), variante en `data-variant`, taille en `data-size`.
 - Plugins de première partie : `@layer plugins`, préfixe `k-<plugin>-` (ADR 0038).
-- **Stylelint** (`web/stylelint.config.js`), règles : `declaration-strict-value` (couleurs,
+- **Stylelint** (`web/v2/stylelint.config.js`), règles : `declaration-strict-value` (couleurs,
   `font-*`, `border-radius`, `box-shadow`, `transition*`, `animation*`, `z-index`,
   `gap`, `margin*`, `padding*`, `inset*`, `width`/`height` hors `%`, `auto`, `0`) qui
   exige `var(--k-…)` ; `color-no-hex` et `function-disallowed-list` (`rgb`, `hsl`,
@@ -248,7 +249,7 @@ web/ui/src/
 - `lucide` (ISC), version épinglée ; importées une à une depuis `@kartenn/ui/icons`, qui
   réexporte la liste fermée des icônes utilisées (contrôle du poids, cohérence) ; trait
   `1.5`, `width`/`height` par `--k-icon-size`.
-- Icônes métier dessinées dans `web/ui/src/icons/metier/` : grille 24, trait 1,5, extrémités
+- Icônes métier dessinées dans `web/v2/ui/src/icons/metier/` : grille 24, trait 1,5, extrémités
   et jonctions arrondies, sans remplissage, comme Lucide. Liste initiale : préfixe, plage,
   adresse, domaine d'adressage, VLAN, interface, machine en cluster, flux, environnement,
   dérogation, changeset, brouillon. Relues sur une planche au catalogue avec les icônes
@@ -342,7 +343,7 @@ interface TreeMoveProps<N> {
   `/_ui/ecrans/<maquette>`.
 - Chaque page de composant déclare ses états dans un fichier `<Nom>.catalogue.*` sœur du
   composant ; la même déclaration nourrit les captures (un état = une capture).
-- Données factices : `web/ui/src/fixtures/` (domaines, préfixes, adresses, environnements
+- Données factices : `web/v2/ui/src/fixtures/` (domaines, préfixes, adresses, environnements
   `prod`/`rece`/`deve` et libellés, identifiants, codes de problème), anonymisées, sans
   lien avec un SI réel.
 - Commutateurs en tête de page : mode, densité, langue ; état reflété dans l'URL pour que
@@ -376,7 +377,7 @@ l'utilisateur sur captures, en clair et en sombre ; la validation est consignée
   sur `127.0.0.1:4173`.
 - `expect(page).toHaveScreenshot({ animations: 'disabled', caret: 'hide',
   maxDiffPixelRatio: 0.001 })` par état et par maquette, en clair et en sombre ;
-  références sous `web/e2e/visual/__screenshots__/`, versionnées.
+  références sous `web/v2/e2e/visual/__screenshots__/`, versionnées.
 - `toMatchAriaSnapshot` pour chaque composant interactif et chaque maquette.
 - Régénération : commande devenv `k-web-shots [--update]`, sous `k-heavy`, qui refuse de
   tourner hors de `devenv shell` (variable d'environnement de devenv absente). Une
@@ -388,7 +389,7 @@ l'utilisateur sur captures, en clair et en sombre ; la validation est consignée
 - `expectAccessible` (fixture existante, `web/e2e/fixtures/index.ts`, déjà avec les
   étiquettes `wcag2a` à `wcag22aa`), appelée sur chaque page du catalogue et chaque
   maquette.
-- Scripts clavier par motif APG (`web/e2e/components/<composant>.spec.ts`) : ils jouent
+- Scripts clavier par motif APG (`web/v2/e2e/components/<composant>.spec.ts`) : ils jouent
   les touches du motif et vérifient focus, `aria-*` et annonce ; exemples :
   Tree View (flèches, Origine, Fin, `*`, saisie de caractères), Grid (flèches, Origine,
   Fin, Ctrl+Origine, Page suivante, Entrée/F2, Échap), Combobox (Alt+Flèche bas, Échap,
@@ -422,16 +423,16 @@ Les budgets du shell entier, sous ralenti ×4, sont dans la 021.
 ## Arborescence
 
 ```
-web/ui/                         @kartenn/ui (MPL-2.0)
+web/v2/ui/                        @kartenn/ui (MPL-2.0)
   package.json  LICENSE
   src/index.ts                  exports des composants et de l'adaptateur de données (021)
   src/style.css                 point d'entrée de la feuille (layers, reset, tokens, base, composants)
   src/tokens/  src/styles/  src/icons/  src/fonts/  src/fixtures/
   src/components/<Nom>/         composant, feuille, tests, déclaration de catalogue
-web/shell/src/_ui/              routes du catalogue et des maquettes (hors production)
-web/e2e/visual/                 captures et instantanés
-web/e2e/components/             scripts clavier APG
-web/stylelint.config.js
+web/v2/shell/src/_ui/              routes du catalogue et des maquettes (hors production)
+web/v2/e2e/visual/                 captures et instantanés
+web/v2/e2e/components/             scripts clavier APG
+web/v2/stylelint.config.js
 ```
 
 ## Vue et Reka UI (D-1 tranché le 2026-10-23)
@@ -471,7 +472,8 @@ Alternative rejetée : React 19 et React Aria (prototype jumeau) ; voir l'ADR 00
 - Code de problème inconnu du catalogue de traduction : `detail` brut et code affiché
   (REQ-007-29).
 - Couleur d'environnement : deux environnements peuvent tomber sur la même teinte (six
-  teintes) ; le libellé lève l'ambiguïté (Q-020-1).
+  teintes) ; le libellé lève l'ambiguïté ; le choix de l'administrateur, plus tard, la
+  supprime.
 - Mode forcé « sombre » et capture : chaque capture fixe son mode, jamais celui de la
   machine.
 

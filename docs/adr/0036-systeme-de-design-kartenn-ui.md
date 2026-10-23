@@ -131,7 +131,8 @@ les deux piles) a conduit l'utilisateur à retenir Vue 3. Règles qui en découl
 
 ## Consequences
 
-- Nouveau paquet `web/ui` (`@kartenn/ui`) dans l'espace pnpm ; nouvelles dépendances de
+- Nouveau paquet `web/v2/ui` (`@kartenn/ui`), dans l'espace distinct du nouveau shell
+  jusqu'à la bascule (021) ; nouvelles dépendances de
   développement : Stylelint et ses règles, les paquets de police et d'icônes (ADR 0024
   étendue).
 - `web/shell/src/styles/base.css` et les jetons actuels sont remplacés ; les noms de la

@@ -9,12 +9,16 @@ Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A9 et les questio
 à 14 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`, `k-web-e2e` pour les écrans, `k-check` pour les tâches qui touchent le
 serveur) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
-D-1 est tranché (Vue 3, tâche 1 faite) : plus aucune tâche ne l'attend. Commandes lourdes
+D-1 est tranché (Vue 3, tâche 1 faite) : plus aucune tâche ne l'attend. Bascule en un bloc
+(design, § « Migration ») : tout le code nouveau va sous `web/v2/` ; les chemins `web/shell`,
+`web/sdk`, `web/plugins`, `web/e2e` des lignes `où :` désignent l'existant à reprendre ou à
+imiter, dont la copie adaptée vit sous `web/v2/` (même arborescence) ; l'ancien shell ne
+reçoit que des correctifs. Commandes lourdes
 par `k-heavy`.
 
 Ordre (design, § « Migration ») : la 020 jusqu'à sa tâche 15 (maquettes validées) ; P1
 (SDK 2.0) en parallèle de la 020 ; P2 (écrans) par zones, chacune après les composants qu'elle emploie (020, P4) ;
-P3 (plugins) ; P4 (budgets, clôture). Trois sous-agents d'implémentation au plus, et
+P3 (plugins) ; P4 (budgets, liste de parité, commit de bascule 27, puis synchronisation 23). Trois sous-agents d'implémentation au plus, et
 aucun en parallèle sur `@kartenn/ui` (020).
 
 ## P0 — Décision du framework
@@ -32,6 +36,18 @@ aucun en parallèle sur `@kartenn/ui` (020).
 
 ## P1 — SDK 2.0 (phase 3)
 
+- [ ] 25. Espace `web/v2/` : `pnpm-workspace.yaml` et lockfile propres, paquets `sdk`
+  (copie de `web/sdk` passée en 2.0.0), `ui`, `shell`, `plugins`, `e2e` vides qui
+  compilent ; `stylelint.config.js` ; étape `web/v2` de `scripts/ci.sh` ; commandes devenv
+  `k-web2-check` et `k-web2-e2e` (sous `k-heavy`) ; configuration de test de
+  kartenn-server avec `[web] root` et `plugins_dir` sur les builds de `web/v2/` — REQ-021-31
+  — verify : `scripts/ci.sh` vert avec l'étape `web/v2` ; `[web] root` par défaut sert
+  toujours l'ancien shell
+  - où : `web/pnpm-workspace.yaml`, `web/package.json` (forme) ; `scripts/ci.sh` ;
+    `devenv.nix` `scripts.k-web-check`, `scripts.k-web-e2e` (vers les lignes 494 et 533) ;
+    `web/e2e/kartenn.toml`, `web/e2e/serve.sh`
+  - dépend de : —
+
 - [ ] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le
   client existant avec `If-None-Match` et réutilisation sur 304, fraîcheur par famille ;
@@ -41,7 +57,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `web/sdk/src/api/client.ts` (`createClient`, réponse `{data, etag}`),
     `dated.ts` ; `web/sdk/src/index.ts` (exports) ; `web/sdk/package.json` ; design
     § « Clés et fraîcheur »
-  - dépend de : —
+  - dépend de : 25
 - [ ] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
   (schémas de résumé du contrat), index `id → clés`, comparaison sur `version` ; relevé,
   par ressource, de la présence de `version` dans le corps — REQ-021-23 — verify : Vitest
@@ -95,10 +111,11 @@ aucun en parallèle sur `@kartenn/ui` (020).
     (`import_map`, `csp`) ; `web/sdk/src/semver.ts` ; `web/shell/src/plugins/loader.ts`
   - dépend de : 2 ; 020-4
 
-## P2 — Écrans du shell, par zones (phase 4)
+## P2 — Écrans du nouveau shell (phase 4)
 
-Chaque zone : vues 1.x remplacées, parcours de bout en bout réécrits et verts, captures
-comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
+Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien portés dans
+`web/v2/e2e` et verts, captures comparées aux maquettes validées, revues `ui-reviewer` et
+`a11y-auditor`, lignes de la liste de parité cochées. L'ancien shell n'est pas modifié.
 
 - [ ] 9. Cadre : squelette statique de `index.html` et feuille critique, barre latérale
   (espaces, repli), barre d'état (fil d'Ariane, pastille de date, « Brouillon (n) », menu
@@ -192,12 +209,13 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
   par le plugin
   - où : `web/plugins/example/src/index.ts`
   - dépend de : 16
-- [ ] 20. Amendement de la 017 : U2 et U14 amendées (A1 de la 020 et de la 021), tâches
-  de la 017 réordonnées sur la 020 et la 021 — verify : note d'amendement complétée,
-  `tasks.md` de la 017 à jour
-  - où : `specs/017-plugins-politique-flux/decisions.md` (note d'amendement posée le
-    2026-10-23), `tasks.md`
-  - dépend de : arbitrages A1 (020 et 021)
+- [x] 20. Amendement de la 017 : U2 et U14 remplacées (020/A1, 021/A1 closes), tâches web
+  de la 017 en attente du socle de la 020 et de la 021, sous `web/v2/plugins/` — verify :
+  amendement accepté consigné dans la 017 (decisions, requirements, tasks, design)
+  - où : `specs/017-plugins-politique-flux/decisions.md` § « Amendement — socle 020 et
+    021 »
+  - dépend de : —
+  - fait le 2026-10-23 (arbitrage de l'utilisateur)
 
 ## P4 — Budgets et clôture
 
@@ -216,9 +234,25 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
     `web/shell/scripts/size.mjs`, `devenv.nix` `scripts.bench-web` (vers la ligne 641) ;
     design § « Budgets »
   - dépend de : 18, 19
-- [ ] 23. Synchronisation : la 007 marquée « partie client remplacée par la 021 » (table
+- [ ] 26. Liste de parité `web/v2/PARITE.md` : chaque route, écran, action, point
+  d'extension et parcours de l'ancien shell et de ses plugins, avec son équivalent, son
+  parcours porté et son état ; tenue à jour à chaque tâche de P2 et P3 et à chaque
+  correctif de l'ancien shell — REQ-021-31 — verify : chaque fichier de
+  `web/e2e/journeys/` a son pendant dans `web/v2/e2e/` (test) ; liste entièrement cochée
+  - où : `web/shell/src/router.ts` (routes), `web/e2e/journeys/*.spec.ts`,
+    `web/plugins/*/public/manifest.json`
+  - dépend de : 25 (créée tôt, cochée au fil des tâches)
+- [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
+  `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
+  1.x et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
+  parité cochée ; `k-web-check`, `k-web-e2e`, `bench-web`, `checks.vm` et `scripts/ci.sh`
+  verts sur ce commit
+  - où : `flake.nix` (paquet `kartenn`, shell et plugins), 015 (paquetage) ;
+    `devenv.nix` ; `web/e2e/serve.sh`
+  - dépend de : 17, 18, 19, 21, 22, 24, 26
+- [ ] 23. Synchronisation (après la bascule) : la 007 marquée « partie client remplacée par la 021 » (table
   du design § « Ce qui reste de la 007 ») ; `docs/spec/` (architecture web, budgets du
   navigateur) ; ADR 0037, 0038 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart bloquant
   - où : forme des synchronisations précédentes (007, tâche 25 ; 022, tâche 18)
-  - dépend de : 22
+  - dépend de : 27

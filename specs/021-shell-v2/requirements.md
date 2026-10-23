@@ -107,15 +107,21 @@ pertinents), dont chaque élément sauf le dernier est un lien. [X4]
 La pastille de date doit montrer « Présent » ou la date affichée (avec fuseau) et ouvrir
 le sélecteur de période (`valid_at`, `as_of`). Hors présent, une **bande ambre** doit
 traverser la page sous la barre d'état, nommer le contexte (`role="status"`) et offrir le
-retour au présent ; sous `as_of`, toute écriture est désactivée (édition en place,
-modification rapide, brouillon) ; sous `valid_at` seul, l'édition en place et la
-modification rapide sont désactivées et le brouillon reste permis avec `valid_from`
-prérempli. Chaque contrôle désactivé dit pourquoi (infobulle). [X5, REQ-007-22, 23,
-Q-021-13]
+retour au présent. Deux cas, selon 007/W9 :
+- **date de validité autre que le présent** (`valid_at` seul) : la bande dit « Lecture au
+  <date> — brouillon daté possible » et **ne dit pas** que les écritures sont
+  désactivées ; l'édition en place et la modification rapide sont désactivées, le
+  brouillon reste permis avec `valid_from` prérempli à `valid_at` ;
+- **état connu à une date système passée** (`as_of`) : la bande dit « État connu au
+  <date> — lecture seule » ; toute écriture est désactivée (édition en place,
+  modification rapide, brouillon et sa soumission).
+Chaque contrôle désactivé dit pourquoi (infobulle). [X5, REQ-007-22, 23, W9]
 
 Acceptation :
-- `as_of` passé : bande visible, boutons d'écriture désactivés avec motif, soumission du
-  brouillon refusée par le shell.
+- `as_of` passé : bande « lecture seule », boutons d'écriture désactivés avec motif,
+  soumission du brouillon refusée par le shell.
+- `valid_at` futur seul : la bande ne contient pas « écritures désactivées » ; « Ajouter au
+  brouillon » est actif et préremplit `valid_from`.
 - « Revenir au présent » retire `valid_at` et `as_of` de l'URL.
 
 #### REQ-021-6 — Brouillon dans la barre d'état
@@ -201,9 +207,9 @@ Les tables et l'arbre doivent permettre l'édition en place d'une cellule quand
 l'utilisateur détient le droit d'écriture du type et de l'attribut (`/v1/me`) et que la
 vue est au présent ; par défaut, une édition ajoute une **opération au brouillon** et
 marque la cellule « en brouillon » ; « Appliquer maintenant » (Ctrl+Entrée) passe par la
-modification rapide (REQ-021-16), motif demandé en ligne. Une cellule non éditable ne
-doit pas offrir l'éditeur et dit pourquoi. [X15, retour du 2026-10-22, REQ-020-19,
-Q-021-1]
+modification rapide (REQ-021-16), motif demandé en ligne. Le brouillon s'applique **en
+lot, avec un seul motif**. Une cellule non éditable ne doit pas offrir l'éditeur et dit
+pourquoi. [X15, retour du 2026-10-22, REQ-020-19, REQ-007-25 amendée]
 
 Acceptation :
 - Lecteur : aucune cellule éditable ; auteur : édition d'un nom de préfixe au clavier
@@ -397,7 +403,7 @@ REQ-007-33 reste exigée pour tous les écrans ; en plus : parcours complet au c
 palette, de la barre latérale repliée, du panneau du brouillon, de l'édition en place ;
 focus jamais masqué par la barre d'état ou la bande (2.4.11) ; consultation lisible à
 320 px CSS de large (1.4.10), édition réservée aux largeurs ≥ 1024 px avec un message.
-[X29, REQ-007-33, REQ-020-28, Q-021-12]
+[X29, REQ-007-33, REQ-020-28 ; décidé le 2026-10-23]
 
 ### J. Budgets
 
@@ -421,11 +427,24 @@ Acceptation :
 
 ### K. Migration
 
-#### REQ-021-31 — Bascule par zones
-La réécriture doit se faire par zones (cadre, référentiel, changesets, brouillon,
-administration, hôte des plugins), chaque zone remplaçant ses vues 1.x et ses parcours de
-bout en bout restant verts à chaque commit ; les plugins VLAN et Machines sont portés
-ensuite ; la v0.1 sort avec l'interface actuelle. [X31, phases du design, Q-021-4]
+#### REQ-021-31 — Bascule en un bloc
+Le nouveau shell doit être écrit **complètement** avant de remplacer l'ancien : il vit sur
+`main` dans un dossier séparé, `web/v2/` (espace pnpm distinct : `sdk` 2.0, `ui`,
+`shell`, `plugins`, `e2e`), avec sa propre étape d'intégration continue, et **n'est pas
+servi** ; pendant ce temps, l'ancien shell ne reçoit que des correctifs. Avant la
+bascule, une liste de parité (chaque écran, action, extension et parcours de l'ancien
+shell, avec son équivalent) doit être cochée et tous les parcours de bout en bout portés
+sur le nouveau shell doivent être verts ; le jour de la bascule, **un seul commit**
+branche le nouveau shell (build servi par `[web] root`, paquets Nix et OCI) et supprime
+l'ancien. [X31, décidé le 2026-10-23]
+
+Acceptation :
+- Avant la bascule : `[web] root` sert l'ancien shell ; l'étape d'intégration continue de
+  `web/v2/` (lint, Vitest, captures, parcours contre kartenn-server avec `[web] root`
+  pointé sur le build de `web/v2/shell`) est verte.
+- Commit de bascule : liste de parité entièrement cochée ; après lui, plus aucun fichier
+  de l'ancien shell, de l'ancien SDK ni des anciens plugins ; parcours et `bench-web`
+  verts.
 
 ## Non-objectifs
 

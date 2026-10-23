@@ -120,7 +120,7 @@ contrôle et anneau de focus sur leur fond ≥ 3:1) et échouer sinon. [WCAG 1.4
 REQ-007-33]
 
 Acceptation :
-- `web/ui` : test de contraste vert ; une paire dégradée sous le seuil le fait échouer.
+- `web/v2/ui` : test de contraste vert ; une paire dégradée sous le seuil le fait échouer.
 
 #### REQ-020-7 — Couleurs d'état
 Le système doit définir quatre états sémantiques, chacun en texte, fond atténué et
@@ -131,7 +131,9 @@ libellé ou son icône. [B7, WCAG 1.4.1]
 #### REQ-020-8 — Couleurs d'environnement
 Le système doit offrir une palette fermée de couleurs d'environnement (six teintes
 distinctes entre elles et des états, dans les deux modes), affichées en pastille à côté du
-libellé de l'environnement, jamais seules. [B8, Q-020-1]
+libellé de l'environnement, jamais seules ; la teinte est **déduite de la clé** de
+l'environnement (stable, la même pour tous), un choix de l'administrateur viendra plus
+tard par un attribut de la valeur. [B8]
 
 Acceptation :
 - Le catalogue montre les six teintes à côté de leur libellé, dans les deux modes ; un
@@ -426,7 +428,7 @@ du tampon de recherche ; donner aux lignes d'arbre un nom accessible court (libe
 détail en description. [B33, prototype D-1 du 2026-10-23]
 
 Acceptation :
-- `package.json` de `web/ui` : Reka UI sans `^` ni `~` (test).
+- `package.json` de `web/v2/ui` : Reka UI sans `^` ni `~` (test).
 - Import de `ComboboxViewport` → échec du lint.
 - Déplacement par « Déplacer vers… » après sélection : c'est le nœud choisi qui bouge
   (régression du prototype, où le dernier enfant était supprimé).

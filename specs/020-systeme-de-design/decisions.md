@@ -5,7 +5,7 @@ web D-1 à D-12, trois tours de brief, icônes, police, direction visuelle) et d
 retours sur les maquettes du 2026-10-22. Les décisions B1 à B30 traduisent ces arbitrages
 en choix de conception ; les choix peu coûteux à défaire sont marqués « choix de
 Claude ». Restent : les **arbitrages demandés** (contradictions avec des décisions ou des
-specs validées) et les **questions** Q-020-1 à 10.
+specs validées) et les **questions** Q-020-2 à 8 et 10 (Q-020-1 et 9 closes).
 
 Cadre : D6, D17, D31 (amendée), D37, Q-ouv-1, Q-ouv-6 de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; 007/W11 à W15 ;
@@ -93,13 +93,14 @@ libellés par langue).
 - Décidé par : l'utilisateur (direction) ; écarts : choix de Claude, à confirmer (A6)
 
 ## B8 — Couleurs d'environnement
-- Décision : six teintes distinctes des états ; attribution par empreinte de la clé.
+- Décision : six teintes distinctes des états ; attribution par empreinte de la clé ;
+  plus tard, choix de l'administrateur par un attribut de la valeur.
 - Pourquoi : la direction colorait trois environnements avec l'accent, l'ambre et le
   violet des états : un environnement « recette » se lisait comme un avertissement, un
   « développement » comme « en revue ».
 - Rejeté : reprendre les couleurs d'état ; couleur libre par l'administrateur (contraste
   non garanti).
-- Décidé par : à arbitrer (Q-020-1)
+- Décidé par : l'utilisateur (2026-10-23, Q-020-1)
 
 ## B12 — Couches
 - Décision : `@layer reset, tokens, base, components, plugins, utilities`, déclaré en tête
@@ -206,11 +207,8 @@ libellés par langue).
 Contradictions ou écarts avec des décisions ou des specs validées ; chacun porte la
 recommandation de Claude.
 
-- **A1 — 017/U14 et tâche 017-1** : les maquettes de la 017 y sont des « pages
-  statiques, hors du build », stylées sur les écrans existants. D-8 les veut construites
-  au catalogue avec les vrais composants. *Recommandation* : amender U14 et la tâche
-  017-1 (note d'amendement posée dans la 017) ; les maquettes de la 017 deviennent des
-  maquettes `/_ui/ecrans/` après E10, sur `@kartenn/ui`.
+- ~~**A1 — 017/U14 et tâche 017-1**~~ : close le 2026-10-23 : la 017 s'aligne sur la 020
+  et la 021, U14 remplacée (maquettes au catalogue avec les vrais composants).
 - **A2 — 007/W12 et REQ-007-30** : W12 nomme Reka UI et les jetons « traversant le
   Shadow DOM ». *Recommandation* : garder la traversée (vraie pour les tiers) ; Reka UI
   reste la base (D-1 : Vue 3), encadrée par REQ-020-33 ; la 021 remplace W12 pour le
@@ -218,11 +216,8 @@ recommandation de Claude.
 - **A3 — ADR 0024 (dépendances)** : Stylelint et ses règles, `lucide`, les fichiers de
   police Geist entrent dans l'outillage et le paquet. *Recommandation* : accepter ; ADR
   0036 les consigne ; licences vérifiées par le test existant (REQ-007-38).
-- **A4 — D17** : la bibliothèque `@kartenn/ui` est écrite dans le framework du shell et
-  partagée avec les plugins (ADR 0038) ; D17 dit les plugins « sans dépendre d'un
-  framework ». *Recommandation* : pas de contradiction tant que le chemin sans framework
-  reste ouvert aux tiers (plugin d'exemple gardé). D-1 a gardé Vue 3 : D17 n'est pas
-  amendée.
+- ~~**A4 — D17**~~ : close le 2026-10-23 : D-1 retient Vue 3, D17 inchangée ; le chemin
+  sans framework reste ouvert aux tiers.
 - **A5 — Captures Chromium seul et REQ-007-37** (Chromium et Firefox) :
   *Recommandation* : les parcours fonctionnels restent sur les deux navigateurs ; seules
   les captures sont sur Chromium (D-9). Pas d'amendement.
@@ -232,11 +227,9 @@ recommandation de Claude.
 
 ## Questions
 
-- **Q-020-1** — Couleur d'un environnement : par empreinte de la clé (aucun changement
-  serveur ; deux environnements peuvent partager une teinte) ou choisie par
-  l'administrateur parmi les six (attribut à ajouter aux environnements du module
-  Politique, amendement de la 010) ? *Recommandation* : empreinte maintenant, choix de
-  l'administrateur avec la 018 (libellés par langue), qui touche déjà ces objets.
+- ~~**Q-020-1**~~ — Couleur d'un environnement : close le 2026-10-23 : déduite de la clé
+  (teinte stable de la palette accessible de six) ; choix de l'administrateur plus tard,
+  par un attribut de la valeur.
 - **Q-020-2** — Catalogue en production (diagnostic d'un rendu chez un client) ?
   *Recommandation* : non ; build de test seulement.
 - **Q-020-3** — Jetons en DTCG (JSON) générés en CSS ? *Recommandation* : non, CSS source
