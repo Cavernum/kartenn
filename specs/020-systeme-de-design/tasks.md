@@ -130,7 +130,7 @@ emploient.
     l'utilisateur). Choix de Claude : jetons `--k-z-*` (empilement), `--k-icon-stroke`,
     `--k-env-dot-size`, `--k-shadow-inset-accent`, `--k-text-<taille>-line` pour
     l'interligne ; familles avec un repli métrique `"Geist Fallback"` (tâche 6).
-- [ ] 6. Polices Geist et Geist Mono : `woff2` variables, sous-ensembles latin et latin
+- [x] 6. Polices Geist et Geist Mono : `woff2` variables, sous-ensembles latin et latin
   étendu, `tokens/fonts.css` (`@font-face`, `font-display: swap`, `size-adjust` du
   repli), préchargement de la police sans, licence OFL livrée — REQ-020-10, 30 —
   verify : aucune requête de police hors origine (parcours) ; poids mesuré par
@@ -139,7 +139,7 @@ emploient.
     `crates/kartenn-rest/src/web.rs` (types de média : `woff2` déjà servi) ;
     `web/shell/scripts/size.mjs`
   - dépend de : 4
-  - fait en partie : `web/v2/ui/src/fonts/` (quatre `woff2` variables droits, latin et
+  - fait (restes fermés par les tâches 8 et 9) : `web/v2/ui/src/fonts/` (quatre `woff2` variables droits, latin et
     latin étendu, tirés sans retouche de `@fontsource-variable/geist` et `geist-mono`
     5.3.0, 83 708 octets ; `OFL-Geist.txt`, `OFL-GeistMono.txt`), `tokens/fonts.css`
     (`@font-face` en `@layer tokens`, `swap`, replis métriques `"Geist Fallback"` et
@@ -196,7 +196,7 @@ emploient.
     `/_ui/jetons` est dans le projet `visual` (tâche 9). Choix de Claude : jeton
     `--k-measure-prose` (72ch) ; la langue ne change pour l'instant que `lang` (pas encore
     de catalogue de traduction dans le nouveau shell).
-- [ ] 9. Régression visuelle et contrôles transverses : projet Playwright `visual`
+- [x] 9. Régression visuelle et contrôles transverses : projet Playwright `visual`
   (Chromium, 1280 × 800, échelle 1, mouvement réduit, horloge, locale et fuseau fixes,
   `vite preview` sur `127.0.0.1:4173`) ; aide `snap(page, état)` (capture et instantané
   ARIA) ; parcours `csp.spec.ts` (aucune `securitypolicyviolation`) ; commande devenv
@@ -207,6 +207,25 @@ emploient.
     séparé) ; `web/e2e/fixtures/index.ts` (`expectAccessible`) ; `devenv.nix`
     `scripts.k-web-e2e` (vers la ligne 533, forme de la commande)
   - dépend de : 8
+  - fait : `web/v2/e2e/` (`@playwright/test` 1.63.0 comme `web/e2e`, `@axe-core/playwright`) ;
+    `playwright.config.ts`, projet `visual` (Chromium, 1280 × 800, échelle 1, clair forcé
+    par projet et mode par l'URL, `reducedMotion`, `fr-FR`, `Europe/Paris`, horloge figée par
+    `open`), serveur `vite preview --mode catalogue` du build de test sur `127.0.0.1:4173`,
+    qui envoie la CSP de kartenn-server ; références sans suffixe de plateforme sous
+    `visual/__screenshots__/` ; `fixtures/index.ts` (`open`, `snap` : capture pleine page et
+    `toMatchAriaSnapshot`, `expectAccessible` repris de `web/e2e`, `violations`) ;
+    `visual/catalogue.spec.ts` (index, jetons dans les deux densités, icônes, chaque état de
+    chaque composant déclaré, dans les deux modes ; axe sur chaque page) ;
+    `visual/csp.spec.ts` (tout le catalogue : aucune `securitypolicyviolation`, aucune
+    requête hors origine, polices servies sous `/assets/`) ; devenv : `k-web-check` lance
+    `visual` quand l'espace a `e2e/visual` (donc `k-web2-check`), `k-web-shots [--update]`
+    sous `k-heavy`, refusé hors de devenv (vérifié), `k-web2-e2e`. Vérifié : un jeton
+    modifié (`--k-accent` `#0b5cad` → `#0b6cad`) fait échouer la capture de `/_ui/jetons`
+    (3 991 pixels) — seulement après avoir abaissé `threshold` (écart de couleur par pixel,
+    0,2 par défaut) à 0,01 : avec le défaut, la capture passait (choix de Claude, à
+    confirmer : le design ne fixait que `maxDiffPixelRatio`). Ferment aussi les restes de
+    la tâche 6 (préchargement, aucune requête de police hors origine, colonne de chiffres
+    capturée sur `/_ui/jetons`) et le parcours axe de la tâche 8.
 
 ## P3 — Version visuelle des composants et maquettes
 

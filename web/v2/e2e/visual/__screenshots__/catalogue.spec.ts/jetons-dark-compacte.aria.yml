@@ -1,0 +1,335 @@
+- main:
+  - region "Jetons":
+    - heading "Jetons" [level=1]
+    - paragraph:
+      - text: "Source unique :"
+      - code: "@kartenn/ui/src/tokens/tokens.css"
+      - text: . Les valeurs ci-dessous sont celles du mode et de la densité choisis.
+    - heading "Surfaces et bordures" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-bg"
+        - code: "#0d1219"
+      - listitem:
+        - code: "--k-surface"
+        - code: "#131a24"
+      - listitem:
+        - code: "--k-surface-sunken"
+        - code: /#[\d,.]+[bkmBKM]+/
+      - listitem:
+        - code: "--k-border"
+        - code: "#222c39"
+      - listitem:
+        - code: "--k-border-strong"
+        - code: "#2d3949"
+      - listitem:
+        - code: "--k-border-control"
+        - code: "#5f6f86"
+    - heading "Texte, accent, focus, bande" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-text"
+        - code: "#e6e8ec"
+      - listitem:
+        - code: "--k-text-muted"
+        - code: "#8796ab"
+      - listitem:
+        - code: "--k-accent"
+        - code: "#4d94e0"
+      - listitem:
+        - code: "--k-accent-fg"
+        - code: "#0a0c0f"
+      - listitem:
+        - code: "--k-accent-soft"
+        - code: "#14273f"
+      - listitem:
+        - code: "--k-focus-ring"
+        - code: "#6aa8ea"
+      - listitem:
+        - code: "--k-band-bg"
+        - code: "#3a2c0c"
+      - listitem:
+        - code: "--k-band-fg"
+        - code: "#f2cf8a"
+    - heading "Barre latérale" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-sidebar-bg"
+        - code: "#0a0e14"
+      - listitem:
+        - code: "--k-sidebar-fg"
+        - code: "#8f9cb0"
+      - listitem:
+        - code: "--k-sidebar-active-bg"
+        - code: "#18212e"
+      - listitem:
+        - code: "--k-sidebar-active-fg"
+        - code: "#fff"
+      - listitem:
+        - code: "--k-sidebar-active-icon"
+        - code: "#8cc0f5"
+    - heading "Environnements" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-env-1"
+        - code: "#6aa8ea"
+      - listitem:
+        - code: "--k-env-2"
+        - code: "#3cc0c9"
+      - listitem:
+        - code: "--k-env-3"
+        - code: "#e37ab8"
+      - listitem:
+        - code: "--k-env-4"
+        - code: "#a6bb3a"
+      - listitem:
+        - code: "--k-env-5"
+        - code: "#9aa8bc"
+      - listitem:
+        - code: "--k-env-6"
+        - code: "#c89b72"
+    - heading "Différentiel" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-diff-added"
+        - code: "#49bd7c"
+      - listitem:
+        - code: "--k-diff-removed"
+        - code: "#ee7a70"
+      - listitem:
+        - code: "--k-diff-changed"
+        - code: "#e0a23d"
+    - heading "États" [level=2]
+    - table:
+      - rowgroup:
+        - row "État Texte sur surface Texte sur fond atténué Jetons":
+          - columnheader "État"
+          - columnheader "Texte sur surface"
+          - columnheader "Texte sur fond atténué"
+          - columnheader "Jetons"
+      - rowgroup:
+        - row "ok Conforme Conforme --k-state-ok-fg, -bg, -border":
+          - rowheader "ok":
+            - code: ok
+          - cell "Conforme"
+          - cell "Conforme"
+          - cell "--k-state-ok-fg, -bg, -border":
+            - code: "--k-state-ok-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+        - row "warn Avertissement Avertissement --k-state-warn-fg, -bg, -border":
+          - rowheader "warn":
+            - code: warn
+          - cell "Avertissement"
+          - cell "Avertissement"
+          - cell "--k-state-warn-fg, -bg, -border":
+            - code: "--k-state-warn-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+        - row "ko Erreur Erreur --k-state-ko-fg, -bg, -border":
+          - rowheader "ko":
+            - code: ko
+          - cell "Erreur"
+          - cell "Erreur"
+          - cell "--k-state-ko-fg, -bg, -border":
+            - code: "--k-state-ko-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+        - row "review En revue En revue --k-state-review-fg, -bg, -border":
+          - rowheader "review":
+            - code: review
+          - cell "En revue"
+          - cell "En revue"
+          - cell "--k-state-review-fg, -bg, -border":
+            - code: "--k-state-review-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+        - row "info Brouillon Brouillon --k-state-info-fg, -bg, -border":
+          - rowheader "info":
+            - code: info
+          - cell "Brouillon"
+          - cell "Brouillon"
+          - cell "--k-state-info-fg, -bg, -border":
+            - code: "--k-state-info-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+        - row "neutral Inactif Inactif --k-state-neutral-fg, -bg, -border":
+          - rowheader "neutral":
+            - code: neutral
+          - cell "Inactif"
+          - cell "Inactif"
+          - cell "--k-state-neutral-fg, -bg, -border":
+            - code: "--k-state-neutral-fg"
+            - text: ""
+            - code: "-bg"
+            - text: ""
+            - code: "-border"
+    - heading "Espacement" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-space-0"
+        - code: "0"
+      - listitem:
+        - code: "--k-space-px"
+        - code: 1px
+      - listitem:
+        - code: "--k-space-0-5"
+        - code: 2px
+      - listitem:
+        - code: "--k-space-1"
+        - code: 4px
+      - listitem:
+        - code: "--k-space-2"
+        - code: 8px
+      - listitem:
+        - code: "--k-space-3"
+        - code: 12px
+      - listitem:
+        - code: "--k-space-4"
+        - code: 16px
+      - listitem:
+        - code: "--k-space-5"
+        - code: 20px
+      - listitem:
+        - code: "--k-space-6"
+        - code: 24px
+      - listitem:
+        - code: "--k-space-8"
+        - code: 32px
+      - listitem:
+        - code: /--k-space-\d+/
+        - code: 40px
+      - listitem:
+        - code: /--k-space-\d+/
+        - code: 48px
+    - heading "Rayons et élévation" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-radius-sm"
+        - code: 3px
+      - listitem:
+        - code: "--k-radius-md"
+        - code: 5px
+      - listitem:
+        - code: "--k-radius-lg"
+        - code: 8px
+      - listitem:
+        - code: "--k-radius-full"
+        - code: 999px
+      - listitem:
+        - code: "--k-shadow-overlay"
+      - listitem:
+        - code: "--k-shadow-modal"
+      - listitem:
+        - code: "--k-shadow-inset-accent"
+    - heading "Typographie" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-text-xs"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-sm"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-md"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-lg"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-xl"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-2xl"
+        - text: /Préfixes du domaine Recette — 1 \d+ adresses/
+      - listitem:
+        - code: "--k-text-mono"
+        - text: /\d+\.\d+\.\d+\.\d+\/\d+ · VID \d+ · 3c:\d+:fb:\d+:9a:7e/
+    - paragraph: /Normal \d+ Moyen \d+ Demi-gras \d+/
+    - heading "Colonne de chiffres" [level=2]
+    - 'table "Chiffres tabulaires : les colonnes s''alignent, en chasse fixe comme en sans."':
+      - caption: "Chiffres tabulaires : les colonnes s'alignent, en chasse fixe comme en sans."
+      - rowgroup:
+        - row "Préfixe Adresses Occupation":
+          - columnheader "Préfixe"
+          - columnheader "Adresses"
+          - columnheader "Occupation"
+      - rowgroup:
+        - row /\d+\.\d+\.0\.0\/8 \d+ \d+ \d+ \d+,\d+ %/:
+          - cell /\d+\.\d+\.0\.0\/8/:
+            - code: /\d+\.\d+\.0\.0\/8/
+          - cell /\d+ \d+ \d+/
+          - cell /\d+,\d+ %/
+        - row /\d+\.\d+\.0\.0\/\d+ \d+ \d+ \d+,\d+ %/:
+          - cell /\d+\.\d+\.0\.0\/\d+/:
+            - code: /\d+\.\d+\.0\.0\/\d+/
+          - cell /\d+ \d+/
+          - cell /\d+,\d+ %/
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ 4 \d+ \d+,\d+ %/:
+          - cell /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - cell /4 \d+/
+          - cell /\d+,\d+ %/
+        - row /\d+\.\d+\.2\.0\/\d+ \d+ \d+,\d+ %/:
+          - cell /\d+\.\d+\.2\.0\/\d+/:
+            - code: /\d+\.\d+\.2\.0\/\d+/
+          - cell /\d+/
+          - cell /\d+,\d+ %/
+        - row /\d+:db8::\/\d+ 2\^\d+ \d+,\d+ %/:
+          - cell /\d+:db8::\/\d+/:
+            - code: /\d+:db8::\/\d+/
+          - cell /2\^\d+/
+          - cell /\d+,\d+ %/
+    - heading "Densité" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-row-height"
+        - code: 28px
+      - listitem:
+        - code: "--k-header-height"
+        - code: 30px
+      - listitem:
+        - code: "--k-control-height-sm"
+        - code: 24px
+      - listitem:
+        - code: "--k-control-height-md"
+        - code: 28px
+      - listitem:
+        - code: "--k-control-height-lg"
+        - code: 32px
+    - heading "Mouvement" [level=2]
+    - list:
+      - listitem:
+        - code: "--k-duration-instant"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
+        - code: "--k-duration-fade"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
+        - code: "--k-duration-short"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
+        - code: "--k-duration-medium"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
+        - code: "--k-ease-standard"
+        - text: ":"
+        - code: cubic-bezier(.2, 0, 0, 1)
+      - listitem:
+        - code: "--k-ease-exit"
+        - text: ":"
+        - code: cubic-bezier(.4, 0, 1, 1)

@@ -1,0 +1,20 @@
+- main:
+  - region "Catalogue du système de design":
+    - heading "Catalogue du système de design" [level=1]
+    - paragraph:
+      - text: Chaque composant de
+      - code: "@kartenn/ui"
+      - text: dans chacun de ses états ; mode, densité et langue se choisissent en tête de page et restent dans l'adresse.
+    - heading "Fondations" [level=2]
+    - list:
+      - listitem:
+        - link "Jetons":
+          - /url: /_ui/jetons?mode=light
+      - listitem:
+        - link "Icônes":
+          - /url: /_ui/icones?mode=light
+    - heading "Composants" [level=2]
+    - list:
+      - listitem:
+        - link "Icon":
+          - /url: /_ui/c/Icon?mode=light

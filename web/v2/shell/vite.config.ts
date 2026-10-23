@@ -56,6 +56,14 @@ export default defineConfig(({ mode }) => ({
     host: "127.0.0.1",
     port: 4173,
     strictPort: true,
+    // The policy kartenn-server sends (crates/kartenn-rest/src/web.rs, `csp`), so that the
+    // journeys over the catalogue see the violations the shell would (REQ-020-14).
+    headers: {
+      "Content-Security-Policy":
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+        "font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; " +
+        "frame-src 'none'; frame-ancestors 'none'",
+    },
   },
   test: {
     name: "shell",

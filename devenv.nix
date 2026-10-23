@@ -514,7 +514,7 @@ in {
   # Convention: each workspace package defines a `typecheck` script (vue-tsc); vitest
   # runs from the workspace root (projects).
   scripts.k-web-check = {
-    description = "prettier, eslint, stylelint (web/v2), vue-tsc and vitest, printing a one-line verdict or the failures only";
+    description = "prettier, eslint, stylelint and captures (web/v2), vue-tsc and vitest, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
@@ -550,13 +550,51 @@ in {
       [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
-      echo "OK — $(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')"
+      tests=$(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')
+      # Captures of the catalogue where the workspace has them (web/v2, spec 020, REQ-020-26):
+      # the Playwright project `visual` against `vite preview` (127.0.0.1:4173).
+      if [ -d e2e/visual ]; then
+        pnpm -C e2e exec playwright test --project visual --reporter=line >"$log/visual" 2>&1 ||
+          ko visual "$log/visual" '^ *[0-9]+\) |Error:|pixels|^ *at .*:[0-9]+:[0-9]+' "k-web-shots --update, puis relire les images"
+        tests="$tests ; captures $(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//')"
+      fi
+      echo "OK — $tests"
     '';
   };
   # The new shell (spec 021, « Migration »): the same checks on its own workspace.
   scripts.k-web2-check = {
     description = "k-web-check on the workspace of the new shell (web/v2)";
     exec = ''WEB_DIR=web/v2 exec k-web-check "$@"'';
+  };
+  scripts.k-web2-e2e = {
+    description = "k-web-e2e on the workspace of the new shell (web/v2)";
+    exec = ''WEB_DIR=web/v2 exec k-web-e2e "$@"'';
+  };
+  # Reference captures of the design system (spec 020, REQ-020-26): `k-web-shots [--update]
+  # [playwright args…]`, in ${WEB_DIR:-web/v2}. Only in devenv: the references depend on
+  # the browser and the fonts of Nix, and a capture taken elsewhere would not compare.
+  scripts.k-web-shots = {
+    description = "Compare (or with --update, regenerate) the reference captures of the catalogue";
+    exec = ''
+      set -uo pipefail
+      export NO_COLOR=1 FORCE_COLOR=0
+      if [ -z "''${DEVENV_ROOT:-}" ] || [ -z "''${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then
+        echo "k-web-shots : refusé hors de devenv shell (références prises avec le navigateur et les polices de Nix)" >&2
+        exit 2
+      fi
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy ${dash} "$0" "$@"
+      update=""
+      if [ "''${1:-}" = --update ]; then update=--update-snapshots; shift; fi
+      dir=''${WEB_DIR:-web/v2}
+      [ -d "$dir/e2e/visual" ] || { echo "KO — pas de captures ($dir/e2e/visual absent)"; exit 1; }
+      log=$(mktemp -t k-web-shots.XXXXXX)
+      if ! pnpm -C "$dir/e2e" exec playwright test --project visual --reporter=line $update "$@" >"$log" 2>&1; then
+        echo "KO visual ($log)"
+        grep -E '^ *[0-9]+\) |Error:|pixels' "$log" | head -30
+        exit 1
+      fi
+      echo "OK — $(grep -E '^ *[0-9]+ passed' "$log" | tail -1 | sed 's/^ *//')''${update:+ ; références réécrites : git status $dir/e2e/visual, relire les images avant commit}"
+    '';
   };
 
   # Same for the Python clients (spec 023, T25), in ${PY_DIR:-clients/python}: ruff (lint
@@ -913,13 +951,15 @@ in {
     check-merge-conflicts.enable = true;
     end-of-file-fixer = {
       enable = true;
-      # devenv writes its lock without a final newline, on every update.
-      excludes = ["^devenv\\.lock$"];
+      # devenv writes its lock without a final newline, on every update; Playwright its
+      # ARIA snapshots (spec 020, k-web-shots --update) the same way.
+      excludes = ["^devenv\\.lock$" "/__screenshots__/"];
     };
     trim-trailing-whitespace = {
       enable = true;
-      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too.
-      excludes = ["\\.ambr$"];
+      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too;
+      # so do the ARIA snapshots of Playwright (spec 020).
+      excludes = ["\\.ambr$" "/__screenshots__/"];
     };
     rustfmt.enable = true;
     # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
@@ -1024,7 +1064,7 @@ in {
         "${config.devenv.state}/playwright-mcp"
       ];
     };
-    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*" "k-web2-check:*"];
+    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*" "k-web2-check:*" "k-web2-e2e:*" "k-web-shots:*"];
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
     hooks.git-hooks-run.enable = false;

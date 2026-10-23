@@ -1,0 +1,7 @@
+- main:
+  - region "Icon":
+    - heading "Icon" [level=1]
+    - paragraph: "Motif : img (porteuse de sens) ou aria-hidden (décorative)"
+    - figure /decorative — Décorative, \d+ px/:
+      - code: decorative
+      - text: ""
