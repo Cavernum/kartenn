@@ -82,11 +82,19 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     que soit sa valeur. Vérifié : test cassé → `KO pytest` et sa ligne `FAILED` ;
     couverture à 31 % → `KO pytest` et `FAIL Required test coverage … not reached` ;
     fichier mal formaté → `KO ruff-format` ; `dash -n` et `k-ci-lint` propres.
-- [ ] 3. CI : étape `k-py-check` dans `scripts/ci.sh`, et construction des deux wheels
+- [x] 3. CI : étape `k-py-check` dans `scripts/ci.sh`, et construction des deux wheels
   (`uv build`) avec vérification des métadonnées de licence — T25 ; REQ-023-45 —
   verify : `scripts/ci.sh` local vert ; l'étape échoue si `k-py-check` échoue
   - où : `scripts/ci.sh` (étapes existantes de `k-check` et `k-web-check`)
   - dépend de : 2
+  - choix : deux étapes de `scripts/ci.sh` après `web` : `python` (`k-py-check`) et
+    `python-wheels`, script `scripts/py-wheels.sh` (dash, contrôlé par `k-ci-lint`) qui
+    construit les deux roues (`uv build --wheel`) et vérifie qu'elles sont
+    `py3-none-any`, que `License-Expression` vaut `MPL-2.0` et `AGPL-3.0-only`, et que
+    le texte de licence est dans le dist-info. Le workflow lance déjà `scripts/ci.sh` :
+    seul le nom du job change (« Rust, web, Python et parcours de bout en bout »).
+    Vérifié localement : `k-ci-lint`, `k-py-check`, `scripts/py-wheels.sh` et `k-check`
+    verts ; `scripts/ci.sh` complet (bout en bout du web, `nix flake check`) non relancé.
 
 ## Flux S — ajouts au serveur (amendements additifs de la 006 et de la 005)
 

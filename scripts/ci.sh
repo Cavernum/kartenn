@@ -50,6 +50,9 @@ step sqlx-offline k-heavy --pg dash -c \
   'sqlx migrate run --source crates/kartenn-store-pg/migrations && cargo sqlx prepare --workspace --check -- --all-targets'
 step rust k-check
 step web k-web-check
+# Python clients (spec 023): lint, types and tests, then the wheels and their licences.
+step python k-py-check
+step python-wheels scripts/py-wheels.sh
 step e2e k-web-e2e
 [ "$nix_checks" -eq 0 ] || step nix k-heavy --all nix flake check --max-jobs 1 --cores 12
 
