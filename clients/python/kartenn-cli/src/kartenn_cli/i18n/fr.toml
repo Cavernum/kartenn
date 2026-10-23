@@ -1,0 +1,436 @@
+# Messages de la CLI en français (REQ-023-37). Les codes, clés et noms de commandes ne se
+# traduisent pas.
+
+[help]
+operation = "{method} {path}  ({operation}) — module {module}"
+resource = "Ressource {name} (module {module}) : verbes dérivés du contrat du serveur."
+nested = "Verbes « {name} »."
+module = "{about} (module {module} {version}, servi par {host}).\nCommandes dérivées du contrat du serveur ; « kartenn api » pour le reste."
+subcommand = "COMMANDE [ARGS]..."
+commands = "Commandes"
+options = "Options"
+root = "Client de kartenn — profil « {profile} », {url} ({version})."
+root_no_profile = "Client de kartenn — aucun profil : « kartenn config add-profile NOM --url URL »."
+
+[help.section]
+core = "Noyau"
+writes = "Écritures"
+modules = "Modules servis"
+rights = "Droits et audit"
+tools = "Outils"
+others = "Autres"
+global = "Options"
+named = "Parcours"
+resources = "Ressources"
+verbs = "Verbes"
+params = "Paramètres"
+filters = "Filtres"
+dates = "Dates"
+output = "Sortie"
+write = "Écriture"
+members = "Membres"
+
+[metavar]
+name = "NOM"
+file = "FICHIER"
+prop = "CLÉ[:OP]=VALEUR"
+assignment = "CHEMIN=VALEUR"
+
+[opt]
+help = "Cette aide."
+profile = "Profil de configuration."
+output = "table | json | ndjson | yaml | csv  [défaut : table sur un terminal]"
+at = "Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339."
+as_of = "Temps système : ce que kartenn affirmait alors."
+keys = "Clés internes ou libellés."
+lang = "Langue des messages."
+no_input = "Jamais de question, de navigateur ni d'éditeur."
+token_file = "Fichier de jetons explicite (0600), sans trousseau."
+verbose = "Requêtes, durées, identifiants de requête."
+version = "Version du client."
+fields = "Membres à rendre (a,b.c)."
+query = "Projection JMESPath, avant le rendu."
+ids = "Montrer les identifiants (UUID) en table."
+freeze = "Figer le temps système à maintenant (pour les lectures suivantes : KARTENN_AS_OF)."
+prop = "Propriété : =, :between=a..b, :exists=true|false (répétable)."
+all = "Toutes les pages, lues et écrites au fil de l'eau."
+page_size = "Taille d'une page (1 à 1 000)."
+cursor = "Page suivante, de « suite : --cursor … » ; elle fige filtres et dates."
+set = "Membre : chemin=valeur (JSON si lisible : 140, true, {…}) ; répétable."
+from_file = "Document JSON ou YAML (- : entrée standard)."
+motive = "Motif de l'écriture."
+valid_from = "Début de la période de l'écriture (maintenant par défaut)."
+valid_to = "Fin de la période (illimitée par défaut)."
+on_behalf_of = "Écrire pour le compte d'une identité (Kartenn-On-Behalf-Of)."
+dry_run = "Simuler le changeset : rien n'est écrit (code 8 s'il serait refusé)."
+into_changeset = "Ajouter l'écriture au changeset local (kartenn changeset new)."
+require_applied = "Code 10 si l'écriture attend une approbation."
+
+[config]
+help = "Profils de configuration (sans aucun secret)."
+invalid = "{path} n'est pas un TOML valide : {error}"
+created = "Profil « {name} » créé ({path})"
+updated = "Profil « {name} » mis à jour ({path})"
+chosen = " et choisi par défaut."
+none = "Aucun profil : kartenn config add-profile NOM --url URL"
+unknown = "Aucun profil « {name} » (profils : {known})."
+default = "Profil par défaut : {name}."
+removed = "Profil « {name} » supprimé, ainsi que son secret dans le trousseau."
+missing = "Aucun profil configuré."
+missing_hint = "Créez-en un : kartenn config add-profile NOM --url URL (ou KARTENN_URL)."
+timezone = "Fuseau inconnu dans le profil : {zone}"
+
+[config.add]
+help = "Créer ou modifier un profil."
+
+[config.list]
+help = "Lister les profils (* : par défaut)."
+
+[config.show]
+help = "Afficher un profil."
+
+[config.use]
+help = "Choisir le profil par défaut."
+
+[config.remove]
+help = "Supprimer un profil et son secret."
+
+[config.opt]
+url = "URL du serveur."
+auth = "Authentification : oidc, basic, token, breakglass, none."
+issuer = "Émetteur OIDC (identifiant servi par /v1/auth/native-clients)."
+account = "Compte de service (auth basic) ; son secret va au trousseau."
+ca_bundle = "Paquet d'autorités de confiance (PEM), seul à faire foi."
+lang = "Langue des messages."
+timezone = "Fuseau des dates seules et des affichages (Europe/Paris)."
+output = "Format de sortie par défaut."
+default = "Choisir ce profil par défaut."
+
+[keyring]
+unavailable = "Aucun trousseau utilisable : rien n'est stocké. Fournissez KARTENN_TOKEN, ou un fichier explicite par --token-file."
+
+[input]
+required = "Il faudrait {what}, impossible hors terminal ou avec --no-input."
+
+[output]
+invalid = "Format de sortie inconnu : {given} (table, json, ndjson, yaml, csv)."
+
+[discovery]
+cached = "Découverte du serveur… {version}, modules : {modules} (catalogue en cache)."
+updated = "Découverte du serveur… {version}{previous}, modules : {modules} (catalogue mis à jour)."
+before = " (avant {version})"
+failed = "Catalogue indisponible ({error}) : seules les commandes locales sont listées."
+login = "Connectez-vous pour découvrir le serveur : kartenn login (ou KARTENN_TOKEN)."
+
+[error]
+word = "erreur"
+warning = "avertissement"
+request = "requête {id}"
+changeset = "changeset {id}"
+import = "import {id}"
+
+[error.violations]
+one = "{count} violation"
+other = "{count} violations"
+
+[hint]
+precondition-failed = "Version courante {current}. Relisez l'objet, ou utilisez « edit » pour fusionner."
+unauthenticated = "Reconnectez-vous : kartenn login"
+"client.login-required" = "Connectez-vous : kartenn login (ou KARTENN_TOKEN)."
+"client.no-configuration" = "Créez un profil : kartenn config add-profile NOM --url URL."
+
+[render]
+masked = "‹masquée›"
+
+[write]
+document = "{path} n'est pas un document (un objet JSON ou YAML)."
+assignment = "--set attend chemin=valeur : {given}"
+no_operation = "« {resource} {verb} » n'a pas d'opération de changeset connue : --dry-run et --into-changeset ne s'y appliquent pas (kartenn changeset add avec l'opération explicite)."
+applied = "Changeset {id} appliqué."
+location = "Créé : {location}"
+pending = "Écriture en attente ({kind}) : changeset {id}."
+follow = "  Suivre : kartenn changeset show {id}"
+motive_required = "Cette écriture exige --motive (le serveur répondrait motive-required)."
+motive = "Motif ?"
+
+[simulation]
+head = "Simulation — rien n'est écrit"
+motive = "simulation"
+from = " (valide à partir du {date})"
+counts = "Opérations  {operations}   Violations  {violations}   Avertissements  {warnings}"
+diff = "Différentiel"
+nothing = "aucun changement"
+
+[simulation.objects]
+one = "{count} objet"
+other = "{count} objets"
+
+[simulation.rows]
+one = "{count} ligne"
+other = "{count} lignes"
+
+[simulation.cascaded]
+one = "{count} clôture en cascade"
+other = "{count} clôtures en cascade"
+
+[changeset]
+help = "Composer, simuler, appliquer, instruire des changesets."
+none = "Aucun changeset local ({path}) : kartenn changeset new --motive …"
+invalid = "{path} n'est pas un changeset local."
+no_op = "Une opération est un objet avec son discriminant « op »."
+added = "Ajouté (opération {index}) : {op} {summary}"
+exists = "Un changeset local existe déjà ({path}) : appliquez-le, ou --force."
+created = "Changeset local : {path} (0 opération)"
+state = "Changeset {id} — {state} ({kind})"
+motive = "Motif"
+final = "Changeset {id} : {state}."
+
+[changeset.new]
+help = "Commencer un changeset local."
+
+[changeset.add]
+help = "Ajouter une opération au changeset local."
+
+[changeset.simulate]
+help = "Simuler le changeset local : rien n'est écrit."
+
+[changeset.apply]
+help = "Soumettre le changeset local."
+
+[changeset.show]
+help = "Lire un changeset du serveur."
+
+[changeset.diff]
+help = "Différentiel d'un changeset, sections de module comprises."
+
+[changeset.approve]
+help = "Approuver un changeset en attente."
+
+[changeset.reject]
+help = "Rejeter un changeset en attente (motif exigé)."
+
+[changeset.withdraw]
+help = "Retirer un changeset dont on est l'auteur."
+
+[changeset.undo]
+help = "Défaire un changeset appliqué (--dry-run : simuler)."
+
+[changeset.opt]
+force = "Remplacer le changeset local existant."
+section = "Section d'un module (policy.combinations)."
+property = "Clé de propriété."
+follow = "Suivre un changeset en attente jusqu'à sa décision."
+
+[edit]
+help = "Modifier l'objet dans $VISUAL ou $EDITOR, puis envoyer la différence (Merge Patch, If-Match).\n{path}  ({operation})"
+short = "Modifier dans l'éditeur (YAML)."
+editor = "un éditeur"
+fixed = "Non modifiable :"
+yours = "Vos modifications, sur la version précédente :"
+nothing = "Aucune modification."
+changes = "Modifications : {changes}"
+stale = "L'objet a changé depuis sa lecture (412)."
+reopen = "Rouvrir l'éditeur sur la version courante ?"
+invalid = "Le document n'est pas un objet YAML : {error}"
+
+[import]
+help = "Importer un fichier par morceaux, avec reprise."
+no_create = "« {resource} » ne se crée pas : rien à importer."
+sending = "Envoi"
+chunks = "Envoi : {chunks} morceaux, {elements} éléments"
+resource_required = "{file} n'est pas un NDJSON d'ImportElement : nommez sa ressource (--resource)."
+other = "La reprise porte sur l'import {found}, pas {given}."
+uploaded = "import {id} envoyé"
+sorting = "import {id} en tri"
+back = "L'import est revenu à l'état « envoi » : corrigez puis « kartenn import --resume {id} {file} »."
+final = "Import {id} : {state}, {elements} éléments, en {elapsed} s."
+file_required = "Un fichier à importer, ou --list, --status ID, --cancel ID, --resume ID (import en pause)."
+
+[import.opt]
+resource = "Ressource des objets d'un CSV ou d'un JSON (prefixes, addresses…)."
+id_column = "Colonne de l'identifiant dans la source (external_id)."
+source = "Nom de la source (le nom du fichier par défaut)."
+resume = "Reprendre l'import ID : seuls les morceaux non confirmés partent."
+chunk = "Éléments par morceau (au plus la limite du serveur)."
+follow = "Suivre l'import jusqu'à son état final (par défaut)."
+cancel = "Annuler l'import ID."
+status = "État de l'import ID."
+list = "Lister les imports."
+
+[named]
+endpoint = "Extrémité « {given} » : TYPE:RÉF (machine:bastion-1, prefix:interne/198.51.100.0/24) ou un objet JSON."
+
+[check]
+help = "Verdict d'une communication source → destination pour un service."
+verdict = "Verdict"
+allowed = "autorisé"
+allowed_pending = "autorisé sous réserve"
+partial = "partiel"
+denied = "refusé"
+outcome = "issue {outcome}"
+evaluations = "Évaluations"
+counts = "{allowed} autorisée(s), {denied} refusée(s)"
+rule = "Règle      "
+conditions = "Conditions "
+service = "Service    "
+all_met = "toutes remplies"
+reduced = "Explication réduite : vos droits ne montrent pas tout."
+hidden = "{count} adresse(s) non montrée(s) (droits)."
+
+[check.opt]
+service = "Service (complétion depuis le serveur)."
+transport = "Transport (tcp, udp…)."
+port = "Port."
+flow_type = "Type de flux."
+entity = "Entité (l'application)."
+exit_status = "Code 9 si le verdict est « refusé »."
+
+[matrix]
+help = "Matrice environnements × types de flux."
+title = "Type de flux {flow_type} (lignes : source ; colonnes : destination)"
+outside = "{count} règle(s) hors de la vue."
+
+[matrix.show]
+help = "Afficher la matrice d'un type de flux."
+
+[matrix.set]
+help = "Fixer une cellule : SOURCE TYPE DESTINATION VALEUR (sous If-Match de la matrice)."
+
+[report]
+help = "Rapport d'audit de conformité (tâche de fond)."
+asked = "Rapport {id} demandé."
+state = "Rapport {id} : {state}"
+
+[report.opt]
+wait = "Attendre la fin du rapport."
+rubric = "Lignes d'une rubrique."
+id = "Lire un rapport existant."
+
+[request]
+help = "Demander un flux : enregistré, ou à instruire."
+
+[request.opt]
+source = "Source : TYPE:RÉF (machine:app-recette-2)."
+destination = "Destination : TYPE:RÉF (prefix:interne/203.0.113.0/28)."
+service = "Service."
+entity = "Entité (l'application)."
+ref = "Référence externe SYSTÈME:ID (répétable)."
+justification = "Justification."
+end = "Fin du flux."
+
+[review]
+help = "Instruire la demande d'un flux : --approve ou --reject."
+decision = "Choisissez --approve ou --reject."
+none = "Le flux {flow} n'a pas de changeset en attente."
+
+[review.opt]
+approve = "Approuver, ou rejeter (motif exigé)."
+
+[api]
+help = "Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le contrat."
+pair = "« {given} » attend la forme clé{sep}valeur."
+method = "Méthode inconnue : {given} ({methods})."
+path = "Le chemin commence par / : « {given} »."
+
+[api.opt]
+field = "Paramètre de requête clé=valeur (répétable)."
+data = "Corps : JSON, @fichier ou - (entrée standard)."
+header = "En-tête « Nom: valeur » (répétable)."
+paginate = "Toutes les pages, un élément par ligne."
+
+[tools]
+capabilities = "Capacités du serveur : version, modules, limites."
+health = "Sondes de santé du serveur (live, ready)."
+healthy = "{probe} : {status}"
+stubs = "Stubs de types du serveur pour les vérificateurs (pyright, mypy)."
+stubs_generate = "Écrire <out>/kartenn_server/__init__.pyi."
+stubs_out = "Répertoire de sortie (typings par défaut)."
+
+[login]
+help = "Se connecter : navigateur (OIDC), --device, secret d'un compte de service, --breakglass."
+device_warning = "Vous autorisez un APPAREIL à agir en votre nom sur kartenn. Ne saisissez ce code que si vous avez lancé cette commande vous-même."
+open = "Ouvrez"
+code = "Code "
+waiting = "En attente de validation… (expire dans {minutes} min)"
+prompts = "le nom, la phrase de passe et le code du compte de secours"
+name = "Compte de secours"
+passphrase = "Phrase de passe"
+totp = "Code TOTP"
+secret_prompt = "le secret du compte de service"
+secret = "Secret du compte {account}"
+session_kept = "Une session de secours est gardée : kartenn logout d'abord."
+browser = "un navigateur (ou --device)"
+opening = "Ouverture du navigateur pour vous connecter chez « {issuer} »…"
+fallback = "  Si rien ne s'ouvre : {url}"
+nothing = "Rien à faire pour l'authentification « {auth} » (KARTENN_TOKEN ou aucune)."
+done = "Connecté : {who}."
+
+[login.opt]
+device = "Flux d'appareil (hôte sans navigateur)."
+breakglass = "Compte de secours (session d'une heure au plus)."
+name = "Nom du compte de secours."
+keep = "Garder la session de secours dans $XDG_RUNTIME_DIR (0600)."
+
+[logout]
+help = "Se déconnecter : oublier les jetons, ou fermer la session de secours."
+done = "Déconnecté du profil {profile}."
+session = "Session de secours fermée."
+
+[me]
+help = "Qui suis-je : identité, groupes, rôles."
+identity = "Identité"
+groups = "Groupes"
+roles = "Rôles"
+
+[watch]
+help = "Suivre les événements du serveur (changements, changesets)."
+absent = "Ce serveur ne sert pas le flux d'événements (capabilities.events = null)."
+open = "Flux d'événements ouvert (profil {profile}) — Ctrl-C pour arrêter."
+closed = "Flux fermé ; reprendre : {resume}"
+ready = "prêt"
+reset = "débordement du tampon : relisez ce que vous suivez"
+wide = "invalidation large : {what}"
+
+[watch.opt]
+types = "Types d'objets (core.prefix,vlan.vlan)."
+domains = "Domaines."
+objects = "Objets (UUID)."
+kinds = "Sortes d'événements (changes, changeset, reset)."
+since = "Reprendre après ce curseur."
+
+[completion]
+help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."
+
+[filter]
+unknown = "Filtre inconnu : {option}. Filtres : {filters}, --prop CLÉ[:OP]=VALEUR."
+
+[ref]
+no_key = "« {resource} » ne déclare pas de clé naturelle (x-kartenn) : désignez l'objet par son UUID, pas « {ref} »."
+shape = "« {ref} » n'a pas la forme de la clé de « {resource} » : {key}."
+not_found = "Aucun objet « {ref} » dans « {resource} » (aux dates de la lecture)."
+ambiguous = "« {ref} » désigne plusieurs objets de « {resource} » : donnez l'UUID."
+
+[list]
+valid_as_of = "valide au {valid}, tel qu'affirmé le {as_of}"
+valid = "valide au {valid}"
+as_of = "état au {as_of}"
+next = "suite : --all ou --cursor {cursor}"
+frozen = "figé : export KARTENN_AS_OF={as_of}"
+
+[list.count]
+one = "{count} élément"
+other = "{count} éléments"
+
+[module]
+unavailable = "Le module « {module} » n'est pas servi par ce serveur."
+unavailable_sub = "« {what} » est servi par le module « {module} », absent de ce serveur."
+profile = "Profil {profile} — {url}, version {version}"
+served = "Modules servis : {modules}"
+no_update = "La commande existe quand le serveur sert le module ; aucune mise à jour du client n'est nécessaire."
+about_generic = "Module {name}."
+
+[module.about]
+policy = "Politique de flux : règles, matrice, catalogue, vérification."
+flow = "Registre de flux : demandes, instruction, dérogations."
+vlan = "VLAN et groupes de VLAN."
+machines = "Machines, interfaces, grappes."

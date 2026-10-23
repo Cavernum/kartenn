@@ -1,0 +1,436 @@
+# Messages of the CLI in English (REQ-023-37), the fallback. Codes, keys and names of
+# commands are never translated.
+
+[help]
+operation = "{method} {path}  ({operation}) — module {module}"
+resource = "Resource {name} (module {module}): verbs derived from the contract of the server."
+nested = "Verbs “{name}”."
+module = "{about} (module {module} {version}, served by {host}).\nCommands derived from the contract of the server; “kartenn api” for the rest."
+subcommand = "COMMAND [ARGS]..."
+commands = "Commands"
+options = "Options"
+root = "Client of kartenn — profile “{profile}”, {url} ({version})."
+root_no_profile = "Client of kartenn — no profile: “kartenn config add-profile NAME --url URL”."
+
+[help.section]
+core = "Core"
+writes = "Writes"
+modules = "Modules served"
+rights = "Rights and audit"
+tools = "Tools"
+others = "Others"
+global = "Options"
+named = "Journeys"
+resources = "Resources"
+verbs = "Verbs"
+params = "Parameters"
+filters = "Filters"
+dates = "Dates"
+output = "Output"
+write = "Write"
+members = "Members"
+
+[metavar]
+name = "NAME"
+file = "FILE"
+prop = "KEY[:OP]=VALUE"
+assignment = "PATH=VALUE"
+
+[opt]
+help = "This help."
+profile = "Profile of the configuration."
+output = "table | json | ndjson | yaml | csv  [default: table on a terminal]"
+at = "Valid time (valid_at): 2026-11-01, -7d, RFC 3339."
+as_of = "System time: what kartenn asserted then."
+keys = "Internal keys or labels."
+lang = "Language of the messages."
+no_input = "Never a question, a browser or an editor."
+token_file = "Explicit file of tokens (0600), without a keyring."
+verbose = "Requests, durations, request identifiers."
+version = "Version of the client."
+fields = "Members to render (a,b.c)."
+query = "JMESPath projection, before rendering."
+ids = "Show the identifiers (UUID) in a table."
+freeze = "Freeze the system time to now (for the next reads: KARTENN_AS_OF)."
+prop = "Property: =, :between=a..b, :exists=true|false (repeatable)."
+all = "Every page, read and written as it comes."
+page_size = "Size of a page (1 to 1,000)."
+cursor = "Next page, from “next: --cursor …”; it freezes the filters and the dates."
+set = "Member: path=value (JSON when it reads: 140, true, {…}); repeatable."
+from_file = "JSON or YAML document (-: standard input)."
+motive = "Motive of the write."
+valid_from = "Start of the period of the write (now by default)."
+valid_to = "End of the period (unbounded by default)."
+on_behalf_of = "Write on behalf of an identity (Kartenn-On-Behalf-Of)."
+dry_run = "Simulate the changeset: nothing is written (exit 8 if it would be refused)."
+into_changeset = "Add the write to the local changeset (kartenn changeset new)."
+require_applied = "Exit 10 when the write waits for an approval."
+
+[config]
+help = "Profiles of the configuration (never a secret)."
+invalid = "{path} is not valid TOML: {error}"
+created = "Profile “{name}” created ({path})"
+updated = "Profile “{name}” updated ({path})"
+chosen = " and chosen by default."
+none = "No profile: kartenn config add-profile NAME --url URL"
+unknown = "No profile “{name}” (profiles: {known})."
+default = "Default profile: {name}."
+removed = "Profile “{name}” removed, with its secret in the keyring."
+missing = "No profile configured."
+missing_hint = "Create one: kartenn config add-profile NAME --url URL (or KARTENN_URL)."
+timezone = "Unknown time zone in the profile: {zone}"
+
+[config.add]
+help = "Create or change a profile."
+
+[config.list]
+help = "List the profiles (*: the default)."
+
+[config.show]
+help = "Show a profile."
+
+[config.use]
+help = "Choose the default profile."
+
+[config.remove]
+help = "Remove a profile and its secret."
+
+[config.opt]
+url = "URL of the server."
+auth = "Authentication: oidc, basic, token, breakglass, none."
+issuer = "OIDC issuer (identifier served by /v1/auth/native-clients)."
+account = "Service account (basic auth); its secret goes to the keyring."
+ca_bundle = "Bundle of trusted authorities (PEM), the only one trusted."
+lang = "Language of the messages."
+timezone = "Time zone of bare dates and of displays (Europe/Paris)."
+output = "Default output format."
+default = "Choose this profile by default."
+
+[keyring]
+unavailable = "No usable keyring: nothing is stored. Give KARTENN_TOKEN, or an explicit file with --token-file."
+
+[input]
+required = "This needs {what}, impossible off a terminal or with --no-input."
+
+[output]
+invalid = "Unknown output format: {given} (table, json, ndjson, yaml, csv)."
+
+[discovery]
+cached = "Discovering the server… {version}, modules: {modules} (catalog cached)."
+updated = "Discovering the server… {version}{previous}, modules: {modules} (catalog updated)."
+before = " (was {version})"
+failed = "Catalog unavailable ({error}): only the local commands are listed."
+login = "Log in to discover the server: kartenn login (or KARTENN_TOKEN)."
+
+[error]
+word = "error"
+warning = "warning"
+request = "request {id}"
+changeset = "changeset {id}"
+import = "import {id}"
+
+[error.violations]
+one = "{count} violation"
+other = "{count} violations"
+
+[hint]
+precondition-failed = "Current version {current}. Read the object again, or use “edit” to merge."
+unauthenticated = "Log in again: kartenn login"
+"client.login-required" = "Log in: kartenn login (or KARTENN_TOKEN)."
+"client.no-configuration" = "Create a profile: kartenn config add-profile NAME --url URL."
+
+[render]
+masked = "‹masked›"
+
+[write]
+document = "{path} is not a document (a JSON or YAML object)."
+assignment = "--set takes path=value: {given}"
+no_operation = "“{resource} {verb}” has no known changeset operation: --dry-run and --into-changeset do not apply (kartenn changeset add with the explicit operation)."
+applied = "Changeset {id} applied."
+location = "Created: {location}"
+pending = "Write held ({kind}): changeset {id}."
+follow = "  Follow: kartenn changeset show {id}"
+motive_required = "This write needs --motive (the server would answer motive-required)."
+motive = "Motive?"
+
+[simulation]
+head = "Simulation — nothing is written"
+motive = "simulation"
+from = " (valid from {date})"
+counts = "Operations  {operations}   Violations  {violations}   Warnings  {warnings}"
+diff = "Differential"
+nothing = "no change"
+
+[simulation.objects]
+one = "{count} object"
+other = "{count} objects"
+
+[simulation.rows]
+one = "{count} row"
+other = "{count} rows"
+
+[simulation.cascaded]
+one = "{count} closure by cascade"
+other = "{count} closures by cascade"
+
+[changeset]
+help = "Compose, simulate, apply, review changesets."
+none = "No local changeset ({path}): kartenn changeset new --motive …"
+invalid = "{path} is not a local changeset."
+no_op = "An operation is an object with its discriminant “op”."
+added = "Added (operation {index}): {op} {summary}"
+exists = "A local changeset exists already ({path}): apply it, or --force."
+created = "Local changeset: {path} (0 operations)"
+state = "Changeset {id} — {state} ({kind})"
+motive = "Motive"
+final = "Changeset {id}: {state}."
+
+[changeset.new]
+help = "Start a local changeset."
+
+[changeset.add]
+help = "Add an operation to the local changeset."
+
+[changeset.simulate]
+help = "Simulate the local changeset: nothing is written."
+
+[changeset.apply]
+help = "Submit the local changeset."
+
+[changeset.show]
+help = "Read a changeset of the server."
+
+[changeset.diff]
+help = "Differential of a changeset, sections of modules included."
+
+[changeset.approve]
+help = "Approve a pending changeset."
+
+[changeset.reject]
+help = "Reject a pending changeset (motive required)."
+
+[changeset.withdraw]
+help = "Withdraw a changeset one authored."
+
+[changeset.undo]
+help = "Undo an applied changeset (--dry-run: simulate)."
+
+[changeset.opt]
+force = "Replace the existing local changeset."
+section = "Section of a module (policy.combinations)."
+property = "Property key."
+follow = "Follow a pending changeset until its decision."
+
+[edit]
+help = "Change the object in $VISUAL or $EDITOR, then send the difference (Merge Patch, If-Match).\n{path}  ({operation})"
+short = "Change in the editor (YAML)."
+editor = "an editor"
+fixed = "Not changeable:"
+yours = "Your changes, on the previous version:"
+nothing = "No change."
+changes = "Changes: {changes}"
+stale = "The object changed since it was read (412)."
+reopen = "Open the editor again on the current version?"
+invalid = "The document is not a YAML object: {error}"
+
+[import]
+help = "Import a file by chunks, with resumption."
+no_create = "“{resource}” has no creation: nothing to import."
+sending = "Sending"
+chunks = "Sending: {chunks} chunks, {elements} elements"
+resource_required = "{file} is not an NDJSON of ImportElement: name its resource (--resource)."
+other = "The resumption is the one of import {found}, not {given}."
+uploaded = "import {id} uploaded"
+sorting = "import {id} sorting"
+back = "The import is back to “uploading”: fix it, then “kartenn import --resume {id} {file}”."
+final = "Import {id}: {state}, {elements} elements, in {elapsed} s."
+file_required = "A file to import, or --list, --status ID, --cancel ID, --resume ID (a paused import)."
+
+[import.opt]
+resource = "Resource of the objects of a CSV or a JSON (prefixes, addresses…)."
+id_column = "Column of the identifier in the source (external_id)."
+source = "Name of the source (the name of the file by default)."
+resume = "Resume the import ID: only the chunks not confirmed are sent."
+chunk = "Elements per chunk (at most the limit of the server)."
+follow = "Follow the import to its final state (by default)."
+cancel = "Cancel the import ID."
+status = "State of the import ID."
+list = "List the imports."
+
+[named]
+endpoint = "Endpoint “{given}”: KIND:REF (machine:bastion-1, prefix:interne/198.51.100.0/24) or a JSON object."
+
+[check]
+help = "Verdict of a communication source → destination for a service."
+verdict = "Verdict"
+allowed = "allowed"
+allowed_pending = "allowed pending"
+partial = "partial"
+denied = "denied"
+outcome = "outcome {outcome}"
+evaluations = "Evaluations"
+counts = "{allowed} allowed, {denied} denied"
+rule = "Rule       "
+conditions = "Conditions "
+service = "Service    "
+all_met = "all met"
+reduced = "Reduced explanation: your rights do not show everything."
+hidden = "{count} address(es) not shown (rights)."
+
+[check.opt]
+service = "Service (completed from the server)."
+transport = "Transport (tcp, udp…)."
+port = "Port."
+flow_type = "Flow type."
+entity = "Entity (the application)."
+exit_status = "Exit 9 when the verdict is “denied”."
+
+[matrix]
+help = "Matrix of environments × flow types."
+title = "Flow type {flow_type} (rows: source; columns: destination)"
+outside = "{count} rule(s) outside the view."
+
+[matrix.show]
+help = "Show the matrix of a flow type."
+
+[matrix.set]
+help = "Set a cell: SOURCE TYPE DESTINATION VALUE (under the If-Match of the matrix)."
+
+[report]
+help = "Compliance audit report (background task)."
+asked = "Report {id} asked for."
+state = "Report {id}: {state}"
+
+[report.opt]
+wait = "Wait for the end of the report."
+rubric = "Rows of a rubric."
+id = "Read an existing report."
+
+[request]
+help = "Request a flow: registered, or to review."
+
+[request.opt]
+source = "Source: KIND:REF (machine:app-recette-2)."
+destination = "Destination: KIND:REF (prefix:interne/203.0.113.0/28)."
+service = "Service."
+entity = "Entity (the application)."
+ref = "External reference SYSTEM:ID (repeatable)."
+justification = "Justification."
+end = "End of the flow."
+
+[review]
+help = "Review the request of a flow: --approve or --reject."
+decision = "Choose --approve or --reject."
+none = "The flow {flow} has no pending changeset."
+
+[review.opt]
+approve = "Approve, or reject (motive required)."
+
+[api]
+help = "Call any operation of the API (QUERY included); “kartenn api spec”: the contract."
+pair = "“{given}” takes the form key{sep}value."
+method = "Unknown method: {given} ({methods})."
+path = "The path starts with /: “{given}”."
+
+[api.opt]
+field = "Query parameter key=value (repeatable)."
+data = "Body: JSON, @file or - (standard input)."
+header = "Header “Name: value” (repeatable)."
+paginate = "Every page, one element per line."
+
+[tools]
+capabilities = "Capabilities of the server: version, modules, limits."
+health = "Health probes of the server (live, ready)."
+healthy = "{probe}: {status}"
+stubs = "Type stubs of the server for the checkers (pyright, mypy)."
+stubs_generate = "Write <out>/kartenn_server/__init__.pyi."
+stubs_out = "Output directory (typings by default)."
+
+[login]
+help = "Log in: browser (OIDC), --device, secret of a service account, --breakglass."
+device_warning = "You are authorising a DEVICE to act in your name on kartenn. Type this code only if you started this command yourself."
+open = "Open"
+code = "Code"
+waiting = "Waiting for approval… (expires in {minutes} min)"
+prompts = "the name, passphrase and code of the break-glass account"
+name = "Break-glass account"
+passphrase = "Passphrase"
+totp = "TOTP code"
+secret_prompt = "the secret of the service account"
+secret = "Secret of the account {account}"
+session_kept = "A break-glass session is kept: kartenn logout first."
+browser = "a browser (or --device)"
+opening = "Opening the browser to log in at “{issuer}”…"
+fallback = "  If nothing opens: {url}"
+nothing = "Nothing to do for the authentication “{auth}” (KARTENN_TOKEN or none)."
+done = "Logged in: {who}."
+
+[login.opt]
+device = "Device flow (host without a browser)."
+breakglass = "Break-glass account (a session of one hour at most)."
+name = "Name of the break-glass account."
+keep = "Keep the break-glass session in $XDG_RUNTIME_DIR (0600)."
+
+[logout]
+help = "Log out: forget the tokens, or close the break-glass session."
+done = "Logged out of the profile {profile}."
+session = "Break-glass session closed."
+
+[me]
+help = "Who am I: identity, groups, roles."
+identity = "Identity"
+groups = "Groups"
+roles = "Roles"
+
+[watch]
+help = "Follow the events of the server (changes, changesets)."
+absent = "This server serves no event stream (capabilities.events = null)."
+open = "Event stream open (profile {profile}) — Ctrl-C to stop."
+closed = "Stream closed; resume: {resume}"
+ready = "ready"
+reset = "buffer overflow: read again what you follow"
+wide = "wide invalidation: {what}"
+
+[watch.opt]
+types = "Types of objects (core.prefix,vlan.vlan)."
+domains = "Domains."
+objects = "Objects (UUID)."
+kinds = "Kinds of events (changes, changeset, reset)."
+since = "Resume after this cursor."
+
+[completion]
+help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
+
+[filter]
+unknown = "Unknown filter: {option}. Filters: {filters}, --prop KEY[:OP]=VALUE."
+
+[ref]
+no_key = "“{resource}” declares no natural key (x-kartenn): name the object by its UUID, not “{ref}”."
+shape = "“{ref}” does not have the shape of the key of “{resource}”: {key}."
+not_found = "No object “{ref}” in “{resource}” (at the dates of the read)."
+ambiguous = "“{ref}” names several objects of “{resource}”: give the UUID."
+
+[list]
+valid_as_of = "valid at {valid}, as asserted on {as_of}"
+valid = "valid at {valid}"
+as_of = "state at {as_of}"
+next = "next: --all or --cursor {cursor}"
+frozen = "frozen: export KARTENN_AS_OF={as_of}"
+
+[list.count]
+one = "{count} item"
+other = "{count} items"
+
+[module]
+unavailable = "The module “{module}” is not served by this server."
+unavailable_sub = "“{what}” is served by the module “{module}”, absent from this server."
+profile = "Profile {profile} — {url}, version {version}"
+served = "Modules served: {modules}"
+no_update = "The command exists once the server serves the module; no update of the client is needed."
+about_generic = "Module {name}."
+
+[module.about]
+policy = "Flow policy: rules, matrix, catalog, checks."
+flow = "Flow register: requests, review, waivers."
+vlan = "VLANs and groups of VLANs."
+machines = "Machines, interfaces, clusters."

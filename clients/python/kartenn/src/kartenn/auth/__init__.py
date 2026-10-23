@@ -48,7 +48,8 @@ class Auth(Protocol):
 
 
 class Anonymous:
-    """No authentication: the public routes (`capabilities`, `openapi.json`)."""
+    """No authentication: the public routes only (`/v1/auth/native-clients`, the login
+    routes). `capabilities` and `openapi.json` require an authenticated caller."""
 
     def authorize(self, request: Request) -> Plan[Request]:
         return request

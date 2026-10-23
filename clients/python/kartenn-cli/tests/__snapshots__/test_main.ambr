@@ -1,13 +1,52 @@
 # serializer version: 1
-# name: test_help
+# name: test_help_in_english
   '''
-  Usage: kartenn [OPTIONS] COMMAND [ARGS]...
+  Usage: kartenn config [OPTIONS] COMMAND [ARGS]...
   
-    Command line of kartenn.
+    Profiles of the configuration (never a secret).
   
   Options:
-    --version   Show the version and exit.
-    -h, --help  Show this message and exit.
+    -h, --help  This help.
+  
+  Commands:
+    add-profile  Create or change a profile.
+    list         List the profiles (*: the default).
+    remove       Remove a profile and its secret.
+    show         Show a profile.
+    use          Choose the default profile.
+  
+  '''
+# ---
+# name: test_help_without_profile
+  '''
+  Usage: kartenn [OPTIONS] COMMANDE [ARGS]...
+  
+    Client de kartenn — aucun profil : « kartenn config add-profile NOM --url URL ».
+  
+  Options:
+    -p, --profile NOM     Profil de configuration.
+    -o, --output FORMAT   table | json | ndjson | yaml | csv  [défaut : table sur un terminal]
+    --at DATE             Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339.
+    --as-of DATE          Temps système : ce que kartenn affirmait alors.
+    --keys / --labels     Clés internes ou libellés.
+    --lang [fr|en]        Langue des messages.
+    --no-input            Jamais de question, de navigateur ni d'éditeur.
+    --token-file FICHIER  Fichier de jetons explicite (0600), sans trousseau.
+    -v, --verbose         Requêtes, durées, identifiants de requête.
+    --version             Version du client.
+    -h, --help            Cette aide.
+  
+  Écritures:
+    changeset  Composer, simuler, appliquer, instruire des changesets.
+    import     Importer un fichier par morceaux, avec reprise.
+  
+  Droits et audit:
+    me
+  
+  Outils:
+    api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
+         contrat.
+    capabilities, completion, config, health, login, logout, stubs, watch
   
   '''
 # ---

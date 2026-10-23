@@ -673,6 +673,7 @@ dev = [
     { name = "anyio" },
     { name = "coverage" },
     { name = "hypothesis" },
+    { name = "pexpect" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-randomly" },
@@ -681,6 +682,7 @@ dev = [
     { name = "syrupy" },
     { name = "trio" },
     { name = "types-jmespath" },
+    { name = "types-pexpect" },
     { name = "types-pyyaml" },
 ]
 
@@ -704,6 +706,7 @@ dev = [
     { name = "anyio", specifier = ">=4.12" },
     { name = "coverage", specifier = ">=7.17" },
     { name = "hypothesis", specifier = ">=6.150" },
+    { name = "pexpect", specifier = ">=4.9" },
     { name = "pytest", specifier = ">=9.1" },
     { name = "pytest-cov", specifier = ">=7" },
     { name = "pytest-randomly", specifier = ">=4" },
@@ -712,6 +715,7 @@ dev = [
     { name = "syrupy", specifier = ">=5" },
     { name = "trio", specifier = ">=0.32" },
     { name = "types-jmespath" },
+    { name = "types-pexpect", specifier = ">=4.9.0.20260518" },
     { name = "types-pyyaml" },
 ]
 
@@ -785,6 +789,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pexpect"
+version = "4.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ptyprocess" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.13.5"
 source = { registry = "https://pypi.org/simple" }
@@ -809,6 +825,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/06/1a/7737e7a0774da3c3824d654993cf57adc915cb04660212f03406334d8c0b/pprintpp-0.4.0.tar.gz", hash = "sha256:ea826108e2c7f49dc6d66c752973c3fc9749142a798d6b254e1e301cfdbc6403", size = 17995, upload-time = "2018-07-01T01:42:34.87Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/d1/e4ed95fdd3ef13b78630280d9e9e240aeb65cc7c544ec57106149c3942fb/pprintpp-0.4.0-py2.py3-none-any.whl", hash = "sha256:b6b4dcdd0c0c0d75e4d7b2f21a9e933e5b2ce62b26e1a54537f9651ae5a5c01d", size = 16952, upload-time = "2018-07-01T01:42:36.496Z" },
+]
+
+[[package]]
+name = "ptyprocess"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/e5/16ff212c1e452235a90aeb09066144d0c5a6a8c0834397e03f5224495c4e/ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220", size = 70762, upload-time = "2020-12-28T15:15:30.155Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/22/a6/858897256d0deac81a172289110f31629fc4cee19b6f01283303e18c8db3/ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35", size = 13993, upload-time = "2020-12-28T15:15:28.35Z" },
 ]
 
 [[package]]
@@ -1099,6 +1124,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/99/e5/1645e22a7aeddc20673cd7899e91a8131fd98e5f4eaaeb96fa666af05efc/types_jmespath-1.1.0.20260724.tar.gz", hash = "sha256:cd429dab3bb2f339a5a546f444f2f96c30cb1f31395590fb1d609ed13624d919", size = 10822, upload-time = "2026-07-24T04:58:24.694Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/e4/ed44f19a906c8f249653e1f1befb5f1cc87a7826629375ae7ceb62fcd0cc/types_jmespath-1.1.0.20260724-py3-none-any.whl", hash = "sha256:ad965080d2ef25f4dc95da30819be559597c4301efc0311a9571b2ce8fc62c32", size = 11524, upload-time = "2026-07-24T04:58:23.763Z" },
+]
+
+[[package]]
+name = "types-pexpect"
+version = "4.9.0.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/84/c52c4841aeaf1d56551f14335ca99a40e7e04b4f8358b402115910828e8e/types_pexpect-4.9.0.20260518.tar.gz", hash = "sha256:38c373798209428dd90988b6fd4b8839c68c7e3ed79215f1ab11fa42d7ff9427", size = 13568, upload-time = "2026-05-18T06:03:35.378Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/11/17b1da645d5f2a12e4db83ae38dbb732fbac96fb3bd7416635c844f7d24e/types_pexpect-4.9.0.20260518-py3-none-any.whl", hash = "sha256:bf2422e825e4efe29cc4a1b7bdc3c375ae97d9c3046ce6b2018c100fb049c262", size = 17087, upload-time = "2026-05-18T06:03:34.14Z" },
 ]
 
 [[package]]

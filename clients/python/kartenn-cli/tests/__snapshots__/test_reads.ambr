@@ -1,0 +1,23 @@
+# serializer version: 1
+# name: test_get_by_natural_key
+  '''
+  domain          interne
+  value           198.51.100.0/24
+  nature          container
+  point_to_point  false
+  anycast         false
+  public          false
+  
+  '''
+# ---
+# name: test_list_in_a_table_as_the_maquette
+  '''
+  DOMAIN   VALUE              NATURE
+  interne  198.51.100.0/24    container
+  interne  198.51.100.0/26    network
+  interne  198.51.100.64/26   network
+  interne  198.51.100.128/25  network
+  4 éléments — état au 2026-10-23 10:14:03+02:00
+  
+  '''
+# ---

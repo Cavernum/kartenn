@@ -429,7 +429,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux C — CLI `kartenn-cli`
 
-- [ ] 16. Racine paresseuse :
+- [x] 16. Racine paresseuse :
   - `click.Group` dont `list_commands` lit le catalogue en cache sans réseau ;
   - rich-click importé seulement pour `--help` ;
   - profils et précédence ; `config` ; i18n `fr.toml` et `en.toml` ;
@@ -444,7 +444,34 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `i18n/` ; design § Sorties, § Codes de sortie, § Rendu d'un problème ;
     `web/sdk/src/i18n.ts` (résolution de langue)
   - dépend de : 1, 2, 8 (exceptions)
-- [ ] 17. Arbre dérivé :
+  - choix : `--help` en texte par click (sections d'options et de commandes, traduites
+    à l'affichage : une aide ou une option porte une clé de catalogue), rendu par
+    rich-click seulement sur un terminal en couleurs, sur un miroir de la commande
+    (`base.py`) ; les instantanés et la maquette sont donc le rendu texte. Langue :
+    `--lang`, puis `KARTENN_LANG`, puis la langue du profil, puis la première variable
+    de locale posée (`LC_ALL`, `LC_MESSAGES`, `LANG`, comme POSIX), repli en anglais ;
+    lue avant l'analyse des options (la ligne d'usage s'écrit d'abord). Les options de
+    la racine s'appliquent dès leur analyse (`-p` et `--lang` en premier) ; celles
+    écrites après `--help` sont ignorées. `--version` lit `kartenn_cli.__version__`
+    (un test le garde égal à la métadonnée) : 53 ms en médiane, 61 ms au p95 sur la
+    machine partagée, au lieu de 67/96 ms avec `importlib.metadata`. `config` :
+    `add-profile` (le premier profil devient le défaut), `list`, `show`, `use`,
+    `remove` (efface aussi le secret du trousseau) ; écriture du TOML à la main (aucune
+    dépendance), commentaires non gardés, 0600. `KARTENN_URL` remplace l'URL du profil
+    ou tient lieu de profil (`auth = token` si `KARTENN_TOKEN`). Trousseau : `keyring`
+    importé au premier secret ; un dorsal de priorité nulle (`fail`, `null`) ou en
+    erreur vaut absence (`client.keyring-unavailable`, code 4, qui propose
+    `KARTENN_TOKEN` et `--token-file`). Rendus : un JSON de liste est un tableau d'un
+    élément par ligne (maquette § 4) et non la page entière ; table et CSV prennent les
+    colonnes de la table ; en-têtes de table = noms des membres en capitales (non
+    traduits : clés) ; pied de table sur la sortie standard ; valeur masquée
+    `‹masquée›` en table, vide en CSV. Codes de sortie : 400, 413, 415 → 2 ; erreurs
+    `client.*` → 2 sauf connexion (4), `reference-not-found` (3), réseau (7),
+    `unexpected-answer` (1). Problème en `-o json` : RFC 9457 tel quel ; erreur du
+    client : `{"code", "detail"}`. Messages de la bibliothèque laissés en anglais ;
+    messages propres à la CLI traduits. `--verbose` : méthode, chemin, statut, durée,
+    `Request-Id` (006) sur la sortie d'erreur.
+- [x] 17. Arbre dérivé :
   - groupes de modules, préfixe retiré, verbes, sous-ressources ;
   - aide tirée du contrat (module, opération HTTP) ;
   - module absent → code 2 et message de la maquette § 12.
@@ -453,7 +480,27 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn-cli/src/kartenn_cli/tree.py` ; design § Nommage ;
     maquette § 2, 3, 12
   - dépend de : 10, 16
-- [ ] 18. Lectures :
+  - choix : `changesets`, `imports`, `proposals` ne sont pas dérivés (commandes
+    nommées `changeset` et `import`) ; `audit-events` devient `audit` (seul alias du
+    premier niveau). Verbes : noms d'action du contrat mis au verbe
+    (`acknowledgement` → `acknowledge`, `validation` → `approve`, `waiver` → `waive`,
+    `attachments` → `attach`/`detach`, `secrets` → `secrets add|revoke`…) ; `query`
+    caché (`list` bascule seul) ; noms pointés en sous-groupes, `properties REF` vaut
+    `properties show REF`. Sections de l'aide de la racine par tag (`core`,
+    `properties`, `graph` → noyau ; `rights`, `audit` → droits ; `operations` →
+    outils) ; description d'un module dans les catalogues de messages
+    (`module.about.<nom>`, le contrat ne décrit pas ses tags), sinon « Module <nom> ».
+    Un nom inconnu relit les capacités (au plus une fois par minute) avant de répondre ;
+    `client.module-unavailable` pour les modules connus (`policy`, `flow`, `vlan`,
+    `machines`) et pour une sous-ressource servie par un module absent (`flows`,
+    `evaluations` → `flow`), sinon « no such command » de click (code 2). La découverte
+    est anonyme (routes publiques), par un client sans authentification, et dit sa ligne
+    sur la sortie d'erreur (« Découverte du serveur… »), aussi pendant `--help`. Sans
+    serveur ni cache, `--help` liste les commandes locales et le dit en une ligne.
+    Budgets mesurés à cache chaud (contrat de référence, machine partagée, 20 à 40
+    tirages) : `--help` 100 ms en médiane, 119 ms au p95 ; `policy --help` 90/106 ms ;
+    `policy rules list --help` 93/113 ms.
+- [x] 18. Lectures :
   - `--at`, `--as-of`, `--freeze` ;
   - filtres typés et `--prop` ;
   - `--fields`, `--query` (JMESPath), `--keys`, `--ids`, `--all`, `ndjson` en flux ;
@@ -462,13 +509,47 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   refusé sans requête ; `ndjson --all` en mémoire constante
   - où : `clients/python/kartenn-cli/src/kartenn_cli/tree.py`, `render/` ; maquette § 4
   - dépend de : 11, 17
-- [ ] 19. Complétion bash, zsh et fish (`shell_complete`) : catalogue, énumérations, clés
+  - choix : lectures dans `reads.py` (`list`, `get`, autres lectures d'objet et de
+    sous-ressource) ; dates résolues par le cœur de la bibliothèque
+    (`kartenn._core.dates`), dans le fuseau du profil, sinon le fuseau local ; les dates
+    de la commande priment sur celles de la racine (`KARTENN_AS_OF` compris).
+    `--freeze` envoie `as_of` = maintenant (UTC, à la seconde) et l'écrit sous la table
+    (`export KARTENN_AS_OF=…`). Pied de table : nombre d'éléments, dates (l'`as_of` du
+    corps s'il est rendu, sinon celui demandé ; rien sinon), puis « suite : --all ou
+    --cursor <curseur> » ; hors table, cette suite va sur la sortie d'erreur. Options de
+    filtre toutes répétables (« un parmi ») ; une option inconnue de `list` est
+    `client.unknown-filter` avec la liste des filtres, avant toute requête. Une
+    sous-ressource paginée (`history`, `children`…) prend `--all`. Références : UUID,
+    sinon clé naturelle de `x-kartenn.key` découpée par `/` (la dernière partie garde ses
+    `/`) et cherchée par les filtres de `list` (`page_size=2`) : aucune → code 3,
+    plusieurs → code 2 ; sans clé déclarée, l'UUID est exigé (`client.key-unknown`),
+    conformément à Q-023-9. Le flux S (`x-kartenn`) n'est pas encore sur main : tests sur
+    un contrat simulé qui le porte. Une sortie `ndjson --all` écrit la page 1 avant de
+    demander la page 2 (testé).
+- [x] 19. Complétion bash, zsh et fish (`shell_complete`) : catalogue, énumérations, clés
   et valeurs de propriétés, slugs ; cache de 5 min sans valeur masquée ; délai d'une
   seconde au plus — REQ-023-24 — verify : scripts générés ; complétions testées dans les
   trois shells (pexpect) ; serveur muet → propositions locales en moins d'une seconde
   - où : `clients/python/kartenn-cli/src/kartenn_cli/complete.py` ; maquette § 5
   - dépend de : 18
-- [ ] 20. Écritures :
+  - choix : `kartenn completion bash|zsh|fish` écrit le script de click
+    (`_KARTENN_COMPLETE`). Commandes, options et énumérations : catalogue en cache
+    seulement (jamais de découverte pendant une complétion) ; clés de propriétés :
+    `capabilities.properties` en cache ; valeurs d'une liste fermée :
+    `GET /v1/property-declarations/{clé}/values`, proposées `clé=valeur` avec le
+    libellé en aide ; slugs : un filtre `x` nomme la collection `xs`, `xes` ou `xies`
+    si elle existe (`domain`, `entity`, `flow_type`…), valeurs `slug` ou `key` de sa
+    première page de 200. Lecture au serveur dans un fil démon attendu 0,8 s ; tout
+    échec ou retard ne propose rien et n'écrit rien. Cache des valeurs : un fichier
+    0600 par serveur sous `$XDG_CACHE_HOME/kartenn/complete/`, 5 min, sans élément
+    `masked`. Tests : protocole de click pour les trois shells ; bash et zsh réels sous
+    pexpect (nouvelle dépendance de développement, avec `types-pexpect`) ; fish absent
+    de la machine, son test réel est sauté (protocole testé). Budget : l'import de la
+    bibliothèque coûtait l'essentiel (180 ms en médiane pour `kartenn vlan <TAB>`) ;
+    `kartenn/__init__.py` charge désormais ses noms au premier usage (commit à part) :
+    complétion locale 78 à 83 ms en médiane, 110 à 124 ms au p95 sur la machine
+    partagée chargée (budget 100 ms au p95, à confirmer par le banc de la tâche 27).
+- [x] 20. Écritures :
   - `create`, `update`, `close`, `edit` (fichier 0600, 412 → réouverture) ;
   - `--dry-run`, `--into-changeset`, `--require-applied` ;
   - `changeset new|add|simulate|apply|show|diff|list|approve|reject|withdraw|undo|proposals`
@@ -478,35 +559,126 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn-cli/src/kartenn_cli/edit.py`, `tree.py` ; design
     § Codes de sortie
   - dépend de : 12, 18
-- [ ] 21. `import` : NDJSON, CSV et JSON par ressource (`--resource`, `--id-column`),
+  - choix : écritures dans `writes.py`, `edit.py`, `changeset.py`. Membres en options
+    typées tirées du schéma du corps (scalaires, énumérations, références `{id}` résolues
+    par clé naturelle), puis `--set chemin=valeur` (JSON si lisible), sur un document
+    `--from-file` (YAML ou JSON, `-` : entrée standard) ; envoi par `client.call`
+    (`Idempotency-Key`, `If-Match` d'une lecture préalable, `Kartenn-On-Behalf-Of`).
+    Motif exigé quand le schéma l'exige (`client.motive-required`, code 2, demandé sur
+    un terminal) ; sans motif, `--dry-run` simule sous le motif « simulation ». Hors
+    `-o` demandé (option, environnement, profil), une écriture répond par une phrase et
+    non en JSON. **Point ouvert** : le contrat ne dit pas quelle opération de changeset
+    correspond à une écriture REST. `--dry-run` et `--into-changeset` traduisent donc
+    `create_<x>` (membres tels quels), `update_<x>` si le schéma `Operation` le connaît,
+    `close` d'un `kind` de `TargetKind`, et `<module>.<operationId>` pour un module ;
+    sinon `client.dry-run-unavailable`. Les membres REST et ceux des opérations
+    diffèrent parfois (`value` d'un préfixe contre `prefix` de `create_prefix`) : à
+    trancher côté serveur (accepter `?simulate=true` sur toute écriture, ou décrire
+    l'opération dans `x-kartenn`). Bibliothèque corrigée à part : une opération
+    `<module>.<op>` d'un module servi n'est plus refusée localement. Changeset local
+    `./.kartenn-changeset.yaml` (ou `KARTENN_CHANGESET`), 0600, avec sa clé
+    d'idempotence, supprimé après soumission ; `changeset list` et `proposals`
+    reprennent `list` du catalogue. Simulation : comptes, violations, différentiel
+    compté par propriété, sections de module en table générique. `edit` : YAML des
+    membres modifiables (corps de `update`), le reste en commentaire ; fichier 0600 dans
+    un répertoire privé supprimé dans tous les cas ; 412 → proposition de rouvrir sur la
+    version courante, modifications de l'utilisateur en commentaire. Découverte du
+    catalogue désormais authentifiée (flux S : `capabilities` et `openapi.json` ne sont
+    pas publics) ; sans connexion, `--help` dit « kartenn login ».
+- [x] 21. `import` : NDJSON, CSV et JSON par ressource (`--resource`, `--id-column`),
   avancement (rich sur terminal, lignes sinon), `--resume`, `--follow`, violations à la
   ligne source — REQ-023-32 — verify : maquette § 10 sur transport simulé ;
   `import.unknown-reference` avec `fichier:ligne`
   - où : `clients/python/kartenn-cli/src/kartenn_cli/importing.py` ; schéma
     `ImportElement` du contrat
   - dépend de : 20
-- [ ] 22. Commandes nommées : `policy check` (`--exit-status`), `policy matrix show|set`,
+  - choix : `importing.py`. NDJSON (`.ndjson`) tel quel ; sinon CSV (ligne = ligne du
+    fichier, en-tête en 1) ou JSON (tableau, rang à partir de 1) avec `--resource`
+    exigé (`client.resource-required`). Une ligne devient l'opération de création de la
+    tâche 20 (même point ouvert sur la correspondance REST → changeset) : colonnes
+    typées par le schéma, références résolues par clé naturelle une seule fois par
+    valeur, `prop.<clé>` dans `properties`, cellules vides omises, `--id-column` en
+    `external_id`. Source par défaut : le nom du fichier. Suivi jusqu'à l'état final par
+    défaut (`--no-follow` pour rendre la main après le démarrage), par la
+    bibliothèque (`wait`) ; avancement rich sur la sortie d'erreur d'un terminal (morceaux
+    et éléments ; le total n'est pas connu en flux), une ligne par étape sinon. Refus du
+    tri : problème de l'import, violation à `fichier:ligne`, consigne de reprise, code 6.
+    `--resume ID` reprend l'import local de la source (empreinte vérifiée), et dit si
+    l'identifiant diffère.
+- [x] 22. Commandes nommées : `policy check` (`--exit-status`), `policy matrix show|set`,
   `policy report`, `flow request|review|waive`. Table `named.py` liée aux `operationId`,
   masquée si une opération manque. — REQ-023-20 — verify : maquette § 6 et 7 ; contrat
   sans `flow` → commandes absentes
   - où : `clients/python/kartenn-cli/src/kartenn_cli/named.py` ; design § Commandes
     nommées ; 017/design § Requête de conformité
   - dépend de : 20
-- [ ] 23. `kartenn api` : méthodes dont `QUERY`, `-f`, `--data @fichier|-`, `-H`,
+  - choix : table `NAMED` de `named.py` (module, nom, `operationId` requis, fabrique,
+    commandes dérivées remplacées) : `policy check` remplace `verdicts`, `policy matrix`
+    la ressource `matrix`, `policy report` `reports`, `flow request` le verbe `create` de
+    `flows` ; `flow waive` reste le verbe dérivé (action `waiver`). Une entrée dont une
+    opération manque n'est pas offerte et ne remplace rien. `check` : SOURCE et
+    DESTINATION passées telles quelles (`machine:bastion-1`), rendu par la synthèse
+    (verdict, issue, comptes), la règle décisive, les conditions non remplies, la
+    réduction et les adresses cachées ; `--exit-status` → 9 si `denied`. `matrix show` :
+    grille ✓ ✗ ◐ source × destination ; `matrix set` : `If-Match` de la matrice lue, corps
+    `{state, motive}` (forme du corps de `PolicyObject` non précisée par le contrat : à
+    confirmer au bout en bout). `report` : demande, `--wait` (relecture toutes les 2 s),
+    comptes par rubrique, `--rubric` pour ses lignes, `--id` pour un rapport existant.
+    `flow request` : extrémités `TYPE:RÉF` (référence résolue par la collection du type)
+    ou JSON, service et entité par clé, `--ref SYSTÈME:ID`. `flow review` :
+    approbation ou rejet du changeset en attente du flux (lu par `show_flow`).
+- [x] 23. `kartenn api` : méthodes dont `QUERY`, `-f`, `--data @fichier|-`, `-H`,
   `--paginate` — REQ-023-19 — verify : maquette § 11
   - où : `clients/python/kartenn-cli/src/kartenn_cli/main.py`
   - dépend de : 18
-- [ ] 24. `login` (bouclage, `--device`, `--breakglass`), `logout`, `me`, et `watch`
+  - choix : dans `api.py` (et non `main.py`, gardé léger). Méthode insensible à la
+    casse ; chemin absolu (`/…`) ; `-f` en paramètres de requête même pour `QUERY` ;
+    `--at`/`--as-of` ajoutent `valid_at`/`as_of` ; `--data` pose `Content-Type:
+    application/json` sauf `-H` contraire ; un `POST` reçoit une `Idempotency-Key`
+    si `-H` n'en donne pas. Réponse JSON rendue (JSON d'une ligne par défaut), texte
+    tel quel, rien sans corps ; erreur rendue comme un problème avec son code de
+    sortie. `--paginate` sur une page `{items}` suit `links.next` et écrit un élément
+    par ligne (`ndjson` par défaut), une réponse non paginée est rendue telle quelle.
+    Outils de la racine ajoutés ici : `api spec` (le contrat), `capabilities`,
+    `health [live|ready]`, `stubs generate --out` (même génération que
+    `python -m kartenn`).
+- [x] 24. `login` (bouclage, `--device`, `--breakglass`), `logout`, `me`, et `watch`
   (filtres, `--since`, `ndjson`). `--follow` d'un import ou d'un changeset sur le flux
   d'événements quand il existe. — REQ-023-7, 8, 38 — verify : maquette § 1 et 15 sur
   transport simulé ; `watch` absent si `events` vaut `null`
   - où : `clients/python/kartenn-cli/src/kartenn_cli/main.py`, `render/` ; design § Suivi
   - dépend de : 13, 14, 16
-- [ ] 25. Couverture : `coverage.py` (exclusions motivées) et test qui classe chaque
+  - choix : `session.py` et `watch.py`. `login` selon le profil : `oidc` par le
+    navigateur (URL écrite sur la sortie d'erreur en cas d'échec d'ouverture) ou
+    `--device` (avertissement de RFC 8628 §5.4, URI et code) ; `basic` demande le
+    secret sans écho et le range au trousseau ; `token`/`none` : rien à faire.
+    `--breakglass` : nom, phrase de passe et TOTP saisis sans écho, session en mémoire ;
+    `--keep` la garde (nom et cookie, jamais la phrase) dans
+    `$XDG_RUNTIME_DIR/kartenn/<profil>.session` en 0600, que les commandes suivantes
+    reprennent et que `logout` ferme (`POST /v1/auth/logout`). Après connexion :
+    `GET /v1/me` puis découverte du catalogue. `me` : identité, groupes, rôles (aucun
+    nom de permission codé). `watch` : `--types`, `--domains`, `--objects`, `--kinds`
+    (listes séparées par des virgules), `--since` ; ligne horodatée à la réception dans
+    le fuseau du profil ; Ctrl-C écrit la commande de reprise avec le dernier curseur.
+    `changeset show --follow` suit le changeset sur le flux (événement `changeset` à
+    état final) ou relit toutes les 2 s ; `import` suit par relecture (la bibliothèque
+    attend au rythme de `Retry-After`), non par le flux.
+- [x] 25. Couverture : `coverage.py` (exclusions motivées) et test qui classe chaque
   opération du contrat de référence — REQ-023-43 — verify : une opération ajoutée à un
   contrat de test et non classée fait échouer le test
   - où : design § Couverture de l'API
   - dépend de : 22, 23, 24
+  - choix : `coverage.py` : `EXCLUDED` (raison par opération) et `BASE` (commandes
+    écrites à la main et leurs opérations) ; `reached(catalogue)` dérive l'arbre
+    (verbes, sous-groupes, `query` compté pour `list`) et ajoute la table `NAMED` et
+    `BASE` ; `unclassified` nomme le reste. Contrat de référence au 2026-10-23 (après le
+    flux S) : 305 opérations, 301 avec une commande, 4 exclues : `login`,
+    `login_callback`, `login_issuers` (BFF du navigateur) et `query_verdicts`
+    (`policy check` passe par `GET`). `PUT …/chunks/{n}` est compté pour `import`, qui
+    l'emploie, et non exclu. Pour couvrir les imports, `import` sans fichier prend
+    `--list`, `--status ID`, `--cancel ID` et `--resume ID` (reprise côté serveur d'un
+    import en pause ; avec un fichier, `--resume` renvoie les morceaux manquants).
+    `native_clients` (flux S) est compté pour `login`.
 
 ## Fin — réunion des flux
 

@@ -37,6 +37,7 @@ dev = [
   "anyio>=4.12",
   "coverage>=7.17",
   "hypothesis>=6.150",
+  "pexpect>=4.9",
   "pytest>=9.1",
   "pytest-cov>=7",
   "pytest-randomly>=4",
@@ -45,6 +46,7 @@ dev = [
   "syrupy>=5",
   "trio>=0.32",
   "types-jmespath",
+  "types-pexpect>=4.9.0.20260518",
   "types-PyYAML",
 ]
 # Local comfort only, never in CI (`-p no:sugar`): `uv sync --group confort`.
