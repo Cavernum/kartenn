@@ -1,4 +1,6 @@
-#!/usr/bin/env dash
+#!/usr/bin/env bash
+# POSIX sh (linted as dash) but started by bash: Claude Code runs it outside devenv,
+# where dash may be missing.
 # Hook Stop : quand le tour qui s'achève a commité une tâche (commit touchant un
 # specs/*/tasks.md depuis le dernier prompt), conseille de compacter tant que le cache
 # est chaud. Compacter plus tard, cache expiré, relit tout le contexte au plein tarif.

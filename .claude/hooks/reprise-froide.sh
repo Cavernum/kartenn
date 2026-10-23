@@ -1,4 +1,6 @@
-#!/usr/bin/env dash
+#!/usr/bin/env bash
+# POSIX sh (linted as dash) but started by bash: Claude Code runs it outside devenv,
+# where dash may be missing.
 # Hook UserPromptSubmit : après plus d'une heure sans réponse, le cache de prompt a
 # expiré et la requête suivante réécrirait tout le contexte. Au-delà de 150 k tokens,
 # bloque le prompt une fois et propose de compacter ; renvoyer le prompt passe outre.

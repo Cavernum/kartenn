@@ -1,4 +1,6 @@
-#!/usr/bin/env dash
+#!/usr/bin/env bash
+# POSIX sh (linted as dash) but started by bash: Claude Code runs it outside devenv,
+# where dash may be missing.
 # Status line du projet : modèle, dossier, taille du contexte et temps depuis la dernière
 # réponse. Le cache de prompt expire après 1 h d'inactivité : au-delà de 50 min, alerte
 # pour compacter tant qu'il est chaud (CLAUDE.md, « Économie de contexte »).
