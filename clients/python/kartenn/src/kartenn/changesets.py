@@ -172,7 +172,7 @@ class _Changeset:
             # An operation of a module is `<module>.<operation>` (ADR 0026, clause 6): its
             # module served is all the client can check.
             module, dot, _ = str(operation["op"]).partition(".")
-            if dot and catalog.has(module):
+            if dot and module in catalog.served_modules:
                 continue
             if kinds and operation["op"] not in kinds:
                 msg = f"/operations/{index}: unknown operation {operation['op']!r}"

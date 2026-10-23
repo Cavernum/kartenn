@@ -589,6 +589,36 @@ in {
     '';
   };
 
+  # End-to-end sessions of the CLI (spec 023, task 26): `k-py-e2e [pytest args…]`.
+  # web/e2e/serve.sh cli-prepare builds kartenn-server (with and without `policy`) and
+  # kartenn-dev-idp and recreates kartenn_cli and kartenn_cli_labo; the pytest session of
+  # clients/python/e2e starts the issuer and both instances, then replays the maquette.
+  # Same locks as k-web-e2e: the fixed loopback ports and web/e2e/.state are shared.
+  scripts.k-py-e2e = {
+    description = "End-to-end sessions of the Python CLI against kartenn-server, printing a one-line verdict or the failures only";
+    exec = ''
+      set -uo pipefail
+      export NO_COLOR=1 PY_COLORS=0
+      unset FORCE_COLOR
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all ${dash} "$0" "$@"
+      root=$(git rev-parse --show-toplevel)
+      cd "$root" || exit 1
+      log=$(mktemp -d -t k-py-e2e.XXXXXX)
+      ${dash} web/e2e/serve.sh cli-prepare >"$log/prepare" 2>&1 ||
+        { echo "KO serve.sh cli-prepare ($log/prepare)"; tail -15 "$log/prepare"; exit 1; }
+      (cd clients/python && uv sync --locked --all-packages) >"$log/uv-sync" 2>&1 ||
+        { echo "KO uv-sync ($log/uv-sync)"; tail -15 "$log/uv-sync"; exit 1; }
+      if ! (cd clients/python && uv run --no-sync pytest -c e2e/pytest.toml --rootdir=e2e -p no:sugar e2e "$@") \
+        >"$log/e2e" 2>&1; then
+        echo "KO pytest ($log/e2e)"
+        re='^(FAILED|ERROR|INTERNALERROR) |^E  '
+        if grep -qE "$re" "$log/e2e"; then grep -E "$re" "$log/e2e" | head -30; else tail -15 "$log/e2e"; fi
+        exit 1
+      fi
+      echo "OK — $(grep -E '[0-9]+ passed' "$log/e2e" | tail -1 | sed 's/^=* *//; s/ *=*$//')"
+    '';
+  };
+
   # End-to-end journeys (Playwright, browsers from Nix): `k-web-e2e [playwright args…]`.
   scripts.k-web-e2e = {
     description = "Playwright end-to-end tests, printing a one-line verdict or the failures only";
@@ -717,6 +747,21 @@ in {
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
   scripts.bench-telemetry =
     bench "telemetry" "Measure the cost of the telemetry on a fresh kartenn_bench database";
+
+  # The budgets of the CLI (spec 023, REQ-023-39): `bench-cli [runs]`. The client alone,
+  # against a stub of the contract on the loopback (clients/python/bench/cli.py): no
+  # PostgreSQL, but the bench lock all the same, so that timings never share the machine
+  # with another bench.
+  scripts.bench-cli = {
+    description = "Check the budgets of the Python CLI (start, help, completion, first contact)";
+    exec = ''
+      set -euo pipefail
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
+      cd "$(git rev-parse --show-toplevel)/clients/python"
+      uv sync --locked --all-packages -q
+      exec uv run --no-sync python bench/cli.py "$@"
+    '';
+  };
 
   # Observability (D35): the applications send OTLP to the collector
   # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP with

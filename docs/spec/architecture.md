@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-21
+updated: 2026-10-23
 ---
 
 # Architecture
@@ -55,6 +55,7 @@ flowchart LR
 | Autorisation (service et adaptateur) | Port `Authorizer` ; décisions et administration dans la couche service ; visibilités et prédicats SQL dans l'adaptateur PostgreSQL (`PgAuthorizer`, ADR 0021) | Identités, rôles, liaisons, rattachements, secrets |
 | Workers | Relais outbox (webhooks, invalidations), jobs longs (imports, rapports) ; répartis sans doublon | État des jobs |
 | Shell Web | Navigation, vues du noyau, changesets et brouillon local, administration ; hôte des plugins UI ; client de l'API ; servi par kartenn-server sur la même origine que l'API (spec 007, ADR 0025) | Brouillon et préférences dans le navigateur (IndexedDB, `localStorage`), effacés à la déconnexion |
+| Clients Python (`kartenn`, `kartenn-cli`) | Bibliothèque et CLI découvertes depuis le contrat servi : catalogue dérivé, commandes des modules sans nouvelle version du client ; OIDC natif, changesets, imports (spec 023, ADR 0035) | Catalogue en cache et configuration XDG, jetons au trousseau |
 | Connecteurs | Import / synchronisation depuis des sources externes via l'API | Correspondances d'identifiants (dans kartenn) |
 
 ## Pipeline d'écriture

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import click
 
-from kartenn_cli.base import TGroup, group
+from kartenn_cli.base import Option, TGroup, group
 from kartenn_cli.errors import CliError
 from kartenn_cli.i18n import t
 
@@ -143,18 +143,16 @@ def new(
 
 @changeset_group.command(name="add", help="changeset.add.help")
 @click.argument("operation", required=False)
-@click.option("--from-file", metavar="metavar.file", help="opt.from_file")
+@click.option("--from-file", cls=Option, metavar="metavar.file", help="opt.from_file")
 def add(operation: str | None, from_file: str | None) -> None:
     """An operation in JSON (or YAML), given or read from a file."""
     import yaml  # noqa: PLC0415
 
+    from kartenn_cli.writes import read_document  # noqa: PLC0415
+
     if operation is None and from_file is None:
         raise CliError("client.no-operation", t("changeset.no_op"))
-    text = (
-        operation
-        if operation is not None
-        else click.open_file(str(from_file), encoding="utf-8").read()
-    )
+    text = operation if operation is not None else read_document(str(from_file))
     data = yaml.safe_load(text)
     items = cast("list[object]", data) if isinstance(data, list) else [data]
     for item in items:

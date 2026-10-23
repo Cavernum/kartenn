@@ -549,9 +549,68 @@ show_missing = true
 | 26 | bout en bout `k-py-e2e` contre `kartenn-server` (base `kartenn_cli`, comme `web/e2e/serve.sh`) : sessions de la maquette rejouées (dates et UUID normalisés), serveur sans `policy`, `watch` si la 022 est servie |
 | 27 | banc `bench-cli` : budgets de REQ-023-39 |
 
+### Bout en bout (tâche 26)
+
+`k-py-e2e` (`k-heavy --pg --all`) : `web/e2e/serve.sh cli-prepare` construit
+kartenn-server deux fois (sans `policy` ni `flow`, copiée sous `web/e2e/.state`, puis
+complète) et kartenn-dev-idp, recrée `kartenn_cli` et `kartenn_cli_labo` et y crée le
+compte de secours ; la session pytest de `clients/python/e2e` lance l'émetteur
+(`serve.sh idp`), les deux instances (`serve.sh cli` sur 9443, `cli-labo` sur 9445) et
+rejoue la maquette avec la commande `kartenn` installée, en sous-processus (pexpect
+pour le terminal), sortie normalisée (UUID, dates). Le navigateur est un script nommé
+par `BROWSER` qui choisit Alice chez l'émetteur et suit la redirection de bouclage.
+
+| Scène | Résultat |
+|---|---|
+| § 1 secours : rattachement de l'émetteur, liaison des administrateurs, par la CLI | vert |
+| § 1 `login` (navigateur, PKCE, bouclage) ; `me` | vert |
+| § 1 `login --device` (avec un `slow_down`) | vert |
+| § 2, 3 aide de la racine et d'un module | vert (après correction : socle à la racine) |
+| § 8 jeu de données par changeset local (simulation, application) | vert |
+| § 4 listes en table, JSON, NDJSON, `--at`, `--as-of`, `--prop` | vert ; un élément de liste ne porte pas ses propriétés : `--fields properties.…` rend vide |
+| § 5 complétion serveur (`--domain`) et locale | vert |
+| § 8 `--dry-run` et `--into-changeset` : `create_<x>` du noyau, `vlan.create_vlan`, refus en code 8 | vert |
+| § 8 `prefixes create --dry-run` | xfail strict : membres REST (`value`) ≠ opération (`prefix`), le point ouvert de la tâche 18 |
+| § 10 import refusé à l'application (code 6, règle), réseau créé, `--resume` jusqu'à `done` | vert, sous le compte de secours |
+| § 10 import par Alice (OIDC, droits par groupe) | xfail strict : `core.object.forbidden` à l'application |
+| § 11 `kartenn api` | vert |
+| § 6 `policy check` autorisé, refusé en code 9 | vert (après correction : `<kind>:<id>` sur le fil) |
+| § 7 `flow request` | vert avec le système externe nommé par son UUID, lu en base |
+| § 7 `--ref ticketing:…` | xfail strict : l'API ne publie pas l'identifiant d'une valeur de liste fermée, une clé est ignorée sans erreur |
+| § 12 serveur sans `policy` (aide, `client.module-unavailable`, sous-ressource `flows`) | vert |
+| § 15 `watch` sans flux (code 2) | vert ; `watch` sur le flux : sauté tant que la 022 n'est pas servie |
+| `logout` puis `me` (code 4) | vert |
+
+Autres écarts à la maquette, relevés sans correction : les en-têtes de table viennent
+des colonnes du contrat (anglais) ; une machine n'a pas de clé naturelle
+(`machine:bastion-1` → `client.key-unknown`, UUID exigé) ; `prefixes list` n'a pas de
+filtre `--within` ; le différentiel d'une simulation ne compte pas les objets créés
+(le serveur ne rend que les propriétés) ; `--owner` d'un groupe de VLAN et son
+`anchor` (`oneOf`) ne se résolvent pas par clé ; une référence en table montre l'UUID
+quand le serveur ne rend pas la clé (`vlan list`).
+
+### Banc (tâche 27)
+
+`bench-cli [runs]` (`k-heavy --bench`) : la commande installée contre un bouchon du
+contrat de référence (0,81 Mio) sur le bouclage, sans PostgreSQL ; 30 exécutions, p50
+et p95 en ms. Machine partagée, charge moyenne 14 lors de la mesure.
+
+| Mesure | p50 | p95 | Budget (p95) |
+|---|---|---|---|
+| `--version` | 46 | 107 | < 80 |
+| premier contact (`--help`, cache froid : découverte et dérivation) | 392 | 616 | < 1 500 |
+| `--help` (cache chaud) | 68 | 106 | < 200 |
+| `policy --help` | 68 | 95 | < 200 |
+| complétion locale (`prefixes list --<TAB>`) | 74 | 113 | < 100 |
+| `--help`, cache périmé (capacités relues, contrat 304) | 82 | 109 | — |
+
+Écart : `--version` et la complétion locale dépassent leur p95 sous la charge de la
+machine partagée, leur p50 tient (une mesure sur machine moins chargée : 50 et 92 ms au
+p95). À arbitrer : mesurer sur une machine de banc dédiée, ou relever le budget.
+
 ## ADR
 
-- **ADR 0035 — Clients découverts depuis le contrat** (proposée ; 0033 et 0034 sont
+- **ADR 0035 — Clients découverts depuis le contrat** (acceptée ; 0033 et 0034 sont
   prises). Elle couvre l'approche de T2, la découverte (T3), le cache par révision (T20)
   et le port de transport (T5, adaptateur HTTP/3 futur). Elle s'appuie sur
   l'amendement de D7 (« SDK client dérivé de l'OpenAPI »). Rédigée à la tâche 10,

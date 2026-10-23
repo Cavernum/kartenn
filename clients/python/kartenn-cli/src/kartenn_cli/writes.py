@@ -130,11 +130,24 @@ def _set_path(body: dict[str, Any], path: str, value: object) -> None:
     target[keys[-1]] = value
 
 
+def read_document(path: str) -> str:
+    """The text of `--from-file` (`-`: the standard input); a file that cannot be read is
+    a usage error, not a trace."""
+    if path == "-":
+        return sys.stdin.read()
+    try:
+        with open(path, encoding="utf-8") as file:  # noqa: PTH123 - a path given as is
+            return file.read()
+    except (OSError, UnicodeDecodeError) as error:
+        reason = getattr(error, "strerror", None) or str(error)
+        message = t("write.unreadable", path=path, reason=reason)
+        raise CliError("client.unreadable-file", message) from error
+
+
 def _document(path: str) -> dict[str, Any]:
     import yaml  # noqa: PLC0415 - YAML is a superset of JSON
 
-    text = sys.stdin.read() if path == "-" else click.open_file(path, encoding="utf-8").read()
-    data = yaml.safe_load(text)
+    data = yaml.safe_load(read_document(path))
     if not isinstance(data, dict):
         raise CliError("client.invalid-document", t("write.document", path=path))
     return cast("dict[str, Any]", data)
@@ -234,7 +247,9 @@ def gather_body(command: VerbCommand, ctx: click.Context, found: Runtime) -> dic
         if value is None:
             continue
         if kind == "reference":
-            collection = reference_of(name, command.catalog)
+            own = command.resource
+            module = own.module if command.catalog.is_module(own) else None
+            collection = reference_of(name, command.catalog, module)
             if collection is None:
                 body[name] = {"id": value}
                 continue
@@ -277,7 +292,7 @@ def changeset_operation(  # noqa: PLR0913, PLR0917 - a write, whole
     from kartenn.changesets import operation_kinds  # noqa: PLC0415
 
     kinds = operation_kinds(catalog)
-    module = resource.module if catalog.has(resource.module) else None
+    module = resource.module if catalog.is_module(resource) else None
     singular = _singular(resource)
     reference = {} if identifier is None else {"id": {"id": identifier}}
     if verb == "close":
@@ -362,6 +377,7 @@ def simulate(  # noqa: PLR0913 - the members of a changeset
     valid_from: str | None,
     on_behalf_of: str | None,
     valid_to: str | None = None,
+    output: str | None = None,
 ) -> None:
     """Simulate a changeset of these operations; exit 8 when it would be refused."""
     from kartenn import Refused  # noqa: PLC0415
@@ -375,7 +391,11 @@ def simulate(  # noqa: PLR0913 - the members of a changeset
     from kartenn_cli.render import format_moment  # noqa: PLC0415
 
     shown = format_moment(valid_from, found.zone)
-    click.echo(t("simulation.head") + (t("simulation.from", date=shown) if shown else ""))
+    # On the standard error when a format is asked for: the output stays a document.
+    click.echo(
+        t("simulation.head") + (t("simulation.from", date=shown) if shown else ""),
+        err=(found.asked_output(output) or "table") != "table",
+    )
     try:
         simulation = builder.simulate()
     except Refused as error:
@@ -383,7 +403,7 @@ def simulate(  # noqa: PLR0913 - the members of a changeset
 
         click.echo(render_error(error, color=found.error_color), err=True, nl=False)
         raise click.exceptions.Exit(DRY_RUN_REFUSED) from error
-    render_simulation(found, simulation, operations=len(operations))
+    render_simulation(found, simulation, operations=len(operations), output=output)
     if simulation.blocking:
         raise click.exceptions.Exit(DRY_RUN_REFUSED)
 
@@ -453,6 +473,7 @@ class _Write(VerbCommand):
                 motive=motive or t("simulation.motive"),
                 valid_from=valid_from,
                 on_behalf_of=ctx.params.get("on_behalf_of"),
+                output=ctx.params.get("output"),
             )
             return
         content = {**members, "motive": motive} if motive else dict(members)

@@ -278,3 +278,26 @@ def import_command(  # noqa: PLR0913, PLR0917 - the options of an import
             elapsed=f"{elapsed:.0f}",
         )
     )
+    if state == "paused":
+        raise _paused(import_id, record)
+
+
+def _paused(import_id: str, record: dict[str, Any]) -> CliError:
+    """A batch whose application was refused: the import waits, its report names why
+    (seen by the end-to-end sessions: a pause is not a success)."""
+    from kartenn_cli.errors import REFUSED  # noqa: PLC0415
+
+    report = record.get("report")
+    report = cast("dict[str, Any]", report) if isinstance(report, dict) else {}
+    raw = report.get("violations")
+    violations = [
+        cast("dict[str, Any]", v) for v in cast("list[object]", raw or []) if isinstance(v, dict)
+    ]
+    lines = [f"✗ [{v.get('rule')}] {v.get('message')}" for v in violations]
+    return CliError(
+        "client.import-paused",
+        t("import.paused", id=import_id, batch=report.get("batch", "?")),
+        *lines,
+        t("import.paused_hint", id=import_id),
+        exit_code=REFUSED,
+    )

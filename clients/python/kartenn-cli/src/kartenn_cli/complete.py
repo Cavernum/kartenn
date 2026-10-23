@@ -133,12 +133,15 @@ def _label(item: dict[str, Any]) -> str:
     return ""
 
 
-def reference_of(name: str, catalog: Catalog) -> str | None:
-    """The collection a filter names (`domain` → `domains`, `flow_type` → `flow-types`)."""
+def reference_of(name: str, catalog: Catalog, module: str | None = None) -> str | None:
+    """The collection a filter names (`domain` → `domains`, `flow_type` → `flow-types`);
+    in a module, its own collection first (`group` of `vlan` → `vlan-groups`)."""
     base = name.replace("_", "-")
     candidates = [f"{base}s", f"{base}es", base]
     if base.endswith("y"):
         candidates.insert(0, f"{base[:-1]}ies")
+    if module:
+        candidates = [f"{module}-{c}" for c in candidates] + candidates
     return next((c for c in candidates if catalog.has_resource(c)), None)
 
 

@@ -117,7 +117,7 @@ def module_unavailable(
     module: str, catalog: Catalog | None, profile: Profile, *, what: str = ""
 ) -> CliError:
     """The error of a command whose module the server does not serve (maquette § 12)."""
-    served = ", ".join(catalog.module_names) if catalog is not None else "—"
+    served = ", ".join(catalog.served_modules) if catalog is not None else "—"
     version = catalog.version if catalog is not None else "?"
     head = (
         t("module.unavailable_sub", what=what, module=module)

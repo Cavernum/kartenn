@@ -128,6 +128,12 @@ def _check(catalog: Catalog) -> click.Command:
             }.items()
             if v is not None
         }
+        # `<kind>:<id>` on the wire (the contract): the natural key resolved first.
+        ends = [_endpoint(found, catalog, end) for end in (source, destination)]
+        source, destination = (
+            f"{end['kind']}:{end['id']['id']}" if isinstance(end, dict) else str(end)
+            for end in cast("list[Any]", ends)
+        )
         answer = found.client.at(valid_at, as_of).call(
             "show_verdicts", source=source, destination=destination, **params
         )

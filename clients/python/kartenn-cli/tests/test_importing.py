@@ -143,6 +143,38 @@ def test_a_refused_sort_names_the_line_of_the_source(server: FakeServer, tmp_pat
     ]
 
 
+def test_a_paused_import_is_refused_with_its_report(server: FakeServer, tmp_path: Path) -> None:
+    """A batch refused at its application pauses the import: code 6, the rules of its
+    report and the way to resume (seen by the end-to-end sessions, task 26)."""
+    report: dict[str, Any] = {
+        "batch": 0,
+        "changeset": "9d270000-0000-7000-8000-000000000001",
+        "violations": [
+            {
+                "rule": "core.address.outside_network",
+                "message": "203.0.113.70 is not inside a network of its domain",
+                "objects": [],
+            },
+            "not a violation",
+        ],
+    }
+    Imports(server, final={"state": "paused", "report": report})
+    result = kartenn("import", str(ndjson(tmp_path / "d.ndjson", 2)))
+    assert result.exit_code == 6, result.output
+    assert result.stderr.splitlines()[2:] == [
+        (
+            f"erreur [client.import-paused] L'import {IMPORT} est en pause : le lot 0 a été "
+            "refusé à l'application."
+        ),
+        "  ✗ [core.address.outside_network] 203.0.113.70 is not inside a network of its domain",
+        f"  Corrigez la cause, puis « kartenn import --resume {IMPORT} ».",
+    ]
+    Imports(server, final={"state": "paused"})
+    bare = kartenn("import", str(ndjson(tmp_path / "e.ndjson", 1)))
+    assert bare.exit_code == 6
+    assert "le lot ? a été refusé" in bare.stderr
+
+
 def test_resume_checks_the_file(server: FakeServer, tmp_path: Path) -> None:
     imports = Imports(server)
     failing = iter([httpx2.Response(200, json={}), httpx2.Response(500, json={})])

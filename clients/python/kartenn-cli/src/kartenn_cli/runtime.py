@@ -246,7 +246,7 @@ class Runtime:
         before = self.cache.last(url)
         catalog = self.client.run(discover(url, self.cache))
         if before is None or before.revision != catalog.revision:
-            modules = ", ".join(catalog.module_names) or "—"
+            modules = ", ".join(catalog.served_modules) or "—"
             previous = (
                 t("discovery.before", version=before.version)
                 if before is not None and before.version != catalog.version

@@ -144,6 +144,7 @@ masked = "‹masquée›"
 
 [write]
 document = "{path} n'est pas un document (un objet JSON ou YAML)."
+unreadable = "Impossible de lire {path} : {reason}."
 assignment = "--set attend chemin=valeur : {given}"
 no_operation = "« {resource} {verb} » n'a pas d'opération de changeset connue : --dry-run et --into-changeset ne s'y appliquent pas (kartenn changeset add avec l'opération explicite)."
 applied = "Changeset {id} appliqué."
@@ -244,6 +245,8 @@ uploaded = "import {id} envoyé"
 sorting = "import {id} en tri"
 back = "L'import est revenu à l'état « envoi » : corrigez puis « kartenn import --resume {id} {file} »."
 final = "Import {id} : {state}, {elements} éléments, en {elapsed} s."
+paused = "L'import {id} est en pause : le lot {batch} a été refusé à l'application."
+paused_hint = "Corrigez la cause, puis « kartenn import --resume {id} »."
 file_required = "Un fichier à importer, ou --list, --status ID, --cancel ID, --resume ID (import en pause)."
 
 [import.opt]
