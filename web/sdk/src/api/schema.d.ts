@@ -45,7 +45,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The addresses the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The addresses the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_addresses"];
     put?: never;
     /** Creates a address. */
@@ -274,7 +274,7 @@ export interface paths {
     };
     /**
      * `GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller
-     *     may read now, oldest first (REQ-002-36).
+     *     may read now, oldest first (REQ-002-36), by pages (task 021-29).
      */
     get: operations["list_anomalies"];
     put?: never;
@@ -763,7 +763,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The domains the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The domains the caller may read, by natural key. */
     get: operations["list_domains"];
     put?: never;
     /** Creates a domain. */
@@ -889,7 +889,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The entities the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The entities the caller may read, by natural key. */
     get: operations["list_entities"];
     put?: never;
     /** Creates a entity. */
@@ -2345,7 +2345,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** The reports of the policy, the most recently asked for first (021-30). */
+    get: operations["list_policy_reports"];
     put?: never;
     /** Asks for the audit report of the policy at a date (REQ-010-23); one at a time. */
     post: operations["request_policy_report"];
@@ -2604,7 +2605,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The prefixes the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The prefixes the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_prefixes"];
     put?: never;
     /** Creates a prefix. */
@@ -2886,7 +2887,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The ranges the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The ranges the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_ranges"];
     put?: never;
     /** Creates a range. */
@@ -3312,7 +3313,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The sites the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The sites the caller may read, by natural key. */
     get: operations["list_sites"];
     put?: never;
     /** Creates a site. */
@@ -5232,6 +5233,13 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_PolicyReport: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["PolicyReport"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_Prefix: {
       /** @description The elements of the page. */
       items: components["schemas"]["Prefix"][];
@@ -6935,7 +6943,10 @@ export interface components {
     SectionRowDto: {
       /** @description What the module shows of it after; `null`: absent. */
       after: Record<string, never>;
-      /** @description What the module shows of it before; `null`: absent. */
+      /**
+       * @description What the module shows of it before; `null`: absent. A side may name, under
+       *     `masking`, the members a sensitive property hides (`masked: true` then).
+       */
       before: Record<string, never>;
       /** @description Its qualified type. */
       kind: string;
@@ -7533,10 +7544,20 @@ export interface operations {
   list_addresses: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The address (repeated: one of). */
         value?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The usage (repeated: one of). */
+        usage?: components["schemas"]["AddressUsage"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -8328,6 +8349,10 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
       };
       header?: never;
       path?: never;
@@ -9565,7 +9590,7 @@ export interface operations {
   list_domains: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
@@ -9980,9 +10005,9 @@ export interface operations {
   list_entities: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the parent entity (repeated: one of). */
         parent?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
@@ -14734,6 +14759,48 @@ export interface operations {
       };
     };
   };
+  list_policy_reports: {
+    parameters: {
+      query?: {
+        /** @description `pending`, `running` or `done` (repeated: one of). */
+        state?: string;
+        /** @description Asked for by this identity. */
+        requested_by?: string;
+        /** @description Asked for from this instant (RFC 3339). */
+        from?: string;
+        /** @description Asked for before this instant (RFC 3339). */
+        to?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the reports. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyReport"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   request_policy_report: {
     parameters: {
       query?: never;
@@ -15495,10 +15562,20 @@ export interface operations {
   list_prefixes: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The prefix, in CIDR notation (repeated: one of). */
         value?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The nature (repeated: one of). */
+        nature?: components["schemas"]["Nature"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -16153,6 +16230,10 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
       };
       header?: never;
       path?: never;
@@ -16217,10 +16298,20 @@ export interface operations {
   list_ranges: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The first address of the range (repeated: one of). */
         first?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The usage (repeated: one of). */
+        usage?: components["schemas"]["RangeUsage"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -17710,9 +17801,9 @@ export interface operations {
   list_sites: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the parent site (repeated: one of). */
         parent?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;

@@ -96,7 +96,12 @@ def test_conventions_of_the_reference_contract() -> None:
     assert catalog.resource("graph").names == ("edges",)
     assert catalog.resource("roles").verb("set") is not None
     listing = catalog.operation("list_prefixes")
-    assert [p.name for p in listing.filters] == ["domain", "value"]
+    assert [p.name for p in listing.filters] == ["domain", "value", "within", "nature"]
+    assert listing.takes_properties
+    assert not catalog.operation("list_entities").takes_properties
+    nature = listing.param("nature")
+    assert nature is not None
+    assert nature.enum == ("container", "network")
     assert catalog.operation("modify_prefix").needs_if_match
     assert catalog.operation("modify_prefix").body_media == "application/merge-patch+json"
     assert catalog.operation("create_prefix").takes_idempotency_key

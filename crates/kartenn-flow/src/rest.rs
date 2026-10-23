@@ -940,10 +940,32 @@ async fn nonconformities(
             _ => unreachable!("the names are checked by `wanted`"),
         }
     }
+    filter.after = page
+        .after()
+        .map(|key| {
+            let invalid = || Problem::new(ProblemKind::InvalidCursor);
+            let (at, id) =
+                serde_json::from_value::<(String, Uuid)>(key.clone()).map_err(|_| invalid())?;
+            Ok::<_, Problem>((instant("cursor", &at).map_err(|_| invalid())?, id))
+        })
+        .transpose()?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
-    let rows =
-        read::nonconformities(&mut conn, dates(&moment), &filter, i64::from(page.size)).await?;
+    let size = usize::from(page.size);
+    let mut rows =
+        read::nonconformities(&mut conn, dates(&moment), &filter, i64::from(page.size) + 1).await?;
+    // The key of the last row read, before the filter of the rights (design 011).
+    let next = (rows.len() > size).then(|| {
+        rows.truncate(size);
+        let (at, id) = rows[size - 1].key();
+        let cursor = page.next(
+            &api.ring,
+            NONCONFORMITIES,
+            &moment,
+            json!([rfc3339(at), id]),
+        );
+        next_href(&format!("/v1/{NONCONFORMITIES}"), &cursor)
+    });
     let entities: Vec<Uuid> = rows.iter().map(|r| r.entity).collect();
     let readable = readable_entities(&api, &scope, moment.valid_at, &entities).await?;
     let items: Vec<NonconformityDto> = rows
@@ -965,7 +987,7 @@ async fn nonconformities(
         }),
     )
     .await?;
-    Ok(respond_page(&headers, &moment, &items, None))
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// The entities of `ids` where the scope of `flow.read` reaches: globally, or the

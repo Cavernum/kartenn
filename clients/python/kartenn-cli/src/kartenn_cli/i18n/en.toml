@@ -301,6 +301,7 @@ help = "Set a cell: SOURCE TYPE DESTINATION VALUE (under the If-Match of the mat
 
 [report]
 help = "Compliance audit report (background task)."
+list = "Audit reports asked for, newest first."
 asked = "Report {id} asked for."
 state = "Report {id}: {state}"
 
@@ -405,7 +406,7 @@ since = "Resume after this cursor."
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
 
 [filter]
-unknown = "Unknown filter: {option}. Filters: {filters}, --prop KEY[:OP]=VALUE."
+unknown = "Unknown filter: {option}. Filters: {filters}."
 
 [ref]
 no_key = "“{resource}” declares no natural key (x-kartenn): name the object by its UUID, not “{ref}”."

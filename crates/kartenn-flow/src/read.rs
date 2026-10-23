@@ -968,6 +968,9 @@ pub struct NonconformityFilter {
     pub state: Option<String>,
     /// `requested` or `observed`.
     pub kind: Option<String>,
+    /// The rows after this key, in the order of the list: the instant and the identifier
+    /// ([`Nonconformity::key`]) of the last row of the previous page (task 021-29).
+    pub after: Option<(OffsetDateTime, Uuid)>,
 }
 
 /// A non-conformity (REQ-011-25): a request rejected at review, a flow `noncompliant` or
@@ -1000,12 +1003,22 @@ pub struct Nonconformity {
     pub kind: String,
 }
 
-/// The non-conformities at `dates` that pass `filter`, newest first, at most `limit`
-/// (REQ-011-25).
+impl Nonconformity {
+    /// Its position in the list: its instant, then its flow or, for a rejected request,
+    /// its changeset (task 021-29).
+    #[must_use]
+    pub fn key(&self) -> (OffsetDateTime, Uuid) {
+        (self.at, self.flow.or(self.changeset).unwrap_or_default())
+    }
+}
+
+/// The non-conformities at `dates` that pass `filter`, newest first (then by
+/// [`Nonconformity::key`] descending), at most `limit` (REQ-011-25).
 ///
 /// # Errors
 ///
 /// A failure of the database.
+#[allow(clippy::too_many_lines)] // one query: its rows, their filters, their key
 pub async fn nonconformities(
     conn: &mut PgConnection,
     dates: Dates,
@@ -1083,7 +1096,14 @@ pub async fn nonconformities(
         q.push(" AND x.kind = ");
         q.push_bind(kind.clone());
     }
-    q.push(" ORDER BY x.at DESC, x.flow, x.changeset LIMIT ");
+    if let Some((at, id)) = filter.after {
+        q.push(" AND (x.at, coalesce(x.flow, x.changeset)) < (");
+        q.push_bind(at);
+        q.push(", ");
+        q.push_bind(id);
+        q.push(")");
+    }
+    q.push(" ORDER BY x.at DESC, coalesce(x.flow, x.changeset) DESC LIMIT ");
     q.push_bind(limit);
     let rows = q.build().fetch_all(conn).await.map_err(|e| store(&e))?;
     rows.iter()

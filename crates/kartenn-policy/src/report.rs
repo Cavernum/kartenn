@@ -181,20 +181,85 @@ pub async fn report(conn: &mut PgConnection, id: Uuid) -> Result<Option<Report>,
     .fetch_optional(conn)
     .await
     .map_err(|e| store(&e))?;
-    Ok(row.map(
-        |(id, valid_at, requested_by, requested_at, state, done_at, counts)| Report {
-            id,
-            valid_at,
-            requested_by,
-            requested_at,
-            state,
-            done_at,
-            counts: counts
-                .as_object()
-                .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_i64())).collect())
-                .unwrap_or_default(),
-        },
-    ))
+    Ok(row.map(stored))
+}
+
+fn stored((id, valid_at, requested_by, requested_at, state, done_at, counts): ReportRow) -> Report {
+    Report {
+        id,
+        valid_at,
+        requested_by,
+        requested_at,
+        state,
+        done_at,
+        counts: counts
+            .as_object()
+            .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_i64())).collect())
+            .unwrap_or_default(),
+    }
+}
+
+/// Which reports to list (task 021-30).
+#[derive(Debug, Clone, Default)]
+pub struct ReportFilter {
+    /// One of these states, when not empty.
+    pub states: Vec<String>,
+    /// Asked for by this identity.
+    pub requested_by: Option<Uuid>,
+    /// Asked for from this instant.
+    pub from: Option<OffsetDateTime>,
+    /// Asked for before this instant.
+    pub to: Option<OffsetDateTime>,
+    /// After this key of the list: `(requested_at, id)` of the last report read.
+    pub after: Option<(OffsetDateTime, Uuid)>,
+}
+
+/// The reports that pass `filter`, the most recently asked for first (then by
+/// identifier, descending), `limit` at most (task 021-30).
+///
+/// # Errors
+/// A failure of the database.
+pub async fn reports(
+    conn: &mut PgConnection,
+    filter: &ReportFilter,
+    limit: i64,
+) -> Result<Vec<Report>, StoreError> {
+    let mut q = sqlx::QueryBuilder::<sqlx::Postgres>::new(
+        "SELECT id, valid_at, requested_by, requested_at, state, done_at, counts
+           FROM policy.policy_report WHERE TRUE",
+    );
+    if !filter.states.is_empty() {
+        q.push(" AND state = ANY(");
+        q.push_bind(filter.states.clone());
+        q.push(")");
+    }
+    if let Some(who) = filter.requested_by {
+        q.push(" AND requested_by = ");
+        q.push_bind(who);
+    }
+    if let Some(from) = filter.from {
+        q.push(" AND requested_at >= ");
+        q.push_bind(from);
+    }
+    if let Some(to) = filter.to {
+        q.push(" AND requested_at < ");
+        q.push_bind(to);
+    }
+    if let Some((at, id)) = filter.after {
+        q.push(" AND (requested_at, id) < (");
+        q.push_bind(at);
+        q.push(", ");
+        q.push_bind(id);
+        q.push(")");
+    }
+    q.push(" ORDER BY requested_at DESC, id DESC LIMIT ");
+    q.push_bind(limit);
+    let rows: Vec<ReportRow> = q
+        .build_query_as()
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))?;
+    Ok(rows.into_iter().map(stored).collect())
 }
 
 /// The items of `rubric` of the report `id` after the rank `after`, `limit` at most, by

@@ -15,6 +15,7 @@ mod csrf;
 mod cursor;
 mod cycle;
 mod dated;
+mod declared;
 mod diff_sections;
 mod errors;
 mod events;

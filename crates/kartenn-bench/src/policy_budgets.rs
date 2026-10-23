@@ -861,6 +861,59 @@ async fn measure(
     });
     progress(&load("policy inference control"));
 
+    // The preview of a rule of inference in the simulation of its changeset (REQ-010-55,
+    // S36): a rule over the network of the control, against the same rule over an empty
+    // prefix; the added time of the medians, for a budget of 1 s per 10⁴ nodes in scope.
+    let preview = |prefix: &str| -> anyhow::Result<ChangesetRequest> {
+        Ok(ChangesetRequest {
+            author,
+            motive: "bench preview".into(),
+            period: None,
+            operations: vec![op(
+                "inference_rule.create",
+                json!({ "key": "inf-preview", "axis": "policy.environment",
+                        "priority": 99, "domain": { "id": domain },
+                        "criteria": [{ "within": [prefix] }], "values": [env(1)] }),
+            )?],
+            simulate: true,
+            idempotency_key: None,
+        })
+    };
+    let (mut wide, mut empty) = (Vec::new(), Vec::new());
+    let mut scope = 0;
+    for _ in 0..CONTROL_ROUNDS {
+        for (prefix, measured) in [("10.3.0.0/16", true), ("10.250.0.0/16", false)] {
+            let request = preview(prefix)?;
+            let t = Instant::now();
+            let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS).await?;
+            let elapsed = t.elapsed();
+            let Outcome::Simulated { sections, .. } = outcome else {
+                bail!("the preview is not simulated: {outcome:?}");
+            };
+            if measured {
+                scope = sections
+                    .iter()
+                    .flat_map(|s| &s.rows)
+                    .find(|r| r.kind == "policy.inference.summary")
+                    .and_then(|r| r.after.as_ref()?.get("scope")?.as_u64())
+                    .unwrap_or_default();
+            }
+            if measured { &mut wide } else { &mut empty }.push(elapsed);
+        }
+    }
+    let (wide, empty) = (median(wide), median(empty));
+    budgets.push(Budget {
+        name: "preview of a rule of inference in its simulation, added",
+        limit: Duration::from_secs(scope.div_ceil(10_000).max(1)),
+        measured: wide.saturating_sub(empty),
+        note: format!(
+            "{scope} nodes in scope; medians of {CONTROL_ROUNDS} rounds: {wide:?}, {empty:?} \
+             over an empty prefix; {}",
+            load_now()
+        ),
+    });
+    progress(&load("policy inference preview"));
+
     // The full re-evaluation of the deviations of the inference: the rules cite every
     // domain, so the pass goes over every origin and its heirs.
     let t = Instant::now();

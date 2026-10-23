@@ -115,7 +115,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
 Contrat complété (X41, REQ-021-35) ; chaque tâche amende la spec du module concerné et
 régénère le contrat de référence et les types du SDK. `k-check` pour chacune.
 
-- [ ] 28. Paramètres de filtre déclarés : `prop.<clé>`, `prop.<clé>:between`,
+- [x] 28. Paramètres de filtre déclarés : `prop.<clé>`, `prop.<clé>:between`,
   `prop.<clé>:exists`, `within`, `usage`, `nature`, `value`, `first`, `parent`, `slug` et
   tout autre filtre servi, décrits dans les `parameters` de l'OpenAPI des routes de liste
   (cœur et modules) ; test de contrat : tout paramètre accepté est déclaré — amendement de
@@ -125,23 +125,58 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - où : `crates/kartenn-rest/src/filter.rs`, `openapi.rs`, `contract.rs` ;
     `specs/006-api-rest/openapi-v1.json` ; `web/sdk/scripts/gen.mjs`
   - dépend de : —
-- [ ] 29. Curseurs sur `GET /v1/anomalies`, `/v1/property-gaps` (006, 016) et
+  - fait le 2026-10-23 : `within`, `nature`, `usage` n'étaient pas servis (REQ-006-9 les
+    promettait) : servis en égalité (`list::objects`, `$12` CIDR, `$13` valeurs) puis
+    déclarés ; filtres de propriétés en trois gabarits `prop.{key}`, `prop.{key}:between`,
+    `prop.{key}:exists` marqués `x-kartenn.template`, sur les seules listes qui filtrent
+    par propriété (006/H20, forme du contrat choisie par Claude) ; `x-kartenn.collection`
+    sur `domain` et `parent` ; une liste sans propriétés refuse `prop.…` comme paramètre
+    inconnu ; test de contrat `declared.rs` (sonde de chaque liste par tous les noms de
+    filtre du contrat) ; `web/sdk/src/api/filters.ts` généré ; client Python : filtres
+    sans gabarit, `--prop` seulement sur une liste qui le déclare, `--within` de la
+    maquette rejoué dans `k-py-e2e`. Rien d'amendé dans la 016 (aucun filtre de liste
+    n'en vient).
+- [x] 29. Curseurs sur `GET /v1/anomalies`, `/v1/property-gaps` (006, 016) et
   `/v1/flow-nonconformities` (011) — REQ-021-35 — verify : parcours par curseur jusqu'à
   la dernière page sur un jeu de plus d'une page ; curseur signé refusé s'il est altéré
   - où : `crates/kartenn-rest/src/cursor.rs` (forme, REQ-006-8), `anomalies.rs`,
     `properties.rs` ; `crates/kartenn-flow/src/rest.rs`
   - dépend de : —
-- [ ] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
+  - fait le 2026-10-23 : anomalies et écarts par `(opened_at, id)` croissants, lus à
+    l'état courant à chaque page (`next_current`, sans `valid_at` ni `as_of`, refusés à
+    la première page) ; `anomalies::open_page` n'écrit la condition de clé qu'après une
+    première page (pas de `$n IS NULL OR …` qui rendrait le plan générique non indexable)
+    ; le filtre `property` des écarts passe en SQL (préfixe `<clé>:` du message) pour
+    couper la page après lui ; non-conformités par `(at, flow ou changeset)` décroissants,
+    `as_of` figé, la clé de la dernière ligne lue avant le filtre des droits (page parfois
+    plus courte). Pas d'index nouveau sur `anomaly` (pas de migration, tri des anomalies
+    ouvertes à chaque page) : à reprendre si un banc le demande. Bancs réduits du
+    2026-10-24 tenus : `bench-flow` page de non-conformités p95 4,5 ms, `bench-core`
+    page filtrée p95 22,8 ms.
+- [x] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
   (état, date, lanceur), sous `policy.rule.admin` — amendement de la 010 —
   REQ-021-35 — verify : test REST (liste, droits, curseur)
   - où : `crates/kartenn-policy/src/rest.rs` (rapport existant, 409 si en cours)
   - dépend de : —
-- [ ] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
+  - fait le 2026-10-23 : `report::reports` (date de demande puis identifiant
+    décroissants, index `policy_report_by_date`), lue à l'état courant à chaque page ;
+    filtres `state` (répété : un parmi), `requested_by`, `from`, `to` (date de demande) ;
+    `policy.rule.admin` global sinon 404, comme un rapport ; élément de la forme de
+    `GET /v1/policy-reports/{id}` ; `x-kartenn` (colonnes) sur la collection. CLI :
+    commande nommée `kartenn policy reports` (un `list` dérivé de l'opération : filtres
+    du contrat, pages, sorties ; 023 design « Commandes nommées »).
+- [x] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
   l'amendement, sans écriture ; débloque la tâche 017-15 — REQ-021-35 — verify : tests
   de l'amendement S36
   - où : `specs/010-politique-flux/` (amendement S36) ; `crates/kartenn-policy/src/`
     (moteur d'inférence)
   - dépend de : —
+  - fait le 2026-10-24 : amendement S36 repris (cherry-pick de 7d7255e, conflit résolu
+    sur le résumé et les questions ouvertes de REQ-010), marqué accepté, puis implémenté
+    (tâche 010-22, cochée avec ses notes). S36 n'ajoute pas de route : l'aperçu se lit
+    par `POST /v1/changesets?simulate=true` et `GET /v1/changesets/{id}/diff?section=
+    policy.combinations` (lignes `policy.inference.summary` et `policy.inference.node`) ;
+    la tâche 017-15 est débloquée.
 - Dépendance serveur hors de la 021 : `GET /v1/labels` et l'événement `labels` (spec 018,
   validée) avant la tâche 13.
 

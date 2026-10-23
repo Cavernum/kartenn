@@ -156,6 +156,9 @@ Acceptation :
 - `?domain=lab&prop.env=prod&prop.env=test` : objets du domaine `lab` dont `env` vaut
   `prod` ou `test`.
 - Un paramètre inconnu → 400 qui le nomme.
+- Chaque filtre servi par une liste figure dans ses `parameters` du contrat, typé ; les
+  filtres de propriétés y sont les gabarits `prop.{key}`, `prop.{key}:between`,
+  `prop.{key}:exists` (H20, 021/X41).
 
 #### REQ-006-10 — Recherche par QUERY
 kartenn doit accepter la méthode `QUERY` sur les collections, avec un corps JSON portant

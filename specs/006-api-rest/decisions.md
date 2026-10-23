@@ -23,6 +23,8 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - H14 transport : TLS configurable, HTTP/1.1 et 2, réponses compressées.
 - H15 budgets : D14 mesurés à travers HTTP ; matrices de sécurité de bout en bout.
 - H19 ETag d'un objet : `"<version>.<empreinte du corps>"` ; `If-Match` ne compare que la version.
+- H20 filtres déclarés au contrat : chaque filtre servi est un `parameter` ; `prop.{key}`
+  et ses opérateurs en gabarit décrit par `x-kartenn` (021/X41).
 
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
@@ -438,6 +440,36 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Rejeté : (b) deux validateurs pour une même représentation (un client générique
   renvoie l'ETag, pas un en-tête propre) ; (c) écritures en cascade non bornées.
 - Décidé par : l'utilisateur (2026-10-23) pour (a) ; empreinte et forme nue : Claude.
+
+## H20 — Filtres déclarés au contrat (précise H6, H12 et REQ-006-9 ; 021/X41)
+- Constat (2026-10-23, spec 021, REQ-021-35) : les filtres typés du nouveau shell et les
+  options de la CLI (023) se tirent des `parameters` du contrat. Or le contrat ne
+  déclarait que la clé naturelle des listes du noyau : `prop.<clé>` et ses opérateurs n'y
+  figuraient pas (la CLI ajoutait `--prop` à toute liste, par convention), et `within`,
+  `nature`, `usage`, promis par REQ-006-9, n'étaient pas servis.
+- Décision : **tout filtre servi par une liste est déclaré dans ses `parameters`, typé** ;
+  un test le vérifie sur le contrat de la build (chaque liste est sondée avec tous les
+  noms de filtre du contrat ; un nom qu'elle ne refuse pas comme inconnu doit y être
+  déclaré). Les filtres de propriétés, une famille de noms qu'OpenAPI 3.1 ne sait pas
+  décrire (un paramètre a un nom fixe ; `style: deepObject` donnerait `prop[clé]`), sont
+  déclarés comme trois **gabarits** : `prop.{key}`, `prop.{key}:between` (chaîne
+  contenant `..`), `prop.{key}:exists` (booléen) ; `{key}` s'y lit comme dans un gabarit
+  de chemin, et l'extension `x-kartenn` du paramètre le dit :
+  `{"template": {"key": {"pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", "collection": "/v1/property-declarations"}}}`.
+  Un filtre dont les valeurs viennent d'une liste porte `x-kartenn.collection`
+  (`domain` → `/v1/domains`) ; une valeur fermée, le schéma de son énumération
+  (`nature` → `Nature`). Les gabarits ne figurent que sur les listes qui filtrent par
+  propriété (préfixes, plages, adresses) ; une autre liste refuse `prop.…` comme
+  paramètre inconnu.
+- Pourquoi : un client générique voit des paramètres valides, de nom inoffensif ; un
+  client de kartenn reconnaît le gabarit par l'extension, sans convention cachée. Les
+  types restent ceux des autres filtres répétables (`string`, « répété : un parmi »),
+  pour ne pas changer le type d'un paramètre existant (H12).
+- Rejeté : `style: deepObject` (autre syntaxe que celle servie, H6) ; un paramètre
+  unique `in: querystring` (OpenAPI 3.2, pas encore la version du contrat, H12) ; la
+  convention implicite des clients (ce qui manquait).
+- Décidé par : Claude (forme du contrat déléguée par la tâche 021-28, 2026-10-23) ;
+  `within`, `nature`, `usage` : REQ-006-9, déjà validée.
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,

@@ -45,6 +45,9 @@ pub const QUERY_EXTENSION: &str = "x-query";
 /// « Versions et contrat »).
 pub const CLIENT_EXTENSION: &str = "x-kartenn";
 
+/// The pattern of a property key (REQ-003-2), as the contract gives it to the clients.
+pub const PROPERTY_KEY_PATTERN: &str = "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$";
+
 /// The media type of a problem (RFC 9457 §3).
 const PROBLEM_TYPE: &str = "application/problem+json";
 
@@ -370,6 +373,76 @@ impl Op {
                     .schema(Some(String::schema()))
                     .build(),
             ),
+        )
+    }
+
+    /// A filter of the query string of a list, of schema `schema`; `client`, when given,
+    /// is its extension `x-kartenn` (`collection`: the list its values come from).
+    #[must_use]
+    pub fn filter(
+        self,
+        name: &str,
+        description: &str,
+        schema: RefOr<Schema>,
+        client: Option<Value>,
+    ) -> Self {
+        let mut extensions = None;
+        if let Some(members) = client {
+            extend(&mut extensions, members);
+        }
+        Self(
+            self.0.parameter(
+                ParameterBuilder::new()
+                    .name(name)
+                    .parameter_in(ParameterIn::Query)
+                    .required(Required::False)
+                    .description(Some(description))
+                    .schema(Some(schema))
+                    .extensions(extensions)
+                    .build(),
+            ),
+        )
+    }
+
+    /// The three forms of a property filter (spec 006, design « Filtres »; 021/X41):
+    /// `prop.{key}`, `prop.{key}:between`, `prop.{key}:exists`. OpenAPI 3.1 names a
+    /// parameter, not a family of them: `{key}` in the name stands for a property key, as
+    /// in a path template, and the extension `x-kartenn` says so (`template`: the pattern
+    /// of the key, the list its values come from).
+    #[must_use]
+    pub fn property_filters(self) -> Self {
+        let template = || {
+            Some(serde_json::json!({
+                "template": {
+                    "key": {
+                        "pattern": PROPERTY_KEY_PATTERN,
+                        "collection": "/v1/property-declarations",
+                    }
+                }
+            }))
+        };
+        let bounds: RefOr<Schema> = utoipa::openapi::ObjectBuilder::new()
+            .schema_type(utoipa::openapi::schema::Type::String)
+            .pattern(Some(r"\.\."))
+            .into();
+        self.filter(
+            "prop.{key}",
+            "The property `{key}` equal to the value (repeated: one of).",
+            String::schema(),
+            template(),
+        )
+        .filter(
+            "prop.{key}:between",
+            "The property `{key}` within `low..high`, one bound may be open (`60..`, \
+             `..3600`): integers, dates, texts.",
+            bounds,
+            template(),
+        )
+        .filter(
+            "prop.{key}:exists",
+            "The property `{key}` present (`true`) or absent (`false`).",
+            bool::schema(),
+            template(),
         )
     }
 

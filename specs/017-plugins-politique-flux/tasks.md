@@ -177,8 +177,10 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
 - [ ] 15. Aperçu d'une règle d'inférence avant écriture : nœuds qui correspondraient,
   écarts ouverts ou fermés — REQ-017-34 — verify : Vitest (aperçu de 12 nœuds et 3
   écarts sans écriture)
-  où : design « Inférence » (ligne « Aperçu ») ; route de 010/S36 ; formulaire de la
-  tâche 13
+  où : design « Inférence » (ligne « Aperçu ») ; simulation `POST /v1/changesets?
+  simulate=true` du brouillon, section `policy.combinations`, lignes
+  `policy.inference.summary` et `policy.inference.node` (010/S36, servies par 010-22) ;
+  formulaire de la tâche 13
   dépend de : 1, 13, 021-31 (route de l'amendement 010/S36, accepté)
 
 ## P3 — Flux

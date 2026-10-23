@@ -772,17 +772,18 @@ pub(crate) fn masked_gap(key: &str) -> String {
 /// The filter of the deviations: property, domain, entity.
 type GapFilter = (Option<String>, Option<Uuid>, Option<Uuid>);
 
-/// `property`, `domain` and `entity`, each at most once; anything else → 400.
-fn gap_filter(query: Option<&str>) -> Result<GapFilter, Problem> {
+/// `property`, `domain` and `entity` among the parameters left by the page, each at most
+/// once; anything else → 400.
+fn gap_filter(params: &[(String, String)]) -> Result<GapFilter, Problem> {
     let (mut property, mut domain, mut entity) = (None, None, None);
-    for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
-        let slot = match name.as_ref() {
+    for (name, value) in params {
+        let slot = match name.as_str() {
             "property" => &mut property,
             "domain" => &mut domain,
             "entity" => &mut entity,
             other => return Err(bad(format!("unknown parameter {other}"))),
         };
-        if slot.replace(value.into_owned()).is_some() {
+        if slot.replace(value.clone()).is_some() {
             return Err(bad(format!("{name} is given more than once")));
         }
     }
@@ -821,6 +822,7 @@ struct Gap {
         ("property" = Option<String>, Query, description = "The property."),
         ("domain" = Option<Uuid>, Query, description = "The domain of the object."),
         ("entity" = Option<Uuid>, Query, description = "The entity of the object."),
+        PageParams,
     ),
     responses((status = 200, description = "The open deviations.", body = Listing<Gap>))
 )]
@@ -831,7 +833,9 @@ async fn gaps(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let (property, domain, entity) = gap_filter(query.as_deref())?;
+    const NAME: &str = "property-gaps";
+    let (page, after) = crate::anomalies::anomaly_page(&api, query.as_deref(), NAME)?;
+    let (property, domain, entity) = gap_filter(&page.filters)?;
     let moment = moment_of(&api, Dates::default()).await?;
     let scope = api
         .authorizer()
@@ -841,13 +845,13 @@ async fn gaps(
         rule: Some(PROP_EXPECTED_MISMATCH.id),
         domain,
         entity,
+        property: property.as_deref(),
     };
-    let mut found = anomalies::open_within(&api.pool, &wanted, &scope)
+    let limit = i64::from(page.size) + 1;
+    let mut found = anomalies::open_page(&api.pool, &wanted, &scope, after, Some(limit))
         .await
         .map_err(|e| store(&e))?;
-    if let Some(property) = &property {
-        found.retain(|(a, _)| gap_property(a) == Some(property.as_str()));
-    }
+    let next = crate::anomalies::anomaly_next(&api, &page, NAME, &moment, &mut found);
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
     let criteria =
         json!({ "property_gaps": { "property": property, "domain": domain, "entity": entity } });
@@ -867,7 +871,7 @@ async fn gaps(
             opened_at: rfc3339(instant(anomaly.opened_at)),
         })
         .collect();
-    Ok(respond_page(&headers, &moment, &items, None))
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 #[cfg(test)]

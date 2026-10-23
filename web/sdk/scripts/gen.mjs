@@ -5,8 +5,9 @@
 // Types of the API client, drawn from the reference contract (REQ-007-15, W8):
 // `src/api/schema.d.ts` (openapi-typescript, plus the `QUERY` routes, which OpenAPI 3.1
 // carries as the `x-query` extension) and `src/api/dated.ts` (the paths whose read takes
-// `valid_at`). No code at run time comes from the contract.
-// `node scripts/gen.mjs` writes both; `generate()` is what the freshness test compares.
+// `valid_at`) and `src/api/filters.ts` (the filters of each list, 021/X41). No code at
+// run time comes from the contract.
+// `node scripts/gen.mjs` writes the three; `generate()` is what the freshness test compares.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,7 @@ export const CONTRACT = fileURLToPath(
 );
 export const SCHEMA = fileURLToPath(new URL("../src/api/schema.d.ts", import.meta.url));
 export const DATED = fileURLToPath(new URL("../src/api/dated.ts", import.meta.url));
+export const FILTERS = fileURLToPath(new URL("../src/api/filters.ts", import.meta.url));
 
 const NOTICE = `// This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -58,7 +60,71 @@ function datedPaths(spec) {
     .sort();
 }
 
-/** Both generated files, formatted, from a parsed contract. */
+/** Query parameters of a list that are not filters: its dates and its pages. */
+const NOT_FILTERS = new Set(["valid_at", "as_of", "cursor", "page_size"]);
+
+/** A parameter with its `$ref` followed. */
+function parameter(spec, raw) {
+  const ref = raw.$ref;
+  return typeof ref === "string"
+    ? spec.components.parameters[ref.replace("#/components/parameters/", "")]
+    : raw;
+}
+
+/** A schema with its `$ref` followed. */
+function resolved(spec, schema) {
+  const ref = schema?.$ref;
+  return typeof ref === "string"
+    ? spec.components.schemas[ref.replace("#/components/schemas/", "")]
+    : (schema ?? {});
+}
+
+/** The model of a filter: its name, type, closed values and where its values come from. */
+function filterOf(spec, raw) {
+  const schema = resolved(spec, raw.schema);
+  const client = raw["x-kartenn"] ?? {};
+  const type = Array.isArray(schema.type)
+    ? schema.type.find((t) => t !== "null")
+    : (schema.type ?? "string");
+  return {
+    name: raw.name,
+    type,
+    ...(schema.enum ? { enum: schema.enum } : {}),
+    ...(schema.pattern ? { pattern: schema.pattern } : {}),
+    ...(client.collection ? { collection: client.collection } : {}),
+    ...(client.template ? { template: client.template } : {}),
+  };
+}
+
+/** The filters of each list (a `GET` that takes `cursor`), by path. */
+function filters(spec) {
+  const lists = Object.entries(spec.paths)
+    .map(([path, item]) => [path, (item.get?.parameters ?? []).map((p) => parameter(spec, p))])
+    .filter(([, params]) => params.some((p) => p.in === "query" && p.name === "cursor"))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([path, params]) => [
+      path,
+      params
+        .filter((p) => p.in === "query" && !NOT_FILTERS.has(p.name))
+        .map((p) => filterOf(spec, p)),
+    ]);
+  return `/** A filter of a list: \`{key}\` in its name stands for a property key (\`template\`). */
+export interface Filter {
+  readonly name: string;
+  readonly type: string;
+  readonly enum?: readonly string[];
+  readonly pattern?: string;
+  /** The list its values come from. */
+  readonly collection?: string;
+  readonly template?: { readonly key: { readonly pattern: string; readonly collection: string } };
+}
+
+/** The filters of each list of the contract, by path (021/X41, REQ-021-35). */
+export const FILTERS: Readonly<Record<string, readonly Filter[]>> = ${JSON.stringify(Object.fromEntries(lists))};
+`;
+}
+
+/** The generated files, formatted, from a parsed contract. */
 export async function generate(spec) {
   const schema = astToString(await openapiTS(structuredClone(spec))) + queries(spec);
   const dated = `/** Paths whose read is dated: the client adds \`valid_at\` and \`as_of\` from the context. */
@@ -67,6 +133,7 @@ export const DATED_PATHS: ReadonlySet<string> = new Set(${JSON.stringify(datedPa
   return {
     schema: await format(NOTICE + schema, PRETTIER),
     dated: await format(NOTICE + dated, PRETTIER),
+    filters: await format(NOTICE + filters(spec), PRETTIER),
   };
 }
 
@@ -75,7 +142,8 @@ export function readContract() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { schema, dated } = await generate(readContract());
+  const { schema, dated, filters: lists } = await generate(readContract());
   writeFileSync(SCHEMA, schema);
   writeFileSync(DATED, dated);
+  writeFileSync(FILTERS, lists);
 }

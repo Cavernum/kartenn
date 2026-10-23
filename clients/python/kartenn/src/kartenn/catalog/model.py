@@ -65,6 +65,8 @@ SOCLE = (
     "logout",
 )
 _DATES = frozenset({"valid_at", "as_of", "cursor", "page_size"})
+# The parameter by which a list declares its property filters (spec 006, « Filtres »).
+PROPERTY_FILTER = "prop.{key}"
 
 
 class UnknownResource(ClientError, AttributeError):
@@ -110,9 +112,20 @@ class Operation:
 
     @property
     def filters(self) -> tuple[Param, ...]:
-        """The query parameters that are filters: all but the dates, the cursor and the
-        size of a page."""
-        return tuple(p for p in self.params if p.location == "query" and p.name not in _DATES)
+        """The query parameters that are filters: all but the dates, the cursor, the size
+        of a page and the templates of the property filters (`prop.{key}`)."""
+        return tuple(
+            p
+            for p in self.params
+            if p.location == "query" and p.name not in _DATES and "{" not in p.name
+        )
+
+    @property
+    def takes_properties(self) -> bool:
+        """Whether the list filters by property: its contract declares `prop.{key}`
+        (021/X41), with `:between` and `:exists`."""
+        found = self.param(PROPERTY_FILTER)
+        return found is not None and found.location == "query"
 
     @property
     def needs_if_match(self) -> bool:

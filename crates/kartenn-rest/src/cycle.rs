@@ -770,11 +770,13 @@ async fn section_diff(
         json!({ "changeset": id, "diff": { "section": section } }),
     )
     .await?;
+    let mut rows: Vec<SectionRowDto> = found
+        .iter()
+        .map(|(_, row)| SectionRowDto::from(row))
+        .collect();
+    crate::changesets::mask_rows(api, context, &mut rows).await?;
     let mut response = axum::Json(DiffAnswer::Section(SectionPage {
-        rows: found
-            .iter()
-            .map(|(_, row)| SectionRowDto::from(row))
-            .collect(),
+        rows,
         section,
         links: ListingLinks {
             next: next.as_deref(),
@@ -965,7 +967,7 @@ pub(crate) async fn validation(
         MAX_OPERATIONS,
     )
     .await?;
-    answered(&api, outcome, &VALIDATION).await
+    answered(&api, &context, outcome, &VALIDATION).await
 }
 
 /// `POST /v1/changesets/{id}/rejection` with `{"motive": "…"}` (REQ-004-23, 43).

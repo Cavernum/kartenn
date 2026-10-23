@@ -301,6 +301,7 @@ help = "Fixer une cellule : SOURCE TYPE DESTINATION VALEUR (sous If-Match de la 
 
 [report]
 help = "Rapport d'audit de conformité (tâche de fond)."
+list = "Rapports d'audit demandés, les plus récents d'abord."
 asked = "Rapport {id} demandé."
 state = "Rapport {id} : {state}"
 
@@ -405,7 +406,7 @@ since = "Reprendre après ce curseur."
 help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."
 
 [filter]
-unknown = "Filtre inconnu : {option}. Filtres : {filters}, --prop CLÉ[:OP]=VALEUR."
+unknown = "Filtre inconnu : {option}. Filtres : {filters}."
 
 [ref]
 no_key = "« {resource} » ne déclare pas de clé naturelle (x-kartenn) : désignez l'objet par son UUID, pas « {ref} »."

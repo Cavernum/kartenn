@@ -135,12 +135,27 @@ def test_a_property_repeated_is_one_of(keyed: FakeServer) -> None:
     assert keyed.seen[-1].url.params.get_list("prop.a.b") == ["1", "2", "3"]
 
 
+def test_the_filters_of_the_contract_are_options(keyed: FakeServer) -> None:
+    keyed.route("GET", "/v1/prefixes", page([]))
+    result = kartenn("prefixes", "list", "--within", "198.51.100.0/24", "--nature", "network")
+    assert result.exit_code == 0, result.stderr
+    params = keyed.seen[-1].url.params
+    assert params["within"] == "198.51.100.0/24"
+    assert params["nature"] == "network"
+
+
 def test_an_unknown_filter_is_refused_without_a_request(keyed: FakeServer) -> None:
-    result = kartenn("prefixes", "list", "--within", "198.51.100.0/24")
+    result = kartenn("prefixes", "list", "--colour", "red")
     assert result.exit_code == 2
     assert result.stderr == (
-        "erreur [client.unknown-filter] Filtre inconnu : --within. Filtres : --domain, "
-        "--value, --prop CLÉ[:OP]=VALEUR.\n"
+        "erreur [client.unknown-filter] Filtre inconnu : --colour. Filtres : --domain, "
+        "--value, --within, --nature, --prop CLÉ[:OP]=VALEUR.\n"
+    )
+    # A list that does not filter by property offers no --prop.
+    result = kartenn("entities", "list", "--prop", "a.b=1")
+    assert result.exit_code == 2
+    assert result.stderr == (
+        "erreur [client.unknown-filter] Filtre inconnu : --prop. Filtres : --slug, --parent.\n"
     )
     assert keyed.seen == []
     bad = kartenn("prefixes", "list", "--prop", "nokey=1")

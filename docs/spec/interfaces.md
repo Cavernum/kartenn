@@ -218,7 +218,8 @@ les a exclus (événements sortants).
 - **Découverte** : aucune ressource de module n'est connue du client. Le catalogue est
   dérivé à l'exécution de `GET /v1/capabilities` et `GET /v1/openapi.json` (conventions
   REST de l'ADR 0026, clause 9 ; extension `x-kartenn` : clé naturelle et colonnes d'une
-  collection, commande nommée d'une opération), en cache XDG par révision (version,
+  collection, commande nommée d'une opération, gabarit `prop.{key}` et liste d'origine
+  des valeurs d'un filtre, 006/H20), en cache XDG par révision (version,
   modules, ETag du contrat ; capacités relues après une minute, contrat revalidé par
   `If-None-Match`). Les étiquettes du socle que les capacités listent parmi les modules
   (`core`, `rights`, `audit`…) restent à la racine de la CLI.

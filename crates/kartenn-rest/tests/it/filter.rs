@@ -40,7 +40,7 @@ async fn prefixes(
     let internal = |_| Problem::new(ProblemKind::Internal);
     let bad = |detail: &str| Problem::new(ProblemKind::BadRequest).detail(detail);
     let page = Page::from_query(&query, &lists.ring, "prefixes")?;
-    let filters = filter::parse(&page.filters, &["domain"])?;
+    let filters = filter::parse(&page.filters, &["domain"], true)?;
     let (mut domain, mut property) = (None, None);
     for filter in filters {
         match (filter.field, filter.condition) {

@@ -1,8 +1,8 @@
 ---
 status: in-progress
-updated: 2026-10-22
+updated: 2026-10-23
 ---
-<!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer). -->
+<!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer) et REQ-010-55 (S36, acceptée le 2026-10-23, tâche 010-22). -->
 
 
 # 010 — Politique de flux : exigences
@@ -498,6 +498,34 @@ Le module doit respecter (p95 serveur, jeu de 10⁶ objets, 2 000 règles au plu
 suggestion pour un objet < 50 ms ; contrôle des objets d'un changeset de 10⁴ objets
 < 1 s ajoutée ; réévaluation complète de 10⁶ nœuds en tâche de fond < 10 min (I14).
 
+#### REQ-010-55 — Aperçu de l'inférence (S36)
+> S36 acceptée le 2026-10-23 (tâche 010-22).
+
+Quand un changeset crée, modifie ou clôt une règle d'inférence, le module doit ajouter
+à sa contribution au différentiel, en simulation comme à l'application, les nœuds dont
+l'attendu change entre l'état d'avant et celui d'après le changeset, avec l'écart
+(REQ-010-47) d'avant et d'après, et les décomptes des nœuds changés, des écarts ouverts
+et fermés (en nœuds et en nœuds d'origine), sans lever ni clore d'anomalie
+(REQ-017-34, S36).
+
+Bornes (p95 serveur, jeu de 10⁶ objets, 2 000 règles au plus ; à confirmer par le banc
+010-19) : < 1 s ajoutée pour une portée de 10⁴ nœuds, < 10 s pour 10⁵ ; au-delà de 10⁵
+nœuds dans la portée, décompte de la portée seul.
+
+Acceptation :
+- Simulation d'une règle `prod` sur un préfixe de 12 nœuds sans attendu, dont 3
+  déclarés `dev` et les autres non classés : 12 nœuds changés, 3 écarts ouverts, rien
+  n'est écrit et aucune anomalie n'est levée.
+- Simulation de la clôture de cette règle, une fois appliquée : 12 nœuds changés,
+  3 écarts fermés.
+- Règle de priorité inférieure à une règle qui couvre déjà le préfixe : aucun nœud
+  changé.
+- Règle dont la portée dépasse 10⁵ nœuds : synthèse avec le décompte de la portée et
+  `truncated`, sans ligne de nœud ni décompte d'écarts.
+- Simulation par une identité sans `policy.inference.admin` sur le domaine cité :
+  refusée comme l'écriture (`core.object.forbidden`, `valid: false`, aucune section ;
+  l'écriture répond 403).
+
 ### H. Classification obligatoire et audit
 
 #### REQ-010-21 — Obligation par domaine et par axe
@@ -531,6 +559,8 @@ UC-9).
 Acceptation :
 - Le rapport donne un décompte par rubrique et un détail paginé, consultable par l'API
   et exportable en JSON.
+- Les rapports se listent, les plus récents d'abord, par état et par date, page par page
+  (021-30), sous les droits du rapport.
 
 ### I. Droits, temps, API
 
@@ -602,6 +632,8 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 ## Questions ouvertes
 
+- [x] S36 et REQ-010-55 (aperçu de l'inférence dans le différentiel, pour REQ-017-34) :
+  acceptés par l'utilisateur le 2026-10-23.
 - [ ] Budgets de REQ-010-28 et REQ-010-54 : tenus en variante réduite par le banc
   `bench-policy` (2026-10-22, tâche 010-19) ; à confirmer sur le jeu de 10⁶ objets.
   Le rapport d'audit y dépassait le budget (≈ 990 s). (Claude, tâches 010-1 et 010-19)

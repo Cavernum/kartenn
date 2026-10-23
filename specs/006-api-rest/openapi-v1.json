@@ -4106,6 +4106,27 @@
         ],
         "type": "object"
       },
+      "Listing_PolicyReport": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyReport"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_Prefix": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -8850,7 +8871,7 @@
             "type": "object"
           },
           "before": {
-            "description": "What the module shows of it before; `null`: absent.",
+            "description": "What the module shows of it before; `null`: absent. A side may name, under\n`masking`, the members a sensitive property hides (`masked: true` then).",
             "type": "object"
           },
           "kind": {
@@ -10194,21 +10215,94 @@
         "operationId": "list_addresses",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug of the domain (repeated: one of).",
             "in": "query",
             "name": "domain",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/domains"
+            }
+          },
+          {
+            "description": "The address (repeated: one of).",
+            "in": "query",
+            "name": "value",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside.",
             "in": "query",
-            "name": "value",
+            "name": "within",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "The usage (repeated: one of).",
+            "in": "query",
+            "name": "usage",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AddressUsage"
+            }
+          },
+          {
+            "description": "The property `{key}` equal to the value (repeated: one of).",
+            "in": "query",
+            "name": "prop.{key}",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts.",
+            "in": "query",
+            "name": "prop.{key}:between",
+            "required": false,
+            "schema": {
+              "pattern": "\\.\\.",
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` present (`true`) or absent (`false`).",
+            "in": "query",
+            "name": "prop.{key}:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
             }
           },
           {
@@ -10272,7 +10366,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The addresses the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The addresses the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -10383,7 +10477,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The addresses the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The addresses the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -11655,6 +11749,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -11679,7 +11793,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller\nmay read now, oldest first (REQ-002-36).",
+        "summary": "`GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller\nmay read now, oldest first (REQ-002-36), by pages (task 021-29).",
         "tags": [
           "core"
         ]
@@ -13711,7 +13825,7 @@
         "operationId": "list_domains",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug equal to (repeated: one of).",
             "in": "query",
             "name": "slug",
             "required": false,
@@ -13780,7 +13894,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The domains the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The domains the caller may read, by natural key.",
         "tags": [
           "core"
         ]
@@ -13887,7 +14001,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The domains the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The domains the caller may read, by natural key.",
         "tags": [
           "core"
         ]
@@ -14462,7 +14576,7 @@
         "operationId": "list_entities",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug equal to (repeated: one of).",
             "in": "query",
             "name": "slug",
             "required": false,
@@ -14471,12 +14585,15 @@
             }
           },
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug of the parent entity (repeated: one of).",
             "in": "query",
             "name": "parent",
             "required": false,
             "schema": {
               "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/entities"
             }
           },
           {
@@ -14540,7 +14657,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The entities the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The entities the caller may read, by natural key.",
         "tags": [
           "core"
         ]
@@ -14648,7 +14765,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The entities the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The entities the caller may read, by natural key.",
         "tags": [
           "core"
         ]
@@ -22936,6 +23053,93 @@
       }
     },
     "/v1/policy-reports": {
+      "get": {
+        "operationId": "list_policy_reports",
+        "parameters": [
+          {
+            "description": "`pending`, `running` or `done` (repeated: one of).",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for by this identity.",
+            "in": "query",
+            "name": "requested_by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for from this instant (RFC 3339).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for before this instant (RFC 3339).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyReport"
+                }
+              }
+            },
+            "description": "A page of the reports."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The reports of the policy, the most recently asked for first (021-30).",
+        "tags": [
+          "policy"
+        ]
+      },
       "post": {
         "operationId": "request_policy_report",
         "requestBody": {
@@ -22977,6 +23181,15 @@
         "x-kartenn": {
           "command": "report"
         }
+      },
+      "x-kartenn": {
+        "columns": [
+          "requested_at",
+          "state",
+          "valid_at",
+          "done_at"
+        ],
+        "key": []
       }
     },
     "/v1/policy-reports/{id}": {
@@ -24318,21 +24531,94 @@
         "operationId": "list_prefixes",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug of the domain (repeated: one of).",
             "in": "query",
             "name": "domain",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/domains"
+            }
+          },
+          {
+            "description": "The prefix, in CIDR notation (repeated: one of).",
+            "in": "query",
+            "name": "value",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside.",
             "in": "query",
-            "name": "value",
+            "name": "within",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "The nature (repeated: one of).",
+            "in": "query",
+            "name": "nature",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Nature"
+            }
+          },
+          {
+            "description": "The property `{key}` equal to the value (repeated: one of).",
+            "in": "query",
+            "name": "prop.{key}",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts.",
+            "in": "query",
+            "name": "prop.{key}:between",
+            "required": false,
+            "schema": {
+              "pattern": "\\.\\.",
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` present (`true`) or absent (`false`).",
+            "in": "query",
+            "name": "prop.{key}:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
             }
           },
           {
@@ -24396,7 +24682,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The prefixes the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The prefixes the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -24507,7 +24793,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The prefixes the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The prefixes the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -25544,6 +25830,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -25632,21 +25938,94 @@
         "operationId": "list_ranges",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug of the domain (repeated: one of).",
             "in": "query",
             "name": "domain",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/domains"
+            }
+          },
+          {
+            "description": "The first address of the range (repeated: one of).",
+            "in": "query",
+            "name": "first",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside.",
             "in": "query",
-            "name": "first",
+            "name": "within",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "The usage (repeated: one of).",
+            "in": "query",
+            "name": "usage",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RangeUsage"
+            }
+          },
+          {
+            "description": "The property `{key}` equal to the value (repeated: one of).",
+            "in": "query",
+            "name": "prop.{key}",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts.",
+            "in": "query",
+            "name": "prop.{key}:between",
+            "required": false,
+            "schema": {
+              "pattern": "\\.\\.",
+              "type": "string"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          },
+          {
+            "description": "The property `{key}` present (`true`) or absent (`false`).",
+            "in": "query",
+            "name": "prop.{key}:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "x-kartenn": {
+              "template": {
+                "key": {
+                  "collection": "/v1/property-declarations",
+                  "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+                }
+              }
             }
           },
           {
@@ -25710,7 +26089,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The ranges the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The ranges the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -25822,7 +26201,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The ranges the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The ranges the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
         ]
@@ -28210,7 +28589,7 @@
         "operationId": "list_sites",
         "parameters": [
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug equal to (repeated: one of).",
             "in": "query",
             "name": "slug",
             "required": false,
@@ -28219,12 +28598,15 @@
             }
           },
           {
-            "description": "Equal to (repeated: one of).",
+            "description": "Slug of the parent site (repeated: one of).",
             "in": "query",
             "name": "parent",
             "required": false,
             "schema": {
               "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/sites"
             }
           },
           {
@@ -28288,7 +28670,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The sites the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The sites the caller may read, by natural key.",
         "tags": [
           "core"
         ]
@@ -28396,7 +28778,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The sites the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`).",
+        "summary": "The sites the caller may read, by natural key.",
         "tags": [
           "core"
         ]

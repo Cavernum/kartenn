@@ -149,6 +149,23 @@ def test_policy_report(server: FakeServer) -> None:
     assert json.loads(record.stdout)["state"] == "done"
 
 
+def test_policy_reports(server: FakeServer) -> None:
+    """`policy reports`: the list of the reports, with the filters of the contract and its
+    pages (021-30)."""
+    report = {"id": "r2", "state": "done", "requested_at": "2026-10-23T08:00:00Z"}
+    server.route(
+        "GET",
+        "/v1/policy-reports",
+        {"items": [report], "links": {"next": None}},
+    )
+    result = kartenn("policy", "reports", "--state", "done", "--requested-by", "u1", "-o", "ndjson")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["id"] == "r2"
+    params = server.seen[-1].url.params
+    assert params["state"] == "done"
+    assert params["requested_by"] == "u1"
+
+
 def test_flow_request_and_review(server: FakeServer) -> None:
     server.route("GET", "/v1/services", {"items": [{"id": "s1", "key": "https"}], "links": {}})
     server.route("GET", "/v1/entities", {"items": [{"id": "e1", "slug": "exemple"}], "links": {}})
@@ -216,7 +233,7 @@ def test_flow_request_and_review(server: FakeServer) -> None:
 
 def test_named_commands_need_their_operations() -> None:
     catalog = derive("u", capabilities(), CONTRACT)
-    assert set(named_commands("policy", catalog)) == {"check", "matrix", "report"}
+    assert set(named_commands("policy", catalog)) == {"check", "matrix", "report", "reports"}
     assert set(named_commands("flow", catalog)) == {"request", "review"}
     assert replaced("flow", catalog) == {"create"}
     no_flow = derive(

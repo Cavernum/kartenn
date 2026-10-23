@@ -188,6 +188,11 @@ pub struct Criteria<'a> {
     pub values: &'a [String],
     /// Identifiers.
     pub ids: &'a [Uuid],
+    /// CIDR texts: the objects of a domain inside one of them (a prefix included in it,
+    /// an address in it, a range whose bounds both are).
+    pub within: &'a [String],
+    /// The nature of a prefix, the usage of a range or of an address: one of them.
+    pub usages: &'a [String],
 }
 
 fn sql_err(e: &TemporalError) -> sqlx::Error {
@@ -232,6 +237,19 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
         ),
         None => (String::new(), "NULL::text"),
     };
+    let (within_filter, usage_filter) = match kind {
+        Kind::Prefix => (
+            "EXISTS (SELECT FROM unnest($12::cidr[]) w WHERE x.prefix <<= w)",
+            "x.nature = ANY($13)",
+        ),
+        Kind::Range => (
+            "EXISTS (SELECT FROM unnest($12::cidr[]) w
+                     WHERE lower(x.range) <<= w AND upper(x.range) <<= w)",
+            "x.usage = ANY($13)",
+        ),
+        Kind::Address => ("x.address <<= ANY($12::cidr[])", "x.usage = ANY($13)"),
+        Kind::Entity | Kind::Site | Kind::Domain => ("false", "false"),
+    };
     let slug_filter = if shape.value.is_none() {
         "x.slug = ANY($8)"
     } else {
@@ -245,6 +263,8 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
            AND (cardinality($9::text[]) = 0 OR {link} = ANY($9))
            AND (cardinality($10::text[]) = 0 OR {value_filter})
            AND (cardinality($11::uuid[]) = 0 OR x.id = ANY($11))
+           AND (cardinality($12::cidr[]) = 0 OR {within_filter})
+           AND (cardinality($13::text[]) = 0 OR {usage_filter})
            AND ($3::jsonb IS NULL OR {visible})
          ORDER BY {order}
          LIMIT $7"
@@ -296,6 +316,8 @@ pub async fn objects(
         .bind(criteria.links)
         .bind(criteria.values)
         .bind(criteria.ids)
+        .bind(criteria.within)
+        .bind(criteria.usages)
         .fetch_all(pool)
         .await?;
     Ok(rows

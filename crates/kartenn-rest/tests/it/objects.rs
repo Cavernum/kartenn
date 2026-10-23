@@ -211,6 +211,99 @@ async fn the_natural_key_is_a_filter(pool: PgPool) {
     }
 }
 
+/// `within`, `nature` and `usage` filter the objects of a domain (design « Filtres »,
+/// task 021-28): inclusion in a CIDR (the prefix itself included, both bounds of a
+/// range), one of the values; with a property filter, on the page of the engine.
+#[kartenn_testing::pg_test]
+async fn within_nature_and_usage_filter_the_lists(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let container = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let inside = prefix(&pool, lab, "10.1.2.0/24").await;
+    let outside = prefix(&pool, lab, "10.2.0.0/24").await;
+    let gateway = address(&pool, lab, "10.1.2.1").await;
+    address(&pool, lab, "10.2.0.1").await;
+    let host = insert(
+        &pool,
+        &format!(
+            "INSERT INTO address (id, domain_id, address, usage, public, registry_version,
+                                  valid_period, changeset_id)
+             VALUES (gen_random_uuid(), $1::uuid, '10.1.2.2', 'host', false, 'test', {SINCE})
+             RETURNING id"
+        ),
+        &[&lab.to_string()],
+    )
+    .await;
+    let range = |text: &'static str| {
+        let pool = pool.clone();
+        async move {
+            insert(
+                &pool,
+                &format!(
+                    "INSERT INTO ip_range (id, domain_id, range, usage, public,
+                                           registry_version, valid_period, changeset_id)
+                     VALUES (gen_random_uuid(), $1::uuid, $2::inetrange, 'dhcp', false,
+                             'test', {SINCE})
+                     RETURNING id"
+                ),
+                &[&lab.to_string(), text],
+            )
+            .await
+        }
+    };
+    let held = range("[10.1.2.10,10.1.2.20]").await;
+    range("[10.1.255.250,10.2.0.5]").await;
+    let env = declare(&pool, "policy.env", false).await;
+    assign(&pool, env, container, "prod", &[]).await;
+    assign(&pool, env, outside, "prod", &[]).await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let ids = |body: &Value| {
+        let mut ids = ids_of(body);
+        ids.sort();
+        ids
+    };
+    let sorted = |mut ids: Vec<Uuid>| {
+        ids.sort();
+        ids.iter().map(Uuid::to_string).collect::<Vec<_>>()
+    };
+
+    let body = ok(&app, "/v1/prefixes?within=10.1.0.0/16").await;
+    assert_eq!(ids(&body), sorted(vec![container, inside]), "{body}");
+    let body = ok(&app, "/v1/prefixes?within=10.1.0.0/16&nature=network").await;
+    assert_eq!(ids(&body), sorted(vec![inside]), "{body}");
+    let body = ok(&app, "/v1/prefixes?nature=container&nature=network").await;
+    assert_eq!(ids(&body).len(), 3, "{body}");
+    let body = ok(&app, "/v1/addresses?within=10.1.2.0/24").await;
+    assert_eq!(ids(&body), sorted(vec![gateway, host]), "{body}");
+    let body = ok(&app, "/v1/addresses?within=10.1.0.0/16&usage=host").await;
+    assert_eq!(ids(&body), sorted(vec![host]), "{body}");
+    let body = ok(&app, "/v1/ranges?within=10.1.0.0/16").await;
+    assert_eq!(ids(&body), sorted(vec![held]), "{body}");
+    let body = ok(&app, "/v1/ranges?usage=static").await;
+    assert_eq!(ids(&body), Vec::<String>::new(), "{body}");
+    // Beside a property filter: the objects of the engine, then the fields of the core.
+    let body = ok(
+        &app,
+        "/v1/prefixes?domain=lab&prop.policy.env=prod&within=10.1.0.0/16",
+    )
+    .await;
+    assert_eq!(ids(&body), sorted(vec![container]), "{body}");
+
+    // A value out of the enumeration, a CIDR with host bits, a filter of another
+    // collection: 400 naming it.
+    for (uri, named) in [
+        ("/v1/prefixes?nature=dhcp", "nature"),
+        ("/v1/ranges?usage=gateway", "usage"),
+        ("/v1/addresses?within=10.1.2.1/24", "within"),
+        ("/v1/prefixes?usage=host", "usage"),
+        ("/v1/entities?within=10.0.0.0/8", "within"),
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn every_collection_reads_with_its_summaries(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
@@ -1112,6 +1205,75 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     assert!(!body.to_string().contains("s3"), "{body}");
     let unknown = get(&app, "/v1/property-gaps?rule=x").await;
     assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
+}
+
+/// The anomalies and the deviations page by signed cursor, oldest first, to the last
+/// page (task 021-29); an altered cursor is refused, as dates beside the first page.
+#[kartenn_testing::pg_test]
+async fn anomalies_and_deviations_page_by_cursor(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    let mut opened = Vec::new();
+    let mut gaps = Vec::new();
+    for n in 0..5 {
+        let net = prefix(&pool, lab, &format!("10.1.{n}.0/24")).await;
+        opened.push(anomaly(&pool, author, net, "core.test.paged").await);
+        let gap = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+        let key = if n % 2 == 0 {
+            "policy.zone"
+        } else {
+            "policy.env"
+        };
+        sqlx::query("UPDATE anomaly SET message = $2 WHERE id = $1")
+            .bind(gap)
+            .bind(format!("{key}: resolved a, expected b"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        if n % 2 == 0 {
+            gaps.push(gap);
+        }
+    }
+    // The same opening for all: the identifier orders them.
+    sqlx::query("UPDATE anomaly SET opened_at = '2026-01-01T00:00:00Z'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    opened.sort();
+    gaps.sort();
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let strings = |ids: &[Uuid]| ids.iter().map(Uuid::to_string).collect::<Vec<_>>();
+
+    let uri = "/v1/anomalies?rule=core.test.paged&page_size=1";
+    assert_eq!(walk(&app, uri).await, strings(&opened));
+    let uri = "/v1/property-gaps?property=policy.zone&page_size=1";
+    assert_eq!(walk(&app, uri).await, strings(&gaps));
+    // Two pages of two, then one: the filter cut before the page.
+    let body = ok(&app, "/v1/property-gaps?property=policy.zone&page_size=2").await;
+    assert_eq!(ids_of(&body), strings(&gaps[..2]));
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    let body = ok(&app, &next).await;
+    assert_eq!(ids_of(&body), strings(&gaps[2..]));
+    assert!(body["links"]["next"].is_null(), "{body}");
+
+    // An altered cursor, a date: 400.
+    let first = ok(&app, "/v1/anomalies?page_size=1").await;
+    let next = first["links"]["next"].as_str().unwrap();
+    let (head, last) = next.split_at(next.len() - 1);
+    let altered = format!("{head}{}", if last == "A" { "B" } else { "A" });
+    let response = get(&app, &altered).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        json_of(response).await["type"],
+        "urn:kartenn:problem:invalid-cursor"
+    );
+    for uri in [
+        "/v1/anomalies?valid_at=2026-01-01T00:00:00Z",
+        "/v1/property-gaps?as_of=2026-01-01T00:00:00Z",
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+    }
 }
 
 /// The identifiers of every page of the list at `uri`, following `next`.
