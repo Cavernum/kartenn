@@ -21,7 +21,7 @@ emploient.
 
 ## P0 — Références et outillage
 
-- [ ] 1. Note de référence `docs/reference/systeme-de-design.md` : critères WCAG 2.2
+- [x] 1. Note de référence `docs/reference/systeme-de-design.md` : critères WCAG 2.2
   retenus (1.4.1, 1.4.3, 1.4.10, 1.4.11, 1.4.13, 2.1.4, 2.2.1, 2.3.3, 2.4.7, 2.4.11,
   2.5.7, 2.5.8) avec leur texte normatif ; motifs APG de l'inventaire (rôles, états,
   clavier) ; couches en cascade (CSS Cascade 5) ; CSSOM et `style-src` (renvoi à
@@ -31,6 +31,12 @@ emploient.
   - où : forme de `docs/reference/web-navigateur.md` (§ « Sources », « Ce que disent les
     sources », « Implications pour kartenn ») ; sous-agent `ref-researcher`
   - dépend de : —
+  - fait : note écrite d'après le brouillon de `ref-researcher` (pages lues par un outil de
+    résumé : citations marquées « à vérifier mot à mot ») et la lecture complète des
+    fichiers de licence des paquets épinglés ; indexée dans `docs/reference/README.md`.
+    Constats : 2.3.3 est de niveau AAA (REQ-020-11 le garde, hors objectif AA) ; la
+    licence de Lucide inclut une part MIT (icônes dérivées de Feather), livrée ; Geist ne
+    déclare aucun nom réservé ; écart MDN/WPT sur `cssText` laissé au parcours CSP.
 - [ ] 2. Outillage Claude (ADR 0039) : agents `.claude/agents/ui-reviewer.md` et
   `a11y-auditor.md` ; skill `.claude/skills/kartenn-ui/SKILL.md` (contrat d'écriture,
   inventaire à compléter au fil de P4, clichés, raccourcis réservés) chargé sur `web/**` ;
