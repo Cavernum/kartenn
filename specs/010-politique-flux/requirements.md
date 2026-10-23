@@ -558,6 +558,8 @@ UC-9).
 Acceptation :
 - Le rapport donne un décompte par rubrique et un détail paginé, consultable par l'API
   et exportable en JSON.
+- Les rapports se listent, les plus récents d'abord, par état et par date, page par page
+  (021-30), sous les droits du rapport.
 
 ### I. Droits, temps, API
 

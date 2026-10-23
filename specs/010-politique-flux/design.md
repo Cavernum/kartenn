@@ -368,6 +368,15 @@ rubriques « règles jamais appliquées » et « combinaisons sans flux » lisen
 matérialisés de la 011 quand elle est présente. Résultat stocké (`policy_report`,
 `policy_report_item` paginé), purgé après 30 jours.
 
+Liste des rapports (021-30, REQ-021-35) : `GET /v1/policy-reports`, les plus récents
+d'abord (date de demande décroissante, puis identifiant), par curseur signé (REQ-006-7,
+lu à l'état courant à chaque page, sans `valid_at` ni `as_of`) ; filtres `state`
+(`pending`, `running`, `done`, répété : un parmi), `requested_by` (UUID du lanceur),
+`from` et `to` (bornes de la date de demande, RFC 3339, `to` exclue) ; mêmes droits que
+le rapport (`policy.rule.admin` global, sinon 404 comme une lecture d'un rapport), un
+élément de la liste ayant la forme de `GET /v1/policy-reports/{id}`. Index existant
+`policy_report_by_date`.
+
 ### Droits (REQ-010-24, 25)
 
 Catalogue de permissions du module (ADR 0026 clause 8). Rôles livrés : lecteur +
@@ -391,7 +400,7 @@ développées d'une machine lisible mais non lisibles une à une sont omises et 
 | `QUERY /v1/verdicts` | corps `{source, destination, service | transport+port | flow_type, dossier?, valid_at, as_of, locale?}` ; extrémités par `{kind, id}` |
 | `GET /v1/verdicts?source=…&destination=…&service=…` | variante simple |
 | `GET /v1/{collection}/{id}/suggestion?axis=…` | suggestion d'inférence (route transverse du noyau, ADR 0026 clause 9) |
-| `POST /v1/policy-reports`, `GET /v1/policy-reports/{id}`, `GET …/items` | rapport d'audit |
+| `POST /v1/policy-reports`, `GET /v1/policy-reports`, `GET /v1/policy-reports/{id}`, `GET …/items` | rapport d'audit ; liste des rapports (021-30) |
 | `POST /v1/changesets?simulate=true`, `GET /v1/changesets/{id}/diff?section=policy.combinations` (routes du noyau) | aperçu d'une règle d'inférence : lignes `policy.inference.*` (REQ-010-55, S36) |
 
 Problèmes : `urn:kartenn:problem:policy-query-too-large` (422) ; les violations de

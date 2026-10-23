@@ -292,7 +292,7 @@ fn every_collection_tells_the_clients_its_key_and_its_columns() {
         }
         described += 1;
     }
-    assert_eq!(described, 25, "the collections described");
+    assert_eq!(described, 26, "the collections described");
     let prefixes = &reference["paths"]["/v1/prefixes"][CLIENT_EXTENSION];
     assert_eq!(prefixes["key"], serde_json::json!(["domain", "value"]));
     assert_eq!(

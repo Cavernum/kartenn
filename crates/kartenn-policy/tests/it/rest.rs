@@ -587,3 +587,119 @@ async fn a_report_is_asked_for_and_read(pool: PgPool) {
     let (status, _, _) = call(&reader, Method::POST, "/v1/policy-reports", None, &[]).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+/// The reports are listed, the most recently asked for first, by state and by date,
+/// page by page under the rights of a report (task 021-30).
+#[kartenn_testing::pg_test]
+async fn the_reports_are_listed_by_pages(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let launcher = env.person(&["policy.rule.admin"]).await;
+    let mut asked = Vec::new();
+    for days in 1..=4 {
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO policy.policy_report (id, valid_at, requested_by, requested_at,
+                                                state, done_at)
+             VALUES (gen_random_uuid(), now(), $1, now() - make_interval(days => $2), 'done',
+                     now())
+             RETURNING id",
+        )
+        .bind(launcher)
+        .bind(days)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        asked.push(id.to_string());
+    }
+    let admin = env.app(env.person(&["policy.rule.admin"]).await);
+    let (status, _, body) = call(
+        &admin,
+        Method::POST,
+        "/v1/policy-reports",
+        Some(json!({})),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let pending = body["id"].as_str().unwrap().to_owned();
+    let ids = |page: &Value| -> Vec<String> {
+        page["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // Page after page, newest first; the next link holds the filters.
+    let (mut seen, mut uri) = (Vec::new(), "/v1/policy-reports?page_size=2".to_owned());
+    let mut cursor = None;
+    loop {
+        let (status, _, page) = call(&admin, Method::GET, &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        seen.extend(ids(&page));
+        match page["links"]["next"].as_str() {
+            Some(next) => {
+                cursor.get_or_insert_with(|| next.to_owned());
+                next.clone_into(&mut uri);
+            }
+            None => break,
+        }
+    }
+    let mut wanted = vec![pending.clone()];
+    wanted.extend(asked.iter().cloned());
+    assert_eq!(seen, wanted);
+    let (_, _, page) = call(
+        &admin,
+        Method::GET,
+        "/v1/policy-reports?state=pending&state=running",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&page), std::slice::from_ref(&pending));
+    assert_eq!(page["items"][0]["state"], "pending");
+    let (_, _, page) = call(
+        &admin,
+        Method::GET,
+        &format!("/v1/policy-reports?state=done&requested_by={launcher}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&page), asked);
+    let to: String = sqlx::query_scalar(
+        "SELECT to_char((now() - interval '36 hours') AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (status, _, page) = call(
+        &admin,
+        Method::GET,
+        &format!("/v1/policy-reports?to={to}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(ids(&page), asked[1..]);
+
+    // An altered cursor, an unknown state or parameter, a date: 400.
+    let cursor = cursor.unwrap();
+    let (head, last) = cursor.split_at(cursor.len() - 1);
+    let altered = format!("{head}{}", if last == "A" { "B" } else { "A" });
+    for uri in [
+        altered.as_str(),
+        "/v1/policy-reports?state=lost",
+        "/v1/policy-reports?colour=red",
+        "/v1/policy-reports?valid_at=2026-01-01T00:00:00Z",
+    ] {
+        let (status, _, _) = call(&admin, Method::GET, uri, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+    }
+    // Without the right of a report: 404, as a report.
+    let reader = env.app(env.person(&["policy.catalogue.read"]).await);
+    let (status, _, _) = call(&reader, Method::GET, "/v1/policy-reports", None, &[]).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

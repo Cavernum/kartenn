@@ -1532,6 +1532,104 @@ async fn request_report(
     Ok(response)
 }
 
+fn report_dto(report: crate::report::Report) -> ReportDto {
+    ReportDto {
+        id: report.id,
+        valid_at: rfc3339(report.valid_at),
+        requested_by: report.requested_by,
+        requested_at: rfc3339(report.requested_at),
+        state: report.state,
+        done_at: report.done_at.map(rfc3339),
+        counts: report.counts,
+    }
+}
+
+/// The name of the list of the reports, in its cursors.
+const REPORTS: &str = "policy-reports";
+
+/// `GET /v1/policy-reports`: the reports, the most recently asked for first, by pages
+/// read at the current state, filtered by state, launcher and date of the request
+/// (task 021-30); under the rights of a report.
+async fn list_reports(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    may_report(&api, &principal, Uuid::nil()).await?;
+    let page = Page::from_query(raw.as_deref().unwrap_or_default(), &api.ring, REPORTS)?;
+    if page.after().is_none() && page.dates != Dates::default() {
+        return Err(kit::bad("the reports take neither valid_at nor as_of"));
+    }
+    let mut filter = crate::report::ReportFilter::default();
+    let once = |slot: bool, name: &str| {
+        if slot {
+            Err(kit::bad(format!("{name} is given more than once")))
+        } else {
+            Ok(())
+        }
+    };
+    for (name, value) in &page.filters {
+        match name.as_str() {
+            "state" => match value.as_str() {
+                "pending" | "running" | "done" => filter.states.push(value.clone()),
+                other => return Err(kit::bad(format!("{other} is not a state of a report"))),
+            },
+            "requested_by" => {
+                once(filter.requested_by.is_some(), name)?;
+                filter.requested_by = Some(
+                    value
+                        .parse()
+                        .map_err(|_| kit::bad("requested_by is not an identifier"))?,
+                );
+            }
+            "from" => {
+                once(filter.from.is_some(), name)?;
+                filter.from = Some(instant(name, value)?);
+            }
+            "to" => {
+                once(filter.to.is_some(), name)?;
+                filter.to = Some(instant(name, value)?);
+            }
+            other => return Err(kit::bad(format!("unknown parameter {other}"))),
+        }
+    }
+    filter.after = page
+        .after()
+        .map(|key| {
+            let invalid = || Problem::new(ProblemKind::InvalidCursor);
+            let (at, id) =
+                serde_json::from_value::<(String, Uuid)>(key.clone()).map_err(|_| invalid())?;
+            Ok::<_, Problem>((instant("cursor", &at).map_err(|_| invalid())?, id))
+        })
+        .transpose()?;
+    let now = kit::now(&api).await?;
+    let moment = Dates::default().at(now, api.bound)?;
+    let size = usize::from(page.size);
+    let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
+    let mut found = crate::report::reports(&mut conn, &filter, i64::from(page.size) + 1)
+        .await
+        .map_err(Problem::from)?;
+    let next = (found.len() > size).then(|| {
+        found.truncate(size);
+        let last = &found[size - 1];
+        let cursor = page.next_current(
+            &api.ring,
+            REPORTS,
+            &moment,
+            json!([rfc3339(last.requested_at), last.id]),
+        );
+        kit::next_href(&format!("/v1/{REPORTS}"), &cursor)
+    });
+    let items: Vec<ReportDto> = found.into_iter().map(report_dto).collect();
+    Ok(kit::respond_page(
+        &headers,
+        &moment,
+        &items,
+        next.as_deref(),
+    ))
+}
+
 /// `GET /v1/policy-reports/{id}`: the report and the counts of its rubrics.
 async fn show_report(
     State(api): State<Api>,
@@ -1544,16 +1642,7 @@ async fn show_report(
         .await
         .map_err(Problem::from)?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    Ok(Json(ReportDto {
-        id: report.id,
-        valid_at: rfc3339(report.valid_at),
-        requested_by: report.requested_by,
-        requested_at: rfc3339(report.requested_at),
-        state: report.state,
-        done_at: report.done_at.map(rfc3339),
-        counts: report.counts,
-    })
-    .into_response())
+    Ok(Json(report_dto(report)).into_response())
 }
 
 /// `GET /v1/policy-reports/{id}/items?rubric=…&after=…`: the items of a rubric by rank,
@@ -1919,6 +2008,21 @@ pub fn routes() -> ModuleRouter {
         "PolicyReport",
     )
     .build();
+    let list_reports_op = op(
+        "list_policy_reports",
+        "policy",
+        "The reports of the policy, the most recently asked for first (021-30).",
+    )
+    .query(
+        "state",
+        "`pending`, `running` or `done` (repeated: one of).",
+    )
+    .query("requested_by", "Asked for by this identity.")
+    .query("from", "Asked for from this instant (RFC 3339).")
+    .query("to", "Asked for before this instant (RFC 3339).")
+    .params::<PageParams>()
+    .answers("200", "A page of the reports.", "Listing_PolicyReport")
+    .build();
     let show_report_op = op("show_policy_report", "policy", "A report of the policy.")
         .path("id", "The report.", true)
         .answers(
@@ -1940,9 +2044,12 @@ pub fn routes() -> ModuleRouter {
     let router = router
         .routes(documented(
             "/policy-reports",
-            vec![(HttpMethod::Post, report_op)],
-            Vec::new(),
-            axum::routing::post(request_report),
+            vec![
+                (HttpMethod::Get, list_reports_op),
+                (HttpMethod::Post, report_op),
+            ],
+            vec![listing_of::<ReportDto>()],
+            get(list_reports).post(request_report),
         ))
         .routes(documented(
             "/policy-reports/{id}",
@@ -1958,6 +2065,12 @@ pub fn routes() -> ModuleRouter {
         ));
     let router = kit::commanded(router, "/verdicts", &HttpMethod::Get, "check");
     let router = kit::commanded(router, "/policy-reports", &HttpMethod::Post, "report");
+    let router = kit::presented(
+        router,
+        "/policy-reports",
+        &[],
+        &["requested_at", "state", "valid_at", "done_at"],
+    );
     query_extension(router)
 }
 

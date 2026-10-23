@@ -4106,6 +4106,27 @@
         ],
         "type": "object"
       },
+      "Listing_PolicyReport": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyReport"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_Prefix": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -23032,6 +23053,93 @@
       }
     },
     "/v1/policy-reports": {
+      "get": {
+        "operationId": "list_policy_reports",
+        "parameters": [
+          {
+            "description": "`pending`, `running` or `done` (repeated: one of).",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for by this identity.",
+            "in": "query",
+            "name": "requested_by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for from this instant (RFC 3339).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Asked for before this instant (RFC 3339).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_PolicyReport"
+                }
+              }
+            },
+            "description": "A page of the reports."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The reports of the policy, the most recently asked for first (021-30).",
+        "tags": [
+          "policy"
+        ]
+      },
       "post": {
         "operationId": "request_policy_report",
         "requestBody": {
@@ -23073,6 +23181,15 @@
         "x-kartenn": {
           "command": "report"
         }
+      },
+      "x-kartenn": {
+        "columns": [
+          "requested_at",
+          "state",
+          "valid_at",
+          "done_at"
+        ],
+        "key": []
       }
     },
     "/v1/policy-reports/{id}": {

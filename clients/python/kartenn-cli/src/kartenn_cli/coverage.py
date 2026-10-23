@@ -21,6 +21,8 @@ EXCLUDED: dict[str, str] = {
     "login_callback": "flow of the BFF for the browser (005/K1)",
     "login_issuers": "login page of the web; the CLI reads the native clients (A5)",
     "query_verdicts": "QUERY twin of show_verdicts; policy check sends short filters by GET",
+    "list_policy_reports": "list of the reports for the shell (021-30); `policy report "
+    "--id` reads one, `kartenn api GET /v1/policy-reports` lists them",
 }
 
 # Commands of the base, written by hand, and the operations they reach.

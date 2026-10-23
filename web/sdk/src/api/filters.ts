@@ -167,6 +167,12 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/policy-exempt-roles/{id}/history": [],
   "/v1/policy-patterns": [{ name: "key", type: "string" }],
   "/v1/policy-patterns/{id}/history": [],
+  "/v1/policy-reports": [
+    { name: "state", type: "string" },
+    { name: "requested_by", type: "string" },
+    { name: "from", type: "string" },
+    { name: "to", type: "string" },
+  ],
   "/v1/policy-rules": [
     { name: "key", type: "string" },
     { name: "effect", type: "string" },

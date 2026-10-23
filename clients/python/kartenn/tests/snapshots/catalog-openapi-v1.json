@@ -307,6 +307,7 @@
  "policy-reports": {
   "module": "policy",
   "verbs": [
+   "collection:list:list_policy_reports",
    "collection:report:request_policy_report",
    "object:get:show_policy_report",
    "object:items:policy_report_items"

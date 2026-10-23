@@ -2345,7 +2345,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** The reports of the policy, the most recently asked for first (021-30). */
+    get: operations["list_policy_reports"];
     put?: never;
     /** Asks for the audit report of the policy at a date (REQ-010-23); one at a time. */
     post: operations["request_policy_report"];
@@ -5228,6 +5229,13 @@ export interface components {
     Listing_PolicyObject: {
       /** @description The elements of the page. */
       items: components["schemas"]["PolicyObject"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_PolicyReport: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["PolicyReport"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -14735,6 +14743,48 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_policy_reports: {
+    parameters: {
+      query?: {
+        /** @description `pending`, `running` or `done` (repeated: one of). */
+        state?: string;
+        /** @description Asked for by this identity. */
+        requested_by?: string;
+        /** @description Asked for from this instant (RFC 3339). */
+        from?: string;
+        /** @description Asked for before this instant (RFC 3339). */
+        to?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the reports. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_PolicyReport"];
         };
       };
       /** @description A problem (RFC 9457). */

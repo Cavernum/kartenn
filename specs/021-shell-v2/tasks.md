@@ -151,11 +151,18 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `as_of` figé, la clé de la dernière ligne lue avant le filtre des droits (page parfois
     plus courte). Pas d'index nouveau sur `anomaly` (pas de migration, tri des anomalies
     ouvertes à chaque page) : à reprendre si un banc le demande.
-- [ ] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
+- [x] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
   (état, date, lanceur), sous `policy.rule.admin` — amendement de la 010 —
   REQ-021-35 — verify : test REST (liste, droits, curseur)
   - où : `crates/kartenn-policy/src/rest.rs` (rapport existant, 409 si en cours)
   - dépend de : —
+  - fait le 2026-10-23 : `report::reports` (date de demande puis identifiant
+    décroissants, index `policy_report_by_date`), lue à l'état courant à chaque page ;
+    filtres `state` (répété : un parmi), `requested_by`, `from`, `to` (date de demande) ;
+    `policy.rule.admin` global sinon 404, comme un rapport ; élément de la forme de
+    `GET /v1/policy-reports/{id}` ; `x-kartenn` (colonnes) sur la collection. CLI :
+    l'opération est exclue de la couverture (`kartenn api`), `policy report` en tient
+    lieu ; une option de liste reste à ajouter si le besoin vient.
 - [ ] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
   l'amendement, sans écriture ; débloque la tâche 017-15 — REQ-021-35 — verify : tests
   de l'amendement S36
