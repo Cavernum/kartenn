@@ -258,6 +258,12 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   propres affectations de `core.owner` par une semi-jointure (`machines_page`,
   `kartenn-machines/src/rest.rs`), environ 45 ms dans les deux plans, sans index nouveau ;
   test `machines_filtered_by_owner`.
+  — suite (2026-10-23) : le filtre `site` appelait de même `kartenn_site` sur chaque
+  machine valide ; il lit désormais les affectations propres de `core.site` par la même
+  semi-jointure (une machine, racine de son arbre, n'hérite pas de site), test
+  `machines_filtered_by_site`. Le banc répartit les machines sur 20 sites et mesure une
+  page de 100 machines physiques d'un site (budget de la page filtrée, 150 ms) : au banc
+  réduit, 666 ms avant, 27 ms après.
 - [x] 13. Plugin `web/plugins/machines` — REQ-009-20 — verify : parcours Playwright
   `web/e2e/journeys/machines.spec.ts` avec axe-core
   où : design « Interface » ; plugin VLAN (008, tâche 17)

@@ -610,12 +610,19 @@ async fn transverse(
         p.next_rubric();
         return Ok(());
     };
+    // The window goes over the origins in the order of the btree by object, the property
+    // filtered above an `OFFSET 0` barrier: in the generic plan the pool's prepared
+    // statement ends on, the filters pushed down chose the GiST primary key and sorted
+    // every remaining origin of the property at each window (task 010-19).
     let window: Vec<(Uuid, Option<Uuid>, Option<Vec<String>>)> = sqlx::query_as(
         "WITH w AS (
-             SELECT object_id, origin_object_id FROM property_origin
-              WHERE property_id = $4 AND valid_period @> $1
-                AND object_id > coalesce($2, '00000000-0000-0000-0000-000000000000'::uuid)
-              ORDER BY object_id LIMIT $3)
+             SELECT o.object_id, o.origin_object_id
+               FROM (SELECT object_id, property_id, origin_object_id, valid_period
+                       FROM property_origin
+                      WHERE object_id > $2 AND object_id IS NOT NULL
+                      ORDER BY object_id OFFSET 0) o
+              WHERE o.property_id = $4 AND o.valid_period @> $1
+              LIMIT $3)
          SELECT w.object_id, w.origin_object_id,
                 (SELECT array_agg(DISTINCT e.key ORDER BY e.key)
                    FROM property_assignment s
@@ -625,7 +632,7 @@ async fn transverse(
            FROM w ORDER BY w.object_id",
     )
     .bind(p.valid_at)
-    .bind(p.after_key)
+    .bind(p.after_key.unwrap_or_else(Uuid::nil))
     .bind(batch)
     .bind(property)
     .bind(values)

@@ -1,7 +1,8 @@
 //! Budgets of the machines and interfaces module (spec 009, REQ-009-21; task 009-12) on
 //! the reference dataset augmented with 10⁵ machines (60 % virtual, hosted by 10³
-//! clusters), 3·10⁵ interfaces and 3·10⁵ attachments to the addresses of the dataset:
-//! reading a machine with its interfaces and addresses, a filtered page and the machines
+//! clusters, on 20 sites), 3·10⁵ interfaces and 3·10⁵ attachments to the addresses of the
+//! dataset: reading a machine with its interfaces and addresses, a page filtered by owner,
+//! one filtered by site and the machines
 //! of a /24 through the router of the module, and the unitary changeset that creates a
 //! machine through the write pipeline. Then the import of the acceptance of REQ-009-19:
 //! 10⁴ machines with two interfaces and two new addresses each, by local names.
@@ -42,6 +43,8 @@ const INTERFACES: usize = 3;
 const MEMBERS: usize = 4;
 /// Machines of the import of the acceptance of REQ-009-19.
 const IMPORTED: usize = 10_000;
+/// Sites the machines are spread over, in turn.
+const SITES: usize = 20;
 
 /// `machines.<name>` from its JSON fields.
 fn op(name: &str, fields: Value) -> anyhow::Result<Operation> {
@@ -52,9 +55,10 @@ fn op(name: &str, fields: Value) -> anyhow::Result<Operation> {
 
 /// Clusters, machines, their interfaces and one attachment per interface to an address
 /// of the dataset, in that order, by local names: `addresses[m * INTERFACES + i]` on the
-/// interface `i` of the machine `m`.
+/// interface `i` of the machine `m`, the machine `m` on `sites[m % sites.len()]`.
 fn dataset_items(
     entities: &[Uuid],
+    sites: &[Uuid],
     addresses: &[Uuid],
     machines: usize,
     clusters: usize,
@@ -76,7 +80,8 @@ fn dataset_items(
     }
     for m in 0..machines {
         let mut fields = json!({"local": machine(m), "name": format!("host{m}"),
-                                "owner": {"id": entities[m % entities.len()]}});
+                                "owner": {"id": entities[m % entities.len()]},
+                                "site": {"id": sites[m % sites.len()]}});
         if m < physical {
             fields["kind"] = "physical".into();
             if m < clusters * MEMBERS {
@@ -215,6 +220,29 @@ pub(crate) async fn run(
     if entities.is_empty() {
         bail!("no entity of the VLAN budgets to own the machines");
     }
+    // The sites of the machines.
+    let mut sites = Vec::with_capacity(SITES);
+    for s in 0..SITES {
+        let slug = format!("bench-machines-{s}");
+        unitary(
+            &store,
+            author,
+            Operation::CreateSite {
+                local: None,
+                slug: slug.clone(),
+                parent: None,
+            },
+        )
+        .await?;
+        sites.push(
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM site WHERE slug = $1 AND valid_period @> now()",
+            )
+            .bind(slug)
+            .fetch_one(pool)
+            .await?,
+        );
+    }
     // Three addresses of the dataset per machine, in the order of their networks.
     let (machines, clusters) = if data.addresses.len() >= MACHINES * INTERFACES {
         (MACHINES, CLUSTERS)
@@ -232,7 +260,7 @@ pub(crate) async fn run(
         &store,
         author,
         "bench-machines",
-        dataset_items(&entities, &addresses, machines, clusters)?,
+        dataset_items(&entities, &sites, &addresses, machines, clusters)?,
     )
     .await?;
     sqlx::raw_sql(
@@ -342,6 +370,29 @@ pub(crate) async fn run(
         measured: p95(samples),
         note: format!(
             "100 draws of the virtual machines of an owner, {} rows a page on average",
+            rows / 100
+        ),
+    });
+
+    // Filtered pages of 100: the physical machines of a site.
+    let mut samples = Vec::new();
+    let mut rows = 0;
+    for _ in 0..100 {
+        let site = sites[rng.random_range(0..sites.len())];
+        let uri = format!("/v1/machines?kind=physical&site={site}&page_size=100");
+        let (elapsed, page) = get(&app, &uri).await?;
+        rows += page["items"].as_array().map_or(0, Vec::len);
+        samples.push(elapsed);
+    }
+    if rows == 0 {
+        bail!("no machine found on the drawn sites");
+    }
+    budgets.push(Budget {
+        name: "page of 100 machines of a site, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: format!(
+            "100 draws of the physical machines of a site, {} rows a page on average",
             rows / 100
         ),
     });
