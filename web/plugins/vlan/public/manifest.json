@@ -18,7 +18,7 @@
       "id": "vlans",
       "element": "vlan-vlans",
       "nav": "nav.vlans",
-      "permission": "vlan.vlan.read"
+      "permission": "vlan.read"
     },
     {
       "point": "tab",
@@ -26,7 +26,7 @@
       "element": "vlan-network",
       "object_types": ["prefix"],
       "label": "tab.label",
-      "permission": "vlan.vlan.read"
+      "permission": "vlan.read"
     },
     {
       "point": "column",
@@ -34,7 +34,7 @@
       "element": "vlan-column",
       "object_types": ["prefix"],
       "label": "column.label",
-      "permission": "vlan.vlan.read"
+      "permission": "vlan.read"
     },
     {
       "point": "action",
@@ -42,7 +42,7 @@
       "element": "vlan-create",
       "object_types": ["prefix"],
       "label": "action.label",
-      "permission": "vlan.vlan.write"
+      "permission": "vlan.write"
     }
   ]
 }

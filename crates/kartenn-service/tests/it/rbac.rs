@@ -11,7 +11,7 @@ use kartenn_service::expected::Sources;
 use kartenn_service::operations::{BindingScope, BindingSubject, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::pipeline::PendingKind;
-use kartenn_service::rbac::sync_roles;
+use kartenn_service::rbac::{RENAME_MOTIVE, rename_permissions, sync_roles};
 use kartenn_service::reads::{ReadAudit, read_object};
 use kartenn_service::undo::inverse;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit, submit_in};
@@ -857,6 +857,11 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
         let outcome = t.submit_as(&root, vec![set_role("odd", entries)]).await;
         assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{entries:?}");
     }
+    // An old name of spec 018, with no alias (REQ-018-3).
+    for (old, _) in kartenn_core::authz::RENAMED_PERMISSIONS {
+        let outcome = t.submit_as(&root, vec![set_role("odd", &[old])]).await;
+        assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{old}");
+    }
     // A declared property, a pattern, or a property declared by the same changeset.
     let outcome = t
         .submit_as(
@@ -890,6 +895,112 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+/// The read of the flow module, as a build with the module declares it, and its old name.
+fn flow_read() -> (&'static str, &'static str) {
+    static FLOW_READ: kartenn_core::authz::Permission = kartenn_core::authz::Permission {
+        name: "flow.read",
+        summary: "Lire les flux.",
+        global_only: false,
+    };
+    kartenn_core::authz::register(&[&FLOW_READ]);
+    *kartenn_core::authz::RENAMED_PERMISSIONS
+        .iter()
+        .find(|(_, new)| *new == FLOW_READ.name)
+        .expect("a renamed read")
+}
+
+/// The custom roles holding an old name, as an instance before spec 018 stored them:
+/// `old` with an unchanged entry, and `both` holding the old and the new name.
+async fn roles_before_the_rename(t: &Tree, old: &str, new: &str) -> (Subject, Uuid) {
+    let role = t.role("flows", &[old, "core.address.read"]).await;
+    t.role("both", &[old, new]).await;
+    let who = t.identity().await;
+    t.bind(Binding::Identity(who.id), role, "global", None)
+        .await;
+    (who, role)
+}
+
+/// REQ-018-4, Q-018-3: the migration job renames the old names of the custom roles in one
+/// system changeset, the bindings giving the same rights; a second run submits nothing.
+#[kartenn_testing::pg_test]
+async fn custom_roles_take_the_new_names_once(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let (old, new) = flow_read();
+    let (who, _) = roles_before_the_rename(&t, old, new).await;
+    let objects = ["group", "lab", "10.5.0.7"];
+    assert_eq!(t.allowed(&who, old, &objects).await, objects);
+    let audited = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM audit.event WHERE name = 'rbac.role.changed'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+    let before = audited().await;
+
+    let outcome = rename_permissions(&t.store, MAX_OPERATIONS).await.unwrap();
+    let Some(Outcome::Applied { changeset, .. }) = outcome else {
+        panic!("{outcome:?}");
+    };
+    let (author, motive): (Uuid, String) =
+        sqlx::query_as("SELECT author_id, motive FROM changeset WHERE id = $1")
+            .bind(changeset)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(author, kartenn_service::declarations::SYSTEM_AUTHOR);
+    assert_eq!(motive, RENAME_MOTIVE);
+    assert_eq!(audited().await, before + 2, "each renamed role, audited");
+    for (key, entries) in [
+        ("flows", vec!["core.address.read", new]),
+        ("both", vec![new]),
+    ] {
+        let role = kartenn_store_pg::rbac_read::role(&pool, key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(role.entries, entries, "{key}");
+    }
+    // The same rights, under the new name only: no alias.
+    assert_eq!(t.allowed(&who, new, &objects).await, objects);
+    assert!(t.allowed(&who, old, &objects).await.is_empty());
+    assert!(
+        rename_permissions(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// REQ-018-4, 5: the history keeps the old name; a read of the role before the rename
+/// gives it.
+#[kartenn_testing::pg_test]
+async fn a_role_read_before_the_rename_keeps_the_old_name(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let (old, new) = flow_read();
+    let (_, role) = roles_before_the_rename(&t, old, new).await;
+    rename_permissions(&t.store, MAX_OPERATIONS).await.unwrap();
+    let earlier: Vec<String> = sqlx::query_scalar(
+        "SELECT permission FROM role_permission
+         WHERE role_id = $1 AND valid_period @> now() - interval '1 hour' ORDER BY permission",
+    )
+    .bind(role)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(earlier, ["core.address.read", old]);
+    let recorded: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM role_permission_history WHERE role_id = $1 AND permission = $2",
+    )
+    .bind(role)
+    .bind(old)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(recorded, 1, "the version before the rename, kept as it was");
 }
 
 #[kartenn_testing::pg_test]

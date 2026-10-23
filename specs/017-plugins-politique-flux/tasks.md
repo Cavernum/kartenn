@@ -220,7 +220,7 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
   REQ-017-20, 21 — verify : Vitest (une requête par page, aucune lecture par changeset,
   corps de `validation`, plafonds 12 mois depuis la décision et 6 mois côté client,
   `flow.separation` affichée, ligne `extension` rendue, action présente seulement sur
-  les changesets de flux et pour `flow.flow.review`)
+  les changesets de flux et pour `flow.review`)
   où : `crates/kartenn-flow/src/handler.rs:ReviewIn`, `module.rs:review_operations` ;
   REQ-016-11 ; membre `review` de la ligne (011-12) ; design « Instruction »
   dépend de : 1, 16, 011-12 ; 011-13 pour les prolongations

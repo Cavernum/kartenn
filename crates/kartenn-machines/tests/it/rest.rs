@@ -279,13 +279,13 @@ impl Env {
             &[
                 "machines.cluster.read",
                 "machines.cluster.write",
-                "machines.machine.read",
-                "machines.machine.write",
+                "machines.read",
+                "machines.write",
                 "machines.interface.read",
                 "machines.interface.write",
                 "core.address.read",
                 "core.prefix.read",
-                "vlan.vlan.read",
+                "vlan.read",
             ],
             None,
         )
@@ -583,7 +583,7 @@ async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     // A machine of acme outside the network.
     env.machine("lonely", acme).await;
     let reader = env
-        .person(&["machines.machine.read", "core.prefix.read"], Some(acme))
+        .person(&["machines.read", "core.prefix.read"], Some(acme))
         .await;
     let app = env.app(reader);
     let network = env.network().await;

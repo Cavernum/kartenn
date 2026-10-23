@@ -63,9 +63,9 @@ d'écart (le design est alors amendé).
 |---|---|---|
 | Responsable sécurité | `policy.catalogue.read`, `policy.rule.admin`, `policy.service.admin`, `policy.flow_type.admin`, `policy.environment.admin`, `policy.axis.admin`, `policy.inference.admin`, `policy.verdict.read` | règles, motifs, matrice, catalogue complet, inférence, différentiel, requête, rapport |
 | Approbateur de politique | `core.changeset.approve` (politique d'approbation `policy.*`) | vue des sections d'un changeset (puis validation dans le shell) |
-| Lecteur | `policy.catalogue.read`, `policy.verdict.read`, `flow.flow.read` (rôle livré `reader`) | lectures, requête de conformité complète |
-| Demandeur | `flow.flow.request`, `policy.flow.request`, `prop.core.owner.write` sur l'entité | demande, pré-vérification réduite, mes demandes, mes non-conformités |
-| Instructeur | `flow.flow.review`, `flow.flow.waive`, `flow.flow.read` sur l'entité | file d'instruction (demandes et prolongations), décision, dérogations, échéances |
+| Lecteur | `policy.catalogue.read`, `policy.verdict.read`, `flow.read` (rôle livré `reader`) | lectures, requête de conformité complète |
+| Demandeur | `flow.request`, `policy.flow.request`, `prop.core.owner.write` sur l'entité | demande, pré-vérification réduite, mes demandes, mes non-conformités |
+| Instructeur | `flow.review`, `flow.waiver.grant`, `flow.read` sur l'entité | file d'instruction (demandes et prolongations), décision, dérogations, échéances |
 
 Aucun rôle livré ne porte les permissions du demandeur ni de l'instructeur ; les parcours
 E2E les créent par l'API (`/v1/roles`, `/v1/bindings`). Une vue nomme dans le manifeste
@@ -266,14 +266,14 @@ navigateur (aucune route d'export). Toutes ces lectures sont sous `policy.rule.a
 
 | Point | id | Élément | Objets | Permission | Exigences |
 |---|---|---|---|---|---|
-| view | `request` | `flow-request` | — | `flow.flow.request` | 15, 16 |
-| view | `flows` | `flow-flows` | — | (aucune : `flow.flow.read` ou `flow.flow.request`) | 17, 18, 25 |
-| view | `review` | `flow-review` | — | `flow.flow.review` | 20, 21 |
-| view | `expiring` | `flow-expiring` | — | `flow.flow.read` | 22, 23 |
+| view | `request` | `flow-request` | — | `flow.request` | 15, 16 |
+| view | `flows` | `flow-flows` | — | (aucune : `flow.read` ou `flow.request`) | 17, 18, 25 |
+| view | `review` | `flow-review` | — | `flow.review` | 20, 21 |
+| view | `expiring` | `flow-expiring` | — | `flow.read` | 22, 23 |
 | view | `nonconformities` | `flow-nonconformities` | — | (aucune : lecture ou demande) | 24 |
-| tab | `flows` | `flow-tab` | `address`, `prefix`, `machines.machine`, `machines.interface` | `flow.flow.read` | 19 |
-| action | `request-from` | `flow-request-from` | `address`, `prefix` | `flow.flow.request` | 15 |
-| action | `review-in-flow` | `flow-review-in-flow` | `changeset` (issu d'une demande ou d'une prolongation) | `flow.flow.review` | 20 |
+| tab | `flows` | `flow-tab` | `address`, `prefix`, `machines.machine`, `machines.interface` | `flow.read` | 19 |
+| action | `request-from` | `flow-request-from` | `address`, `prefix` | `flow.request` | 15 |
+| action | `review-in-flow` | `flow-review-in-flow` | `changeset` (issu d'une demande ou d'une prolongation) | `flow.review` | 20 |
 | widget | `home` | `flow-home` | — | (aucune : lecture ou demande) | 35 |
 
 Sous-chemins : `flows/<id>`, `request?source=<sorte>:<id>&from=<flux>` (pré-remplissage
@@ -330,7 +330,7 @@ sequenceDiagram
 Fiche : état dérivé à la date, synthèse et issue, dérogation (fin, motif, risque),
 évaluations par paire (verdict, issue, élément décisif, conditions non remplies, score,
 révision de politique) ; réduites (adresses et élément décisif `null`) pour le
-demandeur sans `flow.flow.read`, rendues sans complément (U8). Changer une extrémité ou
+demandeur sans `flow.read`, rendues sans complément (U8). Changer une extrémité ou
 le service n'est pas offert : « nouvelle demande pré-remplie » ouvre `request?from=<id>`.
 « Prolonger » (flux daté non terminé, Q-017-4 B) : nouvelle fin, pré-vérification de la
 portion ajoutée par `QUERY /v1/verdicts` avec le dossier du flux, `PATCH` ; sur 202, la
@@ -363,7 +363,7 @@ Décision (`review/<changeset>`) :
 
 Les boutons sont absents si l'auteur du changeset (ou `on_behalf_of`), ou pour une
 prolongation le demandeur du flux, est l'utilisateur ;
-le serveur reste juge (`flow.separation`, 403 sans `flow.flow.review`, REQ-016-11).
+le serveur reste juge (`flow.separation`, 403 sans `flow.review`, REQ-016-11).
 
 #### Dérogations et échéances (REQ-017-22, 23 ; Q-017-4)
 
@@ -391,7 +391,7 @@ Point `widget` (021/X38), au plus une tuile par plugin, en lecture seule :
 - `policy-home` : écarts d'inférence ouverts (`GET /v1/anomalies?rule=policy.inference.mismatch`,
   décompte) et dernier rapport d'audit (état, date ; `GET /v1/policy-reports`) ;
 - `flow-home` : à instruire (`GET /v1/flows?review=pending`, décompte, si
-  `flow.flow.review`), échéances J-7, mes demandes en attente.
+  `flow.review`), échéances J-7, mes demandes en attente.
 Décomptes relus par le flux d'événements, jamais par sondage ; chaque ligne mène à sa vue.
 
 ### Temps, droits, langue (REQ-017-26, 3)

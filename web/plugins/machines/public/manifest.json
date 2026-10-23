@@ -11,7 +11,7 @@
       "id": "machines",
       "element": "machines-machines",
       "nav": "nav.machines",
-      "permission": "machines.machine.read"
+      "permission": "machines.read"
     },
     {
       "point": "view",
@@ -33,7 +33,7 @@
       "element": "machines-tab",
       "object_types": ["address", "prefix"],
       "label": "tab.label",
-      "permission": "machines.machine.read"
+      "permission": "machines.read"
     },
     {
       "point": "column",

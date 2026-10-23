@@ -936,6 +936,13 @@ impl WriteTx for PgTx {
         crate::rbac_admin::role_entries(&mut self.tx, key).await
     }
 
+    async fn custom_roles_citing(
+        &mut self,
+        permissions: &[&str],
+    ) -> Result<Vec<kartenn_service::rbac::StoredRole>, StoreError> {
+        crate::rbac_admin::custom_roles_citing(&mut self.tx, permissions).await
+    }
+
     async fn binding_scope(&mut self, binding: Uuid) -> Result<Option<Uuid>, StoreError> {
         crate::rbac_admin::binding_scope(&mut self.tx, binding).await
     }

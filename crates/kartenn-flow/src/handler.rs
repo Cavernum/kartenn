@@ -1,14 +1,14 @@
 //! The handler of the module in the write pipeline (ADR 0026, clause 6; design 011
-//! « Opérations et règles »): the operations `flow.flow.request | register | update |
-//! waive | approve_review`, under the lock `flow`; the rules of a flow on the final state
+//! « Opérations et règles »): the operations `flow.{request | register | update |
+//! waive | approve_review}`, under the lock `flow`; the rules of a flow on the final state
 //! of its changeset; the references of its endpoints (REQ-011-3).
 //!
 //! Triage (REQ-011-21): `request` is evaluated against the policy when it is prepared, on
 //! the state of the transaction; a request whose summary is not `allowed` with the outcome
-//! `automatic` asks for a review (`flow.flow.review`), so the changeset becomes a proposal
+//! `automatic` asks for a review (`flow.review`), so the changeset becomes a proposal
 //! whatever the rights of its author. Its validator joins `approve_review` (end of the
 //! flow) and, for a denied flow, `waive`. `register` is the direct write of maintenance
-//! (`flow.flow.write`, reading both endpoints): it is never triaged, and refused unless
+//! (`flow.write`, reading both endpoints): it is never triaged, and refused unless
 //! compliant, reviewed or waived (REQ-011-8).
 
 use kartenn_core::period::{Instant, Period};
@@ -42,7 +42,7 @@ use crate::rules::{
 };
 
 /// The permission whose holder reviews a request (REQ-011-22).
-pub const REVIEW: &str = "flow.flow.review";
+pub const REVIEW: &str = "flow.review";
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]

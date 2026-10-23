@@ -133,7 +133,7 @@ kartenn doit l'enregistrer comme proposition même si l'auteur détient le droit
 d'écriture, en retenant la permission de validation nommée par le module.
 
 Acceptation :
-- Un auteur qui détient `flow.flow.write` soumet un flux dont l'issue est « à instruire » :
+- Un auteur qui détient `flow.write` soumet un flux dont l'issue est « à instruire » :
   proposition en attente, file des réviseurs (REQ-004-43).
 
 #### REQ-016-11 — Validation d'une proposition forcée (N39 ; amende REQ-004-42, 24)
@@ -143,7 +143,7 @@ doit permettre à ce validateur d'y joindre des opérations que le module décla
 revue », validées et appliquées avec la proposition.
 
 Acceptation :
-- Sans `flow.flow.review` : 403. L'auteur : refusé même avec la permission.
+- Sans `flow.review` : 403. L'auteur : refusé même avec la permission.
 - `flow.approve_review` jointe à la validation : un seul changeset appliqué, opérations
   de revue comprises ; une opération non déclarée « de revue » jointe : 422.
 

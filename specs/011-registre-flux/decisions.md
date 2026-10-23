@@ -208,6 +208,10 @@ l'amendement de D30 (validité dérivée).
   l'exigence de lecture des extrémités ; instructeur et auteur d'une dérogation
   distincts du demandeur. Un compte de service transmet l'identité du demandeur (N31).
 - Décidé par (amendement) : l'utilisateur (Q17)
+- Amendé le 2026-10-23 (018/R2, Q-018-1) : les permissions deviennent `flow.read`,
+  `flow.request`, `flow.review`, `flow.write` et `flow.waiver.grant` (dérogation) ;
+  portées et exigences inchangées. Les anciens noms sont refusés, sans alias.
+- Décidé par (amendement) : l'utilisateur (spec 018)
 
 ## F13 — Concurrence
 - Décision : les opérations sur les flux prennent le verrou de module `flow` (après

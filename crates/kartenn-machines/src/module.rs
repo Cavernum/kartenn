@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use kartenn_core::authz::Permission;
+use kartenn_core::authz::{Permission, TypePermissions};
 use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
@@ -169,9 +169,9 @@ permissions! {
     CLUSTER_READ = "machines.cluster.read", "Lire les clusters.";
     CLUSTER_WRITE = "machines.cluster.write", "Créer, modifier ou clore un cluster.";
     CLUSTER_PROPOSE = "machines.cluster.propose", "Proposer un changement d'un cluster.";
-    MACHINE_READ = "machines.machine.read", "Lire les machines.";
-    MACHINE_WRITE = "machines.machine.write", "Créer, modifier ou clore une machine.";
-    MACHINE_PROPOSE = "machines.machine.propose", "Proposer un changement d'une machine.";
+    MACHINE_READ = "machines.read", "Lire les machines.";
+    MACHINE_WRITE = "machines.write", "Créer, modifier ou clore une machine.";
+    MACHINE_PROPOSE = "machines.propose", "Proposer un changement d'une machine.";
     INTERFACE_READ = "machines.interface.read", "Lire les interfaces.";
     INTERFACE_WRITE = "machines.interface.write", "Créer, modifier ou clore une interface.";
     INTERFACE_PROPOSE = "machines.interface.propose", "Proposer un changement d'une interface.";
@@ -299,6 +299,14 @@ impl Module for Machines {
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS
+    }
+    fn type_permissions(&self) -> &'static [TypePermissions] {
+        // The machine is the resource of the module: `machines.<action>` (spec 018, R2).
+        &[TypePermissions {
+            kind: MACHINE,
+            read: "machines.read",
+            write: "machines.write",
+        }]
     }
     fn rules(&self) -> &'static [&'static Rule] {
         MACHINES_RULES

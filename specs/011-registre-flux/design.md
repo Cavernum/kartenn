@@ -62,7 +62,7 @@ dérivé versionné en temps système : `as_of` passé se lit dans l'historique.
 
 ### Opérations et règles (REQ-011-1 à 4, 8 à 10, 21, 22)
 
-Opérations `flow.flow.request | update | close | waive | approve_review` (enveloppe de
+Opérations `flow.{request | update | close | waive | approve_review}` (enveloppe de
 module, ADR 0026 clause 6), sous le verrou `flow` (F13). `request` évalue la demande ;
 la route `POST /v1/flows` soumet un changeset d'application si la synthèse est
 `allowed` et l'issue `automatic`, sinon une **proposition** (REQ-004-41).
@@ -134,8 +134,8 @@ d'adresses développées avant l'application). Pagination : avec `requested` seu
 `review=pending`, curseur sur le changeset et le rang de l'opération (plusieurs
 demandes par proposition) ; `requested` combiné à
 d'autres états : les lignes en attente suivent les flux appliqués. Droits : prédicat
-RBAC sur l'entité de la demande pour `flow.flow.read` et `flow.flow.review`, ou
-demandeur de la ligne (`flow.flow.request`) ; triage réduit (REQ-010-25) pour qui ne
+RBAC sur l'entité de la demande pour `flow.read` et `flow.review`, ou
+demandeur de la ligne (`flow.request`) ; triage réduit (REQ-010-25) pour qui ne
 lit pas les extrémités.
 
 ### Réévaluation (REQ-011-11 à 13)
@@ -183,7 +183,7 @@ Vue de lecture : union de `flow_rejection` (demandes rejetées), des flux dont l
 dérivé est `noncompliant` (avec l'anomalie `flow.verdict.denied`, acquittable) et des
 flux `waived` ; chaque ligne porte le motif ou l'élément décisif, la règle et son texte
 pédagogique (lus dans l'instantané à la date). Droits : lecture de l'entité, ou
-demandeur de la ligne avec `flow.flow.request`.
+demandeur de la ligne avec `flow.request`.
 
 ### Lecture et filtres (REQ-011-14 à 16)
 
@@ -217,7 +217,7 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 | N23 | Un objet de module peut référencer une **identité** par son identifiant, sans copie de donnée personnelle, et la pseudonymisation (REQ-004-33) s'y applique | fourni (ADR 0026, clause 15, règle de conception) |
 | N24 | Une lecture peut connaître l'état d'un changeset (en attente, rejeté, appliqué) et ses opérations, pour dériver un état de module | tenu (004, lecture des changesets) |
 | N38 | Un module est appelé au **rejet** d'une proposition qui contient ses opérations (motif du rejet, auteur), pour enregistrer un objet dérivé (non-conformité) dans la transaction du rejet | à prévoir : crochet additif du contrat de module, livré par la tâche 011-6 (méthode à implémentation par défaut) |
-| N39 | Un module peut **exiger** qu'un changeset contenant ses opérations soit enregistré comme proposition, même si l'auteur détient l'écriture (issue non automatique), désigner la permission qui le valide (`flow.flow.review`, en plus de REQ-004-42), et l'approbateur peut y ajouter une opération (`approve_review`) validée avec le reste | à prévoir : aujourd'hui une proposition naît seulement de l'absence du droit d'écriture (REQ-004-41) ; amendement additif de la 004 et du contrat (tâche 011-3) |
+| N39 | Un module peut **exiger** qu'un changeset contenant ses opérations soit enregistré comme proposition, même si l'auteur détient l'écriture (issue non automatique), désigner la permission qui le valide (`flow.review`, en plus de REQ-004-42), et l'approbateur peut y ajouter une opération (`approve_review`) validée avec le reste | à prévoir : aujourd'hui une proposition naît seulement de l'absence du droit d'écriture (REQ-004-41) ; amendement additif de la 004 et du contrat (tâche 011-3) |
 | M7 | La 009 publie, dans le changeset, la liste des interfaces et machines dont les rattachements changent, avec la période (pour N21) | fourni (REQ-009-23) |
 
 ## Erreurs et cas limites
@@ -279,7 +279,7 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
   dérivés**.
 - Amendements de l'ADR 0026 : crochet de fin de proposition `ended` (N38) et revue
   forcée (N39), amendement 2 (spec 016) ; permission propre à une opération
-  (`flow.flow.request`) et acteurs du changeset, amendement 3 ; constats des tâches de
+  (`flow.request`) et acteurs du changeset, amendement 3 ; constats des tâches de
   fond (échéance d'une dérogation), amendement 4.
 
 ## Écarts au design (le code fait foi, 2026-10-22)

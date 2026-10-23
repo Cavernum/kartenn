@@ -44,15 +44,15 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `vlan.group.read` | — | Lire les groupes de VLAN. |
 | `vlan.group.write` | — | Créer, modifier ou clore un groupe de VLAN. |
 | `vlan.group.propose` | — | Proposer un changement d'un groupe de VLAN. |
-| `vlan.vlan.read` | — | Lire les VLAN. |
-| `vlan.vlan.write` | — | Créer, modifier ou clore un VLAN. |
-| `vlan.vlan.propose` | — | Proposer un changement d'un VLAN. |
+| `vlan.read` | — | Lire les VLAN. |
+| `vlan.write` | — | Créer, modifier ou clore un VLAN. |
+| `vlan.propose` | — | Proposer un changement d'un VLAN. |
 | `machines.cluster.read` | — | Lire les clusters. |
 | `machines.cluster.write` | — | Créer, modifier ou clore un cluster. |
 | `machines.cluster.propose` | — | Proposer un changement d'un cluster. |
-| `machines.machine.read` | — | Lire les machines. |
-| `machines.machine.write` | — | Créer, modifier ou clore une machine. |
-| `machines.machine.propose` | — | Proposer un changement d'une machine. |
+| `machines.read` | — | Lire les machines. |
+| `machines.write` | — | Créer, modifier ou clore une machine. |
+| `machines.propose` | — | Proposer un changement d'une machine. |
 | `machines.interface.read` | — | Lire les interfaces. |
 | `machines.interface.write` | — | Créer, modifier ou clore une interface. |
 | `machines.interface.propose` | — | Proposer un changement d'une interface. |
@@ -65,17 +65,36 @@ sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensib
 | `policy.service.admin` | oui | Créer, modifier ou clore un service. |
 | `policy.rule.admin` | oui | Créer, modifier ou clore une règle, un motif, une condition d'admissibilité, un signal de risque ou un rôle exempté. |
 | `policy.inference.admin` | — | Écrire les règles d'inférence qui citent un domaine du périmètre. |
-| `flow.flow.read` | — | Lire les flux. |
-| `flow.flow.request` | — | Demander un flux sans lire ses extrémités, et lire ses propres demandes. |
-| `flow.flow.review` | — | Instruire une demande de flux. |
-| `flow.flow.waive` | — | Accorder une dérogation à un flux refusé. |
-| `flow.flow.write` | — | Écrire directement un flux (maintenance), avec la lecture de ses deux extrémités. |
+| `flow.read` | — | Lire les flux. |
+| `flow.request` | — | Demander un flux sans lire ses extrémités, et lire ses propres demandes. |
+| `flow.review` | — | Instruire une demande de flux. |
+| `flow.waiver.grant` | — | Accorder une dérogation à un flux refusé. |
+| `flow.write` | — | Écrire directement un flux (maintenance), avec la lecture de ses deux extrémités. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.flow.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.flow.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.vlan.read`, `machines.cluster.read`, `machines.machine.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.flow.read` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.write`, `core.site.write`, `core.domain.write`, `core.prefix.write`, `core.range.write`, `core.address.write`, `prop.*.write`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.changeset.approve`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
 | Administrateur | `administrator` | `*` |
+
+## Anciens noms
+
+Renommées par la spec 018 (R2, R3). Un ancien nom est refusé dans un rôle
+(`core.role.invalid`) ; il ne reste que dans l'historique et le journal d'audit.
+
+| Ancien nom | Nouveau nom |
+|---|---|
+| `vlan.vlan.read` | `vlan.read` |
+| `vlan.vlan.write` | `vlan.write` |
+| `vlan.vlan.propose` | `vlan.propose` |
+| `machines.machine.read` | `machines.read` |
+| `machines.machine.write` | `machines.write` |
+| `machines.machine.propose` | `machines.propose` |
+| `flow.flow.read` | `flow.read` |
+| `flow.flow.request` | `flow.request` |
+| `flow.flow.review` | `flow.review` |
+| `flow.flow.write` | `flow.write` |
+| `flow.flow.waive` | `flow.waiver.grant` |

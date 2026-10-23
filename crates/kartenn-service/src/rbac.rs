@@ -201,8 +201,13 @@ pub(crate) fn plan(
                 return Err(invalid(format!("the role '{key}' needs a label")));
             }
             if let Some(bad) = entries.iter().find(|e| !valid_role_entry(e)) {
+                // An old name is refused, its new one named (spec 018, REQ-018-3).
+                let renamed = kartenn_core::authz::RENAMED_PERMISSIONS
+                    .iter()
+                    .find(|(old, _)| old == bad)
+                    .map_or_else(String::new, |(_, new)| format!(" (renamed '{new}')"));
                 return Err(invalid(format!(
-                    "'{bad}' is not a permission of the catalogue"
+                    "'{bad}' is not a permission of the catalogue{renamed}"
                 )));
             }
             let mut entries = entries.clone();
@@ -418,6 +423,76 @@ async fn undeclared<T: WriteTx + Send>(
         }
     }
     Ok(())
+}
+
+/// A role as stored now: its key, label and entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredRole {
+    /// Its key.
+    pub key: String,
+    /// Its label.
+    pub label: String,
+    /// Its entries, sorted.
+    pub entries: Vec<String>,
+}
+
+/// The motive of the changeset that renames the permissions of the custom roles.
+pub const RENAME_MOTIVE: &str = "permission rename 018";
+
+/// Renames the old permissions of the custom roles (spec 018, REQ-018-4, 5; Q-018-3): one
+/// system changeset setting each role not delivered with kartenn that holds an old name of
+/// [`kartenn_core::authz::RENAMED_PERMISSIONS`], with the new name in its place (once,
+/// when the role holds both). The bindings, the history and the audit are untouched; a
+/// second run finds nothing and submits nothing. Called by the migration job.
+///
+/// # Errors
+///
+/// [`crate::RequestError`] on infrastructure failure.
+pub async fn rename_permissions<S: crate::port::Store>(
+    store: &S,
+    max_operations: usize,
+) -> Result<Option<crate::Outcome>, crate::RequestError> {
+    use kartenn_core::authz::RENAMED_PERMISSIONS;
+    let olds: Vec<&str> = RENAMED_PERMISSIONS.iter().map(|(old, _)| *old).collect();
+    let mut tx = store.begin().await?;
+    let roles = tx.custom_roles_citing(&olds).await?;
+    tx.rollback().await?;
+    let operations: Vec<Operation> = roles
+        .into_iter()
+        .map(|role| {
+            let mut entries: Vec<String> = role
+                .entries
+                .into_iter()
+                .map(|e| {
+                    RENAMED_PERMISSIONS
+                        .iter()
+                        .find(|(old, _)| *old == e)
+                        .map_or(e, |(_, new)| (*new).to_owned())
+                })
+                .collect();
+            entries.sort();
+            entries.dedup();
+            Operation::SetRole {
+                key: role.key,
+                label: role.label,
+                entries,
+            }
+        })
+        .collect();
+    if operations.is_empty() {
+        return Ok(None);
+    }
+    let request = crate::ChangesetRequest {
+        author: SYSTEM_AUTHOR,
+        motive: RENAME_MOTIVE.into(),
+        period: None,
+        operations,
+        simulate: false,
+        idempotency_key: None,
+    };
+    crate::submit(store, &crate::authz::Unrestricted, &request, max_operations)
+        .await
+        .map(Some)
 }
 
 /// Synchronises the delivered roles with the code (K12): one system changeset setting

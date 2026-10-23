@@ -26,7 +26,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux A — Permissions
 
-- [ ] 1. Grammaire et table : `RENAMED_PERMISSIONS`, refus des anciens noms par
+- [x] 1. Grammaire et table : `RENAMED_PERMISSIONS`, refus des anciens noms par
   `valid_role_entry` (`core.role.invalid`), `type_read_permission` et
   `type_write_permission` selon R2, test des catalogues (pas de `m.m.a`, aucune ressource
   nommée comme une action, cibles connues), migration SQL de la contrainte de
@@ -39,8 +39,17 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-store-pg/migrations/0028_rbac.sql` (contrainte, l. 29) pour la
   nouvelle migration ; design « A. Permissions »
   dépend de : —
+  fait : `RENAMED_PERMISSIONS`, `catalogue_problems` (grammaire : deux ou trois
+  segments, pas de `m.m.a`, aucune ressource nommée comme une action, doublons) et
+  migration `0058_permission_names.sql` (la contrainte n'existe que sur la table :
+  l'historique, créé par `LIKE`, n'en porte pas ; test
+  `a_role_entry_may_omit_the_module_resource`). Pour garder chaque commit vert, le refus
+  explicite des anciens noms, `type_*_permission` selon R2 et les tests qui supposent le
+  catalogue renommé (`renamed_permissions_target_the_catalogue`,
+  `an_old_permission_name_is_refused`, `a_module_kind_reads_under_the_short_permission`)
+  passent avec la tâche 2.
 
-- [ ] 2. Renommage dans les modules et le service : catalogues `vlan`, `machines`,
+- [x] 2. Renommage dans les modules et le service : catalogues `vlan`, `machines`,
   `flow` (dont `flow.waiver.grant`), rôles livrés, appels de contrôle, tests et bancs ;
   `docs/spec/permissions.md` régénéré avec « Anciens noms » — REQ-018-2, 6 — verify :
   `k-check` complet ; `the_published_catalogue_matches_the_code`
@@ -50,8 +59,23 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-{service,rest,flow,policy,vlan,machines}/src/**` ;
   `crates/*/tests/it/**` ; `crates/kartenn-bench/src/{*_budgets.rs,rbac.rs}`
   dépend de : 1
+  fait : catalogues renommés (`WAIVER_GRANT` = `flow.waiver.grant`, opération `waive`
+  inchangée), `REVIEW` du gestionnaire de flux, lecture du VLAN par `machines` ; refus
+  explicite des anciens noms dans `valid_role_entry`, le message de `core.role.invalid`
+  nomme le nouveau nom (pas d'alias) ; `type_*_permission` selon R2 (`m.m` → `m.<action>`).
+  Choix : `machines.machine` n'est pas `m.m` au sens strict (pluriel) ; plutôt qu'une
+  règle de pluriel, le module `machines` déclare ses `TypePermissions`
+  (`machines.read`, `machines.write`). Tests du noyau
+  (`permission_names_omit_the_module_resource`, `an_old_permission_name_is_refused`,
+  `a_module_kind_reads_under_the_short_permission`), du serveur sur le catalogue du
+  build (mêmes noms, `renamed_permissions_target_the_catalogue`,
+  `no_old_permission_name_is_left` sur `crates/`) et du service (anciens noms refusés
+  par `a_role_names_known_permissions_only`). `docs/spec/permissions.md` régénéré avec
+  « Anciens noms » ; la description de `waive_flow` (dans `kartenn-flow/src/rest.rs`)
+  change ici, avec `openapi-v1.json` et `schema.d.ts` régénérés, pour garder le test de
+  contrat vert.
 
-- [ ] 3. Migration des rôles personnalisés : étape `rename_permissions` du job de
+- [x] 3. Migration des rôles personnalisés : étape `rename_permissions` du job de
   migration, changeset `système`, motif `permission rename 018`, idempotente —
   REQ-018-4, 5 ; Q-018-3 — verify : `custom_roles_take_the_new_names_once` (liaisons et
   droits identiques, second passage sans changeset),
@@ -61,8 +85,16 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   écriture des rôles `crates/kartenn-store-pg/src/rbac_admin.rs` (l. 85, 148-170) ;
   tests à imiter `crates/kartenn-service/tests/it/rbac.rs`
   dépend de : 2
+  fait : `kartenn_service::rbac::rename_permissions` (modelée sur `sync_roles`, motif
+  `RENAME_MOTIVE`), appelée par `maintenance::deploy` après `sync_roles` ; lecture par
+  le nouveau port `WriteTx::custom_roles_citing` (rôles non livrés en vigueur qui citent
+  un ancien nom, `rbac_admin.rs`). Un seul changeset pour tous les rôles concernés,
+  borné par `MAX_OPERATIONS` comme `sync_roles`. Tests dans
+  `kartenn-service/tests/it/rbac.rs` : droits identiques sous le nouveau nom, ancien nom
+  plus accordé, audit par rôle, second passage nul ; lecture datée et historique gardent
+  l'ancien nom.
 
-- [ ] 4. Clients et docs du renommage : manifestes `web/plugins/{vlan,machines}`,
+- [x] 4. Clients et docs du renommage : manifestes `web/plugins/{vlan,machines}`,
   description de `waive_flow` (`openapi.rs`, `openapi-v1.json`, `schema.d.ts` régénéré),
   `docs/spec/{interfaces,invariants}.md`, ADR 0026 (exemples), amendement de l'ADR 0010,
   005/K12, 011/F12 — REQ-018-6 — verify : `k-web-check` ; test de contrat ; test
@@ -73,6 +105,15 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `specs/005-authn-rbac/decisions.md` (K12) ; `specs/011-registre-flux/decisions.md`
   (F12)
   dépend de : 2
+  fait : manifestes `vlan` et `machines` ; `interfaces.md`, `invariants.md` ; ADR 0026
+  (exemples, amendement 5) et ADR 0010 (amendement) ; amendements datés de 005/K12,
+  008/V13 et 011/F12. Noms remplacés aussi dans les exigences, conceptions et tâches
+  de 008, 009, 011, 016 et 017 ; les journaux de décision gardent les anciens noms
+  (historique), sauf les amendements ajoutés. La description de `waive_flow` et le
+  contrat régénéré sont passés avec la tâche 2. `no_old_permission_name_is_left`
+  couvre `crates/`, `web/`, `clients/`, `docs/spec/` (exceptions : `authz.rs`,
+  `docs/spec/permissions.md`). Rien à changer dans `clients/python` (aucun nom codé ;
+  l'instantané du catalogue ne porte pas les descriptions).
 
 ## Flux B — Libellés
 

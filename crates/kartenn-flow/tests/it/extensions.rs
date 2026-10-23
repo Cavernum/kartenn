@@ -18,7 +18,7 @@ use sqlx::types::time::OffsetDateTime;
 use crate::requests::{Env, REQUEST, flow, grants, later, policy, proposal, refusals, rules};
 
 /// What the author of an extension holds: the direct write, and the anchor it prolongs.
-pub(crate) const WRITE: &[&str] = &["flow.flow.write", "prop.core.owner.write"];
+pub(crate) const WRITE: &[&str] = &["flow.write", "prop.core.owner.write"];
 const DAY: i64 = 24 * 3600;
 
 /// The rule « prod to prod » allowed under reserve (a pattern, REQ-010-32): its flows are
@@ -163,11 +163,11 @@ pub(crate) async fn parties(env: &Env) -> (Uuid, Uuid, Uuid, Grants) {
         .fold(grants(requester, REQUEST), |g, p| g.everywhere(extender, p));
     // The reviewer holds the writes of the proposals it validates (REQ-004-42).
     let authorizer = [
-        "flow.flow.review",
-        "flow.flow.waive",
+        "flow.review",
+        "flow.waiver.grant",
         "core.changeset.approve",
-        "flow.flow.request",
-        "flow.flow.write",
+        "flow.request",
+        "flow.write",
         "prop.core.owner.write",
     ]
     .iter()
@@ -338,7 +338,7 @@ async fn acceptance_of_req_011_4_the_author_does_not_review_the_extension(pool: 
     let authorizer = WRITE
         .iter()
         .fold(authorizer, |g, p| g.everywhere(service, p))
-        .everywhere(extender, "flow.flow.review");
+        .everywhere(extender, "flow.review");
     let id = instructed(&env, &authorizer, (requester, reviewer), (a, b), 90, None).await;
     let mut context = RequestContext::person(service);
     context.on_behalf_of = Some(extender);

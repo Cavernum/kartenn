@@ -660,10 +660,10 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let identity = reader(
         &pool,
         &[
-            "flow.flow.read",
+            "flow.read",
             "core.address.read",
             "core.prefix.read",
-            "machines.machine.read",
+            "machines.read",
             "machines.interface.read",
             "policy.catalogue.read",
         ],

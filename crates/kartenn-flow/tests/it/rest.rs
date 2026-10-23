@@ -1,6 +1,6 @@
 //! The routes of the registry through the router (task 011-9; REQ-011-14 to 18, 25): a
 //! request answered with the flow and its evaluations, the list and the read under
-//! `flow.flow.read` or as the requester, the evaluations reduced for the requester, the
+//! `flow.read` or as the requester, the evaluations reduced for the requester, the
 //! flows of an address, the non-conformities.
 
 use std::sync::Arc;
@@ -167,7 +167,7 @@ async fn a_request_answers_with_the_flow_and_its_evaluations(pool: PgPool) {
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let requester = env
-        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .granted(&["flow.request", "prop.core.owner.write"])
         .await;
     let app = env.app(requester);
     let (status, answer) = call(
@@ -208,7 +208,7 @@ async fn a_request_answers_with_the_flow_and_its_evaluations(pool: PgPool) {
     assert!(ids(&page).is_empty(), "{page}");
 }
 
-/// REQ-011-14, 15, 17: a reader under `flow.flow.read` lists, filters and reads the flow
+/// REQ-011-14, 15, 17: a reader under `flow.read` lists, filters and reads the flow
 /// with its full evaluations, and finds it among the flows of its source address.
 #[kartenn_testing::pg_test]
 async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
@@ -216,7 +216,7 @@ async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let requester = env
-        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .granted(&["flow.request", "prop.core.owner.write"])
         .await;
     let (status, answer) = call(
         &env.app(requester),
@@ -228,7 +228,7 @@ async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
     assert_eq!(status, StatusCode::CREATED, "{answer}");
     let id = answer["flow"]["id"].as_str().unwrap().to_owned();
 
-    let reader = env.app(env.granted(&["flow.flow.read"]).await);
+    let reader = env.app(env.granted(&["flow.read"]).await);
     let (status, page) = call(&reader, Method::GET, "/v1/flows", None).await;
     assert_eq!(status, StatusCode::OK, "{page}");
     assert_eq!(ids(&page), std::slice::from_ref(&id));
@@ -299,7 +299,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let before = instant(&pool).await;
     let requester = env
-        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .granted(&["flow.request", "prop.core.owner.write"])
         .await;
     let app = env.app(requester);
     let (status, answer) = call(
@@ -349,7 +349,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     assert!(items(&page).is_empty(), "{page}");
 
     // A reader of the entity: the triage in full, as the operation keeps it.
-    let reader = env.app(env.granted(&["flow.flow.read"]).await);
+    let reader = env.app(env.granted(&["flow.read"]).await);
     let (_, page) = call(&reader, Method::GET, "/v1/flows?state=requested", None).await;
     let [row] = items(&page).as_slice() else {
         panic!("one row: {page}");
@@ -388,7 +388,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     }
 
     // A reviewer sees it; a reader of another entity does not.
-    let reviewer = env.granted(&["flow.flow.review"]).await;
+    let reviewer = env.granted(&["flow.review"]).await;
     let (_, page) = call(
         &env.app(reviewer),
         Method::GET,
@@ -407,7 +407,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    let elsewhere = env.app(env.granted_on(&["flow.flow.read"], Some(other)).await);
+    let elsewhere = env.app(env.granted_on(&["flow.read"], Some(other)).await);
     let (_, page) = call(&elsewhere, Method::GET, "/v1/flows?state=requested", None).await;
     assert!(items(&page).is_empty(), "{page}");
 
@@ -442,7 +442,7 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let requester = env
-        .granted(&["flow.flow.request", "prop.core.owner.write"])
+        .granted(&["flow.request", "prop.core.owner.write"])
         .await;
     let app = env.app(requester);
     let (status, _) = call(
@@ -520,7 +520,7 @@ async fn a_patch_shortens_or_holds_an_extension(pool: PgPool) {
     let b = env.address("10.3.0.0/24", "10.3.0.1", "prod").await;
     let (requester, reviewer, _, authorizer) = parties(&env).await;
     let id = instructed(&env, &authorizer, (requester, reviewer), (a, b), 200, None).await;
-    let writer = env.app(env.granted(&[WRITE, &["flow.flow.read"]].concat()).await);
+    let writer = env.app(env.granted(&[WRITE, &["flow.read"]].concat()).await);
 
     let (status, answer) = patch(
         &writer,

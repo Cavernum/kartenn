@@ -60,7 +60,7 @@ async fn the_catalogue_is_that_of_s15(pool: PgPool) {
     // A type without declared permissions keeps the convention.
     assert_eq!(
         kartenn_core::authz::type_write_permission("vlan.vlan"),
-        "vlan.vlan.write"
+        "vlan.write"
     );
 }
 

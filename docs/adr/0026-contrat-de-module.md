@@ -244,7 +244,7 @@ forme. Sources : `crates/kartenn-service/src/module.rs`, `kartenn-rest/src/kit.r
 | Ajout | Clause | Tâche | Raison |
 |---|---|---|---|
 | `ModuleHandler::prepare` : complète une opération sur l'état de la transaction **avant** la planification ; l'opération complétée est celle que le changeset enregistre | 6 | 008-10 | `plan` ne lit aucune base ; un groupe ancré sur un domaine prend par défaut le propriétaire résolu du domaine |
-| `ModuleHandler::reads` : couples (permission, objet) exigés pour les objets qu'une opération **cite sans les écrire**, contrôlés comme une garde (`core.object.forbidden`), jamais comme une proposition | 6, 8 | 009-4, 009-5 | M16 : rattacher une adresse exige la seule lecture de l'adresse ; le VLAN d'une interface exige `vlan.vlan.read` |
+| `ModuleHandler::reads` : couples (permission, objet) exigés pour les objets qu'une opération **cite sans les écrire**, contrôlés comme une garde (`core.object.forbidden`), jamais comme une proposition | 6, 8 | 009-4, 009-5 | M16 : rattacher une adresse exige la seule lecture de l'adresse ; le VLAN d'une interface exige `vlan.read` |
 | `diff` et `check` portés par `ModuleHandler` (et non `Module`), avec `DiffContext` et `CheckContext` | 7, 13 | 008-19 | ils lisent la transaction, comme `apply` ; `Module` reste une description statique |
 | Les règles des modules s'évaluent **après** le différentiel des propriétés et les sections, chaque module une fois, dans l'ordre du registre | 7 | 008-19 | une règle lit les sections (clause 13) |
 | `CheckContext::objects` : objets de tout type écrits par le changeset (noyau compris) | 7 | 008-12 | règles d'un module sur des objets du noyau (`vlan.prefix.not_network`) |
@@ -292,7 +292,7 @@ décision F12 de la 011 et séparation des rôles). Source :
 | Ajout | Clause | Raison |
 |---|---|---|
 | `Module::type_permissions` (`TypePermissions { kind, read, write }`) : un type est lu et écrit sous des permissions déclarées **à la place de** `<type>.read` et `<type>.write` (plusieurs types peuvent partager une permission) ; le noyau les résout partout par `kartenn_core::authz::type_read_permission` et `type_write_permission` (lectures, écritures, portée des listes) ; la proposition implicite reste `<write sans .write>.propose` si le nom finit par `.write`. Le registre exige que le type soit du module et que les deux permissions soient déclarées par lui (`RegistryError::UnknownPermission`) | 5 | S15 : la politique se lit sous `policy.catalogue.read` et s'administre par famille (`policy.axis.admin`…) |
-| `Module::operation_permissions` : `(opération, permission)`, la permission exigée sur l'objet écrit **à la place de** l'écriture du type (`type_write_permission`) ; une opération absente de la liste exige celle-ci. La permission doit être une de celles que le module déclare (`Module::permissions`, donc dans son espace de noms et au catalogue), sur une opération qu'il accepte, une fois ; sinon `RegistryError::UnknownPermission` et le serveur ne démarre pas. Elle est lue de la déclaration, jamais du plan (`Planned::Module.permission`) | 5, 6 | F12 : une demande de flux s'écrit sous `flow.flow.request`, pas sous `flow.flow.write` |
+| `Module::operation_permissions` : `(opération, permission)`, la permission exigée sur l'objet écrit **à la place de** l'écriture du type (`type_write_permission`) ; une opération absente de la liste exige celle-ci. La permission doit être une de celles que le module déclare (`Module::permissions`, donc dans son espace de noms et au catalogue), sur une opération qu'il accepte, une fois ; sinon `RegistryError::UnknownPermission` et le serveur ne démarre pas. Elle est lue de la déclaration, jamais du plan (`Planned::Module.permission`) | 5, 6 | F12 : une demande de flux s'écrit sous `flow.request`, pas sous `flow.write` |
 | `ModuleActors { author, on_behalf_of, validator }` et `ModuleTx::actors()` : qui se tient derrière le changeset, posé par le pipeline seul (`WriteTx::set_module_actors`, hors de la vue d'un module) — à la soumission l'auteur et le demandeur (`Kartenn-On-Behalf-Of`) ; à la validation l'auteur, le demandeur (gardé dans `Pending.on_behalf_of`) et le validateur ; à la fin d'une proposition l'auteur, le demandeur et, pour un rejet, celui qui rejette ; `None` hors changeset (tâche de fond) | 6 | `requester_id`, `reviewed_by`, `granted_by`, `flow.separation` de la 011 |
 
 Sécurité : une permission de type ou d'opération est vérifiée par le même
@@ -327,6 +327,19 @@ des constats que seul le code du module produit. Le module borne lui-même le tr
 d'une exécution (la politique : 1 000 héritiers par exécution, reprise par un curseur).
 Test : `kartenn-policy` `mismatch.rs` (anomalie ouverte sur le nœud d'origine avec le
 décompte, puis fermée quand la règle change ; décompte réparti sur plusieurs exécutions).
+
+### Amendement 5 — 2026-10-23, noms des permissions (spec 018, R2, R4)
+
+Une permission de module s'écrit `<module>.<ressource>.<action>`, ou `<module>.<action>`
+quand la ressource porte le nom du module (`flow.read`, `vlan.write`) ; aucune ressource
+ne porte le nom d'une action (`kartenn_core::authz::catalogue_problems`, vérifié sur le
+catalogue du build par `kartenn-server`). Sans `TypePermissions`, un type `m.m` se lit et
+s'écrit sous `m.read` et `m.write` ; un type dont le nom diffère de celui du module
+(`machines.machine`) déclare ses `TypePermissions` pour en faire autant
+(`machines.read`). Les sortes ne changent pas. Les anciens noms
+(`kartenn_core::authz::RENAMED_PERMISSIONS`) sont refusés dans un rôle, sans alias ; le
+job de migration renomme ceux des rôles personnalisés par un changeset système
+(018/Q-018-3).
 
 ## Alternatives
 

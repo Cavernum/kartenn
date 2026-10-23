@@ -307,11 +307,11 @@ pub(crate) async fn run(
         pool,
         &[
             "machines.cluster.read",
-            "machines.machine.read",
+            "machines.read",
             "machines.interface.read",
             "core.address.read",
             "core.prefix.read",
-            "vlan.vlan.read",
+            "vlan.read",
         ],
     )
     .await?;

@@ -90,12 +90,12 @@ macro_rules! permissions {
 // REQ-011-17: all carried by the entity of the flow.
 permissions! {
     PERMISSIONS;
-    FLOW_READ = "flow.flow.read", "Lire les flux.";
-    FLOW_REQUEST = "flow.flow.request",
+    FLOW_READ = "flow.read", "Lire les flux.";
+    FLOW_REQUEST = "flow.request",
         "Demander un flux sans lire ses extrémités, et lire ses propres demandes.";
-    FLOW_REVIEW = "flow.flow.review", "Instruire une demande de flux.";
-    FLOW_WAIVE = "flow.flow.waive", "Accorder une dérogation à un flux refusé.";
-    FLOW_WRITE = "flow.flow.write",
+    FLOW_REVIEW = "flow.review", "Instruire une demande de flux.";
+    WAIVER_GRANT = "flow.waiver.grant", "Accorder une dérogation à un flux refusé.";
+    FLOW_WRITE = "flow.write",
         "Écrire directement un flux (maintenance), avec la lecture de ses deux extrémités.";
 }
 
@@ -138,11 +138,11 @@ impl Module for Flows {
     }
     fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
         // REQ-011-17, F12: requesting needs no read of the endpoints; the direct write of
-        // maintenance (`register`, `update`) is `flow.flow.write`, the default.
+        // maintenance (`register`, `update`) is `flow.write`, the default.
         &[
-            ("request", "flow.flow.request"),
-            ("waive", "flow.flow.waive"),
-            ("approve_review", "flow.flow.review"),
+            ("request", "flow.request"),
+            ("waive", "flow.waiver.grant"),
+            ("approve_review", "flow.review"),
         ]
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {

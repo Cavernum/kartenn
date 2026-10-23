@@ -119,7 +119,7 @@ chaque module avec celles du noyau : validation des rôles, catalogue des règle
 `docs/spec/permissions.md` généré.
 
 Acceptation :
-- Un rôle qui liste `vlan.vlan.write` est accepté avec le module, refusé sans
+- Un rôle qui liste `vlan.write` est accepté avec le module, refusé sans
   (`rbac.unknown_permission`).
 - Le test de génération de `docs/spec/permissions.md` couvre les permissions du module.
 
@@ -295,7 +295,8 @@ Acceptation :
 
 #### REQ-008-22 — Permissions
 kartenn doit contrôler les écritures et lectures du module par `vlan.group.read|write|
-propose` et `vlan.vlan.read|write|propose`, évaluées sur le périmètre hérité du groupe.
+propose` et `vlan.read|write|propose` (018/R2), évaluées sur le périmètre hérité du
+groupe.
 
 Acceptation :
 - Écrivain VLAN sur l'entité E : crée un VLAN dans un groupe de E ; refus dans un groupe

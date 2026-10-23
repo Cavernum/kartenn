@@ -135,7 +135,7 @@ const MACHINE_FIELDS: &[&str] = &["id", "name", "kind", "host", "member_of", "co
 const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "vlan", "completed"];
 
 /// The permission a VLAN cited by an interface needs (REQ-009-18).
-const VLAN_READ: &str = "vlan.vlan.read";
+const VLAN_READ: &str = "vlan.read";
 /// The permission an address attached or detached needs, rather than its writing (M16).
 const ADDRESS_READ: &str = "core.address.read";
 

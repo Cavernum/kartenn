@@ -113,7 +113,7 @@ Acceptation :
   règle et texte cités.
 
 #### REQ-011-22 — Instruction
-Le module doit permettre à un instructeur (`flow.flow.review` sur l'entité, distinct du
+Le module doit permettre à un instructeur (`flow.review` sur l'entité, distinct du
 demandeur et de l'auteur d'une prolongation) d'**approuver** une proposition à
 instruire, demande ou prolongation (avec une date de fin obligatoire, au plus
 `[flow] review_max_months` après la décision, 12 par défaut ; une dérogation si le
@@ -138,7 +138,7 @@ Acceptation :
 - `GET /v1/flows?state=requested` rend la demande en attente avec `id` nul, son
   changeset et l'évaluation du triage (issue `review`, motif attendu) égale à celle de
   la réponse 202 ; sans `requested` dans `state`, elle n'apparaît pas.
-- Le demandeur la lit avec une évaluation réduite ; un instructeur (`flow.flow.review`
+- Le demandeur la lit avec une évaluation réduite ; un instructeur (`flow.review`
   sur l'entité) la lit ; un utilisateur sans droit sur l'entité ne la voit pas.
 - À un `as_of` antérieur à sa soumission, elle n'apparaît pas ; après son rejet, elle
   n'apparaît plus.
@@ -189,7 +189,7 @@ Acceptation :
 Le module doit accepter un flux dont le verdict est `denied` s'il porte une dérogation :
 motif et risque accepté non vides, date de fin au plus tôt de celle du flux et de la
 date d'octroi plus `[flow] waiver_max_months` (6 par défaut), accordée par un auteur qui
-détient `flow.flow.waive` sur l'entité et n'est pas le demandeur ; la dérogation ne
+détient `flow.waiver.grant` sur l'entité et n'est pas le demandeur ; la dérogation ne
 modifie pas la politique ; sa **recertification** est une prolongation par changeset,
 qui réévalue le flux contre la politique du jour (F6, Q8, UC-4).
 
@@ -270,18 +270,18 @@ EB-27, N37).
 ### F. Droits et API
 
 #### REQ-011-17 — Permissions
-Le module doit déclarer, portées sur l'entité du flux : `flow.flow.read` ;
-`flow.flow.request` (demander un flux sans lecture des extrémités, explication réduite
-comme REQ-010-25, lecture de ses propres demandes) ; `flow.flow.review` (instruire) ;
-`flow.flow.waive` (accorder une dérogation) ; `flow.flow.write` (maintenance directe,
+Le module doit déclarer, portées sur l'entité du flux : `flow.read` ;
+`flow.request` (demander un flux sans lecture des extrémités, explication réduite
+comme REQ-010-25, lecture de ses propres demandes) ; `flow.review` (instruire) ;
+`flow.waiver.grant` (accorder une dérogation) ; `flow.write` (maintenance directe,
 qui exige la lecture des deux extrémités) ; l'instructeur et l'auteur d'une dérogation
 doivent être distincts du demandeur (F12, Q17).
 
 Acceptation :
-- Un compte de service avec `flow.flow.request` sur E, agissant pour un demandeur sans
+- Un compte de service avec `flow.request` sur E, agissant pour un demandeur sans
   compte kartenn, crée une demande vers un réseau qu'il ne lit pas ; l'audit enregistre
   le compte et le demandeur (N31).
-- Un utilisateur avec `flow.flow.write` seul, sans lecture du réseau destination : même
+- Un utilisateur avec `flow.write` seul, sans lecture du réseau destination : même
   404 qu'un objet absent.
 
 #### REQ-011-18 — API

@@ -623,6 +623,13 @@ pub trait WriteTx {
         key: &str,
     ) -> impl Future<Output = Result<Option<Vec<String>>, StoreError>> + Send;
 
+    /// The roles not delivered with kartenn, in force now, that hold one of `permissions`,
+    /// by key (spec 018, REQ-018-4).
+    fn custom_roles_citing(
+        &mut self,
+        permissions: &[&str],
+    ) -> impl Future<Output = Result<Vec<crate::rbac::StoredRole>, StoreError>> + Send;
+
     /// The scope object of a binding in force (its entity, site, domain or prefix, or
     /// [`crate::rbac::RBAC_OBJECT`] for a global one), if it exists.
     fn binding_scope(

@@ -1,7 +1,8 @@
 //! Catalogue of permissions and delivered roles (spec 005, REQ-005-16, 17; K12; D36).
 //!
-//! A permission is `<module>.<object>.<action>`, or `prop.<key>.<action>` for a property
-//! (003). A role lists catalogue permissions and two patterns: `prop.*.<action>` covers the
+//! A permission is `<module>.<object>.<action>`, `<module>.<action>` when the object is
+//! named after the module (spec 018, R2: `flow.read`), or `prop.<key>.<action>` for a
+//! property (003). A role lists catalogue permissions and two patterns: `prop.*.<action>` covers the
 //! properties that are **not sensitive** (a sensitive one needs its own permission,
 //! 003/P17), and `*` covers everything. `docs/spec/permissions.md` is generated from here, with the
 //! permissions of the modules of the build, and checked by a test of `kartenn-server`.
@@ -16,7 +17,7 @@ use std::sync::{PoisonError, RwLock};
 /// A permission of the catalogue.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Permission {
-    /// `<module>.<object>.<action>`.
+    /// `<module>.<object>.<action>`, or `<module>.<action>` (spec 018, R2).
     pub name: &'static str,
     /// What it allows, in one sentence.
     pub summary: &'static str,
@@ -77,7 +78,63 @@ permissions! {
 /// Actions of a property permission.
 pub const PROPERTY_ACTIONS: [&str; 3] = ["read", "write", "propose"];
 
-/// The permission `name` of the catalogue, if any.
+/// The permissions renamed by spec 018 (R2, R3), `(old, new)`: the only source for the
+/// migration of the custom roles (Q-018-3) and for the labels of the old names that the
+/// audit journal and the history keep (R6). It opens **no alias** (Q-018-2): an old name
+/// is refused in a role and never granted.
+pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
+    ("vlan.vlan.read", "vlan.read"),
+    ("vlan.vlan.write", "vlan.write"),
+    ("vlan.vlan.propose", "vlan.propose"),
+    ("machines.machine.read", "machines.read"),
+    ("machines.machine.write", "machines.write"),
+    ("machines.machine.propose", "machines.propose"),
+    ("flow.flow.read", "flow.read"),
+    ("flow.flow.request", "flow.request"),
+    ("flow.flow.review", "flow.review"),
+    ("flow.flow.write", "flow.write"),
+    ("flow.flow.waive", "flow.waiver.grant"),
+];
+
+/// The problems of a catalogue against the naming rule of spec 018 (REQ-018-1, R2, R5):
+/// `<module>.<resource>.<action>`, or `<module>.<action>` when the resource is named after
+/// the module (never `<module>.<module>.<action>`), lowercase, unique, and no resource
+/// named after an action of the catalogue (so that `<module>.<action>` stays unambiguous).
+#[must_use]
+pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
+    let mut problems = Vec::new();
+    let actions: std::collections::BTreeSet<&str> = permissions
+        .iter()
+        .filter_map(|p| p.name.rsplit('.').next())
+        .collect();
+    let mut seen = std::collections::BTreeSet::new();
+    for p in permissions {
+        let name = p.name;
+        if !seen.insert(name) {
+            problems.push(format!("`{name}`: duplicate"));
+        }
+        let segments: Vec<&str> = name.split('.').collect();
+        let well_formed = (2..=3).contains(&segments.len())
+            && segments.iter().all(|s| {
+                s.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+                    && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+            });
+        if !well_formed {
+            problems.push(format!("`{name}`: not `<module>[.<resource>].<action>`"));
+            continue;
+        }
+        if let [module, resource, _] = segments[..] {
+            if resource == module {
+                problems.push(format!("`{name}`: the resource repeats the module"));
+            }
+            if actions.contains(resource) {
+                problems.push(format!("`{name}`: the resource is named after an action"));
+            }
+        }
+    }
+    problems
+}
+
 /// The permissions the modules of the build added to the catalogue.
 static MODULE_PERMISSIONS: RwLock<Vec<&'static Permission>> = RwLock::new(Vec::new());
 
@@ -139,20 +196,36 @@ fn type_permissions(kind: &str) -> Option<TypePermissions> {
         .find(|t| t.kind == kind)
 }
 
+/// The permission `<kind>.<action>` by the naming rule (spec 018, R2, R4): a type named
+/// after its module, `m.m`, gives `m.<action>`.
+fn default_type_permission(kind: &str, action: &str) -> String {
+    match kind.split_once('.') {
+        Some((module, ty)) if module == ty => format!("{module}.{action}"),
+        _ => format!("{kind}.{action}"),
+    }
+}
+
 /// The read permission of the object type `kind` of a module: its declared one, else
-/// `<kind>.read`.
+/// `<kind>.read`, or `<module>.read` for a type named after its module (spec 018, R4).
 #[must_use]
 pub fn type_read_permission(kind: &str) -> String {
-    type_permissions(kind).map_or_else(|| format!("{kind}.read"), |t| t.read.to_owned())
+    type_permissions(kind).map_or_else(
+        || default_type_permission(kind, "read"),
+        |t| t.read.to_owned(),
+    )
 }
 
 /// The write permission of the object type `kind` of a module: its declared one, else
-/// `<kind>.write`.
+/// `<kind>.write`, or `<module>.write` for a type named after its module (spec 018, R4).
 #[must_use]
 pub fn type_write_permission(kind: &str) -> String {
-    type_permissions(kind).map_or_else(|| format!("{kind}.write"), |t| t.write.to_owned())
+    type_permissions(kind).map_or_else(
+        || default_type_permission(kind, "write"),
+        |t| t.write.to_owned(),
+    )
 }
 
+/// The permission `name` of the catalogue, if any.
 #[must_use]
 pub fn permission(name: &str) -> Option<&'static Permission> {
     PERMISSIONS
@@ -164,9 +237,13 @@ pub fn permission(name: &str) -> Option<&'static Permission> {
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
 /// `prop.*.<action>`, or `*`. The key of a property permission is checked against the
-/// declarations by the service (`rbac::check`).
+/// declarations by the service (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] is
+/// refused, with no alias (spec 018, REQ-018-3, Q-018-2).
 #[must_use]
 pub fn valid_role_entry(entry: &str) -> bool {
+    if RENAMED_PERMISSIONS.iter().any(|(old, _)| *old == entry) {
+        return false;
+    }
     if entry == "*" || permission(entry).is_some() {
         return true;
     }
@@ -324,6 +401,15 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
             .join(", ");
         let _ = writeln!(out, "| {} | `{}` | {} |", r.label, r.key, entries);
     }
+    out.push_str(
+        "\n## Anciens noms\n\n\
+         Renommées par la spec 018 (R2, R3). Un ancien nom est refusé dans un rôle\n\
+         (`core.role.invalid`) ; il ne reste que dans l'historique et le journal d'audit.\n\n\
+         | Ancien nom | Nouveau nom |\n|---|---|\n",
+    );
+    for (old, new) in RENAMED_PERMISSIONS {
+        let _ = writeln!(out, "| `{old}` | `{new}` |");
+    }
     out
 }
 
@@ -335,16 +421,74 @@ mod tests {
 
     #[test]
     fn names_are_unique_and_well_formed() {
-        let names: BTreeSet<_> = PERMISSIONS.iter().map(|p| p.name).collect();
-        assert_eq!(names.len(), PERMISSIONS.len(), "duplicate permission");
-        for name in names {
-            assert_eq!(name.split('.').count(), 3, "{name}");
-            assert!(name.starts_with("core."), "{name}");
-            assert!(
-                name.bytes()
-                    .all(|b| b.is_ascii_lowercase() || b == b'.' || b == b'_'),
-                "{name}"
-            );
+        assert_eq!(catalogue_problems(PERMISSIONS), Vec::<String>::new());
+        for p in PERMISSIONS {
+            assert!(p.name.starts_with("core."), "{}", p.name);
+        }
+    }
+
+    /// REQ-018-1: a catalogue that repeats the module, or names a resource after an
+    /// action, is refused.
+    #[test]
+    fn permission_names_omit_the_module_resource() {
+        static REPEATED: Permission = Permission {
+            name: "flow.flow.read",
+            summary: "",
+            global_only: false,
+        };
+        static SHORT: Permission = Permission {
+            name: "flow.read",
+            summary: "",
+            global_only: false,
+        };
+        static GRANT: Permission = Permission {
+            name: "flow.waiver.grant",
+            summary: "",
+            global_only: false,
+        };
+        static ACTION_AS_RESOURCE: Permission = Permission {
+            name: "flow.read.grant",
+            summary: "",
+            global_only: false,
+        };
+        assert_eq!(catalogue_problems(&[&SHORT, &GRANT]), Vec::<String>::new());
+        assert_eq!(catalogue_problems(&[&REPEATED]).len(), 1);
+        assert_eq!(catalogue_problems(&[&SHORT, &ACTION_AS_RESOURCE]).len(), 1);
+        assert_eq!(catalogue_problems(&[&SHORT, &SHORT]).len(), 1);
+    }
+
+    /// REQ-018-3: an old name stands in no role, even when a catalogue still declares it.
+    #[test]
+    fn an_old_permission_name_is_refused() {
+        static OLD: Permission = Permission {
+            name: "flow.flow.read",
+            summary: "",
+            global_only: false,
+        };
+        register(&[&OLD]);
+        for (old, _) in RENAMED_PERMISSIONS {
+            assert!(!valid_role_entry(old), "{old}");
+        }
+    }
+
+    /// R4: a type named after its module reads and writes under `<module>.<action>`; the
+    /// other types keep `<kind>.<action>`, unless their module declares otherwise
+    /// (`machines.machine`, see `kartenn-server`).
+    #[test]
+    fn a_module_kind_reads_under_the_short_permission() {
+        assert_eq!(type_read_permission("vlan.vlan"), "vlan.read");
+        assert_eq!(type_write_permission("flow.flow"), "flow.write");
+        assert_eq!(type_read_permission("vlan.group"), "vlan.group.read");
+    }
+
+    /// R3: the table renames each old name once, to a name of the new grammar.
+    #[test]
+    fn the_renaming_table_is_well_formed() {
+        let olds: BTreeSet<_> = RENAMED_PERMISSIONS.iter().map(|(old, _)| *old).collect();
+        assert_eq!(olds.len(), RENAMED_PERMISSIONS.len());
+        for (old, new) in RENAMED_PERMISSIONS {
+            assert_ne!(old, new);
+            assert!(!olds.contains(new), "{new} is renamed again");
         }
     }
 
