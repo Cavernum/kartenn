@@ -11,7 +11,7 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - **Sécurité d'accès** : OIDC multi-émetteurs (humains) et Basic sur TLS (machines, secours) (D13) ; RBAC composable avec liaisons portées (D36).
 - **Qualité** : budgets p95 chiffrés et bancs d'essai en CI (D14) ; OCI, module NixOS, OpenTelemetry (D35) ; AGPL-3.0 (D37).
 - **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
-- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, CLI, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) (D31 amendée).
+- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) ; la bibliothèque Python et la CLI (023) s'implémentent dès maintenant (D31 amendée).
 
 ## D1 — Source de vérité et sens de « contrôler »
 - Décision : l'outil est déclaratif et constitue la source de vérité. « Contrôler » veut dire qu'une validation de cohérence est bloquante : aucune incohérence n'est acceptée en écriture. Pas de découverte ni de pilotage actif pour l'instant.
@@ -53,11 +53,13 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 ## D7 — REST, frontière publique unique
 - Décision : CLI, TUI, MCP, connecteurs et frontend Web sont tous des **clients de l'API REST**. Aucun accès direct à la couche service hors du serveur.
 - Pourquoi : un seul point où s'appliquent authentification, RBAC, validation, audit et limitation de débit ; l'API est utilisée par ses propres outils ; les binaires se déploient indépendamment.
-- Conséquences : l'API doit offrir des **opérations par lots atomiques** performantes (imports de 10⁵ à 10⁶ objets) et un endpoint de **capacités** (modules actifs). Le CLI et le MCP peuvent partager un SDK client généré depuis l'OpenAPI.
+- Conséquences : l'API doit offrir des **opérations par lots atomiques** performantes (imports de 10⁵ à 10⁶ objets) et un endpoint de **capacités** (modules actifs). Le CLI et le MCP peuvent partager un SDK client dérivé de l'OpenAPI (amendement de la spec 023 ci-dessous).
 - Rejeté : MCP dans le processus (deux surfaces), connecteurs dans le processus (contredit le « à chaud » et contourne l'audit).
 - Décidé par : recommandation acceptée
 - Amendement (spec 022, A1, 2026-10-23) : la frontière publique unique est l'**API HTTP `/v1` (REST et flux d'événements)**. Le flux `GET /v1/events` (server-sent events) en fait partie : mêmes authentification, RBAC, audit, quotas et contrat OpenAPI. Un futur serveur MCP est un adaptateur séparé (`POST /mcp`), branché sur la même source d'événements, jamais sur `/v1/events`.
 - Décidé par (amendement) : l'utilisateur, après une étude des normes ([`docs/reference/push-serveur.md`](../../docs/reference/push-serveur.md))
+- Amendement (spec 023, A1, 2026-10-23) : le SDK client est **dérivé de l'OpenAPI à l'exécution**, et non généré au build. La bibliothèque Python `kartenn` (MPL-2.0) a un cœur écrit à la main (HTTP, authentification, pagination, problèmes, changesets, imports, événements). Elle découvre les ressources et les modules par `GET /v1/capabilities` et `GET /v1/openapi.json`, et met ce catalogue en cache par révision du serveur. Un module servi par le serveur est donc utilisable sans nouvelle version du client. La CLI (`kartenn-cli`) et le futur MCP s'appuient sur cette bibliothèque.
+- Décidé par (amendement) : l'utilisateur
 
 ## D8 — Historique temporel natif
 - Décision : chaque objet est **versionné dans le temps** et l'on peut interroger directement l'état du réseau à une date X. Plus le journal d'audit (auteur, motif).
@@ -241,10 +243,14 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Décidé par : l'utilisateur
 - Amendement (spec 022, A7, 2026-10-23) : les **événements poussés** (spec 022, flux SSE alimenté par l'outbox) sont une brique transverse qui précède les specs de réécriture du web (020, 021, à venir) ; la bibliothèque cliente et ses commandes `watch` en consomment le contrat.
 - Décidé par (amendement) : l'utilisateur
+- Amendement (spec 023, A6, 2026-10-23) : la **bibliothèque cliente Python et la CLI** (spec 023) s'implémentent **dès maintenant**, en parallèle de la v0.2, et non « ensuite ». Le MCP et la TUI restent « ensuite ».
+- Décidé par (amendement) : l'utilisateur
 
 ## D32 — Nom et emplacement
 - Décision : **kartenn** (« carte » en breton), dans `~/Repos/kartenn`, en monorepo git avec devenv. Structure : `crates/` (kartenn-core, kartenn-<module>, kartenn-server…), `web/` (shell et SDK de plugins), `docs/` (spec système, ADR, notes RFC et bonnes pratiques), `specs/` (specs de fonctionnalités), `devenv.nix` (Rust, Node, PostgreSQL 18).
 - Décidé par : l'utilisateur (consonance bretonne), nom recommandé
+- Amendement (spec 023, A7, 2026-10-23) : `clients/python/` accueille les clients Python. Ce sont deux paquets distincts : la bibliothèque `kartenn` (MPL-2.0) et la CLI `kartenn-cli` (AGPL-3.0, D37).
+- Décidé par (amendement) : l'utilisateur
 
 ## D33 — Suppression
 - Décision : par défaut, **refus** s'il existe des dépendants (erreur RFC 9457 qui les liste). Une **cascade explicite** est possible : le changeset contient toutes les suppressions, le différentiel les montre, le RBAC s'applique à chacune. Supprimer veut dire **clore la période de validité** (bitemporel), sans effacement physique. Chaque module déclare la politique de ses références (refus, cascade, mise à nul).
