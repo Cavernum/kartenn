@@ -1,0 +1,13 @@
+# serializer version: 1
+# name: test_help
+  '''
+  Usage: kartenn [OPTIONS] COMMAND [ARGS]...
+  
+    Command line of kartenn.
+  
+  Options:
+    --version   Show the version and exit.
+    -h, --help  Show this message and exit.
+  
+  '''
+# ---

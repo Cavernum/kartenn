@@ -331,6 +331,8 @@ in {
     pkgs.actionlint
     pkgs.zizmor
     pkgs.shellcheck
+    # Python lint and format (spec 023, T25).
+    pkgs.ruff
     # The shell of the scripts (`#!/usr/bin/env dash`, see `dash` above).
     pkgs.dash
   ];
@@ -349,6 +351,20 @@ in {
     };
   };
   languages.typescript.enable = true;
+
+  # Python client library and CLI (spec 023, T25): a uv workspace under clients/python/,
+  # tested on the floor version of the packages (Python 3.11, Q-023-4). The interpreter
+  # comes from Nix, never downloaded by uv; pyright is the language server of devenv
+  # (pkgs.pyright), ruff the one of nixpkgs; pytest and its plugins are locked in
+  # clients/python/uv.lock.
+  languages.python = {
+    enable = true;
+    package = pkgs.python311;
+    directory = "clients/python";
+    uv.enable = true;
+  };
+  env.UV_PYTHON_DOWNLOADS = "never";
+  env.UV_PYTHON = lib.getExe config.languages.python.package;
 
   # Browsers come from Nix, never from npm (ADR 0024): @playwright/test in web/ must pin
   # the version of pkgs.playwright-driver.
@@ -527,6 +543,49 @@ in {
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
       echo "OK — $(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')"
+    '';
+  };
+
+  # Same for the Python clients (spec 023, T25), in ${PY_DIR:-clients/python}: ruff (lint
+  # and format) and pyright on the uv workspace, then pytest with branch coverage in each
+  # package. pytest runs as many workers as k-heavy gives cores to a slot.
+  scripts.k-py-check = {
+    description = "ruff, pyright and pytest of the Python clients, printing a one-line verdict or the failures only";
+    exec = ''
+      set -uo pipefail
+      # FORCE_COLOR stays unset: ruff takes any value of it as a request for colours.
+      export NO_COLOR=1 PY_COLORS=0
+      unset FORCE_COLOR
+      [ $# -eq 0 ] || { echo "usage: k-py-check (sans argument)" >&2; exit 2; }
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy ${dash} "$0"
+      dir=''${PY_DIR:-clients/python}
+      [ -f "$dir/pyproject.toml" ] || { echo "OK — pas de client Python ($dir/pyproject.toml absent)"; exit 0; }
+      cd "$dir" || exit 1
+      log=$(mktemp -d -t k-py-check.XXXXXX)
+      # ko <step> <log> <pattern> [hint]: the matching lines, else the end of the log.
+      ko() {
+        echo "KO $1 ($2)''${4:+ — $4}"
+        n=$(grep -cE "$3" "$2")
+        if [ "$n" -gt 0 ]; then grep -E "$3" "$2" | head -20 | sed "s#$PWD/##"; [ "$n" -gt 20 ] && echo "… $((n - 20)) de plus"; else tail -15 "$2"; fi
+        exit 1
+      }
+      # The environment of the lock, exactly: a stale lock fails here, not in a test.
+      uv sync --locked --all-packages >"$log/uv-sync" 2>&1 ||
+        ko uv-sync "$log/uv-sync" '^error|^ *×' "uv lock dans $dir"
+      ruff check --output-format=concise . >"$log/ruff" 2>&1 ||
+        ko ruff "$log/ruff" ':[0-9]+:[0-9]+: ' "ruff check --fix $dir"
+      ruff format --check --output-format=concise . >"$log/ruff-format" 2>&1 ||
+        ko ruff-format "$log/ruff-format" ': unformatted: ' "ruff format $dir"
+      uv run --no-sync pyright >"$log/pyright" 2>&1 ||
+        ko pyright "$log/pyright" ' - error: '
+      verdict=
+      for pkg in kartenn kartenn-cli; do
+        (cd "$pkg" && uv run --no-sync pytest -n "''${NEXTEST_TEST_THREADS:-auto}" -p no:sugar -q) \
+          >"$log/pytest-$pkg" 2>&1 ||
+          ko pytest "$log/pytest-$pkg" '^(FAILED|ERROR|INTERNALERROR) |Required test coverage .* not reached'
+        verdict="$verdict''${verdict:+, }$pkg $(grep -oE '[0-9]+ passed' "$log/pytest-$pkg" | tail -1 | cut -d' ' -f1) tests"
+      done
+      echo "OK — $verdict"
     '';
   };
 
@@ -790,7 +849,11 @@ in {
       # devenv writes its lock without a final newline, on every update.
       excludes = ["^devenv\\.lock$"];
     };
-    trim-trailing-whitespace.enable = true;
+    trim-trailing-whitespace = {
+      enable = true;
+      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too.
+      excludes = ["\\.ambr$"];
+    };
     rustfmt.enable = true;
     # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
     clippy = {

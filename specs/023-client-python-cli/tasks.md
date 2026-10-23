@@ -26,7 +26,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Socle
 
-- [ ] 1. Squelette des deux paquets distincts. Contenu :
+- [x] 1. Squelette des deux paquets distincts. Contenu :
   - `clients/python/pyproject.toml` (espace de travail uv de développement, ruff,
     pyright strict) ;
   - `kartenn/pyproject.toml` : MPL-2.0, version 0.1.0.dev0, `requires-python >=3.11`,
@@ -44,7 +44,22 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : design § Disposition, § Stratégie de test (bloc TOML) ; licence MPL de
     `web/sdk/package.json` ; texte AGPL de la racine (`LICENSE`)
   - dépend de : —
-- [ ] 2. devenv : Python ≥ 3.11 et uv dans `devenv.nix`. Script `k-py-check` **en sh
+  - choix : clés de pytest 9.1.1 confirmées (`strict`, `minversion`, `testpaths`,
+    `addopts`, `assertion_text_diff_style = "block"`) ; `timeout = "30"` en chaîne, car
+    pytest-timeout déclare une option texte et la table TOML native refuse un entier.
+    Licences en expressions SPDX (`MPL-2.0`, `AGPL-3.0-only` comme le serveur), textes
+    copiés de `crates/syslog-sender/LICENSE` et de la racine. `uv_build>=0.12.22,<0.13`
+    (version de l'uv de devenv). CLI : `kartenn>=0.1.0.dev0,<1` (X = 0) ; squelette
+    click minimal (`--version`, `--help`, instantané syrupy). Ruff : `select = ["ALL"]`
+    sauf `D`, `CPY`, `COM812`, `ISC001` ; pyright strict, `pythonVersion = "3.11"`, sur
+    l'environnement actif (`uv run pyright`). Test d'indépendance : `Requires-Dist`
+    d'exécution = httpx2 et platformdirs, puis import de tous les modules de `kartenn`
+    dans un interpréteur neuf sans qu'aucun module de la CLI n'entre dans
+    `sys.modules` (l'environnement de travail les contient tous). `trio` et `packaging`
+    ajoutés aux groupes `dev` (moteur trio d'anyio, lecture des exigences).
+    pytest-sugar 1.1.1 fonctionne avec pytest-xdist 3.8.0 (`-n 4 --force-sugar`) : il
+    entre, avec pytest-icdiff, dans un groupe facultatif `confort`, hors du groupe `dev`.
+- [x] 2. devenv : Python ≥ 3.11 et uv dans `devenv.nix`. Script `k-py-check` **en sh
   POSIX** (dash : pas de `pipefail`, de tableaux ni de `[[`) qui lance, pour chaque paquet,
   `ruff check`, `ruff format --check`, `pyright` et `pytest -n auto -p no:sugar`. Les
   journaux vont dans un répertoire temporaire. Le verdict tient en une ligne
@@ -55,11 +70,31 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `devenv.nix`, `scripts.k-web-check` (l. ~456, forme du verdict) et `scripts.k-check`
     (k-heavy) ; `languages.python` et `uv` de devenv
   - dépend de : 1
-- [ ] 3. CI : étape `k-py-check` dans `scripts/ci.sh`, et construction des deux wheels
+  - choix : Python 3.11 de Nix (plancher des paquets, Q-023-4) ; uv ne télécharge
+    aucun interpréteur (`UV_PYTHON`, `UV_PYTHON_DOWNLOADS=never`) ; l'environnement uv
+    est celui de devenv (`.devenv/state/venv`). ruff vient de nixpkgs (0.16.10), pyright
+    du serveur de langage de devenv (1.1.414) : pas de pyright de PyPI, qui télécharge
+    Node. Ruff et pyright tournent une fois sur l'espace de travail (les deux paquets),
+    pytest dans chaque paquet. Une étape `uv-sync` (`--locked`) précède : un verrou
+    périmé échoue là. `-n` prend les cœurs que `k-heavy` donne au créneau
+    (`NEXTEST_TEST_THREADS`), `auto` hors de lui. `k-py-check` refuse les arguments.
+    `FORCE_COLOR` reste non défini : ruff le lit comme une demande de couleurs, quelle
+    que soit sa valeur. Vérifié : test cassé → `KO pytest` et sa ligne `FAILED` ;
+    couverture à 31 % → `KO pytest` et `FAIL Required test coverage … not reached` ;
+    fichier mal formaté → `KO ruff-format` ; `dash -n` et `k-ci-lint` propres.
+- [x] 3. CI : étape `k-py-check` dans `scripts/ci.sh`, et construction des deux wheels
   (`uv build`) avec vérification des métadonnées de licence — T25 ; REQ-023-45 —
   verify : `scripts/ci.sh` local vert ; l'étape échoue si `k-py-check` échoue
   - où : `scripts/ci.sh` (étapes existantes de `k-check` et `k-web-check`)
   - dépend de : 2
+  - choix : deux étapes de `scripts/ci.sh` après `web` : `python` (`k-py-check`) et
+    `python-wheels`, script `scripts/py-wheels.sh` (dash, contrôlé par `k-ci-lint`) qui
+    construit les deux roues (`uv build --wheel`) et vérifie qu'elles sont
+    `py3-none-any`, que `License-Expression` vaut `MPL-2.0` et `AGPL-3.0-only`, et que
+    le texte de licence est dans le dist-info. Le workflow lance déjà `scripts/ci.sh` :
+    seul le nom du job change (« Rust, web, Python et parcours de bout en bout »).
+    Vérifié localement : `k-ci-lint`, `k-py-check`, `scripts/py-wheels.sh` et `k-check`
+    verts ; `scripts/ci.sh` complet (bout en bout du web, `nix flake check`) non relancé.
 
 ## Flux S — ajouts au serveur (amendements additifs de la 006 et de la 005)
 

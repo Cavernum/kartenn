@@ -1,0 +1,72 @@
+[project]
+name = "kartenn-cli"
+version = "0.1.0.dev0"
+description = "Command line of kartenn, derived from the contract of its API"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+  "kartenn>=0.1.0.dev0,<1",
+  "click>=8.5",
+  "rich-click>=1.9",
+  "rich>=14",
+  "keyring>=25",
+  "PyYAML>=6",
+  "jmespath>=1",
+]
+classifiers = [
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+
+[project.scripts]
+kartenn = "kartenn_cli.main:main"
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+kartenn = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "anyio>=4.12",
+  "coverage>=7.17",
+  "hypothesis>=6.150",
+  "pytest>=9.1",
+  "pytest-cov>=7",
+  "pytest-randomly>=4",
+  "pytest-timeout>=2.4",
+  "pytest-xdist>=3.8",
+  "syrupy>=5",
+  "trio>=0.32",
+  "types-jmespath",
+  "types-PyYAML",
+]
+# Local comfort only, never in CI (`-p no:sugar`): `uv sync --group confort`.
+confort = ["pytest-icdiff>=0.9", "pytest-sugar>=1.1"]
+
+[tool.pytest]
+minversion = "9.1"
+strict = true
+testpaths = ["tests"]
+addopts = ["-ra", "--cov", "--cov-report=term-missing:skip-covered"]
+# pytest-timeout declares a string option: a TOML integer is refused.
+timeout = "30"
+timeout_method = "signal"
+# Readable native diffs of strings (T23: replaces pytest-clarity).
+assertion_text_diff_style = "block"
+
+[tool.coverage.run]
+branch = true
+parallel = true
+patch = ["subprocess"]
+source_pkgs = ["kartenn_cli"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
