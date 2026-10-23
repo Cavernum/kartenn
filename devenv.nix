@@ -254,7 +254,7 @@
     inherit description;
     exec = ''
       set -euo pipefail
-      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench "$0" "$@"
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench bash "$0" "$@"
       k-pg-bench
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
@@ -395,7 +395,7 @@ in {
     description = "Migrate the development database and refresh the sqlx offline metadata";
     exec = ''
       set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg bash "$0" "$@"
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace -- --all-targets
     '';
@@ -466,7 +466,8 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy "$0" "$@"
+      # The script file has no shebang: run it through bash, not /bin/sh (dash on CI runners).
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy bash "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -504,7 +505,7 @@ in {
       export NO_COLOR=1 FORCE_COLOR=0
       # Exclusive: the journeys own the kartenn_e2e database and fixed loopback ports, and
       # take every slot, since a build beside them stretches the browser timeouts.
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all bash "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir"
@@ -605,7 +606,7 @@ in {
     description = "Check the budgets of the browser on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg "$0" "$@"
+      [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg bash "$0" "$@"
       k-pg-bench
       export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
       [ "''${2:-}" != small ] || export BENCH_SMALL=1
