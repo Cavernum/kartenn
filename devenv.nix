@@ -748,6 +748,21 @@ in {
   scripts.bench-telemetry =
     bench "telemetry" "Measure the cost of the telemetry on a fresh kartenn_bench database";
 
+  # The budgets of the CLI (spec 023, REQ-023-39): `bench-cli [runs]`. The client alone,
+  # against a stub of the contract on the loopback (clients/python/bench/cli.py): no
+  # PostgreSQL, but the bench lock all the same, so that timings never share the machine
+  # with another bench.
+  scripts.bench-cli = {
+    description = "Check the budgets of the Python CLI (start, help, completion, first contact)";
+    exec = ''
+      set -euo pipefail
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
+      cd "$(git rev-parse --show-toplevel)/clients/python"
+      uv sync --locked --all-packages -q
+      exec uv run --no-sync python bench/cli.py "$@"
+    '';
+  };
+
   # Observability (D35): the applications send OTLP to the collector
   # (127.0.0.1:4317 gRPC, 4318 HTTP), which also accepts syslog RFC 5424 over TCP with
   # octet counting (127.0.0.1:5514). Everything goes to OpenObserve (logs, traces,
