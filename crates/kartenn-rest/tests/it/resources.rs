@@ -613,3 +613,43 @@ async fn a_patch_renames_and_moves(pool: PgPool) {
     assert_eq!(after["slug"], "alone");
     assert_eq!(after["parent"], Value::Null);
 }
+
+/// The strong `ETag` of an object is its version (REQ-006-14), which a renaming of the
+/// object it links to leaves as it is while the summary of the link shows the new slug:
+/// a revalidation answers 304 on a stale body. Fixing it changes the contract of the tag
+/// (H8, H13b), an arbitration pending.
+#[kartenn_testing::pg_test]
+#[ignore = "stale ETag of a link summary: contract arbitration pending (REQ-006-14, H13b)"]
+async fn renaming_the_parent_changes_the_etag_of_the_child(pool: PgPool) {
+    let app = admin(&pool).await;
+    let (domain, prefix) = lab(&app).await;
+    let (etag, before) = read(&app, &prefix).await;
+    assert_eq!(before["domain"]["slug"], "lab");
+    let (domain_etag, _) = read(&app, &domain).await;
+    let renamed = send(
+        &app,
+        patch(
+            &domain,
+            Some(&domain_etag),
+            MERGE_PATCH,
+            &json!({"motive": "m", "slug": "lab-2"}),
+        ),
+    )
+    .await;
+    assert_eq!(
+        renamed.status(),
+        StatusCode::OK,
+        "{}",
+        json_of(renamed).await
+    );
+    let again = send(
+        &app,
+        Request::get(&prefix)
+            .header(header::IF_NONE_MATCH, &etag)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(again.status(), StatusCode::OK, "the domain summary changed");
+    assert_eq!(json_of(again).await["domain"]["slug"], "lab-2");
+}
