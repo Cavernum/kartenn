@@ -38,7 +38,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 ## P1 — Domaine pur
 
-- [ ] 3. Module `kartenn-service::events` : sortes (`Ready`, `Changes`, `Changeset`,
+- [x] 3. Module `kartenn-service::events` : sortes (`Ready`, `Changes`, `Changeset`,
   `Reset`, point de reprise), traduction d'un `Event` d'outbox en événement SSE
   (table du design § Format), troncature à 1 000 objets et invalidation large,
   sérialisation WHATWG (une ligne `data:`, pas de LF/CR) — REQ-022-3, 4, 5 — verify :
@@ -48,6 +48,16 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-store-pg/src/write.rs` (`org.kartenn.changeset.applied`, événements
     de module) et `pending.rs` (`event`)
   - dépend de : 2
+  - fait : `crates/kartenn-service/src/events.rs` (`translate`, `render`, `Filters`,
+    `Frame`, `Parser` WHATWG de test). Choix : objets typés par leur sorte dans
+    `carrier_object` (fonction fournie par le lecteur) plutôt que par les opérations ;
+    un objet sans type d'objet (politique, liaison, déclaration) n'est pas poussé ;
+    effets dérivés = sortes héritières des objets écrits quand le différentiel compte
+    plus d'objets que l'événement (domaine, préfixe → préfixe, plage, adresse ; plage →
+    adresse ; module → son type) ; un changeset approuvé donne aussi `changeset`
+    `applied` ; un événement de module dans un changeset porte `event` (son identité) ;
+    sorte `labels` (018) traduite depuis `org.kartenn.labels.changed`. E2 vérifiée :
+    `Planned::object` couvre les affectations.
 - [ ] 4. Curseur : `(plancher, dernier numéro, identité, émission)`, chiffré AES-256-GCM
   avec une clé dérivée du trousseau, préfixe `k1.` ; refus d'un curseur altéré, d'une
   autre identité ou d'une autre clé — REQ-022-6, 8 — verify : aller-retour ; octet
