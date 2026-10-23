@@ -146,7 +146,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux B — bibliothèque `kartenn`
 
-- [ ] 8. Cœur sans entrées-sorties (`_core/`) :
+- [x] 8. Cœur sans entrées-sorties (`_core/`) :
   - dates : RFC 3339 avec décalage, date seule dans un fuseau, relatives ;
   - requêtes : filtres de la 006, `--prop` et opérateurs, bascule `QUERY` au-delà de
     8 Kio, en-têtes ;
@@ -158,6 +158,22 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/_core/` ; 006/design § Curseurs, § Filtres,
     § Erreurs ; 022/design § Format, § Doublons
   - dépend de : 1, 2
+  - choix : messages HTTP du cœur (`Headers`, `Request`, `Response`) dans
+    `_core/messages.py`, hors de `requests.py`. Toute erreur est un `KartennError` à
+    code : slug du problème (`http-<statut>` sans corps de problème) ou `client.*`.
+    Classes par statut (`NotFound`, `Conflict`, `PreconditionFailed` avec
+    `current_etag` pris de l'extension `current_etag` puis de l'en-tête `ETag`,
+    `Refused` pour tout 422…) ; ruff ignore `N818` (noms de REQ-023-11) et `EM101` (le
+    code est un littéral). Dates relatives `[+-]N[smhdwMy]` (`M` mois, `m` minute) et
+    `now` ; mois ajoutés au jour borné. Filtres : valeurs Python gardées telles quelles
+    dans le corps `QUERY`, mises en texte dans l'URL (`true`/`false`) ; `:` littéral dans
+    l'URL ; bascule `QUERY` quand `base + chemin + requête` dépasse 8 Kio ;
+    `traceparent` marqué échantillonné (`-01`). `page.as_of` : membre `as_of` du corps
+    s'il existe, sinon la date demandée — le serveur ne rend pas encore l'`as_of`
+    effectif d'une liste (point ouvert). Doublons d'événements : identité
+    `changes`/changeset (ou `event` d'une tâche) et `changeset`/changeset/état, 10 000
+    retenues (023) ; `ready` et `reset` jamais écartés. Profil hypothesis sans délai ni
+    `too_slow` (machine partagée).
 - [ ] 9. Port de transport (`send`, `stream`, `sse`, synchrone et asynchrone) et
   adaptateur httpx2 :
   - délais ;
