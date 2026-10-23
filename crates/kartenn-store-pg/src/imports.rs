@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use kartenn_service::authz::Subject;
 use kartenn_service::port::{ImportBatch, ImportItem, ImportProgress, ImportRecord, StoreError};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
@@ -17,10 +18,19 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 pub(crate) async fn create(pool: &PgPool, record: &ImportRecord) -> Result<(), StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
     sqlx::query(
-        "INSERT INTO import (id, author_id, source, state, report) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO import (id, author_id, author_subject, source, state, report) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(record.id)
     .bind(record.author)
+    .bind(
+        record
+            .author_subject
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(store_err)?,
+    )
     .bind(&record.source)
     .bind(&record.state)
     .bind(&record.report)
@@ -44,15 +54,26 @@ pub(crate) async fn create(pool: &PgPool, record: &ImportRecord) -> Result<(), S
 
 /// An import with its batches.
 pub(crate) async fn find(pool: &PgPool, id: Uuid) -> Result<Option<ImportRecord>, StoreError> {
-    let row: Option<(Uuid, String, String, serde_json::Value)> =
-        sqlx::query_as("SELECT author_id, source, state, report FROM import WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(store_err)?;
-    let Some((author, source, state, report)) = row else {
+    let row: Option<(
+        Uuid,
+        Option<serde_json::Value>,
+        String,
+        String,
+        serde_json::Value,
+    )> = sqlx::query_as(
+        "SELECT author_id, author_subject, source, state, report FROM import WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(store_err)?;
+    let Some((author, author_subject, source, state, report)) = row else {
         return Ok(None);
     };
+    let author_subject = author_subject
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(store_err)?;
     let rows: Vec<(i32, serde_json::Value, String, Option<Uuid>)> = sqlx::query_as(
         "SELECT idx, operations, state, changeset_id FROM import_batch WHERE import_id = $1 ORDER BY idx",
     )
@@ -74,6 +95,7 @@ pub(crate) async fn find(pool: &PgPool, id: Uuid) -> Result<Option<ImportRecord>
     Ok(Some(ImportRecord {
         id,
         author,
+        author_subject,
         source,
         state,
         report,
@@ -328,17 +350,20 @@ pub async fn deposit(
 /// Starts `import` (REQ-006-17, H18): an `uploading` import becomes `sorting`, loses the
 /// error of its previous sort and its task is due; the sort is left to the task. False if
 /// the import is not `uploading` (or is unknown). The start waits for the deposits in
-/// progress.
+/// progress. The import keeps `author`, the author's issuer and groups when starting it,
+/// for its batches (REQ-005-22).
 ///
 /// # Errors
 ///
 /// Database errors.
-pub async fn start(pool: &PgPool, import: Uuid) -> Result<bool, StoreError> {
+pub async fn start(pool: &PgPool, import: Uuid, author: &Subject) -> Result<bool, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
     let started = sqlx::query(
-        "UPDATE import SET state = 'sorting', error = NULL WHERE id = $1 AND state = 'uploading'",
+        "UPDATE import SET state = 'sorting', error = NULL, author_subject = $2 \
+         WHERE id = $1 AND state = 'uploading'",
     )
     .bind(import)
+    .bind(serde_json::to_value(author).map_err(store_err)?)
     .execute(&mut *tx)
     .await
     .map_err(store_err)?
@@ -448,8 +473,9 @@ pub async fn unsorted(
     Ok(back)
 }
 
-/// Moves `import` from one of `from` to `to`; with `run`, makes its task due. False if
-/// the import is in none of `from`.
+/// Moves `import` from one of `from` to `to`; with `run`, the author resuming it, makes
+/// its task due and keeps the author's issuer and groups for its batches (REQ-005-22).
+/// False if the import is in none of `from`.
 ///
 /// # Errors
 ///
@@ -459,19 +485,27 @@ pub async fn transition(
     import: Uuid,
     from: &[&str],
     to: &str,
-    run: bool,
+    run: Option<&Subject>,
 ) -> Result<bool, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
-    let moved = sqlx::query("UPDATE import SET state = $3 WHERE id = $1 AND state = ANY($2)")
-        .bind(import)
-        .bind(from)
-        .bind(to)
-        .execute(&mut *tx)
-        .await
-        .map_err(store_err)?
-        .rows_affected()
+    let author = run
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(store_err)?;
+    let moved = sqlx::query(
+        "UPDATE import SET state = $3, author_subject = coalesce($4, author_subject) \
+         WHERE id = $1 AND state = ANY($2)",
+    )
+    .bind(import)
+    .bind(from)
+    .bind(to)
+    .bind(author)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?
+    .rows_affected()
         == 1;
-    if moved && run {
+    if moved && run.is_some() {
         schedule(&mut tx, import).await?;
     }
     tx.commit().await.map_err(store_err)?;

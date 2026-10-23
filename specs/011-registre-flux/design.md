@@ -47,7 +47,7 @@ clause 4), ancrés sur l'entité du flux :
 
 | Table | Contenu |
 |---|---|
-| `flow` | `id`, `kind` (`requested` ; `observed` réservé), `source_kind`, `source_id`, `destination_kind`, `destination_id`, `service_id`, `external_refs jsonb` (≥ 1 : système, identifiant), `justification` (facultative), `requester_id` (identité), `on_behalf_of jsonb` (référence externe typée, N26, ou texte), `responsibles jsonb`, `data_nature uuid[]` (valeurs de l'axe de sensibilité), `personal_data bool`, `entity_id`, `reviewed_by`, période (fin facultative) |
+| `flow` | `id`, `kind` (`requested` ; `observed` réservé), `source_kind`, `source_id`, `destination_kind`, `destination_id`, `service_id`, `external_refs jsonb` (≥ 1 : système, identifiant ; le système donné par sa clé est stocké par l'identifiant de sa valeur de `core.external_system`, résolu à la complétion de l'opération), `justification` (facultative), `requester_id` (identité), `on_behalf_of jsonb` (référence externe typée, N26, ou texte), `responsibles jsonb`, `data_nature uuid[]` (valeurs de l'axe de sensibilité), `personal_data bool`, `entity_id`, `reviewed_by`, période (fin facultative) |
 | `flow_waiver` | `flow_id`, `reason`, `accepted_risk`, `granted_by`, période (fin obligatoire) ; une dérogation par flux et par période |
 | `flow_endpoint_address` | `flow_id`, `side`, `address_id` : adresses développées des extrémités, par segment de période (maintenue avec les rattachements 009) ; index `(address_id)` |
 | `flow_evaluation` | `flow_id`, `source_address_id`, `destination_address_id`, `verdict`, `pending` (sous réserve), `outcome`, `reason`, `decisive_id`, `combination`, `unmet_conditions uuid[]`, `score`, `policy_revision` ; segments de période |
@@ -75,6 +75,7 @@ alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 | `flow.endpoint.invalid` | erreur | plage, objet absent ou invalide sur une partie de la période |
 | `flow.service.closed` | erreur | service non actif sur toute la période |
 | `flow.reference.missing` | erreur | aucune référence externe |
+| `flow.reference.system` | erreur | système d'une référence externe (ou de « pour le compte de ») qui ne nomme aucune valeur de `core.external_system` valide au début de l'opération |
 | `flow.kind.reserved` | erreur | sorte `observed` en v0.2 |
 | `flow.review.required` | erreur | application d'un flux dont l'issue n'est pas automatique sans `approve_review` |
 | `flow.review.end_required` | erreur | flux instruit sans fin, ou au-delà de `review_max_months` |

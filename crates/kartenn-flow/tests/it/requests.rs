@@ -108,6 +108,13 @@ impl Env {
         ])
         .await;
         env.domain = env.slugged("addressing_domain", "lab").await;
+        // The system the external references of the flows name, by its key (REQ-016-3).
+        env.applied(vec![Operation::AddEnumValue {
+            local: None,
+            property: Ref::Id(env.property("core.external_system").await),
+            key: "ticketing".into(),
+        }])
+        .await;
         env.applied(vec![
             policy("environment.create", json!({ "key": "prod" })),
             policy("environment.create", json!({ "key": "dev" })),
@@ -240,7 +247,7 @@ impl Env {
             "source": { "kind": "address", "id": { "id": source } },
             "destination": { "kind": "address", "id": { "id": destination } },
             "service": { "id": self.ssh().await },
-            "external_refs": [{ "system": Uuid::nil(), "id": "CHG-1042" }],
+            "external_refs": [{ "system": "ticketing", "id": "CHG-1042" }],
             "entity": { "id": self.acme },
         })
     }
@@ -641,6 +648,73 @@ async fn acceptance_of_req_011_1_a_reference_is_required(pool: PgPool) {
     assert!(
         rules(&outcome).contains(&"flow.reference.missing"),
         "{outcome:?}"
+    );
+}
+
+/// REQ-011-1, REQ-016-3: an external reference names its system by the key of its value of
+/// `core.external_system`, stored by the value's identifier, which is accepted as well; a
+/// system that names no value is refused (`flow.reference.system`), never dropped.
+#[kartenn_testing::pg_test]
+async fn an_external_reference_names_its_system_by_its_key(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let mut fields = env.fields(prod, dev).await;
+    for unknown in [json!("tickets"), json!(Uuid::nil())] {
+        fields["external_refs"] = json!([{ "system": unknown, "id": "CHG-1" }]);
+        let outcome = env
+            .submit_as(
+                &Unrestricted,
+                env.author,
+                vec![flow("request", fields.clone())],
+            )
+            .await;
+        assert_eq!(rules(&outcome), ["flow.reference.system"], "{outcome:?}");
+    }
+    fields["external_refs"] = json!([{ "system": "ticketing", "id": "CHG-1" }]);
+    fields["on_behalf_of"] = json!({ "external": { "system": "nobody", "id": "u-1" } });
+    let outcome = env
+        .submit_as(
+            &Unrestricted,
+            env.author,
+            vec![flow("request", fields.clone())],
+        )
+        .await;
+    assert_eq!(rules(&outcome), ["flow.reference.system"], "{outcome:?}");
+    fields["on_behalf_of"] = json!({ "external": { "system": "ticketing", "id": "u-1" } });
+    env.applied(vec![flow("request", fields)]).await;
+    let system: Uuid =
+        sqlx::query_scalar("SELECT id FROM property_enum_value WHERE key = 'ticketing'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let (refs, on_behalf_of): (Value, Value) =
+        sqlx::query_as("SELECT external_refs, on_behalf_of FROM flow.flow")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(refs, json!([{ "system": system, "id": "CHG-1" }]));
+    assert_eq!(on_behalf_of["external"]["system"], json!(system));
+
+    // The identifier the flow is read with is accepted when it is updated.
+    let id: Uuid = sqlx::query_scalar("SELECT id FROM flow.flow")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    env.applied(vec![flow(
+        "update",
+        json!({ "id": { "id": id },
+                "external_refs": [{ "system": system, "id": "CHG-2", "label": "deux" }] }),
+    )])
+    .await;
+    let refs: Value =
+        sqlx::query_scalar("SELECT external_refs FROM flow.flow WHERE valid_period @> now()")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        refs,
+        json!([{ "system": system, "id": "CHG-2", "label": "deux" }])
     );
 }
 

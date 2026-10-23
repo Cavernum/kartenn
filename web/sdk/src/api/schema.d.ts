@@ -4452,7 +4452,7 @@ export interface components {
        *     triaged on the portion it adds and held for a review unless automatic (F20).
        */
       end?: string | null;
-      /** @description The external references. */
+      /** @description The external references, as for a request. */
       external_refs?: Record<string, never>[] | null;
       /** @description The justification. */
       justification?: string | null;
@@ -4473,7 +4473,11 @@ export interface components {
       end?: string | null;
       /** @description The entity (the application): `{ "id": … }`. */
       entity: Record<string, never>;
-      /** @description The external references, at least one: `{ "system": …, "id": … }`. */
+      /**
+       * @description The external references, at least one: `{ "system": …, "id": …, "label": … }`, the
+       *     system by the key of its value of `core.external_system` (or by its identifier, as a
+       *     flow is read with); a system that names none is refused (`flow.reference.system`).
+       */
       external_refs: Record<string, never>[];
       /** @description The justification. */
       justification?: string | null;
@@ -4481,7 +4485,10 @@ export interface components {
       kind?: string | null;
       /** @description The motive of the changeset. */
       motive?: string | null;
-      /** @description The requester the request is made for. */
+      /**
+       * @description The requester the request is made for: `{ "text": … }` or `{ "external": … }`, an
+       *     external reference as in `external_refs`.
+       */
       on_behalf_of?: Record<string, never> | null;
       /** @description Whether personal data are carried. */
       personal_data?: boolean | null;

@@ -375,7 +375,7 @@ async fn start(
     Path(id): Path<Uuid>,
 ) -> Result<Response, Problem> {
     owned(&api, &principal, id).await?;
-    if !imports::start(&api.pool, id).await? {
+    if !imports::start(&api.pool, id, &principal.subject()).await? {
         return Err(conflict("the import is started already"));
     }
     Ok(located(
@@ -428,7 +428,15 @@ async fn resume(
     Path(id): Path<Uuid>,
 ) -> Result<Response, Problem> {
     owned(&api, &principal, id).await?;
-    if !imports::transition(&api.pool, id, &["paused"], "ready", true).await? {
+    if !imports::transition(
+        &api.pool,
+        id,
+        &["paused"],
+        "ready",
+        Some(&principal.subject()),
+    )
+    .await?
+    {
         return Err(conflict("only a paused import resumes"));
     }
     Ok(located(
@@ -454,7 +462,7 @@ async fn cancel(
 ) -> Result<Response, Problem> {
     owned(&api, &principal, id).await?;
     let open = ["uploading", "sorting", "ready", "running", "paused"];
-    if !imports::transition(&api.pool, id, &open, "cancelled", false).await? {
+    if !imports::transition(&api.pool, id, &open, "cancelled", None).await? {
         return Err(conflict("the import is over"));
     }
     represented(&api, id, StatusCode::OK).await

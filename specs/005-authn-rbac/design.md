@@ -58,7 +58,9 @@ la validation est écrite sur `jsonwebtoken` seul.
   `authorize_many(&Subject, permission, objects)` ; `Grants` et `Unrestricted` suivent.
   Un changeset en attente garde un instantané des groupes de son auteur
   (champ `author` du `Pending` enregistré avec lui, JSON : pas de migration) : la revalidation de ses droits à l'approbation (004) se
-  fait avec eux, les groupes vivant dans le jeton.
+  fait avec eux, les groupes vivant dans le jeton. Un import fait de même : son
+  démarrage et sa reprise gardent l'instantané (`import.author_subject`, 006), avec
+  lequel ses lots sont soumis par la tâche de fond.
 
 ### Modèle de données — migration `0028_rbac.sql`
 

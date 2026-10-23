@@ -268,6 +268,10 @@ pub struct ImportRecord {
     pub id: Uuid,
     /// Its author.
     pub author: Uuid,
+    /// The author's issuer and groups when starting or resuming it (005, REQ-005-22):
+    /// its batches run in a background task, without the token where the groups live,
+    /// and are submitted with them, as the approval of a pending changeset is checked.
+    pub author_subject: Option<crate::authz::Subject>,
     /// The source (connector).
     pub source: String,
     /// `uploading`, `ready`, `running`, `paused`, `done` or `cancelled`.

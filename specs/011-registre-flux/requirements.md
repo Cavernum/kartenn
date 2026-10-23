@@ -59,6 +59,9 @@ Acceptation :
 - Flux `ssh` de la machine `bastion-1` vers le réseau `10.5.0.0/24`, référence
   `ticketing:CHG-1042`, sans justification ni date de fin : accepté s'il est conforme.
 - Sans référence externe : refusé (`flow.reference.missing`).
+- Le système se nomme par la clé de sa valeur de liste fermée (`ticketing`), celle que
+  publie l'API, ou par son identifiant ; un système inconnu est refusé
+  (`flow.reference.system`), jamais ignoré (correctif du 2026-10-23).
 - Service clos le 1er juin pour un flux qui court au-delà : refusé.
 
 #### REQ-011-2 — Extrémités

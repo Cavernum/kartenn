@@ -572,11 +572,11 @@ par `BROWSER` qui choisit Alice chez l'émetteur et suit la redirection de boucl
 | § 8 `--dry-run` et `--into-changeset` : `create_<x>` du noyau, `vlan.create_vlan`, refus en code 8 | vert |
 | § 8 `prefixes create --dry-run` | xfail strict : membres REST (`value`) ≠ opération (`prefix`), le point ouvert de la tâche 18 |
 | § 10 import refusé à l'application (code 6, règle), réseau créé, `--resume` jusqu'à `done` | vert, sous le compte de secours |
-| § 10 import par Alice (OIDC, droits par groupe) | xfail strict : `core.object.forbidden` à l'application |
+| § 10 import par Alice (OIDC, droits par groupe) | vert depuis le correctif serveur du 2026-10-23 : l'import garde l'émetteur et les groupes de son auteur au démarrage (006, `import.author_subject`) ; avant, `core.object.forbidden` à l'application |
 | § 11 `kartenn api` | vert |
 | § 6 `policy check` autorisé, refusé en code 9 | vert (après correction : `<kind>:<id>` sur le fil) |
-| § 7 `flow request` | vert avec le système externe nommé par son UUID, lu en base |
-| § 7 `--ref ticketing:…` | xfail strict : l'API ne publie pas l'identifiant d'une valeur de liste fermée, une clé est ignorée sans erreur |
+| § 7 `flow request` (`--ref ticketing:…`) | vert depuis le correctif serveur du 2026-10-23 : le système d'une référence externe se nomme par sa clé (011) ; avant, il fallait son UUID, lu en base, et une clé était ignorée sans erreur |
+| § 7 `--ref` d'un système inconnu | vert : refus en code 6, règle `flow.reference.system` |
 | § 12 serveur sans `policy` (aide, `client.module-unavailable`, sous-ressource `flows`) | vert |
 | § 15 `watch` sans flux (code 2) | vert ; `watch` sur le flux : sauté tant que la 022 n'est pas servie |
 | `logout` puis `me` (code 4) | vert |

@@ -7,10 +7,12 @@ use std::collections::{BTreeMap, BinaryHeap, HashMap};
 use kartenn_core::objects::Nature;
 use uuid::Uuid;
 
+use crate::audit::RequestContext;
 use crate::authz::Authorizer;
+use crate::expected::Sources;
 use crate::module::ModuleRegistry;
 use crate::operations::{ChangesetRequest, ModuleKind, ObjectKind, Operation, Ref};
-use crate::pipeline::{Outcome, RequestError, references, submit};
+use crate::pipeline::{Outcome, RequestError, references, submit_in};
 use crate::port::{ImportBatch, ImportItem, ImportRecord, Store, StoreError};
 
 /// Why an import cannot be created; nothing is recorded.
@@ -205,6 +207,7 @@ pub async fn create_import<S: Store>(
     let record = ImportRecord {
         id,
         author,
+        author_subject: None,
         source: source.to_owned(),
         state: "ready".into(),
         report: serde_json::json!({}),
@@ -238,6 +241,7 @@ pub async fn open_import<S: Store>(
     let record = ImportRecord {
         id,
         author,
+        author_subject: None,
         source: source.to_owned(),
         state: "uploading".into(),
         report: serde_json::json!({}),
@@ -370,6 +374,13 @@ pub async fn run_import<S: Store, A: Authorizer>(
         .flat_map(|b| &b.items)
         .filter_map(|i| Some((i.operation.defines()?, i.external_id.clone()?)))
         .collect();
+    // The author's rights with the issuer and groups of its last start or resumption
+    // (REQ-005-22), its identity alone without them.
+    let author = record
+        .author_subject
+        .clone()
+        .filter(|s| s.id == record.author)
+        .unwrap_or_else(|| crate::authz::Subject::from(record.author));
     for batch in record.batches.iter().filter(|b| b.state != "applied") {
         let progress = store.import_progress(import).await?;
         if progress.is_none_or(|p| p.state != "running") {
@@ -420,7 +431,16 @@ pub async fn run_import<S: Store, A: Authorizer>(
             simulate: false,
             idempotency_key: None,
         };
-        let report = match submit(store, authorizer, &request, max_operations).await? {
+        let report = match submit_in(
+            store,
+            authorizer,
+            &Sources::none(),
+            &RequestContext::of(&author),
+            &request,
+            max_operations,
+        )
+        .await?
+        {
             Outcome::Applied { changeset, .. } => {
                 store
                     .set_batch(import, batch.index, "applied", Some(changeset))

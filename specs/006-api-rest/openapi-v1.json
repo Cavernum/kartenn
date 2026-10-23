@@ -2097,7 +2097,7 @@
             ]
           },
           "external_refs": {
-            "description": "The external references.",
+            "description": "The external references, as for a request.",
             "items": {
               "type": "object"
             },
@@ -2168,7 +2168,7 @@
             "type": "object"
           },
           "external_refs": {
-            "description": "The external references, at least one: `{ \"system\": …, \"id\": … }`.",
+            "description": "The external references, at least one: `{ \"system\": …, \"id\": …, \"label\": … }`, the\nsystem by the key of its value of `core.external_system` (or by its identifier, as a\nflow is read with); a system that names none is refused (`flow.reference.system`).",
             "items": {
               "type": "object"
             },
@@ -2196,7 +2196,7 @@
             ]
           },
           "on_behalf_of": {
-            "description": "The requester the request is made for.",
+            "description": "The requester the request is made for: `{ \"text\": … }` or `{ \"external\": … }`, an\nexternal reference as in `external_refs`.",
             "type": [
               "object",
               "null"

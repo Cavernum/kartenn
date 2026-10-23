@@ -37,8 +37,8 @@ use crate::model::{
 use crate::module::FLOW;
 use crate::pg;
 use crate::rules::{
-    ENDPOINT_INVALID, FIELD_INVALID, REVIEW_END_REQUIRED, REVIEW_REQUIRED, SEPARATION,
-    UPDATE_ENDED, UPDATE_IDENTITY, VERDICT_PARTIAL, WAIVER_INVALID, WAIVER_REQUIRED,
+    ENDPOINT_INVALID, FIELD_INVALID, REFERENCE_SYSTEM, REVIEW_END_REQUIRED, REVIEW_REQUIRED,
+    SEPARATION, UPDATE_ENDED, UPDATE_IDENTITY, VERDICT_PARTIAL, WAIVER_INVALID, WAIVER_REQUIRED,
 };
 
 /// The permission whose holder reviews a request (REQ-011-22).
@@ -82,6 +82,10 @@ struct Completed {
     /// Whether the end is removed (`end: null`): a dated flow is extended (F20).
     #[serde(default)]
     end_removed: bool,
+    /// The systems of external references that name no value of `core.external_system`
+    /// valid at the start; the others are rewritten to the identifier of their value.
+    #[serde(default)]
+    unknown_systems: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,6 +93,26 @@ struct Completed {
 struct EndpointIn {
     kind: String,
     id: Ref,
+}
+
+/// An external reference (REQ-016-3): its system, by the key of its value of
+/// `core.external_system` or by that value's identifier, rewritten to the identifier when
+/// the operation is completed; the identifier there; a label.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RefIn {
+    system: String,
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
+}
+
+/// Whom a request is made for: a text, or an external reference (N26).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+enum OnBehalfIn {
+    Text(String),
+    External(RefIn),
 }
 
 /// The body of `request` and `register` (REQ-011-1).
@@ -104,11 +128,11 @@ struct FlowIn {
     destination: EndpointIn,
     service: Ref,
     #[serde(default)]
-    external_refs: Vec<Value>,
+    external_refs: Vec<RefIn>,
     #[serde(default)]
     justification: Option<String>,
     #[serde(default)]
-    on_behalf_of: Option<Value>,
+    on_behalf_of: Option<OnBehalfIn>,
     #[serde(default)]
     responsibles: Vec<Uuid>,
     #[serde(default)]
@@ -129,7 +153,7 @@ struct FlowIn {
 struct UpdateIn {
     id: Ref,
     #[serde(default)]
-    external_refs: Option<Vec<Value>>,
+    external_refs: Option<Vec<RefIn>>,
     #[serde(default)]
     justification: Option<String>,
     #[serde(default)]
@@ -197,6 +221,20 @@ fn completed(operation: &ModuleOperation, c: Option<Completed>) -> Result<Comple
     if c.end_invalid {
         return Err(invalid(operation, "the end is not an instant"));
     }
+    if !c.unknown_systems.is_empty() {
+        return Err(Violation::new(
+            &REFERENCE_SYSTEM,
+            format!(
+                "{}: {} names no value of core.external_system valid at the start",
+                operation.tag(),
+                c.unknown_systems
+                    .iter()
+                    .map(|s| format!("{s:?}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ));
+    }
     Ok(c)
 }
 
@@ -261,6 +299,9 @@ impl Handler {
                 None => completed.end_invalid = true,
             }
         }
+        if matches!(operation.name.as_str(), "request" | "register" | "update") {
+            completed.unknown_systems = Self::systems(conn, &mut operation.body, at).await?;
+        }
         match operation.name.as_str() {
             "request" | "register" => {
                 completed.owner_property = pg::property(conn, "core.owner", Some(at)).await?;
@@ -313,6 +354,61 @@ impl Handler {
             serde_json::to_value(&completed).expect("a JSON object"),
         );
         Ok(())
+    }
+
+    /// Names by its identifier the system of each external reference of `body` (its
+    /// `external_refs` and an external `on_behalf_of`), given by the key of its value of
+    /// `core.external_system` (the identifier the API publishes) or by that identifier,
+    /// valid at `at` (REQ-016-3); returns the systems that name none, left as given.
+    async fn systems(
+        conn: &mut PgConnection,
+        body: &mut serde_json::Map<String, Value>,
+        at: OffsetDateTime,
+    ) -> Result<Vec<String>, StoreError> {
+        fn references(body: &mut serde_json::Map<String, Value>) -> Vec<&mut Value> {
+            let mut found: Vec<&mut Value> = Vec::new();
+            let mut on_behalf_of = None;
+            for (key, value) in body.iter_mut() {
+                match key.as_str() {
+                    "external_refs" => {
+                        found.extend(value.as_array_mut().into_iter().flatten());
+                    }
+                    "on_behalf_of" => on_behalf_of = value.get_mut("external"),
+                    _ => {}
+                }
+            }
+            found.extend(on_behalf_of);
+            found
+                .into_iter()
+                .filter_map(|r| r.get_mut("system"))
+                .filter(|s| s.is_string())
+                .collect()
+        }
+        // A UUID is compared in its canonical form.
+        let canonical = |s: &str| {
+            s.parse::<Uuid>()
+                .map_or_else(|_| s.to_owned(), |u| u.to_string())
+        };
+        let given: Vec<String> = references(body)
+            .into_iter()
+            .filter_map(|s| s.as_str().map(canonical))
+            .collect();
+        if given.is_empty() {
+            return Ok(Vec::new());
+        }
+        let known = pg::external_systems(conn, &given, at).await?;
+        let mut unknown = Vec::new();
+        for system in references(body) {
+            let name = system.as_str().map(canonical).unwrap_or_default();
+            match known
+                .iter()
+                .find(|(key, id)| *key == name || id.to_string() == name)
+            {
+                Some((_, id)) => *system = Value::String(id.to_string()),
+                None => unknown.push(name),
+            }
+        }
+        Ok(unknown)
     }
 
     /// The triage of a request (REQ-011-21): its evaluation at `at`, when its endpoints and
@@ -497,7 +593,7 @@ impl Handler {
         }
         let mut patch = serde_json::Map::new();
         if let Some(refs) = input.external_refs {
-            patch.insert("external_refs".into(), Value::Array(refs));
+            patch.insert("external_refs".into(), json!(refs));
         }
         if let Some(j) = input.justification {
             patch.insert("justification".into(), Value::String(j));

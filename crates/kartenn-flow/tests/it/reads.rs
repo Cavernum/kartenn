@@ -89,7 +89,7 @@ async fn two(pool: &PgPool) -> Two {
     env.applied(vec![flow("request", env.fields(source, to_first).await)])
         .await;
     let mut fields = env.fields(other, to_second).await;
-    fields["external_refs"] = json!([{ "system": Uuid::nil(), "id": "CHG-2" }]);
+    fields["external_refs"] = json!([{ "system": "ticketing", "id": "CHG-2" }]);
     env.applied(vec![flow("request", fields)]).await;
     let first = flow_between(pool, source, to_first).await;
     let second = flow_between(pool, other, to_second).await;
@@ -153,7 +153,14 @@ async fn filter_by_endpoint_service_type_kind_entity_requester_ref(pool: PgPool)
     };
     assert!(list(&pool, elsewhere).await.is_empty());
     let by_ref = FlowFilter {
-        external_ref: Some((Uuid::nil(), "CHG-2".into())),
+        external_ref: Some((
+            one(
+                &pool,
+                "SELECT id FROM property_enum_value WHERE key = 'ticketing'",
+            )
+            .await,
+            "CHG-2".into(),
+        )),
         ..FlowFilter::default()
     };
     assert_eq!(list(&pool, by_ref).await, [t.second]);
