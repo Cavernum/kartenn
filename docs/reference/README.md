@@ -35,4 +35,5 @@ Chaque note contient :
 | [services-transports.md](services-transports.md) | Numéros de protocole, ports et noms de service (RFC 6335), ICMP | 010 |
 | [vlan-mac-ieee-802.md](vlan-mac-ieee-802.md) | VID IEEE 802.1Q (valeurs réservées), adresses MAC EUI-48 (RFC 9542) | 008, 009 |
 | [oauth-clients-natifs.md](oauth-clients-natifs.md) | Client OAuth natif public : bouclage et PKCE (RFC 8252, 7636), flux d'appareil (RFC 8628), rotation des jetons de rafraîchissement (RFC 9700), nonce OIDC, audience (RFC 9068, 8707) | 023 |
+| [systeme-de-design.md](systeme-de-design.md) | Critères WCAG 2.2 du système de design, motifs APG, couches de cascade, `prefers-reduced-motion`, déterminisme des captures Playwright, licences OFL, ISC et MPL | 020 |
 | [push-serveur.md](push-serveur.md) | Canal push serveur → client : SSE, MCP Streamable HTTP, mandataires, alternatives, `LISTEN`/`NOTIFY` | 022 |

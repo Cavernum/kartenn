@@ -1,0 +1,282 @@
+- main:
+  - region "Icônes":
+    - heading "Icônes" [level=1]
+    - paragraph: /Lucide \(trait \d+,\d+\) et icônes métier dessinées sur la même grille de \d+ unités\. Tailles \d+ et \d+ px ; agrandissement ×3 pour la relecture du dessin\./
+    - heading "Planche de revue des icônes métier — à valider" [level=2]
+    - table:
+      - rowgroup:
+        - row /Icône \d+ px \d+ px ×3 Voisines Lucide/:
+          - columnheader "Icône"
+          - columnheader /\d+ px/
+          - columnheader /\d+ px/
+          - columnheader "×3"
+          - columnheader "Voisines Lucide"
+      - rowgroup:
+        - row "Préfixe prefix network layers":
+          - rowheader "Préfixe prefix":
+            - text: ""
+            - code: prefix
+          - cell
+          - cell
+          - cell
+          - cell "network layers":
+            - code: network
+            - code: layers
+        - row "Plage range arrow-up-down minus":
+          - rowheader "Plage range":
+            - text: ""
+            - code: range
+          - cell
+          - cell
+          - cell
+          - cell "arrow-up-down minus":
+            - code: arrow-up-down
+            - code: minus
+        - row "Adresse address tag network":
+          - rowheader "Adresse address":
+            - text: ""
+            - code: address
+          - cell
+          - cell
+          - cell
+          - cell "tag network":
+            - code: tag
+            - code: network
+        - row "Domaine d'adressage domain globe layers":
+          - rowheader "Domaine d'adressage domain":
+            - text: ""
+            - code: domain
+          - cell
+          - cell
+          - cell
+          - cell "globe layers":
+            - code: globe
+            - code: layers
+        - row "VLAN vlan tag network":
+          - rowheader "VLAN vlan":
+            - text: ""
+            - code: vlan
+          - cell
+          - cell
+          - cell
+          - cell "tag network":
+            - code: tag
+            - code: network
+        - row "Interface interface plug server":
+          - rowheader "Interface interface":
+            - text: ""
+            - code: interface
+          - cell
+          - cell
+          - cell
+          - cell "plug server":
+            - code: plug
+            - code: server
+        - row "Machine en cluster cluster server network":
+          - rowheader "Machine en cluster cluster":
+            - text: ""
+            - code: cluster
+          - cell
+          - cell
+          - cell
+          - cell "server network":
+            - code: server
+            - code: network
+        - row "Flux flow arrow-right send":
+          - rowheader "Flux flow":
+            - text: ""
+            - code: flow
+          - cell
+          - cell
+          - cell
+          - cell "arrow-right send":
+            - code: arrow-right
+            - code: send
+        - row "Environnement environment tag layers":
+          - rowheader "Environnement environment":
+            - text: ""
+            - code: environment
+          - cell
+          - cell
+          - cell
+          - cell "tag layers":
+            - code: tag
+            - code: layers
+        - row "Dérogation exception shield triangle-alert":
+          - rowheader "Dérogation exception":
+            - text: ""
+            - code: exception
+          - cell
+          - cell
+          - cell
+          - cell "shield triangle-alert":
+            - code: shield
+            - code: triangle-alert
+        - row "Changeset changeset file-diff git-compare":
+          - rowheader "Changeset changeset":
+            - text: ""
+            - code: changeset
+          - cell
+          - cell
+          - cell
+          - cell "file-diff git-compare":
+            - code: file-diff
+            - code: git-compare
+        - row "Brouillon draft pencil file-diff":
+          - rowheader "Brouillon draft":
+            - text: ""
+            - code: draft
+          - cell
+          - cell
+          - cell
+          - cell "pencil file-diff":
+            - code: pencil
+            - code: file-diff
+        - row "Matrice de politique matrix shield lock":
+          - rowheader "Matrice de politique matrix":
+            - text: ""
+            - code: matrix
+          - cell
+          - cell
+          - cell
+          - cell "shield lock":
+            - code: shield
+            - code: lock
+    - heading /Liste fermée Lucide \(\d+\)/ [level=2]
+    - list:
+      - listitem:
+        - code: arrow-down
+      - listitem:
+        - code: arrow-right
+      - listitem:
+        - code: arrow-up
+      - listitem:
+        - code: arrow-up-down
+      - listitem:
+        - code: bell
+      - listitem:
+        - code: calendar
+      - listitem:
+        - code: check
+      - listitem:
+        - code: chevron-down
+      - listitem:
+        - code: chevron-left
+      - listitem:
+        - code: chevron-right
+      - listitem:
+        - code: chevron-up
+      - listitem:
+        - code: circle-check
+      - listitem:
+        - code: circle-dashed
+      - listitem:
+        - code: circle-question-mark
+      - listitem:
+        - code: circle-x
+      - listitem:
+        - code: clipboard-check
+      - listitem:
+        - code: clipboard-paste
+      - listitem:
+        - code: clock
+      - listitem:
+        - code: command
+      - listitem:
+        - code: copy
+      - listitem:
+        - code: database
+      - listitem:
+        - code: ellipsis
+      - listitem:
+        - code: external-link
+      - listitem:
+        - code: eye
+      - listitem:
+        - code: eye-off
+      - listitem:
+        - code: file-diff
+      - listitem:
+        - code: folder
+      - listitem:
+        - code: folder-tree
+      - listitem:
+        - code: funnel
+      - listitem:
+        - code: git-compare
+      - listitem:
+        - code: git-pull-request
+      - listitem:
+        - code: globe
+      - listitem:
+        - code: grip-vertical
+      - listitem:
+        - code: house
+      - listitem:
+        - code: info
+      - listitem:
+        - code: key-round
+      - listitem:
+        - code: keyboard
+      - listitem:
+        - code: languages
+      - listitem:
+        - code: layers
+      - listitem:
+        - code: loader-circle
+      - listitem:
+        - code: lock
+      - listitem:
+        - code: log-out
+      - listitem:
+        - code: minus
+      - listitem:
+        - code: monitor
+      - listitem:
+        - code: moon
+      - listitem:
+        - code: move
+      - listitem:
+        - code: network
+      - listitem:
+        - code: panel-left
+      - listitem:
+        - code: pencil
+      - listitem:
+        - code: plug
+      - listitem:
+        - code: plus
+      - listitem:
+        - code: redo-2
+      - listitem:
+        - code: refresh-cw
+      - listitem:
+        - code: rotate-ccw-clock
+      - listitem:
+        - code: scissors
+      - listitem:
+        - code: search
+      - listitem:
+        - code: send
+      - listitem:
+        - code: server
+      - listitem:
+        - code: settings
+      - listitem:
+        - code: shield
+      - listitem:
+        - code: sun
+      - listitem:
+        - code: tag
+      - listitem:
+        - code: trash
+      - listitem:
+        - code: triangle-alert
+      - listitem:
+        - code: undo-2
+      - listitem:
+        - code: user
+      - listitem:
+        - code: users
+      - listitem:
+        - code: x

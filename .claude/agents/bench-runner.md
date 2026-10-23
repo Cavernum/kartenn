@@ -1,6 +1,6 @@
 ---
 name: bench-runner
-description: Runs a kartenn benchmark (bench-core, bench-properties, bench-rbac, bench-http, bench-flow, bench-telemetry; reduced scale unless the full one is explicitly asked), a psql query or an EXPLAIN, and returns a compact table of figures against the budgets. Use to keep benchmark and query output out of the main context. Never edits files.
+description: Runs a kartenn benchmark (bench-core, bench-properties, bench-rbac, bench-http, bench-flow, bench-telemetry, bench-web; reduced scale unless the full one is explicitly asked), a psql query or an EXPLAIN, and returns a compact table of figures against the budgets. Use to keep benchmark and query output out of the main context. Never edits files.
 tools: Bash, Read
 model: haiku
 ---
@@ -14,6 +14,11 @@ les bancs recréent eux-mêmes la base `kartenn_bench`.
   Redirige la sortie complète vers un fichier `/tmp/bench-<script>-<date>.out` et lis-la
   ensuite. Les bancs démarrent eux-mêmes leur instance PostgreSQL (port 5433,
   `k-pg-bench`, ADR 0032).
+- Navigateur : `devenv shell -- bench-web [graine] [small]` (taille du shell initial par
+  `size.mjs`, puis le projet Playwright `budgets` contre kartenn-server en release : premier
+  écran, INP, navigation en cache, CLS, trames perdues de l'arbre, mémoire). Chaque mesure
+  sort en une ligne `PASS|FAIL <budget>: <mesure> (limit <seuil>)` : c'est elle que tu
+  reportes, sans les traces ni le détail de Playwright. `small` est l'échelle réduite.
 - Échelle : réduite par défaut (`K_BENCH_SCALE=reduced`, quelques minutes). Lance
   `K_BENCH_SCALE=full <script>` seulement si la demande le dit explicitement ; sinon,
   rappelle dans ta réponse qu'un banc réduit ne vaut pas mesure de budget.
@@ -26,7 +31,7 @@ les bancs recréent eux-mêmes la base `kartenn_bench`.
 
 Réponse, 30 lignes au plus :
 1. Un tableau `mesure | p50 | p95 | budget | écart`, avec les budgets tels que la sortie
-   du banc les donne. Pour un `EXPLAIN` : les nœuds coûteux (type, relation, temps,
+   du banc les donne. Pour `bench-web` : `mesure | valeur | seuil | PASS/FAIL`. Pour un `EXPLAIN` : les nœuds coûteux (type, relation, temps,
    lignes estimées/réelles, buffers), pas le plan entier.
 2. Les budgets dépassés, en premier.
 3. Le chemin de la sortie complète.

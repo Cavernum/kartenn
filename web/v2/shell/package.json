@@ -1,0 +1,19 @@
+{
+  "name": "@kartenn/shell",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:catalogue": "vite build --mode catalogue",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@kartenn/ui": "workspace:*",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  }
+}

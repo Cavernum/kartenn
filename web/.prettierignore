@@ -4,3 +4,5 @@ test-results/
 playwright-report/
 e2e/.state/
 pnpm-lock.yaml
+# The new shell: its own workspace and tools (spec 021, « Migration »).
+v2/

@@ -1,0 +1,11 @@
+{
+  "name": "@kartenn/tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lint rules of the new shell and their tests (spec 020)",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,7 @@
+dist/
+coverage/
+test-results/
+playwright-report/
+pnpm-lock.yaml
+# Reference captures and ARIA snapshots, written by Playwright (k-web-shots --update).
+**/__screenshots__/

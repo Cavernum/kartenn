@@ -1,0 +1,252 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The tokens of kartenn (spec 020, design « Jetons »; REQ-020-2 to 11): the only file
+ * with raw values. Light mode and compact density in :root; the dark mode and the
+ * comfortable density redefine the semantic tokens, never the components. Colours start
+ * from the « Ardoise » direction, with departures for contrast: text-muted darkened in
+ * light mode (#637084 → #5d6a7e, 4.5:1 on accent-soft), border-control added (WCAG
+ * 1.4.11), and in light mode the ok and warn states darkened (#1e7f48 → #147942,
+ * #a15c00 → #9d5800) so that their text holds 4.5:1 on their own soft background. The
+ * list of public tokens (src/tokens/index.ts) equals this file. */
+
+@layer tokens {
+  :root {
+    color-scheme: light;
+
+    /* Surfaces and text */
+    --k-bg: #f3f5f9;
+    --k-surface: #ffffff;
+    --k-surface-sunken: #f1f4f8;
+    --k-sidebar-bg: #1c2433;
+    --k-sidebar-fg: #a9b4c6;
+    --k-sidebar-active-bg: #2a3547;
+    --k-sidebar-active-fg: #ffffff;
+    --k-sidebar-active-icon: #8cc0f5;
+    --k-text: #16191f;
+    --k-text-muted: #5d6a7e;
+    --k-border: #e1e6ee;
+    --k-border-strong: #cfd7e3;
+    --k-border-control: #7d8a9e;
+    --k-accent: #0b5cad;
+    --k-accent-fg: #ffffff;
+    --k-accent-soft: #e3edf9;
+    --k-focus-ring: #0b5cad;
+    --k-band-bg: #fff4dc;
+    --k-band-fg: #6b4400;
+
+    /* States (REQ-020-7): the value, its soft background and its border */
+    --k-state-ok-fg: #147942;
+    --k-state-warn-fg: #9d5800;
+    --k-state-ko-fg: #bb342d;
+    --k-state-review-fg: #6c47c2;
+    --k-state-info-fg: var(--k-accent);
+    --k-state-neutral-fg: var(--k-text-muted);
+    --k-state-ok-bg: color-mix(in oklab, var(--k-state-ok-fg) 12%, var(--k-surface));
+    --k-state-warn-bg: color-mix(in oklab, var(--k-state-warn-fg) 12%, var(--k-surface));
+    --k-state-ko-bg: color-mix(in oklab, var(--k-state-ko-fg) 12%, var(--k-surface));
+    --k-state-review-bg: color-mix(in oklab, var(--k-state-review-fg) 12%, var(--k-surface));
+    --k-state-info-bg: color-mix(in oklab, var(--k-state-info-fg) 12%, var(--k-surface));
+    --k-state-neutral-bg: color-mix(in oklab, var(--k-state-neutral-fg) 12%, var(--k-surface));
+    --k-state-ok-border: color-mix(in oklab, var(--k-state-ok-fg) 40%, var(--k-surface));
+    --k-state-warn-border: color-mix(in oklab, var(--k-state-warn-fg) 40%, var(--k-surface));
+    --k-state-ko-border: color-mix(in oklab, var(--k-state-ko-fg) 40%, var(--k-surface));
+    --k-state-review-border: color-mix(in oklab, var(--k-state-review-fg) 40%, var(--k-surface));
+    --k-state-info-border: color-mix(in oklab, var(--k-state-info-fg) 40%, var(--k-surface));
+    --k-state-neutral-border: color-mix(in oklab, var(--k-state-neutral-fg) 40%, var(--k-surface));
+
+    /* Differential: always with a sign and a label */
+    --k-diff-added: var(--k-state-ok-fg);
+    --k-diff-removed: var(--k-state-ko-fg);
+    --k-diff-changed: var(--k-state-warn-fg);
+
+    /* Environments (REQ-020-8): closed palette, distinct from the states */
+    --k-env-1: #0b5cad;
+    --k-env-2: #0f7c86;
+    --k-env-3: #a8327a;
+    --k-env-4: #5f7000;
+    --k-env-5: #4a5a70;
+    --k-env-6: #7a5230;
+    --k-env-dot-size: 7px;
+
+    /* Spacing, base 4 px (REQ-020-9) */
+    --k-space-0: 0;
+    --k-space-px: 1px;
+    --k-space-0-5: 2px;
+    --k-space-1: 4px;
+    --k-space-2: 8px;
+    --k-space-3: 12px;
+    --k-space-4: 16px;
+    --k-space-5: 20px;
+    --k-space-6: 24px;
+    --k-space-8: 32px;
+    --k-space-10: 40px;
+    --k-space-12: 48px;
+
+    /* Radii, borders, focus */
+    --k-radius-sm: 3px;
+    --k-radius-md: 5px;
+    --k-radius-lg: 8px;
+    --k-radius-full: 999px;
+    --k-border-width: 1px;
+    --k-focus-width: 2px;
+    --k-focus-offset: 1px;
+
+    /* Elevation, floating layers only; the inner edge of a selection or a draft */
+    --k-shadow-overlay: 0 4px 12px rgb(16 24 40 / 0.12), 0 1px 3px rgb(16 24 40 / 0.08);
+    --k-shadow-modal: 0 12px 32px rgb(16 24 40 / 0.18);
+    --k-shadow-inset-accent: inset var(--k-focus-width) 0 0 var(--k-accent);
+
+    /* Stacking order of the floating layers */
+    --k-z-sticky: 10;
+    --k-z-overlay: 100;
+    --k-z-modal: 200;
+    --k-z-toast: 300;
+
+    /* Typography (REQ-020-10): size and line height */
+    --k-font-sans: "Geist", "Geist Fallback", system-ui, sans-serif;
+    --k-font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+    --k-text-xs: 11px;
+    --k-text-xs-line: 16px;
+    --k-text-sm: 12px;
+    --k-text-sm-line: 16px;
+    --k-text-md: 13px;
+    --k-text-md-line: 20px;
+    --k-text-lg: 14px;
+    --k-text-lg-line: 20px;
+    --k-text-xl: 16px;
+    --k-text-xl-line: 24px;
+    --k-text-2xl: 20px;
+    --k-text-2xl-line: 28px;
+    --k-text-mono: 12.5px;
+    --k-text-mono-line: 20px;
+    --k-weight-regular: 400;
+    --k-weight-medium: 500;
+    --k-weight-semibold: 600;
+    --k-measure-prose: 72ch;
+
+    /* Density (REQ-020-2): compact by default */
+    --k-row-height: 28px;
+    --k-header-height: 30px;
+    --k-control-height-sm: 24px;
+    --k-control-height-md: 28px;
+    --k-control-height-lg: 32px;
+    --k-control-padding-inline-sm: 6px;
+    --k-control-padding-inline-md: 9px;
+    --k-control-padding-inline-lg: 12px;
+    --k-cell-padding-inline: 10px;
+    --k-tree-indent: 14px;
+    --k-icon-size: 16px;
+    --k-icon-size-lg: 20px;
+    --k-icon-stroke: 1.5;
+
+    /* Motion (REQ-020-11) */
+    --k-duration-instant: 0ms;
+    --k-duration-fade: 80ms;
+    --k-duration-short: 120ms;
+    --k-duration-medium: 200ms;
+    --k-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --k-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  /* Dark mode: the system's, unless the user forced light (REQ-020-3). The two blocks
+   * below are identical (test). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --k-bg: #0d1219;
+      --k-surface: #131a24;
+      --k-surface-sunken: #18202b;
+      --k-sidebar-bg: #0a0e14;
+      --k-sidebar-fg: #8f9cb0;
+      --k-sidebar-active-bg: #18212e;
+      --k-sidebar-active-fg: #ffffff;
+      --k-sidebar-active-icon: #8cc0f5;
+      --k-text: #e6e8ec;
+      --k-text-muted: #8796ab;
+      --k-border: #222c39;
+      --k-border-strong: #2d3949;
+      --k-border-control: #5f6f86;
+      --k-accent: #4d94e0;
+      --k-accent-fg: #0a0c0f;
+      --k-accent-soft: #14273f;
+      --k-focus-ring: #6aa8ea;
+      --k-band-bg: #3a2c0c;
+      --k-band-fg: #f2cf8a;
+      --k-state-ok-fg: #49bd7c;
+      --k-state-warn-fg: #e0a23d;
+      --k-state-ko-fg: #ee7a70;
+      --k-state-review-fg: #a68cf0;
+      --k-env-1: #6aa8ea;
+      --k-env-2: #3cc0c9;
+      --k-env-3: #e37ab8;
+      --k-env-4: #a6bb3a;
+      --k-env-5: #9aa8bc;
+      --k-env-6: #c89b72;
+      --k-shadow-overlay:
+        0 0 0 1px var(--k-border-strong), 0 4px 12px rgb(16 24 40 / 0.24),
+        0 1px 3px rgb(16 24 40 / 0.16);
+      --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --k-bg: #0d1219;
+    --k-surface: #131a24;
+    --k-surface-sunken: #18202b;
+    --k-sidebar-bg: #0a0e14;
+    --k-sidebar-fg: #8f9cb0;
+    --k-sidebar-active-bg: #18212e;
+    --k-sidebar-active-fg: #ffffff;
+    --k-sidebar-active-icon: #8cc0f5;
+    --k-text: #e6e8ec;
+    --k-text-muted: #8796ab;
+    --k-border: #222c39;
+    --k-border-strong: #2d3949;
+    --k-border-control: #5f6f86;
+    --k-accent: #4d94e0;
+    --k-accent-fg: #0a0c0f;
+    --k-accent-soft: #14273f;
+    --k-focus-ring: #6aa8ea;
+    --k-band-bg: #3a2c0c;
+    --k-band-fg: #f2cf8a;
+    --k-state-ok-fg: #49bd7c;
+    --k-state-warn-fg: #e0a23d;
+    --k-state-ko-fg: #ee7a70;
+    --k-state-review-fg: #a68cf0;
+    --k-env-1: #6aa8ea;
+    --k-env-2: #3cc0c9;
+    --k-env-3: #e37ab8;
+    --k-env-4: #a6bb3a;
+    --k-env-5: #9aa8bc;
+    --k-env-6: #c89b72;
+    --k-shadow-overlay:
+      0 0 0 1px var(--k-border-strong), 0 4px 12px rgb(16 24 40 / 0.24),
+      0 1px 3px rgb(16 24 40 / 0.16);
+    --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
+  }
+
+  /* Comfortable density (REQ-020-2) */
+  :root[data-density="comfortable"] {
+    --k-row-height: 36px;
+    --k-header-height: 40px;
+    --k-control-height-sm: 28px;
+    --k-control-height-md: 36px;
+    --k-control-height-lg: 40px;
+    --k-control-padding-inline-sm: 8px;
+    --k-control-padding-inline-md: 12px;
+    --k-control-padding-inline-lg: 16px;
+    --k-cell-padding-inline: 12px;
+    --k-tree-indent: 18px;
+  }
+
+  /* Reduced motion (REQ-020-11, WCAG 2.3.3): no movement, a short fade at most */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --k-duration-short: 0ms;
+      --k-duration-medium: 0ms;
+    }
+  }
+}

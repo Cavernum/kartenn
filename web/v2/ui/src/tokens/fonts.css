@@ -1,0 +1,81 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* Geist and Geist Mono (SIL OFL 1.1, ../fonts/OFL-*.txt), served by kartenn (font-src
+ * 'self'; REQ-020-10): variable woff2 (weights 100 to 900, the library uses 400 to 600),
+ * Latin and Latin Extended subsets only, upright only. Files of the npm packages
+ * @fontsource-variable/geist and @fontsource-variable/geist-mono 5.3.0, unchanged; the
+ * unicode ranges are theirs.
+ *
+ * The fallbacks are metric twins of the system fonts (Arial or Liberation Sans, Courier
+ * New or Liberation Mono), scaled to the advance and the vertical metrics of Geist
+ * (fontTools on the files above: ascent 1005, descent 295, line gap 0 per 1000; average
+ * advance of a Latin sample 1.057 times the one of Liberation Sans, equal for the mono),
+ * so that the swap moves the text as little as possible. */
+
+@layer tokens {
+  @font-face {
+    font-family: Geist;
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-latin-wght-normal.woff2") format("woff2");
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  @font-face {
+    font-family: Geist;
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-latin-ext-wght-normal.woff2") format("woff2");
+    unicode-range:
+      U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+      U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+      U+A720-A7FF;
+  }
+
+  @font-face {
+    font-family: "Geist Mono";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-mono-latin-wght-normal.woff2") format("woff2");
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  @font-face {
+    font-family: "Geist Mono";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-mono-latin-ext-wght-normal.woff2") format("woff2");
+    unicode-range:
+      U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+      U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+      U+A720-A7FF;
+  }
+
+  @font-face {
+    font-family: "Geist Fallback";
+    src: local("Arial"), local("Liberation Sans");
+    size-adjust: 105.69%;
+    ascent-override: 95.09%;
+    descent-override: 27.91%;
+    line-gap-override: 0%;
+  }
+
+  @font-face {
+    font-family: "Geist Mono Fallback";
+    src: local("Courier New"), local("Liberation Mono");
+    size-adjust: 99.98%;
+    ascent-override: 100.52%;
+    descent-override: 29.51%;
+    line-gap-override: 0%;
+  }
+}

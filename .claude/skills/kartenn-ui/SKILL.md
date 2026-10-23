@@ -1,0 +1,144 @@
+---
+name: kartenn-ui
+description: Contrat d'écriture de l'interface de kartenn (nouveau shell web/v2, bibliothèque @kartenn/ui, plugins de première partie) — jetons, couches CSS, composants et leurs motifs APG, états des vues, CSP, raccourcis réservés, pièges de Reka UI, clichés à éviter. À suivre pour toute écriture ou relecture sous web/.
+paths:
+  - "web/**"
+---
+
+# kartenn-ui — écrire l'interface de kartenn
+
+Sources : spec 020 (`specs/020-systeme-de-design/`, design § « Brief », « Jetons »,
+« Architecture CSS », « Inventaire des composants »), spec 021 (shell v2, § « Raccourcis »),
+ADR 0036 à 0039, `docs/reference/systeme-de-design.md`. Ce skill les résume ; en cas
+d'écart, la spec fait foi. Le code nouveau vit sous `web/v2/` (espace pnpm distinct,
+non servi avant la bascule) ; `web/` ne reçoit que des correctifs.
+
+## 1. Contrat
+
+1. **Seulement `@kartenn/ui` et les jetons.** Un écran ou un plugin n'écrit ni bouton, ni
+   champ, ni liste de choix, ni table brute (lint), n'importe pas `reka-ui` (lint), et ne
+   pose aucune valeur brute : couleur, longueur, rayon, ombre, durée, police viennent d'un
+   `var(--k-…)` (Stylelint). La seule source des valeurs est
+   `web/v2/ui/src/tokens/tokens.css`.
+2. **Tout composant nouveau remonte à l'agent principal.** Jamais de composant local à un
+   écran qui double un composant de la bibliothèque ; la bibliothèque s'écrit par un seul
+   agent à la fois (ADR 0039, § 6), un composant (ou une petite famille) par tâche, avec
+   sa page de catalogue, ses captures et son script APG.
+3. **Toute vue de données a trois états** : chargement en squelette de taille fixe ; vide
+   avec une phrase et une action ; erreur avec le code copiable (`CodeBadge`) et
+   l'identifiant de requête (`Request-Id`). Jamais de vue blanche.
+4. **Lectures et mutations par le SDK** (clés de cache, préchargement, écritures, ADR
+   0037) ; aucun `fetch` dans un écran.
+5. **Couleur = sens, jamais seule** : un état a sa couleur, son icône **et** son libellé
+   (`StatusBadge`) ; un environnement a sa pastille **et** son libellé (`EnvChip`) ; un
+   différentiel a son signe (`+`, `−`, `~`) et son libellé.
+6. **Clé et libellé** (REQ-020-21) : afficher le libellé dans la langue, la clé en
+   infobulle et copiable ; libellé absent → la clé en chasse fixe, jamais une chaîne vide.
+7. **Chasse fixe et chiffres tabulaires** pour adresses, préfixes, VID, MAC, codes,
+   identifiants, compteurs et dates.
+
+## 2. CSS
+
+- Couches, dans cet ordre, déclarées une fois par `styles/layers.css` :
+  `@layer reset, tokens, base, components, plugins, utilities`. Toute règle est dans une
+  couche (règle `kartenn/known-layer`). Composants : `@layer components` ; plugins de
+  première partie : `@layer plugins`, préfixe `k-<plugin>-`.
+- Classes `k-<composant>` et `k-<composant>__<partie>` ; état en attribut ARIA ou
+  `data-state` (pas de classe d'état) ; variante `data-variant` ; taille `data-size`.
+- Propriétés logiques (`margin-inline-start`, `inline-size`), jamais physiques.
+- Pas d'`!important`, pas d'identifiant, trois sélecteurs composés au plus.
+- Ombres : `--k-shadow-overlay` et `--k-shadow-modal` dans les seules feuilles des
+  composants flottants (liste `FLOATING` de `web/v2/stylelint.config.js`) ; ailleurs, un
+  liseré intérieur `--k-shadow-inset-…` seulement.
+- Une propriété personnalisée locale s'appelle `--k-<composant>-…` et vaut un jeton.
+- Mouvement : durées `--k-duration-*` et courbes `--k-ease-*` seulement (nulles sous
+  mouvement réduit) ; aucune animation en boucle hors indicateur de chargement.
+
+## 3. CSP (ADR 0025, REQ-020-14)
+
+- Aucun attribut `style` en chaîne (`style="…"`, `:style="'…'"`, gabarit), aucun `<style>`
+  injecté, aucun `cssText`, aucun `setAttribute('style', …)`, aucun `v-html`.
+- Valeur dynamique (position d'une couche, largeur de colonne, décalage d'une ligne
+  virtualisée) : `el.style.setProperty('--k-…', v)` ou `:style` **en objet** dont les clés
+  sont des jetons `--k-…` (CSSOM, permis par `style-src 'self'`).
+- Reka UI : `ComboboxViewport` et `Splitter*` injectent un `<style>` : interdits (lint).
+  Tout autre composant pris en défaut par le parcours CSP rejoint la liste.
+
+## 4. Inventaire (motif APG — à compléter au fil de P4)
+
+Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, captures).
+
+| Composant | Motif APG ou rôle | Statut |
+|---|---|---|
+| `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens (`meaningful` + `label`, vérifié au typage) | ◐ |
+| `Stack`, `Cluster`, `Grid`, `Split` | mise en page | ☐ |
+| `Button`, `IconButton` | Button | ☐ |
+| `TextField`, `FormField` | champ natif étiqueté | ☐ |
+| `Select`, `Combobox` | Listbox ; Combobox | ☐ |
+| `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ☐ |
+| `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
+| `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
+| `Tabs` | Tabs (activation manuelle) | ☐ |
+| `Menu`, `MenuButton` | Menu Button, Menu | ☐ |
+| `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog | ☐ |
+| `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
+| `Tooltip`, `Popover` | Tooltip ; Dialog non modal | ☐ |
+| `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ☐ |
+| `CommandPalette` | Combobox dans un Dialog modal | ☐ |
+| `DataGrid` | Grid (maison) | ☐ |
+| `TreeGrid`, `Tree` | Treegrid ; Tree View | ☐ |
+| `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier) ; — | ☐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` ; `alert` ; `status` | ☐ |
+| `DatePill`, `DraftCounter`, `TimeBand` | Button ; `status` | ☐ |
+| `Kbd`, `ShortcutHint` | — | ☐ |
+| `DiffList` | liste groupée, Disclosure | ☐ |
+
+Écrans de référence : les maquettes validées du catalogue (`/_ui/ecrans/E1` à `E10`,
+design § « Maquettes ») ; un écran de la 021 se compare à sa maquette, jamais à
+l'ancien shell.
+
+## 5. Raccourcis réservés (spec 021, § « Raccourcis »)
+
+Ctrl+K (palette, partout) ; `/` (filtre de la vue) ; `?` (aide) ; `g` + lettre
+(navigation : `d p r a e s c i b x h`, et `v m t q f` des plugins) ; `c` (créer) ; `e`
+(modifier) ; Ctrl+Entrée (appliquer) ; Échap (fermer, annuler) ; `[` (barre latérale) ;
+Alt+Flèche bas sur un en-tête de grille (filtre de colonne, convention maison, dite dans
+l'aide). Un composant qui consomme les caractères (recherche à la saisie de l'arbre)
+porte `data-k-typeahead`. Les raccourcis à une touche se désactivent (WCAG 2.1.4) ; ils
+sont montrés par `Kbd` dans les menus et les infobulles, lus au registre du SDK.
+
+## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
+
+Version exacte épinglée ; toute montée repasse les scripts clavier et le parcours CSP.
+- Sélection de l'arbre : Reka stocke une **copie** ; sélection et opérations par
+  **identifiant**, nœuds `markRaw`, listes en `shallowRef`.
+- Arbre virtualisé : Haut/Bas visent le voisin **rendu** (appuis perdus) ; Haut et Bas
+  gérés par `@kartenn/ui` sur l'index aplati.
+- Pas de `*`, Entrée sélectionne, tampon de recherche pollué par les touches non
+  imprimables : gestionnaire placé avant ceux de Reka (`stopImmediatePropagation`).
+- `ComboboxViewport`, `Splitter` : `<style>` injecté (CSP) ; interdits.
+- Combobox ouverte : `aria-hidden` sur le reste de la page ; filtres en popover, deux Échap.
+- Slots de `TreeVirtualizer` typés `Record<string, any>` : enveloppes typées dans
+  `@kartenn/ui`, aucun transtypage dans les écrans.
+- Ligne focalisée démontée par la molette : la garder montée.
+- Nom accessible d'une ligne = tout son contenu : `aria-label` court, détail par
+  `aria-describedby`.
+
+## 7. Clichés à éviter (brief)
+
+Cartes arrondies identiques à ombre grise ; dégradés décoratifs ; icônes colorées sans
+sens ; animation d'entrée des listes ; gros titres creux ; couleur sans libellé. Aussi :
+marges généreuses de vitrine (l'outil est dense : lignes de 28 px), texte gris trop pâle,
+boutons primaires multiples dans une même zone.
+
+## 8. Outillage
+
+- Après chaque édition d'un fichier `web/**`, le hook `.claude/hooks/web-apres-edition.sh`
+  passe Prettier, Stylelint et ESLint sur ce fichier ; un échec revient en diagnostic.
+- Vérification : `k-web2-check` (Prettier, ESLint, Stylelint, vue-tsc, Vitest, captures) ;
+  `k-web2-e2e` (parcours) ; références des captures : `k-web-shots --update`, dans devenv
+  seulement, relues dans le diff avant commit.
+- Rendu : catalogue `/_ui` (`?mode=light|dark`, `?densite=compacte|confortable`,
+  `?langue=fr|en`) ; MCP `playwright`, `browser_snapshot` d'abord.
+- Relectures : sous-agents `ui-reviewer` (maquette, brief, doublons) et `a11y-auditor`
+  (motif APG, WCAG 2.2 AA) à la fin de chaque composant, maquette ou écran.

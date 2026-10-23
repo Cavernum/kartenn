@@ -1,0 +1,54 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The base (design « Architecture CSS », « Typographie »): body, links, focus, fixed
+ * pitch, selection. */
+@layer base {
+  html {
+    font-family: var(--k-font-sans);
+    font-size: var(--k-text-md);
+    line-height: var(--k-text-md-line);
+    font-weight: var(--k-weight-regular);
+    color: var(--k-text);
+    background-color: var(--k-bg);
+    font-synthesis: none;
+    text-rendering: optimizelegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--k-accent);
+    text-decoration-thickness: from-font;
+  }
+
+  /* The focus ring (WCAG 2.4.7): 2 px, offset 1 px, keyboard only. */
+  :focus-visible {
+    outline: var(--k-focus-width) solid var(--k-focus-ring);
+    outline-offset: var(--k-focus-offset);
+  }
+
+  /* Fixed pitch and tabular figures: addresses, prefixes, codes, identifiers. */
+  code,
+  kbd,
+  samp,
+  pre,
+  .k-mono {
+    font-family: var(--k-font-mono);
+    font-size: var(--k-text-mono);
+    line-height: var(--k-text-mono-line);
+    font-variant-numeric: tabular-nums;
+  }
+
+  time,
+  data,
+  td,
+  .k-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    color: var(--k-text);
+    background-color: var(--k-accent-soft);
+  }
+}

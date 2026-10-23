@@ -11,16 +11,19 @@
   # written here (pkgs.writers.writeDash), the devenv scripts (nix/dash-scripts.nix) and
   # scripts/*.sh. A script re-executed under k-heavy names this dash, never `sh`.
   dash = lib.getExe pkgs.dash;
-  # Pre-commit hands paths relative to the repository; tools run from web/.
+  # Pre-commit hands paths relative to the repository; tools run from the workspace (web/,
+  # or web/v2/ for the new shell, spec 021 « Migration »).
   # The toolchain is absolute: pre-commit also runs outside the devenv shell.
-  webHook = tool:
-    pkgs.writers.writeDash "web-${tool}" ''
+  workspaceHook = dir: tool:
+    pkgs.writers.writeDash "${builtins.replaceStrings ["/"] ["-"] dir}-${tool}" ''
       set -euo pipefail
-      [ -f web/package.json ] || exit 0
+      [ -f ${dir}/package.json ] || exit 0
       export PATH=${lib.makeBinPath [config.languages.javascript.package config.languages.javascript.pnpm.package]}:$PATH
-      for path do shift; set -- "$@" "''${path#web/}"; done
-      exec pnpm -C web exec ${tool} "$@"
+      for path do shift; set -- "$@" "''${path#${dir}/}"; done
+      exec pnpm -C ${dir} exec ${tool} "$@"
     '';
+  webHook = workspaceHook "web";
+  web2Hook = workspaceHook "web/v2";
   # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
   # sessions and worktrees share one machine, and each cargo would otherwise take every
   # core. At most K_HEAVY_SLOTS (default 2) commands run at once, niced, each with
@@ -511,7 +514,7 @@ in {
   # Convention: each workspace package defines a `typecheck` script (vue-tsc); vitest
   # runs from the workspace root (projects).
   scripts.k-web-check = {
-    description = "prettier, eslint, vue-tsc and vitest, printing a one-line verdict or the failures only";
+    description = "prettier, eslint, stylelint and captures (web/v2), vue-tsc and vitest, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
@@ -531,6 +534,11 @@ in {
         ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write ."
       pnpm exec eslint . >"$log/eslint" 2>&1 ||
         ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
+      # Style lint where the workspace has one (web/v2, spec 020, REQ-020-13).
+      if [ -f stylelint.config.js ]; then
+        pnpm exec stylelint --allow-empty-input '**/*.{css,vue}' >"$log/stylelint" 2>&1 ||
+          ko stylelint "$log/stylelint" '^[^ ]|^ +[0-9]+:[0-9]+ +✖'
+      fi
       # Package by package, so that error paths are prefixed with the package directory.
       tsc=0
       pnpm -r ls --depth -1 --parseable >"$log/packages"
@@ -542,7 +550,50 @@ in {
       [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
-      echo "OK — $(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')"
+      tests=$(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')
+      # Captures of the catalogue where the workspace has them (web/v2, spec 020, REQ-020-26):
+      # the Playwright project `visual` against `vite preview` (127.0.0.1:4173).
+      if [ -d e2e/visual ]; then
+        pnpm -C e2e exec playwright test --project visual --reporter=line >"$log/visual" 2>&1 ||
+          ko visual "$log/visual" '^ *[0-9]+\) |Error:|pixels|^ *at .*:[0-9]+:[0-9]+' "k-web-shots --update, puis relire les images"
+        tests="$tests ; captures $(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//')"
+      fi
+      echo "OK — $tests"
+    '';
+  };
+  # The new shell (spec 021, « Migration »): the same checks on its own workspace.
+  scripts.k-web2-check = {
+    description = "k-web-check on the workspace of the new shell (web/v2)";
+    exec = ''WEB_DIR=web/v2 exec k-web-check "$@"'';
+  };
+  scripts.k-web2-e2e = {
+    description = "k-web-e2e on the workspace of the new shell (web/v2)";
+    exec = ''WEB_DIR=web/v2 exec k-web-e2e "$@"'';
+  };
+  # Reference captures of the design system (spec 020, REQ-020-26): `k-web-shots [--update]
+  # [playwright args…]`, in ${WEB_DIR:-web/v2}. Only in devenv: the references depend on
+  # the browser and the fonts of Nix, and a capture taken elsewhere would not compare.
+  scripts.k-web-shots = {
+    description = "Compare (or with --update, regenerate) the reference captures of the catalogue";
+    exec = ''
+      set -uo pipefail
+      export NO_COLOR=1 FORCE_COLOR=0
+      if [ -z "''${DEVENV_ROOT:-}" ] || [ -z "''${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then
+        echo "k-web-shots : refusé hors de devenv shell (références prises avec le navigateur et les polices de Nix)" >&2
+        exit 2
+      fi
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy ${dash} "$0" "$@"
+      update=""
+      if [ "''${1:-}" = --update ]; then update=--update-snapshots; shift; fi
+      dir=''${WEB_DIR:-web/v2}
+      [ -d "$dir/e2e/visual" ] || { echo "KO — pas de captures ($dir/e2e/visual absent)"; exit 1; }
+      log=$(mktemp -t k-web-shots.XXXXXX)
+      if ! pnpm -C "$dir/e2e" exec playwright test --project visual --reporter=line $update "$@" >"$log" 2>&1; then
+        echo "KO visual ($log)"
+        grep -E '^ *[0-9]+\) |Error:|pixels' "$log" | head -30
+        exit 1
+      fi
+      echo "OK — $(grep -E '^ *[0-9]+ passed' "$log" | tail -1 | sed 's/^ *//')''${update:+ ; références réécrites : git status $dir/e2e/visual, relire les images avant commit}"
     '';
   };
 
@@ -889,6 +940,10 @@ in {
         fi
       done
     fi
+    # The new shell (spec 021, « Migration »): its own pnpm workspace beside web/.
+    if [ -f web/v2/package.json ]; then
+      pnpm -C web/v2 install --frozen-lockfile --reporter=silent || echo "pnpm install de web/v2 en échec" >&2
+    fi
   '';
 
   git-hooks.hooks = {
@@ -896,13 +951,15 @@ in {
     check-merge-conflicts.enable = true;
     end-of-file-fixer = {
       enable = true;
-      # devenv writes its lock without a final newline, on every update.
-      excludes = ["^devenv\\.lock$"];
+      # devenv writes its lock without a final newline, on every update; Playwright its
+      # ARIA snapshots (spec 020, k-web-shots --update) the same way.
+      excludes = ["^devenv\\.lock$" "/__screenshots__/"];
     };
     trim-trailing-whitespace = {
       enable = true;
-      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too.
-      excludes = ["\\.ambr$"];
+      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too;
+      # so do the ARIA snapshots of Playwright (spec 020).
+      excludes = ["\\.ambr$" "/__screenshots__/"];
     };
     rustfmt.enable = true;
     # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
@@ -931,13 +988,34 @@ in {
       name = "prettier (web)";
       entry = "${webHook "prettier"} --write --ignore-unknown";
       files = "^web/.*\\.(vue|ts|tsx|js|mjs|json|css|html|md)$";
-      excludes = ["(^|/)pnpm-lock\\.yaml$"];
+      excludes = ["(^|/)pnpm-lock\\.yaml$" "^web/v2/"];
     };
     web-eslint = {
       enable = true;
       name = "eslint (web)";
       entry = "${webHook "eslint"} --fix";
       files = "^web/.*\\.(vue|ts|tsx|js|mjs)$";
+      excludes = ["^web/v2/"];
+    };
+    # The new shell, with the tools of its own workspace (spec 021, « Migration »).
+    web2-prettier = {
+      enable = true;
+      name = "prettier (web/v2)";
+      entry = "${web2Hook "prettier"} --write --ignore-unknown";
+      files = "^web/v2/.*\\.(vue|ts|tsx|js|mjs|json|css|html|md)$";
+      excludes = ["(^|/)pnpm-lock\\.yaml$"];
+    };
+    web2-eslint = {
+      enable = true;
+      name = "eslint (web/v2)";
+      entry = "${web2Hook "eslint"} --fix";
+      files = "^web/v2/.*\\.(vue|ts|tsx|js|mjs)$";
+    };
+    web2-stylelint = {
+      enable = true;
+      name = "stylelint (web/v2)";
+      entry = "${web2Hook "stylelint"} --fix --allow-empty-input";
+      files = "^web/v2/.*\\.(vue|css)$";
     };
   };
 
@@ -986,7 +1064,7 @@ in {
         "${config.devenv.state}/playwright-mcp"
       ];
     };
-    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*"];
+    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*" "k-web2-check:*" "k-web2-e2e:*" "k-web-shots:*"];
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
     hooks.git-hooks-run.enable = false;
@@ -996,6 +1074,14 @@ in {
       name = "Advise /compact after a task commit";
       hookType = "Stop";
       command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/fin-tache.sh'';
+    };
+    # Interface quality (ADR 0039, § 4): Prettier, Stylelint and ESLint on the one web/**
+    # file just edited; diagnostics go back to the agent.
+    hooks.web-apres-edition = {
+      name = "Format and lint the edited web file";
+      hookType = "PostToolUse";
+      matcher = "^(Edit|MultiEdit|Write)$";
+      command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/web-apres-edition.sh'';
     };
     hooks.reprise-froide = {
       name = "Stop once before rewriting an expired cache";
