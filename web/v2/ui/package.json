@@ -12,6 +12,10 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./icons": {
+      "types": "./src/icons/index.ts",
+      "import": "./src/icons/index.ts"
+    },
     "./style.css": "./src/style.css"
   },
   "scripts": {
@@ -20,6 +24,7 @@
   },
   "dependencies": {
     "@tanstack/vue-virtual": "^3.13.48",
+    "lucide": "1.61.0",
     "reka-ui": "2.11.0",
     "vue": "^3.5.44"
   }

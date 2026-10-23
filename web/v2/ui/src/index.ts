@@ -15,3 +15,8 @@ export const UI_VERSION = "0.1.0";
 
 export { tokens, STATES, ENV_HUES } from "./tokens/index.ts";
 export type { Token, State } from "./tokens/index.ts";
+
+export { default as Icon } from "./components/Icon/Icon.vue";
+export type { IconProps } from "./components/Icon/icon.ts";
+export { icons, lucideIcons, metierIcons } from "./icons/index.ts";
+export type { IconName, IconNode, IconSize } from "./icons/index.ts";

@@ -151,6 +151,18 @@ emploient.
   icône porteuse de sens sans nom → erreur de compilation
   - où : design § « Icônes » ; `web/v2/ui/src/icons/`
   - dépend de : 4
+  - **à valider par l'utilisateur** (planche `/_ui/icones`, tâche 8) ; fait :
+    `lucide` 1.61.0 épinglé, liste fermée de 68 icônes (`icons/lucide.ts`, licence ISC
+    et MIT livrée en `icons/LICENSE-lucide.txt`) ; treize icônes métier proposées
+    (`icons/metier.ts` : `prefix`, `range`, `address`, `domain`, `vlan`, `interface`,
+    `cluster`, `flow`, `environment`, `exception`, `changeset`, `draft`, `matrix`) ;
+    `@kartenn/ui/icons` ; `components/Icon/Icon.vue` (16 ou 20 px par
+    `--k-icon-size`, trait `--k-icon-stroke`, `aria-hidden` par défaut, `meaningful`
+    exige `label` au typage : `test/icons.test.ts`, `@ts-expect-error` vérifiés par
+    vue-tsc). Choix de Claude : `matrix` ajouté (matrice de politique, 017) ;
+    composant au rendu des nœuds de Lucide (pas de `@lucide/vue`), pour un seul rendu
+    des icônes Lucide et métier ; la règle ESLint `multi-word-component-names` est levée
+    pour les composants de la bibliothèque (noms de l'inventaire).
 
 ## P2 — Catalogue et captures
 

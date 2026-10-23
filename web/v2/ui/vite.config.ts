@@ -18,7 +18,10 @@ export default defineConfig({
     // what kartenn serves. The shell builds the sources of @kartenn/ui as an application,
     // where the fonts are fingerprinted files under /assets/ (design « Typographie »).
     lib: {
-      entry: { index: fileURLToPath(new URL("src/index.ts", import.meta.url)) },
+      entry: {
+        index: fileURLToPath(new URL("src/index.ts", import.meta.url)),
+        icons: fileURLToPath(new URL("src/icons/index.ts", import.meta.url)),
+      },
       formats: ["es"],
       cssFileName: "style",
     },
@@ -28,6 +31,7 @@ export default defineConfig({
   },
   test: {
     name: "ui",
+    // Vue in its Node build, for server-side rendering of components in tests.
     environment: "node",
   },
 });

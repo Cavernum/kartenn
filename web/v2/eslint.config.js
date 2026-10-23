@@ -67,6 +67,12 @@ export default defineConfigWithVueTs(
     },
   },
   {
+    // The components of the library bear the names of the inventory (design « Inventaire
+    // des composants »): `Icon`, `Button`, `Tabs`…
+    files: ["ui/src/components/**/*.vue"],
+    rules: { "vue/multi-word-component-names": "off" },
+  },
+  {
     // Screens and plugins: @kartenn/ui only, neither raw controls nor Reka UI directly. The
     // catalogue (_ui) shows the library and may use raw elements to frame it.
     files: ["shell/src/**/*.{vue,ts}", "plugins/*/src/**/*.{vue,ts}"],

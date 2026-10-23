@@ -70,7 +70,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 
 | Composant | Motif APG ou rôle | Statut |
 |---|---|---|
-| `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens | ☐ |
+| `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens (`meaningful` + `label`, vérifié au typage) | ◐ |
 | `Stack`, `Cluster`, `Grid`, `Split` | mise en page | ☐ |
 | `Button`, `IconButton` | Button | ☐ |
 | `TextField`, `FormField` | champ natif étiqueté | ☐ |
