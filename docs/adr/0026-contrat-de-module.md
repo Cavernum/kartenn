@@ -364,6 +364,10 @@ leurs libellés et ceux de leurs valeurs (`ModuleDeclarations::labels`, clé
 `<propriété>` ou `<propriété>/<valeur>`) ; la synchronisation (003/P12) les écrit s'ils
 manquent ou si la version en vigueur venait d'elle, jamais par-dessus ceux d'un
 administrateur. Un test du serveur vérifie que chaque code du build a les deux langues.
+Ses tables versionnées dont les lignes possèdent des libellés (colonnes `key` et
+`labels`) se déclarent par `Module::label_tables()` : chacune est un espace du
+dictionnaire (`<module>.<collection>`), servi à qui détient sur une portée quelconque la
+permission qu'elle nomme (018/R24).
 
 ## Alternatives
 

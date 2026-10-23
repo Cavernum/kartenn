@@ -14,7 +14,8 @@ use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{
-    JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    JobSpec, LabelTable, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose,
+    OperationType, Reference,
 };
 
 use crate::rules::POLICY_RULES;
@@ -81,6 +82,25 @@ pub(crate) const EXAMPLES: &[(&str, &[&str])] = &[
     ("policy.application", &[]),
     ("policy.owner", &[]),
 ];
+
+/// The objects of the policy that own labels, read under `policy.catalogue.read` (spec
+/// 018, R24).
+static LABEL_TABLES: &[LabelTable] = &[
+    labelled("policy.flow_type", "policy.policy_flow_type"),
+    labelled("policy.service", "policy.policy_service"),
+    labelled("policy.pattern", "policy.policy_pattern"),
+    labelled("policy.rule", "policy.policy_rule"),
+    labelled("policy.condition", "policy.policy_condition"),
+    labelled("policy.signal", "policy.policy_signal"),
+];
+
+const fn labelled(space: &'static str, table: &'static str) -> LabelTable {
+    LabelTable {
+        space,
+        table,
+        permission: "policy.catalogue.read",
+    }
+}
 
 /// The French and English labels of the declarations and values of the module (spec
 /// 018, R10): `<property>` or `<property>/<value>`.
@@ -526,6 +546,9 @@ impl Module for Policy {
     }
     fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
         kartenn_core::code_labels::of_module(PERMISSIONS, POLICY_RULES, &crate::labels::ENGLISH)
+    }
+    fn label_tables(&self) -> &'static [LabelTable] {
+        LABEL_TABLES
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS

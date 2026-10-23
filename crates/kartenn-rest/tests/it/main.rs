@@ -21,6 +21,7 @@ mod errors;
 mod events;
 mod filter;
 mod imports;
+mod labels;
 mod modules;
 mod objects;
 mod on_behalf;

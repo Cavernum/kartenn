@@ -82,6 +82,7 @@ pub fn api_with(
         .merge(audit::routes())
         .merge(capabilities::routes())
         .merge(events::routes())
+        .merge(labels::routes())
         .merge(openapi::routes())
         .merge(modules::graph())
         .merge(modules::routes(modules));

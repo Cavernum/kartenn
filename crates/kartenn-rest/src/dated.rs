@@ -182,6 +182,19 @@ impl ETag {
         }
     }
 
+    /// The strong tag of the dictionary of labels, `<revision>.<digest>` (spec 018, R22;
+    /// form of 006/H19): its revision (`<stored>-<compiled>`), then the first 64 bits of
+    /// the SHA-256 of `body`, which covers the language served, the spaces and the
+    /// filtering by rights.
+    #[must_use]
+    pub fn labels(revision: &str, body: &[u8]) -> Self {
+        debug_assert!(revision.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-'));
+        Self {
+            weak: false,
+            opaque: format!("{revision}.{}", hex(&Sha256::digest(body)[..8])),
+        }
+    }
+
     /// The version an `If-Match` opaque tag names: `<version>.<digest>` as
     /// [`ETag::record`] makes it, or the bare `<version>` (006/H19); `None` for any
     /// other form.

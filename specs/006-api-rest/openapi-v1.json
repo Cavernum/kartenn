@@ -2114,6 +2114,27 @@
         ],
         "type": "object"
       },
+      "Fallback": {
+        "description": "The entries the dictionary served in the default language, lacking one in the\nlanguage served.",
+        "properties": {
+          "keys": {
+            "description": "`<space>/<key>`, or `value/<property>/<value>`.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lang": {
+            "description": "The default language of the instance.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lang",
+          "keys"
+        ],
+        "type": "object"
+      },
       "Flow": {
         "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date. A request pending a review (F19) has\nno identifier yet, and carries its `review`.",
         "properties": {
@@ -3201,6 +3222,59 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "Labels": {
+        "description": "The dictionary of labels for one language.",
+        "properties": {
+          "as_of": {
+            "description": "The system time asked for, when one was.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_lang": {
+            "description": "The default language of the instance.",
+            "type": "string"
+          },
+          "fallback": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Fallback",
+                "description": "The entries served in the default language."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lang": {
+            "description": "The language served (BCP 47, lower case), also in `Content-Language`.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "The revision of the labels: `<stored>-<compiled>`.",
+            "type": "string"
+          },
+          "spaces": {
+            "description": "The labels by space then key; `value` by property, then value.",
+            "type": "object"
+          },
+          "valid_at": {
+            "description": "The valid time asked for, when one was.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lang",
+          "default_lang",
+          "revision",
+          "spaces"
         ],
         "type": "object"
       },
@@ -20002,6 +20076,88 @@
         "summary": "`POST /v1/issuer-attachments` `{issuer, entity}`: 201.",
         "tags": [
           "rights"
+        ]
+      }
+    },
+    "/v1/labels": {
+      "get": {
+        "operationId": "labels",
+        "parameters": [
+          {
+            "description": "The language wanted, a BCP 47 tag; it prevails over `Accept-Language`.",
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The spaces wanted, separated by commas (`value,role`); all by default.",
+            "in": "query",
+            "name": "spaces",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Labels"
+                }
+              }
+            },
+            "description": "The labels by space, in the language served (`Content-Language`)."
+          },
+          "304": {
+            "description": "Unchanged since the `ETag` of `If-None-Match`."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A malformed `lang` or date."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/labels`: the dictionary of labels for one language (REQ-018-14 to 17, 19).",
+        "tags": [
+          "operations"
         ]
       }
     },

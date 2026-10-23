@@ -1778,6 +1778,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/labels`: the dictionary of labels for one language (REQ-018-14 to 17, 19). */
+    get: operations["labels"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/log-filters/{output}": {
     parameters: {
       query?: never;
@@ -4462,6 +4479,16 @@ export interface components {
       value: Record<string, never>;
     };
     /**
+     * @description The entries the dictionary served in the default language, lacking one in the
+     *     language served.
+     */
+    Fallback: {
+      /** @description `<space>/<key>`, or `value/<property>/<value>`. */
+      keys: string[];
+      /** @description The default language of the instance. */
+      lang: string;
+    };
+    /**
      * @description A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its
      *     derived state, summary and outcome at the date. A request pending a review (F19) has
      *     no identifier yet, and carries its `review`.
@@ -4894,6 +4921,22 @@ export interface components {
     IssuerDto: {
       /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
       id: string;
+    };
+    /** @description The dictionary of labels for one language. */
+    Labels: {
+      /** @description The system time asked for, when one was. */
+      as_of?: string | null;
+      /** @description The default language of the instance. */
+      default_lang: string;
+      fallback?: components["schemas"]["Fallback"] | null;
+      /** @description The language served (BCP 47, lower case), also in `Content-Language`. */
+      lang: string;
+      /** @description The revision of the labels: `<stored>-<compiled>`. */
+      revision: string;
+      /** @description The labels by space then key; `value` by property, then value. */
+      spaces: Record<string, never>;
+      /** @description The valid time asked for, when one was. */
+      valid_at?: string | null;
     };
     /** @description The limits a client must respect. */
     Limits: {
@@ -13037,6 +13080,60 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  labels: {
+    parameters: {
+      query?: {
+        /** @description The language wanted, a BCP 47 tag; it prevails over `Accept-Language`. */
+        lang?: string;
+        /** @description The spaces wanted, separated by commas (`value,role`); all by default. */
+        spaces?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The labels by space, in the language served (`Content-Language`). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Labels"];
+        };
+      };
+      /** @description Unchanged since the `ETag` of `If-None-Match`. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description A malformed `lang` or date. */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
       /** @description A problem (RFC 9457). */

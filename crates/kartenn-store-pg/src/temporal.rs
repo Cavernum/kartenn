@@ -20,11 +20,18 @@ pub enum TemporalError {
 }
 
 fn identifier(name: &str) -> Result<&str, TemporalError> {
-    let mut bytes = name.bytes();
-    let valid = bytes
-        .next()
-        .is_some_and(|b| b.is_ascii_lowercase() || b == b'_')
-        && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
+    // A name, or `<schema>.<name>` (the tables of a module).
+    let plain = |part: &str| {
+        let mut bytes = part.bytes();
+        bytes
+            .next()
+            .is_some_and(|b| b.is_ascii_lowercase() || b == b'_')
+            && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+    };
+    let valid = match name.split_once('.') {
+        Some((schema, table)) => plain(schema) && plain(table),
+        None => plain(name),
+    };
     if valid {
         Ok(name)
     } else {

@@ -59,7 +59,7 @@ fn size(text: &str) -> Result<u16, Problem> {
         .ok_or_else(|| bad(format!("page_size must be an integer from 1 to {MAX_SIZE}")))
 }
 
-fn rfc3339(at: OffsetDateTime) -> String {
+pub(crate) fn rfc3339(at: OffsetDateTime) -> String {
     at.format(&Rfc3339)
         .expect("a date of the database has a four-digit year")
 }

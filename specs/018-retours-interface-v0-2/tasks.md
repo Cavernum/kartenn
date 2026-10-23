@@ -243,7 +243,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   entrée anglaise orpheline), `every_code_has_french_and_english_labels`
   (`kartenn-server`, build complet), `the_problems_and_former_names_are_labelled`.
 
-- [ ] 10. `GET /v1/labels` : espaces, négociation (`lang`, `Accept-Language`, Lookup),
+- [x] 10. `GET /v1/labels` : espaces, négociation (`lang`, `Accept-Language`, Lookup),
   `Content-Language`, `Vary`, repli signalé, ETag `"<révision>.<empreinte>"`, 304,
   lecture datée et `Cache-Control`, filtrage par droits (R24), mise en mémoire par
   instance, contrat — REQ-018-14 à 17, 19 — verify : `labels_are_negotiated`,
@@ -253,6 +253,26 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `capabilities.rs` à imiter ; `openapi.rs`) ; ETag de 006/H19 (`crates/kartenn-rest/src/`,
   fonction d'étiquette composite) ; `specs/006-api-rest/openapi-v1.json`
   dépend de : 8, 9
+  fait : `kartenn_rest::labels` (route `labels`, schéma `Labels`) ; lectures
+  `kartenn_store_pg::labels_read` (`revision`, `stored` aux dates de la lecture,
+  `held` : entrées et rôles détenus sur une portée quelconque) ; `Module::label_tables()`
+  (ADR 0026, amendement 6 complété), rempli par `policy` (six espaces `policy.*` sous
+  `policy.catalogue.read`) ; `temporal::snapshot` accepte `<schéma>.<table>`.
+  Négociation : `lang` (400 si mal formée) sinon `Accept-Language` (poids, `q=0` et `*`
+  écartés, plage mal formée ignorée), Lookup parmi les langues présentes (`fr`, `en`, la
+  langue par défaut et celles des tables), puis la langue par défaut. Repli signalé dans
+  `fallback` (`<espace>/<clé>`, `value/<propriété>/<valeur>`) ; entrée sans libellé
+  absente. Révision `<compteur>-<empreinte des libellés compilés>`, ETag fort
+  `"<révision>.<empreinte du corps>"` (`ETag::labels`), 304 ; `Content-Language`,
+  `Vary: Accept-Language` ; `Cache-Control` `private, max-age=86400` à un `as_of` figé,
+  `private, no-cache` sinon. Droits (R24) : `policy.*` et espaces de module sous leur
+  permission, valeurs d'une propriété sensible sous `prop.<clé>.read`, rôles sous
+  `core.rbac.read` sinon ceux de ses liaisons, codes à tous. Mise en mémoire par
+  instance des lectures au présent (clé : base, révision, langue, espaces, droits ;
+  60 s au plus, une valeur dont la validité commence plus tard apparaissant sans
+  écriture). `valid_at` et `as_of` ne figurent dans le corps que s'ils sont demandés
+  (un corps au présent reste identique d'une lecture à l'autre). `labels` ajouté à
+  `CORE_COLLECTIONS`. Contrat et `schema.d.ts` régénérés.
 
 - [ ] 11. Événement SSE `labels` : ligne de la table de traduction outbox → SSE, remise à
   toute connexion, contrat OpenAPI de `/v1/events` ; amendement de 022/R2 —

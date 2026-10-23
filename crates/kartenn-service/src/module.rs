@@ -38,6 +38,7 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "identities",
     "imports",
     "issuer-attachments",
+    "labels",
     "log-filters",
     "me",
     "openapi.json",
@@ -321,6 +322,17 @@ pub struct ModuleActors {
     pub on_behalf_of: Option<Uuid>,
     /// The validator of a pending changeset, when it is being validated (REQ-016-11).
     pub validator: Option<Uuid>,
+}
+
+/// A versioned table of a module whose rows own labels (spec 018, R19, R24).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LabelTable {
+    /// The space of the dictionary, `<module>.<collection>`.
+    pub space: &'static str,
+    /// The table, `<module>.<table>`, with the columns `key` and `labels`.
+    pub table: &'static str,
+    /// The permission that reads it, held on any scope.
+    pub permission: &'static str,
 }
 
 /// The transaction of a changeset, as a module writes in it (ADR 0026, clause 6).
@@ -637,6 +649,12 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     /// `GET /v1/labels`. A code without labels shows as its key.
     fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
         Vec::new()
+    }
+    /// Its versioned tables whose rows own labels (a column `key` and a column `labels`,
+    /// spec 018, Q-018-6): each a space of the dictionary, read under a permission held
+    /// on any scope (R24).
+    fn label_tables(&self) -> &'static [LabelTable] {
+        &[]
     }
     /// Its references.
     fn references(&self) -> &'static [Reference] {
@@ -993,6 +1011,11 @@ impl ModuleRegistry {
     #[must_use]
     pub fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
         self.modules.iter().flat_map(|m| m.labels()).collect()
+    }
+
+    /// The tables of every module whose rows own labels (spec 018).
+    pub fn label_tables(&self) -> impl Iterator<Item = &'static LabelTable> + '_ {
+        self.modules.iter().flat_map(|m| m.label_tables().iter())
     }
 
     /// The types of objects of every module, in registry order.
