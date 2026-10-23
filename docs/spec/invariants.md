@@ -161,8 +161,23 @@ n'est **pas mesurée** : aucune tâche de fond ne la porte encore.
 | INV-70 | Un abonné lent ne retarde ni le lecteur ni les autres abonnés | Tampon borné, `try_send`, `reset` `overflow` | `rest/tests/it/events.rs` (`a_slow_subscriber_delays_no_one_and_starts_over`) |
 | INV-71 | Latence validation → écriture p95 < 500 ms, p99 < 1 s à 50 écritures/s et 2 000 flux ; 5 000 flux par instance, < 64 Kio par flux ; 5 000 reprises en 10 s ; surcoût du lecteur < 5 % du changeset unitaire | Banc `bench-events` | Banc `bench-events` |
 
+**Tenu au banc complet** le 2026-10-23 (2 000 flux pour 200 identités, 50
+changesets/s, 2·10⁶ remises sans perte ; 5 000 flux inactifs ; charge machine partagée) :
+
+| Budget | Mesuré (complet) | Budget |
+|---|---|---|
+| Validation → événement écrit, p95 / p99 | 208 ms / 597 ms | 500 ms / 1 s |
+| Événements perdus | 0 | 0 |
+| Mémoire par flux inactif | 5,3 Kio | 64 Kio |
+| Reprise des 5 000 flux d'une instance | 556 ms | 10 s |
+| Changeset unitaire pendant la tempête, p95 (INV-34) | 13,3 ms | 200 ms |
+| Visibilité d'un lot, p95 (333 portées × 1 000 objets) | 20,8 ms | 250 ms |
+| Surcoût du lecteur sur le changeset unitaire, p95 | 0,72 ms | 1 ms (plancher) |
+
+Le p99 à 597 ms est le chiffre le plus proche de sa limite : à surveiller.
+
 Mesures à l'échelle réduite (2026-10-23 ; 200 puis 500 flux, 20 identités, 50
-changesets/s) — la mesure complète reste à faire :
+changesets/s) :
 
 | Budget | Mesuré (réduit) | Budget |
 |---|---|---|
