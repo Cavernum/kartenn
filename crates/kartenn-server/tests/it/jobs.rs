@@ -302,11 +302,23 @@ async fn an_import_ends_on_another_instance_without_duplicates(pool: PgPool) {
     assert_eq!(stopped.state, "running");
     assert!(stopped.remaining > 0, "{stopped:?}");
 
-    // Past the lease, another instance takes the import over at its first batch left.
+    // Past the lease, another instance takes the import over at its first batch left. The
+    // aborted batch may still be running in PostgreSQL on a slow machine: retry until the
+    // task is due rather than after a fixed delay.
     tokio::time::sleep(lease + Duration::from_millis(200)).await;
     let other = Scheduler::new(pool.clone(), Uuid::now_v7()).with_lease(lease, heartbeat);
     let name = format!("import:{import}");
-    assert_eq!(other.tick(&tasks(&pool)).await, Some(name));
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let taken = loop {
+        match other.tick(&tasks(&pool)).await {
+            Some(taken) => break Some(taken),
+            None if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            None => break None,
+        }
+    };
+    assert_eq!(taken, Some(name));
     let done = progress().await;
     assert_eq!(done.state, "done", "{done:?}");
     assert_eq!((done.applied, done.remaining), (batches, 0));
