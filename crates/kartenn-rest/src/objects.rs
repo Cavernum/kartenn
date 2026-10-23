@@ -7,12 +7,12 @@
 
 use std::time::Duration;
 
+use axum::Extension;
 use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
-use axum::{Extension, Json};
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::audit::{AUTHZ_DENIED, rfc3339};
@@ -46,7 +46,7 @@ use uuid::Uuid;
 
 use crate::changesets::{ChangesetApplied, ChangesetPending, ChangesetRef};
 use crate::cursor::{Page, PageParams, next_href, respond_page};
-use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
+use crate::dated::{Dates, DatesParams, Moment, respond_object};
 use crate::filter::{self, Field, ListQuery};
 use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
 use crate::openapi::{documented, listing_of, op, queryable, schemas_of};
@@ -279,7 +279,7 @@ pub fn routes() -> OpenApiRouter<Api> {
         let show_op = op(&format!("show_{one}"), "core", &format!("The {one}."))
             .path("id", &the, true)
             .params::<DatesParams>()
-            .answers("200", "The object; its version is its ETag.", &dto)
+            .answers("200", crate::kit::OBJECT_READ, &dto)
             .build();
         let modify_op = op(
             &format!("modify_{one}"),
@@ -287,7 +287,7 @@ pub fn routes() -> OpenApiRouter<Api> {
             &format!("Modifies the {one} (JSON Merge Patch)."),
         )
         .path("id", &the, true)
-        .header("If-Match", true, "The version read, as its ETag.")
+        .header("If-Match", true, crate::kit::IF_MATCH_OBJECT)
         .body(resources::MERGE_PATCH, &modification, true)
         .answers("200", "Modified.", "ChangesetApplied")
         .answers("202", "Held for a decision.", "ChangesetPending")
@@ -298,7 +298,7 @@ pub fn routes() -> OpenApiRouter<Api> {
             &format!("Closes the {one}."),
         )
         .path("id", &the, true)
-        .header("If-Match", true, "The version read, as its ETag.")
+        .header("If-Match", true, crate::kit::IF_MATCH_OBJECT)
         .body("application/json", "Closure", false)
         .answers("200", "Closed.", "ChangesetApplied")
         .answers("202", "Held for a decision.", "ChangesetPending")
@@ -1011,12 +1011,7 @@ async fn object(
         None => None,
     };
     let body = represent(kind, &found.fields, link.as_deref())?;
-    Ok(respond(
-        &headers,
-        &moment,
-        &ETag::version(version),
-        Json(body),
-    ))
+    Ok(respond_object(&headers, &moment, version, &body))
 }
 
 /// A version of an object, on both axes (REQ-004-18).

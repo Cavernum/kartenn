@@ -26,6 +26,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::changesets::{Answer, Location, Pointers, idempotency_key, period, submit_answered};
+use crate::dated::ETag;
 use crate::objects::{Api, bad, gate, store};
 use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
 use crate::operation::RawDto;
@@ -485,15 +486,15 @@ pub(crate) fn stale() -> Problem {
     Problem::new(ProblemKind::PreconditionFailed).detail("If-Match names no version")
 }
 
-/// The version `If-Match` names (REQ-006-14, design « Routes par ressource »): absent or
-/// `*` → 428, several or malformed → 400, weak or not a version → 412.
-fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
-    entity_tag(
+/// The version `If-Match` names (REQ-006-14, H19, design « Routes par ressource »): the
+/// own part of a composite tag, or a bare version; absent or `*` → 428, several or
+/// malformed → 400, weak or of another form → 412.
+pub(crate) fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
+    let opaque = entity_tag(
         headers,
         "read the object, then send its ETag in If-Match to modify or close it",
-    )?
-    .parse()
-    .map_err(|_| stale())
+    )?;
+    ETag::own_version(&opaque).ok_or_else(stale)
 }
 
 /// 422 `invalid-member` pointing at `pointer`.
@@ -934,6 +935,15 @@ mod tests {
         assert_eq!(
             if_match(&with(header::IF_MATCH, &format!("\"{id}\""))).unwrap(),
             id
+        );
+        assert_eq!(
+            if_match(&with(
+                header::IF_MATCH,
+                &format!("\"{id}.0123456789abcdef\"")
+            ))
+            .unwrap(),
+            id,
+            "the version of a composite tag"
         );
         let kind = |value: &str| if_match(&with(header::IF_MATCH, value)).unwrap_err().kind();
         assert_eq!(

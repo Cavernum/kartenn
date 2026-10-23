@@ -584,12 +584,7 @@ async fn answer<T: Serialize>(
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     kit::record_read(api, context, kind, &[id], json!({"id": id})).await?;
-    Ok(respond(
-        headers,
-        moment,
-        &ETag::version(version),
-        Json(body),
-    ))
+    Ok(kit::respond_object(headers, moment, version, &body))
 }
 
 /// `GET /v1/vlan-groups/{id}`.
@@ -972,7 +967,7 @@ fn collection_routes(
     let show_op = op(&format!("show_{one}"), "vlan", &the)
         .path("id", &the, true)
         .params::<DatesParams>()
-        .answers("200", "The object; its version is its ETag.", dto)
+        .answers("200", kit::OBJECT_READ, dto)
         .build();
     let modify_op = op(
         &format!("modify_{one}"),
@@ -980,7 +975,7 @@ fn collection_routes(
         &format!("Modifies the {one} (JSON Merge Patch)."),
     )
     .path("id", &the, true)
-    .header("If-Match", true, "The version read, as its ETag.")
+    .header("If-Match", true, kit::IF_MATCH_OBJECT)
     .body(MERGE_PATCH, bodies.1, true)
     .answers("200", "Modified.", "ChangesetApplied")
     .answers("202", "Held for a decision.", "ChangesetPending")
@@ -991,7 +986,7 @@ fn collection_routes(
         &format!("Closes the {one}."),
     )
     .path("id", &the, true)
-    .header("If-Match", true, "The version read, as its ETag.")
+    .header("If-Match", true, kit::IF_MATCH_OBJECT)
     .body("application/json", "VlanClosure", false)
     .answers("200", "Closed.", "ChangesetApplied")
     .answers("202", "Held for a decision.", "ChangesetPending")

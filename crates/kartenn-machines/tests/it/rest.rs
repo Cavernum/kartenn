@@ -732,3 +732,93 @@ async fn mac_canonical_over_http(pool: PgPool) {
     .await;
     assert_eq!(ids(&held, "id"), [eth0.to_string()]);
 }
+
+/// The `ETag` of `GET uri`.
+async fn etag_of(app: &Router, uri: &str) -> String {
+    let (status, headers, body) = call(app, "GET", uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    headers[header::ETAG].to_str().unwrap().to_owned()
+}
+
+/// The answer of `GET uri` under `If-None-Match: etag`.
+async fn revalidated(app: &Router, uri: &str, etag: &str) -> (StatusCode, Value) {
+    let (status, _, body) =
+        call(app, "GET", uri, None, &[("If-None-Match", etag.to_owned())]).await;
+    (status, body)
+}
+
+/// The card of a machine embeds its interfaces (REQ-009-15): renaming one changes the
+/// body of the card, so its `ETag`, while a write of the machine under its old tag still
+/// succeeds, its own version unchanged (REQ-006-14, 006/H19).
+#[kartenn_testing::pg_test]
+async fn a_renamed_interface_changes_the_etag_of_the_card(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (machine, interface) = env.machine("db1", acme).await;
+    let app = env.app(env.admin().await);
+    let uri = format!("/v1/machines/{machine}");
+    let etag = etag_of(&app, &uri).await;
+    let iface = format!("/v1/interfaces/{interface}");
+    let iface_etag = etag_of(&app, &iface).await;
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &iface,
+        Some((
+            "application/merge-patch+json",
+            json!({"motive": "rename", "name": "uplink0"}),
+        )),
+        &[("If-Match", iface_etag)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, body) = revalidated(&app, &uri, &etag).await;
+    assert_eq!(status, StatusCode::OK, "the card shows the new name");
+    assert_eq!(body["interfaces"][0]["name"], "uplink0");
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some((
+            "application/merge-patch+json",
+            json!({"motive": "rename", "name": "db2"}),
+        )),
+        &[("If-Match", etag.clone())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some((
+            "application/merge-patch+json",
+            json!({"motive": "rename", "name": "db3"}),
+        )),
+        &[("If-Match", etag)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{body}");
+}
+
+/// The card of a machine embeds its interfaces (REQ-009-15): a new interface changes
+/// its body, so its `ETag` (REQ-006-14, 006/H19).
+#[kartenn_testing::pg_test]
+async fn a_new_interface_changes_the_etag_of_the_card(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (machine, _) = env.machine("db1", acme).await;
+    let app = env.app(env.admin().await);
+    let uri = format!("/v1/machines/{machine}");
+    let etag = etag_of(&app, &uri).await;
+    let (status, _) = revalidated(&app, &uri, &etag).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": machine}, "name": "eth1"}),
+    )])
+    .await;
+    let (status, body) = revalidated(&app, &uri, &etag).await;
+    assert_eq!(status, StatusCode::OK, "the card shows the new interface");
+    assert_eq!(body["interfaces"].as_array().unwrap().len(), 2);
+}

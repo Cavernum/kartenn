@@ -22,6 +22,7 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - H13 représentations : JSON Merge Patch ; objets complets avec résumé des liés.
 - H14 transport : TLS configurable, HTTP/1.1 et 2, réponses compressées.
 - H15 budgets : D14 mesurés à travers HTTP ; matrices de sécurité de bout en bout.
+- H19 ETag d'un objet : `"<version>.<empreinte du corps>"` ; `If-Match` ne compare que la version.
 
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
@@ -156,9 +157,9 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Décision : **`If-Match` obligatoire sur les ressources, `Idempotency-Key` en
   en-tête**.
   - Concurrence : `PATCH` et `DELETE` d'une ressource exigent `If-Match` ; absent →
-    428 (RFC 6585 §3, la réponse dit comment resoumettre), périmé → 412. L'ETag est la
-    version de l'objet et devient l'`expected` de l'opération (REQ-004-11) : un seul
-    mécanisme. Dans `POST /changesets`, `expected` reste dans le corps, par opération,
+    428 (RFC 6585 §3, la réponse dit comment resoumettre), périmé → 412. L'ETag porte la
+    version de l'objet, qui devient l'`expected` de l'opération (REQ-004-11) : un seul
+    mécanisme (étiquette composite depuis H19). Dans `POST /changesets`, `expected` reste dans le corps, par opération,
     facultatif comme en 004.
   - Idempotence : en-tête `Idempotency-Key` sur `POST /changesets` et sur les créations
     de ressources, porté sur l'`idempotency_key` existante avec les règles de
@@ -297,6 +298,10 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   partiels) ; `fields=` et `expand=` (coût non borné, RBAC et lecture datée à chaque
   expansion, ETag composite, oracle possible sur un objet invisible).
 - Décidé par : utilisateur, après comparaison
+- Amendement (2026-10-23, utilisateur, H19) : le résumé rend l'ETag « version de
+  l'objet » faux pour le cache (un lié renommé change le corps). L'ETag d'un objet
+  devient composite, `"<version>.<empreinte>"`, et `If-Match` n'en compare que la
+  version : le rejet de l'« ETag composite » ci-dessus visait l'expansion, pas ce cas.
 
 ## H14 — Transport : TLS, versions HTTP, compression
 - Décision :
@@ -387,6 +392,52 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   violations) ; `start` ne répond plus 422. Toute requête reste bornée par le délai de
   transport.
 - Décidé par : l'utilisateur (2026-10-22), sur la proposition de Claude
+
+## H19 — ETag composite d'un objet (amende H8, H13b et REQ-006-14)
+- Constat (2026-10-23) : l'ETag fort d'un objet était sa version (dernier changeset qui
+  l'a écrit, ou ses propriétés). Or sa représentation montre aussi des données d'autres
+  objets : le résumé d'un lié porte sa `slug` (H13b), une interface montre le
+  propriétaire et le site résolus de sa machine, la fiche d'une machine embarque ses
+  interfaces et leurs adresses. Renommer le domaine d'un préfixe change le corps du
+  préfixe sans changer son ETag : `If-None-Match` répond 304 à tort. C'est contraire à
+  RFC 9110 §8.8.1 : un validateur fort doit changer dès que les données de la
+  représentation changent d'une façon observable dans un 200.
+- Options : (a) ETag composite, la part propre seule comparée par `If-Match` ; (b) ETag
+  faible (empreinte du corps) pour le cache, la version dans un autre en-tête pour les
+  écritures ; (c) relever la version de tous les dépendants à chaque écriture (cascade
+  d'écritures non bornée : un domaine renommé toucherait tous ses préfixes).
+- Décision : **(a)**. L'ETag fort d'un objet est `"<version>.<empreinte>"` :
+  - `<version>` : la version de l'objet (REQ-006-14, design « Version d'un objet »),
+    celle que compare `If-Match` et que porte `expected` (REQ-004-11) ;
+  - `<empreinte>` : 16 chiffres hexadécimaux (64 bits de SHA-256) des octets du corps
+    servi. Elle couvre tout ce que le corps montre d'autre que l'objet : résumés des
+    liés, valeurs héritées, collections embarquées, et même ce qui dépend des droits de
+    l'appelant (interfaces visibles d'une fiche). Choix de Claude, peu coûteux à défaire
+    : la « version des liés » demandée est réalisée par l'empreinte plutôt que par le
+    maximum des versions lues, qui manquerait les valeurs calculées (héritage,
+    visibilité), obligerait chaque module à énumérer ses dépendances et dépendrait de
+    l'ordre des UUID. Coût : un SHA-256 sur quelques centaines d'octets, aucune requête.
+  - `If-None-Match` compare l'étiquette entière (comparaison faible, RFC 9110 §13.1.2) :
+    un parent renommé donne 200.
+  - `If-Match` ne compare que la part propre : l'étiquette entière ou la version seule
+    (`"<version>"`, l'ancienne forme, celle d'`expected`) sont acceptées ; toute autre
+    forme → 412. La forme nue est gardée sans échéance : elle ne coûte qu'une branche et
+    protège exactement autant (voir ci-dessous).
+- Écart à la norme, propre à kartenn : RFC 9110 §13.1.1 évalue `If-Match` par la
+  comparaison forte de l'étiquette entière contre l'ETag courant de la représentation ;
+  kartenn n'en compare que la version. Pourquoi c'est sûr : `If-Match` sert ici à
+  empêcher la mise à jour perdue (RFC 9110 §13.1.1, « prevent accidental overwrites »).
+  `PATCH`, `DELETE` et les actions d'un objet n'écrivent que son propre état (champs et
+  affectations), que la version couvre exactement : un client ne peut jamais écraser une
+  modification de l'objet qu'il n'a pas lue. Les données des liés ne sont ni réécrites
+  ni recopiées par l'écriture ; leurs propres écritures ont leur propre ETag, et les
+  règles qui en dépendent sont revalidées dans la transaction du changeset (004).
+  Comparer l'étiquette entière refuserait au contraire (412) toute écriture en attente
+  dès qu'un parent change : renommer un domaine invaliderait les éditions de tous ses
+  préfixes, sans rien protéger de plus.
+- Rejeté : (b) deux validateurs pour une même représentation (un client générique
+  renvoie l'ETag, pas un en-tête propre) ; (c) écritures en cascade non bornées.
+- Décidé par : l'utilisateur (2026-10-23) pour (a) ; empreinte et forme nue : Claude.
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
