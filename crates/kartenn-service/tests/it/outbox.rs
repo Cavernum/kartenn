@@ -371,3 +371,71 @@ async fn the_ordering_keys_of_a_changeset_name_its_domains(pool: PgPool) {
     assert_eq!(event.domains.len(), 1, "the prefix writes in its domain");
     assert_eq!(event.order_keys, [format!("domain:{}", event.domains[0])]);
 }
+
+/// The notifications received on the channel of the outbox within `wait`.
+async fn notified(listener: &mut sqlx::postgres::PgListener, wait: std::time::Duration) -> usize {
+    let mut n = 0;
+    while let Ok(Ok(Some(notification))) = tokio::time::timeout(wait, listener.try_recv()).await {
+        assert_eq!(notification.channel(), kartenn_store_pg::outbox::CHANNEL);
+        assert_eq!(notification.payload(), "", "an empty payload (Q-022-8)");
+        n += 1;
+    }
+    n
+}
+
+/// E1 (spec 022, REQ-022-20): one notification per committed transaction that writes the
+/// outbox, none for a refused changeset nor a rolled back transaction.
+#[kartenn_testing::pg_test]
+async fn a_committed_changeset_notifies_the_outbox_once(pool: PgPool) {
+    let mut listener = sqlx::postgres::PgListener::connect_with(&pool)
+        .await
+        .unwrap();
+    listener
+        .listen(kartenn_store_pg::outbox::CHANNEL)
+        .await
+        .unwrap();
+    let author = person(&pool).await;
+    let store = PgStore::new(pool.clone());
+    let wait = std::time::Duration::from_millis(300);
+    let req = request(
+        author,
+        vec![
+            Operation::CreateDomain {
+                local: Some(1),
+                slug: "prod".into(),
+            },
+            Operation::CreatePrefix {
+                local: None,
+                domain: Ref::Local(1),
+                prefix: "10.0.0.0/8".into(),
+                nature: Nature::Container,
+                point_to_point: false,
+                anycast: false,
+            },
+        ],
+    );
+    submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    assert_eq!(notified(&mut listener, wait).await, 1);
+    let refused = request(
+        author,
+        vec![Operation::CreateDomain {
+            local: None,
+            slug: "Bad".into(),
+        }],
+    );
+    submit(&store, &Unrestricted, &refused, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    assert_eq!(notified(&mut listener, wait).await, 0, "refused: no event");
+    // A transaction that notifies then rolls back notifies no one.
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("SELECT pg_notify($1, '')")
+        .bind(kartenn_store_pg::outbox::CHANNEL)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.rollback().await.unwrap();
+    assert_eq!(notified(&mut listener, wait).await, 0, "rolled back");
+}

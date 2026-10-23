@@ -72,13 +72,16 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 ## P2 — Lecteur partagé
 
-- [ ] 5. `NOTIFY` : `pg_notify('kartenn_outbox','')` dans les transactions qui écrivent
+- [x] 5. `NOTIFY` : `pg_notify('kartenn_outbox','')` dans les transactions qui écrivent
   l'outbox — E1, REQ-022-20 — verify : test d'intégration, une notification par
   transaction validée, aucune pour une transaction annulée
   - où : `crates/kartenn-store-pg/src/write.rs` (`write_events`, insertion de
     `org.kartenn.changeset.applied`), `crates/kartenn-store-pg/src/pending.rs` (`event`) ;
     test voisin `crates/kartenn-service/tests/it/outbox.rs`
   - dépend de : 2
+  - fait : `outbox::notify` (canal `outbox::CHANNEL`) appelé après chaque insertion
+    (une instruction de plus par transaction, mesurée par le banc) ; test
+    `a_committed_changeset_notifies_the_outbox_once`.
 - [ ] 6. Plancher en mémoire : variante sans écriture de `floor.rs` (`pending_max`,
   `pending_xmax`, montée sur `pg_snapshot_xmin`) et balayage de la fenêtre — E6,
   REQ-022-7 — verify : transaction longue qui détient un numéro inférieur, jamais sautée

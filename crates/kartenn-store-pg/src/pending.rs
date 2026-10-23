@@ -95,10 +95,10 @@ async fn event(
     .bind(author)
     .bind(by)
     .bind(rejection)
-    .execute(conn)
+    .execute(&mut *conn)
     .await
     .map_err(store_err)?;
-    Ok(())
+    crate::outbox::notify(conn).await
 }
 
 /// Ends a pending changeset (`rejected` by `by`, or `withdrawn`), with its event, in the

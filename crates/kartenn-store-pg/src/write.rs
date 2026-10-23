@@ -323,6 +323,9 @@ impl PgTx {
         domains: &[Uuid],
         keys: &[String],
     ) -> Result<(), StoreError> {
+        if !self.events.is_empty() {
+            crate::outbox::notify(&mut self.tx).await?;
+        }
         for event in std::mem::take(&mut self.events) {
             sqlx::query(
                 "INSERT INTO outbox (changeset_id, domain_ids, order_keys, payload)
@@ -822,6 +825,7 @@ async fn write_journal(
         .execute(&mut **tx)
         .await
         .map_err(store_err)?;
+        crate::outbox::notify(tx).await?;
     }
     record_operations(tx, journal).await
 }
