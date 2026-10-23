@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -22,19 +22,18 @@ Deux livrables clients de l'API REST (D7), qui n'ont aucun autre accès au serve
   complétion, plusieurs formats de sortie, le rendu des problèmes avec leur code, les
   écritures par changeset avec `--dry-run`, les imports par morceaux et les profils.
 
-L'utilisateur a demandé, le 2026-10-23, de commencer cette conception maintenant. La
-feuille de route (D31) plaçait la CLI « ensuite », après la v0.3 : c'est un
-**démarrage anticipé, par choix de l'utilisateur** (arbitrage A6 dans
-[`decisions.md`](decisions.md)). Cette spec est un **brouillon** : elle n'est pas
-validée, et rien ne s'implémente avant l'arbitrage des points listés en fin de
-[`decisions.md`](decisions.md).
+Les deux livrables sont des **paquets distincts** (T7) : la bibliothèque, sous
+MPL-2.0, ne dépend d'aucune dépendance de la CLI ; la CLI est sous AGPL-3.0 (T8).
+Spec **validée le 2026-10-23** : l'utilisateur a rendu les arbitrages A1 à A8 et les
+questions Q-023-1 à 14 sont tranchées ([`decisions.md`](decisions.md)). L'implémentation
+commence tout de suite, avant la v0.3 (D31 amendée, A6).
 
 Sources : D7, D13, D31, D37, Q-ouv-1, Q-ouv-6
 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)). Spec 004 (changesets,
 simulation, propositions). Spec 005 (jetons Bearer RFC 9068, comptes de service,
 secours). Spec 006 (contrat HTTP, ADR 0022). ADR 0026, clause 9 (conventions REST des
-modules). Specs 008 à 011 (routes des modules). Spec 022 (événements SSE, brouillon en
-cours d'écriture). Maquette : [`maquette.md`](maquette.md).
+modules). Specs 008 à 011 (routes des modules). Spec 022 (événements SSE, `GET /v1/events`, validée le
+2026-10-23). Maquette : [`maquette.md`](maquette.md).
 
 ### Vocabulaire
 
@@ -95,13 +94,19 @@ Acceptation :
 
 #### REQ-023-4 — Transport
 La bibliothèque doit offrir un client synchrone et un client asynchrone qui partagent le
-même cœur. Elle doit vérifier TLS par défaut, accepter un paquet d'autorités (`ca_bundle`)
-et respecter les variables de mandataire standard (`HTTPS_PROXY`, `NO_PROXY`). Elle doit
-envoyer un `User-Agent` qui porte sa version. [T5]
+même cœur. Ils passent par un port de transport (`send`, `stream`, `sse`) dont
+l'adaptateur par défaut repose sur httpx2. La bibliothèque doit :
+- vérifier TLS par défaut ;
+- accepter un paquet d'autorités (`ca_bundle`) par un contexte SSL explicite, sans repli
+  vers le magasin du système quand il est donné ;
+- respecter les variables de mandataire standard (`HTTPS_PROXY`, `NO_PROXY`) ;
+- envoyer un `User-Agent` qui porte sa version. [T5]
 
 Acceptation :
 - Contre un serveur à certificat auto-signé, sans `ca_bundle`, la connexion échoue
   (`client.tls`) ; avec le paquet de la CA, elle réussit.
+- Avec un `ca_bundle` qui ne contient pas la CA du serveur, la connexion échoue même si
+  cette CA figure dans le magasin du système.
 
 #### REQ-023-5 — Reprise et limites
 La bibliothèque doit rejouer une requête refusée par 429 ou 503 après le délai de
@@ -362,9 +367,20 @@ langue suit `--lang`, puis le profil, puis `LC_ALL`, `LC_MESSAGES` et `LANG` ; l
 sert de repli. Les codes, clés et noms de commandes ne se traduisent pas. [Q-ouv-6, T21]
 
 #### REQ-023-38 — Suivi d'événements
-`kartenn watch` doit suivre les événements du serveur (changesets, imports, flux) quand la
-spec 022 (SSE) est servie. Sans elle, la commande est absente. `--follow` sur un import
-ou un changeset en attente interroge alors le serveur à intervalle borné. [T22, spec 022]
+La bibliothèque (`events()`, `aevents()`) et `kartenn watch` doivent lire
+`GET /v1/events` (022) en flux. Ils envoient `Authorization` et posent `Last-Event-ID`
+eux-mêmes. Ils acceptent les filtres de la 022 (`--types`, `--domains`, `--objects`,
+`--kinds`). Avant ouverture, ils respectent le statut et `Retry-After` ; ils reprennent
+avec une attente croissante, plafonnée et aléatoire. Ils écartent les doublons par
+identité d'événement, et signalent `reset` sans fermer le flux. La commande est absente
+quand `capabilities.events` vaut `null`. `--follow` d'un import ou d'un changeset en
+attente utilise le flux s'il existe, sinon il interroge le serveur. [T22, 022]
+
+Acceptation :
+- Coupure du flux après l'événement `k1.X` : la reprise envoie `Last-Event-ID: k1.X` ;
+  un événement reçu deux fois n'est affiché qu'une fois.
+- `kartenn watch --types core.prefix -o ndjson` écrit un événement `changes` par ligne
+  dès sa réception.
 
 ### I. Transverse
 
@@ -399,8 +415,29 @@ la CLI affiche la méthode, le chemin, le statut, la durée et l'identifiant de 
 rendu par le serveur. La CLI n'émet aucune autre télémétrie. [012/REQ-012-6, Q-023-11]
 
 #### REQ-023-42 — Paquetage et licence
-La bibliothèque et la CLI doivent se livrer en wheels `py3-none-any` (uv), en paquet Nix
-du flake et en image de conteneur facultative. Licence MPL-2.0 (Q-ouv-1). [T7, T8, A3]
+La bibliothèque et la CLI doivent se livrer comme deux distributions distinctes
+(`kartenn`, `kartenn-cli`), chacune avec son pyproject, sa version, ses tests et sa
+publication. Elles sont produites en wheels `py3-none-any` (uv) et en paquets Nix du
+flake. Licences : bibliothèque MPL-2.0 (Q-ouv-1), CLI AGPL-3.0 (D37). [T7, T8]
+
+#### REQ-023-44 — Indépendance de la bibliothèque
+La bibliothèque ne doit dépendre, à l'exécution, que de `httpx2` et `platformdirs`. Elle
+ne doit importer aucune dépendance de la CLI (click, rich-click, rich, keyring, PyYAML,
+jmespath). [T7]
+
+Acceptation :
+- Dans un environnement où seule `kartenn` est installée, `import kartenn` et un
+  parcours de lecture et d'écriture sur transport simulé réussissent.
+
+#### REQ-023-45 — Outillage de test et de contrôle
+Chaque paquet doit se tester par pytest ≥ 9.1, avec les greffons de T23. `k-py-check`
+(sh POSIX) doit lancer ruff, pyright et `pytest -n auto` sur les deux paquets, et rendre
+un verdict sur une ligne. La CI doit lancer `k-py-check`. [T23, T25]
+
+Acceptation :
+- Une couverture de branches sous le seuil `fail_under` fait échouer `k-py-check`.
+- `k-py-check` sort en `OK — …` sur une ligne en cas de succès, et ne liste que les
+  échecs sinon.
 
 #### REQ-023-43 — Couverture
 Un test doit dériver la CLI du contrat de référence
@@ -412,13 +449,15 @@ une commande dérivée ou nommée, ni listée dans les exclusions motivées du d
 
 - TUI et serveur MCP : specs ultérieures. Le MCP réutilisera la bibliothèque (Q-023-13).
 - Bindings natifs (PyO3) et crate cliente Rust (T2).
+- HTTP/3 : le port de transport l'admet (`kartenn[http3]`, curl_cffi), à écrire seulement
+  quand le serveur ou son mandataire le parlera et qu'un banc montrera un gain (T5).
 - Autre client que Python. Le SDK TypeScript du web reste celui de la 007.
 - Windows : au mieux, sans test en CI. PowerShell n'a pas de complétion.
 - Mise en forme de rapports (PDF, tableurs) : la CLI sort des données, pas des documents.
 - Mode hors ligne : toute commande exige le serveur, sauf `--help`, la complétion locale
   et `config`.
 
-## Questions ouvertes
+## Questions
 
-Voir [`decisions.md`](decisions.md), § Questions ouvertes (Q-023-1 à 14) et § Arbitrages
-demandés (A1 à A8).
+Toutes arbitrées le 2026-10-23 : [`decisions.md`](decisions.md), § Arbitrages rendus
+(A1 à A8) et § Questions arbitrées (Q-023-1 à 14).

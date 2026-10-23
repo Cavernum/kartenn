@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -7,51 +7,61 @@ updated: 2026-10-23
 
 ## Vue d'ensemble
 
-Deux paquets Python dans `clients/python/` (espace de travail uv) :
+Deux paquets Python **distincts** dans `clients/python/` (T7). Chacun a son pyproject,
+sa version, ses tests et sa publication sur PyPI, faite par l'utilisateur.
 
-- `kartenn` (bibliothèque, MPL-2.0) : un cœur sans entrées-sorties, deux clients
-  (synchrone et asynchrone) sur un port de transport httpx, et un **catalogue** dérivé des
-  capacités et du contrat du serveur ;
-- `kartenn-cli` (commande `kartenn`, MPL-2.0) : un arbre Click construit paresseusement
-  depuis le catalogue, des commandes nommées par une table, des rendus et une
-  configuration.
+- `kartenn` (bibliothèque, MPL-2.0, dépendances d'exécution : `httpx2`, `platformdirs`)
+  comprend :
+  - un cœur sans entrées-sorties ;
+  - deux clients, synchrone et asynchrone, sur un **port de transport** (`send`,
+    `stream`, `sse`) dont l'adaptateur par défaut repose sur httpx2 ;
+  - un **catalogue** dérivé des capacités et du contrat du serveur.
+- `kartenn-cli` (commande `kartenn`, AGPL-3.0) : un arbre click construit paresseusement
+  depuis le catalogue en cache, des commandes nommées par une table, des rendus, une
+  configuration et le trousseau. rich-click sert seulement à `--help`.
 
 > Décision centrale : aucune ressource de module n'est connue du client. Le catalogue est
 > **dérivé à l'exécution** du contrat OpenAPI servi (`/v1/openapi.json`) et des
 > capacités (`/v1/capabilities`), selon les conventions REST imposées à tout module
-> (ADR 0026, clause 9). Il est gardé en cache par révision du serveur. Un module livré
-> côté serveur apparaît dans la bibliothèque et dans la CLI sans nouvelle version
-> (T2, T3).
+> (ADR 0026, clause 9). Il est gardé en cache par révision du serveur (ETag du contrat).
+> Un module livré côté serveur apparaît dans la bibliothèque et dans la CLI sans
+> nouvelle version (T2, T3 ; D7 amendée).
 
 ```mermaid
 flowchart LR
-  subgraph cli[kartenn-cli]
-    R[racine Click paresseuse] --> T[table des commandes nommées]
+  subgraph cli[kartenn-cli · AGPL-3.0]
+    R[racine click paresseuse] --> T[table des commandes nommées]
     R --> D[commandes dérivées]
     R --> A[kartenn api]
+    R --> W[kartenn watch]
     D --> O[rendus : table, json, yaml, csv, ndjson]
+    R --> KS[TokenStore keyring]
   end
-  subgraph lib[kartenn]
+  subgraph lib[kartenn · MPL-2.0]
     C[Client / AsyncClient] --> K[Catalogue]
-    C --> CS[Changesets, imports, pagination, problèmes]
+    C --> CS[Changesets, imports, pagination, problèmes, événements]
     C --> AU[Auth : Basic, Bearer OIDC, secours]
-    C --> P[Port de transport httpx]
+    C --> P[Port de transport : send, stream, sse]
+    P --> H2[Adaptateur httpx2]
+    P -.-> H3[kartenn[http3] : curl_cffi, futur]
     K --> CA[(cache XDG : catalogue dérivé)]
   end
   cli --> lib
-  P -->|HTTPS /v1| S[kartenn-server]
+  H2 -->|HTTPS /v1, /v1/events| S[kartenn-server]
   AU -->|OIDC natif| I[Émetteur OIDC]
 ```
 
 ## Changements
 
-### Disposition (T7)
+### Disposition (T7, T25)
 
 ```
 clients/python/
-  pyproject.toml            # espace de travail uv, outils (ruff, pyright, pytest)
+  pyproject.toml            # espace de travail uv (développement seulement), ruff, pyright
   uv.lock
-  kartenn/                  # bibliothèque
+  kartenn/                  # distribution « kartenn », MPL-2.0
+    pyproject.toml          # version propre ; deps : httpx2>=2.16, platformdirs ; [tool.pytest]
+    LICENSE                 # MPL-2.0
     src/kartenn/
       __init__.py           # Client, AsyncClient, exceptions publiques
       _core/                # sans entrées-sorties
@@ -59,31 +69,43 @@ clients/python/
         problems.py         # Problem → exceptions, violations
         pages.py            # curseurs, links.next
         dates.py            # RFC 3339, dates seules, relatives
-      transport.py          # port Transport/AsyncTransport ; adaptateur httpx
+        sse.py              # suivi Last-Event-ID, doublons, reset, attente de reprise
+      transport/
+        port.py             # Transport, AsyncTransport : send, stream, sse
+        httpx2.py           # adaptateur par défaut ; contexte SSL explicite si ca_bundle
       retry.py              # 429/503 et Retry-After, idempotence
       catalog/
         derive.py           # contrat + capacités → Catalogue
         model.py            # Resource, Operation, Param, Schema (dataclasses gelées)
         cache.py            # XDG, clé de révision, écriture atomique 0600
+      profiles.py           # lecture de config.toml (tomllib), sans secret
       resources.py          # Resource dynamique, Record (dict + etag + links)
       changesets.py         # ChangesetBuilder, simulate, submit, actions
       imports.py            # ImportSession : morceaux, reprise, avancement
+      events.py             # events() / aevents() sur GET /v1/events
       auth/
-        basic.py  bearer.py  oidc_native.py  device.py  breakglass.py  store.py
+        basic.py  bearer.py  oidc_native.py  device.py  breakglass.py
+        store.py            # port TokenStore ; MemoryStore, FileStore (0600, explicite)
       stubs.py              # génération des .pyi
+      __main__.py           # python -m kartenn stubs generate (sans dépendance de la CLI)
     tests/
-  kartenn-cli/
+  kartenn-cli/              # distribution « kartenn-cli », AGPL-3.0
+    pyproject.toml          # version propre ; deps : kartenn>=X.Y,<X+1, click>=8.5,
+                            #   rich-click, rich, keyring, PyYAML, jmespath ; [tool.pytest]
+    LICENSE                 # AGPL-3.0
     src/kartenn_cli/
-      main.py               # racine Click, chargement paresseux
-      tree.py               # catalogue → commandes Click
+      main.py               # racine click, chargement paresseux
+      tree.py               # catalogue → commandes click
       named.py              # table des commandes nommées (policy check, flow request…)
-      render/               # table (rich), json, ndjson, yaml, csv, problèmes
+      render/               # table (rich), json, ndjson, yaml, csv, problèmes, événements
       edit.py               # $EDITOR, Merge Patch, 412
       importing.py          # CSV/JSON → ImportElement, avancement
       complete.py           # complétion, cache de valeurs
-      config.py             # profils TOML, trousseau
+      config.py             # profils, précédence, TokenStore keyring
+      coverage.py           # exclusions motivées (REQ-023-43)
       i18n/  fr.toml  en.toml
     tests/
+      __snapshots__/        # syrupy
 ```
 
 ### Bibliothèque
@@ -93,7 +115,7 @@ clients/python/
 ```python
 from kartenn import Client
 
-with Client.from_profile("prod") as kn:          # ou Client(url, auth=…, ca_bundle=…)
+with Client.from_profile("prod") as kn:          # ou Client(url, auth=…, ca_bundle=…, token_store=…)
     at = kn.at(valid_at="2026-11-01T00:00:00+01:00")   # vue datée, immuable
     for p in at.prefixes.list(domain="interne", within="192.0.2.0/24"):
         print(p["value"], p.etag)
@@ -108,6 +130,9 @@ with Client.from_profile("prod") as kn:          # ou Client(url, auth=…, ca_b
 - `kn.call(operation_id, **paramètres, body=None)` atteint toute opération du catalogue par
   son `operationId` (pendant de `kartenn api`). `kn.modules` liste les modules servis ;
   `kn.has("policy")` teste la présence d'un module.
+- `Client.from_profile` lit `config.toml` (tomllib) sans aucun secret ; les jetons
+  passent par le `TokenStore` donné (mémoire par défaut ; la CLI fournit celui du
+  trousseau).
 - `Client` et `AsyncClient` partagent `_core`. Les fonctions du cœur prennent et rendent
   des descriptions de requêtes et de réponses ; le client exécute le transport.
 - `kn.at(valid_at=, as_of=)` rend une vue qui ajoute les dates à toute lecture. Une
@@ -151,8 +176,8 @@ Dérivation, en une passe sur le contrat :
 
 | Mode | Usage | Matériel | Stockage |
 |---|---|---|---|
-| `basic` | compte de service | nom ; secret par trousseau, `KARTENN_SECRET_FILE` ou entrée standard | trousseau (`kartenn:<profil>:secret`) |
-| `oidc` | humain | émetteur (URL de découverte), `client_id` public, audience, scopes | jeton d'accès et jeton de rafraîchissement au trousseau |
+| `basic` | compte de service | nom ; secret par `TokenStore`, `KARTENN_SECRET_FILE` ou entrée standard | `TokenStore` (CLI : trousseau, `kartenn:<profil>:secret`) |
+| `oidc` | humain | émetteur (URL de découverte), `client_id` public, audience, scopes | jeton d'accès et jeton de rafraîchissement dans le `TokenStore` (CLI : trousseau) |
 | `token` | jeton fourni (CI) | `KARTENN_TOKEN` | aucun |
 | `breakglass` | secours | nom, phrase de passe et TOTP saisis sans écho | cookie en mémoire ; `--keep` : `$XDG_RUNTIME_DIR/kartenn/<profil>.session` (0600) |
 
@@ -174,6 +199,57 @@ Flux `oidc` (T10) :
    - Elle s'arrête sur `access_denied` ou `expired_token`.
 4. Rafraîchissement : à 60 s de l'expiration, ou sur un 401 `invalid_token`, une seule
    fois. Un échec efface les jetons et demande `kartenn login`.
+
+#### Transport (REQ-023-4, 5 ; T5)
+
+```python
+class Transport(Protocol):                       # et AsyncTransport, mêmes méthodes en async
+    def send(self, req: Request) -> Response: ...                 # corps lu en entier
+    def stream(self, req: Request) -> ContextManager[StreamResponse]: ...   # corps en flux
+    def sse(self, req: Request) -> ContextManager[EventStream]: ...         # text/event-stream
+```
+
+- Les types `Request`, `Response`, `StreamResponse` et `EventStream` sont ceux du cœur, et
+  non ceux de httpx2 : l'adaptateur traduit. Aucun module hors de `transport/httpx2.py`
+  n'importe httpx2.
+- Adaptateur httpx2 :
+  - un `httpx2.Client` ou `httpx2.AsyncClient` par client, HTTP/2 si l'extra est
+    installé ;
+  - délais : 10 s de connexion et 60 s de lecture, sauf pour `sse` (aucun délai de
+    lecture : le serveur envoie `: ping` toutes les 15 s, et 45 s de silence ferment et
+    reprennent le flux) ;
+  - `sse` repose sur `client.sse()` de httpx2.
+- **Confiance TLS** : httpx2 utilise truststore, donc le magasin du système. Quand le
+  profil donne `ca_bundle`, l'adaptateur construit un `ssl.SSLContext` explicite
+  (`ssl.create_default_context(cafile=…)`, vérification du nom, TLS ≥ 1.2) et le passe
+  en `verify=` : seul ce paquet fait foi. Un test vérifie :
+  - le paquet du profil est accepté ;
+  - une CA présente seulement dans le magasin du système est refusée quand `ca_bundle`
+    est donné ;
+  - sans `ca_bundle`, le magasin du système est utilisé.
+- **HTTP/3** (futur, T5) : un second adaptateur `kartenn[http3]` (curl_cffi, libcurl et
+  ngtcp2) implémenterait le même port. Il serait choisi par `transport="http3"` dans le
+  profil, et n'est pas écrit dans cette spec.
+- Tests : `httpx2.MockTransport` sous l'adaptateur ; les tests du cœur n'utilisent aucun
+  transport.
+
+#### Événements (REQ-023-38 ; T22, spec 022)
+
+- `kn.events(types=…, domains=…, objects=…, kinds=…, last_event_id=None)` rend un
+  itérateur d'`Event(kind, id, data)`, où `kind` vaut `ready`, `changes`, `changeset` ou
+  `reset`. `kn.aevents(…)` en est la version asynchrone.
+- `GET /v1/events`, `Accept: text/event-stream`, `Authorization` ; `Last-Event-ID` est
+  posé par le client à la reprise.
+- Le curseur (`id`) est chiffré et opaque : il est gardé tel quel. Une ligne `id:` seule
+  avance le curseur sans événement (022 § Format).
+- **Avant ouverture** : 401 → un rafraîchissement du jeton puis une nouvelle tentative ;
+  429 et 503 → attente de `Retry-After` ; sinon le problème est levé.
+- **Coupure** : reprise avec une attente croissante (base `retry:` reçu, ×2, plafond
+  30 s, aléa de ±20 %), avec le dernier `id`.
+- **Doublons** : un ensemble borné (les 10 000 dernières identités) écarte les
+  événements déjà vus. Des doublons sont possibles, rien n'est perdu (022 § Doublons).
+- **`reset`** : l'événement est rendu à l'appelant (la CLI l'affiche) et le flux continue.
+- Absence : `capabilities.events` à `null` → `client.operation-unavailable`.
 
 #### Changesets et imports (REQ-023-13 à 15)
 
@@ -212,7 +288,7 @@ de vérification de types.
 #### Racine et chargement (REQ-023-18, 39)
 
 - `main.py` n'importe que Click et la configuration. `--version`, `config` et
-  `completion` n'importent ni httpx ni rich.
+  `completion` n'importent ni httpx2, ni rich, ni rich-click.
 - `KartennGroup.list_commands` lit le catalogue en cache du profil courant (JSON compact)
   sans réseau. Sans cache, la première commande qui en a besoin le construit, avec un
   message d'une ligne sur la sortie d'erreur (« découverte du serveur … »).
@@ -297,6 +373,15 @@ erreur [changeset-refused] Changeset refusé (422)
 Le code est toujours en tête, entre crochets, sans couleur requise ; en
 `--output json`, le problème RFC 9457 est écrit tel quel sur la sortie d'erreur.
 
+#### Suivi (REQ-023-38)
+
+- `kartenn watch [--types t,…] [--domains d,…] [--objects id,…] [--kinds k,…]` affiche une
+  ligne par événement en table (heure, sorte, changeset, objets résolus en clé quand ils
+  sont en cache), ou un objet par ligne en `ndjson`. `--since <id>` reprend après un
+  curseur connu. Ctrl-C ferme proprement le flux.
+- `import --follow` et `changeset show --follow` s'abonnent aux événements de leur
+  changeset (`--objects`) quand le flux existe ; sinon ils interrogent le serveur.
+
 #### Configuration (REQ-023-36)
 
 ```toml
@@ -321,7 +406,7 @@ ca_bundle = "/etc/ssl/interne-ca.pem"
 Précédence : option, puis variable d'environnement (`KARTENN_URL`, `KARTENN_PROFILE`,
 `KARTENN_OUTPUT`, `KARTENN_LANG`), puis profil, puis défaut.
 
-### Amendements du serveur (A5)
+### Amendements du serveur (A5, tâches 4 à 6)
 
 Trois amendements additifs à la 006, sans changement de `/v1` existant :
 1. `GET /v1/openapi.json` : ETag fort (empreinte du document), `Cache-Control: no-cache`,
@@ -389,7 +474,7 @@ nouvelle non classée.
 ## Alternatives considérées
 
 - Client généré au build (openapi-python-client) : rejeté (T2, a). Il est figé par build,
-  ne couvre ni `QUERY`, ni les changesets, ni les imports, et épingle httpx.
+  ne couvre ni `QUERY`, ni les changesets, ni les imports, et épingle httpx 0.28.
 - Bindings PyO3 sur une crate Rust (T2, c) : matrice de wheels, aucun gain pour un client
   limité par le réseau.
 - CLI en Rust (binaire unique, démarrage de quelques ms) : elle ne réutiliserait pas la
@@ -400,11 +485,12 @@ nouvelle non classée.
 
 ## Risques
 
-- **Démarrage de Python** : un interpréteur nu démarre en 15 à 25 ms ; httpx coûte environ
-  65 ms à l'import et rich environ 17 ms. Les budgets de REQ-023-39 ne tiennent qu'avec
+- **Démarrage de Python** : un interpréteur nu démarre en 15 à 25 ms ; httpx2 coûte de l'ordre
+  de 65 ms à l'import (mesure de httpx, à refaire pour httpx2) et rich environ 17 ms. Les budgets de REQ-023-39 ne tiennent qu'avec
   un import paresseux strict, gardé par un test (T24).
-- **httpx figé** : aucune version stable depuis décembre 2024. Le port de transport
-  (T5) borne le changement.
+- **httpx2 jeune** : c'est un fork récent. Le port de transport (T5) borne un changement
+  d'adaptateur à un fichier. truststore modifie la confiance par défaut ; le contexte SSL
+  explicite et son test couvrent le cas d'une CA propre.
 - **Contrat volumineux** : 830 Kio aujourd'hui, et il croît avec les modules. Le
   catalogue dérivé et le cache par révision évitent de le relire.
 - **Conventions non tenues par un module futur** : la commande dérivée serait mal nommée
@@ -418,17 +504,55 @@ nouvelle non classée.
 
 ## Stratégie de test
 
+Configuration commune aux deux paquets (chacun dans son `pyproject.toml`) ; les valeurs
+exactes sont à confirmer à la tâche 1 :
+
+```toml
+[tool.pytest]                       # table TOML native de pytest ≥ 9.1
+minversion = "9.1"
+strict = true                       # marqueurs, configuration et xfail stricts
+testpaths = ["tests"]
+addopts = ["-ra", "--cov", "--cov-report=term-missing:skip-covered"]
+timeout = 30
+timeout_method = "signal"
+assertion_text_diff_style = "…"     # diffs lisibles natifs (remplace pytest-clarity)
+
+[tool.coverage.run]
+branch = true
+parallel = true
+patch = ["subprocess"]              # mesure des tests de la CLI en sous-processus
+source_pkgs = ["kartenn"]           # « kartenn_cli » dans le paquet de la CLI
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+```
+
+- Greffons de développement : `pytest>=9.1`, `pytest-xdist`, `pytest-cov>=7`,
+  `coverage>=7.17`, `anyio` (greffon pytest intégré : `@pytest.mark.anyio`, moteurs
+  asyncio et trio), `pytest-randomly`, `pytest-timeout`, `hypothesis`, `syrupy` (CLI) ;
+  facultatifs : `pytest-icdiff`, `pytest-sugar` (local seulement ; `-p no:sugar` en CI).
+- `k-py-check` lance `pytest -n auto -p no:sugar` dans chaque paquet. Les instantanés
+  syrupy se mettent à jour en série (`pytest --snapshot-update`, sans `-n`).
+- Tests du cœur sans transport ; tests de l'adaptateur et des clients sur
+  `httpx2.MockTransport` (respx ne gère pas httpx2).
+
 | Tâches | Tests |
 |---|---|
-| 2 à 7 | unitaires pytest, `httpx.MockTransport` : problèmes, reprise, pagination, dates, idempotence, Merge Patch, If-Match |
-| 4 | dérivation sur `specs/006-api-rest/openapi-v1.json` : catalogue en instantané ; contrat amputé du tag `policy` ; module fictif `demo` ajouté |
-| 13 à 18 | arbre de commandes en instantané (`--help` de chaque groupe), rendus en instantané, codes de sortie par statut, couverture (REQ-023-43) |
-| 19 | bout en bout contre `kartenn-server` (base `kartenn_cli`, comme `web/e2e/serve.sh`) : les sessions de la [maquette](maquette.md) rejouées et comparées (dates et UUID normalisés) |
-| 8, 19 | `kartenn-dev-idp` : client public, bouclage, flux d'appareil, rotation des jetons de rafraîchissement |
-| 20 | banc `bench-cli` : budgets de REQ-023-39 |
+| 1 | installation de `kartenn` seule : aucun import de click, rich, keyring, yaml, jmespath (REQ-023-44) |
+| 8 | unitaires et hypothesis : dates (aller-retour RFC 3339, relatives), filtres → requête et `QUERY`, problèmes (membres inconnus conservés), pages |
+| 9 | `MockTransport` : `Retry-After` en secondes et en date, `POST` sans clé jamais rejoué, flux `stream` et `sse` ; contexte SSL explicite (serveur TLS local à CA de test) |
+| 10 | dérivation sur `specs/006-api-rest/openapi-v1.json` : catalogue en instantané ; contrat sans le tag `policy` ; module fictif `demo` ajouté ; hypothesis sur les noms de collections |
+| 11 à 15 | `MockTransport` : If-Match et 412, changesets (202, sections), imports (reprise, mémoire bornée), auth (state, PKCE, `slow_down`, rafraîchissement), événements (reprise, doublons, `reset`) |
+| 16 à 25 | instantanés syrupy : `--help` de chaque groupe, rendus de la [maquette](maquette.md), problèmes ; un test par code de sortie ; couverture (REQ-023-43) ; garde d'import de `--version` |
+| 7, 13, 26 | `kartenn-dev-idp` : client public, bouclage, flux d'appareil, rotation des jetons de rafraîchissement |
+| 26 | bout en bout `k-py-e2e` contre `kartenn-server` (base `kartenn_cli`, comme `web/e2e/serve.sh`) : sessions de la maquette rejouées (dates et UUID normalisés), serveur sans `policy`, `watch` si la 022 est servie |
+| 27 | banc `bench-cli` : budgets de REQ-023-39 |
 
 ## ADR
 
-- À proposer à la validation : **ADR 0033 — Clients découverts depuis le contrat**. Il
-  couvrirait l'approche (b) de T2, la découverte (T3) et le cache par révision (T20), et
-  préciserait D7 (« SDK généré depuis l'OpenAPI »).
+- **ADR 0035 — Clients découverts depuis le contrat** (proposée ; 0033 et 0034 sont
+  prises). Elle couvre l'approche de T2, la découverte (T3), le cache par révision (T20)
+  et le port de transport (T5, adaptateur HTTP/3 futur). Elle s'appuie sur
+  l'amendement de D7 (« SDK client dérivé de l'OpenAPI »). Rédigée à la tâche 10,
+  acceptée à la tâche 28.

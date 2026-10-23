@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -395,4 +395,33 @@ with Client.from_profile("prod") as kn:
     except Refused as e:
         for viol in e.violations:
             print(viol.rule, viol.pointer, viol.detail)  # le code toujours disponible
+
+    for ev in kn.events(types=["core.prefix"], domains=["interne"]):   # GET /v1/events
+        if ev.kind == "changes":
+            print(ev.id, ev.data["changeset"], [o["id"] for o in ev.data.get("objects", [])])
+        elif ev.kind == "reset":
+            print("relire ce qui est suivi")
+```
+
+## 15. Suivre les événements (spec 022)
+
+```
+$ kartenn watch --types core.prefix,vlan.vlan --domains interne
+Flux d'événements ouvert (profil prod) — Ctrl-C pour arrêter.
+10:31:02  prêt
+10:31:40  changes    changeset 9d27…  préfixe interne/203.0.113.0/26 ; VLAN site-nord/140
+10:33:15  changeset  1aa2…  en attente → appliqué
+10:41:57  changes    changeset 3c90…  invalidation large : core.prefix (interne)
+10:52:10  reset      débordement du tampon : relisez ce que vous suivez
+^C
+Flux fermé ; reprendre : kartenn watch --since k1.bWFy… --types core.prefix,vlan.vlan --domains interne
+
+$ kartenn watch --objects 0c41… -o ndjson
+{"kind": "ready", "id": "k1.Qm9n…", "data": {"heartbeat": 15}}
+{"kind": "changeset", "id": "k1.Y2Fy…", "data": {"changeset": "0c41…", "state": "applied"}}
+
+$ kartenn -p labo watch
+erreur [client.operation-unavailable] Ce serveur ne sert pas le flux d'événements (capabilities.events = null).
+$ echo $?
+2
 ```
