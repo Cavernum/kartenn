@@ -38,6 +38,9 @@ class Refusing:
         pass
 
 
+PREFIX = "7c1e0000-0000-7000-8000-000000000001"
+
+
 def refusing(url: str, profile: object) -> Any:  # noqa: ANN401 - a transport
     del url, profile
     return Refusing()
@@ -199,10 +202,10 @@ def test_layout_of_the_reference_contract(server: FakeServer) -> None:
 
 def test_a_derived_verb_calls_its_operation(server: FakeServer) -> None:
     server.route("GET", "/v1/prefixes/{id}/occupancy", {"used": "3", "total": "256"})
-    result = kartenn("prefixes", "occupancy", "7c1e", "-o", "json")
+    result = kartenn("prefixes", "occupancy", PREFIX, "-o", "json")
     assert result.exit_code == 0, result.output
     assert result.stdout == '{"used": "3", "total": "256"}\n'
-    assert server.seen[-1].url.path == "/v1/prefixes/7c1e/occupancy"
+    assert server.seen[-1].url.path == f"/v1/prefixes/{PREFIX}/occupancy"
     server.route("GET", "/v1/vlans", {"items": [], "links": {}})
     listed = kartenn("vlan", "list", "--group", "a", "--group", "b", "--fields", "vid")
     assert listed.exit_code == 0, listed.output

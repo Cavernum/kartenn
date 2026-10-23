@@ -32,6 +32,7 @@ write = "Écriture"
 [metavar]
 name = "NOM"
 file = "FICHIER"
+prop = "CLÉ[:OP]=VALEUR"
 
 [opt]
 help = "Cette aide."
@@ -48,6 +49,11 @@ version = "Version du client."
 fields = "Membres à rendre (a,b.c)."
 query = "Projection JMESPath, avant le rendu."
 ids = "Montrer les identifiants (UUID) en table."
+freeze = "Figer le temps système à maintenant (pour les lectures suivantes : KARTENN_AS_OF)."
+prop = "Propriété : =, :between=a..b, :exists=true|false (répétable)."
+all = "Toutes les pages, lues et écrites au fil de l'eau."
+page_size = "Taille d'une page (1 à 1 000)."
+cursor = "Page suivante, de « suite : --cursor … » ; elle fige filtres et dates."
 
 [config]
 help = "Profils de configuration (sans aucun secret)."
@@ -123,6 +129,26 @@ unauthenticated = "Reconnectez-vous : kartenn login"
 
 [render]
 masked = "‹masquée›"
+
+[filter]
+unknown = "Filtre inconnu : {option}. Filtres : {filters}, --prop CLÉ[:OP]=VALEUR."
+
+[ref]
+no_key = "« {resource} » ne déclare pas de clé naturelle (x-kartenn) : désignez l'objet par son UUID, pas « {ref} »."
+shape = "« {ref} » n'a pas la forme de la clé de « {resource} » : {key}."
+not_found = "Aucun objet « {ref} » dans « {resource} » (aux dates de la lecture)."
+ambiguous = "« {ref} » désigne plusieurs objets de « {resource} » : donnez l'UUID."
+
+[list]
+valid_as_of = "valide au {valid}, tel qu'affirmé le {as_of}"
+valid = "valide au {valid}"
+as_of = "état au {as_of}"
+next = "suite : --all ou --cursor {cursor}"
+frozen = "figé : export KARTENN_AS_OF={as_of}"
+
+[list.count]
+one = "{count} élément"
+other = "{count} éléments"
 
 [module]
 unavailable = "Le module « {module} » n'est pas servi par ce serveur."

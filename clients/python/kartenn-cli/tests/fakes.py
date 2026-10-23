@@ -62,6 +62,19 @@ def without(contract: dict[str, Any], *tags: str) -> dict[str, Any]:
     return trimmed
 
 
+def with_keys(contract: dict[str, Any]) -> dict[str, Any]:
+    """The contract with the natural keys and the columns of `x-kartenn` (A5)."""
+    keyed = copy.deepcopy(contract)
+    paths = keyed["paths"]
+    paths["/v1/prefixes"]["x-kartenn"] = {
+        "key": ["domain", "value"],
+        "columns": ["domain", "value", "nature"],
+    }
+    paths["/v1/domains"]["x-kartenn"] = {"key": ["slug"]}
+    paths["/v1/vlans"]["x-kartenn"] = {"key": ["group", "vid"]}
+    return keyed
+
+
 def problem(status: int, slug: str, **members: object) -> httpx2.Response:
     body = {"type": f"urn:kartenn:problem:{slug}", "title": slug, "status": status, **members}
     return httpx2.Response(status, json=body, headers={"Content-Type": "application/problem+json"})

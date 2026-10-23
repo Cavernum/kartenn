@@ -500,7 +500,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     Budgets mesurés à cache chaud (contrat de référence, machine partagée, 20 à 40
     tirages) : `--help` 100 ms en médiane, 119 ms au p95 ; `policy --help` 90/106 ms ;
     `policy rules list --help` 93/113 ms.
-- [ ] 18. Lectures :
+- [x] 18. Lectures :
   - `--at`, `--as-of`, `--freeze` ;
   - filtres typés et `--prop` ;
   - `--fields`, `--query` (JMESPath), `--keys`, `--ids`, `--all`, `ndjson` en flux ;
@@ -509,6 +509,23 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   refusé sans requête ; `ndjson --all` en mémoire constante
   - où : `clients/python/kartenn-cli/src/kartenn_cli/tree.py`, `render/` ; maquette § 4
   - dépend de : 11, 17
+  - choix : lectures dans `reads.py` (`list`, `get`, autres lectures d'objet et de
+    sous-ressource) ; dates résolues par le cœur de la bibliothèque
+    (`kartenn._core.dates`), dans le fuseau du profil, sinon le fuseau local ; les dates
+    de la commande priment sur celles de la racine (`KARTENN_AS_OF` compris).
+    `--freeze` envoie `as_of` = maintenant (UTC, à la seconde) et l'écrit sous la table
+    (`export KARTENN_AS_OF=…`). Pied de table : nombre d'éléments, dates (l'`as_of` du
+    corps s'il est rendu, sinon celui demandé ; rien sinon), puis « suite : --all ou
+    --cursor <curseur> » ; hors table, cette suite va sur la sortie d'erreur. Options de
+    filtre toutes répétables (« un parmi ») ; une option inconnue de `list` est
+    `client.unknown-filter` avec la liste des filtres, avant toute requête. Une
+    sous-ressource paginée (`history`, `children`…) prend `--all`. Références : UUID,
+    sinon clé naturelle de `x-kartenn.key` découpée par `/` (la dernière partie garde ses
+    `/`) et cherchée par les filtres de `list` (`page_size=2`) : aucune → code 3,
+    plusieurs → code 2 ; sans clé déclarée, l'UUID est exigé (`client.key-unknown`),
+    conformément à Q-023-9. Le flux S (`x-kartenn`) n'est pas encore sur main : tests sur
+    un contrat simulé qui le porte. Une sortie `ndjson --all` écrit la page 1 avant de
+    demander la page 2 (testé).
 - [ ] 19. Complétion bash, zsh et fish (`shell_complete`) : catalogue, énumérations, clés
   et valeurs de propriétés, slugs ; cache de 5 min sans valeur masquée ; délai d'une
   seconde au plus — REQ-023-24 — verify : scripts générés ; complétions testées dans les

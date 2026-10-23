@@ -32,6 +32,7 @@ write = "Write"
 [metavar]
 name = "NAME"
 file = "FILE"
+prop = "KEY[:OP]=VALUE"
 
 [opt]
 help = "This help."
@@ -48,6 +49,11 @@ version = "Version of the client."
 fields = "Members to render (a,b.c)."
 query = "JMESPath projection, before rendering."
 ids = "Show the identifiers (UUID) in a table."
+freeze = "Freeze the system time to now (for the next reads: KARTENN_AS_OF)."
+prop = "Property: =, :between=a..b, :exists=true|false (repeatable)."
+all = "Every page, read and written as it comes."
+page_size = "Size of a page (1 to 1,000)."
+cursor = "Next page, from “next: --cursor …”; it freezes the filters and the dates."
 
 [config]
 help = "Profiles of the configuration (never a secret)."
@@ -123,6 +129,26 @@ unauthenticated = "Log in again: kartenn login"
 
 [render]
 masked = "‹masked›"
+
+[filter]
+unknown = "Unknown filter: {option}. Filters: {filters}, --prop KEY[:OP]=VALUE."
+
+[ref]
+no_key = "“{resource}” declares no natural key (x-kartenn): name the object by its UUID, not “{ref}”."
+shape = "“{ref}” does not have the shape of the key of “{resource}”: {key}."
+not_found = "No object “{ref}” in “{resource}” (at the dates of the read)."
+ambiguous = "“{ref}” names several objects of “{resource}”: give the UUID."
+
+[list]
+valid_as_of = "valid at {valid}, as asserted on {as_of}"
+valid = "valid at {valid}"
+as_of = "state at {as_of}"
+next = "next: --all or --cursor {cursor}"
+frozen = "frozen: export KARTENN_AS_OF={as_of}"
+
+[list.count]
+one = "{count} item"
+other = "{count} items"
 
 [module]
 unavailable = "The module “{module}” is not served by this server."

@@ -119,15 +119,17 @@
     GET|QUERY /v1/policy-rules  (list_policy_rules) — module policy
   
   Filtres:
-    --key KEY              Equal to, or held by, `key`.
-    --effect EFFECT        Equal to, or held by, `effect`.
-    --pattern PATTERN      Equal to, or held by, `pattern_id`.
-    --flow-type FLOW-TYPE  Equal to, or held by, `flow_type_ids`.
-    --service SERVICE      Equal to, or held by, `service_ids`.
+    --key KEY               Equal to, or held by, `key`.
+    --effect EFFECT         Equal to, or held by, `effect`.
+    --pattern PATTERN       Equal to, or held by, `pattern_id`.
+    --flow-type FLOW-TYPE   Equal to, or held by, `flow_type_ids`.
+    --service SERVICE       Equal to, or held by, `service_ids`.
+    --prop CLÉ[:OP]=VALEUR  Propriété : =, :between=a..b, :exists=true|false (répétable).
   
   Dates:
     --at DATE     Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339.
     --as-of DATE  Temps système : ce que kartenn affirmait alors.
+    --freeze      Figer le temps système à maintenant (pour les lectures suivantes : KARTENN_AS_OF).
   
   Sortie:
     -o, --output FORMAT  table | json | ndjson | yaml | csv  [défaut : table sur un terminal]
@@ -135,6 +137,9 @@
     --query JMESPATH     Projection JMESPath, avant le rendu.
     --keys / --labels    Clés internes ou libellés.
     --ids                Montrer les identifiants (UUID) en table.
+    --all                Toutes les pages, lues et écrites au fil de l'eau.
+    --page-size N        Taille d'une page (1 à 1 000).  [x>=1]
+    --cursor CURSOR      Page suivante, de « suite : --cursor … » ; elle fige filtres et dates.
   
   Options:
     -h, --help  Cette aide.

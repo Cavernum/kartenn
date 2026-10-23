@@ -59,14 +59,6 @@ def _output(ctx: click.Context, param: click.Parameter, value: str | None) -> st
     return value
 
 
-def date_params() -> list[click.Parameter]:
-    section = "help.section.dates"
-    return [
-        Option(["--at"], metavar="DATE", help="opt.at", section=section),
-        Option(["--as-of", "as_of"], metavar="DATE", help="opt.as_of", section=section),
-    ]
-
-
 def path_arguments(command: VerbCommand) -> list[click.Parameter]:
     return [
         click.Argument([name.lower()], metavar="REF" if index == 0 else name.upper())
@@ -84,13 +76,24 @@ def verb_params(command: VerbCommand) -> list[click.Parameter]:
         if param.location == "query" and param.name not in _SKIPPED:
             params.append(query_option(param, section=section, multiple=listing))
     if read:
+        from kartenn_cli.reads import date_params  # noqa: PLC0415
+
         if operation.param("valid_at") or operation.param("as_of"):
             params += date_params()
         params += output_params()
     return params
 
 
-def command_class(resource: Resource, verb: Verb, catalog: Catalog) -> type[VerbCommand]:  # noqa: ARG001 - by verb, later
+def command_class(resource: Resource, verb: Verb, catalog: Catalog) -> type[VerbCommand]:  # noqa: ARG001
+    """The class of a verb: lists, reads, then the other operations."""
+    from kartenn_cli.reads import GetCommand, ListCommand, ReadCommand  # noqa: PLC0415
+
+    if verb.name == "list":
+        return ListCommand
+    if verb.name == "get":
+        return GetCommand
+    if verb.read:
+        return ReadCommand
     return VerbCommand
 
 
