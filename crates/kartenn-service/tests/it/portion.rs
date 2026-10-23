@@ -382,6 +382,7 @@ async fn resizing_moves_the_inheritance(pool: PgPool) {
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     };
     f.applied(
         vec![
@@ -393,6 +394,7 @@ async fn resizing_moves_the_inheritance(pool: PgPool) {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             f.prefix("10.0.0.0/16", Nature::Container),
             f.prefix("10.1.0.0/24", Nature::Network),

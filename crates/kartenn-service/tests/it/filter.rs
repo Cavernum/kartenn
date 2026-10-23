@@ -38,6 +38,7 @@ fn declaration(
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     }
 }
 
@@ -47,6 +48,7 @@ fn declarations() -> Vec<Operation> {
         local: None,
         property: Ref::Local(1),
         key: key.into(),
+        labels: std::collections::BTreeMap::new(),
     };
     vec![
         Operation::DeclareProperty {
@@ -356,6 +358,7 @@ async fn external_references_filter_by_system_and_identifier(pool: PgPool) {
         local: None,
         property: Ref::Id(systems),
         key: key.into(),
+        labels: std::collections::BTreeMap::new(),
     };
     f.applied(vec![
         system("cmdb"),

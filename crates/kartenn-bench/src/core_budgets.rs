@@ -313,6 +313,7 @@ pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         },
     )

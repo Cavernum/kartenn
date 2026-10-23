@@ -20,11 +20,11 @@ async fn catalogue(env: &Env) {
             .chain([
                 op(
                     "flow_type.create",
-                    json!({ "local": 1, "key": "admin", "label": "Administration" }),
+                    json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
                 ),
                 op(
                     "service.create",
-                    json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+                    json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                             "entries": [{ "transport": "tcp", "ports": 22 }] }),
                 ),
             ])
@@ -45,7 +45,7 @@ async fn id_of(pool: &PgPool, table: &str, key: &str) -> Uuid {
 
 /// A rule from `fields`, completed with its key, label and the flow type `admin`.
 fn rule(admin: Uuid, fields: Value) -> Operation {
-    let mut body = json!({ "key": "r1", "label": "R1", "effect": "allow",
+    let mut body = json!({ "key": "r1", "labels": { "fr": "R1" }, "effect": "allow",
                            "flow_types": [{ "id": admin }] });
     let Value::Object(fields) = fields else {
         panic!("fields of a rule")
@@ -68,25 +68,28 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.key.syntax",
             op(
                 "flow_type.create",
-                json!({ "key": "Bad--Key", "label": "x" }),
+                json!({ "key": "Bad--Key", "labels": { "fr": "x" } }),
             ),
         ),
         (
-            "policy.label.invalid",
-            op("flow_type.create", json!({ "key": "x", "label": "" })),
+            "core.label.invalid",
+            op(
+                "flow_type.create",
+                json!({ "key": "x", "labels": { "fr": "" } }),
+            ),
         ),
         (
             "policy.key.duplicate",
             op(
                 "flow_type.create",
-                json!({ "key": "admin", "label": "Again" }),
+                json!({ "key": "admin", "labels": { "fr": "Again" } }),
             ),
         ),
         (
             "policy.service.entry_invalid",
             op(
                 "service.create",
-                json!({ "key": "bad", "label": "Bad", "flow_type": { "id": admin },
+                json!({ "key": "bad", "labels": { "fr": "Bad" }, "flow_type": { "id": admin },
                         "entries": [{ "transport": "tcp", "ports": "70000" }] }),
             ),
         ),
@@ -94,7 +97,7 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.service.entries_empty",
             op(
                 "service.create",
-                json!({ "key": "bad", "label": "Bad", "flow_type": { "id": admin },
+                json!({ "key": "bad", "labels": { "fr": "Bad" }, "flow_type": { "id": admin },
                         "entries": [] }),
             ),
         ),
@@ -102,7 +105,7 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.service.flow_type",
             op(
                 "service.create",
-                json!({ "key": "bad", "label": "Bad",
+                json!({ "key": "bad", "labels": { "fr": "Bad" },
                         "entries": [{ "transport": "udp", "ports": 53 }] }),
             ),
         ),
@@ -110,7 +113,7 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.rule.flow_selector_empty",
             op(
                 "rule.create",
-                json!({ "key": "r1", "label": "R1", "effect": "allow" }),
+                json!({ "key": "r1", "labels": { "fr": "R1" }, "effect": "allow" }),
             ),
         ),
         (
@@ -152,7 +155,10 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
         ),
         (
             "policy.text.missing",
-            op("pattern.create", json!({ "key": "p1", "label": "P1" })),
+            op(
+                "pattern.create",
+                json!({ "key": "p1", "labels": { "fr": "P1" } }),
+            ),
         ),
         (
             "policy.condition.params_invalid",
@@ -175,7 +181,7 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.operation.invalid",
             op(
                 "flow_type.create",
-                json!({ "key": "x", "label": "X", "colour": "red" }),
+                json!({ "key": "x", "labels": { "fr": "X" }, "colour": "red" }),
             ),
         ),
     ];
@@ -197,7 +203,7 @@ async fn a_wide_service_warns(pool: PgPool) {
     let outcome = env
         .applied(vec![op(
             "service.create",
-            json!({ "key": "wide", "label": "Wide", "flow_type": { "id": admin },
+            json!({ "key": "wide", "labels": { "fr": "Wide" }, "flow_type": { "id": admin },
                     "entries": [{ "transport": "tcp", "ports": "1-2000" }] }),
         )])
         .await;
@@ -225,7 +231,7 @@ async fn a_rule_is_written_modified_and_closed(pool: PgPool) {
     env.applied(vec![
         op(
             "pattern.create",
-            json!({ "local": 1, "key": "bastion", "label": "Bastion",
+            json!({ "local": 1, "key": "bastion", "labels": { "fr": "Bastion" },
                     "texts": { "fr": { "body": "Passer par le bastion." } } }),
         ),
         rule(
@@ -344,8 +350,14 @@ async fn a_new_revision_is_announced(pool: PgPool) {
     let env = Env::new(&pool).await;
     let Outcome::Applied { changeset, .. } = env
         .applied(vec![
-            op("flow_type.create", json!({ "key": "a", "label": "A" })),
-            op("flow_type.create", json!({ "key": "b", "label": "B" })),
+            op(
+                "flow_type.create",
+                json!({ "key": "a", "labels": { "fr": "A" } }),
+            ),
+            op(
+                "flow_type.create",
+                json!({ "key": "b", "labels": { "fr": "B" } }),
+            ),
         ])
         .await
     else {
@@ -364,7 +376,7 @@ async fn a_new_revision_is_announced(pool: PgPool) {
     let refused = env
         .submit(vec![op(
             "flow_type.create",
-            json!({ "key": "a", "label": "A" }),
+            json!({ "key": "a", "labels": { "fr": "A" } }),
         )])
         .await;
     let Outcome::Refused { changeset, .. } = refused else {

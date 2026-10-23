@@ -39,7 +39,7 @@ async fn two_databases_at_one_revision_keep_their_own_policy(pool: PgPool) {
     for (env, key) in [(&a, "file"), (&b, "mail")] {
         env.applied(vec![op(
             "flow_type.create",
-            json!({ "key": key, "label": key }),
+            json!({ "key": key, "labels": { "fr": key } }),
         )])
         .await;
     }

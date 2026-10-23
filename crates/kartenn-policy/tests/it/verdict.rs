@@ -34,31 +34,31 @@ async fn policy(env: &Env) {
         op("environment.create", json!({ "key": "dev" })),
         op(
             "flow_type.create",
-            json!({ "local": 1, "key": "admin", "label": "Administration" }),
+            json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
         ),
         op(
             "flow_type.create",
-            json!({ "local": 2, "key": "application", "label": "Application" }),
+            json!({ "local": 2, "key": "application", "labels": { "fr": "Application" } }),
         ),
         op(
             "service.create",
-            json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+            json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 22 }] }),
         ),
         op(
             "service.create",
-            json!({ "key": "https", "label": "HTTPS", "flow_type": { "local": 2 },
+            json!({ "key": "https", "labels": { "fr": "HTTPS" }, "flow_type": { "local": 2 },
                     "entries": [{ "transport": "tcp", "ports": 443 }] }),
         ),
         op(
             "service.create",
-            json!({ "key": "https-admin", "label": "HTTPS d'administration",
+            json!({ "key": "https-admin", "labels": { "fr": "HTTPS d'administration" },
                     "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 443 }] }),
         ),
         op(
             "rule.create",
-            json!({ "key": "prod-dev", "label": "Prod vers dev", "effect": "allow",
+            json!({ "key": "prod-dev", "labels": { "fr": "Prod vers dev" }, "effect": "allow",
                     "flow_types": [{ "local": 1 }, { "local": 2 }],
                     "source": { "policy.environment": ["prod"] },
                     "destination": { "policy.environment": ["dev"] } }),

@@ -63,6 +63,7 @@ impl Fixture {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         };
         let outcome = f
             .submit(
@@ -79,11 +80,13 @@ impl Fixture {
                         local: None,
                         property: Ref::Local(1),
                         key: "a".into(),
+                        labels: std::collections::BTreeMap::new(),
                     },
                     Operation::AddEnumValue {
                         local: None,
                         property: Ref::Local(1),
                         key: "b".into(),
+                        labels: std::collections::BTreeMap::new(),
                     },
                 ],
                 0,
@@ -312,6 +315,7 @@ async fn assignments_respect_carriers_types_and_existence(pool: PgPool) {
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         }],
         0,

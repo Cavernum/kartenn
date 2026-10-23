@@ -13,9 +13,7 @@ use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::codec;
-use crate::model::{
-    AxisKey, Condition, Effect, FlowSelector, Key, Label, Pattern, Rule, Service, Signal,
-};
+use crate::model::{AxisKey, Condition, Effect, FlowSelector, Key, Pattern, Rule, Service, Signal};
 use crate::module::ENVIRONMENT;
 use crate::pg::store;
 use crate::rules::REFERENCE_CLOSED;
@@ -143,7 +141,7 @@ fn stand_ins(row: &Value, column: &str) -> BTreeSet<Key> {
 
 /// The violations of a version of a rule (REQ-010-8, 29, 32, 33).
 fn rule(row: &Value, axes: &BTreeSet<AxisKey>) -> Vec<Violation> {
-    let (Some(key), Ok(label)) = (key_of(row), Label::new(&text(row, "label"))) else {
+    let Some(key) = key_of(row) else {
         return Vec::new();
     };
     let selector = |side: &str| {
@@ -154,7 +152,6 @@ fn rule(row: &Value, axes: &BTreeSet<AxisKey>) -> Vec<Violation> {
     };
     let rule = Rule {
         key,
-        label,
         source: selector("source"),
         destination: selector("destination"),
         same: row
@@ -197,9 +194,8 @@ pub(crate) async fn catalogue(
     let default = codec::default_locale();
     for (id, _, row) in written(conn, "policy.policy_service", changeset).await? {
         let entries = codec::entries(&row["entries"]).map(|(e, _)| e);
-        if let (Some(key), Ok(label), Ok(entries)) =
-            (key_of(&row), Label::new(&text(&row, "label")), entries)
-            && let Ok(service) = Service::new(key.clone(), label, &[key], entries)
+        if let (Some(key), Ok(entries)) = (key_of(&row), entries)
+            && let Ok(service) = Service::new(key.clone(), &[key], entries)
         {
             found.extend(
                 service
@@ -214,12 +210,11 @@ pub(crate) async fn catalogue(
         found.extend(rule(&row, &axes).into_iter().map(|v| v.with_subjects([id])));
     }
     for (id, _, row) in written(conn, "policy.policy_pattern", changeset).await? {
-        let (Some(key), Ok(label)) = (key_of(&row), Label::new(&text(&row, "label"))) else {
+        let Some(key) = key_of(&row) else {
             continue;
         };
         let pattern = Pattern {
             key,
-            label,
             texts: codec::stored_texts(&row["texts"]),
         };
         if let Err(v) = pattern.check(&default) {

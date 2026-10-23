@@ -89,7 +89,7 @@ fn rbac_inverse(
                 RbacRow::Role { key },
                 Some(RbacBefore {
                     period,
-                    state: RbacState::Role { label, entries },
+                    state: RbacState::Role { labels, entries },
                 }),
                 _,
             ) => (
@@ -97,7 +97,7 @@ fn rbac_inverse(
                 over(
                     Operation::SetRole {
                         key,
-                        label,
+                        labels,
                         entries,
                     },
                     period,

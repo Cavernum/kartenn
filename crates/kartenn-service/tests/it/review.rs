@@ -59,6 +59,7 @@ impl Fixture {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         };
         f.applied(vec![
             Operation::DeclareProperty {
@@ -69,11 +70,13 @@ impl Fixture {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "dev".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::CreateDomain {
                 local: Some(2),

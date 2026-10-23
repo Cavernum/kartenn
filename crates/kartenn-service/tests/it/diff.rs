@@ -51,6 +51,7 @@ impl Fixture {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         };
         f.applied(
             vec![
@@ -66,11 +67,13 @@ impl Fixture {
                     local: None,
                     property: Ref::Local(2),
                     key: "prod".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
                 Operation::AddEnumValue {
                     local: None,
                     property: Ref::Local(2),
                     key: "dev".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
                 Operation::CreatePrefix {
                     local: None,
@@ -319,17 +322,20 @@ async fn a_value_from_tomorrow_reaches_the_heirs_in_the_differential(pool: PgPoo
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         },
         Operation::AddEnumValue {
             local: None,
             property: Ref::Local(4),
             key: "prod".into(),
+            labels: std::collections::BTreeMap::new(),
         },
         Operation::AddEnumValue {
             local: None,
             property: Ref::Local(4),
             key: "dev".into(),
+            labels: std::collections::BTreeMap::new(),
         },
         Operation::CreatePrefix {
             local: Some(1),

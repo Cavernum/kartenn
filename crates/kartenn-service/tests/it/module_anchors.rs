@@ -264,8 +264,8 @@ impl Kit {
     async fn reader(&self, entries: &[&str], kind: &str, scope: &str) -> Subject {
         let role = Uuid::now_v7();
         sqlx::query(
-            "INSERT INTO role (id, key, label, valid_period, changeset_id)
-             VALUES ($1, $2, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', $2), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
         )
         .bind(role)
         .bind(format!("r{}", role.simple()))
@@ -479,6 +479,7 @@ async fn ref_to_a_module_type(pool: PgPool) {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         },
     };
     let text = TypeInput::Text {

@@ -383,6 +383,11 @@ pub trait ModuleTx: Send {
         subject: Option<String>,
         data: serde_json::Value,
     ) -> Result<(), StoreError>;
+
+    /// Notes that the module wrote a column `labels` in this transaction (spec 018, R22):
+    /// the revision of the labels is incremented when the changeset is applied, and the
+    /// outbox carries `org.kartenn.labels.changed`.
+    fn labels_written(&mut self);
 }
 
 /// A read of the state at the dates of a request, as a module reads (ADR 0026, clauses

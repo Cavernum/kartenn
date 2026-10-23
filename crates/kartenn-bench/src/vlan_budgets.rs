@@ -109,8 +109,8 @@ pub(crate) async fn reader(pool: &PgPool, entries: &[&str]) -> anyhow::Result<Uu
     .await?;
     let role = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, $2, 'bench', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, $2, jsonb_build_object('fr', 'bench'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
     )
     .bind(role)
     .bind(format!("bench_{}", role.simple()))

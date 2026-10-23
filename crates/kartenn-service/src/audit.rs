@@ -357,8 +357,12 @@ pub(crate) fn changeset_events(
                     .detail("sensitive", *sensitive)
                     .map_err(|e| audit_err(&e))?,
             ),
-            Planned::Declare { id, declaration }
-            | Planned::UpdateDeclaration { id, declaration } => events.push(
+            Planned::Declare {
+                id, declaration, ..
+            }
+            | Planned::UpdateDeclaration {
+                id, declaration, ..
+            } => events.push(
                 event(&DECLARATION_CHANGED, Outcome::Success)?
                     .target("property", [*id])
                     .detail("key", declaration.key.to_string())

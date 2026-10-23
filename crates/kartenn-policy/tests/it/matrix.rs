@@ -25,11 +25,11 @@ async fn catalogue(env: &Env) -> (Uuid, Uuid) {
             .chain([
                 op(
                     "flow_type.create",
-                    json!({ "key": "file", "label": "Fichiers" }),
+                    json!({ "key": "file", "labels": { "fr": "Fichiers" } }),
                 ),
                 op(
                     "pattern.create",
-                    json!({ "key": "relay", "label": "Relais",
+                    json!({ "key": "relay", "labels": { "fr": "Relais" },
                             "texts": { "fr": { "body": "Passer par le relais." } } }),
                 ),
             ])
@@ -110,7 +110,7 @@ async fn a_conditional_cell_is_an_allow_that_requires_its_patterns(pool: PgPool)
     // A rule of two environments on its source: out of the view.
     env.applied(vec![op(
         "rule.create",
-        json!({ "key": "wide", "label": "Large", "effect": "allow",
+        json!({ "key": "wide", "labels": { "fr": "Large" }, "effect": "allow",
                 "source": { "policy.environment": ["prod", "dev"] },
                 "destination": { "policy.environment": ["global"] },
                 "flow_types": [{ "id": file }] }),

@@ -19,7 +19,7 @@ async fn environments(env: &Env, keys: &[&str]) {
             .map(|k| {
                 op(
                     "environment.create",
-                    json!({ "key": k, "label": k.to_uppercase() }),
+                    json!({ "key": k, "labels": { "fr": k.to_uppercase() } }),
                 )
             })
             .collect(),
@@ -139,7 +139,7 @@ async fn acceptance_of_req_010_2(pool: PgPool) {
     env.submit_from(
         vec![op(
             "environment.create",
-            json!({ "key": "preprod", "label": "Préproduction" }),
+            json!({ "key": "preprod", "labels": { "fr": "Préproduction" } }),
         )],
         Some(now + 30 * day),
     )
@@ -254,9 +254,11 @@ async fn a_value_is_described_then_modified(pool: PgPool) {
                 "transverse": true, "rank": 3, "description": "Partagé." }),
     )])
     .await;
+    // The label of the value is that of its closed-list value (spec 018, Q-018-7).
     let described: (bool, Option<i32>, Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT transverse, rank, label, description FROM policy.policy_value
-          WHERE value_key = 'global' AND valid_period @> now()",
+        "SELECT v.transverse, v.rank, e.labels->>'fr', v.description FROM policy.policy_value v
+           JOIN property_enum_value e ON e.key = v.value_key AND e.valid_period @> now()
+          WHERE v.value_key = 'global' AND v.valid_period @> now()",
     )
     .fetch_one(&pool)
     .await
@@ -324,11 +326,15 @@ async fn the_tables_keep_their_constraints(pool: PgPool) {
     for sql in [
         "INSERT INTO policy.policy_axis (id, property_key, carrier, valid_period, changeset_id)
          VALUES (gen_random_uuid(), 'policy.exposure', 'cloud', tstzrange(now(), NULL), gen_random_uuid())",
-        "INSERT INTO policy.policy_rule (id, key, label, effect, valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'r', 'R', 'allow', tstzrange(now(), NULL), gen_random_uuid())",
-        "INSERT INTO policy.policy_rule (id, key, label, effect, flow_type_ids, required_pattern_ids,
+        "INSERT INTO policy.policy_rule (id, key, effect, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'r', 'allow', tstzrange(now(), NULL), gen_random_uuid())",
+        "INSERT INTO policy.policy_rule (id, key, labels, effect, flow_type_ids, valid_period,
+                                         changeset_id)
+         VALUES (gen_random_uuid(), 'r', '[]', 'allow', ARRAY[gen_random_uuid()],
+                 tstzrange(now(), NULL), gen_random_uuid())",
+        "INSERT INTO policy.policy_rule (id, key, effect, flow_type_ids, required_pattern_ids,
                                          valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'r', 'R', 'deny', ARRAY[gen_random_uuid()],
+         VALUES (gen_random_uuid(), 'r', 'deny', ARRAY[gen_random_uuid()],
                  ARRAY[gen_random_uuid()], tstzrange(now(), NULL), gen_random_uuid())",
     ] {
         assert!(sqlx::query(sql).execute(&pool).await.is_err(), "{sql}");

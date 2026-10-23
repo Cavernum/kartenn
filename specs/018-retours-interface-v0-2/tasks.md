@@ -162,7 +162,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   Outillage : `kartenn_testing::create_empty` (base vide, migrations jouées en partie
   par le test).
 
-- [ ] 7. Écritures : `labels` sur `declare_property`, `update_property`,
+- [x] 7. Écritures : `labels` sur `declare_property`, `update_property`,
   `add_enum_value`, rôles (`PUT /v1/roles/{key}` : `{labels, entries}`) et opérations de
   la politique ; `update_enum_value` ; corps neutres (plus de `label`) ; incrément de
   `label_revision` et événement d'outbox `org.kartenn.labels.changed` ; shell actuel
@@ -175,6 +175,27 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-policy/src/{handler.rs,rest.rs:111-280}` ; outbox (ADR 0018) dans
   `crates/kartenn-store-pg/src/` ; `web/shell/src/admin/{RolesView.vue,write.ts}`
   dépend de : 6
+  fait : `labels` (table brute `RawLabels`, vérifiée en `Labels` par le pipeline) sur
+  `DeclarationInput` (facultative : absente, aucune à la déclaration et celles en vigueur
+  à la mise à jour), `add_enum_value`, `set_role` (`PUT /v1/roles/{key}` `{labels,
+  entries}`) ; opération `update_enum_value` (`Planned::EnumLabels`, `Change::Labels` par
+  `kartenn_portion`, droit `core.property.admin`). Lectures : `labels` sur les rôles et
+  les déclarations. Politique : `labels` requis sur types de flux, services, motifs et
+  règles, facultatif sur conditions et signaux ; `value.describe` et
+  `environment.create` écrivent les libellés au noyau (`update_enum_value`,
+  `add_enum_value`) ; cellule de matrice `labels` ; `policy.label.invalid` et le type
+  `Label` disparaissent du modèle (les verdicts ne portent que des clés) ; la non-
+  conformité perd `rule_label` (clé seule, R20). Migrations `0061_role_label_dropped.sql`
+  et `policy/0005_label_dropped.sql` (dernière recopie, suppression des colonnes
+  `label` et de `policy_value.label`). Révision : `PgTx` note toute écriture qui change
+  `labels` (insertion non vide, `Change::Labels` différent, rôle, objet de module par
+  `ModuleTx::labels_written`, clôture ou restauration d'une ligne d'une table à
+  libellés) ; `journal_applied` incrémente `label_revision` une fois et écrit
+  `org.kartenn.labels.changed` `{revision}` (entier de la base ; l'empreinte des libellés
+  compilés s'y joint au dictionnaire, tâche 10). Shell : `RolesView` lit `labels`
+  (langue de l'interface, sinon la première, sinon la clé) et écrit celle de
+  l'interface ; données des parcours e2e en `labels`. Les migrations du noyau prennent
+  0060 et 0061 (0059 est pris sur `main`).
 
 - [ ] 8. Libellés des modules et des rôles livrés : descripteurs avec `labels`,
   `sync_modules` sans écraser un libellé d'administrateur, `BuiltinRole` FR/EN —

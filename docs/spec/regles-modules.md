@@ -44,7 +44,6 @@ spécification du module.
 | Identifiant | Sévérité | Règle | Exigences | Source |
 |---|---|---|---|---|
 | `policy.key.syntax` | erreur | Une clé de la politique a de 1 à 63 caractères [a-z0-9] et des traits d'union non doublés ni en bord. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/S5 |
-| `policy.label.invalid` | erreur | Un libellé a de 1 à 200 caractères, sans caractère de contrôle. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/S5 |
 | `policy.service.entry_invalid` | erreur | Un couple d'un service a un transport connu, des ports 1–65535 pour tcp, udp, sctp et dccp, un type et un code ICMP 0–255 sans port, un protocole IP 0–255 sans port. | REQ-010-5 | 010/S5, RFC 6335 §6 |
 | `policy.service.flow_type` | erreur | Un service a exactement un type de flux. | REQ-010-5 | 010/S5, D29 |
 | `policy.service.entries_empty` | erreur | Un service a au moins un couple transport et ports. | REQ-010-5 | 010/S5 |

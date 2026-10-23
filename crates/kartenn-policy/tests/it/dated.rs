@@ -25,11 +25,11 @@ async fn catalogue(env: &Env) {
         op("environment.create", json!({ "key": "dev" })),
         op(
             "flow_type.create",
-            json!({ "local": 1, "key": "admin", "label": "Administration" }),
+            json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
         ),
         op(
             "service.create",
-            json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+            json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 22 }] }),
         ),
     ])
@@ -96,7 +96,7 @@ async fn a_verdict_reads_the_policy_of_its_date(pool: PgPool) {
         .submit_from(
             vec![op(
                 "rule.create",
-                json!({ "key": "r1", "label": "R1", "effect": "allow",
+                json!({ "key": "r1", "labels": { "fr": "R1" }, "effect": "allow",
                         "flow_types": [{ "id": admin }],
                         "source": { "policy.environment": ["prod"] },
                         "destination": { "policy.environment": ["dev"] } }),

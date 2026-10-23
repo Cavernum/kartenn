@@ -233,7 +233,8 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
                 Phase::After,
                 Planned::Declare { id, .. }
                 | Planned::UpdateDeclaration { id, .. }
-                | Planned::EnumValue { id, .. },
+                | Planned::EnumValue { id, .. }
+                | Planned::EnumLabels { property: id, .. },
             ) => Some((ObjectKind::Property, *id)),
             _ => None,
         };

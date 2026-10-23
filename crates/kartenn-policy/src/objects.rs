@@ -5,6 +5,7 @@
 //! check is checked here; what needs the state (designated axes, living references, texts
 //! in the default language) is checked by the rules on the final state.
 
+use kartenn_core::labels::Labels;
 use kartenn_core::rules::Violation;
 use kartenn_service::module::ModulePlan;
 use kartenn_service::operations::{ModuleOperation, Ref};
@@ -13,7 +14,7 @@ use uuid::Uuid;
 
 use crate::codec;
 use crate::handler::{invalid, plan};
-use crate::model::{Key, Label};
+use crate::model::Key;
 use crate::module::{CONDITION, EXEMPT_ROLE, FLOW_TYPE, PATTERN, RULE, SERVICE, SIGNAL};
 use crate::rules::{RULE_CONDITIONAL_DENY, RULE_FLOW_SELECTOR_EMPTY, RULE_TERM_EMPTY};
 
@@ -47,13 +48,17 @@ impl Fields<'_> {
             .transpose()
     }
 
-    fn label(&self) -> Result<Option<String>, Violation> {
-        self.get("label")
+    /// The labels by language, checked (`core.label.invalid`, spec 018): at least the
+    /// default language when `required`.
+    fn labels(&self, required: bool) -> Result<Option<Value>, Violation> {
+        self.get("labels")
             .map(|l| {
-                let l = l
-                    .as_str()
-                    .ok_or_else(|| invalid(self.operation, "label is a string"))?;
-                Ok(Label::new(l)?.as_str().to_owned())
+                let labels = if required {
+                    Labels::parse_required(l)
+                } else {
+                    Labels::parse(l)
+                }?;
+                Ok(labels.to_json())
             })
             .transpose()
     }
@@ -379,14 +384,15 @@ fn plan_with(
     object: Uuid,
     resolve: &dyn Fn(Ref) -> Option<Uuid>,
 ) -> Result<ModulePlan, Violation> {
-    // A key for every object but an exempt role; a label but on a condition and a signal
-    // (design « Données »).
+    // A key for every object but an exempt role; labels too, required but on a condition
+    // and a signal (design « Données »; spec 018, R8).
     let named: &[&str] = match spec.kind {
         _ if !spec.keyed => &[],
         CONDITION | SIGNAL => &["key"],
-        _ => &["key", "label"],
+        _ => &["key", "labels"],
     };
-    known(operation, &[named, spec.fields].concat())?;
+    let optional: &[&str] = if spec.keyed { &["labels"] } else { &[] };
+    known(operation, &[named, optional, spec.fields].concat())?;
     let f = Fields { operation, resolve };
     let mut columns = Map::new();
     if named.contains(&"key")
@@ -394,16 +400,10 @@ fn plan_with(
     {
         columns.insert("key".into(), key.into());
     }
-    if named.contains(&"label")
-        && let Some(label) = f.label()?
+    if spec.keyed
+        && let Some(labels) = f.labels(named.contains(&"labels"))?
     {
-        // Until the writes take `labels` (task 018-7), the label is that of the default
-        // language.
-        columns.insert(
-            "labels".into(),
-            serde_json::json!({ kartenn_core::labels::default_locale().as_str(): &label }),
-        );
-        columns.insert("label".into(), label.into());
+        columns.insert("labels".into(), labels);
     }
     (spec.columns)(&f, &mut columns)?;
     match action {

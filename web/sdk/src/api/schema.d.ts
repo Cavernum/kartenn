@@ -3117,7 +3117,7 @@ export interface paths {
     /** `GET /v1/roles/{key}`. */
     get: operations["show_role"];
     /**
-     * `PUT /v1/roles/{key}` `{label, entries}`: defines or replaces the role; 201 when it is
+     * `PUT /v1/roles/{key}` `{labels, entries}`: defines or replaces the role; 201 when it is
      *     created.
      */
     put: operations["set_role"];
@@ -3814,6 +3814,9 @@ export interface components {
     };
     /** @description An event of the audit journal, as journaled (spec 012, REQ-012-17). */
     AuditEvent: Record<string, never>;
+    BTreeMap: {
+      [key: string]: string;
+    };
     /** @description The batches of an import. */
     Batches: {
       /** @description Applied. */
@@ -4177,6 +4180,7 @@ export interface components {
       inherit?: string | null;
       /** @description The key. */
       key: string;
+      labels?: components["schemas"]["BTreeMap"] | null;
       /** @description Where it is required. */
       obligations?: components["schemas"]["Obligation"][];
     };
@@ -4196,6 +4200,13 @@ export interface components {
       inherit?: string | null;
       /** @description The key. */
       key: string;
+      /**
+       * @description Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+       *     `GET /v1/labels` serves them resolved.
+       */
+      labels: {
+        [key: string]: string;
+      };
       /** @description Links. */
       links: components["schemas"]["DeclarationLinks"];
       /** @description The parameters of its type. */
@@ -4556,10 +4567,8 @@ export interface components {
        * @description The rule in cause.
        */
       rule?: string | null;
-      /** @description Its key. */
+      /** @description Its key; its labels are served by `GET /v1/labels` (space `policy.rule`). */
       rule_key?: string | null;
-      /** @description Its label. */
-      rule_label?: string | null;
       /** @description Its educational texts by language. */
       rule_texts?: Record<string, never> | null;
       /** @description `rejected`, `noncompliant` or `waived`. */
@@ -5066,6 +5075,13 @@ export interface components {
         inherit?: string | null;
         /** @description The key. */
         key: string;
+        /**
+         * @description Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+         *     `GET /v1/labels` serves them resolved.
+         */
+        labels: {
+          [key: string]: string;
+        };
         /** @description Links. */
         links: components["schemas"]["DeclarationLinks"];
         /** @description The parameters of its type. */
@@ -5281,8 +5297,13 @@ export interface components {
         href: string;
         /** @description Stable key. */
         key: string;
-        /** @description Label. */
-        label: string;
+        /**
+         * @description Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+         *     `GET /v1/labels` serves them resolved.
+         */
+        labels: {
+          [key: string]: string;
+        };
       }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
@@ -5888,8 +5909,8 @@ export interface components {
           entries: string[];
           /** @description Stable key. */
           key: string;
-          /** @description Label. */
-          label: string;
+          /** @description Labels by language, `{<tag>: <text>}`: the default language at least. */
+          labels: components["schemas"]["BTreeMap"];
           /** @enum {string} */
           op: "set_role";
         }
@@ -6157,6 +6178,8 @@ export interface components {
       | {
           /** @description Key, `[a-z0-9-]`. */
           key: string;
+          /** @description Labels by language, `{<tag>: <text>}` (spec 018). */
+          labels?: components["schemas"]["BTreeMap"];
           /**
            * Format: int32
            * @description Local name for later operations.
@@ -6164,6 +6187,16 @@ export interface components {
           local?: number | null;
           /** @enum {string} */
           op: "add_enum_value";
+          /** @description Property of type `enum`. */
+          property: components["schemas"]["Ref"];
+        }
+      | {
+          /** @description Key of the value. */
+          key: string;
+          /** @description Labels by language, `{<tag>: <text>}`; empty, the value has none. */
+          labels: components["schemas"]["BTreeMap"];
+          /** @enum {string} */
+          op: "update_enum_value";
           /** @description Property of type `enum`. */
           property: components["schemas"]["Ref"];
         }
@@ -6835,15 +6868,25 @@ export interface components {
       href: string;
       /** @description Stable key. */
       key: string;
-      /** @description Label. */
-      label: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+       *     `GET /v1/labels` serves them resolved.
+       */
+      labels: {
+        [key: string]: string;
+      };
     };
     /** @description The members of a role. */
     RoleMembers: {
       /** @description Entries. */
       entries: string[];
-      /** @description Label. */
-      label: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}`: the default language of the instance at
+       *     least (spec 018, REQ-018-9).
+       */
+      labels: {
+        [key: string]: string;
+      };
     };
     /** @description The body that defines a role. */
     RoleWrite: components["schemas"]["Reserved"] & components["schemas"]["RoleMembers"];

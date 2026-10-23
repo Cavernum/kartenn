@@ -66,8 +66,8 @@ pub(crate) async fn bind(
     let role = Uuid::now_v7();
     let nil = Uuid::nil();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, 'bench_operator', 'Bench operator', $2::tstzrange, $3)",
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, 'bench_operator', jsonb_build_object('fr', 'Bench operator'), $2::tstzrange, $3)",
     )
     .bind(role)
     .bind(SINCE)

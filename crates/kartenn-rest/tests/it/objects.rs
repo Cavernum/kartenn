@@ -40,8 +40,8 @@ async fn person(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)
     .unwrap();
     let role = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, 'reader_' || replace($1::text, '-', ''), 'reader',
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, 'reader_' || replace($1::text, '-', ''), jsonb_build_object('fr', 'reader'),
                  tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
     )
     .bind(role)

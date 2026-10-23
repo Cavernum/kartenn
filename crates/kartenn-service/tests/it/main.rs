@@ -24,6 +24,7 @@ mod filter;
 mod grouped;
 mod heirs;
 mod import;
+mod labels;
 mod locks;
 mod module_anchors;
 mod module_catalogues;

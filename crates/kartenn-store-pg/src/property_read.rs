@@ -36,6 +36,8 @@ pub struct DeclarationRead {
     pub sensitive: bool,
     /// Source and mode of its expected value.
     pub expected: Option<(String, String)>,
+    /// Labels by language, `{<tag>: <text>}` (spec 018).
+    pub labels: serde_json::Value,
 }
 
 type Row = (
@@ -49,12 +51,14 @@ type Row = (
     bool,
     Option<String>,
     Option<String>,
+    serde_json::Value,
 );
 
 fn decoded(
-    (id, key, value_type, params, cardinality, carriers, inherit, sensitive, source, mode): Row,
+    (id, key, value_type, params, cardinality, carriers, inherit, sensitive, source, mode, labels): Row,
 ) -> DeclarationRead {
     DeclarationRead {
+        labels,
         id,
         key,
         value_type,
@@ -83,11 +87,12 @@ fn declarations_sql() -> Result<String, TemporalError> {
             "sensitive",
             "expected_source",
             "expected_mode",
+            "labels",
         ],
     )?;
     Ok(format!(
         "SELECT id, key, value_type, type_params, cardinality, carriers, inherit_tree,
-                sensitive, expected_source, expected_mode
+                sensitive, expected_source, expected_mode, labels
          FROM {declaration} d
          WHERE ($3::text IS NULL OR key = $3) AND ($4::text IS NULL OR key > $4)
          ORDER BY key LIMIT $5"

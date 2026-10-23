@@ -247,7 +247,7 @@ async fn a_rule_reevaluates_the_flows_of_its_flow_type_only(pool: PgPool) {
     let rule = |key: &str, flow_type: serde_json::Value| {
         policy(
             "rule.create",
-            json!({ "key": key, "label": key, "effect": "allow", "flow_types": [flow_type],
+            json!({ "key": key, "labels": { "fr": key }, "effect": "allow", "flow_types": [flow_type],
                     "source": { "policy.environment": ["dev"] },
                     "destination": { "policy.environment": ["prod"] } }),
         )
@@ -255,11 +255,11 @@ async fn a_rule_reevaluates_the_flows_of_its_flow_type_only(pool: PgPool) {
     env.applied(vec![
         policy(
             "flow_type.create",
-            json!({ "local": 1, "key": "web", "label": "Web" }),
+            json!({ "local": 1, "key": "web", "labels": { "fr": "Web" } }),
         ),
         policy(
             "service.create",
-            json!({ "key": "http", "label": "HTTP", "flow_type": { "local": 1 },
+            json!({ "key": "http", "labels": { "fr": "HTTP" }, "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 80 }] }),
         ),
         rule("dev-prod-web", json!({ "local": 1 })),
@@ -377,7 +377,7 @@ async fn the_reevaluation_agrees_with_a_full_recompute(pool: PgPool) {
                     let key = format!("r{seed}-{step}");
                     env.applied(vec![policy(
                         "rule.create",
-                        json!({ "key": key, "label": key, "effect": "allow",
+                        json!({ "key": key, "labels": { "fr": key }, "effect": "allow",
                                 "flow_types": [{ "id": admin }],
                                 "source": { "policy.environment": [from] },
                                 "destination": { "policy.environment": [to] } }),

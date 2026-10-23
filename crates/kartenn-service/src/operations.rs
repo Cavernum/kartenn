@@ -6,6 +6,10 @@ use kartenn_core::values::{Cardinality, Raw};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Labels by language as an operation receives them, `{<tag>: <text>}` (spec 018, R20):
+/// checked by the pipeline (`core.label.invalid`).
+pub type RawLabels = std::collections::BTreeMap<String, String>;
+
 /// Designation of an object inside a changeset: an existing UUID, or the local name of an
 /// object created by an earlier operation of the same changeset (REQ-004-4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -300,6 +304,10 @@ pub struct DeclarationInput {
     /// Source of expected values and its mode (REQ-003-21 to 24).
     #[serde(default)]
     pub expected: Option<Expected>,
+    /// Labels by language (spec 018, REQ-018-9); absent, none for a new declaration and
+    /// those in force for an update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub labels: Option<RawLabels>,
 }
 
 /// Scope of an obligation, as received (REQ-003-16, P4).
@@ -428,13 +436,13 @@ pub enum Operation {
         /// Usage.
         usage: AddressUsage,
     },
-    /// Defines a role, or replaces its label and entries (spec 005, REQ-005-17, 25):
+    /// Defines a role, or replaces its labels and entries (spec 005, REQ-005-17, 25):
     /// catalogue permissions, `prop.<key>.<action>`, `prop.*.<action>`, `*`.
     SetRole {
         /// Stable key.
         key: String,
-        /// Label.
-        label: String,
+        /// Labels by language (spec 018, REQ-018-9): the default language at least.
+        labels: RawLabels,
         /// Entries.
         entries: Vec<String>,
     },
@@ -683,6 +691,19 @@ pub enum Operation {
         property: Ref,
         /// Key, `[a-z0-9-]`.
         key: String,
+        /// Labels by language (spec 018, REQ-018-9).
+        #[serde(default, skip_serializing_if = "RawLabels::is_empty")]
+        labels: RawLabels,
+    },
+    /// Replaces the labels of a closed-list value over the changeset period; its key
+    /// never changes (spec 018, REQ-018-9; REQ-003-5).
+    UpdateEnumValue {
+        /// Property of type `enum`.
+        property: Ref,
+        /// Key of the value.
+        key: String,
+        /// Labels by language; empty, the value has none.
+        labels: RawLabels,
     },
     /// Assigns a value to a property of an object over the changeset period, replacing
     /// any assignment there (REQ-003-4, 8, 12).
@@ -885,6 +906,7 @@ impl Operation {
             | Self::MoveSite { .. }
             | Self::Rename { .. }
             | Self::SetSensitivity { .. }
+            | Self::UpdateEnumValue { .. }
             | Self::AddObligation { .. }
             | Self::RemoveObligation { .. }
             | Self::SetApprovalPolicy { .. }

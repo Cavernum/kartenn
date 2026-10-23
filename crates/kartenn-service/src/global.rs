@@ -79,6 +79,7 @@ pub(crate) async fn validate<T: WriteTx>(
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
+            | Planned::EnumLabels { .. }
             | Planned::Assign { .. }
             | Planned::Unassign { .. }
             // An assignment restored is checked with the properties.
@@ -341,7 +342,7 @@ async fn check_modified<T: WriteTx>(
         Change::Range(_) => check_range_versions(tx, id, period, violations).await?,
         // A slug is unique among the current slugs of its kind: the constraint of the
         // table (`core.slug.duplicate`). No rule on the sensitivity flag.
-        Change::Slug(_) | Change::Sensitive(_) | Change::Obligation { .. } => {}
+        Change::Slug(_) | Change::Sensitive(_) | Change::Labels(_) | Change::Obligation { .. } => {}
     }
     Ok(())
 }

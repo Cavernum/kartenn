@@ -55,17 +55,20 @@ impl Fixture {
                     module: None,
                     obligations: Vec::new(),
                     expected: None,
+                    labels: None,
                 },
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "dev".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::CreateDomain {
                 local: Some(2),
@@ -250,6 +253,7 @@ async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         }])
         .await;
@@ -268,7 +272,7 @@ impl Fixture {
     /// The label and entries of the role `key` in force now.
     async fn role_now(&self, key: &str) -> Option<(String, Vec<String>)> {
         sqlx::query_as(
-            "SELECT r.label, array(SELECT p.permission FROM role_permission p
+            "SELECT r.labels->>'fr', array(SELECT p.permission FROM role_permission p
                                    WHERE p.role_id = r.id AND p.valid_period @> now()
                                    ORDER BY 1)
              FROM role r WHERE r.key = $1 AND r.valid_period @> now()",
@@ -316,7 +320,7 @@ impl Fixture {
 fn auditor(label: &str, entries: &[&str]) -> Operation {
     Operation::SetRole {
         key: "auditor".into(),
-        label: label.into(),
+        labels: [("fr".into(), label.into())].into(),
         entries: entries.iter().map(|&e| e.to_owned()).collect(),
     }
 }

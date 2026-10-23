@@ -112,19 +112,17 @@ const KEYED: &str = "t.key";
 fn presentation(name: &str) -> (&'static [&'static str], &'static [&'static str]) {
     match name {
         "policy-axes" => (&["property"], &["property_key", "carrier", "inference"]),
-        "policy-values" => (
-            &[],
-            &["property_key", "value_key", "label", "rank", "transverse"],
-        ),
-        "environments" => (&["key"], &["value_key", "label", "rank", "transverse"]),
-        "services" => (&["key"], &["key", "label", "flow_type_id"]),
-        "policy-rules" => (&["key"], &["key", "effect", "label"]),
+        // The labels of a value are those of its closed-list value (spec 018, Q-018-7).
+        "policy-values" => (&[], &["property_key", "value_key", "rank", "transverse"]),
+        "environments" => (&["key"], &["value_key", "rank", "transverse"]),
+        "services" => (&["key"], &["key", "labels", "flow_type_id"]),
+        "policy-rules" => (&["key"], &["key", "effect", "labels"]),
         "admissibility-conditions" => (&["key"], &["key", "kind"]),
         "risk-signals" => (&["key"], &["key", "kind", "weight"]),
         "policy-exempt-roles" => (&["role"], &["role_key"]),
         "inference-rules" => (&["key"], &["key", "axis_key", "priority", "domain_id"]),
         // flow-types, policy-patterns
-        _ => (&["key"], &["key", "label"]),
+        _ => (&["key"], &["key", "labels"]),
     }
 }
 
@@ -155,7 +153,7 @@ static COLLECTIONS: &[Collection] = &[
             &[
                 "property",
                 "value",
-                "label",
+                "labels",
                 "description",
                 "transverse",
                 "rank",
@@ -173,7 +171,7 @@ static COLLECTIONS: &[Collection] = &[
         filters: &[("key", "value_key", Compare::Equal, false)],
         create: Some((
             "policy.environment.create",
-            &["key", "label", "description", "transverse", "rank"],
+            &["key", "labels", "description", "transverse", "rank"],
         )),
         update: None,
         close: Close::Environment,
@@ -185,8 +183,8 @@ static COLLECTIONS: &[Collection] = &[
         order: KEYED,
         only: None,
         filters: &[("key", "key", Compare::Equal, false)],
-        create: Some(("policy.flow_type.create", &["key", "label", "description"])),
-        update: Some(("policy.flow_type.update", &["label", "description"])),
+        create: Some(("policy.flow_type.create", &["key", "labels", "description"])),
+        update: Some(("policy.flow_type.update", &["labels", "description"])),
         close: Close::Object,
     },
     Collection {
@@ -201,9 +199,9 @@ static COLLECTIONS: &[Collection] = &[
         ],
         create: Some((
             "policy.service.create",
-            &["key", "label", "flow_type", "entries"],
+            &["key", "labels", "flow_type", "entries"],
         )),
-        update: Some(("policy.service.update", &["label", "flow_type", "entries"])),
+        update: Some(("policy.service.update", &["labels", "flow_type", "entries"])),
         close: Close::Object,
     },
     Collection {
@@ -213,8 +211,8 @@ static COLLECTIONS: &[Collection] = &[
         order: KEYED,
         only: None,
         filters: &[("key", "key", Compare::Equal, false)],
-        create: Some(("policy.pattern.create", &["key", "label", "texts"])),
-        update: Some(("policy.pattern.update", &["label", "texts"])),
+        create: Some(("policy.pattern.create", &["key", "labels", "texts"])),
+        update: Some(("policy.pattern.update", &["labels", "texts"])),
         close: Close::Object,
     },
     Collection {
@@ -234,7 +232,7 @@ static COLLECTIONS: &[Collection] = &[
             "policy.rule.create",
             &[
                 "key",
-                "label",
+                "labels",
                 "effect",
                 "source",
                 "destination",
@@ -249,7 +247,7 @@ static COLLECTIONS: &[Collection] = &[
         update: Some((
             "policy.rule.update",
             &[
-                "label",
+                "labels",
                 "effect",
                 "source",
                 "destination",
@@ -275,11 +273,19 @@ static COLLECTIONS: &[Collection] = &[
         ],
         create: Some((
             "policy.condition.create",
-            &["key", "kind", "params", "rules", "flow_types", "texts"],
+            &[
+                "key",
+                "labels",
+                "kind",
+                "params",
+                "rules",
+                "flow_types",
+                "texts",
+            ],
         )),
         update: Some((
             "policy.condition.update",
-            &["kind", "params", "rules", "flow_types", "texts"],
+            &["labels", "kind", "params", "rules", "flow_types", "texts"],
         )),
         close: Close::Object,
     },
@@ -293,8 +299,14 @@ static COLLECTIONS: &[Collection] = &[
             ("key", "key", Compare::Equal, false),
             ("kind", "kind", Compare::Equal, false),
         ],
-        create: Some(("policy.signal.create", &["key", "kind", "params", "weight"])),
-        update: Some(("policy.signal.update", &["kind", "params", "weight"])),
+        create: Some((
+            "policy.signal.create",
+            &["key", "labels", "kind", "params", "weight"],
+        )),
+        update: Some((
+            "policy.signal.update",
+            &["labels", "kind", "params", "weight"],
+        )),
         close: Close::Object,
     },
     Collection {
@@ -719,7 +731,7 @@ async fn show_matrix(
 }
 
 /// The members a write of a cell may carry (REQ-010-34).
-const CELL_MEMBERS: &[&str] = &["state", "patterns", "texts", "label"];
+const CELL_MEMBERS: &[&str] = &["state", "patterns", "texts", "labels"];
 
 /// `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}`: `policy.matrix.set` of the
 /// cell, whose state the body gives (`allow`, `deny`, `conditional` or `none`), under

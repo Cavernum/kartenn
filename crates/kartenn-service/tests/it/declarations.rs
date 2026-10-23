@@ -112,6 +112,7 @@ fn input(key: &str, value_type: TypeInput) -> DeclarationInput {
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     }
 }
 
@@ -127,6 +128,7 @@ fn add_value(property: Ref, key: &str) -> Operation {
         local: None,
         property,
         key: key.into(),
+        labels: std::collections::BTreeMap::new(),
     }
 }
 

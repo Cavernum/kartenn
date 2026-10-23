@@ -251,8 +251,8 @@ impl Tree {
     async fn role(&self, key: &str, entries: &[&str]) -> Uuid {
         let id = Uuid::now_v7();
         sqlx::query(
-            "INSERT INTO role (id, key, label, valid_period, changeset_id)
-             VALUES ($1, $2, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', $2), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
         )
         .bind(id)
         .bind(key)
@@ -807,7 +807,7 @@ fn bind_op(subject: Uuid, role: &str, scope: BindingScope) -> Operation {
 fn set_role(key: &str, entries: &[&str]) -> Operation {
     Operation::SetRole {
         key: key.into(),
-        label: key.into(),
+        labels: [("fr".into(), key.into())].into(),
         entries: entries.iter().map(|e| (*e).to_owned()).collect(),
     }
 }
@@ -881,6 +881,7 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
                         module: None,
                         obligations: Vec::new(),
                         expected: None,
+                        labels: None,
                     },
                 },
                 set_role(

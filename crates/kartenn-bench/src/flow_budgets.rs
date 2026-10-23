@@ -281,6 +281,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             local: None,
             property: Ref::Id(property("core.external_system").await?),
             key: "bench".into(),
+            labels: std::collections::BTreeMap::new(),
         },
     )
     .await?;
@@ -308,7 +309,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                 "policy",
                 "flow_type.create",
                 json!({"local": k + 1, "key": format!("type{k:02}"),
-                       "label": format!("Type {k}")}),
+                       "labels": { "fr": format!("Type {k}") }}),
             )?,
         ));
         for s in 0..SERVICES_PER_TYPE {
@@ -318,7 +319,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                     "policy",
                     "service.create",
                     json!({"key": format!("svc{k:02}-{s:02}"),
-                           "label": format!("Service {k}-{s}"),
+                           "labels": { "fr": format!("Service {k}-{s}") },
                            "flow_type": {"local": k + 1},
                            "entries": [{"transport": "tcp",
                                         "ports": 1000 + k * SERVICES_PER_TYPE + s}]}),
@@ -335,7 +336,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                     .collect();
                 let mut rule = json!({
                     "key": format!("r-{k}-{i}-{b}"),
-                    "label": format!("{} vers le bloc {b} ({k})", environment(i)),
+                    "labels": { "fr": format!("{} vers le bloc {b} ({k})", environment(i)) },
                     "effect": if deny { "deny" } else { "allow" },
                     "flow_types": [{"local": k + 1}],
                     "source": {"policy.environment": [environment(i)]},
@@ -636,7 +637,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let rule = op(
         "policy",
         "rule.create",
-        json!({"key": "bench-new", "label": "Nouvelle règle", "effect": "allow",
+        json!({"key": "bench-new", "labels": { "fr": "Nouvelle règle" }, "effect": "allow",
                "flow_types": [{"id": first}],
                "source": {"policy.environment": [environment(0)]},
                "destination": {"policy.environment": [environment(1)]}}),

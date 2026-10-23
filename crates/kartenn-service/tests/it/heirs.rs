@@ -53,12 +53,14 @@ async fn an_address_inherits_a_value_it_cannot_carry(pool: PgPool) {
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         },
         Operation::AddEnumValue {
             local: None,
             property: Ref::Local(1),
             key: "dmz".into(),
+            labels: std::collections::BTreeMap::new(),
         },
         Operation::CreateDomain {
             local: Some(2),

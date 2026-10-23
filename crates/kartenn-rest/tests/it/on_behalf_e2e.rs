@@ -197,7 +197,7 @@ impl Fixture {
             &self.apply()(vec![
                 Operation::SetRole {
                     key: role.clone(),
-                    label: role.clone(),
+                    labels: [("fr".into(), role.clone())].into(),
                     entries: entries.iter().map(|e| (*e).to_owned()).collect(),
                 },
                 Operation::Bind {

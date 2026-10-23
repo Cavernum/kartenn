@@ -238,6 +238,18 @@ impl Labels {
         Ok(labels)
     }
 
+    /// [`Labels::parse`] of a table as an operation receives it.
+    ///
+    /// # Errors
+    /// A violation of `core.label.invalid`.
+    pub fn parse_map(map: &BTreeMap<String, String>) -> Result<Self, Violation> {
+        Self::parse(&Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+                .collect(),
+        ))
+    }
+
     /// [`Labels::parse`], refusing an empty table: for the objects that need a label.
     ///
     /// # Errors
