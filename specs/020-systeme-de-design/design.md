@@ -234,7 +234,9 @@ web/ui/src/
 - **Lint du code** : interdiction des éléments `button`, `input`, `select`, `textarea`,
   `table` bruts dans `web/shell/src/**` hors `_ui/` et dans `web/plugins/*/src/**` ;
   interdiction d'une liaison de style en chaîne et de `v-html`/`dangerouslySetInnerHTML`
-  hors liste blanche. **[D-1]** : règle de `eslint-plugin-vue` ou règle JSX.
+  hors liste blanche (`eslint-plugin-vue` : `vue/no-restricted-html-elements`,
+  `vue/no-static-inline-styles`, `vue/no-v-html`) ; `no-restricted-imports` refuse les
+  composants Reka interdits (REQ-020-33).
 - **CSP** : feuilles compilées en fichiers ; valeurs dynamiques par
   `el.style.setProperty('--k-…', v)` (CSSOM, permis par `style-src 'self'`,
   web-navigateur.md § CSP Level 3) ; aucun `cssText`. Un parcours dédié
@@ -256,9 +258,10 @@ web/ui/src/
 
 ## Inventaire des composants (REQ-020-16 à 23)
 
-Base : primitives accessibles sans style de la pile retenue par D-1 (avec Vue : Reka UI ;
-avec React : React Aria) ; virtualisation : TanStack Virtual (deux piles) ou celle de la
-bibliothèque. États communs : repos, survol, focus visible, actif, désactivé ; les autres
+Base : SFC Vue 3 sur **Reka UI** (version exacte) là où il convient ; grille et navigation
+verticale de l'arbre virtualisé écrites par kartenn ; virtualisation : `TreeVirtualizer`
+de Reka pour l'arbre, `@tanstack/vue-virtual` pour la grille (design § « Vue et Reka
+UI »). États communs : repos, survol, focus visible, actif, désactivé ; les autres
 sont listés.
 
 | # | Composant | Motif APG ou rôle | États propres | Notes |
@@ -395,11 +398,26 @@ l'utilisateur sur captures, en clair et en sombre ; la validation est consignée
 
 ## Budgets (REQ-020-29)
 
-Mesurés par `size.mjs` (poids, existant) et `bench-web` (rendu) : module `@kartenn/ui`
-≤ 90 Ko gzip, feuille ≤ 20 Ko gzip, polices préchargées ≤ 120 Ko ; grille de 100 lignes
-≤ 100 ms ; arbre de 10⁵ nœuds ≤ 5 % de trames perdues au défilement scénarisé ; ouverture
-d'une couche sans tâche longue. Le poids du framework partagé (D-1) est compté à part,
-dans les budgets de la 021.
+Poids par `size.mjs` ; bancs de composants par un projet Playwright `components-bench`
+qui reprend le protocole du prototype D-1 (build de production, `vite preview`, Chromium
+sans ralenti, 1440 × 900, 5 passes, médiane ; latence = du `timeStamp` de l'événement au
+premier `requestAnimationFrame` après l'état attendu ; trames perdues = 1 − trames
+observées / (durée ÷ 16,67 ms) ; tas par CDP après `collectGarbage`). Seuils = 2 × la
+mesure du prototype :
+
+| Mesure | Prototype (médiane) | Budget |
+|---|---|---|
+| JS `@kartenn/ui` + `vue`, gzip | 91,5 Ko (premier chargement, application comprise) | ≤ 120 Ko (dont `@kartenn/ui` ≤ 90 Ko) |
+| Arbre 10⁵ : première ligne | 155 ms | ≤ 300 ms |
+| Arbre : dépliage de 1 000 enfants | 43 ms | ≤ 90 ms |
+| Arbre : Flèche bas, p75 | 14,8 ms | ≤ 32 ms |
+| Arbre : défilement de 5 000 lignes | 0,2 % de trames perdues, 0 tâche longue | ≤ 1 %, 0 tâche longue |
+| Grille 10⁴ : filtre / tri / édition | 31 / 14 / 15 ms | ≤ 60 / 30 / 30 ms |
+| Grille : Flèche bas, p75 | 14,4 ms | ≤ 32 ms |
+| Tas : arbre chargé / après défilement / grille | 19,4 / 24,6 / 21,6 Mo | ≤ 40 / 50 / 45 Mo |
+
+La machine du prototype était partagée (charge 1,4 à 4,8) : les médianes sont prudentes.
+Les budgets du shell entier, sous ralenti ×4, sont dans la 021.
 
 ## Arborescence
 
@@ -416,19 +434,33 @@ web/e2e/components/             scripts clavier APG
 web/stylelint.config.js
 ```
 
-## Dépend de D-1
+## Vue et Reka UI (D-1 tranché le 2026-10-23)
 
-| Point | Vue 3 | React 19 |
-|---|---|---|
-| Primitives accessibles | Reka UI (`TreeVirtualizer`, Combobox, DatePicker…) | React Aria Components (Tree, Table, GridList, ComboBox, DatePicker, virtualiseur) |
-| Fichier de composant | SFC, bloc `<style>` extrait en `.css` au build (jamais `.ce.vue`) | module `.tsx` et feuille sœur `.css` |
-| Lint des éléments bruts | `vue/no-restricted-html-elements`, `vue/no-static-inline-styles` | règle JSX `no-restricted-syntax` ou équivalent |
-| Style dynamique | `:style` objet (CSSOM), jamais chaîne | `style` objet (CSSOM) |
-| Virtualisation | TanStack Virtual (adaptateur Vue) ou `TreeVirtualizer` | TanStack Virtual ou virtualiseur intégré |
+Pile : `vue` 3.5, `reka-ui` (version exacte), `@tanstack/vue-virtual`. Fichiers : SFC
+`<script setup lang="ts">` dont le bloc `<style>` est extrait en `.css` au build, dans
+`@layer components` ; jamais `.ce.vue` ; `:style` en objet (CSSOM).
 
-Le prototype D-1 doit aussi vérifier : aucune violation CSP des primitives retenues ;
-tenue de l'arbre éditable de 10⁵ nœuds et de la grille éditable ; mémoire (plafond de la
-021).
+Leçons du prototype (compte rendu, § 3), devenues règles de `@kartenn/ui` :
+
+| Constat | Règle |
+|---|---|
+| La sélection simple de `TreeRoot` stocke une **copie** de l'élément (identité perdue : un déplacement a supprimé le mauvais nœud) ; Reka enveloppe le `v-model` dans un `ref` profond | sélection et opérations par identifiant ; nœuds `markRaw`, listes en `shallowRef` ; test de régression |
+| Haut/Bas de l'arbre virtualisé : Reka vise le voisin **rendu** ; en répétition rapide, des appuis sont perdus (462 à 498 sur 500) | Haut et Bas gérés par `@kartenn/ui` sur l'index aplati (défilement, index « en attente ») ; script : 500 appuis, focus exact |
+| Pas de `*` ; Entrée sélectionne au lieu de renommer ; le tampon de recherche concatène les touches non imprimables | gestionnaire placé **avant** ceux de Reka (`stopImmediatePropagation`) ; dépend de l'ordre des écouteurs : version épinglée, scripts clavier à chaque montée |
+| `ComboboxViewport` et `Splitter` injectent un `<style>` (violation `style-src-elem`) | composants interdits par le lint ; parcours CSP sur tout le catalogue |
+| Combobox ouverte : `aria-hidden` sur le reste de la page (`useHideOthers`, sans option) | filtres en popover avec liste ouverte au focus ; deux Échap (liste puis popover), dits dans l'aide |
+| Pas de grille dans Reka (≈ 490 lignes maison au prototype) | `DataGrid` maison : index de lignes et colonnes, tabindex itinérant, navigation, sélection, édition, en-têtes triables, filtre d'en-tête par Alt+Flèche bas (convention maison, listée dans l'aide) ; script APG Grid complet |
+| Slots de `TreeVirtualizer` typés `Record<string, any>`, clés `string` imposées | enveloppes typées dans `@kartenn/ui` ; aucun transtypage dans les écrans |
+| Ligne focalisée démontée quand la molette la sort de la fenêtre : focus sur `<body>` | la ligne focalisée reste montée (ou le focus revient au conteneur avec `aria-activedescendant`) |
+| Nom accessible d'une ligne = tout son contenu | `aria-label` court, détail par `aria-describedby` |
+| Glisser : dépôt « dans » un parent seulement | suffit (arbres à parent déclaré, REQ-020-31) |
+
+Ce que Reka apporte sans retouche (prototype) : Dialog, Popover, Combobox (hors
+Viewport), NumberField, Toolbar, ToggleGroup, flèches gauche/droite, Début/Fin et
+sélection de l'arbre, `aria-level`/`setsize`/`posinset` ; axe sans violation.
+
+Alternative rejetée : React 19 et React Aria (prototype jumeau) ; voir l'ADR 0036,
+« Alternatives ».
 
 ## Erreurs et cas limites
 
@@ -456,9 +488,12 @@ en CSS (Q-020-3).
   source, jamais en relevant le seuil sans décision.
 - **Doublons de composants** par des agents parallèles : bibliothèque écrite par un seul
   agent ; revue `ui-reviewer` qui cherche les motifs dupliqués.
-- **D-1 change la pile** après les jetons : les jetons, la CSS, les icônes, les captures
-  et les maquettes (en tant qu'images validées) restent ; seuls les fichiers de
-  composants sont à réécrire.
+- **Comportements non documentés de Reka** (quatre sur neuf difficultés du prototype,
+  deux en bogues de données silencieux) : version exacte, scripts clavier et parcours CSP
+  à chaque montée, contournements isolés dans `@kartenn/ui` et listés dans le skill
+  `kartenn-ui`.
+- **Grille maison** : la part la plus risquée en accessibilité est du code kartenn ;
+  script APG Grid complet et revue `a11y-auditor` avec un lecteur d'écran.
 - **Poids de la police** : sous-ensembles et préchargement unique ; mesuré par
   `size.mjs`.
 
@@ -470,7 +505,7 @@ en CSS (Q-020-3).
 | Stylelint, lint du code | REQ-020-12 à 14 | oui |
 | Playwright `visual` | captures et instantanés ARIA du catalogue et des maquettes | oui |
 | Playwright `components` | scripts clavier APG, axe `wcag22aa`, violations CSP | oui |
-| `bench-web` | budgets REQ-020-29 | oui |
+| `components-bench`, `size.mjs` | budgets REQ-020-29 | oui |
 | Revues | `ui-reviewer`, `a11y-auditor` à la fin de chaque composant et maquette | revue |
 
 ## ADR
@@ -478,8 +513,7 @@ en CSS (Q-020-3).
 [0036](../../docs/adr/0036-systeme-de-design-kartenn-ui.md) (système de design),
 [0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) (partage avec les
 plugins), [0039](../../docs/adr/0039-outillage-claude-qualite-interface.md) (outillage
-Claude), proposées ; acceptées à la validation de la spec, après D-1 pour leurs sections
-« Dépend de D-1 ».
+Claude), proposées, D-1 résolu (Vue 3) ; acceptées à la validation de la spec.
 
 ## Références
 

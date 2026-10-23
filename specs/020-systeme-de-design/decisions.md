@@ -15,9 +15,10 @@ libellés par langue).
 
 ## Arbitrages rendus (2026-10-23, utilisateur)
 
-- **D-1 framework** : en attente d'un prototype comparatif (Vue 3 + Reka UI, React 19 +
-  React Aria ; arbre éditable de 10⁵ nœuds, table éditable). D17 et l'ADR 0011 inchangées
-  d'ici là (022/A8).
+- **D-1 framework : Vue 3** (« Franchement on va prendre vue »), après le prototype
+  comparatif (Vue 3 + Reka UI, React 19 + React Aria ; arbre éditable de 10⁵ nœuds, table
+  éditable) ; D17 et l'ADR 0011 inchangées ; Reka UI comme base de primitives là où elle
+  convient (B33).
 - **D-4 CSS** : jetons et CSS par composant en `@layer`, Stylelint strict.
 - **D-8 maquettes** : construites avec les vrais composants, dans le catalogue `/_ui`.
 - **D-9 régression visuelle** : bloquante, Chromium seul, références générées dans devenv.
@@ -63,6 +64,7 @@ libellés par langue).
 - B30 `@kartenn/ui` en MPL-2.0.
 - B31 déplacement contrôlé : aucun en parent déduit ; cibles vérifiées avant mise en évidence ; intention seulement.
 - B32 invariant : un nœud n'est affiché que sous le parent de son modèle.
+- B33 Reka UI épinglé et encadré ; grille maison ; budgets de composants tirés du prototype.
 
 ## B1 — Brief et principes
 - Décision : le brief validé (design, § « Brief ») est la référence des revues
@@ -151,6 +153,17 @@ libellés par langue).
   construction, et testable par propriété.
 - Décidé par : l'utilisateur (2026-10-23)
 
+## B33 — Vue 3, Reka UI encadré, budgets du prototype
+- Décision : composants Vue 3 ; Reka UI en version exacte ; composants injectant un
+  `<style>` interdits ; sélection par identifiant, Haut/Bas maison, interception de `*`,
+  Entrée et du tampon de recherche dans l'arbre ; grille APG maison ; budgets de
+  composants = 2 × les mesures du prototype.
+- Pourquoi : D-1 ; constats du prototype (design § « Vue et Reka UI »).
+- Rejeté : React 19 et React Aria (plus lourd : 220 Ko gzip, 116 Mo de tas sur la table,
+  tri et filtre de 130 à 260 ms) ; Reka en plage `^` (comportements non documentés dont
+  dépendent les contournements).
+- Décidé par : l'utilisateur (D-1) ; règles et marges : choix de Claude
+
 ## B20 — Filtres typés
 - Décision : pastilles `propriété opérateur valeur`, listes fermées avec autocomplétion ;
   pas de langage écrit dans cette spec.
@@ -200,15 +213,16 @@ recommandation de Claude.
   maquettes `/_ui/ecrans/` après E10, sur `@kartenn/ui`.
 - **A2 — 007/W12 et REQ-007-30** : W12 nomme Reka UI et les jetons « traversant le
   Shadow DOM ». *Recommandation* : garder la traversée (vraie pour les tiers) ; Reka UI
-  devient conditionnel à D-1 ; la 021 remplace W12 pour le client.
+  reste la base (D-1 : Vue 3), encadrée par REQ-020-33 ; la 021 remplace W12 pour le
+  client.
 - **A3 — ADR 0024 (dépendances)** : Stylelint et ses règles, `lucide`, les fichiers de
   police Geist entrent dans l'outillage et le paquet. *Recommandation* : accepter ; ADR
   0036 les consigne ; licences vérifiées par le test existant (REQ-007-38).
 - **A4 — D17** : la bibliothèque `@kartenn/ui` est écrite dans le framework du shell et
   partagée avec les plugins (ADR 0038) ; D17 dit les plugins « sans dépendre d'un
   framework ». *Recommandation* : pas de contradiction tant que le chemin sans framework
-  reste ouvert aux tiers (plugin d'exemple gardé) ; amender D17 seulement si D-1 change
-  le framework.
+  reste ouvert aux tiers (plugin d'exemple gardé). D-1 a gardé Vue 3 : D17 n'est pas
+  amendée.
 - **A5 — Captures Chromium seul et REQ-007-37** (Chromium et Firefox) :
   *Recommandation* : les parcours fonctionnels restent sur les deux navigateurs ; seules
   les captures sont sur Chromium (D-9). Pas d'amendement.
@@ -239,9 +253,9 @@ recommandation de Claude.
   maquettes.
 - **Q-020-8** — Différentiel : couleurs d'état réutilisées (`ok`, `ko`, `warn`) ou jetons
   propres ? *Recommandation* : réutilisées, doublées d'un signe et d'un libellé.
-- **Q-020-9** — Chiffres des budgets de poids (90, 20, 120 Ko) : à confirmer après le
-  prototype D-1, qui donne le poids réel des primitives. *Recommandation* : garder ces
-  plafonds comme provisoires, fixés à la clôture de la tâche 13.
+- ~~**Q-020-9**~~ — Chiffres des budgets de poids : close par le prototype D-1 (91,5 Ko
+  gzip au premier chargement, `vue` et application compris) : `@kartenn/ui` ≤ 90 Ko,
+  avec `vue` ≤ 120 Ko ; budgets de rendu à 2 × la mesure (B33).
 - **Q-020-10** — Langage de requête écrit (avec autocomplétion et coloration) : quand ?
   *Recommandation* : après la v0.2, spec propre, sur la grammaire des pastilles (même
   modèle, deux saisies).

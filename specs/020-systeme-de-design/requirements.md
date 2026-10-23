@@ -30,8 +30,10 @@ WCAG 2.2, APG).
 
 **Brouillon du 2026-10-23.** Les arbitrages de fond sont rendus ; restent les
 « Arbitrages demandés » et les questions Q-020-1 à 10 de [`decisions.md`](decisions.md).
-Le framework (D-1) attend un prototype comparatif : les exigences sont écrites sans lui,
-les points qui en dépendent sont marqués **[D-1]**. Rien n'est implémenté.
+Le framework est tranché (D-1, 2026-10-23, après prototype comparatif) : **Vue 3**, avec
+**Reka UI** comme base de primitives accessibles là où elle convient ; D17 et l'ADR 0011
+restent telles quelles. Les leçons du prototype sont reprises (REQ-020-33, design § « Vue
+et Reka UI »). Rien n'est implémenté.
 
 Ordre (D31 amendée) : la 022 (événements poussés) précède la 020 et la 021 ; la 020
 précède les écrans de la 021 et ceux de la 017.
@@ -183,7 +185,8 @@ de police littérale ; `!important` ; les sélecteurs d'identifiant ; une profon
 sélecteur au-delà de trois ; les propriétés physiques là où une propriété logique existe
 (`margin-left` → `margin-inline-start`). Une règle de lint du code doit refuser les
 éléments interactifs bruts (bouton, champ, liste de choix, table) dans les écrans du shell
-et les plugins de première partie. [B13, D-4, ADR 0039] **[D-1]** pour la règle du code.
+et les plugins de première partie. [B13, D-4, ADR 0039] Règle du code : `eslint-plugin-vue`
+(`vue/no-restricted-html-elements`, `vue/no-static-inline-styles`).
 
 Acceptation :
 - Un fichier de test avec chaque cas interdit fait échouer `k-web-check` ; le même fichier
@@ -236,8 +239,9 @@ Acceptation :
 #### REQ-020-18 — Motifs APG et clavier
 Chaque composant interactif doit suivre le motif APG nommé dans l'inventaire (rôles,
 états ARIA, clavier) et avoir un test clavier automatisé qui rejoue ce motif ; un widget
-fourni par la bibliothèque de primitives retenue ne doit pas être réécrit. [B18,
-REQ-007-33] **[D-1]** pour la bibliothèque de primitives.
+fourni par Reka UI ne doit pas être réécrit, sauf là où le prototype l'a pris en défaut
+(REQ-020-33) ; la **grille** (motif APG Grid), absente de Reka, est écrite dans
+`@kartenn/ui` avec le script clavier complet du motif. [B18, B33, REQ-007-33]
 
 Acceptation :
 - Par composant : test Playwright qui suit le motif (par exemple, arbre : flèches,
@@ -257,6 +261,9 @@ Acceptation :
 - Grille de 10⁴ lignes au catalogue : au plus quelques centaines de lignes dans le DOM ;
   édition d'une cellule au clavier seul ; erreur affichée sur la cellule et annoncée.
 - Arbre de 10⁵ nœuds à parent déclaré : déplacement d'un nœud au clavier sans glisser.
+- 500 appuis rapides sur Flèche bas dans un nœud de 1 000 enfants : le focus est
+  exactement sur la 500ᵉ ligne ; la ligne focalisée reste montée quand la molette la
+  sort de la fenêtre virtualisée.
 
 #### REQ-020-31 — Déplacement contrôlé
 L'arbre doit connaître le **mode de parenté** que lui donne l'hôte : `derived` (parent
@@ -393,12 +400,38 @@ Acceptation :
 ### I. Budgets
 
 #### REQ-020-29 — Poids et rendu
-`@kartenn/ui` doit tenir, mesuré au build et par `bench-web` (Chromium, CPU ralenti ×4) :
-module JavaScript ≤ 90 Ko gzip, feuille ≤ 20 Ko gzip, polices préchargées ≤ 120 Ko ;
-rendu d'une grille de 100 lignes ≤ 100 ms ; défilement d'un arbre de 10⁵ nœuds avec
-≤ 5 % de trames perdues ; aucune tâche longue (> 50 ms) à l'ouverture d'une couche. Le
-banc doit échouer si un budget est dépassé. [B29, D-10, REQ-007-32, Q-020-9] **[D-1]**
-pour le poids du framework, compté à part.
+`@kartenn/ui` doit tenir, mesuré au build : module JavaScript ≤ 90 Ko gzip et, avec `vue`,
+≤ 120 Ko gzip ; feuille ≤ 20 Ko gzip ; polices préchargées ≤ 120 Ko. Les **bancs de
+composants** du catalogue, au protocole du prototype D-1 (build de production, Chromium
+sans ralenti, médiane de 5 passes), doivent tenir au plus le double des mesures du
+prototype : arbre de 10⁵ nœuds, première ligne ≤ 300 ms, dépliage de 1 000 enfants
+≤ 90 ms, Flèche bas p75 ≤ 32 ms, défilement de 5 000 lignes ≤ 1 % de trames perdues et
+aucune tâche longue ; grille de 10⁴ lignes, filtre ≤ 60 ms, tri ≤ 30 ms, édition validée
+≤ 30 ms, Flèche bas p75 ≤ 32 ms ; tas JS ≤ 40 Mo arbre chargé, ≤ 50 Mo après
+défilement, ≤ 45 Mo grille ; ouverture d'une couche sans tâche longue. Le banc doit
+échouer si un budget est dépassé ; un budget ne se relâche que par décision. [B29, D-10,
+REQ-007-32] Les budgets du shell entier, sous ralenti ×4, sont ceux de la 021.
+
+### I bis. Usage de Reka UI
+
+#### REQ-020-33 — Reka UI encadré
+`@kartenn/ui` doit : dépendre d'une **version exacte** de Reka UI, toute montée de version
+passant par les scripts clavier et le parcours CSP de chaque composant qui s'en sert ;
+refuser par le lint les composants qui injectent un `<style>` (`ComboboxViewport`,
+`Splitter`, et tout autre que le parcours CSP prendra en défaut) ; résoudre la sélection
+d'un arbre **par identifiant**, jamais par l'objet que Reka stocke (une copie), et tenir
+les nœuds hors de la réactivité profonde ; gérer lui-même Haut et Bas dans l'arbre
+virtualisé ; intercepter avant Reka `*`, Entrée (renommer) et les touches non imprimables
+du tampon de recherche ; donner aux lignes d'arbre un nom accessible court (libellé) et le
+détail en description. [B33, prototype D-1 du 2026-10-23]
+
+Acceptation :
+- `package.json` de `web/ui` : Reka UI sans `^` ni `~` (test).
+- Import de `ComboboxViewport` → échec du lint.
+- Déplacement par « Déplacer vers… » après sélection : c'est le nœud choisi qui bouge
+  (régression du prototype, où le dernier enfant était supprimé).
+- Scripts Tree View : `*`, Entrée/F2, recherche à la saisie avec Maj, sans caractère
+  parasite.
 
 ### J. Licences
 

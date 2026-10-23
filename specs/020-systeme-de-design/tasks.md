@@ -8,10 +8,10 @@ updated: 2026-10-23
 Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A6 et les questions Q-020-1
 à 10 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
-**[D-1]** : la tâche attend l'issue du prototype de framework. Commandes lourdes par
-`k-heavy`.
+D-1 est tranché (Vue 3, Reka UI encadré : REQ-020-33) ; les marques **[D-1]** sont levées.
+Commandes lourdes par `k-heavy`.
 
-Ordre : P0 et P1 n'attendent pas D-1. P2 et au-delà l'attendent. P3 (version visuelle et
+Ordre : P0, P1, puis P2. P3 (version visuelle et
 maquettes) précède P4 (composants complets) ; **la bibliothèque s'écrit séquentiellement,
 par un seul agent à la fois** (ADR 0039, § 6) ; P4 ne se parallélise pas. Les écrans de
 la 021 attendent la tâche 15 (maquettes validées) et la famille de composants qu'ils
@@ -45,7 +45,8 @@ emploient.
   composants flottants à ombre) ; interdiction des éléments interactifs bruts et du style
   en chaîne dans les écrans et plugins ; intégrés à `k-web-check` et au hook
   pre-commit — REQ-020-12, 13 — verify : fichier de cas interdits → échec ; corrigé →
-  succès **[D-1]** pour la règle du code (la partie Stylelint n'en dépend pas)
+  succès ; `vue/no-restricted-html-elements`, `vue/no-static-inline-styles`,
+  `no-restricted-imports` des composants Reka interdits (REQ-020-33)
   - où : `web/eslint.config.js` ; `web/package.json` (scripts) ; `devenv.nix`
     `scripts.k-web-check` (vers la ligne 494) ; `.pre-commit-config.yaml` (entrée
     `eslint (web)`, forme)
@@ -53,10 +54,11 @@ emploient.
 
 ## P1 — Jetons, police, icônes
 
-- [ ] 4. Paquet `web/ui` (`@kartenn/ui`, MPL-2.0) : `package.json`, `LICENSE`,
-  `src/index.ts`, `src/style.css` (ordre des couches en tête), espace pnpm — REQ-020-12,
-  30 — verify : `pnpm -C web/ui build` produit `style.css` et le module ; test de
-  licences vert
+- [ ] 4. Paquet `web/ui` (`@kartenn/ui`, MPL-2.0) : `package.json` (`vue`, `reka-ui` en
+  version exacte, `@tanstack/vue-virtual`), `LICENSE`, `src/index.ts`, `src/style.css`
+  (ordre des couches en tête), espace pnpm — REQ-020-12, 30, 33 — verify : `pnpm -C web/ui
+  build` produit `style.css` et le module ; test de licences vert ; test : Reka sans `^`
+  ni `~`
   - où : `web/sdk/package.json` et `web/sdk/LICENSE` (forme MPL-2.0) ;
     `web/pnpm-workspace.yaml` ; `web/shell/vite.config.ts` (`sharedSdk`, pour l'entrée de
     build en bibliothèque)
@@ -96,7 +98,7 @@ emploient.
   composant générique qui lit `<Nom>.catalogue.*`), commutateurs mode/densité/langue dans
   l'URL ; absent du build de production — REQ-020-24 — verify : test sur le manifeste du
   build de production (aucun module `_ui`) ; parcours `/_ui/jetons` sans violation axe
-  **[D-1]**
+
   - où : `web/shell/src/router.ts` (routes paresseuses), `web/shell/vite.config.ts`
     (mode), `web/shell/src/theme.ts` (mode forcé) ; design § « Catalogue »
   - dépend de : 5, 6, 7
@@ -112,7 +114,7 @@ emploient.
     `scripts.k-web-e2e` (vers la ligne 533, forme de la commande)
   - dépend de : 8
 
-## P3 — Version visuelle des composants et maquettes [D-1]
+## P3 — Version visuelle des composants et maquettes
 
 Composants rendus avec leurs jetons et leurs états visuels, sans tout le comportement
 clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
@@ -155,7 +157,7 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
   - où : `decisions.md` ; 017/U14 (amendée, A1)
   - dépend de : 14
 
-## P4 — Composants complets (un agent, en séquence) [D-1]
+## P4 — Composants complets (un agent, en séquence)
 
 Pour chaque famille : tous les états de l'inventaire, script clavier APG
 (`web/e2e/components/<nom>.spec.ts`), instantané ARIA, captures, axe, revue
@@ -203,18 +205,25 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - où : `web/shell/src/admin/WriteOutcome.vue` (problèmes affichés aujourd'hui) ;
     `web/sdk/src/api/problem.ts` (`ApiProblem`, `requestId`)
   - dépend de : 21
-- [ ] 25. `DataGrid` : virtualisation, tri, sélection, colonnes redimensionnables au
-  clavier, colonne d'extension, contrat d'édition en place (design, § « Contrat
-  d'édition ») — REQ-020-19 — verify : 10⁴ lignes → quelques centaines dans le DOM ;
-  script Grid (navigation, Entrée/F2, Échap, Tab) ; états `pending`, `draft`, `review`,
-  `error`
+- [ ] 25. `DataGrid` **maison** (Reka n'a pas de grille) : motif APG Grid complet (index de
+  lignes et colonnes, tabindex itinérant, Flèches, Début/Fin, Ctrl+Début/Fin, Page,
+  sélection Espace/Maj+flèches/Ctrl+A, tri `aria-sort`, filtre d'en-tête par Alt+Flèche
+  bas), `@tanstack/vue-virtual`, colonnes redimensionnables au clavier, colonne
+  d'extension, contrat d'édition en place (design, § « Contrat d'édition ») — REQ-020-18,
+  19 — verify : 10⁴ lignes → quelques centaines dans le DOM ; script APG Grid complet (au
+  moins les 10 cas du prototype) ; états `pending`, `draft`, `review`, `error` ; bancs
+  filtre/tri/édition (tâche 27)
   - où : `web/shell/src/data/DataTable.vue`, `admin/PagedTable.vue` (actuels, à
     remplacer) ; APG Grid
   - dépend de : 24
 - [ ] 26. `TreeGrid`, `Tree` : virtualisation, enfants paginés, `aria-setsize="-1"`,
   édition en place, mode de parenté (`derived`/`declared`), déplacement contrôlé
   (`canMove`, intention, états `pending`/`refused`), garde d'invariant — REQ-020-19, 31,
-  32 — verify : 10⁵ nœuds ; script Tree View/Treegrid ; `derived` : aucun moyen de
+  32, 33 — Reka `TreeRoot`/`TreeVirtualizer` avec les correctifs du design § « Vue et
+  Reka UI » (sélection par identifiant, `markRaw`, Haut/Bas maison, interception de `*`,
+  Entrée, tampon de recherche, ligne focalisée gardée montée, nom court) — verify : 10⁵
+  nœuds ; script Tree View/Treegrid ; 500 × Flèche bas → focus exact ; déplacement après
+  sélection : le bon nœud ; `derived` : aucun moyen de
   déplacer (glisser, Ctrl+X, menu) ; `declared` : cible refusée jamais mise en évidence,
   dépôt sans effet, motif et code affichés ; « Déplacer vers… » sans cible refusée ; nœud
   en attente à sa place ; test de propriété (dépôts, refus, réponses tardives et
@@ -226,15 +235,14 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
 
 ## P5 — Budgets et clôture
 
-- [ ] 27. Budgets de la bibliothèque dans `bench-web` et `size.mjs` : poids JS, CSS,
-  polices ; grille de 100 lignes ; trames perdues de l'arbre de 10⁵ ; tâches longues à
-  l'ouverture d'une couche — REQ-020-29 — verify : `bench-web` rend le tableau
-  (`bench-runner`) ; un plafond dépassé → sortie non nulle
+- [ ] 27. Bancs de composants (`components-bench`, protocole du prototype D-1) et poids
+  (`size.mjs`) : tableau du design § « Budgets » — REQ-020-29 — verify : tableau rendu par
+  `bench-runner` ; un plafond dépassé → sortie non nulle
   - où : `web/e2e/budgets/budgets.spec.ts`, `web/shell/scripts/size.mjs` ;
     `devenv.nix` `scripts.bench-web` (vers la ligne 641)
   - dépend de : 26
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
-  catalogue) ; ADR 0036, 0038, 0039 acceptées (sections D-1 résolues) ;
+  catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
   bloquant
   - où : forme des synchronisations précédentes (007, tâche 25 ; 022, tâche 18)
