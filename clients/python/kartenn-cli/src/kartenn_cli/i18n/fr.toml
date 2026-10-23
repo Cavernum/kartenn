@@ -1,0 +1,110 @@
+# Messages de la CLI en français (REQ-023-37). Les codes, clés et noms de commandes ne se
+# traduisent pas.
+
+[help]
+subcommand = "COMMANDE [ARGS]..."
+commands = "Commandes"
+options = "Options"
+root = "Client de kartenn — profil « {profile} », {url} ({version})."
+root_no_profile = "Client de kartenn — aucun profil : « kartenn config add-profile NOM --url URL »."
+
+[help.section]
+core = "Noyau"
+writes = "Écritures"
+modules = "Modules servis"
+rights = "Droits et audit"
+tools = "Outils"
+others = "Autres"
+global = "Options"
+
+[metavar]
+name = "NOM"
+file = "FICHIER"
+
+[opt]
+help = "Cette aide."
+profile = "Profil de configuration."
+output = "table | json | ndjson | yaml | csv  [défaut : table sur un terminal]"
+at = "Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339."
+as_of = "Temps système : ce que kartenn affirmait alors."
+keys = "Clés internes ou libellés."
+lang = "Langue des messages."
+no_input = "Jamais de question, de navigateur ni d'éditeur."
+token_file = "Fichier de jetons explicite (0600), sans trousseau."
+verbose = "Requêtes, durées, identifiants de requête."
+version = "Version du client."
+
+[config]
+help = "Profils de configuration (sans aucun secret)."
+invalid = "{path} n'est pas un TOML valide : {error}"
+created = "Profil « {name} » créé ({path})"
+updated = "Profil « {name} » mis à jour ({path})"
+chosen = " et choisi par défaut."
+none = "Aucun profil : kartenn config add-profile NOM --url URL"
+unknown = "Aucun profil « {name} » (profils : {known})."
+default = "Profil par défaut : {name}."
+removed = "Profil « {name} » supprimé, ainsi que son secret dans le trousseau."
+missing = "Aucun profil configuré."
+missing_hint = "Créez-en un : kartenn config add-profile NOM --url URL (ou KARTENN_URL)."
+timezone = "Fuseau inconnu dans le profil : {zone}"
+
+[config.add]
+help = "Créer ou modifier un profil."
+
+[config.list]
+help = "Lister les profils (* : par défaut)."
+
+[config.show]
+help = "Afficher un profil."
+
+[config.use]
+help = "Choisir le profil par défaut."
+
+[config.remove]
+help = "Supprimer un profil et son secret."
+
+[config.opt]
+url = "URL du serveur."
+auth = "Authentification : oidc, basic, token, breakglass, none."
+issuer = "Émetteur OIDC (identifiant servi par /v1/auth/native-clients)."
+account = "Compte de service (auth basic) ; son secret va au trousseau."
+ca_bundle = "Paquet d'autorités de confiance (PEM), seul à faire foi."
+lang = "Langue des messages."
+timezone = "Fuseau des dates seules et des affichages (Europe/Paris)."
+output = "Format de sortie par défaut."
+default = "Choisir ce profil par défaut."
+
+[keyring]
+unavailable = "Aucun trousseau utilisable : rien n'est stocké. Fournissez KARTENN_TOKEN, ou un fichier explicite par --token-file."
+
+[input]
+required = "Il faudrait {what}, impossible hors terminal ou avec --no-input."
+
+[output]
+invalid = "Format de sortie inconnu : {given} (table, json, ndjson, yaml, csv)."
+
+[discovery]
+cached = "Découverte du serveur… {version}, modules : {modules} (catalogue en cache)."
+updated = "Découverte du serveur… {version}{previous}, modules : {modules} (catalogue mis à jour)."
+before = " (avant {version})"
+failed = "Catalogue indisponible ({error}) : seules les commandes locales sont listées."
+
+[error]
+word = "erreur"
+warning = "avertissement"
+request = "requête {id}"
+changeset = "changeset {id}"
+import = "import {id}"
+
+[error.violations]
+one = "{count} violation"
+other = "{count} violations"
+
+[hint]
+precondition-failed = "Version courante {current}. Relisez l'objet, ou utilisez « edit » pour fusionner."
+unauthenticated = "Reconnectez-vous : kartenn login"
+"client.login-required" = "Connectez-vous : kartenn login (ou KARTENN_TOKEN)."
+"client.no-configuration" = "Créez un profil : kartenn config add-profile NOM --url URL."
+
+[render]
+masked = "‹masquée›"

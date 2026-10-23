@@ -1,0 +1,110 @@
+# Messages of the CLI in English (REQ-023-37), the fallback. Codes, keys and names of
+# commands are never translated.
+
+[help]
+subcommand = "COMMAND [ARGS]..."
+commands = "Commands"
+options = "Options"
+root = "Client of kartenn — profile “{profile}”, {url} ({version})."
+root_no_profile = "Client of kartenn — no profile: “kartenn config add-profile NAME --url URL”."
+
+[help.section]
+core = "Core"
+writes = "Writes"
+modules = "Modules served"
+rights = "Rights and audit"
+tools = "Tools"
+others = "Others"
+global = "Options"
+
+[metavar]
+name = "NAME"
+file = "FILE"
+
+[opt]
+help = "This help."
+profile = "Profile of the configuration."
+output = "table | json | ndjson | yaml | csv  [default: table on a terminal]"
+at = "Valid time (valid_at): 2026-11-01, -7d, RFC 3339."
+as_of = "System time: what kartenn asserted then."
+keys = "Internal keys or labels."
+lang = "Language of the messages."
+no_input = "Never a question, a browser or an editor."
+token_file = "Explicit file of tokens (0600), without a keyring."
+verbose = "Requests, durations, request identifiers."
+version = "Version of the client."
+
+[config]
+help = "Profiles of the configuration (never a secret)."
+invalid = "{path} is not valid TOML: {error}"
+created = "Profile “{name}” created ({path})"
+updated = "Profile “{name}” updated ({path})"
+chosen = " and chosen by default."
+none = "No profile: kartenn config add-profile NAME --url URL"
+unknown = "No profile “{name}” (profiles: {known})."
+default = "Default profile: {name}."
+removed = "Profile “{name}” removed, with its secret in the keyring."
+missing = "No profile configured."
+missing_hint = "Create one: kartenn config add-profile NAME --url URL (or KARTENN_URL)."
+timezone = "Unknown time zone in the profile: {zone}"
+
+[config.add]
+help = "Create or change a profile."
+
+[config.list]
+help = "List the profiles (*: the default)."
+
+[config.show]
+help = "Show a profile."
+
+[config.use]
+help = "Choose the default profile."
+
+[config.remove]
+help = "Remove a profile and its secret."
+
+[config.opt]
+url = "URL of the server."
+auth = "Authentication: oidc, basic, token, breakglass, none."
+issuer = "OIDC issuer (identifier served by /v1/auth/native-clients)."
+account = "Service account (basic auth); its secret goes to the keyring."
+ca_bundle = "Bundle of trusted authorities (PEM), the only one trusted."
+lang = "Language of the messages."
+timezone = "Time zone of bare dates and of displays (Europe/Paris)."
+output = "Default output format."
+default = "Choose this profile by default."
+
+[keyring]
+unavailable = "No usable keyring: nothing is stored. Give KARTENN_TOKEN, or an explicit file with --token-file."
+
+[input]
+required = "This needs {what}, impossible off a terminal or with --no-input."
+
+[output]
+invalid = "Unknown output format: {given} (table, json, ndjson, yaml, csv)."
+
+[discovery]
+cached = "Discovering the server… {version}, modules: {modules} (catalog cached)."
+updated = "Discovering the server… {version}{previous}, modules: {modules} (catalog updated)."
+before = " (was {version})"
+failed = "Catalog unavailable ({error}): only the local commands are listed."
+
+[error]
+word = "error"
+warning = "warning"
+request = "request {id}"
+changeset = "changeset {id}"
+import = "import {id}"
+
+[error.violations]
+one = "{count} violation"
+other = "{count} violations"
+
+[hint]
+precondition-failed = "Current version {current}. Read the object again, or use “edit” to merge."
+unauthenticated = "Log in again: kartenn login"
+"client.login-required" = "Log in: kartenn login (or KARTENN_TOKEN)."
+"client.no-configuration" = "Create a profile: kartenn config add-profile NAME --url URL."
+
+[render]
+masked = "‹masked›"

@@ -429,7 +429,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux C — CLI `kartenn-cli`
 
-- [ ] 16. Racine paresseuse :
+- [x] 16. Racine paresseuse :
   - `click.Group` dont `list_commands` lit le catalogue en cache sans réseau ;
   - rich-click importé seulement pour `--help` ;
   - profils et précédence ; `config` ; i18n `fr.toml` et `en.toml` ;
@@ -444,6 +444,33 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `i18n/` ; design § Sorties, § Codes de sortie, § Rendu d'un problème ;
     `web/sdk/src/i18n.ts` (résolution de langue)
   - dépend de : 1, 2, 8 (exceptions)
+  - choix : `--help` en texte par click (sections d'options et de commandes, traduites
+    à l'affichage : une aide ou une option porte une clé de catalogue), rendu par
+    rich-click seulement sur un terminal en couleurs, sur un miroir de la commande
+    (`base.py`) ; les instantanés et la maquette sont donc le rendu texte. Langue :
+    `--lang`, puis `KARTENN_LANG`, puis la langue du profil, puis la première variable
+    de locale posée (`LC_ALL`, `LC_MESSAGES`, `LANG`, comme POSIX), repli en anglais ;
+    lue avant l'analyse des options (la ligne d'usage s'écrit d'abord). Les options de
+    la racine s'appliquent dès leur analyse (`-p` et `--lang` en premier) ; celles
+    écrites après `--help` sont ignorées. `--version` lit `kartenn_cli.__version__`
+    (un test le garde égal à la métadonnée) : 53 ms en médiane, 61 ms au p95 sur la
+    machine partagée, au lieu de 67/96 ms avec `importlib.metadata`. `config` :
+    `add-profile` (le premier profil devient le défaut), `list`, `show`, `use`,
+    `remove` (efface aussi le secret du trousseau) ; écriture du TOML à la main (aucune
+    dépendance), commentaires non gardés, 0600. `KARTENN_URL` remplace l'URL du profil
+    ou tient lieu de profil (`auth = token` si `KARTENN_TOKEN`). Trousseau : `keyring`
+    importé au premier secret ; un dorsal de priorité nulle (`fail`, `null`) ou en
+    erreur vaut absence (`client.keyring-unavailable`, code 4, qui propose
+    `KARTENN_TOKEN` et `--token-file`). Rendus : un JSON de liste est un tableau d'un
+    élément par ligne (maquette § 4) et non la page entière ; table et CSV prennent les
+    colonnes de la table ; en-têtes de table = noms des membres en capitales (non
+    traduits : clés) ; pied de table sur la sortie standard ; valeur masquée
+    `‹masquée›` en table, vide en CSV. Codes de sortie : 400, 413, 415 → 2 ; erreurs
+    `client.*` → 2 sauf connexion (4), `reference-not-found` (3), réseau (7),
+    `unexpected-answer` (1). Problème en `-o json` : RFC 9457 tel quel ; erreur du
+    client : `{"code", "detail"}`. Messages de la bibliothèque laissés en anglais ;
+    messages propres à la CLI traduits. `--verbose` : méthode, chemin, statut, durée,
+    `Request-Id` (006) sur la sortie d'erreur.
 - [ ] 17. Arbre dérivé :
   - groupes de modules, préfixe retiré, verbes, sous-ressources ;
   - aide tirée du contrat (module, opération HTTP) ;

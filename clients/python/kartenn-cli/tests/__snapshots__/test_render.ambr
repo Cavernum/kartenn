@@ -1,0 +1,153 @@
+# serializer version: 1
+# name: test_formats_of_a_list[csv]
+  '''
+  domain,value,nature,public
+  interne,198.51.100.0/24,container,false
+  interne,198.51.100.0/26,network,false
+  
+  '''
+# ---
+# name: test_formats_of_a_list[json]
+  '''
+  [
+    {"id": "7c1e0000-0000-7000-8000-000000000001", "domain": {"id": "3f02", "href": "/v1/domains/3f02", "slug": "interne"}, "value": "198.51.100.0/24", "nature": "container", "public": false, "links": {"self": "/v1/prefixes/7c1e"}, "properties": {"policy.environment": "prod"}},
+    {"id": "7c1e0000-0000-7000-8000-000000000002", "domain": {"id": "3f02", "href": "/v1/domains/3f02", "slug": "interne", "label": "Interne"}, "value": "198.51.100.0/26", "nature": "network", "public": false, "links": {"self": "/v1/prefixes/7c1f"}, "properties": {"policy.environment": "prod", "dns.ttl": {"masked": true}}}
+  ]
+  
+  '''
+# ---
+# name: test_formats_of_a_list[ndjson]
+  '''
+  {"id": "7c1e0000-0000-7000-8000-000000000001", "domain": {"id": "3f02", "href": "/v1/domains/3f02", "slug": "interne"}, "value": "198.51.100.0/24", "nature": "container", "public": false, "links": {"self": "/v1/prefixes/7c1e"}, "properties": {"policy.environment": "prod"}}
+  {"id": "7c1e0000-0000-7000-8000-000000000002", "domain": {"id": "3f02", "href": "/v1/domains/3f02", "slug": "interne", "label": "Interne"}, "value": "198.51.100.0/26", "nature": "network", "public": false, "links": {"self": "/v1/prefixes/7c1f"}, "properties": {"policy.environment": "prod", "dns.ttl": {"masked": true}}}
+  
+  '''
+# ---
+# name: test_formats_of_a_list[table]
+  '''
+  DOMAIN   VALUE            NATURE     PUBLIC
+  interne  198.51.100.0/24  container  false
+  Interne  198.51.100.0/26  network    false
+  2 éléments
+  
+  '''
+# ---
+# name: test_formats_of_a_list[yaml]
+  '''
+  - id: 7c1e0000-0000-7000-8000-000000000001
+    domain:
+      id: 3f02
+      href: /v1/domains/3f02
+      slug: interne
+    value: 198.51.100.0/24
+    nature: container
+    public: false
+    links:
+      self: /v1/prefixes/7c1e
+    properties:
+      policy.environment: prod
+  - id: 7c1e0000-0000-7000-8000-000000000002
+    domain:
+      id: 3f02
+      href: /v1/domains/3f02
+      slug: interne
+      label: Interne
+    value: 198.51.100.0/26
+    nature: network
+    public: false
+    links:
+      self: /v1/prefixes/7c1f
+    properties:
+      policy.environment: prod
+      dns.ttl:
+        masked: true
+  
+  '''
+# ---
+# name: test_problems[json]
+  '''
+  {"type": "urn:kartenn:problem:changeset-refused", "title": "Changeset refusé", "status": 422, "instance": "urn:uuid:5b0e", "changeset": "0c41", "violations": [{"rule": "core.prefix.overlap", "severity": "error", "pointer": "/operations/0", "detail": "Le préfixe 198.51.100.0/25 chevauche 198.51.100.0/24 (interne)."}, {"rule": "core.prefix.unused", "severity": "warning", "detail": "Aucun enfant"}, {"rule": "core.x", "severity": "error", "operation": 3, "detail": "Trois"}]}
+  
+  '''
+# ---
+# name: test_problems[text]
+  '''
+  erreur [changeset-refused] Changeset refusé (422)
+    3 violations — requête urn:uuid:5b0e  changeset 0c41
+    ✗ [core.prefix.overlap] /operations/0  Le préfixe 198.51.100.0/25 chevauche 198.51.100.0/24 (interne).
+    ! [core.prefix.unused]  —              Aucun enfant (avertissement)
+    ✗ [core.x]              /operations/3  Trois
+  
+  '''
+# ---
+# name: test_table_keys_ids_and_fields
+  '''
+  ID                                    DOMAIN   VALUE            NATURE     PUBLIC
+  7c1e0000-0000-7000-8000-000000000001  interne  198.51.100.0/24  container  false
+  7c1e0000-0000-7000-8000-000000000002  interne  198.51.100.0/26  network    false
+  2 éléments
+  
+  '''
+# ---
+# name: test_table_keys_ids_and_fields.1
+  '''
+  VALUE            PROPERTIES.POLICY.ENVIRONMENT  PROPERTIES.DNS.TTL
+  198.51.100.0/24  prod                           —
+  198.51.100.0/26  prod                           ‹masquée›
+  2 éléments
+  
+  '''
+# ---
+# name: test_table_keys_ids_and_fields.2
+  '''
+  [
+    {"value": "198.51.100.0/24", "properties": {"policy.environment": "prod"}},
+    {"value": "198.51.100.0/26", "properties": {"policy.environment": "prod", "dns.ttl": {"masked": true}}}
+  ]
+  
+  '''
+# ---
+# name: test_values[csv]
+  '''
+  domain,value,nature,public
+  interne,198.51.100.0/26,network,false
+  
+  '''
+# ---
+# name: test_values[json]
+  '''
+  {"id": "7c1e0000-0000-7000-8000-000000000002", "domain": {"id": "3f02", "href": "/v1/domains/3f02", "slug": "interne", "label": "Interne"}, "value": "198.51.100.0/26", "nature": "network", "public": false, "links": {"self": "/v1/prefixes/7c1f"}, "properties": {"policy.environment": "prod", "dns.ttl": {"masked": true}}}
+  
+  '''
+# ---
+# name: test_values[table]
+  '''
+  domain                         Interne
+  value                          198.51.100.0/26
+  nature                         network
+  public                         false
+  properties.policy.environment  prod
+  properties.dns.ttl             ‹masquée›
+  
+  '''
+# ---
+# name: test_values[yaml]
+  '''
+  id: 7c1e0000-0000-7000-8000-000000000002
+  domain:
+    id: 3f02
+    href: /v1/domains/3f02
+    slug: interne
+    label: Interne
+  value: 198.51.100.0/26
+  nature: network
+  public: false
+  links:
+    self: /v1/prefixes/7c1f
+  properties:
+    policy.environment: prod
+    dns.ttl:
+      masked: true
+  
+  '''
+# ---
