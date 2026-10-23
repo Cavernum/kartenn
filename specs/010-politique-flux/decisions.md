@@ -69,7 +69,7 @@ Machines et interfaces (009, en cours). Note de référence :
 - S34 API : collections au pluriel sous `/v1` (ADR 0026, clause 9).
 - S35 écriture d'une cellule de la matrice sous `If-Match` (amende S28, REQ-010-34).
 - S36 aperçu de l'inférence dans le différentiel du changeset, servi par la simulation
-  (amende S11 et S19, REQ-010-55) : **proposée, en attente de validation**.
+  (amende S11 et S19, REQ-010-55) : acceptée le 2026-10-23.
 
 ## S1 — Périmètre
 - Décision : la 010 livre les vocabulaires (environnements, types de flux), le catalogue
@@ -533,8 +533,8 @@ Machines et interfaces (009, en cours). Note de référence :
   et violation du changeset composé : Claude, choix de conception
 
 ## S36 — Aperçu de l'inférence dans le différentiel (amende S11 et S19, REQ-010-55)
-- Statut : **proposée, en attente de validation** par l'utilisateur (rédigée par Claude
-  le 2026-10-22). Rien n'en est implémenté avant l'arbitrage (tâche 010-22).
+- Statut : **acceptée** par l'utilisateur le 2026-10-23 (rédigée par Claude le
+  2026-10-22) ; implémentée par la tâche 010-22 (débloque 017-15, 021-31).
 - Constat (2026-10-22, spec 017, REQ-017-34, tâche 017-15) : avant d'écrire une règle
   d'inférence, le responsable veut voir les nœuds qu'elle toucherait et les écarts
   qu'elle ouvrirait ou fermerait. Aucune lecture ne le sert : la suggestion
@@ -548,7 +548,7 @@ Machines et interfaces (009, en cours). Note de référence :
   (B) une route dédiée `QUERY /v1/inference-rules/preview` dont le corps est un
   brouillon de règle ;
   (C) l'interface calcule l'aperçu elle-même en lisant les règles et l'arbre.
-- Décision proposée : **A**. Quand un changeset crée, modifie ou clôt une règle
+- Décision : **A**. Quand un changeset crée, modifie ou clôt une règle
   d'inférence, la contribution du module (section `policy.combinations`, ADR 0026
   clause 13) ajoute une ligne `policy.inference.summary` (décomptes) et une ligne
   `policy.inference.node` par nœud dont l'**attendu** change entre l'état d'avant et
@@ -571,5 +571,5 @@ Machines et interfaces (009, en cours). Note de référence :
   par le banc 010-19).
 - Hors décision : une mesure d'approbation sur les écarts ouverts (`policy.inference_opens`,
   REQ-010-20) ; à proposer à part si le besoin s'en fait sentir.
-- Décidé par : **en attente** (proposition de Claude ; grain, bornes, ordre des lignes
-  et date d'évaluation : choix de conception de Claude, à confirmer avec l'option)
+- Décidé par : l'utilisateur (2026-10-23, option A) ; grain, bornes, ordre des lignes
+  et date d'évaluation : choix de conception de Claude, acceptés avec l'option

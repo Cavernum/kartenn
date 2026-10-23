@@ -564,8 +564,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   (412 de trop, sans danger) ; les réponses 412 et 428 restent sous `default` du
   contrat, comme pour les `PATCH` ; dépendance `sha2` (déjà dans l'espace de travail)
   ajoutée à la fonctionnalité `pg` ; le cache de clichés devient `cache::shared`.
-- [ ] 22. Aperçu de l'inférence dans le différentiel (S36, **proposée, en attente de
-  validation : ne pas commencer avant l'arbitrage**) : quand un changeset écrit une
+- [ ] 22. Aperçu de l'inférence dans le différentiel (S36, acceptée le 2026-10-23) : quand un changeset écrit une
   règle d'inférence, la contribution ajoute à `policy.combinations` les lignes
   `policy.inference.summary` (par axe : `valid_at`, `scope`, `scope_exact`, `changed`,
   `opens`, `closes`, `origins_opened`, `origins_closed`, `truncated`) et
@@ -593,5 +592,5 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   / `After`) ; tests : `crates/kartenn-policy/tests/it/differential.rs` (copier
   `simulated` et `a_reclassified_node_counts_its_heirs`) et `tests/it/inference.rs`
   (arbres de fixture) ; `crates/kartenn-bench` pour le banc
-  - dépend de : 15, 18 ; arbitrage de S36
+  - dépend de : 15, 18 ; S36 (acceptée le 2026-10-23)
   - débloque : 017-15

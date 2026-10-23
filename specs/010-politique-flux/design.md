@@ -283,8 +283,7 @@ Moteur pur (`kartenn-policy/src/inference.rs`) sur l'arbre d'adressage :
 
 ### Aperçu de l'inférence (REQ-010-55, S36)
 
-> Statut : **proposé, en attente de validation** (S36). Rien de cette section n'est
-> implémenté avant l'arbitrage (tâche 010-22).
+> S36 acceptée le 2026-10-23 ; tâche 010-22.
 
 Aucune route nouvelle : l'aperçu est une contribution de l'inférence au différentiel du
 changeset, lue par la simulation et par la lecture du différentiel.
@@ -393,7 +392,7 @@ développées d'une machine lisible mais non lisibles une à une sont omises et 
 | `GET /v1/verdicts?source=…&destination=…&service=…` | variante simple |
 | `GET /v1/{collection}/{id}/suggestion?axis=…` | suggestion d'inférence (route transverse du noyau, ADR 0026 clause 9) |
 | `POST /v1/policy-reports`, `GET /v1/policy-reports/{id}`, `GET …/items` | rapport d'audit |
-| `POST /v1/changesets?simulate=true`, `GET /v1/changesets/{id}/diff?section=policy.combinations` (routes du noyau) | aperçu d'une règle d'inférence : lignes `policy.inference.*` (REQ-010-55 ; **S36 proposée, en attente de validation**) |
+| `POST /v1/changesets?simulate=true`, `GET /v1/changesets/{id}/diff?section=policy.combinations` (routes du noyau) | aperçu d'une règle d'inférence : lignes `policy.inference.*` (REQ-010-55, S36) |
 
 Problèmes : `urn:kartenn:problem:policy-query-too-large` (422) ; les violations de
 changeset suivent REQ-006-21.
@@ -501,7 +500,7 @@ M7 (section des rattachements changés) est un besoin de la 011.
 | Règle sans terme, sélecteur de flux = un service | applicable à toute paire (« service interdit » si `deny`) |
 | `valid_at` futur | lecture datée normale (états programmés) |
 | Texte absent dans la langue demandée | langue par défaut de l'instance, langue indiquée |
-| Aperçu d'inférence : portée > 10⁵ nœuds (S36, proposée) | synthèse seule, `truncated: true`, pas d'erreur ; les anomalies viendront de la tâche de fond |
+| Aperçu d'inférence : portée > 10⁵ nœuds (S36) | synthèse seule, `truncated: true`, pas d'erreur ; les anomalies viendront de la tâche de fond |
 | Aperçu d'inférence : candidats à égalité après le changeset | ligne de nœud avec `candidates`, jamais en écart (REQ-010-45, 47) |
 | Aperçu d'inférence : règle future (`valid_from` à venir) | évaluée à ce début de validité, pas au présent |
 
@@ -522,7 +521,7 @@ M7 (section des rattachements changés) est un besoin de la 011.
 - **Différentiel par nœud** : combinatoire (S11).
 - **Route dédiée d'aperçu de l'inférence** (`QUERY /v1/inference-rules/preview`) et
   **aperçu calculé par le client** : écartés au profit du différentiel du changeset
-  (S36, proposée).
+  (S36).
 
 ## Risques et migration
 
@@ -546,7 +545,7 @@ M7 (section des rattachements changés) est un besoin de la 011.
   jamais ; permuter les règles ne change rien ; l'issue ne dépend jamais des signaux.
 - **Conditions et signaux** : un test par genre ; dossier absent.
 - **Inférence** : un test par exigence de la section G ; oracle sur arbres aléatoires
-  pour le départage (priorité, profondeur, candidats multiples). Aperçu (S36, proposé) :
+  pour le départage (priorité, profondeur, candidats multiples). Aperçu (S36) :
   les nœuds changés d'une simulation égalent ceux dont `inference::expected` diffère,
   évalué nœud par nœud sur tout l'arbre avant et après, sur de petits arbres aléatoires.
 - **Différentiel** : comparaison avec le produit cartésien complet évalué avant et après

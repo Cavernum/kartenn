@@ -1,8 +1,8 @@
 ---
 status: in-progress
-updated: 2026-10-22
+updated: 2026-10-23
 ---
-<!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer) et REQ-010-55 (proposée, S36, en attente de validation). -->
+<!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer) et REQ-010-55 (S36, acceptée le 2026-10-23, tâche 010-22). -->
 
 
 # 010 — Politique de flux : exigences
@@ -498,8 +498,8 @@ Le module doit respecter (p95 serveur, jeu de 10⁶ objets, 2 000 règles au plu
 suggestion pour un objet < 50 ms ; contrôle des objets d'un changeset de 10⁴ objets
 < 1 s ajoutée ; réévaluation complète de 10⁶ nœuds en tâche de fond < 10 min (I14).
 
-#### REQ-010-55 — Aperçu de l'inférence (proposée, S36)
-> Statut : **proposée, en attente de validation** (S36) ; non implémentée (tâche 010-22).
+#### REQ-010-55 — Aperçu de l'inférence (S36)
+> S36 acceptée le 2026-10-23 (tâche 010-22).
 
 Quand un changeset crée, modifie ou clôt une règle d'inférence, le module doit ajouter
 à sa contribution au différentiel, en simulation comme à l'application, les nœuds dont
@@ -629,8 +629,8 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 ## Questions ouvertes
 
-- [ ] S36 et REQ-010-55 (aperçu de l'inférence dans le différentiel, pour REQ-017-34) :
-  proposés, à valider avant la tâche 010-22. (utilisateur)
+- [x] S36 et REQ-010-55 (aperçu de l'inférence dans le différentiel, pour REQ-017-34) :
+  acceptés par l'utilisateur le 2026-10-23.
 - [ ] Budgets de REQ-010-28 et REQ-010-54 : tenus en variante réduite par le banc
   `bench-policy` (2026-10-22, tâche 010-19) ; à confirmer sur le jeu de 10⁶ objets.
   Le rapport d'audit y dépassait le budget (≈ 990 s). (Claude, tâches 010-1 et 010-19)
