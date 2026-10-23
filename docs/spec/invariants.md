@@ -92,7 +92,9 @@ par `bench-core` après les budgets du noyau : VLAN (008, REQ-008-25 : 2·10⁴ 
 machines, 10³ clusters, 3·10⁵ interfaces et rattachements, plus un import de 10⁴
 machines ; banc complet tenu le 2026-10-22, p95 par le routeur : fiche d'une machine
 5,7 ms, page filtrée de 100 machines 36,8 ms, machines d'un /24 64 ms, création 29 ms ;
-import de 10⁴ machines en 61 s).
+import de 10⁴ machines en 61 s ; repassé le 2026-10-23 avec la page de 100 machines
+d'un site, 32 ms pour 150 ms, le filtre `site` lisant désormais les affectations en
+ensemble).
 
 Politique de flux (010, REQ-010-28 et 54) : banc `bench-policy` (010-19), qui tient lieu
 du prototype 010-1. **Tenu au banc complet** le 2026-10-23, avec la politique à la taille
@@ -107,7 +109,7 @@ RSS du banc 1,6 Go) :
 | Machine × machine 16 × 16, type de flux de 10 services | 27 ms | 300 ms |
 | Port brut couvert par 20 services | 19 ms | 100 ms |
 | Différentiel d'une interdiction sans terme | 511 ms | 1 s |
-| Rapport d'audit | 21 s | 10 min |
+| Rapport d'audit, dont une valeur transverse | 37 s | 10 min |
 | Suggestion de l'inférence pour un objet | 6 ms | 50 ms |
 | Contrôle de l'inférence, changeset de 10⁴ objets (ajouté) | ≈ 0,3 s | 1 s |
 | Réévaluation complète de l'inférence | 218 s | 10 min |
@@ -121,7 +123,10 @@ dans le bruit, et la part de la source, chronométrée à part, est la lecture d
 - rapport d'audit, 920 s : les fenêtres par identifiant triaient à chaque pas toutes
   les lignes restantes (la clé primaire temporelle est un index GiST), elles suivent
   depuis l'index keyset de leur table ; la rubrique des valeurs non portées cherchait
-  les affectations valeur par valeur, elle les lit depuis une fois ;
+  les affectations valeur par valeur, elle les lit depuis une fois ; la rubrique des
+  valeurs transverses, absente du jeu jusqu'au 2026-10-23, aurait coûté ≈ 9 min (coût
+  quadratique en plan générique) : ses fenêtres suivent l'index par objet, 1 191
+  fenêtres en 13 s au banc complet du 2026-10-23, rapport entier 37 s ;
 - contrôle de l'inférence, +1,9 s : les vues du changeset hachaient toutes les origines
   dans les plans personnalisés des premières exécutions, et les origines rafraîchies
   par les valeurs par défaut étaient recalculées par la maintenance.
