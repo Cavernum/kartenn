@@ -13,6 +13,13 @@ redirect_uris = [
 cert_file = "dev/state/cert.pem"
 key_file = "dev/state/key.pem"
 
+# The public client of the CLI (spec 023, T10): loopback on any port with PKCE, device
+# flow, access tokens at+jwt for the audience of kartenn (dev/kartenn.toml).
+[native]
+client_id = "kartenn-cli"
+audience = "kartenn"
+device = true
+
 [[users]]
 sub = "alice"
 name = "Alice Exemple"

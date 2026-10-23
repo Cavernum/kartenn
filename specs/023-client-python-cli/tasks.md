@@ -164,7 +164,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     Tests : `sessions::the_native_clients_are_public`,
     `config::tests::an_issuer_may_publish_a_native_client` et cas d'erreur.
     `docs/exploitation/configuration.md` complété.
-- [ ] 7. `kartenn-dev-idp` :
+- [x] 7. `kartenn-dev-idp` :
   - client public natif (sans secret) ;
   - redirection de bouclage à port libre (RFC 8252 §7.3) ;
   - PKCE `S256` exigé pour ce client ;
@@ -176,6 +176,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `crates/kartenn-dev-idp/src/server.rs` (`grant_types_supported` l. ~183,
     échange l. ~394) ; `web/e2e/users.toml` (forme de la configuration)
   - dépend de : —
+  - choix : table facultative `[native]` (`client_id` autre que celui du BFF,
+    `audience`, `redirect_uris` de bouclage sans port, `["http://127.0.0.1/callback",
+    "http://[::1]/callback"]` par défaut, `localhost` refusé (RFC 8252 §8.3), `device`,
+    `device_interval` (5 s), `device_expires_in` (600 s), `slow_down`). Client public
+    authentifié par `client_id` du formulaire sans secret (`token_endpoint_auth_methods`
+    gagne `none`) ; codes et jetons de rafraîchissement liés à leur client ; `resource`
+    ou `audience` autre que l'audience → `invalid_target`. Flux d'appareil :
+    `POST /device_authorization`, page `GET /device` (code tapé sans tiret ni casse) et
+    `POST /device` (choix de l'utilisateur ; un utilisateur à `error` refuse) ;
+    `slow_down` sur les `slow_down` premières interrogations d'un code et sur toute
+    interrogation avant l'intervalle, qui croît de 5 s ; `authorization_pending`,
+    `access_denied`, `expired_token`. Jeton d'accès du client public : JWT `at+jwt`
+    (`aud`, `client_id`, `scope`, `groups`, `jti`) ; le BFF garde son jeton opaque.
+    `dev/idp.toml`, `web/e2e/users.toml` (intervalle 1 s, un `slow_down`),
+    `dev/kartenn.toml` et `web/e2e/kartenn.toml` (`native_client_id = "kartenn-cli"`)
+    configurés pour la CLI. Tests de routeur sans TLS (`server/tests.rs`, `tower` et
+    `http-body-util` en dépendances de développement). Parcours web de bout en bout
+    (`k-web-e2e`) non relancé : le flux du BFF est couvert par
+    `the_refresh_tokens_rotate`.
 
 ## Flux B — bibliothèque `kartenn`
 

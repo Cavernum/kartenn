@@ -28,3 +28,7 @@ client_id = "kartenn"
 client_secret_file = "web/e2e/.state/idp-secret"
 audience = "kartenn"
 algorithms = ["ES256"]
+# The public client of the CLI (spec 023), published by GET /v1/auth/native-clients.
+native_client_id = "kartenn-cli"
+native_scopes = ["openid", "offline_access"]
+native_device = true

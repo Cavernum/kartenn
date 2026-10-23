@@ -9,6 +9,15 @@ redirect_uris = ["https://127.0.0.1:9443/v1/auth/callback"]
 cert_file = "web/e2e/.state/cert.pem"
 key_file = "web/e2e/.state/key.pem"
 
+# The public client of the CLI (spec 023, T10), for its end-to-end journeys: a short
+# interval, and one slow_down per device code to exercise the client (RFC 8628 §3.5).
+[native]
+client_id = "kartenn-cli"
+audience = "kartenn"
+device = true
+device_interval = 1
+slow_down = 1
+
 [[users]]
 sub = "alice"
 name = "Alice Exemple"
