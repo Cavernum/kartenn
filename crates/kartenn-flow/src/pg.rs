@@ -119,6 +119,29 @@ pub(crate) async fn property(
     .map_err(|e| store(&e))
 }
 
+/// The values of `core.external_system` valid at `at` named by some of `given`, each by
+/// its key (the identifier the API publishes) or by its identifier (as a flow stores it):
+/// `(key, identifier)` pairs (REQ-016-3).
+pub(crate) async fn external_systems(
+    conn: &mut PgConnection,
+    given: &[String],
+    at: OffsetDateTime,
+) -> Result<Vec<(String, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT e.key, e.id FROM public.property_enum_value e
+          WHERE (e.key = ANY($1) OR e.id::text = ANY($1))
+            AND e.property_id = public.kartenn_values_owner(
+                (SELECT d.id FROM public.property_declaration d
+                  WHERE d.key = 'core.external_system' AND d.valid_period @> $2))
+            AND e.valid_period @> $2",
+    )
+    .bind(given)
+    .bind(at)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// `text` read as an instant of PostgreSQL, `None` if it is not one.
 pub(crate) async fn parse_instant(
     conn: &mut PgConnection,

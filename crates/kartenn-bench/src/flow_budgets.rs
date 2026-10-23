@@ -273,6 +273,17 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .collect();
     import(&store, author, "bench-flow-owners", items).await?;
     sync(&store, &declarations).await?;
+    // The system the external references of the flows name, by its key (REQ-016-3).
+    unitary(
+        &store,
+        author,
+        Operation::AddEnumValue {
+            local: None,
+            property: Ref::Id(property("core.external_system").await?),
+            key: "bench".into(),
+        },
+    )
+    .await?;
     // The approval policies installed by the modules would hold a changeset that breaks a
     // flow (011-6): the measures are of the write itself.
     sqlx::query("UPDATE approval_policy SET enabled = false")
@@ -437,7 +448,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                     "source": {"kind": "address", "id": {"id": source}},
                     "destination": {"kind": "address", "id": {"id": destination}},
                     "service": {"id": used},
-                    "external_refs": [{"system": Uuid::nil(), "id": format!("BENCH-{n}")}],
+                    "external_refs": [{"system": "bench", "id": format!("BENCH-{n}")}],
                     "entity": {"id": entities[n % ENTITIES]},
                 }),
             )?,
@@ -564,7 +575,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                 "source": {"kind": "machine", "id": {"id": machine(a)?}},
                 "destination": {"kind": "machine", "id": {"id": machine(b)?}},
                 "service": {"id": services[k * SERVICES_PER_TYPE]},
-                "external_refs": [{"system": Uuid::nil(), "id": format!("BENCH-M-{n}")}],
+                "external_refs": [{"system": "bench", "id": format!("BENCH-M-{n}")}],
                 "entity": {"id": entities[n % ENTITIES]},
             }),
         )?;

@@ -27,6 +27,8 @@ rules! {
         "Le service d'un flux est actif sur toute sa période.";
     REFERENCE_MISSING = "flow.reference.missing", Error, ["REQ-011-1"], "011/F2, Q3",
         "Un flux porte au moins une référence externe.";
+    REFERENCE_SYSTEM = "flow.reference.system", Error, ["REQ-011-1", "REQ-016-3"], "011/F2, 016/G9",
+        "Une référence externe nomme son système par la clé d'une valeur de la liste fermée des systèmes externes (ou par son identifiant) valide au début de l'opération.";
     FIELD_INVALID = "flow.field.invalid", Error, ["REQ-011-1"], "011/F2",
         "Une justification a de 1 à 4 000 caractères ; une référence externe a un identifiant de 1 à 256 caractères ; sans caractère de contrôle.";
     KIND_RESERVED = "flow.kind.reserved", Error, ["REQ-011-20"], "011/F16, Q18",

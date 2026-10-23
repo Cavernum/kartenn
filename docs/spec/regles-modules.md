@@ -77,6 +77,7 @@ spécification du module.
 | `flow.endpoint.invalid` | erreur | Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface ou une machine, valide sur toute la période du flux ; jamais une plage. | REQ-011-2 | 011/F3 |
 | `flow.service.closed` | erreur | Le service d'un flux est actif sur toute sa période. | REQ-011-1 | 011/F2 |
 | `flow.reference.missing` | erreur | Un flux porte au moins une référence externe. | REQ-011-1 | 011/F2, Q3 |
+| `flow.reference.system` | erreur | Une référence externe nomme son système par la clé d'une valeur de la liste fermée des systèmes externes (ou par son identifiant) valide au début de l'opération. | REQ-011-1, REQ-016-3 | 011/F2, 016/G9 |
 | `flow.field.invalid` | erreur | Une justification a de 1 à 4 000 caractères ; une référence externe a un identifiant de 1 à 256 caractères ; sans caractère de contrôle. | REQ-011-1 | 011/F2 |
 | `flow.kind.reserved` | erreur | La sorte « constaté » est réservée à la v0.3. | REQ-011-20 | 011/F16, Q18 |
 | `flow.update.identity` | erreur | Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée. | REQ-011-4 | 011/F2 |

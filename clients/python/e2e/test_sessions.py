@@ -14,7 +14,6 @@ server lacks the feature (spec 022).
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import time
@@ -559,24 +558,6 @@ def test_policy_check(cli: Cli) -> None:
 # 7. Request a flow --------------------------------------------------------------------------
 
 
-def _system_id(key: str) -> str:
-    """The identifier of a value of `core.external_system`, read in the database: the API
-    names these values by their key only (`GET /v1/property-declarations/{key}/values`)."""
-    database = os.environ["DATABASE_URL"].rsplit("/", 1)[0] + "/kartenn_cli"
-    done = subprocess.run(
-        [  # noqa: S607 - psql of the devenv shell
-            "psql",
-            database,
-            "-Atc",
-            f"SELECT id FROM property_enum_value WHERE key = '{key}'",  # noqa: S608 - a constant
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return done.stdout.strip()
-
-
 def test_flow_request(cli: Cli) -> None:
     """Maquette § 7: allowed by the policy, the flow is recorded at once."""
     run = cli(
@@ -591,7 +572,7 @@ def test_flow_request(cli: Cli) -> None:
         "--entity",
         "exemple",
         "--ref",
-        f"{_system_id('ticketing')}:CHG-2048",
+        "ticketing:CHG-2048",
         "--justification",
         "Appel de l'API de facturation de recette",
         "--motive",
@@ -603,14 +584,10 @@ def test_flow_request(cli: Cli) -> None:
     assert lines(run)[1].startswith("allowed  active"), run.both
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="serveur : une référence externe nomme son système par l'identifiant d'une "
-    "valeur de core.external_system, que l'API ne publie pas (clé seule) ; une clé est "
-    "ignorée sans erreur, d'où flow.reference.missing",
-)
-def test_flow_request_with_a_system_named_by_its_key(cli: Cli) -> None:
-    cli(
+def test_flow_request_with_an_unknown_system(cli: Cli) -> None:
+    """A system that names no value of `core.external_system` is refused with its rule,
+    never dropped."""
+    run = cli(
         "flow",
         "request",
         "--source",
@@ -622,10 +599,13 @@ def test_flow_request_with_a_system_named_by_its_key(cli: Cli) -> None:
         "--entity",
         "exemple",
         "--ref",
-        "ticketing:CHG-2049",
+        "tickets:CHG-2049",
         "--motive",
         "nouvelle recette",
+        code=6,
     )
+    assert "✗ [flow.reference.system]" in run.both, run.both
+    assert '"tickets" names no value of core.external_system' in run.both, run.both
 
 
 # 12. A server without the `policy` module ------------------------------------------------

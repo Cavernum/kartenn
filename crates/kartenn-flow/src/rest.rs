@@ -279,12 +279,15 @@ pub struct FlowRequestDto {
     /// The service: `{ "id": … }`.
     #[schema(value_type = Object)]
     service: Value,
-    /// The external references, at least one: `{ "system": …, "id": … }`.
+    /// The external references, at least one: `{ "system": …, "id": …, "label": … }`, the
+    /// system by the key of its value of `core.external_system` (or by its identifier, as a
+    /// flow is read with); a system that names none is refused (`flow.reference.system`).
     #[schema(value_type = Vec<Object>)]
     external_refs: Vec<Value>,
     /// The justification.
     justification: Option<String>,
-    /// The requester the request is made for.
+    /// The requester the request is made for: `{ "text": … }` or `{ "external": … }`, an
+    /// external reference as in `external_refs`.
     #[schema(value_type = Option<Object>)]
     on_behalf_of: Option<Value>,
     /// The persons responsible.
@@ -307,7 +310,7 @@ pub struct FlowRequestDto {
 #[derive(Debug, ToSchema)]
 #[schema(as = FlowPatch)]
 pub struct FlowPatchDto {
-    /// The external references.
+    /// The external references, as for a request.
     #[schema(value_type = Option<Vec<Object>>)]
     external_refs: Option<Vec<Value>>,
     /// The justification.
