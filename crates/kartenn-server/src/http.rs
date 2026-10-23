@@ -32,6 +32,8 @@ use crate::config;
 
 /// Longest TLS handshake: a client that opens a connection and stays silent is dropped.
 pub const HANDSHAKE_WITHIN: Duration = Duration::from_secs(10);
+/// `SETTINGS_MAX_CONCURRENT_STREAMS` announced in HTTP/2 (REQ-022-14).
+pub const MAX_CONCURRENT_STREAMS: u32 = 200;
 /// Longest wait for the requests in flight at the stop, within the 10 s of REQ-012-34.
 pub const DRAIN_WITHIN: Duration = Duration::from_secs(5);
 
@@ -118,7 +120,12 @@ pub async fn serve(
 ) {
     let mut builder = auto::Builder::new(TokioExecutor::new());
     builder.http1().timer(TokioTimer::new());
-    builder.http2().timer(TokioTimer::new());
+    // At least 100 concurrent streams on a connection (RFC 9113 § 6.5.2): a browser opens
+    // its event stream beside its requests (spec 022, REQ-022-14).
+    builder
+        .http2()
+        .timer(TokioTimer::new())
+        .max_concurrent_streams(MAX_CONCURRENT_STREAMS);
     let builder = Arc::new(builder);
     let graceful = GracefulShutdown::new();
     tokio::pin!(shutdown);

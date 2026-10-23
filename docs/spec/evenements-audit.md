@@ -36,6 +36,8 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `data.sensitive.read` | INFO | high | La valeur d'une propriété sensible a été lue. | `property` | REQ-012-18 | API Activity 6003 / Read | `database` |
 | `data.objects.exported` | INFO | high | Un export en masse a été produit. | `criteria`, `count` | REQ-012-8 | API Activity 6003 / Read | `database` |
 | `audit.events.read` | INFO | high | Le journal d'audit a été consulté ou exporté. | `criteria`, `count` | REQ-012-17 | API Activity 6003 / Read | `database` |
+| `events.stream.opened` | INFO | low | Un flux d'événements a été ouvert (filtres, reprise par curseur). | `criteria`, `resumed` | REQ-022-24 | API Activity 6003 / Read | `database` |
+| `events.stream.closed` | INFO | low | Un flux d'événements s'est fermé : sa cause, sa durée, les événements et remises à zéro écrits, les objets notifiés (bornés par `audit.read_ids_max`, les autres comptés). | `cause`, `duration_ms`, `delivered`, `resets`, `targets_omitted` | REQ-022-24 | API Activity 6003 / Read | `database` |
 | `sys.instance.started` | INFO | normal | Une instance a démarré. | `version` | REQ-012-8 | Application Lifecycle 6002 / Start | `process` |
 | `sys.instance.stopped` | INFO | normal | Une instance s'est arrêtée. | `lost_technical_events` | REQ-012-8, REQ-012-34 | Application Lifecycle 6002 / Stop | `process` |
 | `sys.schema.migrated` | INFO | normal | Le job de migration a été exécuté. | `version` | REQ-012-8 | Application Lifecycle 6002 / Update | `configuration` |

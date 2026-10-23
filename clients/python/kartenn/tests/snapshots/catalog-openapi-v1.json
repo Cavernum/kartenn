@@ -123,6 +123,12 @@
    "object:get:show_environments"
   ]
  },
+ "events": {
+  "module": "operations",
+  "verbs": [
+   "collection:list:events"
+  ]
+ },
  "flow-nonconformities": {
   "module": "flow",
   "verbs": [

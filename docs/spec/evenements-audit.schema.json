@@ -718,6 +718,59 @@
     {
       "properties": {
         "criticality": {
+          "const": "low"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "criteria": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "resumed": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "events.stream.opened"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "low"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "cause": {},
+            "delivered": {},
+            "duration_ms": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "resets": {},
+            "targets_omitted": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "events.stream.closed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
           "const": "normal"
         },
         "details": {

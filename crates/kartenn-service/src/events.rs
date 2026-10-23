@@ -272,8 +272,11 @@ pub fn translate(row: OutboxRow<'_>, kind_of: &dyn Fn(Uuid) -> Option<String>) -
         } else {
             None
         };
+        // Its identity is its own CloudEvents identifier, never its changeset, whose
+        // `applied` event has that identity already (REQ-022-27): no revision, the client
+        // reads again without condition.
         return vec![notice(Body::Changes(Changes {
-            changeset: row.changeset,
+            changeset: None,
             event,
             task,
             objects: vec![Object {

@@ -250,6 +250,21 @@ pub struct Gauges {
     pub unsealed: u64,
     /// Clock of the instance minus clock of PostgreSQL, in seconds.
     pub clock_skew: f64,
+    /// The event stream (spec 022, REQ-022-25).
+    pub events: EventGauges,
+}
+
+/// The counts of the event stream, copied from its hub (spec 022, REQ-022-25).
+#[derive(Debug, Default, Clone)]
+pub struct EventGauges {
+    /// Streams open.
+    pub streams: u64,
+    /// Events written.
+    pub delivered: u64,
+    /// Events dropped by an overflow.
+    pub dropped: u64,
+    /// `reset` written, by reason.
+    pub resets: Vec<(&'static str, u64)>,
 }
 
 /// The instruments of REQ-012-25.
@@ -263,6 +278,11 @@ pub struct Instruments {
     pub pipeline_duration: opentelemetry::metrics::Histogram<f64>,
     /// `kartenn.audit.write.failures`.
     pub audit_failures: opentelemetry::metrics::Counter<u64>,
+    /// `kartenn.events.lag` (s): from the commit of a changeset to the writing of its
+    /// event on a stream (spec 022).
+    pub events_lag: opentelemetry::metrics::Histogram<f64>,
+    /// `kartenn.events.reader.duration` (s): a pass of the reader of the stream.
+    pub events_reader: opentelemetry::metrics::Histogram<f64>,
     /// Shared values of the gauges.
     pub gauges: Arc<Mutex<Gauges>>,
 }
@@ -270,6 +290,7 @@ pub struct Instruments {
 impl Instruments {
     /// Instruments on `provider`; `dropped` gives the records dropped per technical output
     /// (`kartenn.log.dropped`).
+    #[allow(clippy::too_many_lines)] // one instrument after the other
     pub fn new(
         provider: &SdkMeterProvider,
         dropped: impl Fn() -> Vec<(String, u64)> + Send + Sync + 'static,
@@ -325,6 +346,60 @@ impl Instruments {
                 observer.observe(s, &[]);
             })
             .build();
+        let events = Arc::clone(&gauges);
+        meter
+            .u64_observable_gauge("kartenn.events.streams")
+            .with_unit("{stream}")
+            .with_description("Event streams open")
+            .with_callback(move |observer| {
+                let n = events
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .events
+                    .streams;
+                observer.observe(n, &[]);
+            })
+            .build();
+        let events = Arc::clone(&gauges);
+        meter
+            .u64_observable_counter("kartenn.events.delivered")
+            .with_unit("{event}")
+            .with_description("Events written on the streams")
+            .with_callback(move |observer| {
+                let n = events
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .events
+                    .delivered;
+                observer.observe(n, &[]);
+            })
+            .build();
+        let events = Arc::clone(&gauges);
+        meter
+            .u64_observable_counter("kartenn.events.dropped")
+            .with_unit("{event}")
+            .with_description("Events dropped by a stream that overflowed")
+            .with_callback(move |observer| {
+                let n = events
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .events
+                    .dropped;
+                observer.observe(n, &[]);
+            })
+            .build();
+        let events = Arc::clone(&gauges);
+        meter
+            .u64_observable_counter("kartenn.events.resets")
+            .with_unit("{event}")
+            .with_description("Resets written on the streams, by reason")
+            .with_callback(move |observer| {
+                let gauges = events.lock().unwrap_or_else(PoisonError::into_inner);
+                for (reason, n) in &gauges.events.resets {
+                    observer.observe(*n, &[KeyValue::new("reason", *reason)]);
+                }
+            })
+            .build();
         Self {
             http_duration: meter
                 .f64_histogram("http.server.request.duration")
@@ -341,6 +416,14 @@ impl Instruments {
             audit_failures: meter
                 .u64_counter("kartenn.audit.write.failures")
                 .with_unit("{event}")
+                .build(),
+            events_lag: meter
+                .f64_histogram("kartenn.events.lag")
+                .with_unit("s")
+                .build(),
+            events_reader: meter
+                .f64_histogram("kartenn.events.reader.duration")
+                .with_unit("s")
                 .build(),
             gauges,
         }

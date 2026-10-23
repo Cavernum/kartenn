@@ -125,7 +125,38 @@ pub(crate) fn assemble(mut v1: OpenApi, modules: &ModuleRegistry) -> OpenApi {
         .merge_from(crate::health::routes().into_openapi());
     finish(&mut document);
     module_kinds(&mut document, modules);
+    events(&mut document);
     document
+}
+
+/// The schemas of the data of the events and the extension that names them on
+/// `GET /v1/events` (spec 022, REQ-022-23).
+fn events(document: &mut OpenApi) {
+    let schemas = crate::events::event_schemas();
+    let mut by_kind = serde_json::Map::new();
+    let components = document.components.get_or_insert_default();
+    for (kind, name, schema) in schemas {
+        by_kind.insert(
+            kind.to_owned(),
+            serde_json::json!({ "$ref": format!("#/components/schemas/{name}") }),
+        );
+        components.schemas.insert(name, schema);
+    }
+    components.schemas.insert(
+        "EventObject".to_owned(),
+        crate::events::event_object_schema(),
+    );
+    if let Some(operation) = document
+        .paths
+        .paths
+        .get_mut("/v1/events")
+        .and_then(|item| item.get.as_mut())
+    {
+        operation.extensions.get_or_insert_default().insert(
+            crate::events::EVENTS_EXTENSION.to_owned(),
+            Value::Object(by_kind),
+        );
+    }
 }
 
 /// Adds the types of objects of `modules` to the kinds an operation names.

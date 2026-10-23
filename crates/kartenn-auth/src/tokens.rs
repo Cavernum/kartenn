@@ -100,6 +100,8 @@ pub struct VerifiedToken {
     pub name: Option<String>,
     /// Groups, from the issuer's groups claim.
     pub groups: Vec<String>,
+    /// `exp`, Unix seconds (a stream opened with the token ends then, spec 022).
+    pub expires: Option<i64>,
 }
 
 /// Where the keys of an issuer come from.
@@ -287,6 +289,7 @@ impl<S: KeySource> TokenVerifier<S> {
             subject: claims["sub"].as_str().unwrap_or_default().to_owned(),
             name: claims["name"].as_str().map(str::to_owned),
             groups,
+            expires: claims["exp"].as_i64(),
         })
     }
 
@@ -366,6 +369,7 @@ impl<S: KeySource> TokenVerifier<S> {
             issuer: issuer.issuer.clone(),
             subject: claims["sub"].as_str().unwrap_or_default().to_owned(),
             name: claims["name"].as_str().map(str::to_owned),
+            expires: claims["exp"].as_i64(),
             groups: claims[issuer.groups_claim.as_str()]
                 .as_array()
                 .map(|a| {

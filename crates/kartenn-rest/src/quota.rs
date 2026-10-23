@@ -416,7 +416,8 @@ pub async fn layer(
     next: Next,
 ) -> Response {
     let path = request.uri().path();
-    if !(path == "/v1" || path.starts_with("/v1/")) {
+    // The event stream has ceilings of its own (spec 022, REQ-022-22).
+    if !(path == "/v1" || path.starts_with("/v1/")) || path == "/v1/events" {
         return next.run(request).await;
     }
     let context = request

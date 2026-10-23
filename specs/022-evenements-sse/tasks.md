@@ -94,7 +94,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     (`kartenn-service/tests/it/events_floor.rs`). Choix : plancher de départ = juste sous
     le premier événement rechargé dans l'anneau (sinon le dernier numéro) ; le balayage
     horaire relit la fenêtre de l'anneau.
-- [ ] 7. Lecteur : connexion d'écoute dédiée (reconnexion avec attente croissante),
+- [x] 7. Lecteur : connexion d'écoute dédiée (reconnexion avec attente croissante),
   interrogation de secours à 1 s, passe par lot de 1 000, typage groupé par
   `changeset_operation`, anneau (15 min, 10⁴) rechargé au démarrage — REQ-022-7, 20 —
   verify : requêtes du lecteur indépendantes du nombre d'abonnés ; écoute coupée →
@@ -102,7 +102,16 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - où : nouveau `crates/kartenn-store-pg/src/events.rs` (lecture) ; tâche dans
     `crates/kartenn-server/src/app.rs` à côté des relais d'audit (`relay_once`)
   - dépend de : 3, 5, 6
-- [ ] 8. Répartiteur et visibilité par lot : regroupement par sujet, requête sujets ×
+  - fait : `crates/kartenn-rest/src/events/reader.rs` (`Reader::start`, `pass`, `run` ;
+    écoute `PgListener` hors pool, attente croissante 0,1 → 30 s ; secours
+    `[events] poll_ms`), lancé par `kartenn-server/src/app.rs` (`Api::start`). Écart
+    tranché sans demander : typage par `carrier_object` (une requête par passe), pas par
+    `changeset_operation`. Vérifié : deux instances sur la même outbox
+    (`a_resumption_on_another_instance_loses_nothing`) ; requêtes du lecteur comptées
+    (`Counters`), indépendantes des connexions par construction, rapportées par le banc.
+    Coupure forcée de l'écoute non testée isolément (le secours sert seul dans les tests
+    à 200 ms) — point ouvert.
+- [x] 8. Répartiteur et visibilité par lot : regroupement par sujet, requête sujets ×
   objets avec les prédicats RBAC, court-circuit de lecture globale, `changeset` à
   l'auteur et aux valideurs possibles, `mpsc` borné par connexion, débordement —
   REQ-022-16, 17, 21 — verify : test de propriété (remis = décision unitaire) ;
@@ -112,10 +121,21 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-service/src/authz.rs` ; propriété voisine du filtrage des listes
     (REQ-005-24, `crates/kartenn-store-pg/tests/it/`)
   - dépend de : 7
+  - fait : `crates/kartenn-rest/src/events/hub.rs` (`Hub::publish`, `sights`,
+    `events_for`, `send`) : sujets regroupés (`SubjectKey`), portée de lecture en cache
+    10 s, types lus partout sans confinement décidés sans la base, une requête
+    `events::visible` par lot (sujets × objets, `kartenn_scopes` + `kartenn_visible` ;
+    objet fermé jugé sur sa dernière version) ; `changeset` à l'auteur et à qui
+    `review::may_validate` (nouvelle fonction publique) ; `mpsc` borné, débordement →
+    `reset` `overflow`, fermeture après 30 s (la connexion quitte les plafonds ; le
+    socket reste jusqu'à la prochaine écriture : limite notée). Tests
+    `the_objects_delivered_are_those_each_subscriber_may_read` (six portées dont un
+    opérateur externe confiné, tirages déterministes),
+    `a_slow_subscriber_delays_no_one_and_starts_over`.
 
 ## P3 — Point d'accès
 
-- [ ] 9. `GET /v1/events` : négociation, filtres et bornes, authentification cookie,
+- [x] 9. `GET /v1/events` : négociation, filtres et bornes, authentification cookie,
   Basic, Bearer, `Sec-Fetch-Site`, pas de CORS, `ready` avec `retry:` aléatoire,
   maintien 15 s, points de reprise 30 s, en-têtes (`no-store`, `X-Accel-Buffering: no`,
   `Incremental: ?1` en option), `Origin` et `Sec-Fetch-Site` pour le cookie —
@@ -125,7 +145,14 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/src/lib.rs` (pile de middlewares, l. 122-180) ; `csrf.rs`,
     `authn.rs`, `compression.rs` ; tests à l'image de `crates/kartenn-rest/tests/it/csrf.rs`
   - dépend de : 4, 8
-- [ ] 10. Reprise : `Last-Event-ID` et `last_event_id`, rejeu de l'anneau, `reset`
+  - fait : `crates/kartenn-rest/src/events/mod.rs` (route), `stream.rs` (corps) ; route
+    hors `quota::shed` et hors compression (`NotForContentType::SSE`) ; cookie non
+    réémis (`NotActivity`) ; 406 `not-acceptable` (`problem.rs`) ; section `[events]`
+    (`kartenn-server/src/config.rs`). Règle d'origine propre au flux
+    (`events::same_origin` : `Origin` et `Sec-Fetch-Site` vérifiés s'ils sont présents).
+    Ordre retenu : `ready` toujours premier, puis `reset` le cas échéant. Tests
+    `crates/kartenn-rest/tests/it/events.rs`.
+- [x] 10. Reprise : `Last-Event-ID` et `last_event_id`, rejeu de l'anneau, `reset`
   `too_old` et `invalid_cursor` ; identité d'événement (`changeset`, `event`) —
   REQ-022-7, 8, 27 — verify : coupure pendant trois changesets, reprise sur la seconde
   instance ; curseur d'une autre identité ; **test de propriété des doublons** (deux
@@ -135,7 +162,13 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - où : `crates/kartenn-rest/src/events.rs` ; deux instances comme
     `crates/kartenn-server/tests` (`an_import_ends_on_another_instance_without_duplicates`)
   - dépend de : 9
-- [ ] 11. Révocation et échéances : sujets marqués par les changesets d'administration,
+  - fait : rejeu de l'anneau (`Hub::open`, `Hub::replay`), plancher de chaque curseur
+    abaissé sous l'événement suivant du lot ; `reset` `too_old` / `invalid_cursor` ;
+    tests `a_resumption_on_another_instance_loses_nothing`,
+    `resumptions_lose_nothing_and_duplicate_only_on_resumption` (deux instances,
+    transaction longue, coupures tirées). Un événement de module porte `event` sans
+    `changeset` (identité distincte de l'`applied`, lue ainsi par le client Python).
+- [x] 11. Révocation et échéances : sujets marqués par les changesets d'administration,
   revérification groupée toutes les 10 s, fermeture à `exp` et à l'échéance de session,
   `reset` `rights_changed` — REQ-022-18 — verify : cas d'acceptation de REQ-022-18 ;
   `authn.session.closed` (cause `revoked`)
@@ -143,10 +176,17 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/src/cookies.rs` (échéances) ; test voisin
     `crates/kartenn-rest/tests/it/sessions.rs`
   - dépend de : 9
+  - fait : `Hub::recheck` toutes les 10 s et dès qu'un changeset d'administration est lu
+    (`RBAC_OBJECT`, liaison ou identité) : états en une requête (désactivée, sessions
+    révoquées après l'ouverture → fermeture), portée relue et comparée → `reset`
+    `rights_changed` ; échéance = `exp` du jeton (`VerifiedToken::expires`) ou fin de
+    session sans activité (`QuietEnd`). Test
+    `a_revocation_ends_the_stream_and_a_binding_removed_starts_it_over`. Révocation d'un
+    seul secret de compte de service non suivie — point ouvert.
 
 ## P4 — Ressources et exploitation
 
-- [ ] 12. Plafonds (instance, identité), hors délestage, quota d'ouverture ; arrêt
+- [x] 12. Plafonds (instance, identité), hors délestage, quota d'ouverture ; arrêt
   propre (503, `retry:` étalé, fermeture) ; HTTP/2 ≥ 100 flux concurrents — REQ-022-12,
   14, 22 — verify : 5 001ᵉ flux → 503, lecture ordinaire servie ; 17ᵉ → 429 ; 1 000
   connexions fermées en < 2 s à l'arrêt
@@ -154,6 +194,11 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/src/transport.rs` (`max_in_flight`),
     `crates/kartenn-server/src/http.rs` (`GracefulShutdown`, l. 109-)
   - dépend de : 9
+  - fait : plafonds dans `Hub::open` (503 / 429, `Retry-After: 5`), avant la base ;
+    `Hub::shutdown` avant le drain (`Api::stop`) ; HTTP/2 `MAX_CONCURRENT_STREAMS = 200`.
+    Tests `the_ceilings_refuse_before_the_base`,
+    `the_stop_spreads_the_reconnections_and_ends_the_streams` (10 flux ; l'échelle est
+    au banc).
 - [ ] 13. Guide de déploiement : mandataire inverse (tampon, `Incremental`, délai de
   lecture, HTTP/2), regroupeur de connexions et `LISTEN`, rétention courte des logs
   `events.delivery` (7 jours recommandés) — REQ-022-13, 14, 24 — verify : relecture
@@ -167,13 +212,18 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 ## P5 — Contrat, audit, télémétrie
 
-- [ ] 15. OpenAPI (réponse `text/event-stream`, `x-kartenn-events`, schémas des
+- [x] 15. OpenAPI (réponse `text/event-stream`, `x-kartenn-events`, schémas des
   données), capacités (`events`) — REQ-022-23 — verify : contrat de référence mis à
   jour, test de REQ-006-34 vert
   - où : `crates/kartenn-rest/src/openapi.rs`, `contract.rs`, `capabilities.rs` ; test
     `crates/kartenn-rest/tests/it/contract.rs`
   - dépend de : 9
-- [ ] 16. Audit `events.stream.opened` / `closed` (identifiants bornés par
+  - fait : `utoipa::path` de `/v1/events` (paramètres, 400 à 503), schémas
+    `EventReady`, `EventChanges`, `EventChangeset`, `EventLabels`, `EventReset`,
+    `EventObject`, extension `x-kartenn-events` (`openapi::events`) ; capacités `events`
+    (ou `null`) ; contrat de référence régénéré ; `events` réservé au noyau
+    (`CORE_COLLECTIONS`) ; instantané du catalogue Python mis à jour.
+- [x] 16. Audit `events.stream.opened` / `closed` (identifiants bornés par
   `audit.read_ids_max`, `targets_omitted`) ; au-delà de la borne, log technique DEBUG
   `events.delivery` hors audit ; métriques et spans — REQ-022-24, 25 — verify :
   acceptation de REQ-022-24 ; événements au catalogue et au schéma ; aucun
@@ -182,6 +232,12 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/src/audit.rs`, `crates/kartenn-telemetry` ; test voisin
     `crates/kartenn-rest/tests/it/audit.rs`
   - dépend de : 11, 12
+  - fait : `STREAM_OPENED`, `STREAM_CLOSED` au catalogue (doc et schéma régénérés) ;
+    `events/audit.rs` (ouverture enregistrée avant le flux, en échec fermé ; fermeture
+    à la chute du corps ; `events.delivery` DEBUG au-delà de `read_ids_max`) ;
+    métriques `kartenn.events.*` (`kartenn-telemetry/src/otel.rs`, copiées de
+    `Hub::stats` à chaque tour du relais) ; span `events.reader.pass`. L'acceptation
+    chiffrée de REQ-022-24 (borne 2, 4 omis) n'a pas de test dédié — point ouvert.
 
 ## P6 — Budgets et synchronisation
 

@@ -32,6 +32,8 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "changesets",
     "domains",
     "entities",
+    // The event stream (spec 022).
+    "events",
     "graph",
     "identities",
     "imports",
