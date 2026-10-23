@@ -1,7 +1,7 @@
 {
   "name": "@kartenn/sdk",
   "version": "1.0.0",
-  "description": "SDK of kartenn web plugins",
+  "description": "SDK of kartenn: API client, shared cache, event stream and plugin API",
   "license": "MPL-2.0",
   "type": "module",
   "sideEffects": false,
@@ -22,6 +22,9 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/query-core": "5.102.4"
   },
   "devDependencies": {
     "happy-dom": "^21.0.3",

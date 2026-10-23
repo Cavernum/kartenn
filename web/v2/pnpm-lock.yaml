@@ -228,6 +228,10 @@ importers:
         version: 1.63.0
 
   sdk:
+    dependencies:
+      '@tanstack/query-core':
+        specifier: 5.102.4
+        version: 5.102.4
     devDependencies:
       happy-dom:
         specifier: ^21.0.3
@@ -591,6 +595,9 @@ packages:
 
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
+
+  '@tanstack/query-core@5.102.4':
+    resolution: {integrity: sha512-6eXkL+KFyVAZdpKoThCjPQQylZK8/ZOMYTJEVoPtHLkLs2PYks6vUiim9qzgvFXakSkRIAZwAZTeZLIJmpgRpQ==}
 
   '@tanstack/virtual-core@3.19.7':
     resolution: {integrity: sha512-gxy5SvH0mFRJ0YujtrflB/1HAu9Wn1KGvL0bjZfQkYVVMsIpQiwcf1mR06/ViN4NjllUb4HNCjqE9FGwgTvMCQ==}
@@ -2608,6 +2615,8 @@ snapshots:
   '@swc/helpers@0.5.23':
     dependencies:
       tslib: 2.8.1
+
+  '@tanstack/query-core@5.102.4': {}
 
   '@tanstack/virtual-core@3.19.7': {}
 

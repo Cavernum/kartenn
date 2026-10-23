@@ -52,7 +52,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `tools/notices.ts`) ; `tokens` retiré du SDK (les jetons sont ceux de `@kartenn/ui`).
     Reste : `plugins`, configuration de test de kartenn-server sur les builds de `web/v2/`.
 
-- [ ] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
+- [x] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le
   client existant avec `If-None-Match` et réutilisation sur 304, fraîcheur par famille ;
   `SDK_VERSION` 1.0.0 — REQ-021-21, 25 — verify : Vitest : clés normalisées (ordre des
@@ -62,6 +62,18 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `dated.ts` ; `web/sdk/src/index.ts` (exports) ; `web/sdk/package.json` ; design
     § « Clés et fraîcheur »
   - dépend de : 25
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/` (`keys.ts`, `cache.ts`, `types.ts`,
+    `filters.ts`) ; `@tanstack/query-core` épinglé en 5.102.4 (version de deux mois).
+    Choix notés : les fabriques de requêtes s'appellent `reads` (`object`, `list`, `read`,
+    `sub`, `subPages`) pour ne pas heurter le type `queries` du contrat ; une liste se lit
+    page à page seulement (`read` la refuse : mêmes formes de clé) ; une clé d'objet porte le
+    type qualifié (`core.prefix`, celui du flux), une liste le chemin de sa collection, et la
+    table type → collection (cœur et modules de première partie, `registerType` pour un
+    tiers) vit dans le SDK ; les dates d'une clé sont celles du contexte sauf sur un chemin
+    non daté (présent) ; `client.request` lit par URL sans date du contexte, 304 compris ;
+    `ApiProblem.code` rend le slug. Modèle de filtres (`filterModel`, `parseFilters`,
+    `filterSearch`) et type `FiltersOf<P>` tirés du contrat généré. Vitest :
+    `test/cache.test.ts`, `test/filters.test.ts`.
 - [ ] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
   (schémas de résumé du contrat), index `id → clés`, comparaison sur `version` ; relevé,
   par ressource, de la présence de `version` dans le corps — REQ-021-23 — verify : Vitest

@@ -120,6 +120,23 @@ export interface Client {
     path: P,
     ...options: object extends DeleteOptions<P> ? [DeleteOptions<P>?] : [DeleteOptions<P>]
   ): Promise<Answer<Success<Op<P, "delete">>>>;
+  /**
+   * A request by URL, untyped, for the data layer (cache, writes, labels): the context
+   * adds no date, `If-None-Match` goes as given and a 304 answers `status: 304` with no
+   * data. Any other status outside 2xx throws its {@link ApiProblem}.
+   */
+  request(method: string, url: string, init?: RequestOptions): Promise<Answer<unknown>>;
+}
+
+/** What {@link Client.request} sends. */
+export interface RequestOptions {
+  body?: unknown;
+  /** `merge` sends the body as `application/merge-patch+json` (RFC 7396). */
+  merge?: boolean;
+  ifMatch?: string;
+  ifNoneMatch?: string | null;
+  idempotencyKey?: string;
+  signal?: AbortSignal;
 }
 
 interface RawOptions {
@@ -127,7 +144,10 @@ interface RawOptions {
   query?: Record<string, unknown>;
   body?: unknown;
   ifMatch?: string;
+  ifNoneMatch?: string | null;
   idempotencyKey?: string;
+  signal?: AbortSignal;
+  merge?: boolean;
 }
 
 /** The path with its parameters, `{id}` → encoded value. */
@@ -139,7 +159,8 @@ function expand(template: string, params: Record<string, string | number> = {}):
   });
 }
 
-function search(query: Record<string, unknown>): string {
+/** The query string of parameters, `undefined` and `null` left out, arrays repeated. */
+export function search(query: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null) continue;
@@ -159,11 +180,12 @@ export function createClient(options: ClientOptions = {}): Client {
     if (raw.body !== undefined) {
       headers.set(
         "Content-Type",
-        method === "PATCH" ? "application/merge-patch+json" : "application/json",
+        method === "PATCH" || raw.merge ? "application/merge-patch+json" : "application/json",
       );
       body = JSON.stringify(raw.body);
     }
     if (raw.ifMatch !== undefined) headers.set("If-Match", raw.ifMatch);
+    if (raw.ifNoneMatch) headers.set("If-None-Match", raw.ifNoneMatch);
     if (method === "POST")
       headers.set("Idempotency-Key", raw.idempotencyKey ?? crypto.randomUUID());
     const call = options.fetch ?? globalThis.fetch;
@@ -172,7 +194,11 @@ export function createClient(options: ClientOptions = {}): Client {
       headers,
       credentials: "same-origin",
       ...(body === undefined ? {} : { body }),
+      ...(raw.signal ? { signal: raw.signal } : {}),
     });
+    if (response.status === 304) {
+      return { data: undefined, etag: response.headers.get("ETag"), status: 304 };
+    }
     if (!response.ok) {
       const problem = await ApiProblem.from(response);
       if (response.status === 401) await options.onUnauthorized?.();
@@ -218,5 +244,6 @@ export function createClient(options: ClientOptions = {}): Client {
     put: write("PUT"),
     patch: write("PATCH"),
     delete: write("DELETE"),
+    request: (method: string, url: string, init: RequestOptions = {}) => send(method, url, init),
   } as unknown as Client;
 }

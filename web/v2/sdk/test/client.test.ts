@@ -126,6 +126,27 @@ describe("client of the API (REQ-007-15, 24)", () => {
     expect(invalid).toBeInstanceOf(ApiProblem);
     expect((invalid as ApiProblem).requestId).toBe("r-422");
     expect((invalid as ApiProblem).violations[0]?.rule).toBe("core.x");
+    expect((invalid as ApiProblem).code).toBe("validation");
+  });
+
+  it("reads by URL with If-None-Match, a 304 answering without data (021, cache)", async () => {
+    const { fetch, calls } = recording(
+      new Response(null, { status: 304, headers: { ETag: '"1.a"' } }),
+      json({ a: 1 }, { headers: { ETag: '"2.b"' } }),
+    );
+    const api = createClient({
+      fetch,
+      time: () => ({ validAt: "2026-01-01T00:00:00Z", asOf: null }),
+    });
+    const kept = await api.request("GET", "/v1/prefixes/p", { ifNoneMatch: '"1.a"' });
+    expect(kept).toEqual({ data: undefined, etag: '"1.a"', status: 304 });
+    const fresh = await api.request("GET", "/v1/prefixes/p");
+    expect(fresh).toEqual({ data: { a: 1 }, etag: '"2.b"', status: 200 });
+    // The URL is the one of the key: the context adds no date.
+    expect(calls.map((c) => [c.url, c.headers.get("If-None-Match")])).toEqual([
+      ["/v1/prefixes/p", '"1.a"'],
+      ["/v1/prefixes/p", null],
+    ]);
   });
 
   it("asks the shell to log in again on a 401, then throws", async () => {

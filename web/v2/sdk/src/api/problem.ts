@@ -37,6 +37,11 @@ export class ApiProblem extends Error {
     this.requestId = init.requestId ?? null;
   }
 
+  /** The code shown (REQ-021-20): the slug of `type` (`urn:kartenn:problem:<slug>`). */
+  get code(): string {
+    return this.type.replace(/^urn:kartenn:problem:/, "");
+  }
+
   /**
    * The problem of an answer: its `application/problem+json` body if there is one, else
    * `about:blank` with the status text (RFC 9457 §4.2.1).

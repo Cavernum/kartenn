@@ -11,6 +11,7 @@
 
 import { createClient } from "./api/client.ts";
 import { context } from "./context.ts";
+import { createQueries, createQueryClient } from "./data/cache.ts";
 import { hooks } from "./hooks.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
@@ -38,6 +39,34 @@ export { definePlugin } from "./extensions.ts";
 export type { Extension, ExtensionPoint, PluginDefinition, PluginHandle } from "./extensions.ts";
 export { draft } from "./draft.ts";
 export type { Operation } from "./draft.ts";
+export { keys, normalize, timeKey } from "./data/keys.ts";
+export type {
+  FilterValue,
+  Filters,
+  Key,
+  NormalFilters,
+  ObjectKey,
+  PathKey,
+  PathParams,
+  SubKey,
+  TimeArg,
+  TimeKey,
+} from "./data/keys.ts";
+export { FRESHNESS, IMMUTABLE, MAX_PAGES } from "./data/cache.ts";
+export type {
+  Entry,
+  Family,
+  FiltersOf,
+  ItemOf,
+  ListData,
+  ListOptions,
+  ListPath,
+  ReadOptions,
+} from "./data/cache.ts";
+export { collectionOf, qualify, registerType } from "./data/types.ts";
+export { filterModel, filterSearch, parseFilters } from "./data/filters.ts";
+export type { Declaration, FilterField, Rejected } from "./data/filters.ts";
+export type { QueryClient } from "@tanstack/query-core";
 
 /** The client of the API, on the same origin, with the dated context of the shell. */
 export const api = createClient({
@@ -45,3 +74,12 @@ export const api = createClient({
   time: () => context.get().time,
   onUnauthorized: () => hooks.onUnauthorized?.(),
 });
+
+/**
+ * The cache shared by the shell and every plugin (ADR 0037): one instance, served once by
+ * the import map.
+ */
+export const queryClient = createQueryClient();
+
+/** The reads of the cache: their keys, query functions and freshness (REQ-021-21). */
+export const reads = createQueries({ client: api, queryClient });
