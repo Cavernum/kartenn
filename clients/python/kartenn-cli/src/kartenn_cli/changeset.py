@@ -260,11 +260,16 @@ def _show(found: Runtime, record: Mapping[str, Any], output: str | None) -> None
     metavar="FORMAT",
     help="opt.output",
 )
+@click.option("--follow", is_flag=True, help="changeset.opt.follow")
 @click.pass_context
-def show(ctx: click.Context, changeset: str, output: str | None) -> None:
+def show(ctx: click.Context, changeset: str, output: str | None, *, follow: bool) -> None:
     found = _found(ctx)
     record = found.client.changeset_of(changeset).read()
     _show(found, record, output)
+    if follow and record.get("state") == "pending":
+        from kartenn_cli.watch import follow_changeset  # noqa: PLC0415
+
+        click.echo(t("changeset.final", id=changeset, state=follow_changeset(found, changeset)))
 
 
 @changeset_group.command(name="diff", help="changeset.diff.help")

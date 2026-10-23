@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from datetime import tzinfo
 
     from kartenn import Client
-    from kartenn.auth import TokenStore
+    from kartenn.auth import Auth, TokenStore
     from kartenn.catalog import Catalog, CatalogCache
     from kartenn.profiles import Profile
     from kartenn.transport.port import Transport
@@ -204,14 +204,29 @@ class Runtime:
         return Verbose(transport)
 
     @cached_property
+    def auth(self) -> Auth:
+        """The authentication of the profile, or a break-glass session kept (`--keep`)."""
+        from kartenn.client import auth_of_profile  # noqa: PLC0415
+        from kartenn_cli.session import session_path  # noqa: PLC0415
+
+        profile = self.require_profile()
+        kept = session_path(profile)
+        if kept.exists():
+            from kartenn.auth import Breakglass  # noqa: PLC0415
+
+            name, _, cookie = kept.read_text().partition("\n")
+            return Breakglass(name, None, None, cookie=cookie.strip() or None)
+        return auth_of_profile(profile, self.token_store)
+
+    @cached_property
     def client(self) -> Client:
-        from kartenn.client import Client, auth_of_profile  # noqa: PLC0415
+        from kartenn.client import Client  # noqa: PLC0415
 
         profile = self.require_profile()
         transport = self.transport(profile)
         return Client(
             profile.url,
-            auth=auth_of_profile(profile, self.token_store),
+            auth=self.auth,
             ca_bundle=profile.ca_bundle,
             http2=profile.http2,
             token_store=self.token_store,

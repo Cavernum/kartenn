@@ -183,6 +183,7 @@ exists = "Un changeset local existe déjà ({path}) : appliquez-le, ou --force."
 created = "Changeset local : {path} (0 opération)"
 state = "Changeset {id} — {state} ({kind})"
 motive = "Motif"
+final = "Changeset {id} : {state}."
 
 [changeset.new]
 help = "Commencer un changeset local."
@@ -218,6 +219,7 @@ help = "Défaire un changeset appliqué (--dry-run : simuler)."
 force = "Remplacer le changeset local existant."
 section = "Section d'un module (policy.combinations)."
 property = "Clé de propriété."
+follow = "Suivre un changeset en attente jusqu'à sa décision."
 
 [edit]
 help = "Modifier l'objet dans $VISUAL ou $EDITOR, puis envoyer la différence (Merge Patch, If-Match).\n{path}  ({operation})"
@@ -339,6 +341,58 @@ healthy = "{probe} : {status}"
 stubs = "Stubs de types du serveur pour les vérificateurs (pyright, mypy)."
 stubs_generate = "Écrire <out>/kartenn_server/__init__.pyi."
 stubs_out = "Répertoire de sortie (typings par défaut)."
+
+[login]
+help = "Se connecter : navigateur (OIDC), --device, secret d'un compte de service, --breakglass."
+device_warning = "Vous autorisez un APPAREIL à agir en votre nom sur kartenn. Ne saisissez ce code que si vous avez lancé cette commande vous-même."
+open = "Ouvrez"
+code = "Code "
+waiting = "En attente de validation… (expire dans {minutes} min)"
+prompts = "le nom, la phrase de passe et le code du compte de secours"
+name = "Compte de secours"
+passphrase = "Phrase de passe"
+totp = "Code TOTP"
+secret_prompt = "le secret du compte de service"
+secret = "Secret du compte {account}"
+session_kept = "Une session de secours est gardée : kartenn logout d'abord."
+browser = "un navigateur (ou --device)"
+opening = "Ouverture du navigateur pour vous connecter chez « {issuer} »…"
+fallback = "  Si rien ne s'ouvre : {url}"
+nothing = "Rien à faire pour l'authentification « {auth} » (KARTENN_TOKEN ou aucune)."
+done = "Connecté : {who}."
+
+[login.opt]
+device = "Flux d'appareil (hôte sans navigateur)."
+breakglass = "Compte de secours (session d'une heure au plus)."
+name = "Nom du compte de secours."
+keep = "Garder la session de secours dans $XDG_RUNTIME_DIR (0600)."
+
+[logout]
+help = "Se déconnecter : oublier les jetons, ou fermer la session de secours."
+done = "Déconnecté du profil {profile}."
+session = "Session de secours fermée."
+
+[me]
+help = "Qui suis-je : identité, groupes, rôles."
+identity = "Identité"
+groups = "Groupes"
+roles = "Rôles"
+
+[watch]
+help = "Suivre les événements du serveur (changements, changesets)."
+absent = "Ce serveur ne sert pas le flux d'événements (capabilities.events = null)."
+open = "Flux d'événements ouvert (profil {profile}) — Ctrl-C pour arrêter."
+closed = "Flux fermé ; reprendre : {resume}"
+ready = "prêt"
+reset = "débordement du tampon : relisez ce que vous suivez"
+wide = "invalidation large : {what}"
+
+[watch.opt]
+types = "Types d'objets (core.prefix,vlan.vlan)."
+domains = "Domaines."
+objects = "Objets (UUID)."
+kinds = "Sortes d'événements (changes, changeset, reset)."
+since = "Reprendre après ce curseur."
 
 [completion]
 help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."

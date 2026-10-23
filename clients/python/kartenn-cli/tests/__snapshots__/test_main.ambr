@@ -40,10 +40,13 @@
     changeset  Composer, simuler, appliquer, instruire des changesets.
     import     Importer un fichier par morceaux, avec reprise.
   
+  Droits et audit:
+    me
+  
   Outils:
     api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
          contrat.
-    capabilities, completion, config, health, stubs
+    capabilities, completion, config, health, login, logout, stubs, watch
   
   '''
 # ---

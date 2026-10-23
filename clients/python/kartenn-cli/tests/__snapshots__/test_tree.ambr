@@ -221,12 +221,12 @@
     flow      Registre de flux : demandes, instruction, dérogations.   [module flow 0.2.0]
   
   Droits et audit:
-    audit, bindings, identities, issuer-attachments, roles, service-accounts
+    audit, bindings, identities, issuer-attachments, roles, service-accounts, me
   
   Outils:
     api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
          contrat.
-    log-filters, capabilities, completion, config, health, stubs
+    log-filters, capabilities, completion, config, health, login, logout, stubs, watch
   
   '''
 # ---

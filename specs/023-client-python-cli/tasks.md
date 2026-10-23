@@ -642,12 +642,27 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     Outils de la racine ajoutés ici : `api spec` (le contrat), `capabilities`,
     `health [live|ready]`, `stubs generate --out` (même génération que
     `python -m kartenn`).
-- [ ] 24. `login` (bouclage, `--device`, `--breakglass`), `logout`, `me`, et `watch`
+- [x] 24. `login` (bouclage, `--device`, `--breakglass`), `logout`, `me`, et `watch`
   (filtres, `--since`, `ndjson`). `--follow` d'un import ou d'un changeset sur le flux
   d'événements quand il existe. — REQ-023-7, 8, 38 — verify : maquette § 1 et 15 sur
   transport simulé ; `watch` absent si `events` vaut `null`
   - où : `clients/python/kartenn-cli/src/kartenn_cli/main.py`, `render/` ; design § Suivi
   - dépend de : 13, 14, 16
+  - choix : `session.py` et `watch.py`. `login` selon le profil : `oidc` par le
+    navigateur (URL écrite sur la sortie d'erreur en cas d'échec d'ouverture) ou
+    `--device` (avertissement de RFC 8628 §5.4, URI et code) ; `basic` demande le
+    secret sans écho et le range au trousseau ; `token`/`none` : rien à faire.
+    `--breakglass` : nom, phrase de passe et TOTP saisis sans écho, session en mémoire ;
+    `--keep` la garde (nom et cookie, jamais la phrase) dans
+    `$XDG_RUNTIME_DIR/kartenn/<profil>.session` en 0600, que les commandes suivantes
+    reprennent et que `logout` ferme (`POST /v1/auth/logout`). Après connexion :
+    `GET /v1/me` puis découverte du catalogue. `me` : identité, groupes, rôles (aucun
+    nom de permission codé). `watch` : `--types`, `--domains`, `--objects`, `--kinds`
+    (listes séparées par des virgules), `--since` ; ligne horodatée à la réception dans
+    le fuseau du profil ; Ctrl-C écrit la commande de reprise avec le dernier curseur.
+    `changeset show --follow` suit le changeset sur le flux (événement `changeset` à
+    état final) ou relit toutes les 2 s ; `import` suit par relecture (la bibliothèque
+    attend au rythme de `Retry-After`), non par le flux.
 - [ ] 25. Couverture : `coverage.py` (exclusions motivées) et test qui classe chaque
   opération du contrat de référence — REQ-023-43 — verify : une opération ajoutée à un
   contrat de test et non classée fait échouer le test

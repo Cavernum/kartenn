@@ -183,6 +183,7 @@ exists = "A local changeset exists already ({path}): apply it, or --force."
 created = "Local changeset: {path} (0 operations)"
 state = "Changeset {id} — {state} ({kind})"
 motive = "Motive"
+final = "Changeset {id}: {state}."
 
 [changeset.new]
 help = "Start a local changeset."
@@ -218,6 +219,7 @@ help = "Undo an applied changeset (--dry-run: simulate)."
 force = "Replace the existing local changeset."
 section = "Section of a module (policy.combinations)."
 property = "Property key."
+follow = "Follow a pending changeset until its decision."
 
 [edit]
 help = "Change the object in $VISUAL or $EDITOR, then send the difference (Merge Patch, If-Match).\n{path}  ({operation})"
@@ -339,6 +341,58 @@ healthy = "{probe}: {status}"
 stubs = "Type stubs of the server for the checkers (pyright, mypy)."
 stubs_generate = "Write <out>/kartenn_server/__init__.pyi."
 stubs_out = "Output directory (typings by default)."
+
+[login]
+help = "Log in: browser (OIDC), --device, secret of a service account, --breakglass."
+device_warning = "You are authorising a DEVICE to act in your name on kartenn. Type this code only if you started this command yourself."
+open = "Open"
+code = "Code"
+waiting = "Waiting for approval… (expires in {minutes} min)"
+prompts = "the name, passphrase and code of the break-glass account"
+name = "Break-glass account"
+passphrase = "Passphrase"
+totp = "TOTP code"
+secret_prompt = "the secret of the service account"
+secret = "Secret of the account {account}"
+session_kept = "A break-glass session is kept: kartenn logout first."
+browser = "a browser (or --device)"
+opening = "Opening the browser to log in at “{issuer}”…"
+fallback = "  If nothing opens: {url}"
+nothing = "Nothing to do for the authentication “{auth}” (KARTENN_TOKEN or none)."
+done = "Logged in: {who}."
+
+[login.opt]
+device = "Device flow (host without a browser)."
+breakglass = "Break-glass account (a session of one hour at most)."
+name = "Name of the break-glass account."
+keep = "Keep the break-glass session in $XDG_RUNTIME_DIR (0600)."
+
+[logout]
+help = "Log out: forget the tokens, or close the break-glass session."
+done = "Logged out of the profile {profile}."
+session = "Break-glass session closed."
+
+[me]
+help = "Who am I: identity, groups, roles."
+identity = "Identity"
+groups = "Groups"
+roles = "Roles"
+
+[watch]
+help = "Follow the events of the server (changes, changesets)."
+absent = "This server serves no event stream (capabilities.events = null)."
+open = "Event stream open (profile {profile}) — Ctrl-C to stop."
+closed = "Stream closed; resume: {resume}"
+ready = "ready"
+reset = "buffer overflow: read again what you follow"
+wide = "wide invalidation: {what}"
+
+[watch.opt]
+types = "Types of objects (core.prefix,vlan.vlan)."
+domains = "Domains."
+objects = "Objects (UUID)."
+kinds = "Kinds of events (changes, changeset, reset)."
+since = "Resume after this cursor."
 
 [completion]
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
