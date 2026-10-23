@@ -68,13 +68,15 @@ def render_sections(sections: Sequence[Mapping[str, Any]], *, keys: bool = False
     return lines
 
 
-def render_simulation(found: Runtime, simulation: Simulation, *, operations: int) -> None:
+def render_simulation(
+    found: Runtime, simulation: Simulation, *, operations: int, output: str | None = None
+) -> None:
     """What applying would do, on the standard output."""
     from kartenn_cli.render.problems import render_violations  # noqa: PLC0415
 
-    fmt = found.asked_output() or "table"
+    fmt = found.asked_output(output) or "table"
     if fmt != "table":
-        found.output().value(dict(simulation.body))
+        found.output(output=output).value(dict(simulation.body))
         return
     warnings = [v for v in simulation.violations if not v.blocking]
     click.echo(

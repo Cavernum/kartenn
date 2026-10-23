@@ -129,6 +129,12 @@ def test_create_from_a_document(served: FakeServer, tmp_path: Path) -> None:
     assert "client.invalid-document" in stdin.stderr
     bad = kartenn("prefixes", "create", "--set", "noequal", "--motive", "m")
     assert "client.invalid-assignment" in bad.stderr
+    missing = kartenn(
+        "prefixes", "create", "--from-file", str(tmp_path / "absent.yaml"), "--motive", "m"
+    )
+    assert missing.exit_code == 2
+    assert "erreur [client.unreadable-file] Impossible de lire" in missing.stderr
+    assert "Traceback" not in missing.output
 
 
 def test_a_write_without_motive_is_refused_without_a_terminal(served: FakeServer) -> None:
@@ -202,6 +208,13 @@ def test_dry_run_simulates_the_same_changeset(
     assert result.stdout == snapshot
     sent = served.seen[-1]
     assert sent.url.params["simulate"] == "true"
+    # A document asked for stays a document: the banner goes to the standard error.
+    as_json = kartenn(
+        "prefixes", "create", "--domain", DOMAIN, "--value", "203.0.113.0/26",
+        "--nature", "network", "--motive", "lot 3", "--dry-run", "-o", "json",
+    )  # fmt: skip
+    assert isinstance(json.loads(as_json.stdout), dict)
+    assert as_json.stderr.startswith("Simulation — rien n'est écrit")
     assert body(sent)["operations"] == [
         {
             "op": "create_prefix",
@@ -278,12 +291,23 @@ def test_local_changeset(
         "--nature", "network", "--into-changeset",
     )  # fmt: skip
     assert added.stdout == f"Ajouté (opération 0) : create_prefix {DOMAIN}/203.0.113.0/26\n"
-    vlan = kartenn("vlan", "create", "--set", "vid=140", "--set", "name=lot3", "--into-changeset")
-    assert vlan.stdout == "Ajouté (opération 1) : vlan.create_vlan 140\n"
+    # `--group` names a collection of the module (`vlan-groups`), resolved by its key.
+    served.route(
+        "GET", "/v1/vlan-groups", {"items": [{"id": GROUP, "slug": "site-nord"}], "links": {}}
+    )
+    vlan = kartenn(
+        "vlan", "create", "--group", "site-nord", "--set", "vid=140", "--set", "name=lot3",
+        "--into-changeset",
+    )  # fmt: skip
+    assert vlan.stdout == f"Ajouté (opération 1) : vlan.create_vlan {GROUP}/140\n"
     raw = kartenn("changeset", "add", '{"op": "create_domain", "slug": "lot3"}')
     assert raw.stdout == "Ajouté (opération 2) : create_domain\n"
     assert kartenn("changeset", "add").exit_code == 2
     assert kartenn("changeset", "add", "[1]").exit_code == 2
+    absent = kartenn("changeset", "add", "--from-file", "absent.yaml")
+    assert absent.exit_code == 2
+    assert "client.unreadable-file" in absent.stderr
+    assert "--from-file FICHIER" in kartenn("changeset", "add", "--help").stdout
     served.route("POST", "/v1/changesets", httpx2.Response(200, json=SIMULATED))
     simulated = kartenn("changeset", "simulate", "-o", "table")
     assert simulated.exit_code == 0, simulated.output
@@ -295,6 +319,7 @@ def test_local_changeset(
         "vlan.create_vlan",
         "create_domain",
     ]
+    assert sent["operations"][1]["group"] == {"id": GROUP}
     served.route("POST", "/v1/changesets", httpx2.Response(201, json=APPLIED))
     applied = kartenn("changeset", "apply")
     assert applied.exit_code == 0, applied.output

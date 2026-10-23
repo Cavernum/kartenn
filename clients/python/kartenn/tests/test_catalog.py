@@ -136,6 +136,18 @@ def without(contract: dict[str, Any], tag: str) -> dict[str, Any]:
     return trimmed
 
 
+def test_the_tags_of_the_base_listed_as_modules_stay_the_core() -> None:
+    """kartenn-server lists the tags of its base (`core`, `rights`…) among its modules
+    (seen by the end-to-end sessions, task 26): their collections stay at the root."""
+    base = [{"name": n, "version": "0.1.0"} for n in ("core", "rights", "audit", "operations")]
+    catalog = derive(SERVER, capabilities(modules=[*base, *MODULES]), CONTRACT)
+    assert catalog.has("core")
+    assert catalog.served_modules == ("policy", "flow", "vlan", "machines")
+    assert not catalog.is_module(catalog.resource("prefixes"))
+    assert not catalog.is_module(catalog.resource("bindings"))
+    assert catalog.is_module(catalog.resource("vlans"))
+
+
 def test_contract_without_policy_has_no_policy_resource() -> None:
     served = [m for m in MODULES if m["name"] != "policy"]
     catalog = derive(SERVER, capabilities(modules=served), without(CONTRACT, "policy"))

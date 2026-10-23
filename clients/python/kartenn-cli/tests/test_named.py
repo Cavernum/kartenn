@@ -52,30 +52,36 @@ APPLIED: dict[str, Any] = {
 
 def test_policy_check(server: FakeServer, snapshot: SnapshotAssertion) -> None:
     server.route("GET", "/v1/verdicts", VERDICT)
-    result = kartenn(
-        "policy",
-        "check",
-        "machine:bastion-1",
-        "prefix:interne/198.51.100.128/25",
-        "--service",
-        "ssh",
-    )
+    # The endpoints go as `<kind>:<id>` (the contract), a natural key resolved first;
+    # machines have none (x-kartenn): a UUID.
+    machine = "7c1e0000-0000-7000-8000-000000000001"
+    prefix = "7c1e0000-0000-7000-8000-000000000002"
+    a, b = f"machine:{machine}", f"prefix:{prefix}"
+    result = kartenn("policy", "check", a, b, "--service", "ssh")
     assert result.exit_code == 0, result.output
     assert result.stdout == snapshot
     params = server.seen[-1].url.params
-    assert (params["source"], params["service"]) == ("machine:bastion-1", "ssh")
+    assert (params["source"], params["destination"], params["service"]) == (
+        f"machine:{machine}",
+        f"prefix:{prefix}",
+        "ssh",
+    )
+    bastion = kartenn("policy", "check", "machine:bastion-1", f"prefix:{prefix}")
+    assert bastion.exit_code == 2
+    assert "client.key-unknown" in bastion.output
     denied = copy.deepcopy(VERDICT)
     denied["synthesis"]["verdict"] = "denied"
     denied["access"] = "reduced"
     denied["hidden"] = 2
     denied["evaluations"][0]["conditions"] = [{"condition": "c", "state": "unmet"}]
     server.route("GET", "/v1/verdicts", denied)
-    refused = kartenn("policy", "check", "a", "b", "--service", "ssh", "--exit-status")
+    refused = kartenn("policy", "check", a, b, "--service", "ssh", "--exit-status")
     assert refused.exit_code == 9
     assert "✗ refusé" in refused.stdout
     assert "Explication réduite" in refused.stdout
-    assert kartenn("policy", "check", "a", "b", "--service", "ssh").exit_code == 0
-    as_json = kartenn("policy", "check", "a", "b", "-o", "json")
+    assert kartenn("policy", "check", a, b, "--service", "ssh").exit_code == 0
+    as_json = kartenn("policy", "check", a, b, "-o", "json")
+    assert kartenn("policy", "check", "a", "b").exit_code == 2
     assert json.loads(as_json.stdout)["synthesis"]["verdict"] == "denied"
 
 

@@ -22,6 +22,23 @@ __all__ = [
 ]
 
 FORMAT = 1
+# The tags of the base (spec 006): `GET /v1/capabilities` lists them among the modules
+# of the build, each once (ADR 0026, clause 1), but their collections are the first level
+# of a client, not a module group (maquette § 2). Seen by the end-to-end sessions
+# (task 26): the simulated servers of the tests served the business modules only.
+BASE_TAGS = frozenset(
+    {
+        "audit",
+        "authentication",
+        "changesets",
+        "core",
+        "graph",
+        "imports",
+        "operations",
+        "properties",
+        "rights",
+    }
+)
 # The operations of the base the library codes by hand (REQ-023-1): checked by their
 # `operationId` when used, `client.operation-unavailable` when absent.
 SOCLE = (
@@ -188,9 +205,15 @@ class Catalog:
     def has_resource(self, name: str) -> bool:
         return name in self._resources
 
+    @property
+    def served_modules(self) -> tuple[str, ...]:
+        """The business modules of the build: the modules of the capabilities, without
+        the tags of the base the server lists among them (`core`, `rights`…)."""
+        return tuple(name for name in self.module_names if name not in BASE_TAGS)
+
     def is_module(self, resource: Resource) -> bool:
         """Whether a resource belongs to a module of the build (not the core)."""
-        return self.has(resource.module)
+        return resource.module in self.served_modules
 
     def resource(self, name: str) -> Resource:
         found = self._resources.get(name)
