@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -13,7 +13,7 @@ fil d'Ariane, barre d'état haute avec pastille de date et « Brouillon (n) »),
 clavier complets et découvrables, écrans du référentiel, des changesets et revues, du
 brouillon, de l'administration et des plugins réécrits avec `@kartenn/ui`, édition en
 place selon les droits, filtres typés, clés et libellés, codes visibles. Le SDK passe en
-**version 2.0** : cache de données partagé (`@tanstack/query-core`), préchargement à
+**version 1.0** (réécriture qui repart à 1.0, sans couche de compatibilité avec la 0.1 de la 007) : cache de données partagé (`@tanstack/query-core`), préchargement à
 l'intention, invalidation par le flux SSE de la 022, optimisme au présent seulement ; le
 framework et `@kartenn/ui` sont partagés avec les plugins par l'import map. Les budgets
 du navigateur s'étendent (INP, navigation en cache, CLS, trames perdues, mémoire) et
@@ -32,8 +32,9 @@ D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; specs 007, 
 [0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) ; note
 [`web-navigateur.md`](../../docs/reference/web-navigateur.md).
 
-**Brouillon du 2026-10-23.** Restent les « Arbitrages demandés » et les questions Q-021-1
-à 14 de [`decisions.md`](decisions.md). Le framework est tranché (D-1, 2026-10-23, après
+**Validée le 2026-10-23** : l'utilisateur a tranché tous les arbitrages et toutes les
+questions (Q-021-1 à 14) de [`decisions.md`](decisions.md), et les décisions de la planche
+des squelettes d'écrans (X35 à X42). Le framework est tranché (D-1, 2026-10-23, après
 prototype : [`005-framework-web.md`](../../docs/spikes/005-framework-web.md)) : **Vue 3**,
 avec Reka UI encadré (020, REQ-020-33) ; D17 et l'ADR 0011 inchangées. Rien n'est
 implémenté.
@@ -43,9 +44,9 @@ validées avant tout écran ; la 017 (Politique, Flux) vient après, sur ce socl
 
 ### Vocabulaire
 
-- **Espace** : groupe d'entrées de la barre latérale (Référentiel, Changesets,
-  Administration, et les espaces que déclarent les modules, par exemple Réseau ou
-  Sécurité).
+- **Espace** : groupe d'entrées de la barre latérale : Référentiel, Changesets, Réseau,
+  Machines, Politique, Flux, Administration (en dernier) ; les espaces des modules sont
+  déclarés par les manifestes des plugins.
 - **Palette** : dialogue de commandes ouvert par Ctrl+K (⌘K sur macOS).
 - **Pastille de date** : bouton de la barre d'état qui montre le contexte temporel
   (« Présent » ou la date) et ouvre le sélecteur de période.
@@ -81,11 +82,16 @@ Acceptation :
 La barre latérale doit grouper ses entrées par espace, accueillir les entrées des plugins
 dans l'espace que déclare leur manifeste, se replier en icônes (avec noms accessibles et
 infobulles) et garder son état localement ; elle doit afficher les compteurs utiles
-(propositions à instruire). [X2, REQ-020-16]
+(propositions à instruire, demandes à instruire, brouillon, anomalies), relus par le
+flux d'événements, jamais par sondage. Les espaces, dans cet ordre, sont `referential`,
+`changes`, `network`, `hosts`, `policy`, `flows`, `admin` ; un espace sans entrée visible
+(module absent ou droits) est masqué. [X2, REQ-020-16]
 
 Acceptation :
-- Un plugin qui déclare l'espace `security` apparaît sous « Sécurité » ; sans module
+- Un plugin qui déclare l'espace `policy` apparaît sous « Politique » ; sans module
   correspondant, l'espace est absent.
+- Un demandeur de flux sans autre droit ne voit que les espaces qui lui montrent une
+  entrée (Flux, et la conformité de Politique).
 - Repliée puis rechargée, la barre reste repliée.
 
 #### REQ-021-3 — Palette de commandes
@@ -173,8 +179,11 @@ REQ-020-23, maquettes E1 à E3]
 #### REQ-021-10 — Changesets et revues
 Le shell doit montrer la liste filtrée des changesets, le différentiel groupé par objet
 (`DiffList`), l'état, et permettre selon les droits validation, rejet, retrait,
-annulation ; les propositions à instruire de l'utilisateur doivent avoir leur vue et
-leur compteur. [X10, REQ-007-18, maquette E4]
+annulation ; les propositions à instruire de l'utilisateur doivent avoir leur vue
+(« À instruire ») et leur compteur. Deux files liées coexistent : « À instruire » (cœur)
+et « Instruction » (plugin Flux) ; sur une ligne d'« À instruire » issue d'une demande de
+flux, l'action du plugin « Instruire dans Flux » remplace « Valider », qui n'ajouterait pas
+l'opération de revue du module. [X10, X37, REQ-007-18, maquette E4]
 
 #### REQ-021-11 — Brouillon
 Le brouillon garde les règles de la 007 (IndexedDB par identité et onglet, simulation
@@ -190,7 +199,11 @@ REQ-007-19, maquette E7]
 
 #### REQ-021-13 — Hôte des plugins
 Le shell doit accueillir les cinq emplacements de la 007 (vue, onglet, panneau, colonne,
-action) dans le nouveau cadre ; une erreur d'un plugin reste confinée à son emplacement
+action) dans le nouveau cadre, et un sixième, **`widget`** : une tuile en lecture seule de
+l'Accueil (panneau droit de `/` sans nœud choisi), au plus une par plugin, montrée selon
+la permission de la vue liée ; une action peut viser le type `changeset` ; un onglet ou
+une colonne peut viser un type d'objet de module (par exemple Interfaces sur un VLAN, Flux
+sur une machine ou une interface) ; une erreur d'un plugin reste confinée à son emplacement
 (encart d'erreur avec code) ; la page « À propos » liste les plugins chargés et écartés
 avec leur motif. [X13, REQ-007-9, 13, maquette E10]
 
@@ -235,7 +248,8 @@ Acceptation :
 Dans l'arbre des préfixes, et dans tout arbre dont le parent découle des données
 (inclusion, D34), le shell ne doit offrir **aucun** déplacement (mode `derived`,
 REQ-020-31) : l'utilisateur ne choisit jamais le parent. Changer la place d'un préfixe
-passe par la **modification de sa valeur** (ou de son domaine), par le brouillon ; l'arbre
+passe par la **modification de sa valeur**, par le brouillon (le domaine est immuable,
+`core.domain.immutable` : aucune action « Changer de domaine ») ; l'arbre
 est alors recalculé à partir de la réponse du serveur (changeset appliqué, ou différentiel
 de la simulation du brouillon pour un aperçu marqué comme tel), jamais d'une déduction du
 client. [X17, D34, retour de l'utilisateur du 2026-10-23]
@@ -247,8 +261,11 @@ Acceptation :
   simulation ; après application, l'arbre relu la montre.
 
 #### REQ-021-32 — Déplacement dans les arbres à parent déclaré
-Dans un arbre à parent déclaré (entités, sites, groupes de VLAN, machines et clusters,
-selon les modules), le shell doit vérifier chaque cible avant de la mettre en évidence
+Le glisser n'est offert que pour l'hébergement d'une machine (par une machine ou un
+cluster) et l'ancrage d'un groupe de VLAN ; une entité ou un site change de parent par
+l'action de menu « Changer de parent… », jamais par glisser, avec les seules cibles
+valides et le code `core.anchor.cycle` en refus. Dans ces cas, le shell doit vérifier
+chaque cible avant de la mettre en évidence ou de la proposer
 (`canMove`, REQ-020-31) : pas de cycle (ni le nœud, ni un de ses descendants) ; type du
 parent compatible avec celui de l'enfant selon le contrat de l'API (schéma de l'opération
 de changement de parent) ; droit d'écriture sur le nœud **et** sur la cible (`/v1/me`) ;
@@ -307,11 +324,17 @@ Acceptation :
   la même vue.
 
 #### REQ-021-19 — Clé et libellé
+Les objets ne portent que des **clés** ; le shell résout les libellés par un dictionnaire
+séparé, `GET /v1/labels` (spec 018), négocié par `Accept-Language`, gardé en cache par
+langue et révision, invalidé par l'événement `labels` du flux (022, amendé par la 018).
 Toute valeur à clé (environnement, axe, état, type d'objet, permission, rôle) doit être
-affichée par son libellé dans la langue de l'utilisateur, à défaut sa clé, la clé restant
-accessible (REQ-020-21) ; tant que le serveur ne sert pas de libellés (spec 018), seuls
-les libellés des catalogues du shell et des plugins s'appliquent. [X19, retour du
-2026-10-22, Q-021-10]
+affichée par son libellé dans la langue de l'utilisateur, à défaut celui des catalogues du
+shell ou du plugin, à défaut sa clé, la clé restant accessible et le code toujours visible
+(REQ-020-21, 22). [X19, X42, spec 018]
+
+Acceptation :
+- Changement de libellé d'un environnement par un autre utilisateur : l'écran ouvert
+  l'affiche sans recharger (événement `labels`) ; aucune lecture d'objet n'est relancée.
 
 #### REQ-021-20 — Codes visibles
 Toute erreur affichée (avis, encart, dialogue, cellule) doit montrer le code du problème
@@ -363,10 +386,10 @@ Après un changeset appliqué par l'utilisateur, le SDK doit invalider les objet
 la réponse, leurs collections et leurs dépendants connus, sans attendre le flux. [X24,
 ADR 0037]
 
-### G. API des plugins (SDK 2.0)
+### G. API des plugins (SDK 1.0)
 
-#### REQ-021-25 — SDK 2.0
-Le SDK doit passer en version majeure 2.0 et offrir, en plus de la 1.x : le `QueryClient`
+#### REQ-021-25 — SDK 1.0
+Le nouveau SDK doit être publié en version 1.0 et offrir, en plus de ce qu'offre la 0.1 (007) : le `QueryClient`
 partagé, les fabriques de clés, l'abonnement aux événements, des aides d'écriture
 (modification rapide avec optimisme et rendu des réponses, ajout au brouillon), la
 déclaration de commandes, de raccourcis et d'entrées de barre latérale ; il reste sans
@@ -427,9 +450,22 @@ Acceptation :
 
 ### K. Migration
 
+#### REQ-021-35 — Contrat du serveur complété
+Avant les écrans, le serveur doit compléter son contrat : paramètres de filtre
+implémentés mais non déclarés (`prop.<clé>` et ses variantes, `within`, `usage`,
+`nature`, et tout autre filtre servi) décrits dans les `parameters` de l'OpenAPI, pour
+que les filtres typés se tirent du contrat ; curseurs sur `GET /v1/anomalies`,
+`/v1/property-gaps` et `/v1/flow-nonconformities` ; liste `GET /v1/policy-reports` ;
+route d'aperçu d'une règle d'inférence (010, amendement S36). [X41, 006, 010, 011, 016]
+
+Acceptation :
+- Test de contrat : chaque paramètre accepté par une route de liste figure dans ses
+  `parameters` ; `filters.ts` généré les contient.
+- Une liste d'anomalies de plus d'une page se parcourt par curseur jusqu'au bout.
+
 #### REQ-021-31 — Bascule en un bloc
 Le nouveau shell doit être écrit **complètement** avant de remplacer l'ancien : il vit sur
-`main` dans un dossier séparé, `web/v2/` (espace pnpm distinct : `sdk` 2.0, `ui`,
+`main` dans un dossier séparé, `web/v2/` (espace pnpm distinct : `sdk` 1.0, `ui`,
 `shell`, `plugins`, `e2e`), avec sa propre étape d'intégration continue, et **n'est pas
 servi** ; pendant ce temps, l'ancien shell ne reçoit que des correctifs. Avant la
 bascule, une liste de parité (chaque écran, action, extension et parcours de l'ancien
@@ -454,8 +490,8 @@ Acceptation :
 - Le langage de requête écrit : Q-020-10.
 - Le stockage et le versionnement des libellés par langue : la 018.
 - Le rendu serveur, une application mobile, le hors-ligne (au-delà du brouillon local).
-- Une couche de compatibilité SDK 1.x (Q-021-14).
+- Une couche de compatibilité avec le SDK 0.1 (Q-021-14 : aucune ; le SDK repart à 1.0).
 
-## Questions ouvertes
+## Questions
 
-Q-021-1 à 14, avec recommandations : [`decisions.md`](decisions.md), § « Questions ».
+Q-021-1 à 14, toutes closes le 2026-10-23 : [`decisions.md`](decisions.md), § « Questions ».

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -8,7 +8,7 @@ updated: 2026-10-23
 ## Vue d'ensemble
 
 Le shell v2 est la même application servie par kartenn-server (007/W2), réécrite sur
-`@kartenn/ui` (020) et sur le SDK 2.0. Trois couches :
+`@kartenn/ui` (020) et sur le SDK 1.0. Trois couches :
 
 ```mermaid
 flowchart TB
@@ -16,7 +16,7 @@ flowchart TB
     UI["@kartenn/ui (020) : composants, jetons, feuille"]
     SH["Shell v2 : cadre, routes, écrans, raccourcis, palette"]
     PL["Plugins : DOM léger (1re partie) ou racine d'ombre (tiers)"]
-    SDK["@kartenn/sdk 2.0 : client HTTP, QueryClient, clés, flux SSE, brouillon, contexte"]
+    SDK["@kartenn/sdk 1.0 : client HTTP, QueryClient, clés, flux SSE, brouillon, contexte"]
     SH --> UI
     PL --> UI
     SH --> SDK
@@ -43,7 +43,7 @@ sont gardées, amendées ou remplacées ainsi.
 | REQ-007-9 (chargement) | gardée, amendée | plages `ui` et `framework` (REQ-021-26) |
 | REQ-007-10 (code de confiance) | gardée | — |
 | REQ-007-11 (première partie) | gardée, amendée | DOM léger et `@kartenn/ui` (REQ-021-27) |
-| REQ-007-12 (SDK) | amendée | version 2.0 (REQ-021-25) ; « sans framework » gardé |
+| REQ-007-12 (SDK) | amendée | version 1.0 (REQ-021-25) ; « sans framework » gardé |
 | REQ-007-13 (points d'extension) | gardée, étendue | espaces, commandes, raccourcis (REQ-021-2, 3, 7) |
 | REQ-007-14, 15, 16, 24 (contexte, client, bac à sable, contexte des plugins) | gardées | le client devient la fonction de requête du cache |
 | REQ-007-17, 18, 19 (écrans) | remplacées | REQ-021-9, 10, 12 |
@@ -81,12 +81,17 @@ sont gardées, amendées ou remplacées ainsi.
 
 - Barre latérale : 208 px, repliée 48 px ; fond `--k-sidebar-bg` ; espaces en
   `Disclosure` ; état replié en `localStorage` (`kartenn.sidebar`).
-- **Espaces** : `referential` (Référentiel : domaines, préfixes, plages, adresses,
-  entités, sites, anomalies, propriétés), `changes` (Changesets : changesets, à
-  instruire, brouillon, imports), `admin` (Administration), plus ceux que déclarent les
-  plugins dans une liste fermée extensible : `network` (Réseau : VLAN), `hosts`
-  (Machines), `security` (Sécurité : politique, flux). Un espace sans entrée est masqué.
-  Libellés dans les catalogues du shell (Q-021-5).
+- **Espaces**, dans cet ordre (liste fermée, extensible par amendement) :
+  `referential` (Référentiel : accueil, domaines, préfixes, plages, adresses, entités,
+  sites, anomalies, propriétés), `changes` (Changesets : changesets, à instruire,
+  brouillon, imports), `network` (Réseau : VLAN, groupes), `hosts` (Machines : machines,
+  hébergement, interfaces), `policy` (Politique : matrice, règles et motifs, catalogue,
+  inférence, conformité, rapports), `flows` (Flux : flux, instruction, non-conformités),
+  `admin` (Administration, en dernier). Un espace sans entrée visible est masqué.
+  Libellés dans les catalogues du shell.
+- **Badges** : « À instruire » (`/v1/proposals`), « Instruction » (demandes de flux en
+  attente), « Brouillon » (opérations locales), « Anomalies » et « Inférence »
+  (`/v1/anomalies` par règle) ; relus par le flux d'événements, jamais par sondage.
 - Barre d'état : `Breadcrumb`, `DatePill`, `DraftCounter`, menu de l'utilisateur
   (langue, thème, densité, raccourcis à une touche, à propos, déconnexion).
 - Bande : `TimeBand` sous la barre d'état, pleine largeur, `--k-band-bg` ; la barre et la
@@ -128,6 +133,7 @@ Chaque route déclare `meta.queries(params, time)` (requêtes à précharger) et
 | `g` `c` / `i` / `b` | changesets, à instruire, brouillon | hors champ |
 | `g` `x` | administration | hors champ |
 | `g` `h` | accueil (référentiel) | hors champ |
+| `g` `v` / `m` / `t` / `q` / `f` | VLAN, machines, matrice, conformité, flux (lettres déclarées aux manifestes des plugins, refusées si prises) | hors champ |
 | `c` | créer dans la collection courante | hors champ, droit d'écriture, présent |
 | `e` | modifier l'objet courant ou la cellule active | idem |
 | Ctrl+Entrée | appliquer maintenant (édition en place) | dans l'éditeur |
@@ -167,6 +173,71 @@ ne vide pas l'écran) avec ses trois états.
   en `CodeBadge` (nom servi) et libellé.
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
+
+## Catalogue des écrans (planche des squelettes, 2026-10-23)
+
+Inventaire validé sur la planche des squelettes (données fictives, plages de
+documentation). Légende de l'édition : *place* = en place, vers le brouillon (Ctrl+Entrée
+applique) ; *form* = panneau latéral ou dialogue ; *menu* = action « ⋯ » à cibles valides ;
+*glisser* = arbre à parent déclaré ; *lecture*.
+
+### Cœur
+
+| Écran | Route | But | Édition | Codes notables |
+|---|---|---|---|---|
+| Accueil et référentiel | `/`, `/?node=<id>` | arbre des préfixes d'un domaine, table du nœud choisi ; sans nœud, tuiles `widget` | place (usage, nature, propriétés) ; valeur par le brouillon, arbre relu | `core.prefix.duplicate`, `core.prefix.unaligned`, `core.address.outside_network`, `core.range.overlap` |
+| Listes des collections | `/domains`, `/prefixes`, `/ranges`, `/addresses`, `/entities`, `/sites` | `DataGrid` par collection, filtres = paramètres de l'API (`domain`, `value`, `within`, `first`, `nature`, `usage`, `slug`, `parent`, `prop.<clé>`, `:between`, `:exists`) | place ; création en form ; parent d'entité ou de site par menu | `core.slug.duplicate`, `core.anchor.cycle`, `core.domain.immutable`, `prop.assignment.invalid_value` |
+| Fiche d'objet | `/:collection/:id` | attributs, propriétés résolues et leur explication, occupation, contenu, historique, anomalies, relations, onglets de plugins | place, form | `prop.assignment.required`, `core.anchor.in_use`, `precondition-failed` |
+| Historique | `/:collection/:id?tab=history` | versions bitemporelles, comparaison de deux versions, lien au changeset | lecture | `changeset.operation.no_version` |
+| Création, modification | form sur toute liste | plusieurs champs d'un coup, même contrat que l'édition en place | form | `core.addr.syntax`, `core.range.bounds` |
+| Anomalies et lacunes | `/anomalies`, `?tab=gaps` | avertissements des règles et propriétés attendues manquantes | menu (acquitter, motif) | codes des règles du cœur et des modules |
+| Propriétés déclarées | `/property-declarations` | catalogue des propriétés | form (administration) | `prop.declaration.invalid` |
+| Changesets et différentiel | `/changesets`, `/changesets/:id` | différentiel, opérations, violations, sections des modules, actions de revue ; actions de plugins sur le type `changeset` | menu | `changeset.approval.self`, `core.review.operation` |
+| À instruire | `/proposals` | propositions que l'utilisateur peut valider ; « Instruire dans Flux » sur les demandes de flux | menu | `motive-required`, `changeset-refused` |
+| Brouillon | panneau, `/draft` | opérations, simulation, soumission en lot avec un motif | form | codes de la simulation |
+| Imports | `/imports`, `/imports/:id` | lot par morceaux, tri, lancement, rapport | form | `invalid-import` |
+| Administration | `/admin/identities`, `roles`, `bindings`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits, périmètres, journal d'audit ; permissions servies avec libellé | form | `core.binding.escalation`, `audit.chain.broken` |
+
+### Plugin VLAN (espace `network`)
+
+| Écran | Route | But | Édition | Codes notables |
+|---|---|---|---|---|
+| VLAN | `/x/vlan/vlans`, `/x/vlan/vlans/<id>` | trouver un VLAN, VID libres, créer sans collision ; onglet « Interfaces » (plugin Machines) | place, form | `vlan.vid.duplicate`, `vlan.vid.out_of_range` |
+| Groupes de VLAN | `/x/vlan/groups`, `…/<id>` | groupes par ancre, plage de VID | form ; ancre par glisser | `vlan.group.anchor` |
+| Onglet VLAN d'un préfixe | `/prefixes/:id?tab=vlan` | VLAN porté par un réseau ; panneau de résumé | place | `vlan.prefix.not_network`, `vlan.site.mismatch` |
+| Tuile | Accueil | groupes les plus remplis | lecture | — |
+
+### Plugin Machines (espace `hosts`)
+
+| Écran | Route | But | Édition | Codes notables |
+|---|---|---|---|---|
+| Machines | `/x/machines/machines`, `…/<id>` | inventaire, hébergement, propriétaire, adresses principales | place, form | `machines.name.duplicate`, `machines.host.invalid` |
+| Fiche et interfaces | `…/machines/<id>?tab=interfaces` | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
+| Hébergement et clusters | `/x/machines/clusters`, `…/<id>` | qui héberge quoi ; déplacer une machine | glisser, menu | `machines.host.site_mismatch` |
+| Interfaces | `/x/machines/interfaces` | recherche par MAC, adresse, VLAN (réponse à incident) | lecture | `machines.mac.invalid` |
+
+### Plugin Politique (espace `policy`)
+
+| Écran | Route | But | Édition | Codes notables |
+|---|---|---|---|---|
+| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux ; effet simulé en pied de matrice et dans le panneau du brouillon | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
+| Règles et motifs | `/x/policy/rules`, `rules/<id>`, `rules/new`, `?tab=patterns` | règles hors matrice et motifs | form | `policy.text.missing` |
+| Catalogue | `/x/policy/catalogue/<collection>/<id>` | objets de référence, une forme pour huit collections | form | `invalid-member` |
+| Inférence | `/x/policy/inference`, `inference/<id>`, `inference/mismatches` | règles qui déduisent un axe, écarts ; aperçu d'une règle (route S36) | form, menu | `policy.inference.conflict`, `policy.inference.mismatch` |
+| Conformité | `/x/policy/compliance` | « ce flux serait-il permis, et pourquoi ? » | lecture | `policy-query-too-large` |
+| Effet d'un changement | `/x/policy/changes/<changeset>` | ce qu'un changeset ouvre, ferme, casse, guérit ; action « Effet sur la politique » sur un changeset | lecture | — |
+| Rapports d'audit | `/x/policy/reports`, `reports/<id>` | état de conformité à une date, listes à traiter (liste servie par `GET /v1/policy-reports`) | menu (lancer) | `conflict` |
+| Tuile | Accueil | écarts d'inférence, dernier rapport | lecture | — |
+
+### Plugin Flux (espace `flows`)
+
+| Écran | Route | But | Édition | Codes notables |
+|---|---|---|---|---|
+| Flux et fiche | `/x/flow/flows`, `flows/<id>` | flux qui touchent un objet, une entité, une règle ; prolonger, déroger, clore ; onglet « Flux » sur machine et interface | menu, form | `flow.service.closed` |
+| Demande | `/x/flow/request?source=<sorte>:<id>&from=<flux>` | demander un flux avec pré-vérification | form | `flow.endpoint.invalid`, `idempotency-key-reused` |
+| Instruction | `/x/flow/review`, `review/<changeset>` | décider des demandes et prolongations, règle en cause sous les yeux | menu | `flow.separation` |
+| Non-conformités et échéances | `/x/flow/nonconformities`, `/x/flow/flows?tab=expiring` | flux rejetés, non conformes, dérogés, à échéance | menu | `flow.verdict.denied` |
+| Tuile | Accueil | à instruire, échéances J-7, mes demandes | lecture | — |
 
 ## Édition en place (REQ-021-15, 16, 17)
 
@@ -215,11 +286,14 @@ sequenceDiagram
 ## Déplacements dans les arbres (REQ-021-17, 32 à 34)
 
 - **Parent déduit** (préfixes, D34) : `parentMode: 'derived'`, aucun déplacement. Changer
-  la place d'un préfixe = modifier sa valeur (ou son domaine, action de menu si
-  l'opération existe, Q-021-2) par le brouillon. L'arbre au présent n'est jamais retouché
+  la place d'un préfixe = modifier sa valeur par le brouillon (le domaine est immuable :
+  pas de « Changer de domaine »). L'arbre au présent n'est jamais retouché
   par le client : il est relu après application (invalidation, X24) ; l'aperçu du
   brouillon est un arbre distinct, marqué « aperçu », construit à partir du différentiel
   de la simulation (`POST /v1/changesets?simulate=true`), jamais d'un calcul CIDR local.
+- **Parent déclaré, par glisser** : hébergement d'une machine (machine ou cluster) et
+  ancrage d'un groupe de VLAN seulement. **Par menu seulement** : entités et sites,
+  « Changer de parent… » (`Combobox` des cibles valides, refus `core.anchor.cycle`).
 - **Parent déclaré** : `parentMode: 'declared'` ; `canMove(nœud, cible)` du shell, dans
   l'ordre, rend le premier refus :
   1. cible = nœud ou descendant connu (ancêtres de la cible dans le cache) → « cycle » ;
@@ -252,10 +326,13 @@ sequenceDiagram
   collection : site, entité, domaine, environnement). Les propriétés déclarées
   (`GET /v1/property-declarations`) s'y ajoutent à l'exécution, avec leurs listes fermées
   (016). `FilterPicker` (020) reçoit ce modèle ; les suggestions passent par le cache.
-- **Libellés** : `label(kind, key, locale)` cherche, dans l'ordre, le libellé servi par
-  l'API pour la langue (quand la 018 l'apportera), le catalogue (`labels.<kind>.<key>` du
-  shell ou du plugin), puis rend la clé ; `KeyLabel` (020) affiche le résultat et garde la
-  clé accessible.
+- **Libellés** (spec 018) : les objets ne portent que des clés ; le dictionnaire
+  `GET /v1/labels` (négocié par `Accept-Language`) est une requête du cache à clé
+  `['v1', 'labels', langue, révision]`, invalidée par l'événement `labels` du flux ;
+  `label(kind, key, locale)` cherche le dictionnaire, puis le catalogue
+  (`labels.<kind>.<key>` du shell ou du plugin), puis rend la clé ; `KeyLabel` (020)
+  affiche le résultat et garde la clé accessible ; les codes restent toujours visibles.
+  Un changement de libellé ne relit aucun objet.
 - **Codes** : `ApiProblem` (SDK, existant) porte `type`, `violations[].code` et
   `requestId` ; tout rendu d'erreur passe par `ErrorState`, `InlineAlert` ou `Toast` de la
   020, qui montrent ces champs en `CodeBadge`. Le slug du `type`
@@ -266,7 +343,7 @@ sequenceDiagram
 ### Clés et fraîcheur
 
 ```ts
-// @kartenn/sdk 2.0
+// @kartenn/sdk 1.0
 keys.object(type, id, time)            // ['v1', type, id, null, timeKey(time)]
 keys.list(path, filters, time)         // ['v1', path, null, normalize(filters), timeKey(time)]
 keys.sub(type, id, sub, params, time)  // occupation, historique, explication, enfants…
@@ -280,6 +357,7 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 | liste (pages) | 30 s | 5 min, 10 pages gardées au plus | idem ; `placeholderData` = page précédente |
 | enfants d'un nœud d'arbre | 30 s | 10 min | idem |
 | capacités, `/v1/me`, déclarations | 5 min | session | flux (`changeset` d'administration), focus |
+| dictionnaire des libellés (`/v1/labels`) | `Infinity` par révision | session | événement `labels` |
 | simulation du brouillon | 0 | 1 min | à chaque changement (débrayé) |
 
 - Chaque entrée garde `{ data, etag }` ; la fonction de requête envoie `If-None-Match` et,
@@ -315,7 +393,7 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   les premières lectures ; `ready` → `invalidateQueries()` une fois ; `changes` → objets
   nommés (version différente), listes de leurs types, dépendants ; `truncated` → toutes
   les requêtes des types et domaines nommés ; `changeset` → le changeset et
-  `/v1/proposals` ; `reset` → tout.
+  `/v1/proposals` ; `labels` → le dictionnaire de la langue ; `reset` → tout.
 - **Reconnexion** : coupure réseau reprise par le navigateur (`Last-Event-ID`) ; statut
   non 200 (401, 429, 503) → `CLOSED` : le SDK vérifie la session, puis rouvre avec attente
   croissante plafonnée et aléatoire (022).
@@ -335,7 +413,7 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 ## API des plugins (REQ-021-25 à 27)
 
 ```ts
-// @kartenn/sdk 2.0 (ajouts à la 1.x, design de la 007 § SDK)
+// @kartenn/sdk 1.0 (ajouts à la 0.1, design de la 007 § SDK)
 export const queryClient: QueryClient;               // @tanstack/query-core, instance unique
 export const keys: KeyFactories;                      // § Clés
 export const events: { subscribe(l: (e: KartennEvent) => void): () => void; state(): 'open' | 'connecting' | 'closed' };
@@ -349,8 +427,8 @@ Manifeste (ajouts) :
 
 ```json
 {
-  "name": "vlan", "version": "2.0.0", "module": "vlan",
-  "sdk": "^2.0.0", "ui": "^1.0.0", "framework": "^3.5.0",
+  "name": "vlan", "version": "1.0.0", "module": "vlan",
+  "sdk": "^1.0.0", "ui": "^1.0.0", "framework": "^3.5.0",
   "space": "network",
   "views": [{ "element": "k-vlan-groups", "label": "vlan.nav.groups", "icon": "vlan", "go": "v" }]
 }
@@ -404,9 +482,9 @@ Le nouveau shell s'écrit **en entier** à côté de l'ancien, sur `main`, puis 
 un commit.
 
 ```
-web/                 ancien shell, SDK 1.x, plugins, e2e : servis ; correctifs seulement
+web/                 ancien shell, SDK 0.1, plugins, e2e : servis ; correctifs seulement
 web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres) ; non servi
-  sdk/               @kartenn/sdk 2.0 (repris de web/sdk)
+  sdk/               @kartenn/sdk 1.0 (repris de web/sdk)
   ui/                @kartenn/ui (020)
   shell/             nouveau shell (catalogue /_ui compris)
   plugins/           vlan, machines, example, puis policy et flow (017)
@@ -414,7 +492,7 @@ web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres
   stylelint.config.js
 ```
 
-- **Pourquoi un espace distinct** : le SDK 2.0 et l'import map étendue (ADR 0037, 0038)
+- **Pourquoi un espace distinct** : le SDK 1.0 et l'import map étendue (ADR 0037, 0038)
   sont incompatibles avec l'ancien shell et ses plugins ; deux paquets `@kartenn/sdk` de
   versions majeures différentes ne cohabitent pas dans un même espace pnpm.
 - **Intégration continue** : `scripts/ci.sh` gagne une étape `web/v2` (Prettier, ESLint,
@@ -438,7 +516,7 @@ web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres
 | 0 | Arbitrages, prototype D-1 (fait : Vue 3), ADR 0036 à 0039, outillage Claude, Stylelint, espace `web/v2/` et son étape d'intégration continue | 020 (P0), 021 (tâches 1, 25) | ADR acceptées ; `web/v2` vert en CI |
 | 1 | Jetons, police, icônes, catalogue nu, maquettes E1 à E10 validées | 020 (P1 à P3) | validations consignées ; captures de référence |
 | 2 | `@kartenn/ui` complet | 020 (P4, P5) | catalogue, captures, scripts APG, budgets de la bibliothèque |
-| 3 | SDK 2.0 : cache, clés, préchargement, écritures, flux (après 022-9, 10), import map étendue, manifeste | 021 (P1) | tests Vitest du cache ; parcours de fraîcheur à deux navigateurs |
+| 3 | SDK 1.0 : cache, clés, préchargement, écritures, flux (après 022-9, 10), import map étendue, manifeste | 021 (P1) | tests Vitest du cache ; parcours de fraîcheur à deux navigateurs |
 | 4 | Écrans du nouveau shell : cadre, référentiel, changesets et brouillon, administration, hôte des plugins | 021 (P2) | parcours portés verts dans `web/v2/e2e` ; captures ; budgets |
 | 5 | Plugins VLAN, Machines, exemple dans `web/v2/plugins` | 021 (P3) | parcours `vlan`, `machines`, `example` portés et verts |
 | 6 | Plugins Politique et Flux dans `web/v2/plugins` (avant ou après la bascule) | 017 (amendée) | selon la 017 |
@@ -488,7 +566,7 @@ tri et filtre de 130 à 260 ms).
 ## Alternatives considérées
 
 - **Bascule en place, zone par zone** (recommandation initiale) : une seule application,
-  mais un `main` qui mêle deux styles et un SDK 1.x/2.0 impossible à faire cohabiter ;
+  mais un `main` qui mêle deux styles et un SDK 0.1/1.0 impossible à faire cohabiter ;
   rejetée par l'utilisateur au profit de la bascule en un bloc depuis `web/v2/` (X31).
 - **SharedWorker pour le flux unique** : un seul `EventSource` sans élection, mais absent
   de certains navigateurs mobiles et plus dur à déboguer ; le verrou et le canal suffisent.
@@ -522,7 +600,7 @@ tri et filtre de 130 à 260 ms).
 
 [0037](../../docs/adr/0037-couche-de-donnees-du-client.md) (couche de données),
 [0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) (partage avec les
-plugins, amende 0025), proposées, D-1 résolu (Vue 3) ; ADR 0011 et D17 inchangées.
+plugins, amende 0025), acceptées le 2026-10-23 ; ADR 0011 et D17 inchangées.
 
 ## Références
 

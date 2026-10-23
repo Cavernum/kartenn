@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -28,8 +28,8 @@ REQ-007-30, 31, 33) ; ADR 0024, 0025, [0036](../../docs/adr/0036-systeme-de-desi
 [`web-navigateur.md`](../../docs/reference/web-navigateur.md) (CSP, Custom Elements,
 WCAG 2.2, APG).
 
-**Brouillon du 2026-10-23.** Les arbitrages de fond sont rendus ; restent les
-« Arbitrages demandés » et les questions Q-020-1 à 10 de [`decisions.md`](decisions.md).
+**Validée le 2026-10-23** : l'utilisateur a tranché tous les arbitrages et toutes les
+questions (Q-020-1 à 10) de [`decisions.md`](decisions.md).
 Le framework est tranché (D-1, 2026-10-23, après prototype comparatif) : **Vue 3**, avec
 **Reka UI** comme base de primitives accessibles là où elle convient ; D17 et l'ADR 0011
 restent telles quelles. Les leçons du prototype sont reprises (REQ-020-33, design § « Vue
@@ -353,7 +353,8 @@ Acceptation :
 Le shell doit servir, en développement et dans les builds de test, une route `/_ui` qui
 liste chaque composant, chaque état, chaque densité et chaque mode, plus les jetons
 (nuancier, échelles) et les icônes ; la route ne doit pas figurer dans le build de
-production. [B24, D-8, Q-020-2]
+production ; le build de test du catalogue est publié comme artefact de l'intégration
+continue. [B24, D-8, Q-020-2]
 
 Acceptation :
 - Le build de production ne contient aucun module du catalogue (test sur le manifeste du
@@ -444,14 +445,14 @@ test de licences existant. [B30, D37, REQ-007-38]
 
 ## Non-objectifs
 
-- Le langage de requête écrit (avec autocomplétion et coloration) : plus tard, spec
-  propre (Q-020-10).
+- Le langage de requête écrit (avec autocomplétion et coloration) : après la v0.2, dans
+  une spec propre partagée avec la CLI (Q-020-10).
 - Les écrans eux-mêmes : spec 021 (shell) et 017 (Politique, Flux).
 - Les données des libellés par langue (stockage, versionnement) : côté serveur, spec 018
   (non fusionnée) ; la 020 n'offre que leur affichage.
 - Un outil de design vectoriel ou un service de comparaison de captures externe.
 - Des thèmes au-delà de clair et sombre (contraste élevé : à rouvrir si demandé).
 
-## Questions ouvertes
+## Questions
 
-Q-020-1 à 10, avec recommandations : [`decisions.md`](decisions.md), § « Questions ».
+Q-020-1 à 10, toutes closes le 2026-10-23 : [`decisions.md`](decisions.md), § « Questions ».

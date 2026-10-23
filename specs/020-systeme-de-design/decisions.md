@@ -5,7 +5,7 @@ web D-1 à D-12, trois tours de brief, icônes, police, direction visuelle) et d
 retours sur les maquettes du 2026-10-22. Les décisions B1 à B30 traduisent ces arbitrages
 en choix de conception ; les choix peu coûteux à défaire sont marqués « choix de
 Claude ». Restent : les **arbitrages demandés** (contradictions avec des décisions ou des
-specs validées) et les **questions** Q-020-2 à 8 et 10 (Q-020-1 et 9 closes).
+specs validées) et les **questions** Q-020-1 à 10, toutes closes le 2026-10-23 : la spec est validée.
 
 Cadre : D6, D17, D31 (amendée), D37, Q-ouv-1, Q-ouv-6 de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; 007/W11 à W15 ;
@@ -202,56 +202,39 @@ libellés par langue).
 - Pourquoi : importée par des plugins, éventuellement tiers et propriétaires (Q-ouv-1).
 - Décidé par : choix de Claude, conforme à Q-ouv-1
 
-## Arbitrages demandés
+## Arbitrages (tranchés le 2026-10-23 par l'utilisateur)
 
-Contradictions ou écarts avec des décisions ou des specs validées ; chacun porte la
-recommandation de Claude.
+- **A1 — 017/U14 et tâche 017-1** : la 017 s'aligne sur la 020 et la 021 ; U14 remplacée
+  (maquettes au catalogue avec les vrais composants).
+- **A2 — 007/W12 et REQ-007-30** : W12 remplacée par la 020 (Reka UI encadré,
+  REQ-020-33) ; la traversée du Shadow DOM par les jetons reste vraie pour les tiers.
+- **A3 — ADR 0024 (dépendances)** : Stylelint et ses règles, `lucide`, les polices Geist,
+  `reka-ui` en version exacte et `@tanstack/vue-virtual` acceptés (ADR 0036).
+- **A4 — D17** : D-1 retient Vue 3, D17 inchangée.
+- **A5 — Captures Chromium seul et REQ-007-37** : pas d'amendement ; les parcours restent
+  sur Chromium et Firefox.
+- **A6 — Écarts à la direction** : `text-muted` clair `#5d6a7e`, `border-control`,
+  palette d'environnement distincte des états : acceptés.
 
-- ~~**A1 — 017/U14 et tâche 017-1**~~ : close le 2026-10-23 : la 017 s'aligne sur la 020
-  et la 021, U14 remplacée (maquettes au catalogue avec les vrais composants).
-- **A2 — 007/W12 et REQ-007-30** : W12 nomme Reka UI et les jetons « traversant le
-  Shadow DOM ». *Recommandation* : garder la traversée (vraie pour les tiers) ; Reka UI
-  reste la base (D-1 : Vue 3), encadrée par REQ-020-33 ; la 021 remplace W12 pour le
-  client.
-- **A3 — ADR 0024 (dépendances)** : Stylelint et ses règles, `lucide`, les fichiers de
-  police Geist entrent dans l'outillage et le paquet. *Recommandation* : accepter ; ADR
-  0036 les consigne ; licences vérifiées par le test existant (REQ-007-38).
-- ~~**A4 — D17**~~ : close le 2026-10-23 : D-1 retient Vue 3, D17 inchangée ; le chemin
-  sans framework reste ouvert aux tiers.
-- **A5 — Captures Chromium seul et REQ-007-37** (Chromium et Firefox) :
-  *Recommandation* : les parcours fonctionnels restent sur les deux navigateurs ; seules
-  les captures sont sur Chromium (D-9). Pas d'amendement.
-- **A6 — Écarts à la direction validée** : `text-muted` clair, `border-control`, palette
-  d'environnement distincte (B6, B8). *Recommandation* : accepter ; ils sont montrés
-  côte à côte au catalogue (`/_ui/jetons`) avant la validation des maquettes.
+## Questions (closes le 2026-10-23)
 
-## Questions
-
-- ~~**Q-020-1**~~ — Couleur d'un environnement : close le 2026-10-23 : déduite de la clé
-  (teinte stable de la palette accessible de six) ; choix de l'administrateur plus tard,
-  par un attribut de la valeur.
-- **Q-020-2** — Catalogue en production (diagnostic d'un rendu chez un client) ?
-  *Recommandation* : non ; build de test seulement.
-- **Q-020-3** — Jetons en DTCG (JSON) générés en CSS ? *Recommandation* : non, CSS source
-  (B5).
-- **Q-020-4** — Densité confortable : 36 px ou 32 px ? *Recommandation* : 36 px (écart net
-  avec la compacte, cibles confortables au pointeur tactile).
-- **Q-020-5** — Seuil des captures : `maxDiffPixelRatio` 0,001 ou zéro pixel ?
-  *Recommandation* : 0,001 ; zéro rend instable l'anticrénelage des polices.
-- **Q-020-6** — Polices variables ou graisses statiques (400, 500, 600) ?
-  *Recommandation* : variables, deux fichiers (sans, mono), sous-ensembles latin et latin
+- **Q-020-1** — Couleur d'un environnement : déduite de la clé (teinte stable de la
+  palette accessible de six) ; choix de l'administrateur plus tard, par un attribut de la
+  valeur.
+- **Q-020-2** — Catalogue : hors du build de production ; publié aussi comme artefact de
+  l'intégration continue (build de test du catalogue).
+- **Q-020-3** — Jetons en CSS (`tokens.css`) ; DTCG possible plus tard par une conversion
+  unique.
+- **Q-020-4** — Densité confortable : 36 px.
+- **Q-020-5** — Seuil des captures : 0,1 % des pixels (`maxDiffPixelRatio: 0.001`).
+- **Q-020-6** — Polices : Geist et Geist Mono variables, sous-ensembles latin et latin
   étendu.
-- **Q-020-7** — Icônes métier : dessinées par Claude puis relues, ou commandées ?
-  *Recommandation* : dessinées dans la tâche des icônes, validées sur planche avec les
-  maquettes.
-- **Q-020-8** — Différentiel : couleurs d'état réutilisées (`ok`, `ko`, `warn`) ou jetons
-  propres ? *Recommandation* : réutilisées, doublées d'un signe et d'un libellé.
-- ~~**Q-020-9**~~ — Chiffres des budgets de poids : close par le prototype D-1 (91,5 Ko
-  gzip au premier chargement, `vue` et application compris) : `@kartenn/ui` ≤ 90 Ko,
-  avec `vue` ≤ 120 Ko ; budgets de rendu à 2 × la mesure (B33).
-- **Q-020-10** — Langage de requête écrit (avec autocomplétion et coloration) : quand ?
-  *Recommandation* : après la v0.2, spec propre, sur la grammaire des pastilles (même
-  modèle, deux saisies).
+- **Q-020-7** — Icônes métier : dessinées par Claude dans le style Lucide, validées sur
+  une planche.
+- **Q-020-8** — Différentiel : couleurs d'état, signe et libellé.
+- **Q-020-9** — Budgets de poids : fixés par le prototype D-1 (B33).
+- **Q-020-10** — Langage de requête écrit : après la v0.2, dans une spec propre, partagée
+  avec la CLI (023).
 
 ## Validations des maquettes
 

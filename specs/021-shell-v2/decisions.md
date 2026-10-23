@@ -4,7 +4,8 @@ Rédigé le 2026-10-23 à partir des arbitrages rendus le même jour par l'utili
 web D-1 à D-12, brief, direction) et de ses retours sur les maquettes du 2026-10-22. Les
 décisions X1 à X31 traduisent ces arbitrages en choix de conception ; les choix peu
 coûteux à défaire sont marqués « choix de Claude ». Restent : les **arbitrages demandés**
-et les **questions** encore ouvertes (Q-021-2, 3, 5, 6, 8 à 11, 14).
+et les **questions** Q-021-1 à 14, toutes closes le 2026-10-23, ainsi que les décisions de la
+planche des squelettes (X35 à X42) : la spec est validée.
 
 Cadre : D7 (amendée), D8, D10, D11, D17, D31 (amendée), D34, D36 de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; 007/W1 à W18 ; 017/U2,
@@ -53,7 +54,7 @@ fusionnée).
 - X22 préchargement à l'intention, attente bornée à 100 ms.
 - X23 un flux SSE par navigateur, contrat de la 022, dépendants, comparaison sur `version`.
 - X24 invalidation de ses propres écritures sans attendre le flux.
-- X25 SDK 2.0 sans framework.
+- X25 SDK 1.0 sans framework.
 - X26 import map étendue, plages `ui` et `framework`, espace au manifeste.
 - X27 DOM léger en première partie ; tiers au choix ; exemple sans framework.
 - X28 i18n de la 007 gardée.
@@ -63,14 +64,24 @@ fusionnée).
 - X32 déplacement à parent déclaré : cibles vérifiées (cycle, type, droits, présent) avant mise en évidence.
 - X33 aucun optimisme pour un déplacement ; le serveur reste seul juge.
 - X34 invariant d'affichage des arbres, test de propriété de bout en bout.
+- X35 espaces : Référentiel, Changesets, Réseau, Machines, Politique, Flux, Administration.
+- X36 la matrice de politique écrit dans le brouillon du shell.
+- X37 deux files d'instruction liées ; actions de plugin sur le type `changeset`.
+- X38 point d'extension `widget` pour l'Accueil.
+- X39 parent d'entité ou de site par menu ; glisser pour l'hébergement et l'ancrage seulement ; domaine immuable.
+- X40 vue Interfaces ; onglets sur les types de module.
+- X41 contrat du serveur complété avant les écrans.
+- X42 libellés par dictionnaire `GET /v1/labels`, invalidé par l'événement `labels`.
 
 ## X2 — Espaces
-- Décision : liste fermée extensible d'espaces (`referential`, `changes`, `admin`,
-  `network`, `hosts`, `security`) ; un plugin déclare `space` ; un espace vide est masqué.
-- Pourquoi : brief tour 2 (barre latérale groupée) ; un plugin ne doit pas créer un groupe
-  par module (dérive).
-- Rejeté : un groupe par plugin ; espaces libres.
-- Décidé par : choix de Claude (Q-021-5)
+- Décision : `referential`, `changes`, `network`, `hosts`, `policy`, `flows`, `admin`
+  (dans cet ordre, Administration en dernier) ; un plugin déclare `space` ; un espace sans
+  entrée visible est masqué.
+- Pourquoi : planche des squelettes : référentiel d'abord, travail en cours, puis les
+  modules du réseau vers la sécurité ; Politique et Flux séparés (deux publics : le
+  responsable sécurité ; les demandeurs et instructeurs).
+- Rejeté : un seul espace « Sécurité » (neuf entrées, deux publics).
+- Décidé par : l'utilisateur (2026-10-23, Q-021-5)
 
 ## X5 — Contexte temporel
 - Décision : forme du brief (pastille, bande ambre) ; règles de W9 gardées :
@@ -161,72 +172,76 @@ fusionnée).
   sur `main` dans `web/v2/` (espace pnpm distinct, étape d'intégration continue propre,
   non servi) ; l'ancien ne reçoit que des correctifs ; liste de parité et parcours portés
   avant la bascule ; un seul commit branche le nouveau et supprime l'ancien.
-- Pourquoi : jamais d'interface mêlant deux styles ; le SDK 2.0 et l'import map étendue
+- Pourquoi : jamais d'interface mêlant deux styles ; le SDK 1.0 et l'import map étendue
   sont incompatibles avec l'ancien shell et ses plugins, qui ne peuvent donc pas
   coexister dans le même espace.
 - Rejeté : bascule en place par zones (recommandation initiale de Claude) ; branche
   longue hors de `main` (divergence, conflits).
 - Décidé par : l'utilisateur (2026-10-23, Q-021-4)
 
-## Arbitrages demandés
+## X35 à X42 — Planche des squelettes (2026-10-23, utilisateur)
+- **X35 Espaces** : voir X2.
+- **X36 Matrice** : les changements de la matrice vont au brouillon du shell
+  (`policy.matrix.set` avec `if_match`) ; l'effet simulé (sections `policy.*` et
+  `flow.flows`) est montré en pied de matrice et dans le panneau du brouillon ; remplace
+  l'« ensemble en préparation » propre au plugin (017/Q-017-1).
+- **X37 Files** : « À instruire » (cœur) et « Instruction » (Flux) coexistent, liées par
+  l'action « Instruire dans Flux » sur les lignes issues d'une demande ; une action de
+  plugin peut viser le type `changeset` (aussi « Effet sur la politique »).
+- **X38 Widget** : nouveau point d'extension pour l'Accueil, au plus un par plugin, en
+  lecture seule, filtré par la permission de la vue liée.
+- **X39 Parents** : entités et sites par « Changer de parent… » (cibles valides,
+  `core.anchor.cycle`), sans glisser ; glisser pour l'hébergement des machines et
+  l'ancrage des groupes de VLAN seulement ; pas de « Changer de domaine » (domaine
+  immuable, `core.domain.immutable`).
+- **X40 Machines** : vue Interfaces (recherche par MAC, adresse, VLAN) ; onglets apportés
+  sur des types de module (Interfaces sur un VLAN, Flux sur machine et interface).
+- **X41 Serveur** : contrat complété avant les écrans (REQ-021-35) : paramètres de filtre
+  déclarés dans l'OpenAPI, curseurs des anomalies, lacunes et non-conformités, liste des
+  rapports de politique, aperçu d'une règle d'inférence (010/S36).
+- **X42 Libellés** (spec 018 validée) : objets à clés seules ; dictionnaire
+  `GET /v1/labels` négocié par `Accept-Language`, en cache par langue et révision,
+  invalidé par l'événement `labels` ; codes toujours visibles.
+- Lettres `g` : `h d p r a e s c i b x` pour le shell, `v m t q f` déclarées par les
+  plugins, refusées si prises.
 
-- ~~**A1 — 017/U2**~~ : close le 2026-10-23 : la 017 s'aligne (U2 et U14 remplacées),
-  ses tâches web attendent le socle de la 020 et de la 021.
-- **A2 — ADR 0025 et 007/W7** (le SDK, seule instance partagée ; un plugin embarque son
-  framework) : amendés par l'ADR 0038. *Recommandation* : accepter l'ADR 0038 avec la 021 ;
-  le reste de l'ADR 0025 est inchangé.
-- **A3 — Contrat client de la 022** (design § « Contrat consommé par les clients » :
-  « invalider la requête de l'objet si son ETag connu diffère de `changeset` ») :
-  incompatible avec l'ETag composite et opaque de 006/H19 (fusionné le 2026-10-23).
-  *Recommandation* : amender ce paragraphe de la 022 : comparer `changeset` à la `version`
-  du corps ; invalider aussi les requêtes qui montrent l'objet ; sans `version`, relire en
-  `If-None-Match`. Amendement de forme, sans effet sur le serveur.
-- ~~**A4 — REQ-007-25**~~ : close le 2026-10-23 : édition en place vers le brouillon,
-  appliqué en lot avec un motif ; Ctrl+Entrée avec motif ; REQ-007-25 amendée.
-- **A5 — REQ-007-32** (« shell ≤ 300 Ko gzip hors plugins ») : le framework et
-  `@kartenn/ui`, partagés, entrent désormais dans le shell. *Recommandation* : garder le
-  plafond de 300 Ko en y comptant les modules partagés ; ajouter le plafond par plugin.
-- **A6 — Permissions `module.action`** (retours du 2026-10-22, spec 018 non fusionnée) :
-  la 010 a renommé `policy.read` en `policy.catalogue.read` (« trois segments exigés »).
-  La 021 n'affiche que les noms servis ; le renommage relève de la 018. *Recommandation* :
-  pas de renommage dans la 021 ; dépendance notée.
-- ~~**A7 — D17 et ADR 0011**~~ : close le 2026-10-23 : D-1 retient Vue 3, D17 et
-  l'ADR 0011 restent telles quelles.
-- **A8 — 007/W17** (« sans magasin global ») : le `QueryClient` est un cache de lectures,
-  pas un magasin d'état d'application. *Recommandation* : pas d'amendement ; préciser W17
-  (l'état de vue reste dans l'URL).
-- ~~**A9 — Brief « écritures désactivées hors présent »**~~ : close le 2026-10-23 : W9
-  gardée, la bande ne dit pas « écritures désactivées » sous `valid_at` seul.
+## Arbitrages (tranchés le 2026-10-23 par l'utilisateur)
 
-## Questions
+- **A1 — 017/U2** : la 017 s'aligne ; U2 et U14 remplacées.
+- **A2 — ADR 0025 et 007/W7** : amendés par l'ADR 0038, acceptée.
+- **A3 — Contrat client de la 022** : le client compare `changeset` à la `version` du corps
+  et invalide aussi les vues qui montrent l'objet ; design de la 022 amendé.
+- **A4 — REQ-007-25** : édition en place vers le brouillon, appliqué en lot avec un
+  motif ; Ctrl+Entrée applique une édition avec son motif ; REQ-007-25 amendée.
+- **A5 — REQ-007-32** : remplacée par REQ-021-30 (300 Ko modules partagés compris, 50 Ko
+  par plugin, bloquants).
+- **A6 — Permissions** : le renommage est fait par la spec 018 (validée), côté serveur,
+  avant le nouveau shell ; le shell montre les noms servis avec leurs libellés.
+- **A7 — D17 et ADR 0011** : inchangées (D-1 : Vue 3).
+- **A8 — 007/W17** : précisée (le cache n'est pas un magasin d'état d'application).
+- **A9 — Bande hors présent** : W9 gardée ; pas d'« écritures désactivées » sous
+  `valid_at` seul.
 
-- ~~**Q-021-1**~~ — Édition en place : close le 2026-10-23 : brouillon par défaut, appliqué en lot avec un
-  motif ; Ctrl+Entrée applique une seule édition, motif demandé.
-- **Q-021-2** — L'arbre des préfixes n'a aucun déplacement (X17, décidé) ; quels arbres
-  à parent déclaré offrent le déplacement en v0.2, et « Changer de domaine… » au menu si
-  l'opération existe ? *Recommandation* :
-  hébergement d'une machine (cluster) et ancrage d'un groupe de VLAN, rien d'autre.
-- **Q-021-3** — Un flux par navigateur : verrou `navigator.locks` et `BroadcastChannel`
-  (recommandé) ou `SharedWorker` ? Repli : un flux par onglet.
-- ~~**Q-021-4**~~ — Bascule : close le 2026-10-23 : en un bloc, nouveau shell complet dans `web/v2/`
-  (contre la recommandation « par zones »).
-- **Q-021-5** — Liste des espaces et leurs libellés (Référentiel, Changesets,
-  Administration, Réseau, Machines, Sécurité) : *Recommandation* : celle-ci, extensible
-  par amendement.
-- **Q-021-6** — Lettres de `g` (table du design) : *Recommandation* : la table ; une
-  lettre de plugin proposée au manifeste, refusée si prise.
-- ~~**Q-021-7**~~ — Plafond de mémoire : close par le prototype D-1 (19 à 25 Mo par
-  écran) : 64 Mo après 10⁴ lignes et 50 navigations (écran le plus lourd et cache) ;
-  resserré après le premier passage complet du banc.
-- **Q-021-8** — Délai du préchargement au survol : *Recommandation* : 60 ms (entre les
-  50 ms d'un routeur courant et les 100 ms de l'étude).
-- **Q-021-9** — `staleTime` des objets au présent (30 s) avec le flux actif :
-  *Recommandation* : 30 s ; le flux invalide plus tôt, la valeur ne sert qu'au repli.
-- **Q-021-10** — Libellés avant la 018 : *Recommandation* : catalogues du shell et des
-  plugins pour les valeurs de code (états, types, espaces) ; clés seules pour les valeurs
-  de données (environnements, axes).
-- **Q-021-11** — Plafond par plugin : *Recommandation* : 50 Ko gzip hors partagés.
-- ~~**Q-021-12**~~ — Petites largeurs : close le 2026-10-23 : lecture dès 320 px, édition dès 1024 px.
-- ~~**Q-021-13**~~ — Sous `valid_at` seul : close le 2026-10-23 : brouillon daté permis (W9).
-- **Q-021-14** — Couche de compatibilité SDK 1.x : *Recommandation* : aucune ; seuls des
-  plugins de première partie existent, portés en phase 5.
+## Questions (closes le 2026-10-23)
+
+- **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;
+  Ctrl+Entrée pour une édition.
+- **Q-021-2** — Déplacements : glisser pour l'hébergement des machines et l'ancrage des
+  groupes de VLAN ; « Changer de parent… » au menu pour entités et sites ; pas de
+  « Changer de domaine » (X39).
+- **Q-021-3** — Un flux SSE par navigateur (`navigator.locks` et `BroadcastChannel`).
+- **Q-021-4** — Bascule en un bloc depuis `web/v2/`.
+- **Q-021-5** — Espaces : X2.
+- **Q-021-6** — Lettres `g` : table de la planche (X35 à X42).
+- **Q-021-7** — Mémoire : 64 Mo (prototype D-1).
+- **Q-021-8** — Préchargement au survol : 60 ms.
+- **Q-021-9** — `staleTime` 30 s pour le présent ; lectures datées passées fraîches pour
+  toujours.
+- **Q-021-10** — Libellés : dictionnaire de la 018 (X42).
+- **Q-021-11** — 300 Ko gzip pour le shell, modules partagés compris ; 50 Ko par plugin ;
+  bloquants.
+- **Q-021-12** — Lecture dès 320 px, édition dès 1024 px.
+- **Q-021-13** — Brouillon daté permis sous `valid_at` seul (W9).
+- **Q-021-14** — Aucune couche de compatibilité ; le nouveau SDK est versionné **1.0**
+  (règle de l'utilisateur : avant le gel, on casse librement, une réécriture repart à
+  1.0).

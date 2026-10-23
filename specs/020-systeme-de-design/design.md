@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -346,6 +346,7 @@ interface TreeMoveProps<N> {
 - Données factices : `web/v2/ui/src/fixtures/` (domaines, préfixes, adresses, environnements
   `prod`/`rece`/`deve` et libellés, identifiants, codes de problème), anonymisées, sans
   lien avec un SI réel.
+- Artefact : l'intégration continue publie le build de test du catalogue (Q-020-2).
 - Commutateurs en tête de page : mode, densité, langue ; état reflété dans l'URL pour que
   la capture d'un état soit une URL.
 
@@ -515,7 +516,7 @@ en CSS (Q-020-3).
 [0036](../../docs/adr/0036-systeme-de-design-kartenn-ui.md) (système de design),
 [0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) (partage avec les
 plugins), [0039](../../docs/adr/0039-outillage-claude-qualite-interface.md) (outillage
-Claude), proposées, D-1 résolu (Vue 3) ; acceptées à la validation de la spec.
+Claude), acceptées le 2026-10-23 (D-1 : Vue 3).
 
 ## Références
 

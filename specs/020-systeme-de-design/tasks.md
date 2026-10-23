@@ -1,12 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
 # 020 — Système de design : tâches
 
-Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A6 et les questions Q-020-1
-à 10 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
+Validée le 2026-10-23 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
 D-1 est tranché (Vue 3, Reka UI encadré : REQ-020-33) ; les marques **[D-1]** sont levées.
 Bascule en un bloc (021, § « Migration », 2026-10-23) : tout le code nouveau va sous

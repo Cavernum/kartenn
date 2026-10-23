@@ -1,12 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
 # 021 — Shell v2 : tâches
 
-Brouillon du 2026-10-23 ; à valider avec les arbitrages A1 à A9 et les questions Q-021-1
-à 14 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
+Validée le 2026-10-23 ([`decisions.md`](decisions.md)). Chaque tâche est un commit, laisse le build vert
 (`k-web-check`, `k-web-e2e` pour les écrans, `k-check` pour les tâches qui touchent le
 serveur) et nomme ce qu'elle implémente ; chacune porte `où :` et `dépend de :`.
 D-1 est tranché (Vue 3, tâche 1 faite) : plus aucune tâche ne l'attend. Bascule en un bloc
@@ -17,7 +16,7 @@ reçoit que des correctifs. Commandes lourdes
 par `k-heavy`.
 
 Ordre (design, § « Migration ») : la 020 jusqu'à sa tâche 15 (maquettes validées) ; P1
-(SDK 2.0) en parallèle de la 020 ; P2 (écrans) par zones, chacune après les composants qu'elle emploie (020, P4) ;
+(SDK 1.0) et P1 bis (côté serveur) en parallèle de la 020 ; P2 (écrans) par zones, chacune après les composants qu'elle emploie (020, P4) ;
 P3 (plugins) ; P4 (budgets, liste de parité, commit de bascule 27, puis synchronisation 23). Trois sous-agents d'implémentation au plus, et
 aucun en parallèle sur `@kartenn/ui` (020).
 
@@ -34,10 +33,10 @@ aucun en parallèle sur `@kartenn/ui` (020).
     leçons reprises dans l'ADR 0036 et la 020 (REQ-020-33) ; budgets fixés à partir des
     mesures (REQ-020-29, REQ-021-30 : tas ≤ 64 Mo, Q-021-7 close).
 
-## P1 — SDK 2.0 (phase 3)
+## P1 — SDK 1.0 (phase 3)
 
 - [ ] 25. Espace `web/v2/` : `pnpm-workspace.yaml` et lockfile propres, paquets `sdk`
-  (copie de `web/sdk` passée en 2.0.0), `ui`, `shell`, `plugins`, `e2e` vides qui
+  (copie de `web/sdk` passée en 1.0.0), `ui`, `shell`, `plugins`, `e2e` vides qui
   compilent ; `stylelint.config.js` ; étape `web/v2` de `scripts/ci.sh` ; commandes devenv
   `k-web2-check` et `k-web2-e2e` (sous `k-heavy`) ; configuration de test de
   kartenn-server avec `[web] root` et `plugins_dir` sur les builds de `web/v2/` — REQ-021-31
@@ -51,7 +50,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
 - [ ] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le
   client existant avec `If-None-Match` et réutilisation sur 304, fraîcheur par famille ;
-  `SDK_VERSION` 2.0.0 — REQ-021-21, 25 — verify : Vitest : clés normalisées (ordre des
+  `SDK_VERSION` 1.0.0 — REQ-021-21, 25 — verify : Vitest : clés normalisées (ordre des
   filtres, présent = `null`), `as_of` passé jamais relu, 304 → donnée gardée sans
   nouveau rendu
   - où : `web/sdk/src/api/client.ts` (`createClient`, réponse `{data, etag}`),
@@ -86,12 +85,12 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : 022 design § « Contrat consommé par les clients », § « Doublons » ;
     `web/shell/src/draft/tab.ts` (`BroadcastChannel` existant) ; `web/sdk/src/context.ts`
   - dépend de : 3 ; 022-9, 022-10 (point d'accès servi)
-- [ ] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
-  invalidation des dépendants, relecture en `If-None-Match` sans `version` — verify :
-  paragraphe amendé, marqué « *Amendé par la 021* », liens croisés
-  - où : `specs/022-evenements-sse/design.md` § « Contrat consommé par les clients » ;
-    marqueur comme REQ-004-37
-  - dépend de : arbitrage A3
+- [x] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
+  invalidation des vues qui montrent l'objet, relecture en `If-None-Match` sans `version`
+  — verify : paragraphe amendé, marqué « *amendé par la 021* »
+  - où : `specs/022-evenements-sse/design.md` § « Contrat consommé par les clients »
+  - dépend de : —
+  - fait le 2026-10-23 avec la validation de la spec
 - [ ] 7. Préchargement : `meta.queries` des routes, `KLink` (survol 60 ms, focus), garde
   de navigation (attente ≤ 100 ms), page suivante et enfants préchargés, modules de
   plugins au survol — REQ-021-22 — verify : parcours : navigation vers une fiche survolée
@@ -110,6 +109,41 @@ aucun en parallèle sur `@kartenn/ui` (020).
     (`Manifest`, `sdk_range`), `capabilities.rs` ; `crates/kartenn-rest/src/web.rs`
     (`import_map`, `csp`) ; `web/sdk/src/semver.ts` ; `web/shell/src/plugins/loader.ts`
   - dépend de : 2 ; 020-4
+
+## P1 bis — Côté serveur (avant les écrans)
+
+Contrat complété (X41, REQ-021-35) ; chaque tâche amende la spec du module concerné et
+régénère le contrat de référence et les types du SDK. `k-check` pour chacune.
+
+- [ ] 28. Paramètres de filtre déclarés : `prop.<clé>`, `prop.<clé>:between`,
+  `prop.<clé>:exists`, `within`, `usage`, `nature`, `value`, `first`, `parent`, `slug` et
+  tout autre filtre servi, décrits dans les `parameters` de l'OpenAPI des routes de liste
+  (cœur et modules) ; test de contrat : tout paramètre accepté est déclaré — amendement de
+  la 006 (« Filtres de propriétés ») et de la 016 — REQ-021-35 — verify : test de contrat
+  vert ; `filters.ts` généré les contient ; un paramètre servi non déclaré fait échouer
+  le test
+  - où : `crates/kartenn-rest/src/filter.rs`, `openapi.rs`, `contract.rs` ;
+    `specs/006-api-rest/openapi-v1.json` ; `web/sdk/scripts/gen.mjs`
+  - dépend de : —
+- [ ] 29. Curseurs sur `GET /v1/anomalies`, `/v1/property-gaps` (006, 016) et
+  `/v1/flow-nonconformities` (011) — REQ-021-35 — verify : parcours par curseur jusqu'à
+  la dernière page sur un jeu de plus d'une page ; curseur signé refusé s'il est altéré
+  - où : `crates/kartenn-rest/src/cursor.rs` (forme, REQ-006-8), `anomalies.rs`,
+    `properties.rs` ; `crates/kartenn-flow/src/rest.rs`
+  - dépend de : —
+- [ ] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
+  (état, date, lanceur), sous `policy.rule.admin` — amendement de la 010 —
+  REQ-021-35 — verify : test REST (liste, droits, curseur)
+  - où : `crates/kartenn-policy/src/rest.rs` (rapport existant, 409 si en cours)
+  - dépend de : —
+- [ ] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
+  l'amendement, sans écriture ; débloque la tâche 017-15 — REQ-021-35 — verify : tests
+  de l'amendement S36
+  - où : `specs/010-politique-flux/` (amendement S36) ; `crates/kartenn-policy/src/`
+    (moteur d'inférence)
+  - dépend de : —
+- Dépendance serveur hors de la 021 : `GET /v1/labels` et l'événement `labels` (spec 018,
+  validée) avant la tâche 13.
 
 ## P2 — Écrans du nouveau shell (phase 4)
 
@@ -133,7 +167,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/app/SearchBox.vue`, `views/SearchView.vue` (recherche actuelle) ;
     design § « Raccourcis » ; maquette E8
   - dépend de : 9
-- [ ] 11. Référentiel : arbre des préfixes (`TreeGrid`, colonnes de plugins), listes
+- [ ] 11. Référentiel (dépend aussi de 28 et 29) : arbre des préfixes (`TreeGrid`, colonnes de plugins), listes
   (`DataGrid`, filtres typés tirés du contrat : `filters.ts` généré comme `dated.ts`),
   fiche en panneaux, anomalies, propriétés — REQ-021-9, 18 — verify : parcours `records`,
   `tree` réécrits ; lien filtré copié rouvert à l'identique ; captures E1 à E3
@@ -166,7 +200,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `crates/kartenn-machines/src` (règles `machines.host.*`) ; 020 design § « Contrat de
     déplacement »
   - dépend de : 12 ; 020-26 ; le cas machines après 18
-- [ ] 13. Libellés et codes : `label` (API quand la 018 le servira, catalogues, clé),
+- [ ] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
+  langue et révision, invalidé par l'événement `labels` ; catalogues ; clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et
   `Request-Id` — REQ-021-19, 20 — verify : Vitest de `label` ; parcours : erreur 422
   montre le code de chaque violation, copiable
@@ -183,7 +218,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   REQ-021-12 — verify : parcours `admin` réécrit ; capture E7
   - où : `web/shell/src/admin/*`, `views/AdminView.vue`
   - dépend de : 13
-- [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, frontière
+- [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
+  de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
   signalée) — REQ-021-13, 14 — verify : parcours `plugins`, `session`, `example`
   - où : `web/shell/src/plugins/{ExtensionElement.vue,PluginView.vue,registry.ts}`,
@@ -203,7 +239,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
-- [ ] 19. Plugin d'exemple passé au SDK 2.0, **toujours sans framework**, en racine
+- [ ] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
   par le plugin
@@ -244,7 +280,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 25 (créée tôt, cochée au fil des tâches)
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
-  1.x et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
+  0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
   parité cochée ; `k-web-check`, `k-web-e2e`, `bench-web`, `checks.vm` et `scripts/ci.sh`
   verts sur ce commit
   - où : `flake.nix` (paquet `kartenn`, shell et plugins), 015 (paquetage) ;
