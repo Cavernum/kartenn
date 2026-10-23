@@ -5,6 +5,7 @@
 //! storage in PostgreSQL and its port of reading for the modules that depend on it.
 
 pub mod hosting;
+mod labels;
 pub mod mac;
 pub mod module;
 pub mod name;

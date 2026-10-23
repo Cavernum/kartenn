@@ -20,6 +20,7 @@ pub mod filter;
 pub mod health;
 pub mod imports;
 pub mod kit;
+pub mod labels;
 pub mod modules;
 pub mod objects;
 pub mod on_behalf;

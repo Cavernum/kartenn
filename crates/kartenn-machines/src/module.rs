@@ -337,6 +337,9 @@ impl Module for Machines {
     fn rules(&self) -> &'static [&'static Rule] {
         MACHINES_RULES
     }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, MACHINES_RULES, &crate::labels::ENGLISH)
+    }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
     }

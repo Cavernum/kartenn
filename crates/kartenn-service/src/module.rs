@@ -632,6 +632,12 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn rules(&self) -> &'static [&'static Rule] {
         &[]
     }
+    /// The French and English labels of its codes (spec 018, R8 b; ADR 0026, amendment
+    /// of 018): its permissions, rules, kinds and states, served by the dictionary
+    /// `GET /v1/labels`. A code without labels shows as its key.
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        Vec::new()
+    }
     /// Its references.
     fn references(&self) -> &'static [Reference] {
         &[]
@@ -981,6 +987,12 @@ impl ModuleRegistry {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.modules.is_empty()
+    }
+
+    /// The labels of the codes of every module, in registry order (spec 018).
+    #[must_use]
+    pub fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        self.modules.iter().flat_map(|m| m.labels()).collect()
     }
 
     /// The types of objects of every module, in registry order.

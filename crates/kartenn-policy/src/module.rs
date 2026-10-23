@@ -524,6 +524,9 @@ impl Module for Policy {
     fn rules(&self) -> &'static [&'static Rule] {
         POLICY_RULES
     }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, POLICY_RULES, &crate::labels::ENGLISH)
+    }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS
     }

@@ -217,7 +217,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   complété des langues qui lui manquent (le compléter en ferait une version du système,
   que la synchronisation suivante remplacerait).
 
-- [ ] 9. Libellés compilés FR/EN : descriptions des permissions, résumés des règles,
+- [x] 9. Libellés compilés FR/EN : descriptions des permissions, résumés des règles,
   titres des problèmes, sortes, états, natures et usages ; fonction `labels()` du
   contrat de module ; empreinte calculée au démarrage — REQ-018-10 ; R8 — verify :
   `every_code_has_french_and_english_labels` (permissions, règles, problèmes, sortes,
@@ -227,6 +227,21 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-{vlan,machines,policy,flow}/src/{module.rs,rules.rs}` ;
   `docs/adr/0026-contrat-de-module.md` (clause additive)
   dépend de : 2
+  fait : `kartenn_core::labels::CodeLabel` (espace, clé, `fr`, `en`) ;
+  `kartenn_core::code_labels` : anglais des permissions et des règles du noyau en tables
+  à côté de leurs définitions (le français reste le résumé de la définition, pas de
+  réécriture des macros), sortes (`core.prefix`…), états (`changeset.*`,
+  `changeset.kind.*`, `import.*`), natures et usages ; `English` et `of_module` pour les
+  modules. `Module::labels()` (défaut vide, ADR 0026 amendement 6), rempli par `vlan`,
+  `machines`, `policy` et `flow` (fichier `labels.rs` de chaque crate : permissions,
+  règles, sortes, états `flow.*`, verdicts et issues) ; `ModuleRegistry::labels()`.
+  `ProblemKind::labels()` : français, et l'anglais du `title`. `kartenn_rest::labels::
+  CodeCatalogue::of(registry)` assemble le tout, ajoute les anciens noms des permissions
+  renommées (« … (ancien nom de flow.read) », R6) et calcule l'empreinte (SHA-256 du
+  rendu trié, 16 caractères hexadécimaux), une fois, au démarrage du routeur (tâche 10).
+  Tests : `every_code_of_the_core_has_french_and_english_labels` (noyau, et aucune
+  entrée anglaise orpheline), `every_code_has_french_and_english_labels`
+  (`kartenn-server`, build complet), `the_problems_and_former_names_are_labelled`.
 
 - [ ] 10. `GET /v1/labels` : espaces, négociation (`lang`, `Accept-Language`, Lookup),
   `Content-Language`, `Vary`, repli signalé, ETag `"<révision>.<empreinte>"`, 304,

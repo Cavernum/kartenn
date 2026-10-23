@@ -238,6 +238,43 @@ impl Compiled {
     }
 }
 
+/// A label of a code of the software in the dictionary (spec 018, R8 b): its space
+/// (`permission`, `rule`, `problem`, `kind`, `state`…), its key, French and English.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CodeLabel {
+    /// The space of the dictionary.
+    pub space: &'static str,
+    /// The code.
+    pub key: String,
+    /// In French.
+    pub fr: String,
+    /// In English.
+    pub en: String,
+}
+
+impl CodeLabel {
+    /// A label of `key` in `space`.
+    #[must_use]
+    pub fn new(space: &'static str, key: &str, fr: &str, en: &str) -> Self {
+        Self {
+            space,
+            key: key.to_owned(),
+            fr: fr.to_owned(),
+            en: en.to_owned(),
+        }
+    }
+
+    /// The label in the primary language of `locale`, `fr` or `en`, if shipped.
+    #[must_use]
+    pub fn get(&self, locale: &Locale) -> Option<&str> {
+        match locale.as_str().split('-').next() {
+            Some("fr") => Some(&self.fr),
+            Some("en") => Some(&self.en),
+            _ => None,
+        }
+    }
+}
+
 /// The labels of an owning object by language (R8 a, Q-018-6): empty, or holding the
 /// default language of the instance.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

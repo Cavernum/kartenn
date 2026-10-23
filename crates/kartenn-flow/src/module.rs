@@ -125,6 +125,9 @@ impl Module for Flows {
     fn rules(&self) -> &'static [&'static Rule] {
         FLOW_RULES
     }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, FLOW_RULES, &crate::labels::ENGLISH)
+    }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS
     }

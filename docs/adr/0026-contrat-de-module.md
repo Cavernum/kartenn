@@ -353,6 +353,18 @@ ajoute `masked: true` quand la propriété est sensible et que l'appelant n'a pa
 divulgation auditée (`data.sensitive.read`), comme dans le différentiel des propriétés.
 La section stockée garde les valeurs : le masquage dépend de qui lit, pas de qui écrit.
 
+### Amendement 7 — 2026-10-23, libellés des codes et des déclarations (spec 018, R8, R10)
+
+Clause additive. Un module fournit les libellés français et anglais de ses codes par
+`Module::labels()` (par défaut aucun) : ses permissions et ses règles (le français est
+le résumé de leur définition, l'anglais une table à côté, `kartenn_core::code_labels::
+English`), ses sortes et ses états ; le dictionnaire `GET /v1/labels` les sert (ADR
+0040), un code sans libellé s'affiche par sa clé. Ses déclarations de propriétés portent
+leurs libellés et ceux de leurs valeurs (`ModuleDeclarations::labels`, clé
+`<propriété>` ou `<propriété>/<valeur>`) ; la synchronisation (003/P12) les écrit s'ils
+manquent ou si la version en vigueur venait d'elle, jamais par-dessus ceux d'un
+administrateur. Un test du serveur vérifie que chaque code du build a les deux langues.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

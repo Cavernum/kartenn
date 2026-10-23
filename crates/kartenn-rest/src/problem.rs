@@ -170,6 +170,42 @@ impl ProblemKind {
         }
     }
 
+    /// Its French and English labels (spec 018, R19): the English is the `title`, neutral;
+    /// a client shows the label of its language from the dictionary, space `problem`.
+    #[must_use]
+    pub const fn labels(self) -> kartenn_core::labels::Compiled {
+        let fr = match self {
+            Self::BadRequest => "La requête est mal formée",
+            Self::InvalidCursor => "Le curseur est invalide",
+            Self::Unauthenticated => "Une authentification est requise",
+            Self::Forbidden => "L'action n'est pas permise",
+            Self::CrossSiteRequest => "Requête intersite refusée",
+            Self::NotFound => "Introuvable",
+            Self::MethodNotAllowed => "Méthode non permise",
+            Self::NotAcceptable => "Aucune représentation acceptable",
+            Self::Conflict => "L'état courant ne permet pas l'action",
+            Self::UndoConflict => "L'annulation entre en conflit avec des changements ultérieurs",
+            Self::IdempotencyInProgress => "Une requête de même clé d'idempotence est en cours",
+            Self::PreconditionFailed => "La ressource a changé",
+            Self::PayloadTooLarge => "Le corps est trop volumineux",
+            Self::UnsupportedMediaType => "Type de média non pris en charge",
+            Self::ChangesetRefused => "Le changeset est refusé",
+            Self::MotiveRequired => "Un motif est requis",
+            Self::TooManyOperations => "Le changeset a trop d'opérations",
+            Self::IdempotencyKeyReused => "La clé d'idempotence a servi à une autre requête",
+            Self::InvalidMember => "Un membre ne peut pas être écrit",
+            Self::InvalidOverride => "Le filtre ou sa durée est invalide",
+            Self::InvalidImport => "Les éléments de l'import ne peuvent pas être triés",
+            Self::PreconditionRequired => "If-Match est requis",
+            Self::RateLimited => "Trop de requêtes",
+            Self::Unavailable => "Le service est indisponible",
+            Self::Internal => "Erreur interne",
+            Self::Exhausted => "Plus rien de libre",
+            Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue",
+        };
+        kartenn_core::labels::Compiled::new(fr, self.title())
+    }
+
     /// A short summary, the same for every occurrence (RFC 9457 §3.1.3).
     #[must_use]
     pub const fn title(self) -> &'static str {
