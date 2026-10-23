@@ -199,12 +199,17 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     Tests `the_ceilings_refuse_before_the_base`,
     `the_stop_spreads_the_reconnections_and_ends_the_streams` (10 flux ; l'échelle est
     au banc).
-- [ ] 13. Guide de déploiement : mandataire inverse (tampon, `Incremental`, délai de
+- [x] 13. Guide de déploiement : mandataire inverse (tampon, `Incremental`, délai de
   lecture, HTTP/2), regroupeur de connexions et `LISTEN`, rétention courte des logs
   `events.delivery` (7 jours recommandés) — REQ-022-13, 14, 24 — verify : relecture
   - où : `docs/exploitation/configuration.md` (section `[events]`), `oci.md`,
     `nixos.md`, `observabilite.md` (métriques)
   - dépend de : 12
+  - fait : `configuration.md` (section `[events]`, mandataire, regroupeur, sonde
+    `curl -N`), `observabilite.md` (métriques, `events.delivery`, 7 jours), `oci.md`,
+    `nixos.md` (connexion `LISTEN` en plus). Aucun nom de produit : le réglage du tampon
+    est décrit par l'en-tête `X-Accel-Buffering` que « des mandataires courants »
+    respectent.
 - [ ] 14. (Facultative, Q-022-4) Rattrapage JSON : `GET /v1/events` avec `Accept:
   application/json`, page après un curseur — verify : mêmes droits que le flux
   - où : `crates/kartenn-rest/src/events.rs`, pagination de `cursor.rs`
