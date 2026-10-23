@@ -79,6 +79,29 @@ export function createInvalidation(queryClient: QueryClient, reads: Queries) {
       return invalidate(matches);
     },
 
+    /**
+     * Objects named by identifier only (the operations of a draft): every query keyed by
+     * them, whatever their type, and those that show them.
+     */
+    ids(ids: readonly string[]): Promise<void> {
+      const named = new Set(ids);
+      const showing = new Set<string>();
+      for (const id of ids) for (const hash of dependents.showing(id)) showing.add(hash);
+      return invalidate(
+        (query) => named.has(query.queryKey[2] as string) || showing.has(query.queryHash),
+      );
+    },
+
+    /** Every list (a key by path): a changeset may have created objects anywhere. */
+    lists(): Promise<void> {
+      return invalidate((query) => {
+        const [, resource, params] = query.queryKey as readonly unknown[];
+        return (
+          typeof resource === "string" && resource.startsWith("/v1/") && typeof params !== "string"
+        );
+      });
+    },
+
     /** Everything but the past as recorded (`ready`, `reset`, return from the bfcache). */
     all(): Promise<void> {
       return invalidate(() => true);

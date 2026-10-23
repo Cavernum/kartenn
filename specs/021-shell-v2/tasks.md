@@ -90,7 +90,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     fraîcheur ») : aucun corps d'objet du contrat ne porte `version` aujourd'hui, la
     relecture conditionnelle fait donc tout le travail. Choix noté : l'index est par
     identifiant seul (UUID uniques entre types). Vitest : `test/dependents.test.ts`.
-- [ ] 4. Écritures : `write.quick` (annulation des lectures de la clé, optimisme au
+- [x] 4. Écritures : `write.quick` (annulation des lectures de la clé, optimisme au
   présent, retour arrière, issues `applied`/`proposed`/`conflict`/`invalid`/`forbidden`),
   invalidation de ses propres écritures (objets de la réponse, collections, dépendants) ;
   `draft.add` inchangé — REQ-021-16, 24 — verify : Vitest : 200, 202 (jamais
@@ -99,6 +99,19 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `web/shell/src/edit/submit.ts` (logique actuelle de la modification rapide) ;
     `web/sdk/src/draft.ts`, `host.ts` ; `web/sdk/src/api/problem.ts`
   - dépend de : 3
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/write.ts`, singletons dans
+    `src/instance.ts`. `write.quick` : annulation des lectures de la clé, optimisme par
+    *merge patch* (RFC 7396) au présent seulement, retour arrière sur 202, 403, 422 et
+    échec ; 412 relit la clé et rend `current` avec la saisie ; refus sous `as_of`
+    (exception), `If-Match` pris de l'entrée du cache. Après 200 : objet, cascades, listes
+    du type et dépendants invalidés. Choix notés : une sixième issue `failed` (réseau ou
+    autre problème) ; 422 dont une règle refuse pour droits (`*.forbidden`) rendu
+    `forbidden` comme dans l'ancien shell ; violations groupées par membre (`fieldOf`).
+    Client du changeset d'un brouillon : `changesets.simulate` (requête `['simulate',
+    empreinte]`, `staleTime` 0, `gcTime` 1 min, 422 rendu comme rapport) et
+    `changesets.submit` (clé d'idempotence fournie, 409 retenté cinq fois, objets nommés et
+    toutes les listes invalidés) ; le stockage IndexedDB du brouillon reste au shell
+    (tâche 14). `draft.add` inchangé. Vitest : `test/write.test.ts`.
 - [ ] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
   doublons, reconnexion avec attente croissante et `last_event_id`), un flux par
   navigateur (`navigator.locks` + `BroadcastChannel`, repli par onglet), repli sans flux

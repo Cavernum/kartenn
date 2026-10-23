@@ -9,10 +9,7 @@
  * it `external` at build time and share that instance.
  */
 
-import { createClient } from "./api/client.ts";
-import { context } from "./context.ts";
-import { createQueries, createQueryClient } from "./data/cache.ts";
-import { hooks } from "./hooks.ts";
+import { writes } from "./instance.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
 export const SDK_VERSION = "1.0.0";
@@ -67,19 +64,17 @@ export { collectionOf, qualify, registerType } from "./data/types.ts";
 export { filterModel, filterSearch, parseFilters } from "./data/filters.ts";
 export type { Declaration, FilterField, Rejected } from "./data/filters.ts";
 export type { QueryClient } from "@tanstack/query-core";
-
-/** The client of the API, on the same origin, with the dated context of the shell. */
-export const api = createClient({
-  fetch: (input, init) => (hooks.fetch ?? globalThis.fetch)(input, init),
-  time: () => context.get().time,
-  onUnauthorized: () => hooks.onUnauthorized?.(),
-});
+export { mergePatch } from "./data/write.ts";
+export type { QuickWrite, Submission, WriteOutcome } from "./data/write.ts";
 
 /**
- * The cache shared by the shell and every plugin (ADR 0037): one instance, served once by
- * the import map.
+ * The client of the API, the cache shared by the shell and every plugin (ADR 0037), and
+ * its reads: keys, query functions, freshness (REQ-021-21).
  */
-export const queryClient = createQueryClient();
+export { api, queryClient, reads } from "./instance.ts";
 
-/** The reads of the cache: their keys, query functions and freshness (REQ-021-21). */
-export const reads = createQueries({ client: api, queryClient });
+/** The quick edit of an object, optimistic at the present (REQ-021-16, 24; D-7). */
+export const write = { quick: writes.quick };
+
+/** The changeset of a draft: its simulation as a query, its submission (W10). */
+export const changesets = { simulate: writes.simulate, submit: writes.submit };
