@@ -77,7 +77,63 @@ permissions! {
 /// Actions of a property permission.
 pub const PROPERTY_ACTIONS: [&str; 3] = ["read", "write", "propose"];
 
-/// The permission `name` of the catalogue, if any.
+/// The permissions renamed by spec 018 (R2, R3), `(old, new)`: the only source for the
+/// migration of the custom roles (Q-018-3) and for the labels of the old names that the
+/// audit journal and the history keep (R6). It opens **no alias** (Q-018-2): an old name
+/// is refused in a role and never granted.
+pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
+    ("vlan.vlan.read", "vlan.read"),
+    ("vlan.vlan.write", "vlan.write"),
+    ("vlan.vlan.propose", "vlan.propose"),
+    ("machines.machine.read", "machines.read"),
+    ("machines.machine.write", "machines.write"),
+    ("machines.machine.propose", "machines.propose"),
+    ("flow.flow.read", "flow.read"),
+    ("flow.flow.request", "flow.request"),
+    ("flow.flow.review", "flow.review"),
+    ("flow.flow.write", "flow.write"),
+    ("flow.flow.waive", "flow.waiver.grant"),
+];
+
+/// The problems of a catalogue against the naming rule of spec 018 (REQ-018-1, R2, R5):
+/// `<module>.<resource>.<action>`, or `<module>.<action>` when the resource is named after
+/// the module (never `<module>.<module>.<action>`), lowercase, unique, and no resource
+/// named after an action of the catalogue (so that `<module>.<action>` stays unambiguous).
+#[must_use]
+pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
+    let mut problems = Vec::new();
+    let actions: std::collections::BTreeSet<&str> = permissions
+        .iter()
+        .filter_map(|p| p.name.rsplit('.').next())
+        .collect();
+    let mut seen = std::collections::BTreeSet::new();
+    for p in permissions {
+        let name = p.name;
+        if !seen.insert(name) {
+            problems.push(format!("`{name}`: duplicate"));
+        }
+        let segments: Vec<&str> = name.split('.').collect();
+        let well_formed = (2..=3).contains(&segments.len())
+            && segments.iter().all(|s| {
+                s.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+                    && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+            });
+        if !well_formed {
+            problems.push(format!("`{name}`: not `<module>[.<resource>].<action>`"));
+            continue;
+        }
+        if let [module, resource, _] = segments[..] {
+            if resource == module {
+                problems.push(format!("`{name}`: the resource repeats the module"));
+            }
+            if actions.contains(resource) {
+                problems.push(format!("`{name}`: the resource is named after an action"));
+            }
+        }
+    }
+    problems
+}
+
 /// The permissions the modules of the build added to the catalogue.
 static MODULE_PERMISSIONS: RwLock<Vec<&'static Permission>> = RwLock::new(Vec::new());
 
@@ -153,6 +209,7 @@ pub fn type_write_permission(kind: &str) -> String {
     type_permissions(kind).map_or_else(|| format!("{kind}.write"), |t| t.write.to_owned())
 }
 
+/// The permission `name` of the catalogue, if any.
 #[must_use]
 pub fn permission(name: &str) -> Option<&'static Permission> {
     PERMISSIONS
@@ -335,16 +392,50 @@ mod tests {
 
     #[test]
     fn names_are_unique_and_well_formed() {
-        let names: BTreeSet<_> = PERMISSIONS.iter().map(|p| p.name).collect();
-        assert_eq!(names.len(), PERMISSIONS.len(), "duplicate permission");
-        for name in names {
-            assert_eq!(name.split('.').count(), 3, "{name}");
-            assert!(name.starts_with("core."), "{name}");
-            assert!(
-                name.bytes()
-                    .all(|b| b.is_ascii_lowercase() || b == b'.' || b == b'_'),
-                "{name}"
-            );
+        assert_eq!(catalogue_problems(PERMISSIONS), Vec::<String>::new());
+        for p in PERMISSIONS {
+            assert!(p.name.starts_with("core."), "{}", p.name);
+        }
+    }
+
+    /// REQ-018-1: a catalogue that repeats the module, or names a resource after an
+    /// action, is refused.
+    #[test]
+    fn permission_names_omit_the_module_resource() {
+        static REPEATED: Permission = Permission {
+            name: "flow.flow.read",
+            summary: "",
+            global_only: false,
+        };
+        static SHORT: Permission = Permission {
+            name: "flow.read",
+            summary: "",
+            global_only: false,
+        };
+        static GRANT: Permission = Permission {
+            name: "flow.waiver.grant",
+            summary: "",
+            global_only: false,
+        };
+        static ACTION_AS_RESOURCE: Permission = Permission {
+            name: "flow.read.grant",
+            summary: "",
+            global_only: false,
+        };
+        assert_eq!(catalogue_problems(&[&SHORT, &GRANT]), Vec::<String>::new());
+        assert_eq!(catalogue_problems(&[&REPEATED]).len(), 1);
+        assert_eq!(catalogue_problems(&[&SHORT, &ACTION_AS_RESOURCE]).len(), 1);
+        assert_eq!(catalogue_problems(&[&SHORT, &SHORT]).len(), 1);
+    }
+
+    /// R3: the table renames each old name once, to a name of the new grammar.
+    #[test]
+    fn the_renaming_table_is_well_formed() {
+        let olds: BTreeSet<_> = RENAMED_PERMISSIONS.iter().map(|(old, _)| *old).collect();
+        assert_eq!(olds.len(), RENAMED_PERMISSIONS.len());
+        for (old, new) in RENAMED_PERMISSIONS {
+            assert_ne!(old, new);
+            assert!(!olds.contains(new), "{new} is renamed again");
         }
     }
 

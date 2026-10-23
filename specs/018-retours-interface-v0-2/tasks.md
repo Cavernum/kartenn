@@ -26,7 +26,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux A — Permissions
 
-- [ ] 1. Grammaire et table : `RENAMED_PERMISSIONS`, refus des anciens noms par
+- [x] 1. Grammaire et table : `RENAMED_PERMISSIONS`, refus des anciens noms par
   `valid_role_entry` (`core.role.invalid`), `type_read_permission` et
   `type_write_permission` selon R2, test des catalogues (pas de `m.m.a`, aucune ressource
   nommée comme une action, cibles connues), migration SQL de la contrainte de
@@ -39,6 +39,15 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-store-pg/migrations/0028_rbac.sql` (contrainte, l. 29) pour la
   nouvelle migration ; design « A. Permissions »
   dépend de : —
+  fait : `RENAMED_PERMISSIONS`, `catalogue_problems` (grammaire : deux ou trois
+  segments, pas de `m.m.a`, aucune ressource nommée comme une action, doublons) et
+  migration `0058_permission_names.sql` (la contrainte n'existe que sur la table :
+  l'historique, créé par `LIKE`, n'en porte pas ; test
+  `a_role_entry_may_omit_the_module_resource`). Pour garder chaque commit vert, le refus
+  explicite des anciens noms, `type_*_permission` selon R2 et les tests qui supposent le
+  catalogue renommé (`renamed_permissions_target_the_catalogue`,
+  `an_old_permission_name_is_refused`, `a_module_kind_reads_under_the_short_permission`)
+  passent avec la tâche 2.
 
 - [ ] 2. Renommage dans les modules et le service : catalogues `vlan`, `machines`,
   `flow` (dont `flow.waiver.grant`), rôles livrés, appels de contrôle, tests et bancs ;

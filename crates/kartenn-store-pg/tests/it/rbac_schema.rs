@@ -119,3 +119,26 @@ async fn the_application_cannot_create_a_break_glass_account(pool: PgPool) {
             .unwrap();
     }
 }
+
+/// R5 (spec 018, task 018-1): a role entry may be a permission of two segments
+/// (`flow.read`), not a single word nor a name ending in a dot.
+#[kartenn_testing::pg_test]
+async fn a_role_entry_may_omit_the_module_resource(pool: PgPool) {
+    let insert = "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+                  VALUES (gen_random_uuid(), $1, tstzrange(now(), NULL), gen_random_uuid())";
+    let cases = [
+        ("flow.read", true),
+        ("flow.waiver.grant", true),
+        ("core.address.read", true),
+        ("prop.custom.rack.write", true),
+        ("prop.*.write", true),
+        ("*", true),
+        ("flow", false),
+        ("flow.", false),
+        ("Flow.read", false),
+    ];
+    for (permission, ok) in cases {
+        let result = sqlx::query(insert).bind(permission).execute(&pool).await;
+        assert_eq!(result.is_ok(), ok, "{permission}: {result:?}");
+    }
+}
