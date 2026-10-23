@@ -22,14 +22,14 @@ use uuid::Uuid;
 
 use crate::changesets::{Answer, Location, Pointers, idempotency_key, period, submit_answered};
 pub use crate::cursor::{Page, PageParams, next_href, respond_page};
-pub use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
+pub use crate::dated::{Dates, DatesParams, ETag, Moment, respond, respond_object};
 pub use crate::filter::{ListQuery, collection};
 pub use crate::objects::{Api, Target};
 use crate::objects::{audited, gate_target};
 pub use crate::openapi::{Op, documented, listing_of, op, queryable, schemas_of};
 pub use crate::problem::{Problem, ProblemKind};
 pub use crate::resources::MERGE_PATCH;
-use crate::resources::{WHOLE, entity_tag, invalid, members, reserved, stale};
+use crate::resources::{WHOLE, entity_tag, invalid, members, reserved};
 
 /// 400 `bad-request` with `detail`.
 pub fn bad(detail: impl Into<String>) -> Problem {
@@ -102,7 +102,19 @@ pub async fn record_read(
     Ok(())
 }
 
-/// The version of the object `id` at `moment`, its strong `ETag` (REQ-006-6).
+/// The description of the answer 200 of the read of an object, its `ETag` (REQ-006-14,
+/// 006/H19).
+pub const OBJECT_READ: &str = "The object. Its strong ETag is opaque: its version, then a \
+    digest of everything else the body shows (summaries of linked objects, inherited values, \
+    embedded collections), so that it changes whenever the body does.";
+
+/// The description of the `If-Match` of a write of an object (REQ-006-14, 006/H19).
+pub const IF_MATCH_OBJECT: &str = "The ETag of the object read. Only its version is compared: \
+    a change of a linked object since the read does not refuse the write; the bare version \
+    (\"<version>\") is accepted too.";
+
+/// The version of the object `id` at `moment`, the own part of its strong `ETag`
+/// (REQ-006-6, 14).
 ///
 /// # Errors
 ///
@@ -165,19 +177,15 @@ async fn existing(
     }
 }
 
-/// The version `If-Match` names: absent or `*` → 428, several or malformed → 400, weak or
-/// not a version → 412.
+/// The version `If-Match` names, the own part of the composite tag of an object or a bare
+/// version (REQ-006-14, 006/H19): absent or `*` → 428, several or malformed → 400, weak
+/// or of another form → 412.
 ///
 /// # Errors
 ///
 /// As above.
 pub fn if_match(headers: &HeaderMap) -> Result<Uuid, Problem> {
-    entity_tag(
-        headers,
-        "read the object, then send its ETag in If-Match to modify or close it",
-    )?
-    .parse()
-    .map_err(|_| stale())
+    crate::resources::if_match(headers)
 }
 
 /// The opaque part of the strong entity tag `If-Match` names, for a resource whose tag is

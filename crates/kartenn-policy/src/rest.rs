@@ -532,12 +532,7 @@ async fn show(
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     kit::record_read(api, context, c.kind, &[id], json!({"id": id})).await?;
-    Ok(respond(
-        headers,
-        &moment,
-        &ETag::version(version),
-        Json(body),
-    ))
+    Ok(kit::respond_object(headers, &moment, version, &body))
 }
 
 /// `DELETE /v1/environments/{id}`: `policy.environment.close` of its key, under
@@ -1709,11 +1704,7 @@ fn collection_routes(router: ModuleRouter, c: &'static Collection) -> ModuleRout
         op(&format!("show_{operation_name}"), "policy", the)
             .path("id", the, true)
             .params::<DatesParams>()
-            .answers(
-                "200",
-                "The object; its version is its ETag.",
-                "PolicyObject",
-            )
+            .answers("200", kit::OBJECT_READ, "PolicyObject")
             .build(),
     )];
     let mut routing = get(
@@ -1734,7 +1725,7 @@ fn collection_routes(router: ModuleRouter, c: &'static Collection) -> ModuleRout
                 &format!("Modifies the object ({operation}, JSON Merge Patch)."),
             )
             .path("id", the, true)
-            .header("If-Match", true, "The version read, as its ETag.")
+            .header("If-Match", true, kit::IF_MATCH_OBJECT)
             .body(MERGE_PATCH, "PolicyObject", true)
             .answers("200", "Modified.", "ChangesetApplied")
             .answers("202", "Held for a decision.", "ChangesetPending")
@@ -1763,7 +1754,7 @@ fn collection_routes(router: ModuleRouter, c: &'static Collection) -> ModuleRout
                 "Closes the object.",
             )
             .path("id", the, true)
-            .header("If-Match", true, "The version read, as its ETag.")
+            .header("If-Match", true, kit::IF_MATCH_OBJECT)
             .answers("200", "Closed.", "ChangesetApplied")
             .answers("202", "Held for a decision.", "ChangesetPending")
             .build(),

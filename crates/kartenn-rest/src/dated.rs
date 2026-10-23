@@ -168,13 +168,36 @@ pub struct ETag {
 }
 
 impl ETag {
-    /// The strong tag of an object: the changeset that wrote its version, the one a
-    /// write expects (REQ-004-11).
+    /// The strong tag of an object, `<version>.<digest>` (REQ-006-14, 006/H19): the
+    /// changeset that wrote its version, the one a write expects (REQ-004-11), then the
+    /// first 64 bits of the SHA-256 of `body`, the bytes served. The digest covers what
+    /// the body shows besides the object (summaries of linked objects, inherited values,
+    /// embedded collections), so that the tag changes whenever the body does (RFC 9110
+    /// §8.8.1); `If-Match` compares the version only ([`ETag::own_version`]).
     #[must_use]
-    pub fn version(changeset: Uuid) -> Self {
+    pub fn record(changeset: Uuid, body: &[u8]) -> Self {
         Self {
             weak: false,
-            opaque: changeset.to_string(),
+            opaque: format!("{changeset}.{}", hex(&Sha256::digest(body)[..8])),
+        }
+    }
+
+    /// The version an `If-Match` opaque tag names: `<version>.<digest>` as
+    /// [`ETag::record`] makes it, or the bare `<version>` (006/H19); `None` for any
+    /// other form.
+    #[must_use]
+    pub fn own_version(opaque: &str) -> Option<Uuid> {
+        let (version, digest) = match opaque.split_once('.') {
+            Some((version, digest)) => (version, Some(digest)),
+            None => (opaque, None),
+        };
+        let digest_ok = digest.is_none_or(|d| {
+            d.len() == DIGEST_DIGITS && d.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        });
+        if digest_ok {
+            version.parse().ok()
+        } else {
+            None
         }
     }
 
@@ -194,24 +217,22 @@ impl ETag {
     /// other bytes would not keep (RFC 9110 §8.8.1).
     #[must_use]
     pub fn page(body: &[u8]) -> Self {
-        let digest = Sha256::digest(body);
-        let opaque = digest[..16].iter().fold(String::new(), |mut hex, b| {
-            let _ = write!(hex, "{b:02x}");
-            hex
-        });
-        Self { weak: true, opaque }
+        Self {
+            weak: true,
+            opaque: hex(&Sha256::digest(body)[..16]),
+        }
     }
 
     /// The header value: `"…"` or `W/"…"`.
     ///
     /// # Panics
     ///
-    /// Never: an opaque tag is made of hexadecimal digits and dashes.
+    /// Never: an opaque tag is made of hexadecimal digits, dashes and a dot.
     #[must_use]
     pub fn header_value(&self) -> HeaderValue {
         let prefix = if self.weak { "W/" } else { "" };
         HeaderValue::try_from(format!("{prefix}\"{}\"", self.opaque))
-            .expect("an opaque tag of hexadecimal digits and dashes is a header value")
+            .expect("an opaque tag of hexadecimal digits, dashes and a dot is a header value")
     }
 
     /// Whether `If-None-Match` names this tag, by the weak comparison (RFC 9110
@@ -224,6 +245,17 @@ impl ETag {
             .filter_map(|v| v.to_str().ok())
             .any(|list| list.trim() == "*" || tags(list).iter().any(|t| *t == self.opaque))
     }
+}
+
+/// The hexadecimal digits of the digest of an object's tag.
+const DIGEST_DIGITS: usize = 16;
+
+/// `bytes` in lower-case hexadecimal.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().fold(String::new(), |mut hex, b| {
+        let _ = write!(hex, "{b:02x}");
+        hex
+    })
 }
 
 /// The opaque tags of an `If-None-Match` list, empty if it is malformed.
@@ -245,6 +277,25 @@ fn tags(list: &str) -> Vec<&str> {
         found.push(&inner[..end]);
         rest = &inner[end + 1..];
     }
+}
+
+/// The response of the read of an object: `body` as JSON, its composite strong `ETag`
+/// of `version` and of the bytes served (REQ-006-14, 006/H19), 304 when `If-None-Match`
+/// names it.
+///
+/// # Panics
+///
+/// Never: a value made of serialisable JSON members serialises.
+pub fn respond_object(
+    request: &HeaderMap,
+    moment: &Moment,
+    version: Uuid,
+    body: &impl serde::Serialize,
+) -> Response {
+    let bytes = serde_json::to_vec(body).expect("JSON values serialise");
+    let etag = ETag::record(version, &bytes);
+    let response = ([(header::CONTENT_TYPE, "application/json")], bytes);
+    respond(request, moment, &etag, response)
 }
 
 /// The response of a read: 304 without a body when `If-None-Match` names `etag`,
@@ -350,11 +401,11 @@ mod tests {
 
     #[test]
     fn if_none_match_compares_weakly() {
-        let version = ETag::version(Uuid::nil());
+        let version = ETag::record(Uuid::nil(), b"{}");
         let page = ETag::page(b"[]");
         assert_eq!(
             version.header_value(),
-            "\"00000000-0000-0000-0000-000000000000\""
+            "\"00000000-0000-0000-0000-000000000000.44136fa355b3678a\""
         );
         assert!(page.header_value().to_str().unwrap().starts_with("W/\""));
         let headers = |value: &str| {
@@ -362,24 +413,47 @@ mod tests {
             h.insert(header::IF_NONE_MATCH, value.parse().unwrap());
             h
         };
-        let nil = "00000000-0000-0000-0000-000000000000";
+        let nil = "00000000-0000-0000-0000-000000000000.44136fa355b3678a";
         assert!(version.none_match(&headers(&format!("\"{nil}\""))));
         assert!(version.none_match(&headers(&format!("W/\"{nil}\""))));
         assert!(version.none_match(&headers(&format!("\"a\", W/\"{nil}\""))));
         assert!(version.none_match(&headers("*")));
         assert!(!version.none_match(&headers("\"a\"")));
+        assert!(
+            !version.none_match(&headers("\"00000000-0000-0000-0000-000000000000\"")),
+            "the version alone is not the tag"
+        );
         assert!(!version.none_match(&headers(nil)), "unquoted: malformed");
         assert!(!version.none_match(&HeaderMap::new()));
         let weak = page.header_value();
         assert!(page.none_match(&headers(weak.to_str().unwrap())));
         assert_ne!(ETag::page(b"[1]"), page);
+        assert_ne!(ETag::record(Uuid::nil(), b"{\"a\":1}"), version);
+    }
+
+    #[test]
+    fn if_match_names_the_version_of_a_tag() {
+        let id = Uuid::now_v7();
+        let tag = ETag::record(id, b"{}").opaque;
+        assert_eq!(ETag::own_version(&tag), Some(id));
+        assert_eq!(ETag::own_version(&id.to_string()), Some(id), "bare form");
+        for other in [
+            format!("{id}."),
+            format!("{id}.44136FA355B3678A"),
+            format!("{id}.44136fa355b3678"),
+            format!("{id}.44136fa355b3678a.0"),
+            format!(".{}", &tag[37..]),
+            "abc".to_owned(),
+        ] {
+            assert_eq!(ETag::own_version(&other), None, "{other}");
+        }
     }
 
     #[test]
     fn a_match_answers_304_with_the_cache_headers() {
         let now = datetime!(2026-06-01 12:00 UTC);
         let moment = Dates::default().at(now, T).unwrap();
-        let etag = ETag::version(Uuid::nil());
+        let etag = ETag::record(Uuid::nil(), b"body");
         let mut request = HeaderMap::new();
         let fresh = respond(&request, &moment, &etag, "body");
         assert_eq!(fresh.status(), StatusCode::OK);

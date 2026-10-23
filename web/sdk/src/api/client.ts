@@ -60,7 +60,10 @@ export type DeleteOptions<P extends PathsOf<"delete">> = PathOption<Op<P, "delet
   QueryOption<Op<P, "delete">> &
   IfMatchOption<Op<P, "delete">>;
 
-/** An answer: its body, and the `ETag` to send back as `If-Match`. */
+/**
+ * An answer: its body, and the `ETag` to send back as `If-Match`, as is: the tag is opaque
+ * (REQ-006-14, H19), never parsed by a client.
+ */
 export interface Answer<T> {
   data: T;
   etag: string | null;

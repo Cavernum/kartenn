@@ -614,34 +614,16 @@ async fn a_patch_renames_and_moves(pool: PgPool) {
     assert_eq!(after["parent"], Value::Null);
 }
 
-/// The strong `ETag` of an object is its version (REQ-006-14), which a renaming of the
-/// object it links to leaves as it is while the summary of the link shows the new slug:
-/// a revalidation answers 304 on a stale body. Fixing it changes the contract of the tag
-/// (H8, H13b), an arbitration pending.
+/// The strong `ETag` of an object is `<version>.<digest of the body>` (REQ-006-14,
+/// 006/H19): renaming the object it links to changes the summary of the link, so the tag;
+/// a revalidation with the old one answers 200 and the new summary, not 304.
 #[kartenn_testing::pg_test]
-#[ignore = "stale ETag of a link summary: contract arbitration pending (REQ-006-14, H13b)"]
 async fn renaming_the_parent_changes_the_etag_of_the_child(pool: PgPool) {
     let app = admin(&pool).await;
     let (domain, prefix) = lab(&app).await;
     let (etag, before) = read(&app, &prefix).await;
     assert_eq!(before["domain"]["slug"], "lab");
-    let (domain_etag, _) = read(&app, &domain).await;
-    let renamed = send(
-        &app,
-        patch(
-            &domain,
-            Some(&domain_etag),
-            MERGE_PATCH,
-            &json!({"motive": "m", "slug": "lab-2"}),
-        ),
-    )
-    .await;
-    assert_eq!(
-        renamed.status(),
-        StatusCode::OK,
-        "{}",
-        json_of(renamed).await
-    );
+    rename(&app, &domain, "lab-2").await;
     let again = send(
         &app,
         Request::get(&prefix)
@@ -651,5 +633,79 @@ async fn renaming_the_parent_changes_the_etag_of_the_child(pool: PgPool) {
     )
     .await;
     assert_eq!(again.status(), StatusCode::OK, "the domain summary changed");
+    let fresh = again.headers()[header::ETAG].to_str().unwrap().to_owned();
+    assert_ne!(fresh, etag);
     assert_eq!(json_of(again).await["domain"]["slug"], "lab-2");
+    let unchanged = send(
+        &app,
+        Request::get(&prefix)
+            .header(header::IF_NONE_MATCH, &fresh)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(unchanged.status(), StatusCode::NOT_MODIFIED);
+}
+
+/// `If-Match` compares the version of the object only (REQ-006-14, 006/H19): a parent
+/// renamed since the read refuses no write, the bare version is accepted, and a version
+/// no longer current still answers 412.
+#[kartenn_testing::pg_test]
+async fn if_match_compares_the_own_version_only(pool: PgPool) {
+    let app = admin(&pool).await;
+    let (domain, prefix) = lab(&app).await;
+    let (etag, _) = read(&app, &prefix).await;
+    let (version, digest) = etag.trim_matches('"').split_once('.').unwrap();
+    assert!(version.parse::<Uuid>().is_ok(), "{etag}");
+    assert_eq!(digest.len(), 16, "{etag}");
+    rename(&app, &domain, "lab-2").await;
+    let body = json!({"motive": "m", "anycast": true});
+    let written = send(&app, patch(&prefix, Some(&etag), MERGE_PATCH, &body)).await;
+    assert_eq!(
+        written.status(),
+        StatusCode::OK,
+        "{}",
+        json_of(written).await
+    );
+    let stale = send(&app, patch(&prefix, Some(&etag), MERGE_PATCH, &body)).await;
+    assert_eq!(
+        stale.status(),
+        StatusCode::PRECONDITION_FAILED,
+        "{}",
+        json_of(stale).await
+    );
+    let (current, _) = read(&app, &prefix).await;
+    let bare = format!(
+        "\"{}\"",
+        current.trim_matches('"').split_once('.').unwrap().0
+    );
+    let body = json!({"motive": "m", "anycast": false});
+    let written = send(&app, patch(&prefix, Some(&bare), MERGE_PATCH, &body)).await;
+    assert_eq!(
+        written.status(),
+        StatusCode::OK,
+        "{}",
+        json_of(written).await
+    );
+}
+
+/// Renames the domain at `path` to `slug`.
+async fn rename(app: &Router, path: &str, slug: &str) {
+    let (etag, _) = read(app, path).await;
+    let renamed = send(
+        app,
+        patch(
+            path,
+            Some(&etag),
+            MERGE_PATCH,
+            &json!({"motive": "m", "slug": slug}),
+        ),
+    )
+    .await;
+    assert_eq!(
+        renamed.status(),
+        StatusCode::OK,
+        "{}",
+        json_of(renamed).await
+    );
 }

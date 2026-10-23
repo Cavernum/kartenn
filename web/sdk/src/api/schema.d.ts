@@ -7470,7 +7470,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7494,7 +7494,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -7542,7 +7542,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -7887,7 +7887,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7911,7 +7911,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -7955,7 +7955,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9056,7 +9056,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -9080,7 +9080,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9128,7 +9128,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9471,7 +9471,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -9495,7 +9495,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9543,7 +9543,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9888,7 +9888,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -9912,7 +9912,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -9960,7 +9960,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -10262,7 +10262,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -10286,7 +10286,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -10480,7 +10480,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -10504,7 +10504,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -10548,7 +10548,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -10884,7 +10884,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The flow; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -10908,7 +10908,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -10952,7 +10952,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -11193,7 +11193,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -11770,7 +11770,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -11794,7 +11794,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -11838,7 +11838,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12148,7 +12148,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -12172,7 +12172,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12220,7 +12220,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12268,7 +12268,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version of the interface read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12316,7 +12316,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version of the interface read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12838,7 +12838,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -12862,7 +12862,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -12910,7 +12910,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -13389,7 +13389,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -13413,7 +13413,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -13457,7 +13457,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -13759,7 +13759,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -13783,7 +13783,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -14169,7 +14169,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -14193,7 +14193,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -14237,7 +14237,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -14649,7 +14649,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -14673,7 +14673,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -14717,7 +14717,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -15019,7 +15019,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -15299,7 +15299,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -15323,7 +15323,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -15371,7 +15371,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -16021,7 +16021,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -16045,7 +16045,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -16093,7 +16093,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -16397,7 +16397,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -16421,7 +16421,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -16465,7 +16465,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -17142,7 +17142,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -17166,7 +17166,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -17210,7 +17210,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -17514,7 +17514,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -17538,7 +17538,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -17586,7 +17586,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -17938,7 +17938,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -17962,7 +17962,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -18010,7 +18010,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -18396,7 +18396,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The object; its version is its ETag. */
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -18420,7 +18420,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {
@@ -18468,7 +18468,7 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description The version read, as its ETag. */
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
       };
       path: {

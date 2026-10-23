@@ -562,3 +562,21 @@ routeur complet, sauf mention « vrai TCP ».
   en `sorting`, rejoué une période plus tard ; parcours d'import e2e en `test.slow()`,
   attente de la tâche portée à 60 s (une tâche due par scrutation de 5 s, après celles du
   démarrage)
+- [x] 28. ETag composite d'un objet (H19) : `"<version>.<empreinte du corps>"` pour toute
+  lecture d'un objet du noyau et des modules, `If-Match` sur la version seule (forme nue
+  acceptée) ; descriptions OpenAPI, contrat et SDK régénérés — REQ-006-14 — verify :
+  parent renommé → `If-None-Match` 200, `PATCH` sous l'ancien ETag 200, version périmée
+  412 ; fiche d'une machine revalidée après le renommage d'une interface → 200
+  où : `rest/src/dated.rs` (`ETag::record`, `ETag::own_version`, `respond_object`),
+  `rest/src/kit.rs` (`if_match`, `OBJECT_READ`, `IF_MATCH_OBJECT`),
+  `rest/src/resources.rs` (`if_match`), `rest/src/objects.rs` (`object`), `show`/`answer`
+  de `vlan`, `machines`, `policy`, `flow` ; tests `rest/tests/it/resources.rs`
+  (`renaming_the_parent_changes_the_etag_of_the_child`,
+  `if_match_compares_the_own_version_only`), `machines/tests/it/rest.rs`
+  (`a_renamed_interface_changes_the_etag_of_the_card`,
+  `a_new_interface_changes_the_etag_of_the_card`)
+  choix : empreinte du corps plutôt que maximum des versions des liés (couvre héritage,
+  visibilité et collections, aucune requête) ; forme nue gardée sans échéance ; banc non
+  relancé (un SHA-256 de quelques centaines d'octets par lecture, sérialisation
+  inchangée) ; l'ETag d'un changeset (son état) n'est pas concerné : sa lecture ne
+  répond jamais 304

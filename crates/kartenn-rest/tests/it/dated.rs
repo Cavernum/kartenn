@@ -5,14 +5,14 @@
 
 use std::time::Duration;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use axum::response::Response;
 use axum::routing::get;
-use axum::{Json, Router};
 use http_body_util::BodyExt;
-use kartenn_rest::dated::{Dates, ETag, FROZEN, LIVE, respond};
+use kartenn_rest::dated::{Dates, FROZEN, LIVE, respond_object};
 use kartenn_rest::problem::{Problem, ProblemKind};
 use kartenn_store_pg::read;
 use sqlx::PgPool;
@@ -45,12 +45,7 @@ async fn object(
     let (Some(version), Some(found)) = (version, found) else {
         return Err(Problem::new(ProblemKind::NotFound));
     };
-    Ok(respond(
-        &headers,
-        &moment,
-        &ETag::version(version),
-        Json(found.fields),
-    ))
+    Ok(respond_object(&headers, &moment, version, &found.fields))
 }
 
 fn app(pool: PgPool, bound: Duration) -> Router {
@@ -142,7 +137,7 @@ async fn not_modified_until_a_changeset(pool: PgPool) -> sqlx::Result<()> {
     assert_eq!(fresh.status(), StatusCode::OK);
     assert_eq!(header_of(&fresh, &header::CACHE_CONTROL), LIVE);
     let etag = header_of(&fresh, &header::ETAG).to_owned();
-    assert_eq!(etag, format!("\"{first}\""));
+    assert!(etag.starts_with(&format!("\"{first}.")), "{etag}");
 
     let unchanged = call(&app, &uri, Some(&etag)).await;
     assert_eq!(unchanged.status(), StatusCode::NOT_MODIFIED);
@@ -157,7 +152,7 @@ async fn not_modified_until_a_changeset(pool: PgPool) -> sqlx::Result<()> {
         .await?;
     let changed = call(&app, &uri, Some(&etag)).await;
     assert_eq!(changed.status(), StatusCode::OK);
-    assert_eq!(header_of(&changed, &header::ETAG), format!("\"{second}\""));
+    assert!(header_of(&changed, &header::ETAG).starts_with(&format!("\"{second}.")));
     Ok(())
 }
 

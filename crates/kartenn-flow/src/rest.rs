@@ -10,17 +10,17 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use axum::Extension;
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
 use axum::routing::{get, post};
-use axum::{Extension, Json};
 use kartenn_rest::ModuleRouter;
 use kartenn_rest::kit::{
-    self, Api, Dates as DateParams, DatesParams, ETag, ListQuery, MERGE_PATCH, Moment, Page,
-    PageParams, Problem, ProblemKind, documented, listing_of, next_href, op, queryable, respond,
-    respond_page, schemas_of,
+    self, Api, Dates as DateParams, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams,
+    Problem, ProblemKind, documented, listing_of, next_href, op, queryable, respond_page,
+    schemas_of,
 };
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
@@ -859,11 +859,11 @@ async fn show(
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     kit::record_read(&api, &context, FLOW, &[id], json!({"id": id})).await?;
-    Ok(respond(
+    Ok(kit::respond_object(
         &headers,
         &moment,
-        &ETag::version(version),
-        Json(flow_dto(view, false)),
+        version,
+        &flow_dto(view, false),
     ))
 }
 
@@ -1142,7 +1142,7 @@ pub fn routes() -> ModuleRouter {
     let show_op = op("show_flow", "flow", the)
         .path("id", the, true)
         .params::<DatesParams>()
-        .answers("200", "The flow; its version is its ETag.", "Flow")
+        .answers("200", kit::OBJECT_READ, "Flow")
         .build();
     let modify_op = op(
         "modify_flow",
@@ -1152,7 +1152,7 @@ pub fn routes() -> ModuleRouter {
          automatic, otherwise held for a review (F20).",
     )
     .path("id", the, true)
-    .header("If-Match", true, "The version read, as its ETag.")
+    .header("If-Match", true, kit::IF_MATCH_OBJECT)
     .body(MERGE_PATCH, "FlowPatch", true)
     .answers("200", "Modified.", "ChangesetApplied")
     .answers(
@@ -1163,7 +1163,7 @@ pub fn routes() -> ModuleRouter {
     .build();
     let close_op = op("close_flow", "flow", "Closes the flow.")
         .path("id", the, true)
-        .header("If-Match", true, "The version read, as its ETag.")
+        .header("If-Match", true, kit::IF_MATCH_OBJECT)
         .answers("200", "Closed.", "ChangesetApplied")
         .answers("202", "Held for a decision.", "ChangesetPending")
         .build();
@@ -1223,7 +1223,7 @@ pub fn routes() -> ModuleRouter {
         "Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`.",
     )
     .path("id", the, true)
-    .header("If-Match", true, "The version read, as its ETag.")
+    .header("If-Match", true, kit::IF_MATCH_OBJECT)
     .body("application/json", "FlowWaiver", true)
     .answers("200", "Granted.", "ChangesetApplied")
     .answers("202", "Held for a decision.", "ChangesetPending")
