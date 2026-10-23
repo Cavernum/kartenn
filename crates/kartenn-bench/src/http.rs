@@ -108,6 +108,7 @@ fn issuer() -> IssuerConfig {
         audience: "kartenn".into(),
         groups_claim: "groups".into(),
         algorithms: vec![Algorithm::ES256],
+        native: None,
     }
 }
 

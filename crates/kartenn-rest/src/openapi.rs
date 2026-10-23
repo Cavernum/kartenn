@@ -52,11 +52,12 @@ const PROBLEM_TYPE: &str = "application/problem+json";
 const SCHEMES: [&str; 3] = ["session", "bearer", "basic"];
 
 /// The operations open to anonymous callers: the login routes and the probes.
-const PUBLIC: [&str; 6] = [
+const PUBLIC: [&str; 7] = [
     "/v1/auth/login",
     "/v1/auth/callback",
     "/v1/auth/breakglass",
     "/v1/auth/issuers",
+    "/v1/auth/native-clients",
     "/health/live",
     "/health/ready",
 ];

@@ -143,7 +143,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `audit`, `properties`) n'en portent pas : hors du périmètre de la tâche. Instantané
     du catalogue de la bibliothèque régénéré (`check`, `report`). `schema.d.ts`
     inchangé : openapi-typescript ignore les extensions.
-- [ ] 6. `GET /v1/auth/native-clients`, publique :
+- [x] 6. `GET /v1/auth/native-clients`, publique :
   `[{id, discovery_url, client_id, audience, scopes, device}]`, seulement pour les
   émetteurs configurés avec `native_client_id`. Nouveaux champs `native_client_id`,
   `native_scopes` et `native_device` de `[[auth.issuers]]`. Amendements de la 005 et de
@@ -153,6 +153,17 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : route `auth/issuers` de `crates/kartenn-rest` (à imiter) ; configuration des
     émetteurs dans `crates/kartenn-auth` (005/design, bloc `[auth]`)
   - dépend de : —
+  - choix : `IssuerConfig.native: Option<NativeClient>` (`kartenn-auth`), méthode
+    `Authenticator::native_clients` (vide par défaut, comme `issuers`) ; route ajoutée à
+    `authn::PUBLIC` et aux opérations publiques du contrat (`security: []`),
+    `operationId` `native_clients`. Défauts : `native_scopes = ["openid"]`,
+    `native_device = false`. Démarrage refusé si `native_client_id` égale `client_id`
+    (un client confidentiel n'est pas public), si une portée n'est pas un jeton de
+    RFC 6749 §3.3 ou si `openid` manque, et si `native_scopes`/`native_device` sont
+    posés sans `native_client_id`. `audience` publiée = celle de l'émetteur.
+    Tests : `sessions::the_native_clients_are_public`,
+    `config::tests::an_issuer_may_publish_a_native_client` et cas d'erreur.
+    `docs/exploitation/configuration.md` complété.
 - [ ] 7. `kartenn-dev-idp` :
   - client public natif (sans secret) ;
   - redirection de bouclage à port libre (RFC 8252 §7.3) ;

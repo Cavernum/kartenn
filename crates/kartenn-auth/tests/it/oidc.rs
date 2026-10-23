@@ -226,6 +226,7 @@ fn client(idp: &Idp) -> (Oidc<HttpKeys>, KeyRing) {
         audience: "kartenn".into(),
         groups_claim: "groups".into(),
         algorithms: vec![Algorithm::ES256],
+        native: None,
     };
     let http = HttpClient::new().unwrap();
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();

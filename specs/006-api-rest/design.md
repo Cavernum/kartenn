@@ -93,7 +93,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Imports | `POST /v1/imports` ; `PUT /v1/imports/{id}/chunks/{n}` ; `POST …/start`, `…/resume`, `…/cancel` ; `GET …/{id}` |
 | Droits | `roles`, `bindings`, `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état), `GET /v1/me` (session, droits effectifs résumés) |
 | Audit | `GET`/`QUERY /v1/audit-events` ; `POST /v1/identities/{id}/pseudonymisation` |
-| Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` |
+| Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` ; publiques : `GET /v1/auth/issuers` (007) et `GET /v1/auth/native-clients` (amendement 023/A5 : `[{id, discovery_url, client_id, audience, scopes, device}]`, client public des applications natives des seuls émetteurs configurés avec `native_client_id`, sans secret) |
 | Exploitation | `GET /v1/capabilities`, `GET /v1/openapi.json`, `PUT /v1/log-filters/{output}` ; `/health/live`, `/health/ready` |
 
 - Les actions d'un changeset sont des sous-ressources en `POST` (RFC 9205 §4.5 : une

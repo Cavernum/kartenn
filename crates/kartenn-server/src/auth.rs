@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use anyhow::Context as _;
-use kartenn_auth::issuer::{IssuerConfig, accepted_algorithm};
+use kartenn_auth::issuer::{IssuerConfig, NativeClient, accepted_algorithm};
 use kartenn_auth::keys::KeyRing;
 
 use crate::config::Auth;
@@ -60,6 +60,14 @@ pub fn load(auth: &Auth) -> anyhow::Result<Loaded> {
                     .iter()
                     .filter_map(|a| accepted_algorithm(a))
                     .collect(),
+                native: issuer
+                    .native_client_id
+                    .as_ref()
+                    .map(|client_id| NativeClient {
+                        client_id: client_id.clone(),
+                        scopes: issuer.native_scopes.clone(),
+                        device: issuer.native_device,
+                    }),
             })
         })
         .collect::<anyhow::Result<_>>()?;

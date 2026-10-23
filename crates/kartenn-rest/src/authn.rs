@@ -42,12 +42,31 @@ use crate::transport::Client;
 
 /// The routes under `/v1` that answer without authentication: the login routes (design
 /// « Ressources et routes »; `logout` needs the session).
-pub const PUBLIC: [&str; 4] = [
+pub const PUBLIC: [&str; 5] = [
     "/v1/auth/login",
     "/v1/auth/callback",
     "/v1/auth/breakglass",
     "/v1/auth/issuers",
+    "/v1/auth/native-clients",
 ];
+
+/// A public client of the native applications at an issuer, as `GET
+/// /v1/auth/native-clients` publishes it (spec 023, T10/A5): nothing secret.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeClient {
+    /// The local identifier of the issuer.
+    pub id: String,
+    /// Its discovery document (OpenID Connect Discovery 1.0 §4).
+    pub discovery_url: String,
+    /// The public client at the issuer.
+    pub client_id: String,
+    /// The audience its access tokens must carry for kartenn.
+    pub audience: String,
+    /// The scopes to ask for.
+    pub scopes: Vec<String>,
+    /// Whether the issuer offers it the device flow (RFC 8628).
+    pub device: bool,
+}
 
 /// The challenge of every 401 (RFC 6750 §3). No `Basic` challenge: a browser would open
 /// its own login dialog over the application.
@@ -221,6 +240,12 @@ pub trait Authenticator: Send + Sync {
     /// The local identifiers of the issuers a browser logs in at, in the order of the
     /// configuration (REQ-007-41).
     fn issuers(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// The public clients of the native applications, one per issuer configured with one,
+    /// in the order of the configuration (spec 023, T10/A5).
+    fn native_clients(&self) -> Vec<NativeClient> {
         Vec::new()
     }
 
@@ -625,6 +650,25 @@ where
 
     fn issuers(&self) -> Vec<String> {
         self.oidc.tokens().issuer_ids().map(str::to_owned).collect()
+    }
+
+    fn native_clients(&self) -> Vec<NativeClient> {
+        self.oidc
+            .tokens()
+            .issuers()
+            .iter()
+            .filter_map(|issuer| {
+                let native = issuer.native.as_ref()?;
+                Some(NativeClient {
+                    id: issuer.id.clone(),
+                    discovery_url: issuer.discovery_url(),
+                    client_id: native.client_id.clone(),
+                    audience: issuer.audience.clone(),
+                    scopes: native.scopes.clone(),
+                    device: native.device,
+                })
+            })
+            .collect()
     }
 
     fn begin(&self, issuer: String) -> Answer<'_, LoginStart> {

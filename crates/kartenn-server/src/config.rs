@@ -271,6 +271,20 @@ pub struct Issuer {
     /// Algorithms of its signatures, public key only.
     #[serde(default = "algorithms")]
     pub algorithms: Vec<String>,
+    /// The public client of the native applications (the CLI) at this issuer, published
+    /// by `GET /v1/auth/native-clients` (spec 023, T10/A5); absent: not published.
+    #[serde(default)]
+    pub native_client_id: Option<String>,
+    /// The scopes it asks for (`openid` by default).
+    #[serde(default = "native_scopes")]
+    pub native_scopes: Vec<String>,
+    /// Whether the issuer offers it the device flow (RFC 8628).
+    #[serde(default)]
+    pub native_device: bool,
+}
+
+fn native_scopes() -> Vec<String> {
+    vec!["openid".into()]
 }
 
 const fn idle_minutes() -> u64 {
@@ -365,6 +379,41 @@ fn check_auth(auth: &Auth) -> Result<(), String> {
                 "auth.issuers.{id}.algorithms: {refused} refused (public key signatures only)"
             ));
         }
+        check_native(issuer)?;
+    }
+    Ok(())
+}
+
+/// The public client of the native applications at `issuer` (spec 023, T10/A5): another
+/// client than the confidential one of the BFF, scopes of RFC 6749 §3.3 among which
+/// `openid`; `native_scopes` and `native_device` only beside `native_client_id`.
+fn check_native(issuer: &Issuer) -> Result<(), String> {
+    let id = &issuer.id;
+    let Some(client) = &issuer.native_client_id else {
+        if issuer.native_scopes != native_scopes() || issuer.native_device {
+            return Err(format!(
+                "auth.issuers.{id}: native_scopes and native_device need native_client_id"
+            ));
+        }
+        return Ok(());
+    };
+    if client.is_empty() || *client == issuer.client_id {
+        return Err(format!(
+            "auth.issuers.{id}.native_client_id: a public client, other than client_id"
+        ));
+    }
+    // scope-token = 1*( %x21 / %x23-5B / %x5D-7E ) (RFC 6749 §3.3).
+    let token = |s: &String| {
+        !s.is_empty()
+            && s.bytes()
+                .all(|b| matches!(b, 0x21 | 0x23..=0x5B | 0x5D..=0x7E))
+    };
+    if !issuer.native_scopes.iter().all(token)
+        || !issuer.native_scopes.iter().any(|s| s == "openid")
+    {
+        return Err(format!(
+            "auth.issuers.{id}.native_scopes: scope tokens (RFC 6749 §3.3), openid among them"
+        ));
     }
     Ok(())
 }
@@ -1029,11 +1078,49 @@ mod tests {
                 "HS256 refused",
             ),
             (format!("{AUTH}algorithms = [\"none\"]"), "none refused"),
+            (
+                format!("{AUTH}native_client_id = \"kartenn\""),
+                "other than client_id",
+            ),
+            (
+                format!("{AUTH}native_device = true"),
+                "need native_client_id",
+            ),
+            (
+                format!("{AUTH}native_client_id = \"cli\"\nnative_scopes = [\"profile\"]"),
+                "openid among them",
+            ),
+            (
+                format!("{AUTH}native_client_id = \"cli\"\nnative_scopes = [\"openid\", \"a b\"]"),
+                "scope tokens",
+            ),
         ];
         for (text, reason) in cases {
             let error = from_toml(&text).unwrap_err().to_string();
             assert!(error.contains(reason), "{reason}: {error}");
         }
+    }
+
+    /// The public client of the native applications (spec 023, task 023-6): absent by
+    /// default; `openid` alone and no device flow unless said.
+    #[test]
+    fn an_issuer_may_publish_a_native_client() {
+        let auth = from_toml(AUTH).unwrap().auth.unwrap();
+        assert_eq!(auth.issuers[0].native_client_id, None);
+        let text = format!("{AUTH}native_client_id = \"kartenn-cli\"");
+        let issuer = &from_toml(&text).unwrap().auth.unwrap().issuers[0];
+        assert_eq!(issuer.native_client_id.as_deref(), Some("kartenn-cli"));
+        assert_eq!(
+            (issuer.native_scopes.as_slice(), issuer.native_device),
+            (&["openid".to_owned()][..], false)
+        );
+        let text = format!(
+            "{AUTH}native_client_id = \"kartenn-cli\"\n\
+             native_scopes = [\"openid\", \"offline_access\"]\nnative_device = true"
+        );
+        let issuer = &from_toml(&text).unwrap().auth.unwrap().issuers[0];
+        assert_eq!(issuer.native_scopes, ["openid", "offline_access"]);
+        assert!(issuer.native_device);
     }
 
     const HTTP: &str = r#"

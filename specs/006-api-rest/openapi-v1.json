@@ -4965,6 +4965,47 @@
         ],
         "type": "string"
       },
+      "NativeClientDto": {
+        "description": "A public client of the native applications at an issuer (spec 023, T10/A5): what a\nCLI needs to obtain an access token of kartenn there, nothing secret.",
+        "properties": {
+          "audience": {
+            "description": "The audience the access tokens must carry for kartenn.",
+            "type": "string"
+          },
+          "client_id": {
+            "description": "The public client (RFC 8252), without secret: code flow with PKCE `S256` to a\nloopback redirection.",
+            "type": "string"
+          },
+          "device": {
+            "description": "Whether the issuer offers this client the device flow (RFC 8628).",
+            "type": "boolean"
+          },
+          "discovery_url": {
+            "description": "Its discovery document (OpenID Connect Discovery 1.0 §4).",
+            "type": "string"
+          },
+          "id": {
+            "description": "The local identifier of the issuer, that of `/v1/auth/issuers`.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "The scopes to ask for.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "discovery_url",
+          "client_id",
+          "audience",
+          "scopes",
+          "device"
+        ],
+        "type": "object"
+      },
       "Nature": {
         "description": "The nature of a prefix.",
         "enum": [
@@ -11802,6 +11843,41 @@
           }
         },
         "summary": "Ends the session, then on to the end-session endpoint of the issuer.",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/v1/auth/native-clients": {
+      "get": {
+        "operationId": "native_clients",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NativeClientDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The public clients of the native applications."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "security": [],
+        "summary": "`GET /v1/auth/native-clients`, public: the public client of the native applications\nof each issuer configured with one (`native_client_id`), in the order of the\nconfiguration (spec 023, T10/A5). `issuers` is unchanged (REQ-007-41).",
         "tags": [
           "authentication"
         ]
