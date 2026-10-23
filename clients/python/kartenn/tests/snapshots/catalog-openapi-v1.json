@@ -1,0 +1,501 @@
+{
+ "addresses": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_address",
+   "collection:list:list_addresses",
+   "collection:query:query_addresses",
+   "object:close:close_address",
+   "object:flows:address_flows",
+   "object:get:show_address",
+   "object:history:address_history",
+   "object:properties.explain:address_property_explanation",
+   "object:properties.suggest:address_property_suggestion",
+   "object:properties:address_properties",
+   "object:update:modify_address"
+  ]
+ },
+ "admissibility-conditions": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_admissibility_conditions",
+   "collection:list:list_admissibility_conditions",
+   "collection:query:query_admissibility_conditions",
+   "object:close:close_admissibility_conditions",
+   "object:get:show_admissibility_conditions",
+   "object:history:policy_condition_history",
+   "object:properties.explain:policy_condition_property_explanation",
+   "object:properties.suggest:policy_condition_property_suggestion",
+   "object:properties:policy_condition_properties",
+   "object:update:modify_admissibility_conditions"
+  ]
+ },
+ "anomalies": {
+  "module": "core",
+  "verbs": [
+   "collection:list:list_anomalies",
+   "object:acknowledgement:acknowledge_anomaly"
+  ]
+ },
+ "audit-events": {
+  "module": "audit",
+  "verbs": [
+   "collection:list:list_audit_events",
+   "collection:query:query_audit_events"
+  ]
+ },
+ "bindings": {
+  "module": "rights",
+  "verbs": [
+   "collection:create:bind",
+   "collection:list:list_bindings",
+   "object:close:unbind",
+   "object:get:show_binding"
+  ]
+ },
+ "changesets": {
+  "module": "changesets",
+  "verbs": [
+   "collection:create:submit_changeset",
+   "collection:list:list_changesets",
+   "object:diff:changeset_diff",
+   "object:get:show_changeset",
+   "object:rejection:reject_changeset",
+   "object:undo:undo_changeset",
+   "object:validation:validate_changeset",
+   "object:withdrawal:withdraw_changeset"
+  ]
+ },
+ "clusters": {
+  "module": "machines",
+  "verbs": [
+   "collection:create:create_cluster",
+   "collection:list:list_clusters",
+   "collection:query:query_clusters",
+   "object:close:close_cluster",
+   "object:get:show_cluster",
+   "object:history:machines_cluster_history",
+   "object:machines:cluster_machines",
+   "object:properties.explain:machines_cluster_property_explanation",
+   "object:properties.suggest:machines_cluster_property_suggestion",
+   "object:properties:machines_cluster_properties",
+   "object:update:modify_cluster"
+  ]
+ },
+ "domains": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_domain",
+   "collection:list:list_domains",
+   "collection:query:query_domains",
+   "object:close:close_domain",
+   "object:get:show_domain",
+   "object:history:domain_history",
+   "object:properties.explain:domain_property_explanation",
+   "object:properties.suggest:domain_property_suggestion",
+   "object:properties:domain_properties",
+   "object:roots:domain_roots",
+   "object:update:modify_domain"
+  ]
+ },
+ "entities": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_entity",
+   "collection:list:list_entities",
+   "collection:query:query_entities",
+   "object:close:close_entity",
+   "object:get:show_entity",
+   "object:history:entity_history",
+   "object:properties.explain:entity_property_explanation",
+   "object:properties.suggest:entity_property_suggestion",
+   "object:properties:entity_properties",
+   "object:update:modify_entity"
+  ]
+ },
+ "environments": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_environments",
+   "collection:list:list_environments",
+   "collection:query:query_environments",
+   "object:close:close_environments",
+   "object:get:show_environments"
+  ]
+ },
+ "flow-nonconformities": {
+  "module": "flow",
+  "verbs": [
+   "collection:list:list_flow_nonconformities"
+  ]
+ },
+ "flow-types": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_flow_types",
+   "collection:list:list_flow_types",
+   "collection:query:query_flow_types",
+   "object:close:close_flow_types",
+   "object:get:show_flow_types",
+   "object:history:policy_flow_type_history",
+   "object:properties.explain:policy_flow_type_property_explanation",
+   "object:properties.suggest:policy_flow_type_property_suggestion",
+   "object:properties:policy_flow_type_properties",
+   "object:update:modify_flow_types"
+  ]
+ },
+ "flows": {
+  "module": "flow",
+  "verbs": [
+   "collection:create:request_flow",
+   "collection:list:list_flows",
+   "collection:query:query_flows",
+   "object:close:close_flow",
+   "object:evaluations:flow_evaluations",
+   "object:get:show_flow",
+   "object:history:flow_flow_history",
+   "object:properties.explain:flow_flow_property_explanation",
+   "object:properties.suggest:flow_flow_property_suggestion",
+   "object:properties:flow_flow_properties",
+   "object:update:modify_flow",
+   "object:waiver:waive_flow"
+  ]
+ },
+ "graph": {
+  "module": "graph",
+  "verbs": [
+   "collection:edges:graph_edges"
+  ]
+ },
+ "identities": {
+  "module": "rights",
+  "verbs": [
+   "collection:list:list_identities",
+   "object:get:show_identity",
+   "object:pseudonymisation:pseudonymise_identity",
+   "object:update:set_identity_state"
+  ]
+ },
+ "imports": {
+  "module": "imports",
+  "verbs": [
+   "collection:create:create_import",
+   "collection:list:list_imports",
+   "object:cancel:cancel_import",
+   "object:chunks.put:deposit_import_chunk",
+   "object:get:show_import",
+   "object:resume:resume_import",
+   "object:start:start_import"
+  ]
+ },
+ "inference-rules": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_inference_rules",
+   "collection:list:list_inference_rules",
+   "collection:query:query_inference_rules",
+   "object:close:close_inference_rules",
+   "object:get:show_inference_rules",
+   "object:history:policy_inference_rule_history",
+   "object:properties.explain:policy_inference_rule_property_explanation",
+   "object:properties.suggest:policy_inference_rule_property_suggestion",
+   "object:properties:policy_inference_rule_properties",
+   "object:update:modify_inference_rules"
+  ]
+ },
+ "interfaces": {
+  "module": "machines",
+  "verbs": [
+   "collection:create:create_interface",
+   "collection:list:list_interfaces",
+   "collection:query:query_interfaces",
+   "object:attachments.delete:detach_address",
+   "object:attachments:attach_address",
+   "object:close:close_interface",
+   "object:flows:interface_flows",
+   "object:get:show_interface",
+   "object:history:machines_interface_history",
+   "object:properties.explain:machines_interface_property_explanation",
+   "object:properties.suggest:machines_interface_property_suggestion",
+   "object:properties:machines_interface_properties",
+   "object:update:modify_interface"
+  ]
+ },
+ "issuer-attachments": {
+  "module": "rights",
+  "verbs": [
+   "collection:create:attach_issuer",
+   "collection:delete:detach_issuer",
+   "collection:list:list_issuer_attachments"
+  ]
+ },
+ "log-filters": {
+  "module": "operations",
+  "verbs": [
+   "object:set:set_log_filter"
+  ]
+ },
+ "machines": {
+  "module": "machines",
+  "verbs": [
+   "collection:create:create_machine",
+   "collection:list:list_machines",
+   "collection:query:query_machines",
+   "object:addresses:machine_addresses",
+   "object:close:close_machine",
+   "object:flows:machine_flows",
+   "object:get:show_machine",
+   "object:history:machines_machine_history",
+   "object:hosted:machine_hosted",
+   "object:properties.explain:machines_machine_property_explanation",
+   "object:properties.suggest:machines_machine_property_suggestion",
+   "object:properties:machines_machine_properties",
+   "object:update:modify_machine"
+  ]
+ },
+ "policy-axes": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_policy_axes",
+   "collection:list:list_policy_axes",
+   "collection:query:query_policy_axes",
+   "object:close:close_policy_axes",
+   "object:get:show_policy_axes",
+   "object:history:policy_axis_history",
+   "object:properties.explain:policy_axis_property_explanation",
+   "object:properties.suggest:policy_axis_property_suggestion",
+   "object:properties:policy_axis_properties",
+   "object:update:modify_policy_axes"
+  ]
+ },
+ "policy-exempt-roles": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_policy_exempt_roles",
+   "collection:list:list_policy_exempt_roles",
+   "collection:query:query_policy_exempt_roles",
+   "object:close:close_policy_exempt_roles",
+   "object:get:show_policy_exempt_roles",
+   "object:history:policy_exempt_role_history",
+   "object:properties.explain:policy_exempt_role_property_explanation",
+   "object:properties.suggest:policy_exempt_role_property_suggestion",
+   "object:properties:policy_exempt_role_properties"
+  ]
+ },
+ "policy-matrix": {
+  "module": "policy",
+  "verbs": [
+   "collection:list:show_policy_matrix",
+   "object:set:set_policy_matrix_cell"
+  ]
+ },
+ "policy-patterns": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_policy_patterns",
+   "collection:list:list_policy_patterns",
+   "collection:query:query_policy_patterns",
+   "object:close:close_policy_patterns",
+   "object:get:show_policy_patterns",
+   "object:history:policy_pattern_history",
+   "object:properties.explain:policy_pattern_property_explanation",
+   "object:properties.suggest:policy_pattern_property_suggestion",
+   "object:properties:policy_pattern_properties",
+   "object:update:modify_policy_patterns"
+  ]
+ },
+ "policy-reports": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:request_policy_report",
+   "object:get:show_policy_report",
+   "object:items:policy_report_items"
+  ]
+ },
+ "policy-rules": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_policy_rules",
+   "collection:list:list_policy_rules",
+   "collection:query:query_policy_rules",
+   "object:close:close_policy_rules",
+   "object:get:show_policy_rules",
+   "object:history:policy_rule_history",
+   "object:properties.explain:policy_rule_property_explanation",
+   "object:properties.suggest:policy_rule_property_suggestion",
+   "object:properties:policy_rule_properties",
+   "object:update:modify_policy_rules"
+  ]
+ },
+ "policy-values": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_policy_values",
+   "collection:list:list_policy_values",
+   "collection:query:query_policy_values",
+   "object:get:show_policy_values",
+   "object:history:policy_value_history",
+   "object:properties.explain:policy_value_property_explanation",
+   "object:properties.suggest:policy_value_property_suggestion",
+   "object:properties:policy_value_properties"
+  ]
+ },
+ "prefixes": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_prefix",
+   "collection:list:list_prefixes",
+   "collection:query:query_prefixes",
+   "object:ancestors:prefix_ancestors",
+   "object:children:prefix_children",
+   "object:close:close_prefix",
+   "object:flows:prefix_flows",
+   "object:get:show_prefix",
+   "object:history:prefix_history",
+   "object:next-free:prefix_next_free",
+   "object:occupancy:prefix_occupancy",
+   "object:properties.explain:prefix_property_explanation",
+   "object:properties.suggest:prefix_property_suggestion",
+   "object:properties:prefix_properties",
+   "object:update:modify_prefix"
+  ]
+ },
+ "property-declarations": {
+  "module": "properties",
+  "verbs": [
+   "collection:list:list_property_declarations",
+   "object:values:list_property_values"
+  ]
+ },
+ "property-gaps": {
+  "module": "properties",
+  "verbs": [
+   "collection:list:list_property_gaps"
+  ]
+ },
+ "proposals": {
+  "module": "changesets",
+  "verbs": [
+   "collection:list:list_proposals"
+  ]
+ },
+ "ranges": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_range",
+   "collection:list:list_ranges",
+   "collection:query:query_ranges",
+   "object:close:close_range",
+   "object:get:show_range",
+   "object:history:range_history",
+   "object:properties.explain:range_property_explanation",
+   "object:properties.suggest:range_property_suggestion",
+   "object:properties:range_properties",
+   "object:update:modify_range"
+  ]
+ },
+ "risk-signals": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_risk_signals",
+   "collection:list:list_risk_signals",
+   "collection:query:query_risk_signals",
+   "object:close:close_risk_signals",
+   "object:get:show_risk_signals",
+   "object:history:policy_signal_history",
+   "object:properties.explain:policy_signal_property_explanation",
+   "object:properties.suggest:policy_signal_property_suggestion",
+   "object:properties:policy_signal_properties",
+   "object:update:modify_risk_signals"
+  ]
+ },
+ "roles": {
+  "module": "rights",
+  "verbs": [
+   "collection:list:list_roles",
+   "object:close:close_role",
+   "object:get:show_role",
+   "object:set:set_role"
+  ]
+ },
+ "service-accounts": {
+  "module": "rights",
+  "verbs": [
+   "collection:create:create_service_account",
+   "collection:list:list_service_accounts",
+   "object:get:show_service_account",
+   "object:secrets.delete:revoke_service_secret",
+   "object:secrets:add_service_secret"
+  ]
+ },
+ "services": {
+  "module": "policy",
+  "verbs": [
+   "collection:create:create_services",
+   "collection:list:list_services",
+   "collection:query:query_services",
+   "object:close:close_services",
+   "object:get:show_services",
+   "object:history:policy_service_history",
+   "object:properties.explain:policy_service_property_explanation",
+   "object:properties.suggest:policy_service_property_suggestion",
+   "object:properties:policy_service_properties",
+   "object:update:modify_services"
+  ]
+ },
+ "sites": {
+  "module": "core",
+  "verbs": [
+   "collection:create:create_site",
+   "collection:list:list_sites",
+   "collection:query:query_sites",
+   "object:close:close_site",
+   "object:get:show_site",
+   "object:history:site_history",
+   "object:properties.explain:site_property_explanation",
+   "object:properties.suggest:site_property_suggestion",
+   "object:properties:site_properties",
+   "object:update:modify_site"
+  ]
+ },
+ "verdicts": {
+  "module": "policy",
+  "verbs": [
+   "collection:list:show_verdicts",
+   "collection:query:query_verdicts"
+  ]
+ },
+ "vlan-groups": {
+  "module": "vlan",
+  "verbs": [
+   "collection:create:create_vlan_group",
+   "collection:list:list_vlan_groups",
+   "collection:query:query_vlan_groups",
+   "object:close:close_vlan_group",
+   "object:get:show_vlan_group",
+   "object:history:vlan_group_history",
+   "object:next-free:vlan_group_next_free",
+   "object:occupancy:vlan_group_occupancy",
+   "object:properties.explain:vlan_group_property_explanation",
+   "object:properties.suggest:vlan_group_property_suggestion",
+   "object:properties:vlan_group_properties",
+   "object:update:modify_vlan_group"
+  ]
+ },
+ "vlans": {
+  "module": "vlan",
+  "verbs": [
+   "collection:create:create_vlan",
+   "collection:list:list_vlans",
+   "collection:query:query_vlans",
+   "object:close:close_vlan",
+   "object:get:show_vlan",
+   "object:history:vlan_vlan_history",
+   "object:prefixes:vlan_prefixes",
+   "object:properties.explain:vlan_vlan_property_explanation",
+   "object:properties.suggest:vlan_vlan_property_suggestion",
+   "object:properties:vlan_vlan_properties",
+   "object:update:modify_vlan"
+  ]
+ }
+}

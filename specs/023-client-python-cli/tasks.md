@@ -207,7 +207,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     statut, durée. Test TLS : deux CA générées par `cryptography` (ajoutée au groupe
     `dev`, verrou régénéré hors ligne), « magasin du système » simulé par
     `SSL_CERT_FILE`. Moteurs anyio asyncio et trio par la fixture `anyio_backend`.
-- [ ] 10. Catalogue :
+- [x] 10. Catalogue :
   - dérivation (tableau du design) ;
   - modèle gelé ;
   - cache XDG par révision (version, modules, ETag du contrat s'il est servi), écriture
@@ -221,6 +221,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/catalog/` ; design § Catalogue ; ADR 0026
     clause 9 ; forme des ADR dans `docs/adr/0031-…`
   - dépend de : 8 (9 pour le chargement réseau)
+  - choix : la découverte est un *plan* (`_core/plans.py` : générateur qui émet des
+    requêtes et reçoit des réponses, exécuté par `run` ou `arun`), pour écrire une fois
+    la logique des deux clients. Toutes les collections de `/v1` deviennent des
+    ressources, changesets et imports compris, sauf `auth`, `capabilities`, `me` et
+    `openapi.json` ; chaque opération du contrat (sondes comprises) est dans l'index par
+    `operationId`. Verbes : `list`, `create`, `query`, `replace` (collection) ; `get`,
+    `update`, `close`, `set`, `post` (objet) ; sous-ressources nommées par leurs segments
+    fixes joints par `.`, suffixées de la méthode quand le chemin finit par un gabarit
+    hors `GET` (`attachments.delete`) ou en cas de collision ; `x-kartenn.command`
+    l'emporte. Schémas gardés bruts (`components.schemas`), références suivies à la
+    demande (profondeur 4) plutôt qu'aplaties dans le cache. Révision tronquée à 32
+    chiffres hexadécimaux. Le catalogue en cache ne garde pas les capacités : le
+    pointeur du serveur les porte (relues ≤ 1/min sans changer la révision). Sans ETag du
+    contrat (le serveur actuel n'en sert pas, tâche 4), même version et mêmes modules →
+    aucun téléchargement ; avec ETag → `If-None-Match` et 304. Instantané du catalogue de
+    référence en JSON (`tests/snapshots/`, `KARTENN_SNAPSHOT_UPDATE=1` pour le refaire) :
+    syrupy n'est que dans les dépendances de la CLI. `x-kartenn` codé contre le contrat
+    de la tâche 5 (pas encore servi), testé sur un contrat simulé (`demo`). ADR 0035
+    rédigée (proposée) et indexée.
 - [ ] 11. Ressources dynamiques et `Record` (ETag, liens, `as_of`) :
   - `list`, `get`, `create`, `update` (Merge Patch sous `If-Match`), `close` (motif) ;
   - `kn.call(operationId)`, `kn.at(...)`, `kn.modules`, `kn.has()` ;
