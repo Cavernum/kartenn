@@ -2,6 +2,66 @@
 
 from importlib.metadata import version
 
-__all__ = ["__version__"]
+from kartenn._core.problems import (
+    ApiError,
+    BadRequest,
+    ClientError,
+    Conflict,
+    Forbidden,
+    KartennError,
+    NetworkError,
+    NotFound,
+    PreconditionFailed,
+    PreconditionRequired,
+    RateLimited,
+    Refused,
+    ServerError,
+    Unauthenticated,
+    Unavailable,
+    Violation,
+)
+from kartenn._core.requests import between, exists
+from kartenn.auth import FileStore, MemoryStore, TokenStore
+from kartenn.catalog import UnknownResource
+from kartenn.changesets import Simulation
+from kartenn.client import AsyncClient, Client
+from kartenn.imports import ImportProgress, ImportRefused, file_digest, ndjson_elements
+from kartenn.resources import Applied, Pending, Record
+
+__all__ = [
+    "ApiError",
+    "Applied",
+    "AsyncClient",
+    "BadRequest",
+    "Client",
+    "ClientError",
+    "Conflict",
+    "FileStore",
+    "Forbidden",
+    "ImportProgress",
+    "ImportRefused",
+    "KartennError",
+    "MemoryStore",
+    "NetworkError",
+    "NotFound",
+    "Pending",
+    "PreconditionFailed",
+    "PreconditionRequired",
+    "RateLimited",
+    "Record",
+    "Refused",
+    "ServerError",
+    "Simulation",
+    "TokenStore",
+    "Unauthenticated",
+    "Unavailable",
+    "UnknownResource",
+    "Violation",
+    "__version__",
+    "between",
+    "exists",
+    "file_digest",
+    "ndjson_elements",
+]
 
 __version__ = version("kartenn")

@@ -21,7 +21,9 @@ ignore = [
   "COM812", # trailing commas: left to the formatter
   "CPY",    # copyright headers: the licence is the one of the package
   "D",      # docstring style: not enforced
+  "EM101",  # exceptions take their stable code as a literal first argument
   "ISC001", # implicit concatenation: conflicts with the formatter
+  "N818",   # exception names of REQ-023-11 (NotFound, Conflict, Refused…)
 ]
 
 [tool.ruff.lint.per-file-ignores]

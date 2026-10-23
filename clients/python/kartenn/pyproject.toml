@@ -22,6 +22,7 @@ build-backend = "uv_build"
 dev = [
   "anyio>=4.12",
   "coverage>=7.17",
+  "cryptography>=45",
   "hypothesis>=6.150",
   "packaging>=25",
   "pytest>=9.1",

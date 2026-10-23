@@ -146,7 +146,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux B — bibliothèque `kartenn`
 
-- [ ] 8. Cœur sans entrées-sorties (`_core/`) :
+- [x] 8. Cœur sans entrées-sorties (`_core/`) :
   - dates : RFC 3339 avec décalage, date seule dans un fuseau, relatives ;
   - requêtes : filtres de la 006, `--prop` et opérateurs, bascule `QUERY` au-delà de
     8 Kio, en-têtes ;
@@ -158,7 +158,23 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/_core/` ; 006/design § Curseurs, § Filtres,
     § Erreurs ; 022/design § Format, § Doublons
   - dépend de : 1, 2
-- [ ] 9. Port de transport (`send`, `stream`, `sse`, synchrone et asynchrone) et
+  - choix : messages HTTP du cœur (`Headers`, `Request`, `Response`) dans
+    `_core/messages.py`, hors de `requests.py`. Toute erreur est un `KartennError` à
+    code : slug du problème (`http-<statut>` sans corps de problème) ou `client.*`.
+    Classes par statut (`NotFound`, `Conflict`, `PreconditionFailed` avec
+    `current_etag` pris de l'extension `current_etag` puis de l'en-tête `ETag`,
+    `Refused` pour tout 422…) ; ruff ignore `N818` (noms de REQ-023-11) et `EM101` (le
+    code est un littéral). Dates relatives `[+-]N[smhdwMy]` (`M` mois, `m` minute) et
+    `now` ; mois ajoutés au jour borné. Filtres : valeurs Python gardées telles quelles
+    dans le corps `QUERY`, mises en texte dans l'URL (`true`/`false`) ; `:` littéral dans
+    l'URL ; bascule `QUERY` quand `base + chemin + requête` dépasse 8 Kio ;
+    `traceparent` marqué échantillonné (`-01`). `page.as_of` : membre `as_of` du corps
+    s'il existe, sinon la date demandée — le serveur ne rend pas encore l'`as_of`
+    effectif d'une liste (point ouvert). Doublons d'événements : identité
+    `changes`/changeset (ou `event` d'une tâche) et `changeset`/changeset/état, 10 000
+    retenues (023) ; `ready` et `reset` jamais écartés. Profil hypothesis sans délai ni
+    `too_slow` (machine partagée).
+- [x] 9. Port de transport (`send`, `stream`, `sse`, synchrone et asynchrone) et
   adaptateur httpx2 :
   - délais ;
   - HTTP/2 facultatif ;
@@ -175,7 +191,23 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/transport/`, `retry.py` ; design
     § Transport
   - dépend de : 8
-- [ ] 10. Catalogue :
+  - choix : un statut d'erreur garde la réponse ; `stream` et `sse` rendent alors son
+    corps dans `content` et rien en flux ; une réponse 200 qui n'est pas
+    `text/event-stream` est traitée de même. `sleep` fait partie du port (attente du
+    moteur d'événements, tests sans attente) ; l'adaptateur asynchrone attend par anyio,
+    dépendance de httpx2, importé seulement dans `transport/httpx2.py`. Délai de lecture
+    de 45 s pour `sse` (trois `: ping` manqués) plutôt qu'aucun : la coupure est alors
+    une `NetworkError` que le lecteur reprend. HTTP/2 automatique si `h2` est installé
+    (pas d'extra déclaré : le verrou n'en dépend pas), refus explicite si demandé sans
+    lui. Reprise : 3 rejeux au plus, 60 s au total, `Retry-After` sinon 1, 2, 4 s ; une
+    coupure réseau (jamais TLS) se rejoue pareil ; méthodes rejouables : `GET`, `HEAD`,
+    `OPTIONS`, `QUERY`, `PUT` (morceaux d'import), ou toute requête à
+    `Idempotency-Key` ; `PATCH` et `DELETE` ne le sont pas. Un même `traceparent` pour
+    les rejeux d'une requête. Journal `kartenn` en DEBUG : méthode, chemin sans requête,
+    statut, durée. Test TLS : deux CA générées par `cryptography` (ajoutée au groupe
+    `dev`, verrou régénéré hors ligne), « magasin du système » simulé par
+    `SSL_CERT_FILE`. Moteurs anyio asyncio et trio par la fixture `anyio_backend`.
+- [x] 10. Catalogue :
   - dérivation (tableau du design) ;
   - modèle gelé ;
   - cache XDG par révision (version, modules, ETag du contrat s'il est servi), écriture
@@ -189,7 +221,26 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/catalog/` ; design § Catalogue ; ADR 0026
     clause 9 ; forme des ADR dans `docs/adr/0031-…`
   - dépend de : 8 (9 pour le chargement réseau)
-- [ ] 11. Ressources dynamiques et `Record` (ETag, liens, `as_of`) :
+  - choix : la découverte est un *plan* (`_core/plans.py` : générateur qui émet des
+    requêtes et reçoit des réponses, exécuté par `run` ou `arun`), pour écrire une fois
+    la logique des deux clients. Toutes les collections de `/v1` deviennent des
+    ressources, changesets et imports compris, sauf `auth`, `capabilities`, `me` et
+    `openapi.json` ; chaque opération du contrat (sondes comprises) est dans l'index par
+    `operationId`. Verbes : `list`, `create`, `query`, `replace` (collection) ; `get`,
+    `update`, `close`, `set`, `post` (objet) ; sous-ressources nommées par leurs segments
+    fixes joints par `.`, suffixées de la méthode quand le chemin finit par un gabarit
+    hors `GET` (`attachments.delete`) ou en cas de collision ; `x-kartenn.command`
+    l'emporte. Schémas gardés bruts (`components.schemas`), références suivies à la
+    demande (profondeur 4) plutôt qu'aplaties dans le cache. Révision tronquée à 32
+    chiffres hexadécimaux. Le catalogue en cache ne garde pas les capacités : le
+    pointeur du serveur les porte (relues ≤ 1/min sans changer la révision). Sans ETag du
+    contrat (le serveur actuel n'en sert pas, tâche 4), même version et mêmes modules →
+    aucun téléchargement ; avec ETag → `If-None-Match` et 304. Instantané du catalogue de
+    référence en JSON (`tests/snapshots/`, `KARTENN_SNAPSHOT_UPDATE=1` pour le refaire) :
+    syrupy n'est que dans les dépendances de la CLI. `x-kartenn` codé contre le contrat
+    de la tâche 5 (pas encore servi), testé sur un contrat simulé (`demo`). ADR 0035
+    rédigée (proposée) et indexée.
+- [x] 11. Ressources dynamiques et `Record` (ETag, liens, `as_of`) :
   - `list`, `get`, `create`, `update` (Merge Patch sous `If-Match`), `close` (motif) ;
   - `kn.call(operationId)`, `kn.at(...)`, `kn.modules`, `kn.has()` ;
   - `Client.from_profile` (tomllib) ;
@@ -199,7 +250,26 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/resources.py`, `profiles.py`,
     `auth/store.py` ; 006/design § Écritures (arbitrage 006-16)
   - dépend de : 9, 10
-- [ ] 12. Changesets et imports :
+  - choix : clients dans `client.py` (`Client`, `AsyncClient`), exportés par
+    `kartenn`. Chaque appel est un plan de `resources.Context` (catalogue chargé dans le
+    plan) : l'`AsyncClient` atteint une ressource sans catalogue, le lit à l'appel ou
+    par `await kn.load()` / `async with`. `kn.<attribut>` : `_` → `-`
+    (`kn.policy_rules`) ; `kn.resource()` du client synchrone vérifie aussitôt et lève
+    `UnknownResource` (aussi `AttributeError`). Verbes par nom du catalogue
+    (`kn.prefixes.verb("properties.explain", id, key=…)`) ou par attribut (`.` et `-`
+    → `_`) ; `pages_of` suit les pages d'une sous-ressource. Écritures : `Applied`
+    (avec `Location`), `Pending` (avec le lien `urn:kartenn:rel:changeset`), l'objet
+    rendu sinon, `None` sans corps ; `Idempotency-Key` sur tout `POST` dont
+    l'opération l'accepte et toujours sur `create` ; `If-Match` pris du `Record` (ETag
+    opaque, H19), refus local `client.etag-required` sans lui ; `close` sans motif →
+    `client.motive-required` sans requête. Paramètre inconnu d'une opération →
+    `client.unknown-parameter`. `kn.at()` rend une vue (transport partagé, non fermé
+    par la vue). Profils : `KARTENN_PROFILE` puis `default` ; clés de secret refusées
+    (`client.secret-in-profile`) ; modes `none` et `token` (`KARTENN_TOKEN`) ici, les
+    autres à la tâche 13. `FileStore` refuse un fichier lisible par d'autres
+    (`client.store-permissions`). Auth par plans (`authorize`, `unauthorized`) : une
+    seule nouvelle tentative après un 401 si l'auth se renouvelle.
+- [x] 12. Changesets et imports :
   - `ChangesetBuilder`, simulation, soumission (`Applied`, `Pending`, `Refused`),
     actions sous `If-Match`, différentiel paginé par section ;
   - `ImportSession` : morceaux, état local XDG, reprise par empreinte, rappel
@@ -209,7 +279,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/changesets.py`, `imports.py` ; 006/design
     § Imports et tâches de fond ; 017/decisions Q-017-1
   - dépend de : 11
-- [ ] 13. Authentification : Basic, Bearer fourni, OIDC natif (bouclage `127.0.0.1` à
+  - choix : `kn.changeset(motive=…)` rend le constructeur ; `add(op)` rend l'indice
+    (référence locale `{"local": n}`), `create(ressource, …)` prend pour `op`
+    l'`operationId` de la création de la ressource, résolu à l'envoi. Discriminants lus
+    dans le schéma `Operation` du contrat (références et `oneOf`/`allOf` suivis) ; une
+    clé d'idempotence par constructeur, absente de la simulation ;
+    `Kartenn-On-Behalf-Of` pour « pour le compte de ». `kn.changeset_of(réf)` :
+    `read`, `approve([opérations])`, `reject(motif)`, `withdraw`, `undo(simulate=)`
+    sous l'`If-Match` de la lecture (relue si absente, oubliée après chaque action) ;
+    `diff(section=, prop=)` rend un `Listing` de lignes génériques. Imports :
+    `kn.import_session(source, digest=…)` ; `run` crée toujours un nouvel import,
+    `resume` exige l'état local de (serveur, source) et la même empreinte ; état effacé
+    après `start`. Morceaux numérotés depuis 0, `chunk_elements` des capacités par
+    défaut (borné par elles), découpage par nombre d'éléments seulement (pas par
+    `body_bytes`). Lignes des éléments gardées dans un `array` (8 octets par élément) pour
+    traduire l'indice d'une violation (dernier entier du `pointer`, ou membre `element`)
+    en ligne source. `wait` suit au rythme de `Retry-After` (5 s sans lui). Test de
+    10⁶ éléments sous `tracemalloc` sur un transport muet : pic sous 100 Mio (environ
+    17 s).
+- [x] 13. Authentification : Basic, Bearer fourni, OIDC natif (bouclage `127.0.0.1` à
   port libre, PKCE `S256`, `state`, `nonce`), flux d'appareil, rafraîchissement, secours
   avec `Origin`. Note `docs/reference/oauth-clients-natifs.md` (RFC 8252, 8628, 9700,
   7636, citations recoupées). — REQ-023-6, 7, 8, 40 — verify :
@@ -220,19 +308,72 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/auth/` ; design § Authentification ;
     005/design § Jetons Bearer ; forme des notes de `docs/reference/`
   - dépend de : 9 (7 pour le test réel)
-- [ ] 14. Événements : `events()` et `aevents()` sur `GET /v1/events`, filtres, reprise,
+  - choix : chaque mode est un `Auth` à plans (`authorize`, `unauthorized`,
+    `check_server`). `Secret` masqué dans toute représentation, lu d'un `TokenStore`
+    (`kartenn:<profil>:secret`) ou de `KARTENN_SECRET_FILE` (première ligne) ; Basic
+    refusé hors `https`, bouclage permis seulement par `allow_insecure_loopback`.
+    OIDC : émetteur complet dans le profil (`discovery_url`, `client_id`…) ou identifiant
+    résolu par `GET /v1/auth/native-clients` (contrat de la tâche 6, pas encore servi :
+    testé sur réponses simulées) ; document de découverte refusé s'il annonce des
+    méthodes PKCE sans `S256` ; audience demandée par `resource` (RFC 8707) quand c'est
+    une URI absolue, par l'extension `audience` sinon ; jetons dans le `TokenStore`
+    (`access_token`, `refresh_token`, `expires_at`), le jeton d'identité jamais gardé ni
+    envoyé ; rafraîchissement 60 s avant l'expiration ou une fois sur un 401, échec →
+    jetons effacés et `client.login-required`. `login` (bouclage) et `device_login`
+    sont synchrones et prennent `Client.run_unauthenticated` (ajouté, avec
+    `Client.sleep`) : la connexion interactive est l'affaire de la CLI ; l'`AsyncClient`
+    rafraîchit par les mêmes plans. Flux d'appareil : intervalle de 5 s par défaut,
+    +5 s cumulés par `slow_down`, arrêt sur `access_denied`, `expired_token` ou
+    `expires_in` dépassé ; l'avertissement de RFC 8628 §5.4 est rendu avec le code.
+    Secours : cookie de la première ligne `Set-Cookie`, phrase de passe et code oubliés
+    après usage, `Origin` sur l'ouverture et sur toute écriture, cookie oublié sur un
+    401. Pas de verrou entre processus autour du rafraîchissement (proposition de la
+    note, laissée à la CLI). Note `docs/reference/oauth-clients-natifs.md` rédigée par
+    un sous-agent sur les sources primaires (citations marquées « à vérifier » quand
+    non recoupées) et indexée. Test contre `kartenn-dev-idp` non fait : la tâche 7
+    n'est pas sur `main`.
+- [x] 14. Événements : `events()` et `aevents()` sur `GET /v1/events`, filtres, reprise,
   doublons, `reset`, absence quand `capabilities.events` vaut `null`. — REQ-023-38 —
   verify : `MockTransport` en flux SSE (coupure puis reprise avec `Last-Event-ID`,
   doublon écarté, `reset` rendu, 429 puis `Retry-After`)
   - où : `clients/python/kartenn/src/kartenn/events.py` ; design § Événements ;
     022/design § Contrat consommé par les clients
   - dépend de : 9, 11
-- [ ] 15. Stubs : `python -m kartenn stubs generate` (`TypedDict`, `Literal`,
+  - choix : `kn.events(...)` (synchrone) vérifie aussitôt `capabilities.events` et rend
+    un itérateur sans fin ; `kn.aevents(...)` (asynchrone) est un générateur qui vérifie à
+    la première itération. Filtres en listes séparées par des virgules ;
+    `last_event_id=` reprend après un curseur connu ; `reconnect=False` s'arrête à la
+    fin du flux. Avant ouverture : un 401 renouvelle une fois par l'`Auth` du client puis
+    rouvre, 429 et 503 attendent `Retry-After` (sinon l'attente croissante), toute autre
+    erreur lève son problème. Coupure (fin du flux, `NetworkError`, 45 s de silence) →
+    reprise après l'attente du suivi (tâche 8) ; un échec TLS n'est jamais repris.
+    Chaque ouverture porte `User-Agent` et un `traceparent` neuf, pas de nouvelle
+    tentative du transport : le suivi gère ses propres attentes. Codé contre le
+    contrat de la 022 (capacité `events`, `GET /v1/events`), pas encore servi : testé sur
+    flux simulés.
+- [x] 15. Stubs : `python -m kartenn stubs generate` (`TypedDict`, `Literal`,
   `Protocol`, surcharge de `Client.__getattr__`) — REQ-023-17 — verify : pyright signale
   un membre inconnu dans un script d'exemple ; les stubs ne sont jamais importés à
   l'exécution
   - où : `clients/python/kartenn/src/kartenn/stubs.py`, `__main__.py`
   - dépend de : 10
+  - choix : source du catalogue au choix (`--profile`, `--url`, ou `--contract`
+    hors ligne avec `--capabilities` facultatif) ; sortie `--out typings` par défaut,
+    paquet `kartenn_server/__init__.pyi`. `TypedDict` en syntaxe fonctionnelle (membres
+    qui ne sont pas des identifiants, `allOf` fusionné), `NotRequired` hors `required` ;
+    énumérations et autres schémas en `TypeAlias` ; `typing`, `kartenn` et
+    `kartenn.resources` importés sous alias (`_t`, `_k`, `_r`) pour ne heurter aucun nom
+    de schéma ; noms invalides préfixés ou suffixés de `_`. Protocole par ressource :
+    `list` aux filtres typés (énumérations en `Literal`), `create` et `update` aux
+    membres en `**members: Unpack[…]` (membres réservés exclus), sous-ressources et
+    actions par leur nom en `snake_case`. `Client` du stub : une propriété par
+    ressource, `resource()` surchargé par nom littéral, `__getattr__(Never)` pour qu'un
+    nom inconnu soit une erreur ; ces surcharges plus étroites que `kartenn.Client` sont
+    voulues (`# pyright: ignore[reportIncompatibleMethodOverride]`). Usage :
+    `cast("kartenn_server.Client", kartenn.Client(...))` sous `TYPE_CHECKING`. Test :
+    pyright de devenv (sauté sans lui) signale `nmae` et `prefixess` dans un script
+    d'exemple, rien dans le bon ; le script tourne sans que `kartenn_server` soit
+    importé.
 
 ## Flux C — CLI `kartenn-cli`
 

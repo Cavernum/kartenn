@@ -145,6 +145,7 @@ Non-objectifs :
 | [0031](../adr/0031-evaluations-de-flux-materialisees.md) | Évaluations de flux matérialisées, maintenues dans la transaction ; état et validité dérivés (spec 011) | accepted |
 | [0032](../adr/0032-instance-postgresql-des-bancs.md) | Instance PostgreSQL dédiée aux bancs (5433, `k-pg-bench`), verrou `k-heavy --bench`, attentes bornées, échelles réduite et complète | accepted |
 | [0033](../adr/0033-publication-des-versions.md) | Publication des versions : notes par git-cliff, étiquettes signées par le mainteneur, CI et release GitHub Actions appelant des scripts neutres, image sur GHCR | accepted |
+| [0035](../adr/0035-clients-decouverts-depuis-le-contrat.md) | Clients Python découverts depuis le contrat : ressources dérivées des conventions REST et de `x-kartenn`, cache par révision, port de transport sur httpx2 (spec 023) | proposed |
 
 ## Questions ouvertes
 
