@@ -109,8 +109,8 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `changeset_operation`. Vérifié : deux instances sur la même outbox
     (`a_resumption_on_another_instance_loses_nothing`) ; requêtes du lecteur comptées
     (`Counters`), indépendantes des connexions par construction, rapportées par le banc.
-    Coupure forcée de l'écoute non testée isolément (le secours sert seul dans les tests
-    à 200 ms) — point ouvert.
+    Coupure forcée de l'écoute : `a_cut_of_the_listening_connection_loses_nothing`
+    (`pg_terminate_backend`, remise en moins de 1,5 s, nouvelle écoute).
 - [x] 8. Répartiteur et visibilité par lot : regroupement par sujet, requête sujets ×
   objets avec les prédicats RBAC, court-circuit de lecture globale, `changeset` à
   l'auteur et aux valideurs possibles, `mpsc` borné par connexion, débordement —
@@ -127,8 +127,9 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `events::visible` par lot (sujets × objets, `kartenn_scopes` + `kartenn_visible` ;
     objet fermé jugé sur sa dernière version) ; `changeset` à l'auteur et à qui
     `review::may_validate` (nouvelle fonction publique) ; `mpsc` borné, débordement →
-    `reset` `overflow`, fermeture après 30 s (la connexion quitte les plafonds ; le
-    socket reste jusqu'à la prochaine écriture : limite notée). Tests
+    `reset` `overflow`, fermeture après 30 s : la connexion quitte les plafonds et son
+    socket est fermé (`transport::ConnectionKill`, posé par `kartenn-server/src/http.rs`),
+    test `a_client_that_no_longer_reads_loses_its_socket` sur un vrai port). Tests
     `the_objects_delivered_are_those_each_subscriber_may_read` (six portées dont un
     opérateur externe confiné, tirages déterministes),
     `a_slow_subscriber_delays_no_one_and_starts_over`.
@@ -181,8 +182,11 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     révoquées après l'ouverture → fermeture), portée relue et comparée → `reset`
     `rights_changed` ; échéance = `exp` du jeton (`VerifiedToken::expires`) ou fin de
     session sans activité (`QuietEnd`). Test
-    `a_revocation_ends_the_stream_and_a_binding_removed_starts_it_over`. Révocation d'un
-    seul secret de compte de service non suivie — point ouvert.
+    `a_revocation_ends_the_stream_and_a_binding_removed_starts_it_over`. Ajouts après revue :
+    `authn.session.closed` (cause `revoked`) enregistré quand la revérification ferme un
+    flux par cookie (`a_revoked_session_records_its_end`) ; secret de compte de service
+    présenté suivi (`authenticate_service_secret`, `events::revoked_secrets`) et sa
+    révocation ferme le flux (`a_revoked_secret_ends_its_stream`).
 
 ## P4 — Ressources et exploitation
 
@@ -274,11 +278,10 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     (INV-67 à 71, mesures réduites), `architecture.md` (composant, déploiement) ;
     ADR 0034 acceptée ; REQ-022-3 marquée amendée par la 018 (`labels`) ; tests ajoutés
     après la passe `spec-keeper` : `the_audit_records_the_stream_by_connection`,
-    `a_cursor_older_than_the_ring_starts_over`. Écarts relevés et laissés ouverts :
-    `authn.session.closed` (cause `revoked`) n'est enregistré qu'à la reconnexion
-    refusée (couche d'authentification), pas à la fermeture du flux par la
-    revérification ; pas de test de bout en bout de `truncated`, d'`Incremental`, de la
-    coupure de `LISTEN` ni de l'échéance (`QuietEnd`, `exp`) ; budgets INV-71 mesurés à
+    `a_cursor_older_than_the_ring_starts_over`. Écarts relevés : fermés ensuite
+    (`authn.session.closed`, secret révoqué, coupure de `LISTEN`, socket d'un client
+    bloqué, tâches 7, 8, 11) ; restent sans test de bout en bout `truncated`,
+    `Incremental` et l'échéance (`QuietEnd`, `exp`) ; budgets INV-71 mesurés à
     l'échelle réduite seulement.
 
 ### Invariants proposés (numéros à attribuer à la synchronisation)

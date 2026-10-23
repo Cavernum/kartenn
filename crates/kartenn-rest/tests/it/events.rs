@@ -1199,3 +1199,234 @@ async fn a_cursor_older_than_the_ring_starts_over(pool: PgPool) {
     assert_eq!(reset.event, "reset");
     assert_eq!(data(&reset)["reason"], "too_old");
 }
+
+/// REQ-022-18: a cookie session whose identity is disabled while its stream is open:
+/// the stream ends and `authn.session.closed` (cause `revoked`) is recorded.
+#[kartenn_testing::pg_test]
+async fn a_revoked_session_records_its_end(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let app = app(&pool, &ring, &i.hub, reader.clone());
+    let mut r = Request::get("/v1/events")
+        .header(header::ACCEPT, "text/event-stream")
+        .header(header::COOKIE, "__Host-kartenn=x")
+        .body(Body::empty())
+        .unwrap();
+    r.extensions_mut().insert(ConnectionTls(true));
+    let response = app.clone().oneshot(r).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut body = response.into_body();
+    sqlx::query("UPDATE person SET disabled_at = now() WHERE id = $1")
+        .bind(reader.identity)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let ended = tokio::time::timeout(WAIT, async {
+        while let Some(Ok(_)) = body.frame().await {}
+    })
+    .await;
+    assert!(ended.is_ok(), "the stream ends");
+    let causes: Vec<Value> = sqlx::query_scalar(
+        "SELECT details -> 'cause' FROM audit.event
+         WHERE name = 'authn.session.closed' AND actor_id = $1",
+    )
+    .bind(reader.identity)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(causes, vec![json!("revoked")]);
+}
+
+/// REQ-022-18: a stream opened with a secret of a service account ends when that
+/// secret is revoked, like a disabled account.
+#[kartenn_testing::pg_test]
+async fn a_revoked_secret_ends_its_stream(pool: PgPool) {
+    use kartenn_rest::events::hub::{SubjectKey, Watched};
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let account: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, kind)
+         VALUES (gen_random_uuid(), 'svc', 'service_account') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let secret: Uuid = sqlx::query_scalar(
+        "INSERT INTO service_secret (id, account_id, digest, key_id)
+         VALUES (gen_random_uuid(), $1, decode(repeat('ab', 32), 'hex'), 'k1') RETURNING id",
+    )
+    .bind(account)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let opened = i
+        .hub
+        .open(
+            SubjectKey::of(&account.into()),
+            kartenn_service::events::Filters::default(),
+            Watched {
+                service: true,
+                secret: Some(secret),
+                ..Watched::default()
+            },
+            None,
+        )
+        .unwrap();
+    i.hub.recheck().await.unwrap();
+    assert_eq!(Hub::ending(&opened.conn), None, "a valid secret");
+    sqlx::query("UPDATE service_secret SET revoked_at = now() WHERE id = $1")
+        .bind(secret)
+        .execute(&pool)
+        .await
+        .unwrap();
+    i.hub.recheck().await.unwrap();
+    assert_eq!(
+        Hub::ending(&opened.conn),
+        Some(kartenn_rest::events::hub::Cause::Revoked)
+    );
+}
+
+/// REQ-022-20: the connection that listens to the outbox cut, an event still arrives
+/// within the fallback poll, and the reader listens again.
+#[kartenn_testing::pg_test]
+async fn a_cut_of_the_listening_connection_loses_nothing(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            poll: Duration::from_secs(1),
+            ..quick()
+        },
+    )
+    .await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let app = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    let (_, mut client) = open(&app, "/v1/events", None).await;
+    client.next(WAIT).await.unwrap();
+    let listening = || {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i32>(
+                "SELECT pid FROM pg_stat_activity
+                 WHERE datname = current_database() AND query ILIKE 'LISTEN%'",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let before = listening().await;
+    assert!(!before.is_empty(), "the reader listens");
+    for pid in &before {
+        sqlx::query("SELECT pg_terminate_backend($1)")
+            .bind(pid)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let c = apply(&pool, writer, vec![prefix_in(d, "10.7.0.0/16")]).await;
+    let started = std::time::Instant::now();
+    loop {
+        let e = client.next_of("changes", WAIT).await.expect("delivered");
+        if data(&e)["changeset"] == json!(c) {
+            break;
+        }
+    }
+    assert!(
+        started.elapsed() < Duration::from_millis(1_500),
+        "within the poll"
+    );
+    let again = tokio::time::timeout(WAIT, async {
+        loop {
+            let now = listening().await;
+            if now.iter().any(|p| !before.contains(p)) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    assert!(again.is_ok(), "the reader listens again");
+}
+
+/// REQ-022-21: on a real socket, a client that stops reading is cut after the delay of
+/// an overflow: the socket is closed, not only the stream forgotten.
+#[kartenn_testing::pg_test]
+async fn a_client_that_no_longer_reads_loses_its_socket(pool: PgPool) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            buffer: 1,
+            overflow_close: Duration::from_millis(500),
+            ..quick()
+        },
+    )
+    .await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let app = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    let server = crate::wire::start(app, false).await;
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.set_recv_buffer_size(2_048).unwrap();
+    let mut tcp = socket.connect(server.address()).await.unwrap();
+    tcp.write_all(
+        b"GET /v1/events HTTP/1.1\r\nHost: localhost\r\nAccept: text/event-stream\r\n\
+          Authorization: Bearer t\r\n\r\n",
+    )
+    .await
+    .unwrap();
+    let mut first = [0u8; 512];
+    let n = tcp.read(&mut first).await.unwrap();
+    assert!(
+        std::str::from_utf8(&first[..n])
+            .unwrap()
+            .starts_with("HTTP/1.1 200")
+    );
+    assert_eq!(i.hub.open_streams(), 1);
+    // Large events (900 objects each, about 60 KiB) until the socket and the buffers of
+    // the server are full and the channel overflows; the client reads nothing meanwhile.
+    for n in 0..40u32 {
+        let operations = (0..900u32)
+            .map(|k| prefix_in(d, &format!("10.{n}.{}.{}/28", k / 16, (k % 16) * 16)))
+            .collect();
+        apply(&pool, writer, operations).await;
+        if i.hub.open_streams() == 0 {
+            break;
+        }
+    }
+    let gone = tokio::time::timeout(Duration::from_secs(10), async {
+        while i.hub.open_streams() > 0 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    assert!(gone.is_ok(), "forgotten by the ceilings");
+    // Reading now drains what the kernel holds, then meets the end of the socket.
+    let closed = tokio::time::timeout(Duration::from_secs(10), async {
+        let mut buffer = vec![0u8; 65_536];
+        loop {
+            match tcp.read(&mut buffer).await {
+                Ok(0) | Err(_) => return,
+                Ok(_) => {}
+            }
+        }
+    })
+    .await;
+    assert!(closed.is_ok(), "the socket is closed");
+}

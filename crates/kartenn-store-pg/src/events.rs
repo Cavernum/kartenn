@@ -318,3 +318,22 @@ pub async fn administrative(conn: &mut PgConnection, ids: &[Uuid]) -> Result<boo
     .await
     .map_err(store_err)
 }
+
+/// The secrets among `ids` revoked or expired now (REQ-022-18).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn revoked_secrets(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT id FROM service_secret
+         WHERE id = ANY($1) AND (revoked_at IS NOT NULL OR expires_at <= now())",
+    )
+    .bind(ids)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)
+}

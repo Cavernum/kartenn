@@ -167,6 +167,8 @@ pub struct Authenticated {
     pub quiet_end: Option<i64>,
     /// When the credentials expire (Unix seconds): the `exp` of an access token.
     pub credentials_end: Option<i64>,
+    /// The secret of a service account presented by `Basic`.
+    pub secret: Option<Uuid>,
 }
 
 impl From<Principal> for Authenticated {
@@ -178,6 +180,7 @@ impl From<Principal> for Authenticated {
             ends_at: None,
             quiet_end: None,
             credentials_end: None,
+            secret: None,
         }
     }
 }
@@ -480,6 +483,7 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             ends_at,
             quiet_end: Some(quiet_end),
             credentials_end: None,
+            secret: None,
         })
     }
 
@@ -526,7 +530,7 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         let Some((name, secret)) = parse_basic(header) else {
             return Err(self.failed(Method::Basic, "malformed", source).await);
         };
-        authn::authenticate_service(
+        authn::authenticate_service_secret(
             &self.identities,
             &self.ring,
             &self.journal,
@@ -537,7 +541,11 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             kartenn_service::audit::now(),
         )
         .await
-        .map(Authenticated::from)
+        .map(|(principal, used)| {
+            let mut authenticated = Authenticated::from(principal);
+            authenticated.secret = Some(used);
+            authenticated
+        })
         .map_err(|e| refusal(&e, Refusal::Unauthenticated))
     }
 
@@ -887,6 +895,7 @@ pub async fn layer(
         ends_at,
         quiet_end,
         credentials_end,
+        secret,
     } = match authenticator.authenticate(proof, source.clone()).await {
         Ok(authenticated) => authenticated,
         Err(refusal) => {
@@ -926,6 +935,11 @@ pub async fn layer(
         request
             .extensions_mut()
             .insert(crate::events::QuietEnd(end));
+    }
+    if let Some(secret) = secret {
+        request
+            .extensions_mut()
+            .insert(crate::events::ServiceSecret(secret));
     }
     if let Some(end) = credentials_end {
         request

@@ -286,6 +286,16 @@ pub struct Watched {
     pub session_started: Option<i64>,
     /// A service account.
     pub service: bool,
+    /// The secret presented by a service account: its revocation ends the stream.
+    pub secret: Option<Uuid>,
+    /// Closes the socket of the stream (set by the server).
+    pub kill: Option<crate::transport::ConnectionKill>,
+    /// For a cookie session, who and from where, for `authn.session.closed` when a
+    /// revocation ends the stream (REQ-022-18).
+    pub closing: Option<(
+        kartenn_service::authn::Principal,
+        kartenn_core::audit::Source,
+    )>,
 }
 
 /// The ring and the connections, under one lock.
@@ -358,6 +368,8 @@ pub struct Hub {
     loaded: AtomicBool,
     /// What it counts.
     pub stats: Stats,
+    /// The audit journal, for `authn.session.closed` when a revocation ends a session.
+    pub journal: std::sync::OnceLock<kartenn_store_pg::audit_journal::PgAuditJournal>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -422,6 +434,7 @@ impl Hub {
             admin: tokio::sync::Notify::new(),
             loaded: AtomicBool::new(false),
             stats: Stats::default(),
+            journal: std::sync::OnceLock::new(),
         })
     }
 
@@ -654,16 +667,48 @@ impl Hub {
                 .map(|(id, disabled, revoked)| (id, (disabled, revoked)))
                 .collect()
         };
+        let secrets: Vec<Uuid> = conns.iter().filter_map(|c| c.watch.secret).collect();
+        let revoked_secrets: HashSet<Uuid> = if secrets.is_empty() {
+            HashSet::new()
+        } else {
+            let mut db = self
+                .pool
+                .acquire()
+                .await
+                .map_err(|e| StoreError(e.to_string()))?;
+            kartenn_store_pg::events::revoked_secrets(&mut db, &secrets)
+                .await?
+                .into_iter()
+                .collect()
+        };
         for conn in &conns {
-            let revoked = match states.get(&conn.subject.identity) {
-                None | Some((true, _)) => true,
-                Some((false, Some(after))) => conn
-                    .watch
-                    .session_started
-                    .is_some_and(|started| started <= *after),
-                Some((false, None)) => false,
-            };
-            if revoked {
+            let secret_revoked = conn
+                .watch
+                .secret
+                .is_some_and(|s| revoked_secrets.contains(&s));
+            let revoked = secret_revoked
+                || match states.get(&conn.subject.identity) {
+                    None | Some((true, _)) => true,
+                    Some((false, Some(after))) => conn
+                        .watch
+                        .session_started
+                        .is_some_and(|started| started <= *after),
+                    Some((false, None)) => false,
+                };
+            if revoked && Self::ending(conn).is_none() {
+                // REQ-022-18: a session ended by a revocation is recorded as such.
+                if let (Some((principal, source)), Some(journal)) =
+                    (&conn.watch.closing, self.journal.get())
+                    && let Err(e) = kartenn_service::authn::session_closed(
+                        journal,
+                        principal,
+                        kartenn_service::authn::SessionEnd::Revoked,
+                        source.clone(),
+                    )
+                    .await
+                {
+                    tracing::error!(name: "audit.write.failed", error = ?e, "the end of a revoked session could not be recorded");
+                }
                 Self::end(conn, Cause::Revoked);
             }
         }
@@ -1011,6 +1056,10 @@ impl Hub {
             if let Some(conn) = inner.conns.remove(&id) {
                 self.forget(&mut inner, &conn);
                 Self::end(&conn, Cause::Overflow);
+                // The body is not polled while its client does not read: the socket goes.
+                if let Some(kill) = &conn.watch.kill {
+                    kill.kill();
+                }
             }
         }
     }

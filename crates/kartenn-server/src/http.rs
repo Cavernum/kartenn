@@ -16,7 +16,7 @@ use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use hyper_util::server::conn::auto;
 use hyper_util::server::graceful::{GracefulShutdown, Watcher};
-use kartenn_rest::transport::ConnectionTls;
+use kartenn_rest::transport::{ConnectionKill, ConnectionTls};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -188,16 +188,27 @@ impl Connection {
             peer,
             watcher,
         } = self;
+        let kill = ConnectionKill::default();
+        let killed = kill.0.clone();
         let service = hyper::service::service_fn(move |mut request: hyper::Request<Incoming>| {
             request.extensions_mut().insert(ConnectInfo(peer));
             request.extensions_mut().insert(ConnectionTls(tls));
+            request.extensions_mut().insert(kill.clone());
             app.clone().call(request)
         });
         let connection = builder
             .serve_connection(TokioIo::new(stream), service)
             .into_owned();
-        if let Err(e) = watcher.watch(connection).await {
-            tracing::debug!(name: "http.connection.failed", peer = %peer, error = %e, "connection closed on an error");
+        tokio::select! {
+            result = watcher.watch(connection) => {
+                if let Err(e) = result {
+                    tracing::debug!(name: "http.connection.failed", peer = %peer, error = %e, "connection closed on an error");
+                }
+            }
+            // An event stream whose client stopped reading (REQ-022-21): the socket goes.
+            () = killed.notified() => {
+                tracing::debug!(name: "http.connection.killed", peer = %peer, "connection closed: a stream could not write");
+            }
         }
     }
 }

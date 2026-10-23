@@ -44,6 +44,10 @@ pub struct QuietEnd(pub i64);
 #[derive(Debug, Clone, Copy)]
 pub struct CredentialsEnd(pub i64);
 
+/// The secret of a service account a request presented (`Basic`).
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceSecret(pub uuid::Uuid);
+
 /// A response that is no activity of its session: its cookie is not sent again.
 #[derive(Debug, Clone, Copy)]
 pub struct NotActivity;
@@ -277,6 +281,8 @@ async fn events(
     Extension(context): Extension<RequestContext>,
     quiet: Option<Extension<QuietEnd>>,
     session: Option<Extension<kartenn_auth::oidc::Session>>,
+    secret: Option<Extension<ServiceSecret>>,
+    kill: Option<Extension<crate::transport::ConnectionKill>>,
     credentials: Option<Extension<CredentialsEnd>>,
     headers: HeaderMap,
     RawQuery(query): RawQuery,
@@ -320,6 +326,9 @@ async fn events(
         .map(|text| Cursor::decode(&hub.ring_keys, text, principal.identity));
     let watched = Watched {
         session_started: session.map(|Extension(s)| s.started),
+        secret: secret.map(|Extension(ServiceSecret(s))| s),
+        kill: kill.map(|Extension(k)| k),
+        closing: by_cookie.then(|| (principal.clone(), context.source.clone())),
         service: principal.kind == kartenn_service::authn::IdentityKind::ServiceAccount,
     };
     let criteria = filters.to_json();
@@ -345,6 +354,7 @@ async fn events(
                 .into_response();
         }
     };
+    hub.journal.get_or_init(|| api.journal.clone());
     if let Err(e) = hub.prime(&opened.conn.subject).await {
         tracing::warn!(name: "events.scope.failed", error = %e.0, "the rights of a subscriber could not be read");
         hub.release(opened.conn.id);
