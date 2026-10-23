@@ -18,6 +18,7 @@
 | [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (10/10) |
 | [016-noyau-v0-2](016-noyau-v0-2/) | implémentées (N9 à remesurer au calme) | implémentée | [tasks](016-noyau-v0-2/tasks.md) (13/13) |
 | [017-plugins-politique-flux](017-plugins-politique-flux/) | validées (Q-017-1 à 7 arbitrées le 2026-10-22) ; prérequis : amendements 010/S35, 011/F19, F20 | validée ; maquettes à faire d'abord (U14) | [tasks](017-plugins-politique-flux/tasks.md) (0/24 ; 1 : maquettes ; 15 bloquée sur un amendement de la 010 à rédiger) |
+| [022-evenements-sse](022-evenements-sse/) | brouillon (2026-10-23) ; arbitrages A1 à A8 et Q-022-1 à 12 à trancher | brouillon (ADR 0033 proposée) | [tasks](022-evenements-sse/tasks.md) (0/18) |
 
 ## Ordre d'ensemble du noyau v0.1 (002, 003, 004)
 
