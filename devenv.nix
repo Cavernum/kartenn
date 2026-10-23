@@ -295,6 +295,14 @@ in {
     pkgs.vue-language-server
     pkgs.vtsls
     pkgs.playwright-mcp
+    # Releases (ADR 0033): notes from the Conventional Commits. gpg and gh stay those of
+    # the system: the maintainer's agent and keyring, the maintainer's login.
+    pkgs.git-cliff
+    pkgs.jq
+    # Lint of the GitHub workflows and of the scripts (ADR 0033).
+    pkgs.actionlint
+    pkgs.zizmor
+    pkgs.shellcheck
   ];
 
   # Frontend (D17, ADR 0024): Vue 3 + TypeScript shell and plugin SDK, a pnpm workspace
@@ -512,6 +520,27 @@ in {
     '';
   };
 
+  # Releases (ADR 0033, docs/developpement/publication.md): the logic lives in
+  # scripts/release.sh, which the GitHub workflows call too. The tree is the one of the
+  # current directory, not $DEVENV_ROOT, which a worktree may inherit from another checkout.
+  scripts.k-release-notes = {
+    description = "Preview the tag message (release notes) of the next or given version";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" notes "$@"'';
+  };
+  scripts.k-release = {
+    description = "Release X.Y.Z: version, CHANGELOG.md, commit, signed tag, push after confirmation";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" prepare "$@"'';
+  };
+  scripts.k-release-verify = {
+    description = "Verify a release tag: signature by a key of .github/release-keys, main, versions";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" verify "$@"'';
+  };
+  # Lint of the GitHub workflows (ADR 0033).
+  scripts.k-ci-lint = {
+    description = "actionlint, zizmor and shellcheck on the GitHub workflows and release scripts";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/ci-lint.sh" "$@"'';
+  };
+
   # Outline of a file (items with line numbers), to read a targeted range afterwards:
   # `k-ctx <file>…`.
   scripts.k-ctx = {
@@ -693,6 +722,19 @@ in {
         export SQLX_OFFLINE=true RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
         exec ${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features
       ''}";
+    };
+    # GitHub workflows and release scripts (ADR 0033), with absolute tools: pre-commit also
+    # runs outside the devenv shell. zizmor offline here; `GH_TOKEN=… k-ci-lint` online.
+    ci-lint = {
+      enable = true;
+      name = "actionlint, zizmor, shellcheck";
+      entry = "${pkgs.writeShellScript "ci-lint" ''
+        export PATH=${lib.makeBinPath [pkgs.actionlint pkgs.zizmor pkgs.shellcheck]}:$PATH
+        unset GH_TOKEN
+        exec scripts/ci-lint.sh
+      ''}";
+      files = "^(\\.github/.*\\.ya?ml|scripts/.*\\.sh)$";
+      pass_filenames = false;
     };
     # Frontend, with web/'s own tool versions; no-ops until web/ exists.
     web-prettier = {

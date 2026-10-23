@@ -22,9 +22,9 @@ W2 et W3 (spec 007) ; K9 (spec 005). Existant : aucun `flake.nix`, aucune CI, ve
 - E9 premier administrateur : `breakglass create` lie le rôle `administrator`.
 - E10 mise à jour : arrêt, migration, redémarrage ; mise à jour roulante pour les seules migrations additives.
 - E11 sauvegarde : documentée (sauvegarde physique et archivage des WAL), hors du module.
-- E12 versionnement : SemVer, étiquettes `vX.Y.Z`, journal des changements tenu à la main.
-- E13 publication de l'image : registre à choisir (question ouverte, à valider).
-- E14 CI : script neutre proposé, aucune forge imposée.
+- E12 versionnement : SemVer, étiquettes `vX.Y.Z` signées ; journal des changements rendu par git-cliff, faits marquants à la main (amendé par l'ADR 0033).
+- E13 publication de l'image : GHCR par défaut, réversible ; signature des artefacts plus tard (ADR 0033).
+- E14 CI : scripts neutres, appelés par des workflows GitHub Actions (amendé par l'ADR 0033).
 - E15 documentation de l'exploitant : `docs/exploitation/`.
 
 ## E1 — Point d'entrée Nix
@@ -183,6 +183,12 @@ W2 et W3 (spec 007) ; K9 (spec 005). Existant : aucun `flake.nix`, aucune CI, ve
 - Rejeté : générateur de journal des changements (dépendance de plus pour un gain faible
   à ce rythme).
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-21)
+- **Amendement (2026-10-23, [ADR 0033](../../docs/adr/0033-publication-des-versions.md))** :
+  à la demande de l'utilisateur, git-cliff (`cliff.toml`) rend chaque section de
+  `CHANGELOG.md` depuis les Conventional Commits ; les faits marquants restent écrits à
+  la main sous `[Non publié]`. L'étiquette `vX.Y.Z` est annotée **et signée** par le
+  mainteneur (`k-release`), son message est la section de la version, en markdown. Le
+  rejet du générateur est levé.
 
 ## E13 — Publication
 - Décision : en v0.1, `nix build .#oci` produit l'archive de l'image ; sa publication dans
@@ -190,12 +196,21 @@ W2 et W3 (spec 007) ; K9 (spec 005). Existant : aucun `flake.nix`, aucune CI, ve
   (registre, compte, clés).
 - Structurant et externe. **À valider.**
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-21), question ouverte
+- **Amendement (2026-10-23, ADR 0033)** : registre GHCR par défaut
+  (`ghcr.io/<dépôt>:X.Y.Z`, empreinte dans les notes de la release), choix réversible ;
+  artefacts et `SHA256SUMS` attachés à la release GitHub. Signature et provenance des
+  artefacts : toujours à décider (Sigstore sans clé ou clé de projet), place réservée
+  dans le workflow.
 
 ## E14 — Intégration continue
 - Décision : un script `scripts/ci.sh` neutre vis-à-vis de la forge : `devenv test`,
   `k-web-e2e`, `nix flake check`. Le brancher sur une forge reste un choix de
   l'utilisateur.
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-21)
+- **Amendement (2026-10-23, ADR 0033)** : l'utilisateur choisit GitHub Actions. Les
+  workflows `.github/workflows/ci.yml` et `release.yml` n'appellent que les scripts
+  neutres (`scripts/ci.sh`, `scripts/ci-lint.sh`, `scripts/release.sh`) et le flake :
+  une autre forge les réutiliserait tels quels.
 
 ## E15 — Documentation de l'exploitant
 - Décision : `docs/exploitation/` : installation NixOS, installation OCI (exemple Compose

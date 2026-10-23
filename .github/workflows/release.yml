@@ -1,0 +1,161 @@
+# Publication of a version (ADR 0033), started by the push of a tag vX.Y.Z. The tag is
+# created and signed by the maintainer (k-release); this workflow holds no signing key.
+#
+#   verify   annotated tag, signed by a key of .github/release-keys, commit on main,
+#            versions and CHANGELOG.md (scripts/release.sh verify)
+#   ci       the whole CI (ci.yml) on the tagged commit, without cache
+#   build    image archive, source archive and SHA256SUMS, built by Nix, no privilege
+#   publish  behind the `release` environment (required reviewers): the image to GHCR,
+#            then the GitHub release, its notes the body of the tag message
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+# Every job states its own permissions.
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Étiquette signée
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every branch and tag: the annotated tag object and origin/main.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          extra_nix_config: |
+            extra-substituters = https://devenv.cachix.org
+            extra-trusted-public-keys = devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=
+      - name: scripts/release.sh verify
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          nix shell --inputs-from . nixpkgs#gnupg nixpkgs#jq \
+            --command scripts/release.sh verify "$TAG"
+
+  ci:
+    name: CI
+    needs: verify
+    permissions:
+      contents: read # checkout
+    # A local reusable workflow is read at the commit that runs, not from a checkout. The
+    # newer `$/` form says so explicitly, but actionlint does not know it yet.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  build:
+    name: Artefacts
+    needs: [verify, ci]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+        with:
+          extra_nix_config: |
+            extra-substituters = https://devenv.cachix.org
+            extra-trusted-public-keys = devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=
+      - name: scripts/release.sh artefacts
+        env:
+          TAG: ${{ github.ref_name }}
+        run: scripts/release.sh artefacts "$TAG" "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: ${{ runner.temp }}/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publication
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Required reviewers and the tags allowed to deploy are set on the environment
+    # (docs/developpement/publication.md).
+    environment:
+      name: release
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+    permissions:
+      contents: write # the GitHub release and its assets
+      packages: write # the image on GHCR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The annotated tag object, for its message.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: ${{ runner.temp }}/dist
+      - name: Checksums
+        working-directory: ${{ runner.temp }}/dist
+        run: sha256sum --check --strict SHA256SUMS
+      # skopeo and gh of the runner image: no Nix in the job that holds write permissions.
+      - name: Image to GHCR
+        id: image
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_AUTH_FILE: ${{ runner.temp }}/registry-auth.json
+        run: |
+          version=${TAG#v}
+          image=ghcr.io/${REPOSITORY,,}
+          printf '%s' "$GHCR_TOKEN" | skopeo login --username "$ACTOR" --password-stdin ghcr.io
+          archive=$(echo "$RUNNER_TEMP"/dist/kartenn-"$version"-oci-*.tar.gz)
+          digest=$(scripts/release.sh push-image "$archive" "$image:$version")
+          skopeo logout ghcr.io
+          echo "image $image:$version@$digest"
+          {
+            echo "ref=$image:$version"
+            echo "digest=$digest"
+          } >>"$GITHUB_OUTPUT"
+      # Signature and provenance of the artefacts and of the image: not yet (ADR 0033,
+      # « Plus tard »). The place for them is here, before the release: e.g. a build
+      # provenance attestation (id-token: write, attestations: write) or a cosign signature
+      # of the digest.
+      - name: GitHub release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          notes=$RUNNER_TEMP/notes.md
+          code=$'\x60'
+          {
+            scripts/release.sh tag-notes "$TAG"
+            printf '\n---\n\nImage OCI : %s, empreinte %s.\n' \
+              "$code$IMAGE_REF$code" "$code$IMAGE_DIGEST$code"
+          } >"$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "la release $TAG existe : artefacts remplacés, notes inchangées"
+            gh release upload "$TAG" "$RUNNER_TEMP"/dist/* --clobber
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$notes" \
+              "$RUNNER_TEMP"/dist/*
+          fi

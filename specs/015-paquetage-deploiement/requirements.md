@@ -136,7 +136,9 @@ Acceptation : instance démarrée sur une base en retard d'une migration → 503
 #### REQ-015-12 — Versionnement
 Chaque version publiée doit avoir une étiquette annotée `vX.Y.Z`, une entrée dans
 `CHANGELOG.md` et la même version dans le workspace Cargo, les paquets web et le paquet
-Nix. [E12]
+Nix. [E12] Depuis l'ADR 0033, l'étiquette est signée par une clé de
+`.github/release-keys` et son message est la section de la version dans `CHANGELOG.md` ;
+`scripts/release.sh verify` le contrôle avant toute publication.
 
 Acceptation : un test compare ces versions entre elles.
 
@@ -151,14 +153,15 @@ consigné (amorçage, mise à jour, sauvegarde et restauration).
 ## Non-objectifs
 
 - Manifestes Kubernetes (Helm, Kustomize) : reportés (D35).
-- Publication dans un registre et signature des artefacts : en attente de décision (E13).
+- Signature et provenance des artefacts : en attente de décision (E13 ; la publication
+  sur GHCR est décidée par l'ADR 0033).
 - Sauvegarde automatisée par le module (E11).
 - Réplicas en lecture (D9) : configuration non couverte en v0.1.
 - Paquets d'autres distributions.
 
 ## Questions ouvertes
 
-- E13 : registre de l'image, signature (Sigstore ou clé de projet). Responsable :
-  utilisateur.
+- E13 : signature des artefacts (Sigstore ou clé de projet). Responsable : utilisateur.
+  Registre : GHCR par défaut (ADR 0033).
 - E7 : `run` entièrement fonctionnel sous le rôle d'instance (vérifié par la tâche 7).
 - Budget de taille de l'image : relevé en v0.1, fixé ensuite.
