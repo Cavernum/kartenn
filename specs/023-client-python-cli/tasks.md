@@ -240,7 +240,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     syrupy n'est que dans les dépendances de la CLI. `x-kartenn` codé contre le contrat
     de la tâche 5 (pas encore servi), testé sur un contrat simulé (`demo`). ADR 0035
     rédigée (proposée) et indexée.
-- [ ] 11. Ressources dynamiques et `Record` (ETag, liens, `as_of`) :
+- [x] 11. Ressources dynamiques et `Record` (ETag, liens, `as_of`) :
   - `list`, `get`, `create`, `update` (Merge Patch sous `If-Match`), `close` (motif) ;
   - `kn.call(operationId)`, `kn.at(...)`, `kn.modules`, `kn.has()` ;
   - `Client.from_profile` (tomllib) ;
@@ -250,6 +250,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/resources.py`, `profiles.py`,
     `auth/store.py` ; 006/design § Écritures (arbitrage 006-16)
   - dépend de : 9, 10
+  - choix : clients dans `client.py` (`Client`, `AsyncClient`), exportés par
+    `kartenn`. Chaque appel est un plan de `resources.Context` (catalogue chargé dans le
+    plan) : l'`AsyncClient` atteint une ressource sans catalogue, le lit à l'appel ou
+    par `await kn.load()` / `async with`. `kn.<attribut>` : `_` → `-`
+    (`kn.policy_rules`) ; `kn.resource()` du client synchrone vérifie aussitôt et lève
+    `UnknownResource` (aussi `AttributeError`). Verbes par nom du catalogue
+    (`kn.prefixes.verb("properties.explain", id, key=…)`) ou par attribut (`.` et `-`
+    → `_`) ; `pages_of` suit les pages d'une sous-ressource. Écritures : `Applied`
+    (avec `Location`), `Pending` (avec le lien `urn:kartenn:rel:changeset`), l'objet
+    rendu sinon, `None` sans corps ; `Idempotency-Key` sur tout `POST` dont
+    l'opération l'accepte et toujours sur `create` ; `If-Match` pris du `Record` (ETag
+    opaque, H19), refus local `client.etag-required` sans lui ; `close` sans motif →
+    `client.motive-required` sans requête. Paramètre inconnu d'une opération →
+    `client.unknown-parameter`. `kn.at()` rend une vue (transport partagé, non fermé
+    par la vue). Profils : `KARTENN_PROFILE` puis `default` ; clés de secret refusées
+    (`client.secret-in-profile`) ; modes `none` et `token` (`KARTENN_TOKEN`) ici, les
+    autres à la tâche 13. `FileStore` refuse un fichier lisible par d'autres
+    (`client.store-permissions`). Auth par plans (`authorize`, `unauthorized`) : une
+    seule nouvelle tentative après un 401 si l'auth se renouvelle.
 - [ ] 12. Changesets et imports :
   - `ChangesetBuilder`, simulation, soumission (`Applied`, `Pending`, `Refused`),
     actions sous `If-Match`, différentiel paginé par section ;

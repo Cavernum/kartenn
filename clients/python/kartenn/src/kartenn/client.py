@@ -1,0 +1,310 @@
+"""The clients, synchronous and asynchronous, over the same core (REQ-023-4, 9 to 16).
+
+```python
+with Client.from_profile("prod") as kn:
+    at = kn.at(valid_at="2026-11-01T00:00:00+01:00")
+    for p in at.prefixes.list(domain="interne"):
+        ...
+    vlan = kn.vlans.get(identifier)
+    kn.vlans.update(vlan, {"name": "admin"}, motive="renaming")   # If-Match = vlan.etag
+```
+"""
+
+from __future__ import annotations
+
+import copy
+import os
+from importlib.metadata import version
+from typing import TYPE_CHECKING, Any, Self, TypeVar
+
+from kartenn._core.plans import arun, run
+from kartenn._core.problems import ClientError
+from kartenn._core.requests import user_agent
+from kartenn.auth import Anonymous
+from kartenn.auth.bearer import BearerToken
+from kartenn.auth.store import MemoryStore
+from kartenn.profiles import Profile, read_profile
+from kartenn.resources import AsyncResource, Context, Resource
+from kartenn.retry import AsyncSender, RetryPolicy, Sender
+
+if TYPE_CHECKING:
+    import os as _os
+    from collections.abc import Mapping
+    from datetime import datetime
+    from pathlib import Path
+    from types import TracebackType
+
+    from kartenn._core.messages import Request, Response
+    from kartenn._core.plans import Plan
+    from kartenn.auth import Auth, TokenStore
+    from kartenn.catalog import Catalog, CatalogCache
+    from kartenn.transport.port import AsyncTransport, Transport
+
+__all__ = ["AsyncClient", "Client", "auth_of_profile"]
+
+T = TypeVar("T")
+_UNAUTHORIZED = 401
+
+
+def _agent() -> str:
+    return user_agent(version("kartenn"))
+
+
+def _attribute_to_resource(attribute: str) -> str:
+    return attribute.replace("_", "-")
+
+
+def auth_of_profile(profile: Profile, store: TokenStore) -> Auth:  # noqa: ARG001 - task 13
+    """The authentication a profile names."""
+    if profile.auth == "none":
+        return Anonymous()
+    if profile.auth == "token":
+        token = os.environ.get("KARTENN_TOKEN")
+        if not token:
+            msg = f"the profile {profile.name!r} expects a token in KARTENN_TOKEN"
+            raise ClientError("client.login-required", msg)
+        return BearerToken(token)
+    msg = f"unknown authentication {profile.auth!r} in the profile {profile.name!r}"
+    raise ClientError("client.invalid-configuration", msg)
+
+
+class Client:
+    """The synchronous client. `kn.<resource>` (`kn.policy_rules`) or
+    `kn.resource("policy-rules")` reaches a resource of the catalog."""
+
+    def __init__(  # noqa: PLR0913 - the settings of a connection
+        self,
+        url: str,
+        *,
+        auth: Auth | None = None,
+        ca_bundle: str | _os.PathLike[str] | None = None,
+        http2: bool | None = None,
+        token_store: TokenStore | None = None,
+        transport: Transport | None = None,
+        cache: CatalogCache | None = None,
+        retry: RetryPolicy | None = None,
+    ) -> None:
+        self.url = url.rstrip("/")
+        self._auth: Auth = auth or Anonymous()
+        self._auth.check_server(self.url)
+        if transport is None:
+            from kartenn.transport.httpx2 import Httpx2Transport  # noqa: PLC0415 - lazy
+
+            transport = Httpx2Transport(self.url, ca_bundle=ca_bundle, http2=http2)
+        self._sender = Sender(transport, user_agent=_agent(), policy=retry)
+        self._context = Context.of(self.url, cache)
+        self.token_store: TokenStore = token_store or MemoryStore()
+        self._owner = True
+
+    @classmethod
+    def from_profile(
+        cls,
+        name: str | None = None,
+        *,
+        config: Path | None = None,
+        token_store: TokenStore | None = None,
+        transport: Transport | None = None,
+        cache: CatalogCache | None = None,
+    ) -> Client:
+        """A client of a profile of `config.toml`, its secrets taken from `token_store`."""
+        profile = read_profile(name, path=config)
+        store = token_store or MemoryStore()
+        return cls(
+            profile.url,
+            auth=auth_of_profile(profile, store),
+            ca_bundle=profile.ca_bundle,
+            http2=profile.http2,
+            token_store=store,
+            transport=transport,
+            cache=cache,
+        )
+
+    # Sending ---------------------------------------------------------------------
+
+    def send(self, request: Request) -> Response:
+        """A request authenticated, retried: once again after a 401 when the
+        authentication renews itself."""
+        response = self._sender.send(run(self._auth.authorize(request), self._sender.send))
+        if response.status == _UNAUTHORIZED and run(
+            self._auth.unauthorized(response), self._sender.send
+        ):
+            authorized = run(self._auth.authorize(request), self._sender.send)
+            response = self._sender.send(authorized)
+        return response
+
+    def run(self, plan: Plan[T]) -> T:
+        return run(plan, self.send)
+
+    # The catalog -----------------------------------------------------------------
+
+    @property
+    def catalog(self) -> Catalog:
+        return self.run(self._context.catalog())
+
+    def refresh(self) -> Catalog:
+        """Read the capabilities again now, and the contract if the revision changed."""
+        return self.run(self._context.catalog(refresh=True))
+
+    @property
+    def modules(self) -> tuple[str, ...]:
+        return self.catalog.module_names
+
+    def has(self, module: str) -> bool:
+        return self.catalog.has(module)
+
+    def resource(self, name: str) -> Resource:
+        self.catalog.resource(name)
+        return Resource(self._context, self.run, name)
+
+    def __getattr__(self, attribute: str) -> Resource:
+        if attribute.startswith("_"):
+            raise AttributeError(attribute)
+        return self.resource(_attribute_to_resource(attribute))
+
+    # Calls -----------------------------------------------------------------------
+
+    def at(
+        self, valid_at: datetime | str | None = None, as_of: datetime | str | None = None
+    ) -> Client:
+        """A view of the client at these dates: every reading carries them."""
+        view = copy.copy(self)
+        view._context = self._context.at(valid_at, as_of)  # noqa: SLF001 - its own class
+        view._owner = False  # noqa: SLF001
+        return view
+
+    def call(
+        self,
+        operation_id: str,
+        *,
+        body: object = None,
+        etag: str | None = None,
+        idempotency_key: str | None = None,
+        headers: Mapping[str, str] | None = None,
+        **params: object,
+    ) -> Any:  # noqa: ANN401 - what the operation answers
+        """Any operation of the catalog by its `operationId` (the twin of `kartenn api`)."""
+        return self.run(
+            self._context.call(
+                operation_id,
+                body=body,
+                etag=etag,
+                key=idempotency_key,
+                headers=headers,
+                params=params,
+            )
+        )
+
+    # Life ------------------------------------------------------------------------
+
+    def close(self) -> None:
+        if self._owner:
+            self._sender.transport.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        trace: TracebackType | None,
+    ) -> None:
+        self.close()
+
+
+class AsyncClient:
+    """The asynchronous client: the same calls, awaited. `await kn.load()` (or
+    `async with`) reads the catalog; resources are reached without it."""
+
+    def __init__(  # noqa: PLR0913 - the settings of a connection
+        self,
+        url: str,
+        *,
+        auth: Auth | None = None,
+        ca_bundle: str | _os.PathLike[str] | None = None,
+        http2: bool | None = None,
+        token_store: TokenStore | None = None,
+        transport: AsyncTransport | None = None,
+        cache: CatalogCache | None = None,
+        retry: RetryPolicy | None = None,
+    ) -> None:
+        self.url = url.rstrip("/")
+        self._auth: Auth = auth or Anonymous()
+        self._auth.check_server(self.url)
+        if transport is None:
+            from kartenn.transport.httpx2 import AsyncHttpx2Transport  # noqa: PLC0415 - lazy
+
+            transport = AsyncHttpx2Transport(self.url, ca_bundle=ca_bundle, http2=http2)
+        self._sender = AsyncSender(transport, user_agent=_agent(), policy=retry)
+        self._context = Context.of(self.url, cache)
+        self.token_store: TokenStore = token_store or MemoryStore()
+        self._owner = True
+
+    async def send(self, request: Request) -> Response:
+        authorized = await arun(self._auth.authorize(request), self._sender.send)
+        response = await self._sender.send(authorized)
+        if response.status == _UNAUTHORIZED and await arun(
+            self._auth.unauthorized(response), self._sender.send
+        ):
+            authorized = await arun(self._auth.authorize(request), self._sender.send)
+            response = await self._sender.send(authorized)
+        return response
+
+    async def run(self, plan: Plan[T]) -> T:
+        return await arun(plan, self.send)
+
+    async def load(self, *, refresh: bool = False) -> Catalog:
+        return await self.run(self._context.catalog(refresh=refresh))
+
+    async def modules(self) -> tuple[str, ...]:
+        return (await self.load()).module_names
+
+    async def has(self, module: str) -> bool:
+        return (await self.load()).has(module)
+
+    def resource(self, name: str) -> AsyncResource:
+        return AsyncResource(self._context, self.run, name)
+
+    def __getattr__(self, attribute: str) -> AsyncResource:
+        if attribute.startswith("_"):
+            raise AttributeError(attribute)
+        return self.resource(_attribute_to_resource(attribute))
+
+    def at(
+        self, valid_at: datetime | str | None = None, as_of: datetime | str | None = None
+    ) -> AsyncClient:
+        view = copy.copy(self)
+        view._context = self._context.at(valid_at, as_of)  # noqa: SLF001 - its own class
+        view._owner = False  # noqa: SLF001
+        return view
+
+    async def call(
+        self,
+        operation_id: str,
+        *,
+        body: object = None,
+        etag: str | None = None,
+        idempotency_key: str | None = None,
+        headers: Mapping[str, str] | None = None,
+        **params: object,
+    ) -> Any:  # noqa: ANN401 - what the operation answers
+        plan = self._context.call(
+            operation_id, body=body, etag=etag, key=idempotency_key, headers=headers, params=params
+        )
+        return await self.run(plan)
+
+    async def aclose(self) -> None:
+        if self._owner:
+            await self._sender.transport.aclose()
+
+    async def __aenter__(self) -> Self:
+        await self.load()
+        return self
+
+    async def __aexit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        trace: TracebackType | None,
+    ) -> None:
+        await self.aclose()

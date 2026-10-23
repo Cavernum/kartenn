@@ -50,8 +50,9 @@ SOCLE = (
 _DATES = frozenset({"valid_at", "as_of", "cursor", "page_size"})
 
 
-class UnknownResource(ClientError):
-    """A resource the server does not serve (`client.unknown-resource`)."""
+class UnknownResource(ClientError, AttributeError):
+    """A resource the server does not serve (`client.unknown-resource`); an
+    `AttributeError` too, since `kn.<name>` reaches a resource."""
 
 
 @dataclass(frozen=True)
