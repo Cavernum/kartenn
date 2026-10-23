@@ -183,6 +183,23 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
   corriger une maquette coûte moins qu'un Custom Element livré.
 - Décidé par : l'utilisateur (2026-10-22)
 
+## Amendement proposé — socle 020 et 021 (2026-10-23, en attente d'arbitrage)
+
+Les arbitrages web du 2026-10-23 (D-2, D-3, D-8) changent le socle de la 017. Proposé
+par les specs [020](../020-systeme-de-design/decisions.md) (A1) et
+[021](../021-shell-v2/decisions.md) (A1), à confirmer par l'utilisateur :
+- **U2 amendée** : les plugins `policy` et `flow` s'écrivent avec le framework partagé et
+  `@kartenn/ui` par l'import map, en DOM léger (ADR 0038), et non plus en Custom Elements
+  sans framework ; le Custom Element reste la frontière d'extension (hôte mince). Ils
+  lisent par le cache du SDK 2.0 (ADR 0037) et suivent les règles d'édition, de filtres,
+  de libellés et de codes de la 021.
+- **U14 amendée** : les maquettes se construisent dans le catalogue `/_ui/ecrans/` avec
+  les vrais composants (020, REQ-020-25), après les maquettes E1 à E10 de la 020, et non
+  plus en pages statiques hors du build ; la validation reste consignée ici (U14).
+- **Ordre** : les tâches web de la 017 attendent la phase 5 de la 021 (plugins VLAN et
+  Machines portés) ; les tâches d'amendement de la 010 et de la 011 n'en dépendent pas.
+- U3 à U13 inchangées.
+
 ## Questions arbitrées
 
 Chaque question porte ses options, la recommandation de Claude et la décision de

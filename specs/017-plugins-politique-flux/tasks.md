@@ -18,6 +18,13 @@ sont indépendantes, 6, 7 et 13 suivent 5, 9 suit 8 et 010-21, 10 suit 9 ; dans 
 20 et 21 suivent 16, 18 suit 17 et 011-13, 19 suit 16 et 011-12. Pas plus de trois
 sous-agents d'implémentation à la fois (CLAUDE.md).
 
+> *Amendement proposé le 2026-10-23 (specs 020 et 021, en attente d'arbitrage ;
+> [`decisions.md`](decisions.md), § « Amendement proposé — socle 020 et 021 »)* : la
+> tâche 1 se fait au catalogue `/_ui/ecrans/` avec `@kartenn/ui`, après la tâche 15 de la
+> 020 ; les tâches web suivantes s'écrivent sur le framework partagé et `@kartenn/ui`, en
+> DOM léger, après la phase 5 de la 021 (tâches 021-17 à 19). Les lignes `où :` qui
+> renvoient aux écrans actuels pour le style seront corrigées à l'arbitrage (021-20).
+
 ## P0 — Maquettes
 
 - [ ] 1. Maquettes des écrans (policy, flow) validées par l'utilisateur : une maquette par
