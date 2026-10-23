@@ -369,7 +369,10 @@ class ModuleGroup(ResourceGroup):
         main: str | None,
         named: dict[str, click.Command] | None = None,
     ) -> None:
-        self.children = children
+        from kartenn_cli.named import replaced  # noqa: PLC0415
+
+        self.replaced = replaced(name, catalog)
+        self.children = {k: v for k, v in children.items() if k not in self.replaced}
         self.main_collection = main
         self.named = named or {}
         resource = catalog.resource(main) if main else _empty(name)
@@ -391,7 +394,7 @@ class ModuleGroup(ResourceGroup):
 
     def list_commands(self, ctx: click.Context) -> list[str]:  # noqa: ARG002
         names = set(self.verb_names() if self.main_collection else []) | set(self.children)
-        return sorted(names | set(self.named))
+        return sorted((names - self.replaced) | set(self.named))
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         named = self.named.get(cmd_name)
@@ -402,7 +405,7 @@ class ModuleGroup(ResourceGroup):
             return ResourceGroup(
                 cmd_name, resource=self.catalog.resource(child), catalog=self.catalog
             )
-        if self.main_collection is None:
+        if self.main_collection is None or cmd_name in self.replaced:
             return None
         return super().get_command(ctx, cmd_name)
 

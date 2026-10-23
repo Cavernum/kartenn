@@ -1,0 +1,11 @@
+# serializer version: 1
+# name: test_policy_check
+  '''
+  Verdict  ✓ autorisé — issue automatic
+    Évaluations  1 autorisée(s), 0 refusée(s)
+    Règle        [rule] admin-vers-tout
+    Conditions   toutes remplies
+    Service      ssh
+  
+  '''
+# ---

@@ -251,6 +251,75 @@ resume = "Resume the import ID: only the chunks not confirmed are sent."
 chunk = "Elements per chunk (at most the limit of the server)."
 follow = "Follow the import to its final state (by default)."
 
+[named]
+endpoint = "Endpoint “{given}”: KIND:REF (machine:bastion-1, prefix:interne/198.51.100.0/24) or a JSON object."
+
+[check]
+help = "Verdict of a communication source → destination for a service."
+verdict = "Verdict"
+allowed = "allowed"
+allowed_pending = "allowed pending"
+partial = "partial"
+denied = "denied"
+outcome = "outcome {outcome}"
+evaluations = "Evaluations"
+counts = "{allowed} allowed, {denied} denied"
+rule = "Rule       "
+conditions = "Conditions "
+service = "Service    "
+all_met = "all met"
+reduced = "Reduced explanation: your rights do not show everything."
+hidden = "{count} address(es) not shown (rights)."
+
+[check.opt]
+service = "Service (completed from the server)."
+transport = "Transport (tcp, udp…)."
+port = "Port."
+flow_type = "Flow type."
+entity = "Entity (the application)."
+exit_status = "Exit 9 when the verdict is “denied”."
+
+[matrix]
+help = "Matrix of environments × flow types."
+title = "Flow type {flow_type} (rows: source; columns: destination)"
+outside = "{count} rule(s) outside the view."
+
+[matrix.show]
+help = "Show the matrix of a flow type."
+
+[matrix.set]
+help = "Set a cell: SOURCE TYPE DESTINATION VALUE (under the If-Match of the matrix)."
+
+[report]
+help = "Compliance audit report (background task)."
+asked = "Report {id} asked for."
+state = "Report {id}: {state}"
+
+[report.opt]
+wait = "Wait for the end of the report."
+rubric = "Rows of a rubric."
+id = "Read an existing report."
+
+[request]
+help = "Request a flow: registered, or to review."
+
+[request.opt]
+source = "Source: KIND:REF (machine:app-recette-2)."
+destination = "Destination: KIND:REF (prefix:interne/203.0.113.0/28)."
+service = "Service."
+entity = "Entity (the application)."
+ref = "External reference SYSTEM:ID (repeatable)."
+justification = "Justification."
+end = "End of the flow."
+
+[review]
+help = "Review the request of a flow: --approve or --reject."
+decision = "Choose --approve or --reject."
+none = "The flow {flow} has no pending changeset."
+
+[review.opt]
+approve = "Approve, or reject (motive required)."
+
 [completion]
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
 

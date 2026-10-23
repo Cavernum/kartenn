@@ -10,9 +10,14 @@
   Options:
     -h, --help  Cette aide.
   
+  Parcours:
+    check   Verdict d'une communication source → destination pour un service.
+    matrix  Matrice environnements × types de flux.
+    report  Rapport d'audit de conformité (tâche de fond).
+  
   Ressources:
-    admissibility-conditions, axes, environments, exempt-roles, flow-types, inference-rules, matrix,
-    patterns, reports, risk-signals, rules, services, values, verdicts
+    admissibility-conditions, axes, environments, exempt-roles, flow-types, inference-rules, patterns,
+    risk-signals, rules, services, values
   
   '''
 # ---
@@ -27,11 +32,15 @@
   Options:
     -h, --help  Cette aide.
   
+  Parcours:
+    request  Demander un flux : enregistré, ou à instruire.
+    review   Instruire la demande d'un flux : --approve ou --reject.
+  
   Ressources:
     nonconformities
   
   Verbes:
-    close, create, edit, evaluations, get, history, list, properties, update, waive
+    close, edit, evaluations, get, history, list, properties, update, waive
   
   '''
 # ---

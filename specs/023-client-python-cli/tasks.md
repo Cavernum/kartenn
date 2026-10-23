@@ -605,13 +605,28 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     tri : problème de l'import, violation à `fichier:ligne`, consigne de reprise, code 6.
     `--resume ID` reprend l'import local de la source (empreinte vérifiée), et dit si
     l'identifiant diffère.
-- [ ] 22. Commandes nommées : `policy check` (`--exit-status`), `policy matrix show|set`,
+- [x] 22. Commandes nommées : `policy check` (`--exit-status`), `policy matrix show|set`,
   `policy report`, `flow request|review|waive`. Table `named.py` liée aux `operationId`,
   masquée si une opération manque. — REQ-023-20 — verify : maquette § 6 et 7 ; contrat
   sans `flow` → commandes absentes
   - où : `clients/python/kartenn-cli/src/kartenn_cli/named.py` ; design § Commandes
     nommées ; 017/design § Requête de conformité
   - dépend de : 20
+  - choix : table `NAMED` de `named.py` (module, nom, `operationId` requis, fabrique,
+    commandes dérivées remplacées) : `policy check` remplace `verdicts`, `policy matrix`
+    la ressource `matrix`, `policy report` `reports`, `flow request` le verbe `create` de
+    `flows` ; `flow waive` reste le verbe dérivé (action `waiver`). Une entrée dont une
+    opération manque n'est pas offerte et ne remplace rien. `check` : SOURCE et
+    DESTINATION passées telles quelles (`machine:bastion-1`), rendu par la synthèse
+    (verdict, issue, comptes), la règle décisive, les conditions non remplies, la
+    réduction et les adresses cachées ; `--exit-status` → 9 si `denied`. `matrix show` :
+    grille ✓ ✗ ◐ source × destination ; `matrix set` : `If-Match` de la matrice lue, corps
+    `{state, motive}` (forme du corps de `PolicyObject` non précisée par le contrat : à
+    confirmer au bout en bout). `report` : demande, `--wait` (relecture toutes les 2 s),
+    comptes par rubrique, `--rubric` pour ses lignes, `--id` pour un rapport existant.
+    `flow request` : extrémités `TYPE:RÉF` (référence résolue par la collection du type)
+    ou JSON, service et entité par clé, `--ref SYSTÈME:ID`. `flow review` :
+    approbation ou rejet du changeset en attente du flux (lu par `show_flow`).
 - [ ] 23. `kartenn api` : méthodes dont `QUERY`, `-f`, `--data @fichier|-`, `-H`,
   `--paginate` — REQ-023-19 — verify : maquette § 11
   - où : `clients/python/kartenn-cli/src/kartenn_cli/main.py`

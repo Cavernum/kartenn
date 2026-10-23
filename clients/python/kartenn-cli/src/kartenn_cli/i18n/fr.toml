@@ -251,6 +251,75 @@ resume = "Reprendre l'import ID : seuls les morceaux non confirmés partent."
 chunk = "Éléments par morceau (au plus la limite du serveur)."
 follow = "Suivre l'import jusqu'à son état final (par défaut)."
 
+[named]
+endpoint = "Extrémité « {given} » : TYPE:RÉF (machine:bastion-1, prefix:interne/198.51.100.0/24) ou un objet JSON."
+
+[check]
+help = "Verdict d'une communication source → destination pour un service."
+verdict = "Verdict"
+allowed = "autorisé"
+allowed_pending = "autorisé sous réserve"
+partial = "partiel"
+denied = "refusé"
+outcome = "issue {outcome}"
+evaluations = "Évaluations"
+counts = "{allowed} autorisée(s), {denied} refusée(s)"
+rule = "Règle      "
+conditions = "Conditions "
+service = "Service    "
+all_met = "toutes remplies"
+reduced = "Explication réduite : vos droits ne montrent pas tout."
+hidden = "{count} adresse(s) non montrée(s) (droits)."
+
+[check.opt]
+service = "Service (complétion depuis le serveur)."
+transport = "Transport (tcp, udp…)."
+port = "Port."
+flow_type = "Type de flux."
+entity = "Entité (l'application)."
+exit_status = "Code 9 si le verdict est « refusé »."
+
+[matrix]
+help = "Matrice environnements × types de flux."
+title = "Type de flux {flow_type} (lignes : source ; colonnes : destination)"
+outside = "{count} règle(s) hors de la vue."
+
+[matrix.show]
+help = "Afficher la matrice d'un type de flux."
+
+[matrix.set]
+help = "Fixer une cellule : SOURCE TYPE DESTINATION VALEUR (sous If-Match de la matrice)."
+
+[report]
+help = "Rapport d'audit de conformité (tâche de fond)."
+asked = "Rapport {id} demandé."
+state = "Rapport {id} : {state}"
+
+[report.opt]
+wait = "Attendre la fin du rapport."
+rubric = "Lignes d'une rubrique."
+id = "Lire un rapport existant."
+
+[request]
+help = "Demander un flux : enregistré, ou à instruire."
+
+[request.opt]
+source = "Source : TYPE:RÉF (machine:app-recette-2)."
+destination = "Destination : TYPE:RÉF (prefix:interne/203.0.113.0/28)."
+service = "Service."
+entity = "Entité (l'application)."
+ref = "Référence externe SYSTÈME:ID (répétable)."
+justification = "Justification."
+end = "Fin du flux."
+
+[review]
+help = "Instruire la demande d'un flux : --approve ou --reject."
+decision = "Choisissez --approve ou --reject."
+none = "Le flux {flow} n'a pas de changeset en attente."
+
+[review.opt]
+approve = "Approuver, ou rejeter (motif exigé)."
+
 [completion]
 help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."
 
