@@ -629,6 +629,12 @@ pub trait WriteTx {
         key: &str,
     ) -> impl Future<Output = Result<Option<Vec<String>>, StoreError>> + Send;
 
+    /// The labels of the role `key` in force now, if it exists (spec 018).
+    fn role_labels(
+        &mut self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
+
     /// The roles not delivered with kartenn, in force now, that hold one of `permissions`,
     /// by key (spec 018, REQ-018-4).
     fn custom_roles_citing(
@@ -1016,6 +1022,14 @@ pub trait WriteTx {
         &mut self,
         namespace: &str,
     ) -> impl Future<Output = Result<Vec<(Uuid, Declaration, Vec<String>)>, StoreError>> + Send;
+
+    /// The labels in force of the declarations of a namespace and of their closed-list
+    /// values (spec 018, R10): `<property>` or `<property>/<value>`, the labels, and
+    /// whether the system wrote the version (a synchronisation), not an administrator.
+    fn labels_in(
+        &mut self,
+        namespace: &str,
+    ) -> impl Future<Output = Result<Vec<(String, crate::operations::RawLabels, bool)>, StoreError>> + Send;
 
     /// Inserts a closed-list value (REQ-003-5, 7) with its labels (spec 018).
     fn insert_enum_value(

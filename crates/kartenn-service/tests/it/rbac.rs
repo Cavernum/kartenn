@@ -845,6 +845,41 @@ async fn the_delivered_roles_are_synchronised_once(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.role.builtin"]);
 }
 
+/// REQ-018-13: the delivered roles carry their French and English labels, written again
+/// by the synchronisation when they differ.
+#[kartenn_testing::pg_test]
+async fn builtin_roles_have_french_and_english_labels(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    let reader = || async {
+        sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT labels FROM role WHERE key = 'reader' AND valid_period @> now()",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+    assert_eq!(
+        reader().await,
+        serde_json::json!({"fr": "Lecteur", "en": "Reader"})
+    );
+    // A role of a former version, labelled in French only, is labelled again.
+    sqlx::query("UPDATE role SET labels = '{\"fr\": \"Lecteur\"}' WHERE key = 'reader'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let again = sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    assert!(matches!(again, Some(Outcome::Applied { .. })), "{again:?}");
+    assert_eq!(reader().await["en"], "Reader");
+    for role in kartenn_core::authz::BUILTIN_ROLES {
+        assert!(
+            !role.labels.fr.is_empty() && !role.labels.en.is_empty(),
+            "{}",
+            role.key
+        );
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn a_role_names_known_permissions_only(pool: PgPool) {
     let t = Tree::new(&pool).await;

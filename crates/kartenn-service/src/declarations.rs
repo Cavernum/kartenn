@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use kartenn_core::labels::Labels;
+use kartenn_core::labels::{Compiled, Labels};
 use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
 use kartenn_core::properties::{
@@ -621,12 +621,34 @@ pub struct ModuleDeclarations {
     pub version: String,
     /// Declarations, each with the keys of its closed-list values.
     pub properties: Vec<(Declaration, Vec<String>)>,
+    /// French and English labels of the declarations (by key) and of their values
+    /// (`<key>/<value>`) (spec 018, R10).
+    pub labels: BTreeMap<String, Compiled>,
+}
+
+/// The labels a synchronisation writes for an object whose code says `code`, given the
+/// labels in force and whether the system wrote them (R10): absent or the module's, the
+/// module's; an administrator's, kept as it is (completed, it would become the system's,
+/// which the next synchronisation would replace). `None`: no change.
+fn synced_labels(
+    code: Option<&Compiled>,
+    current: Option<&(RawLabels, bool)>,
+) -> Option<RawLabels> {
+    let wanted = code?.raw();
+    match current {
+        None => Some(wanted),
+        Some((labels, by_system)) if labels.is_empty() || *by_system => {
+            (*labels != wanted).then_some(wanted)
+        }
+        Some(_) => None,
+    }
 }
 
 /// Operations bringing the stored declarations of a module in line with its code.
 fn sync_operations(
     module: &ModuleDeclarations,
     stored: &[(Uuid, Declaration, Vec<String>)],
+    labels: &HashMap<String, (RawLabels, bool)>,
 ) -> Vec<Operation> {
     let by_key: HashMap<String, &(Uuid, Declaration, Vec<String>)> =
         stored.iter().map(|s| (s.1.key.to_string(), s)).collect();
@@ -634,12 +656,16 @@ fn sync_operations(
     let mut local = 0;
     for (declaration, values) in &module.properties {
         let key = declaration.key.to_string();
+        let relabelled = synced_labels(module.labels.get(&key), labels.get(&key));
         let (property, known): (Ref, &[String]) =
             if let Some((id, current, keys)) = by_key.get(&key) {
-                if current != declaration {
+                if current != declaration || relabelled.is_some() {
                     operations.push(Operation::UpdateProperty {
                         id: Ref::Id(*id),
-                        declaration: input(declaration),
+                        declaration: DeclarationInput {
+                            labels: relabelled,
+                            ..input(declaration)
+                        },
                     });
                 }
                 (Ref::Id(*id), keys)
@@ -647,17 +673,30 @@ fn sync_operations(
                 local += 1;
                 operations.push(Operation::DeclareProperty {
                     local: Some(local),
-                    declaration: input(declaration),
+                    declaration: DeclarationInput {
+                        labels: relabelled,
+                        ..input(declaration)
+                    },
                 });
                 (Ref::Local(local), &[])
             };
-        for value in values.iter().filter(|v| !known.contains(v)) {
-            operations.push(Operation::AddEnumValue {
-                local: None,
-                property,
-                key: value.clone(),
-                labels: RawLabels::new(),
-            });
+        for value in values {
+            let at = format!("{key}/{value}");
+            let relabelled = synced_labels(module.labels.get(&at), labels.get(&at));
+            if !known.contains(value) {
+                operations.push(Operation::AddEnumValue {
+                    local: None,
+                    property,
+                    key: value.clone(),
+                    labels: relabelled.unwrap_or_default(),
+                });
+            } else if let Some(labels) = relabelled {
+                operations.push(Operation::UpdateEnumValue {
+                    property,
+                    key: value.clone(),
+                    labels,
+                });
+            }
         }
     }
     let in_code: BTreeSet<String> = module
@@ -695,8 +734,14 @@ pub async fn sync_modules<S: Store, A: Authorizer>(
     for module in modules {
         let mut tx = store.begin().await?;
         let stored = tx.declarations_in(&module.module).await?;
+        let labels: HashMap<String, (RawLabels, bool)> = tx
+            .labels_in(&module.module)
+            .await?
+            .into_iter()
+            .map(|(key, labels, by_system)| (key, (labels, by_system)))
+            .collect();
         tx.rollback().await?;
-        let operations = sync_operations(module, &stored);
+        let operations = sync_operations(module, &stored, &labels);
         if operations.is_empty() {
             continue;
         }
@@ -803,5 +848,16 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                 Vec::new(),
             ),
         ],
+        labels: BTreeMap::from([
+            (
+                "core.owner".to_owned(),
+                Compiled::new("Entité propriétaire", "Owning entity"),
+            ),
+            (
+                EXTERNAL_SYSTEM.to_owned(),
+                Compiled::new("Système externe", "External system"),
+            ),
+            ("core.site".to_owned(), Compiled::new("Site", "Site")),
+        ]),
     }
 }

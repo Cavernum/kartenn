@@ -197,7 +197,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   l'interface ; données des parcours e2e en `labels`. Les migrations du noyau prennent
   0060 et 0061 (0059 est pris sur `main`).
 
-- [ ] 8. Libellés des modules et des rôles livrés : descripteurs avec `labels`,
+- [x] 8. Libellés des modules et des rôles livrés : descripteurs avec `labels`,
   `sync_modules` sans écraser un libellé d'administrateur, `BuiltinRole` FR/EN —
   REQ-018-11, 13 ; R10 — verify : `an_administrator_label_survives_the_module_sync`,
   `builtin_roles_have_french_and_english_labels`
@@ -205,6 +205,17 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   (`crates/kartenn-policy/src/module.rs`, propriétés déclarées) ;
   `crates/kartenn-core/src/authz.rs` (`BuiltinRole`, l. ~200)
   dépend de : 7
+  fait : `kartenn_core::labels::Compiled { fr, en }` (avec la langue par défaut de
+  l'instance, en anglais, quand ce n'est ni `fr` ni `en`, R9) ; `BuiltinRole.labels`,
+  `sync_roles` compare aussi les libellés (port `WriteTx::role_labels`) ;
+  `ModuleDeclarations.labels` (`<propriété>` ou `<propriété>/<valeur>`), renseigné pour
+  le noyau (`core.owner`, `core.external_system`, `core.site`), `vlan`, `machines` (dont
+  les rôles d'interface livrés) et `policy` (axes d'exemple et leurs valeurs) ;
+  `sync_modules` lit les libellés en vigueur et leur auteur (port `WriteTx::labels_in`,
+  auteur `système` ou non) : il écrit ceux du code s'ils manquent ou venaient du
+  système, jamais ceux d'un administrateur. Choix : un libellé d'administrateur n'est pas
+  complété des langues qui lui manquent (le compléter en ferait une version du système,
+  que la synchronisation suivante remplacerait).
 
 - [ ] 9. Libellés compilés FR/EN : descriptions des permissions, résumés des règles,
   titres des problèmes, sortes, états, natures et usages ; fonction `labels()` du

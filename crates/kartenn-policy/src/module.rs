@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::{Permission, TypePermissions};
+use kartenn_core::labels::Compiled;
 use kartenn_core::properties::{
     Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey, TypeSpec,
 };
@@ -79,6 +80,54 @@ pub(crate) const EXAMPLES: &[(&str, &[&str])] = &[
     ),
     ("policy.application", &[]),
     ("policy.owner", &[]),
+];
+
+/// The French and English labels of the declarations and values of the module (spec
+/// 018, R10): `<property>` or `<property>/<value>`.
+const LABELS: &[(&str, &str, &str)] = &[
+    (ENVIRONMENT, "Environnement", "Environment"),
+    (
+        DECLARED_ENVIRONMENT,
+        "Environnement déclaré",
+        "Declared environment",
+    ),
+    (PERSONAL_DATA, "Données personnelles", "Personal data"),
+    ("policy.exposure", "Exposition", "Exposure"),
+    ("policy.exposure/internet", "Internet", "Internet"),
+    ("policy.exposure/partenaires", "Partenaires", "Partners"),
+    ("policy.exposure/interne", "Interne", "Internal"),
+    (
+        "policy.exposure/administration",
+        "Administration",
+        "Administration",
+    ),
+    ("policy.sensitivity", "Sensibilité", "Sensitivity"),
+    ("policy.sensitivity/public", "Public", "Public"),
+    ("policy.sensitivity/interne", "Interne", "Internal"),
+    (
+        "policy.sensitivity/confidentiel",
+        "Confidentiel",
+        "Confidential",
+    ),
+    ("policy.sensitivity/restreint", "Restreint", "Restricted"),
+    ("policy.criticality", "Criticité", "Criticality"),
+    ("policy.criticality/standard", "Standard", "Standard"),
+    ("policy.criticality/importante", "Importante", "Important"),
+    ("policy.criticality/vitale", "Vitale", "Vital"),
+    ("policy.conduit_role", "Rôle de relais", "Conduit role"),
+    (
+        "policy.conduit_role/stockage-objets",
+        "Stockage d'objets",
+        "Object storage",
+    ),
+    (
+        "policy.conduit_role/passerelle-api",
+        "Passerelle d'API",
+        "API gateway",
+    ),
+    ("policy.conduit_role/bastion", "Bastion", "Bastion"),
+    ("policy.application", "Application", "Application"),
+    ("policy.owner", "Responsable", "Owner"),
 ];
 
 /// The indicator of personal data that goes with `policy.sensitivity` (REQ-010-29).
@@ -460,6 +509,10 @@ impl Module for Policy {
             module: "policy".into(),
             version: env!("CARGO_PKG_VERSION").into(),
             properties,
+            labels: LABELS
+                .iter()
+                .map(|(key, fr, en)| ((*key).to_owned(), Compiled::new(fr, en)))
+                .collect(),
         })
     }
     fn permissions(&self) -> &'static [&'static Permission] {

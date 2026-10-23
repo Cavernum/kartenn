@@ -163,6 +163,11 @@ impl Module for Vlan {
                 },
                 Vec::new(),
             )],
+            labels: [(
+                VLAN.to_owned(),
+                kartenn_core::labels::Compiled::new("VLAN", "VLAN"),
+            )]
+            .into(),
         })
     }
     fn permissions(&self) -> &'static [&'static Permission] {

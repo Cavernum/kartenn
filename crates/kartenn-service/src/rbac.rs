@@ -515,6 +515,7 @@ pub async fn sync_roles<S: crate::port::Store>(
     for role in BUILTIN_ROLES {
         let mut tx = store.begin().await?;
         let stored = tx.role_entries(role.key).await?;
+        let labels = tx.role_labels(role.key).await?;
         tx.rollback().await?;
         let mut wanted: Vec<String> = role
             .entries_with(&modules)
@@ -522,14 +523,13 @@ pub async fn sync_roles<S: crate::port::Store>(
             .map(str::to_owned)
             .collect();
         wanted.sort();
-        if stored.as_ref() != Some(&wanted) {
+        // Its French and English labels too (spec 018, REQ-018-13): a delivered role is
+        // changed by this synchronisation only (`core.role.builtin`).
+        let wanted_labels = role.labels.raw();
+        if stored.as_ref() != Some(&wanted) || labels.as_ref() != Some(&wanted_labels) {
             operations.push(Operation::SetRole {
                 key: role.key.to_owned(),
-                labels: [(
-                    kartenn_core::labels::FALLBACK_LOCALE.to_owned(),
-                    role.label.to_owned(),
-                )]
-                .into(),
+                labels: wanted_labels,
                 entries: wanted,
             });
         }

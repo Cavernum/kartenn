@@ -1029,6 +1029,19 @@ impl WriteTx for PgTx {
         crate::rbac_admin::role_entries(&mut self.tx, key).await
     }
 
+    async fn role_labels(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<kartenn_service::operations::RawLabels>, StoreError> {
+        let labels: Option<sqlx::types::Json<kartenn_service::operations::RawLabels>> =
+            sqlx::query_scalar("SELECT labels FROM role WHERE key = $1 AND valid_period @> now()")
+                .bind(key)
+                .fetch_optional(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        Ok(labels.map(|l| l.0))
+    }
+
     async fn custom_roles_citing(
         &mut self,
         permissions: &[&str],
@@ -2169,6 +2182,34 @@ impl WriteTx for PgTx {
             }
         }
         Ok(out)
+    }
+
+    async fn labels_in(
+        &mut self,
+        namespace: &str,
+    ) -> Result<Vec<(String, kartenn_service::operations::RawLabels, bool)>, StoreError> {
+        type Row = (
+            String,
+            sqlx::types::Json<kartenn_service::operations::RawLabels>,
+            bool,
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT d.key, d.labels, coalesce(c.author_id = $2, false)
+               FROM property_declaration d LEFT JOIN changeset c ON c.id = d.changeset_id
+              WHERE split_part(d.key, '.', 1) = $1 AND d.valid_period @> now()
+             UNION ALL
+             SELECT d.key || '/' || e.key, e.labels, coalesce(c.author_id = $2, false)
+               FROM property_enum_value e
+               JOIN property_declaration d ON d.id = e.property_id AND d.valid_period @> now()
+               LEFT JOIN changeset c ON c.id = e.changeset_id
+              WHERE split_part(d.key, '.', 1) = $1 AND e.valid_period @> now()",
+        )
+        .bind(namespace)
+        .bind(kartenn_service::declarations::SYSTEM_AUTHOR)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(rows.into_iter().map(|(k, l, s)| (k, l.0, s)).collect())
     }
 
     async fn declarations_in(

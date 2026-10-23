@@ -1377,6 +1377,7 @@ impl Module for Inventory {
                     vec!["public".into(), "secret".into()],
                 ),
             ],
+            labels: std::collections::BTreeMap::new(),
         })
     }
 }

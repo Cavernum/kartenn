@@ -425,6 +425,7 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
         module: "policy".into(),
         version: "1".into(),
         properties: Vec::new(),
+        labels: std::collections::BTreeMap::new(),
     };
     sync_modules(&f.store, &Unrestricted, &[module], MAX_OPERATIONS)
         .await

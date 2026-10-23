@@ -276,8 +276,8 @@ pub fn grants(entry: &str, permission: &str, sensitive: bool) -> bool {
 pub struct BuiltinRole {
     /// Stable key.
     pub key: &'static str,
-    /// Label.
-    pub label: &'static str,
+    /// Its labels in French and English (spec 018, REQ-018-13).
+    pub labels: crate::labels::Compiled,
     /// Its entries (permissions and patterns).
     pub entries: &'static [&'static str],
 }
@@ -294,7 +294,7 @@ const READS: [&str; 6] = [
 /// Reader: every read but sensitive values.
 pub static READER: BuiltinRole = BuiltinRole {
     key: "reader",
-    label: "Lecteur",
+    labels: crate::labels::Compiled::new("Lecteur", "Reader"),
     entries: &READS,
 };
 
@@ -302,7 +302,7 @@ pub static READER: BuiltinRole = BuiltinRole {
 /// properties.
 pub static EDITOR: BuiltinRole = BuiltinRole {
     key: "editor",
-    label: "Éditeur",
+    labels: crate::labels::Compiled::new("Éditeur", "Editor"),
     entries: &[
         "core.entity.read",
         "core.site.read",
@@ -323,7 +323,7 @@ pub static EDITOR: BuiltinRole = BuiltinRole {
 /// Approver: the reader's reads and the validation of pending changesets.
 pub static APPROVER: BuiltinRole = BuiltinRole {
     key: "approver",
-    label: "Approbateur",
+    labels: crate::labels::Compiled::new("Approbateur", "Approver"),
     entries: &[
         "core.entity.read",
         "core.site.read",
@@ -338,7 +338,7 @@ pub static APPROVER: BuiltinRole = BuiltinRole {
 /// Administrator: everything; the global-only permissions act on the global scope alone.
 pub static ADMINISTRATOR: BuiltinRole = BuiltinRole {
     key: "administrator",
-    label: "Administrateur",
+    labels: crate::labels::Compiled::new("Administrateur", "Administrator"),
     entries: &["*"],
 };
 
@@ -399,7 +399,7 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
             .map(|e| format!("`{e}`"))
             .collect::<Vec<_>>()
             .join(", ");
-        let _ = writeln!(out, "| {} | `{}` | {} |", r.label, r.key, entries);
+        let _ = writeln!(out, "| {} | `{}` | {} |", r.labels.fr, r.key, entries);
     }
     out.push_str(
         "\n## Anciens noms\n\n\

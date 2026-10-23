@@ -188,6 +188,56 @@ pub fn label_text(raw: &str) -> Result<String, Violation> {
     Ok(text)
 }
 
+/// The French and English labels compiled with a code of kartenn or of a module (spec
+/// 018, R8 b, R10): permissions, rules, problems, kinds, states, the delivered roles and
+/// the declarations of the modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Compiled {
+    /// In French.
+    pub fr: &'static str,
+    /// In English.
+    pub en: &'static str,
+}
+
+impl Compiled {
+    /// French and English.
+    #[must_use]
+    pub const fn new(fr: &'static str, en: &'static str) -> Self {
+        Self { fr, en }
+    }
+
+    /// The label in `locale`, by its primary language (`fr-ca` reads `fr`), if shipped.
+    #[must_use]
+    pub fn get(&self, locale: &Locale) -> Option<&'static str> {
+        match locale.as_str().split('-').next() {
+            Some("fr") => Some(self.fr),
+            Some("en") => Some(self.en),
+            _ => None,
+        }
+    }
+
+    /// As a table of labels.
+    #[must_use]
+    pub fn labels(&self) -> Labels {
+        Labels::from_pairs([("fr", self.fr), ("en", self.en)])
+    }
+
+    /// As a table of labels, as an operation receives it: French, English, and the
+    /// default language of the instance when it is another one, in English (every table
+    /// holds the default language, R9).
+    #[must_use]
+    pub fn raw(&self) -> BTreeMap<String, String> {
+        let mut raw: BTreeMap<String, String> = [
+            ("fr".to_owned(), self.fr.to_owned()),
+            ("en".to_owned(), self.en.to_owned()),
+        ]
+        .into();
+        raw.entry(default_locale().as_str().to_owned())
+            .or_insert_with(|| self.en.to_owned());
+        raw
+    }
+}
+
 /// The labels of an owning object by language (R8 a, Q-018-6): empty, or holding the
 /// default language of the instance.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
