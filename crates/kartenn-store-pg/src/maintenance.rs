@@ -113,7 +113,13 @@ pub async fn deploy(
     let roles =
         kartenn_service::rbac::sync_roles(&store, kartenn_service::pipeline::MAX_OPERATIONS)
             .await?;
-    for outcome in outcomes.into_iter().chain(roles) {
+    // The old permission names of the custom roles (spec 018, REQ-018-4; idempotent).
+    let renamed = kartenn_service::rbac::rename_permissions(
+        &store,
+        kartenn_service::pipeline::MAX_OPERATIONS,
+    )
+    .await?;
+    for outcome in outcomes.into_iter().chain(roles).chain(renamed) {
         if let kartenn_service::Outcome::Refused { violations, .. } = outcome {
             let reasons = violations
                 .iter()

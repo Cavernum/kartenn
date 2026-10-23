@@ -92,6 +92,34 @@ pub(crate) async fn role_entries(
     Ok(Some(entries))
 }
 
+/// See [`kartenn_service::WriteTx::custom_roles_citing`].
+pub(crate) async fn custom_roles_citing(
+    conn: &mut PgConnection,
+    permissions: &[&str],
+) -> Result<Vec<kartenn_service::rbac::StoredRole>, StoreError> {
+    let rows: Vec<(String, String, Vec<String>)> = sqlx::query_as(
+        "SELECT r.key, r.label, array_agg(p.permission ORDER BY p.permission)
+         FROM role r
+         JOIN role_permission p ON p.role_id = r.id AND p.valid_period @> now()
+         WHERE r.valid_period @> now() AND NOT r.builtin
+         GROUP BY r.key, r.label
+         HAVING bool_or(p.permission = ANY($1))
+         ORDER BY r.key",
+    )
+    .bind(permissions)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    Ok(rows
+        .into_iter()
+        .map(|(key, label, entries)| kartenn_service::rbac::StoredRole {
+            key,
+            label,
+            entries,
+        })
+        .collect())
+}
+
 /// See [`kartenn_service::WriteTx::binding_scope`].
 pub(crate) async fn binding_scope(
     conn: &mut PgConnection,

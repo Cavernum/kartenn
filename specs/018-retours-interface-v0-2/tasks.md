@@ -75,7 +75,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   change ici, avec `openapi-v1.json` et `schema.d.ts` régénérés, pour garder le test de
   contrat vert.
 
-- [ ] 3. Migration des rôles personnalisés : étape `rename_permissions` du job de
+- [x] 3. Migration des rôles personnalisés : étape `rename_permissions` du job de
   migration, changeset `système`, motif `permission rename 018`, idempotente —
   REQ-018-4, 5 ; Q-018-3 — verify : `custom_roles_take_the_new_names_once` (liaisons et
   droits identiques, second passage sans changeset),
@@ -85,6 +85,14 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   écriture des rôles `crates/kartenn-store-pg/src/rbac_admin.rs` (l. 85, 148-170) ;
   tests à imiter `crates/kartenn-service/tests/it/rbac.rs`
   dépend de : 2
+  fait : `kartenn_service::rbac::rename_permissions` (modelée sur `sync_roles`, motif
+  `RENAME_MOTIVE`), appelée par `maintenance::deploy` après `sync_roles` ; lecture par
+  le nouveau port `WriteTx::custom_roles_citing` (rôles non livrés en vigueur qui citent
+  un ancien nom, `rbac_admin.rs`). Un seul changeset pour tous les rôles concernés,
+  borné par `MAX_OPERATIONS` comme `sync_roles`. Tests dans
+  `kartenn-service/tests/it/rbac.rs` : droits identiques sous le nouveau nom, ancien nom
+  plus accordé, audit par rôle, second passage nul ; lecture datée et historique gardent
+  l'ancien nom.
 
 - [ ] 4. Clients et docs du renommage : manifestes `web/plugins/{vlan,machines}`,
   description de `waive_flow` (`openapi.rs`, `openapi-v1.json`, `schema.d.ts` régénéré),
