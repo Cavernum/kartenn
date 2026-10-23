@@ -351,12 +351,29 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     tentative du transport : le suivi gère ses propres attentes. Codé contre le
     contrat de la 022 (capacité `events`, `GET /v1/events`), pas encore servi : testé sur
     flux simulés.
-- [ ] 15. Stubs : `python -m kartenn stubs generate` (`TypedDict`, `Literal`,
+- [x] 15. Stubs : `python -m kartenn stubs generate` (`TypedDict`, `Literal`,
   `Protocol`, surcharge de `Client.__getattr__`) — REQ-023-17 — verify : pyright signale
   un membre inconnu dans un script d'exemple ; les stubs ne sont jamais importés à
   l'exécution
   - où : `clients/python/kartenn/src/kartenn/stubs.py`, `__main__.py`
   - dépend de : 10
+  - choix : source du catalogue au choix (`--profile`, `--url`, ou `--contract`
+    hors ligne avec `--capabilities` facultatif) ; sortie `--out typings` par défaut,
+    paquet `kartenn_server/__init__.pyi`. `TypedDict` en syntaxe fonctionnelle (membres
+    qui ne sont pas des identifiants, `allOf` fusionné), `NotRequired` hors `required` ;
+    énumérations et autres schémas en `TypeAlias` ; `typing`, `kartenn` et
+    `kartenn.resources` importés sous alias (`_t`, `_k`, `_r`) pour ne heurter aucun nom
+    de schéma ; noms invalides préfixés ou suffixés de `_`. Protocole par ressource :
+    `list` aux filtres typés (énumérations en `Literal`), `create` et `update` aux
+    membres en `**members: Unpack[…]` (membres réservés exclus), sous-ressources et
+    actions par leur nom en `snake_case`. `Client` du stub : une propriété par
+    ressource, `resource()` surchargé par nom littéral, `__getattr__(Never)` pour qu'un
+    nom inconnu soit une erreur ; ces surcharges plus étroites que `kartenn.Client` sont
+    voulues (`# pyright: ignore[reportIncompatibleMethodOverride]`). Usage :
+    `cast("kartenn_server.Client", kartenn.Client(...))` sous `TYPE_CHECKING`. Test :
+    pyright de devenv (sauté sans lui) signale `nmae` et `prefixess` dans un script
+    d'exemple, rien dans le bon ; le script tourne sans que `kartenn_server` soit
+    importé.
 
 ## Flux C — CLI `kartenn-cli`
 
