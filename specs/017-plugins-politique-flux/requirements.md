@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-22
+updated: 2026-10-23
 ---
 
 # 017 — Plugins Politique et Flux : exigences
@@ -8,8 +8,8 @@ updated: 2026-10-22
 ## Résumé
 
 Écrans des modules Politique (010) et Flux (011), livrés comme deux plugins de première
-partie du shell (007/W6) : `web/plugins/policy/` pour l'équipe sécurité qui écrit et
-éprouve la politique, `web/plugins/flow/` pour le demandeur qui dépose un flux et pour
+partie du shell (007/W6) : `web/v2/plugins/policy/` pour l'équipe sécurité qui écrit et
+éprouve la politique, `web/v2/plugins/flow/` pour le demandeur qui dépose un flux et pour
 l'instructeur qui le tranche. Ils s'appuient sur la surface REST servie au 2026-10-22
 et sur trois amendements de module décidés avec eux : `If-Match` de la matrice
 (010/S35), demandes en attente lues comme des flux (011/F19), prolongation instruite
@@ -21,8 +21,9 @@ l'utilisateur (U14).
 sur le système de design de la [020](../020-systeme-de-design/requirements.md) et le shell
 v2 de la [021](../021-shell-v2/requirements.md) : Vue 3 et `@kartenn/ui` par l'import
 map, DOM léger, maquettes au catalogue avec les vrais composants (U2 et U14 remplacées ;
-[`decisions.md`](decisions.md), § « Amendement — socle 020 et 021 »). Les mentions de
-Custom Elements « sans framework » ci-dessous se lisent avec cet amendement.
+[`decisions.md`](decisions.md), § « Amendement — socle 020 et 021 »). La matrice écrit par
+le brouillon du shell (plus d'ensemble propre au plugin), les deux files d'instruction
+sont liées, chaque plugin apporte une tuile à l'Accueil.
 
 Décisions : [`decisions.md`](decisions.md) (U1–U14, Q-017-1 à 7) ; 007/W4 à W14 ; 010/S15, S28, S29,
 S31, S33, N36 ; 011/F5, F6, F10, F12, F17. Exigences servies : REQ-010 et REQ-011
@@ -41,8 +42,9 @@ et `machines` (009, tâche 13).
 - **Lecteur des flux** : utilisateur qui détient `flow.flow.read` sur l'entité.
 - **Requête de conformité** : `QUERY /v1/verdicts` (ou `GET` à paramètres), sans
   écriture (REQ-010-38).
-- **Ensemble en préparation** : changements de politique composés dans le plugin avant
-  leur soumission en un seul changeset (Q-017-1, option A).
+- **Brouillon** : celui du shell (021) ; les changements de politique y sont ajoutés
+  (`policy.matrix.set` avec `if_match`, opérations des collections), simulés, puis
+  soumis en un seul changeset avec un motif (Q-017-1 amendée, 021/X36).
 - **Explication réduite** : réponse `access: reduced` d'un verdict, ou évaluation de flux
   dont les adresses et l'élément décisif sont `null` (REQ-010-25).
 - Conventions EARS : comme dans
@@ -71,12 +73,13 @@ n'importe rien du plugin `policy`. [U1, REQ-007-11, REQ-011-18]
 
 Acceptation :
 - Build avec `policy` sans `flow` : `policy` publié, `flow` absent.
-- Le bundle de `flow` ne contient aucun module de `web/plugins/policy/`.
+- Le bundle de `flow` ne contient aucun module de `web/v2/plugins/policy/`.
 
 #### REQ-017-3 — Forme et langue
-Les deux plugins doivent être écrits avec le seul SDK public, livrer leurs catalogues FR
-et EN avec les mêmes clés, et traduire les erreurs de l'API par leur `type`. [U2, U6,
-REQ-007-12, 29]
+Les deux plugins doivent être écrits en Vue 3 avec `@kartenn/ui` et le SDK 1.0 publics,
+partagés par l'import map, rendre en DOM léger, livrer leurs catalogues FR et EN avec les
+mêmes clés, et traduire les erreurs de l'API par leur `type`, codes visibles. [U2
+amendée, U6, REQ-021-25 à 27, REQ-007-29]
 
 Acceptation :
 - Un test compare les clés FR et EN de chaque plugin.
@@ -123,31 +126,32 @@ Acceptation :
 
 #### REQ-017-7 — Écrire la matrice
 Quand le responsable sécurité change l'état d'une cellule, le plugin doit exiger les
-motifs d'une cellule `conditional` et le texte d'une cellule `deny`, ajouter le
-changement à l'ensemble en préparation, et soumettre l'ensemble par
-`PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` (un appel par cellule, sous
-`If-Match` de la matrice lue) ou par un changeset composé dont chaque opération
-`policy.matrix.set` porte cet ETag (`if_match`) ; une réponse 202 doit mener au
-changeset en attente ; un 412 ou un refus `policy.matrix.stale` doit relire la matrice
-en gardant l'ensemble en préparation. [REQ-010-34, 20, U9 ; Q-017-1, Q-017-7 ;
-010/S35]
+motifs d'une cellule `conditional` et le texte d'une cellule `deny`, et ajouter le
+changement au **brouillon du shell** comme opération `policy.matrix.set` portant l'ETag
+de la matrice lue (`if_match`), soumise avec le brouillon ; Ctrl+Entrée applique une seule
+cellule par `PUT /v1/policy-matrix/{source}/{flow_type}/{destination}` sous `If-Match`,
+motif demandé ; une réponse 202 doit mener au changeset en attente ; un 412 ou un refus
+`policy.matrix.stale` doit relire la matrice en gardant le brouillon. [REQ-010-34, 20,
+U9 ; Q-017-1 amendée, Q-017-7 ; 010/S35 ; 021/X15, X36]
 
 Acceptation :
 - Écrire `(prod, file, global)` en `conditional` avec le motif `object-storage-relay` :
   relue, la cellule rend `conditional` et son motif.
 - `none` sur une cellule existante clôt sa règle ; la cellule redevient vide.
 - Une autre cellule du même type de flux écrite entre la lecture et l'envoi : 412 (ou
-  `policy.matrix.stale`), la matrice relue, l'ensemble en préparation intact et
-  resoumis sur le nouvel ETag.
+  `policy.matrix.stale`), la matrice relue, le brouillon intact et resoumis sur le
+  nouvel ETag.
 
 #### REQ-017-8 — Différentiel avant soumission
-Avant de soumettre un ensemble en préparation, le plugin `policy` doit le simuler
-(`POST /v1/changesets?simulate=true`) et montrer : le décompte des combinaisons qui
+Tant que le brouillon du shell contient des changements de politique, le plugin `policy`
+doit montrer en pied de matrice, à partir de la dernière simulation du brouillon
+(`POST /v1/changesets?simulate=true`, lancée par le shell), et le panneau du brouillon
+doit montrer aussi : le décompte des combinaisons qui
 s'ouvrent, se ferment ou passent sous réserve (`policy.combinations`) avec leurs
 premières lignes et l'élément décisif avant et après ; les nœuds reclassés et leur nombre
 d'héritiers (`policy.reclassified`) ; et, où le module `flow` est présent, les flux
 déclarés qui cassent, guérissent ou changent d'issue (`flow.flows`). [REQ-010-18, 19,
-REQ-011-13, UC-7 ; Q-017-1]
+REQ-011-13, UC-7 ; Q-017-1 amendée, 021/X36]
 
 Acceptation :
 - Ajouter `allow admin global → dev` avec 3 services `admin` : la simulation annonce 3
@@ -199,7 +203,7 @@ paramètres, poids) et les rôles exemptés (création et clôture), sous
 Acceptation :
 - Condition sans texte pédagogique : envoi refusé côté client ; forcé,
   `policy.text.missing` placé sur le champ.
-- Modifier le poids d'un signal : la simulation de l'ensemble annonce les flux dont le
+- Modifier le poids d'un signal (ajouté au brouillon) : la simulation du brouillon annonce les flux dont le
   score change (section `flow.flows`, si `flow` est actif).
 
 #### REQ-017-32 — Règles d'inférence
@@ -233,9 +237,8 @@ Avant d'écrire une règle d'inférence, le plugin `policy` doit montrer les nœ
 lui correspondraient et les écarts qu'elle ouvrirait ou fermerait. [REQ-010-48, 49 ;
 Q-017-5]
 
-Condition : aucune route ne sert cet aperçu au 2026-10-22 ; l'exigence attend un
-amendement de la 010 **à rédiger** (section de différentiel ou simulation de
-l'inférence), avant lequel elle n'est pas implémentée (U13).
+Route : celle de l'amendement 010/S36 (accepté le 2026-10-23), servie par la tâche
+021-31, sans écriture.
 
 Acceptation :
 - Règle `prod` sur un préfixe de 12 nœuds dont 3 déclarés `dev` : aperçu de 12 nœuds et
@@ -282,7 +285,8 @@ Acceptation :
 
 #### REQ-017-14 — Rapport d'audit
 Le plugin `policy` doit permettre au responsable sécurité de demander un rapport daté
-(`POST /v1/policy-reports`), d'en suivre l'état (`pending`, `running`, `done`), d'en
+(`POST /v1/policy-reports`), de lister les rapports (`GET /v1/policy-reports`, tâche
+021-30), d'en suivre l'état (`pending`, `running`, `done`), d'en
 afficher le décompte par rubrique et le détail paginé (`…/items?rubric=`), et de
 l'exporter en JSON ; un 409 (rapport en cours) doit mener au rapport en cours.
 [REQ-010-22, 23]
@@ -351,7 +355,9 @@ Acceptation :
 #### REQ-017-19 — Onglet « Flux »
 Le plugin `flow` doit ajouter aux fiches `address` et `prefix` un onglet « Flux » qui
 liste les flux dont l'objet est extrémité ou dont une extrémité le contient
-(`GET /v1/{addresses,prefixes}/{id}/flows`). [REQ-011-15, U3]
+(`GET /v1/{addresses,prefixes}/{id}/flows`), et aux fiches de machine et d'interface
+(types de module) un onglet « Flux » par les filtres `machine=` et `endpoint=interface:`.
+[REQ-011-15, U3, 021/X40]
 
 Acceptation :
 - Un flux vers `10.5.0.0/24` apparaît dans l'onglet de l'adresse `10.5.0.7`.
@@ -363,8 +369,10 @@ Le plugin `flow` doit lister à l'instructeur les demandes et prolongations en a
 qu'il peut instruire (`GET /v1/flows?review=pending`, 011/F19), avec nature (demande ou
 prolongation), demandeur, entité, extrémités, service, issue, élément décisif, score et
 avertissements de l'évaluation du triage, sans recalcul ni lecture par changeset, et ne
-pas lui offrir d'instruire ses propres demandes ou prolongations. [REQ-011-5, 21, 22,
-UC-3 ; Q-017-3]
+pas lui offrir d'instruire ses propres demandes ou prolongations ; sur les lignes
+d'« À instruire » du shell issues d'une demande ou d'une prolongation, il doit apporter
+l'action « Instruire dans Flux » (type `changeset`), qui remplace « Valider » et ouvre
+la fiche d'instruction. [REQ-011-5, 21, 22, UC-3 ; Q-017-3 ; 021/X37]
 
 Acceptation :
 - Une demande de l'instructeur lui-même figure sans bouton de décision.
@@ -461,13 +469,22 @@ Acceptation :
 - Les deux parcours passent dans `k-web-e2e`, axe-core à chaque étape.
 
 #### REQ-017-29 — Budgets
-Les deux plugins doivent tenir les budgets de REQ-007-32 : matrice de 50 × 50
-environnements et page de 100 flux rendues en moins de 100 ms après la réponse de l'API.
-[REQ-007-32, W13]
+Les deux plugins doivent tenir les budgets de REQ-021-30 (dont ≤ 50 Ko gzip par plugin
+hors modules partagés, INP ≤ 200 ms) : matrice de 50 × 50 environnements et page de 100
+flux rendues en moins de 100 ms après la réponse de l'API. [REQ-021-30]
 
 Acceptation :
-- Mesure ajoutée au banc `bench-web` (007, tâche 24) quand il existera ; d'ici là, test
-  Vitest de rendu d'une matrice de 2 500 cellules sous 100 ms (indicatif).
+- Mesures dans `bench-web` (021, tâche 22).
+
+#### REQ-017-35 — Tuiles de l'Accueil
+Chaque plugin doit apporter au plus une tuile en lecture seule à l'Accueil du shell
+(point `widget`) : `policy`, écarts d'inférence ouverts et dernier rapport d'audit ;
+`flow`, demandes à instruire, échéances à 7 jours, demandes en attente de l'utilisateur ;
+filtrées par les droits de la vue liée, relues par le flux d'événements. [021/X38]
+
+Acceptation :
+- Un demandeur sans `flow.flow.review` ne voit pas la ligne « à instruire » ; un
+  utilisateur sans `policy.catalogue.read` ne voit pas la tuile `policy`.
 
 ## Traçabilité vers la 010 et la 011
 
@@ -483,7 +500,7 @@ Acceptation :
 | REQ-010-26 (versionnement, lecture datée) | 4, 26 |
 | REQ-010-26, 29, 30, 36, 37 (axes, valeurs, conditions, signaux, rôles exemptés) | 30, 31 |
 | REQ-010-34 (vue matricielle) | 6, 7 |
-| REQ-010-40 à 51 (inférence) | 32, 33, 34 (34 après un amendement de la 010) |
+| REQ-010-40 à 51 (inférence) | 32, 33, 34 (34 par l'amendement 010/S36) |
 | REQ-011-1, 2 (contenu, extrémités) | 15 |
 | REQ-011-4 (modification, prolongation) | 23, 25 |
 | REQ-011-5, 14, 15 (état, demandes en attente, filtres, flux d'un objet) | 17, 19, 20 |
@@ -502,11 +519,10 @@ REQ-010-28, 52, 54, REQ-011-19 (valeur par défaut d'inférence, budgets serveur
 
 ## Non-objectifs
 
-- Toute route nouvelle ou tout changement de contrat hors des amendements 010/S35,
-  011/F19 et F20 (U13) ; l'aperçu d'une règle d'inférence (REQ-017-34) attend un
-  amendement de la 010 à rédiger.
-- Rendu générique des sections de module dans le shell (Q-017-1, option B : amendement
-  de la 007).
+- Toute route nouvelle ou tout changement de contrat hors des amendements 010/S35, S36,
+  011/F19, F20 (U13) et des tâches serveur de la 021 (021-28 à 31).
+- Le rendu des sections de module dans le panneau du brouillon : fourni par le shell
+  (021/X36).
 - Fiches shell des objets de module (machine, interface, objets de politique) (U3).
 - Classification des nœuds : faite par le panneau des propriétés du shell (003, 007).
 - Notifications d'échéance : événements sortants du serveur (U11).
@@ -519,5 +535,5 @@ REQ-010-28, 52, 54, REQ-011-19 (valeur par défaut d'inférence, budgets serveur
 - [x] Écart de la 011 relevé en rédigeant (Q-017-3) : REQ-011-5 promettait l'état
   `requested`, que la lecture des flux ne rendait pas ; corrigé par 011/F19 (tâche
   011-12).
-- [ ] Amendement de la 010 pour l'aperçu d'une règle d'inférence (REQ-017-34) : à
-  rédiger avant la tâche qui l'implémente. (Claude, à proposer à l'utilisateur)
+- [x] Amendement de la 010 pour l'aperçu d'une règle d'inférence (REQ-017-34) : 010/S36,
+  accepté le 2026-10-23 ; servi par la tâche 021-31.

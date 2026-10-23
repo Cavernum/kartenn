@@ -173,6 +173,8 @@ Renvois : 010/requirements.md, « Non-objectifs » (« plugin de première parti
   un amendement de module **à rédiger**, nommé dans sa ligne `dépend de :` (aperçu
   d'une règle d'inférence, Q-017-5) ; aucune route n'est inventée par la 017.
 - Décidé par (amendement) : l'utilisateur (2026-10-22)
+- Amendé le 2026-10-23 : l'aperçu d'une règle d'inférence a sa route (010/S36, accepté),
+  servie par la tâche 021-31 ; les tâches serveur 021-28 à 31 complètent le contrat.
 
 ## U14 — Maquettes avant le développement web
 *Remplacée le 2026-10-23 pour la forme des maquettes (§ « Amendement — socle 020 et 021 ») ;
@@ -225,6 +227,8 @@ Chaque question porte ses options, la recommandation de Claude et la décision d
 l'utilisateur.
 
 ### Q-017-1 — Où montrer le différentiel d'un changement de politique
+*Remplacée le 2026-10-23 : les changements vont au brouillon du shell, l'effet simulé est
+montré en pied de matrice et dans le panneau du brouillon (§ « Amendement », 021/X36).*
 - Constat : la simulation (`POST /v1/changesets?simulate=true`) rend les sections de
   module (`policy.combinations`, `policy.reclassified`, `flow.flows`) avec leurs
   premières lignes, et `GET /v1/changesets/{id}/diff?section=` les pagine ; le brouillon
@@ -316,7 +320,8 @@ l'utilisateur.
   les fiches `address` et `prefix`, vue des écarts). L'aperçu de l'effet d'une règle
   d'inférence avant écriture (nœuds qui correspondraient, écarts ouverts ou fermés) n'a
   pas de route : il reste une tâche, bloquée sur un amendement de la 010 à rédiger
-  (section de différentiel ou simulation de l'inférence).
+  (section de différentiel ou simulation de l'inférence). *Levé le 2026-10-23 :
+  amendement 010/S36 accepté, route servie par la tâche 021-31.*
 - Décidé par : l'utilisateur (2026-10-22) ; constat des routes servies : Claude
 
 ### Q-017-6 — Flux d'une machine ou d'une interface
