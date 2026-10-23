@@ -11,9 +11,10 @@
     -h, --help  Cette aide.
   
   Parcours:
-    check   Verdict d'une communication source → destination pour un service.
-    matrix  Matrice environnements × types de flux.
-    report  Rapport d'audit de conformité (tâche de fond).
+    check    Verdict d'une communication source → destination pour un service.
+    matrix   Matrice environnements × types de flux.
+    report   Rapport d'audit de conformité (tâche de fond).
+    reports  Rapports d'audit demandés, les plus récents d'abord.
   
   Ressources:
     admissibility-conditions, axes, environments, exempt-roles, flow-types, inference-rules, patterns,

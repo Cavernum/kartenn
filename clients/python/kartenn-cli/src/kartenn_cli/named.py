@@ -261,6 +261,23 @@ def _matrix(catalog: Catalog) -> click.Command:
 # policy report ------------------------------------------------------------------------
 
 
+def _reports(catalog: Catalog) -> click.Command:
+    """`policy reports`: the list of the reports (021-30), as a derived `list`: the
+    filters of the contract, the pages, the outputs."""
+    from kartenn_cli.reads import ListCommand  # noqa: PLC0415
+
+    class Reports(ListCommand):
+        def get_short_help_str(self, limit: int = 45) -> str:  # noqa: ARG002
+            return "report.list"
+
+    return Reports(
+        "reports",
+        resource=catalog.resource("policy-reports"),
+        operation=catalog.operation("list_policy_reports"),
+        catalog=catalog,
+    )
+
+
 def _report(catalog: Catalog) -> click.Command:
     del catalog
 
@@ -456,6 +473,7 @@ NAMED: tuple[NamedCommand, ...] = (
         _report,
         replaces=("reports",),
     ),
+    NamedCommand("policy", "reports", ("list_policy_reports",), _reports),
     NamedCommand("flow", "request", ("request_flow",), _request, replaces=("create",)),
     NamedCommand(
         "flow", "review", ("show_flow", "validate_changeset", "reject_changeset"), _review

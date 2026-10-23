@@ -305,7 +305,7 @@ de vérification de types.
 | `prefixes`, `domains`, `addresses`… | noyau | `kartenn prefixes …` |
 | `policy-rules`, `policy-axes`, `policy-values`, `policy-patterns`, `policy-exempt-roles` | policy | `kartenn policy rules|axes|values|patterns|exempt-roles …` |
 | `services`, `environments`, `flow-types`, `inference-rules`, `risk-signals`, `admissibility-conditions` | policy | `kartenn policy services|environments|flow-types|…` |
-| `policy-matrix`, `verdicts`, `policy-reports` | policy | `kartenn policy matrix`, `kartenn policy check`, `kartenn policy report` (nommées) |
+| `policy-matrix`, `verdicts`, `policy-reports` | policy | `kartenn policy matrix`, `kartenn policy check`, `kartenn policy report`, `kartenn policy reports` (nommées) |
 | `flows`, `flow-nonconformities` | flow | `kartenn flow list|get|request|review|waive|close`, `kartenn flow nonconformities` |
 | `vlans`, `vlan-groups` | vlan | `kartenn vlan list|get|…`, `kartenn vlan groups …` |
 | `machines`, `interfaces`, `clusters` | machines | `kartenn machines list|…`, `kartenn machines interfaces …`, `kartenn machines clusters …` |
@@ -323,6 +323,7 @@ collections ne se traduisent pas.
 | `policy matrix show [--environment e]` | `show_policy_matrix` | grille source × destination par type de flux |
 | `policy matrix set SRC TYPE DST VALEUR` | `set_policy_matrix_cell` (`If-Match`, 010/S35) | différentiel de la simulation si `--dry-run` |
 | `policy report [--wait]` | `request_policy_report`, `show_policy_report`, `policy_report_items` | avancement, puis lignes |
+| `policy reports [--state …] [--requested-by …] [--from …] [--to …]` | `list_policy_reports` (021-30) | la liste des rapports, comme un `list` dérivé : filtres du contrat, pages, sorties |
 | `flow request` | `request_flow` | triage : enregistré, ou à instruire avec le lien |
 | `flow review ID --approve/--reject` | actions de proposition (004) sur le changeset du flux | — |
 | `flow waive ID` | `waive_flow` | dérogation datée |

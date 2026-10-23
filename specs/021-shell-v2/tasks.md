@@ -163,8 +163,8 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     filtres `state` (répété : un parmi), `requested_by`, `from`, `to` (date de demande) ;
     `policy.rule.admin` global sinon 404, comme un rapport ; élément de la forme de
     `GET /v1/policy-reports/{id}` ; `x-kartenn` (colonnes) sur la collection. CLI :
-    l'opération est exclue de la couverture (`kartenn api`), `policy report` en tient
-    lieu ; une option de liste reste à ajouter si le besoin vient.
+    commande nommée `kartenn policy reports` (un `list` dérivé de l'opération : filtres
+    du contrat, pages, sorties ; 023 design « Commandes nommées »).
 - [x] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
   l'amendement, sans écriture ; débloque la tâche 017-15 — REQ-021-35 — verify : tests
   de l'amendement S36

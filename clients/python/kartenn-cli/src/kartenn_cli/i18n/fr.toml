@@ -301,6 +301,7 @@ help = "Fixer une cellule : SOURCE TYPE DESTINATION VALEUR (sous If-Match de la 
 
 [report]
 help = "Rapport d'audit de conformité (tâche de fond)."
+list = "Rapports d'audit demandés, les plus récents d'abord."
 asked = "Rapport {id} demandé."
 state = "Rapport {id} : {state}"
 
