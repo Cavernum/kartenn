@@ -36,6 +36,7 @@ __all__ = ["KartennGroup", "cli", "main"]
 STATIC: dict[str, tuple[str, str, str]] = {
     "config": ("kartenn_cli.config", "config_group", "tools"),
     "completion": ("kartenn_cli.complete", "completion_command", "tools"),
+    "changeset": ("kartenn_cli.changeset", "changeset_group", "writes"),
 }
 # Static commands shown with their help in the root help; the others by name only.
 STATIC_DESCRIBED = frozenset({"api", "changeset", "import"})
@@ -117,7 +118,10 @@ class KartennGroup(TGroup):
         except _handled() as error:
             if "_tree_failed" not in found.__dict__:
                 found.__dict__["_tree_failed"] = True
-                click.echo(t("discovery.failed", error=getattr(error, "code", error)), err=True)
+                code = getattr(error, "code", error)
+                click.echo(t("discovery.failed", error=code), err=True)
+                if code in {"client.login-required", "unauthenticated", "client.secret-required"}:
+                    click.echo(t("discovery.login"), err=True)
             return None
 
     def list_commands(self, ctx: click.Context) -> list[str]:

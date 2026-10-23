@@ -28,11 +28,13 @@ filters = "Filtres"
 dates = "Dates"
 output = "Sortie"
 write = "Écriture"
+members = "Membres"
 
 [metavar]
 name = "NOM"
 file = "FICHIER"
 prop = "CLÉ[:OP]=VALEUR"
+assignment = "CHEMIN=VALEUR"
 
 [opt]
 help = "Cette aide."
@@ -54,6 +56,15 @@ prop = "Propriété : =, :between=a..b, :exists=true|false (répétable)."
 all = "Toutes les pages, lues et écrites au fil de l'eau."
 page_size = "Taille d'une page (1 à 1 000)."
 cursor = "Page suivante, de « suite : --cursor … » ; elle fige filtres et dates."
+set = "Membre : chemin=valeur (JSON si lisible : 140, true, {…}) ; répétable."
+from_file = "Document JSON ou YAML (- : entrée standard)."
+motive = "Motif de l'écriture."
+valid_from = "Début de la période de l'écriture (maintenant par défaut)."
+valid_to = "Fin de la période (illimitée par défaut)."
+on_behalf_of = "Écrire pour le compte d'une identité (Kartenn-On-Behalf-Of)."
+dry_run = "Simuler le changeset : rien n'est écrit (code 8 s'il serait refusé)."
+into_changeset = "Ajouter l'écriture au changeset local (kartenn changeset new)."
+require_applied = "Code 10 si l'écriture attend une approbation."
 
 [config]
 help = "Profils de configuration (sans aucun secret)."
@@ -109,6 +120,7 @@ cached = "Découverte du serveur… {version}, modules : {modules} (catalogue en
 updated = "Découverte du serveur… {version}{previous}, modules : {modules} (catalogue mis à jour)."
 before = " (avant {version})"
 failed = "Catalogue indisponible ({error}) : seules les commandes locales sont listées."
+login = "Connectez-vous pour découvrir le serveur : kartenn login (ou KARTENN_TOKEN)."
 
 [error]
 word = "erreur"
@@ -129,6 +141,95 @@ unauthenticated = "Reconnectez-vous : kartenn login"
 
 [render]
 masked = "‹masquée›"
+
+[write]
+document = "{path} n'est pas un document (un objet JSON ou YAML)."
+assignment = "--set attend chemin=valeur : {given}"
+no_operation = "« {resource} {verb} » n'a pas d'opération de changeset connue : --dry-run et --into-changeset ne s'y appliquent pas (kartenn changeset add avec l'opération explicite)."
+applied = "Changeset {id} appliqué."
+location = "Créé : {location}"
+pending = "Écriture en attente ({kind}) : changeset {id}."
+follow = "  Suivre : kartenn changeset show {id}"
+motive_required = "Cette écriture exige --motive (le serveur répondrait motive-required)."
+motive = "Motif ?"
+
+[simulation]
+head = "Simulation — rien n'est écrit"
+motive = "simulation"
+from = " (valide à partir du {date})"
+counts = "Opérations  {operations}   Violations  {violations}   Avertissements  {warnings}"
+diff = "Différentiel"
+nothing = "aucun changement"
+
+[simulation.objects]
+one = "{count} objet"
+other = "{count} objets"
+
+[simulation.rows]
+one = "{count} ligne"
+other = "{count} lignes"
+
+[simulation.cascaded]
+one = "{count} clôture en cascade"
+other = "{count} clôtures en cascade"
+
+[changeset]
+help = "Composer, simuler, appliquer, instruire des changesets."
+none = "Aucun changeset local ({path}) : kartenn changeset new --motive …"
+invalid = "{path} n'est pas un changeset local."
+no_op = "Une opération est un objet avec son discriminant « op »."
+added = "Ajouté (opération {index}) : {op} {summary}"
+exists = "Un changeset local existe déjà ({path}) : appliquez-le, ou --force."
+created = "Changeset local : {path} (0 opération)"
+state = "Changeset {id} — {state} ({kind})"
+motive = "Motif"
+
+[changeset.new]
+help = "Commencer un changeset local."
+
+[changeset.add]
+help = "Ajouter une opération au changeset local."
+
+[changeset.simulate]
+help = "Simuler le changeset local : rien n'est écrit."
+
+[changeset.apply]
+help = "Soumettre le changeset local."
+
+[changeset.show]
+help = "Lire un changeset du serveur."
+
+[changeset.diff]
+help = "Différentiel d'un changeset, sections de module comprises."
+
+[changeset.approve]
+help = "Approuver un changeset en attente."
+
+[changeset.reject]
+help = "Rejeter un changeset en attente (motif exigé)."
+
+[changeset.withdraw]
+help = "Retirer un changeset dont on est l'auteur."
+
+[changeset.undo]
+help = "Défaire un changeset appliqué (--dry-run : simuler)."
+
+[changeset.opt]
+force = "Remplacer le changeset local existant."
+section = "Section d'un module (policy.combinations)."
+property = "Clé de propriété."
+
+[edit]
+help = "Modifier l'objet dans $VISUAL ou $EDITOR, puis envoyer la différence (Merge Patch, If-Match).\n{path}  ({operation})"
+short = "Modifier dans l'éditeur (YAML)."
+editor = "un éditeur"
+fixed = "Non modifiable :"
+yours = "Vos modifications, sur la version précédente :"
+nothing = "Aucune modification."
+changes = "Modifications : {changes}"
+stale = "L'objet a changé depuis sa lecture (412)."
+reopen = "Rouvrir l'éditeur sur la version courante ?"
+invalid = "Le document n'est pas un objet YAML : {error}"
 
 [completion]
 help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."

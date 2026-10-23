@@ -151,16 +151,21 @@ class Runtime:
             **options,
         )
 
-    @property
-    def json_errors(self) -> bool:
-        """A problem is written in JSON when JSON was asked for, not by default."""
+    def asked_output(self, given: str | None = None) -> str | None:
+        """The format asked for (option, environment, profile), `None` when nothing was:
+        a write then says what it did in a sentence."""
         profile = self.profile_or_none()
-        asked = (
-            self.settings.output
+        return (
+            given
+            or self.settings.output
             or os.environ.get("KARTENN_OUTPUT")
             or (profile.output if profile else None)
         )
-        return asked == "json"
+
+    @property
+    def json_errors(self) -> bool:
+        """A problem is written in JSON when JSON was asked for, not by default."""
+        return self.asked_output() == "json"
 
     # Catalog and client ----------------------------------------------------------
 
@@ -216,25 +221,15 @@ class Runtime:
 
     @cached_property
     def catalog(self) -> Catalog:
-        """The catalog, discovered without authentication (public routes); a line on the
+        """The catalog, discovered with the credentials of the profile (`capabilities` and
+        `openapi.json` require an authenticated caller); a line on the
         standard error when it was not in the cache or its revision changed."""
         from kartenn.catalog import discover  # noqa: PLC0415
-        from kartenn.client import Client  # noqa: PLC0415
 
         profile = self.require_profile()
         url = profile.url.rstrip("/")
         before = self.cache.last(url)
-        if "client" in self.__dict__:
-            catalog = self.client.run_unauthenticated(discover(url, self.cache))
-        else:
-            with Client(
-                profile.url,
-                ca_bundle=profile.ca_bundle,
-                http2=profile.http2,
-                transport=self.transport(profile),
-                cache=self.cache,
-            ) as anonymous:
-                catalog = anonymous.run_unauthenticated(discover(url, self.cache))
+        catalog = self.client.run(discover(url, self.cache))
         if before is None or before.revision != catalog.revision:
             modules = ", ".join(catalog.module_names) or "—"
             previous = (

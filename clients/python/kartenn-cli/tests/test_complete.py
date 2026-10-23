@@ -6,8 +6,7 @@ import os
 import shutil
 import sys
 import time
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx2
 import pytest
@@ -17,6 +16,9 @@ from fakes import CONTRACT, URL, FakeServer, capabilities, kartenn, profile, wit
 from kartenn.catalog import CatalogCache, derive
 from kartenn_cli import complete, runtime
 from kartenn_cli.main import cli
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DOMAINS = [
     {"id": "1", "slug": "dmz", "label": "Zone démilitarisée"},
@@ -173,7 +175,7 @@ def warm(tmp_path: Path) -> dict[str, str]:
     CatalogCache().save(derive(URL, capabilities(), CONTRACT, contract_etag='"c1"'))
     return {
         **os.environ,
-        "PATH": f"{Path(sys.executable).parent}:{os.environ['PATH']}",
+        "PATH": f"{os.path.dirname(os.path.normpath(sys.executable))}:{os.environ['PATH']}",  # noqa: PTH120 - no symlink followed
         "HOME": str(tmp_path),
         "TERM": "dumb",
     }
@@ -189,8 +191,10 @@ def _shell(command: list[str], env: dict[str, str]) -> Any:  # noqa: ANN401 - a 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash absent")
 def test_in_bash(warm: dict[str, str]) -> None:
     child = _shell(["bash", "--norc", "--noprofile", "-i"], warm)
-    child.sendline("PS1='$ '; source <(kartenn completion bash); echo ready")
+    child.sendline("PS1='$ '; source <(kartenn completion bash); echo re''ady")
     child.expect("ready")
+    child.expect_exact("$ ")
+    time.sleep(0.5)  # the line editor reads keys once the prompt is drawn
     child.send("kartenn prefi\t")
     child.expect("kartenn prefixes ")
     child.sendcontrol("c")
@@ -203,9 +207,11 @@ def test_in_zsh(warm: dict[str, str]) -> None:
     child = _shell(["zsh", "-f", "-i"], warm)
     child.sendline(
         "PS1='$ '; autoload -Uz compinit && compinit -u; "
-        'eval "$(kartenn completion zsh)"; echo ready'
+        'eval "$(kartenn completion zsh)"; echo re""ady'
     )
     child.expect("ready")
+    child.expect_exact("$ ")
+    time.sleep(0.5)  # the line editor reads keys once the prompt is drawn
     child.send("kartenn prefi\t")
     child.expect("prefixes")
     child.sendcontrol("c")
@@ -216,8 +222,10 @@ def test_in_zsh(warm: dict[str, str]) -> None:
 @pytest.mark.skipif(shutil.which("fish") is None, reason="fish absent from this machine")
 def test_in_fish(warm: dict[str, str]) -> None:  # pragma: no cover - fish not installed here
     child = _shell(["fish", "--no-config", "-i"], warm)
-    child.sendline("kartenn completion fish | source; echo ready")
+    child.sendline("kartenn completion fish | source; echo re''ady")
     child.expect("ready")
+    child.expect_exact("$ ")
+    time.sleep(0.5)  # the line editor reads keys once the prompt is drawn
     child.send("kartenn prefi\t")
     child.expect("prefixes")
     child.sendcontrol("c")

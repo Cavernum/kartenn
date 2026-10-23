@@ -36,6 +36,9 @@
     --version             Version du client.
     -h, --help            Cette aide.
   
+  Écritures:
+    changeset  Composer, simuler, appliquer, instruire des changesets.
+  
   Outils:
     completion, config
   

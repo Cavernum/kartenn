@@ -87,6 +87,12 @@ def verb_params(command: VerbCommand) -> list[click.Parameter]:
 def command_class(resource: Resource, verb: Verb, catalog: Catalog) -> type[VerbCommand]:  # noqa: ARG001
     """The class of a verb: lists, reads, then the other operations."""
     from kartenn_cli.reads import GetCommand, ListCommand, ReadCommand  # noqa: PLC0415
+    from kartenn_cli.writes import (  # noqa: PLC0415
+        ActionCommand,
+        CloseCommand,
+        CreateCommand,
+        UpdateCommand,
+    )
 
     if verb.name == "list":
         return ListCommand
@@ -94,15 +100,26 @@ def command_class(resource: Resource, verb: Verb, catalog: Catalog) -> type[Verb
         return GetCommand
     if verb.read:
         return ReadCommand
-    return VerbCommand
+    return {"create": CreateCommand, "update": UpdateCommand, "close": CloseCommand}.get(
+        verb.name, ActionCommand
+    )
 
 
-def extra_verbs(resource: Resource) -> list[str]:  # noqa: ARG001 - `edit`, later
-    return []
+def extra_verbs(resource: Resource) -> list[str]:
+    """`edit`, for a resource read and updated."""
+    return ["edit"] if resource.verb("get") and resource.verb("update") else []
 
 
-def extra_command(name: str, resource: Resource, catalog: Catalog) -> click.Command | None:  # noqa: ARG001
-    return None
+def extra_command(name: str, resource: Resource, catalog: Catalog) -> click.Command | None:
+    if name != "edit" or name not in extra_verbs(resource):
+        return None
+    from kartenn_cli.edit import EditCommand  # noqa: PLC0415
+
+    get = resource.verb("get")
+    assert get is not None  # noqa: S101 - checked by extra_verbs
+    return EditCommand(
+        name, resource=resource, operation=catalog.operation(get.operation_id), catalog=catalog
+    )
 
 
 def run_verb(command: VerbCommand, ctx: click.Context) -> Any:  # noqa: ANN401

@@ -221,7 +221,7 @@ def test_references_refused_locally(keyed: FakeServer) -> None:
     shape = kartenn("prefixes", "get", "interne")
     assert shape.exit_code == 2
     assert "client.invalid-reference" in shape.stderr
-    no_key = kartenn("sites", "get", "site-nord")
+    no_key = kartenn("machines", "get", "bastion-1")
     assert no_key.exit_code == 2
     assert "client.key-unknown" in no_key.stderr
 

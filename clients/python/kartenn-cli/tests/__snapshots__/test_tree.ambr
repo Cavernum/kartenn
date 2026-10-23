@@ -31,7 +31,7 @@
     nonconformities
   
   Verbes:
-    close, create, evaluations, get, history, list, properties, update, waive
+    close, create, edit, evaluations, get, history, list, properties, update, waive
   
   '''
 # ---
@@ -49,7 +49,7 @@
     groups
   
   Verbes:
-    close, create, get, history, list, prefixes, properties, update
+    close, create, edit, get, history, list, prefixes, properties, update
   
   '''
 # ---
@@ -67,7 +67,7 @@
     clusters, interfaces
   
   Verbes:
-    addresses, close, create, flows, get, history, hosted, list, properties, update
+    addresses, close, create, edit, flows, get, history, hosted, list, properties, update
   
   '''
 # ---
@@ -85,6 +85,7 @@
     children    `GET /v1/prefixes/{id}/children`: the direct children the caller may read, in address
     close       Closes the prefix.
     create      Creates a prefix.
+    edit        Modifier dans l'éditeur (YAML).
     flows       The flows of the prefix, those the caller may read (REQ-011-15).
     get         The prefix.
     history     The versions of the prefix, on both axes (REQ-004-18).
@@ -199,6 +200,9 @@
   Noyau:
     addresses, anomalies, domains, entities, graph, prefixes, property-declarations, property-gaps,
     ranges, sites
+  
+  Écritures:
+    changeset  Composer, simuler, appliquer, instruire des changesets.
   
   Modules servis:
     vlan      VLAN et groupes de VLAN.   [module vlan 0.2.0]

@@ -58,7 +58,8 @@ class Dates:
         self.frozen = frozen
 
 
-def _resolve(text: str | None, found: Runtime, now: datetime) -> str | None:
+def resolve_date_text(text: str | None, found: Runtime, now: datetime) -> str | None:
+    """A date of the command line as sent: RFC 3339 with its offset."""
     if not text:
         return None
     from kartenn._core.dates import format_rfc3339, resolve_date  # noqa: PLC0415
@@ -75,7 +76,9 @@ def dates_of(ctx: click.Context, found: Runtime) -> Dates:
     frozen = bool(ctx.params.get("freeze")) and not as_of
     if frozen:
         as_of = "now"
-    return Dates(_resolve(at, found, now), _resolve(as_of, found, now), frozen=frozen)
+    return Dates(
+        resolve_date_text(at, found, now), resolve_date_text(as_of, found, now), frozen=frozen
+    )
 
 
 def date_params(*, freeze: bool = False) -> list[click.Parameter]:

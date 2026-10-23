@@ -1,0 +1,39 @@
+# serializer version: 1
+# name: test_a_stale_version_is_a_conflict
+  '''
+  erreur [precondition-failed] L'objet a changé depuis sa lecture (412)
+    requête urn:uuid:c3d1
+    Version courante "1aa2". Relisez l'objet, ou utilisez « edit » pour fusionner.
+  
+  '''
+# ---
+# name: test_dry_run_simulates_the_same_changeset
+  '''
+  Simulation — rien n'est écrit
+    Opérations  1   Violations  0   Avertissements  1
+    ! [core.prefix.unattached] /operations/0  203.0.113.0/26 n'est rattaché à aucun VLAN (avertissement)
+  
+  Différentiel
+    policy.environment  1 objet  — → "prod"
+    policy.combinations  2 lignes
+      SOURCE          DESTINATION     AFTER
+      Administration  203.0.113.0/26  allowed
+      Recette         203.0.113.0/26  denied
+  
+  '''
+# ---
+# name: test_local_changeset
+  '''
+  Simulation — rien n'est écrit (valide à partir du 2026-11-01 00:00:00+01:00)
+    Opérations  3   Violations  0   Avertissements  1
+    ! [core.prefix.unattached] /operations/0  203.0.113.0/26 n'est rattaché à aucun VLAN (avertissement)
+  
+  Différentiel
+    policy.environment  1 objet  — → "prod"
+    policy.combinations  2 lignes
+      SOURCE          DESTINATION     AFTER
+      Administration  203.0.113.0/26  allowed
+      Recette         203.0.113.0/26  denied
+  
+  '''
+# ---

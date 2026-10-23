@@ -28,11 +28,13 @@ filters = "Filters"
 dates = "Dates"
 output = "Output"
 write = "Write"
+members = "Members"
 
 [metavar]
 name = "NAME"
 file = "FILE"
 prop = "KEY[:OP]=VALUE"
+assignment = "PATH=VALUE"
 
 [opt]
 help = "This help."
@@ -54,6 +56,15 @@ prop = "Property: =, :between=a..b, :exists=true|false (repeatable)."
 all = "Every page, read and written as it comes."
 page_size = "Size of a page (1 to 1,000)."
 cursor = "Next page, from “next: --cursor …”; it freezes the filters and the dates."
+set = "Member: path=value (JSON when it reads: 140, true, {…}); repeatable."
+from_file = "JSON or YAML document (-: standard input)."
+motive = "Motive of the write."
+valid_from = "Start of the period of the write (now by default)."
+valid_to = "End of the period (unbounded by default)."
+on_behalf_of = "Write on behalf of an identity (Kartenn-On-Behalf-Of)."
+dry_run = "Simulate the changeset: nothing is written (exit 8 if it would be refused)."
+into_changeset = "Add the write to the local changeset (kartenn changeset new)."
+require_applied = "Exit 10 when the write waits for an approval."
 
 [config]
 help = "Profiles of the configuration (never a secret)."
@@ -109,6 +120,7 @@ cached = "Discovering the server… {version}, modules: {modules} (catalog cache
 updated = "Discovering the server… {version}{previous}, modules: {modules} (catalog updated)."
 before = " (was {version})"
 failed = "Catalog unavailable ({error}): only the local commands are listed."
+login = "Log in to discover the server: kartenn login (or KARTENN_TOKEN)."
 
 [error]
 word = "error"
@@ -129,6 +141,95 @@ unauthenticated = "Log in again: kartenn login"
 
 [render]
 masked = "‹masked›"
+
+[write]
+document = "{path} is not a document (a JSON or YAML object)."
+assignment = "--set takes path=value: {given}"
+no_operation = "“{resource} {verb}” has no known changeset operation: --dry-run and --into-changeset do not apply (kartenn changeset add with the explicit operation)."
+applied = "Changeset {id} applied."
+location = "Created: {location}"
+pending = "Write held ({kind}): changeset {id}."
+follow = "  Follow: kartenn changeset show {id}"
+motive_required = "This write needs --motive (the server would answer motive-required)."
+motive = "Motive?"
+
+[simulation]
+head = "Simulation — nothing is written"
+motive = "simulation"
+from = " (valid from {date})"
+counts = "Operations  {operations}   Violations  {violations}   Warnings  {warnings}"
+diff = "Differential"
+nothing = "no change"
+
+[simulation.objects]
+one = "{count} object"
+other = "{count} objects"
+
+[simulation.rows]
+one = "{count} row"
+other = "{count} rows"
+
+[simulation.cascaded]
+one = "{count} closure by cascade"
+other = "{count} closures by cascade"
+
+[changeset]
+help = "Compose, simulate, apply, review changesets."
+none = "No local changeset ({path}): kartenn changeset new --motive …"
+invalid = "{path} is not a local changeset."
+no_op = "An operation is an object with its discriminant “op”."
+added = "Added (operation {index}): {op} {summary}"
+exists = "A local changeset exists already ({path}): apply it, or --force."
+created = "Local changeset: {path} (0 operations)"
+state = "Changeset {id} — {state} ({kind})"
+motive = "Motive"
+
+[changeset.new]
+help = "Start a local changeset."
+
+[changeset.add]
+help = "Add an operation to the local changeset."
+
+[changeset.simulate]
+help = "Simulate the local changeset: nothing is written."
+
+[changeset.apply]
+help = "Submit the local changeset."
+
+[changeset.show]
+help = "Read a changeset of the server."
+
+[changeset.diff]
+help = "Differential of a changeset, sections of modules included."
+
+[changeset.approve]
+help = "Approve a pending changeset."
+
+[changeset.reject]
+help = "Reject a pending changeset (motive required)."
+
+[changeset.withdraw]
+help = "Withdraw a changeset one authored."
+
+[changeset.undo]
+help = "Undo an applied changeset (--dry-run: simulate)."
+
+[changeset.opt]
+force = "Replace the existing local changeset."
+section = "Section of a module (policy.combinations)."
+property = "Property key."
+
+[edit]
+help = "Change the object in $VISUAL or $EDITOR, then send the difference (Merge Patch, If-Match).\n{path}  ({operation})"
+short = "Change in the editor (YAML)."
+editor = "an editor"
+fixed = "Not changeable:"
+yours = "Your changes, on the previous version:"
+nothing = "No change."
+changes = "Changes: {changes}"
+stale = "The object changed since it was read (412)."
+reopen = "Open the editor again on the current version?"
+invalid = "The document is not a YAML object: {error}"
 
 [completion]
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."

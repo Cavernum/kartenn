@@ -47,7 +47,7 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Memory
     """Every test has its own XDG directories, French messages, no colours, and a keyring
     in memory."""
     for name in list(os.environ):
-        if name.startswith(("KARTENN_", "LC_")):
+        if name.startswith(("KARTENN_", "LC_")) or name in {"VISUAL", "EDITOR"}:
             monkeypatch.delenv(name)
     for name in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR"):
         monkeypatch.setenv(name, str(tmp_path / name.lower()))

@@ -549,7 +549,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `kartenn/__init__.py` charge désormais ses noms au premier usage (commit à part) :
     complétion locale 78 à 83 ms en médiane, 110 à 124 ms au p95 sur la machine
     partagée chargée (budget 100 ms au p95, à confirmer par le banc de la tâche 27).
-- [ ] 20. Écritures :
+- [x] 20. Écritures :
   - `create`, `update`, `close`, `edit` (fichier 0600, 412 → réouverture) ;
   - `--dry-run`, `--into-changeset`, `--require-applied` ;
   - `changeset new|add|simulate|apply|show|diff|list|approve|reject|withdraw|undo|proposals`
@@ -559,6 +559,32 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn-cli/src/kartenn_cli/edit.py`, `tree.py` ; design
     § Codes de sortie
   - dépend de : 12, 18
+  - choix : écritures dans `writes.py`, `edit.py`, `changeset.py`. Membres en options
+    typées tirées du schéma du corps (scalaires, énumérations, références `{id}` résolues
+    par clé naturelle), puis `--set chemin=valeur` (JSON si lisible), sur un document
+    `--from-file` (YAML ou JSON, `-` : entrée standard) ; envoi par `client.call`
+    (`Idempotency-Key`, `If-Match` d'une lecture préalable, `Kartenn-On-Behalf-Of`).
+    Motif exigé quand le schéma l'exige (`client.motive-required`, code 2, demandé sur
+    un terminal) ; sans motif, `--dry-run` simule sous le motif « simulation ». Hors
+    `-o` demandé (option, environnement, profil), une écriture répond par une phrase et
+    non en JSON. **Point ouvert** : le contrat ne dit pas quelle opération de changeset
+    correspond à une écriture REST. `--dry-run` et `--into-changeset` traduisent donc
+    `create_<x>` (membres tels quels), `update_<x>` si le schéma `Operation` le connaît,
+    `close` d'un `kind` de `TargetKind`, et `<module>.<operationId>` pour un module ;
+    sinon `client.dry-run-unavailable`. Les membres REST et ceux des opérations
+    diffèrent parfois (`value` d'un préfixe contre `prefix` de `create_prefix`) : à
+    trancher côté serveur (accepter `?simulate=true` sur toute écriture, ou décrire
+    l'opération dans `x-kartenn`). Bibliothèque corrigée à part : une opération
+    `<module>.<op>` d'un module servi n'est plus refusée localement. Changeset local
+    `./.kartenn-changeset.yaml` (ou `KARTENN_CHANGESET`), 0600, avec sa clé
+    d'idempotence, supprimé après soumission ; `changeset list` et `proposals`
+    reprennent `list` du catalogue. Simulation : comptes, violations, différentiel
+    compté par propriété, sections de module en table générique. `edit` : YAML des
+    membres modifiables (corps de `update`), le reste en commentaire ; fichier 0600 dans
+    un répertoire privé supprimé dans tous les cas ; 412 → proposition de rouvrir sur la
+    version courante, modifications de l'utilisateur en commentaire. Découverte du
+    catalogue désormais authentifiée (flux S : `capabilities` et `openapi.json` ne sont
+    pas publics) ; sans connexion, `--help` dit « kartenn login ».
 - [ ] 21. `import` : NDJSON, CSV et JSON par ressource (`--resource`, `--id-column`),
   avancement (rich sur terminal, lignes sinon), `--resume`, `--follow`, violations à la
   ligne source — REQ-023-32 — verify : maquette § 10 sur transport simulé ;
