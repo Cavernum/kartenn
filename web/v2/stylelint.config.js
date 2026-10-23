@@ -24,7 +24,6 @@ const STRICT = [
   "fill",
   "stroke",
   "background",
-  "outline",
   "font",
   "font-family",
   "font-size",

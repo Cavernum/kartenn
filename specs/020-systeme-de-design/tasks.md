@@ -100,7 +100,7 @@ emploient.
     Claude : la règle `kartenn/known-layer` laisse les `@import` (les feuilles importées
     se lintent elles-mêmes), sans quoi `style.css` ne pouvait importer une feuille qui
     déclare sa propre couche.
-- [ ] 5. Jetons : `tokens/tokens.css` (table du design § « Jetons » : couleurs, états,
+- [x] 5. Jetons : `tokens/tokens.css` (table du design § « Jetons » : couleurs, états,
   environnements, espacement, rayons, bordures, élévation, typographie, densité,
   mouvement ; clair, sombre, confortable), `styles/reset.css`, `base.css`,
   `utilities.css` ; test de contraste étendu à toutes les paires déclarées ; liste des
@@ -112,6 +112,18 @@ emploient.
     majeure du SDK, tâche de la 021) ; direction « Ardoise » (design, table des
     couleurs)
   - dépend de : 4
+  - fait : `web/v2/ui/src/tokens/tokens.css` (clair compacte, sombre du système et forcé,
+    confortable, mouvement réduit), `tokens/index.ts` (`tokens`, `STATES`, `ENV_HUES`,
+    exportés par `@kartenn/ui`), `styles/reset.css`, `base.css`, `utilities.css` ;
+    `test/tokens.test.ts` : contrastes de toutes les paires déclarées dans les deux modes,
+    `color-mix` en Oklab recalculé par le test, densités, durées, teintes, liste = fichier.
+    Écart consigné (REQ-020-5) : le test a montré `ok` et `warn` clairs sous 4,5:1 sur
+    leur propre fond atténué (4,27 et 4,41) ; foncés à `#147942` et `#9d5800`, table du
+    design mise à jour. Constat : `--k-env-1` clair vaut l'accent, donc l'état `info` ;
+    le test vérifie la distinction d'avec les quatre états de REQ-020-7 (à confirmer par
+    l'utilisateur). Choix de Claude : jetons `--k-z-*` (empilement), `--k-icon-stroke`,
+    `--k-env-dot-size`, `--k-shadow-inset-accent`, `--k-text-<taille>-line` pour
+    l'interligne ; familles avec un repli métrique `"Geist Fallback"` (tâche 6).
 - [ ] 6. Polices Geist et Geist Mono : `woff2` variables, sous-ensembles latin et latin
   étendu, `tokens/fonts.css` (`@font-face`, `font-display: swap`, `size-adjust` du
   repli), préchargement de la police sans, licence OFL livrée — REQ-020-10, 30 —

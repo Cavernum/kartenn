@@ -5,3 +5,7 @@
 /* The sheet of @kartenn/ui (design « Architecture CSS »): the order of the layers first,
  * then each layer; every file declares its own layer. */
 @import "./styles/layers.css";
+@import "./styles/reset.css";
+@import "./tokens/tokens.css";
+@import "./styles/base.css";
+@import "./styles/utilities.css";

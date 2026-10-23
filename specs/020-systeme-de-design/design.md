@@ -75,7 +75,9 @@ Valeurs de départ tirées de la direction « Ardoise » (base commune et surcha
 direction). Écarts : `text-muted` clair foncé de `#637084` à `#5d6a7e` (4,24:1 sur
 `accent-soft`, sous 4,5:1, pour une ligne sélectionnée) ; `border-control` ajouté, les
 bordures fines de la direction (1,45:1) ne suffisant pas à identifier un champ (WCAG
-1.4.11).
+1.4.11) ; en clair, `ok` foncé de `#1e7f48` à `#147942` et `warn` de `#a15c00` à
+`#9d5800` (tâche 5, 2026-10-24 : leur texte sur leur propre fond atténué tombait à 4,27
+et 4,41:1 ; 4,62 et 4,64:1 après).
 
 | Jeton | Clair | Sombre | Rôle |
 |---|---|---|---|
@@ -108,8 +110,8 @@ Contrastes calculés le 2026-10-23 (à recalculer par le test) : `text`/`surface
 
 | État | Clair | Sombre | Libellé par défaut | Icône |
 |---|---|---|---|---|
-| `ok` | `#1e7f48` | `#49bd7c` | « Conforme », « Appliqué » | `circle-check` |
-| `warn` | `#a15c00` | `#e0a23d` | « Avertissement » | `triangle-alert` |
+| `ok` | `#147942` | `#49bd7c` | « Conforme », « Appliqué » | `circle-check` |
+| `warn` | `#9d5800` | `#e0a23d` | « Avertissement » | `triangle-alert` |
 | `ko` | `#bb342d` | `#ee7a70` | « Erreur », « Refusé » | `circle-x` |
 | `review` | `#6c47c2` | `#a68cf0` | « En revue » | `git-pull-request` |
 | `info` | = `accent` | = `accent` | « Brouillon », « Information » | `info` |
