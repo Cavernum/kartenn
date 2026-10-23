@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -18,15 +18,22 @@ connexions ouvertes, filtrée par les droits de chaque abonné sans révéler l'
 d'un objet caché.
 
 Sources : besoin exprimé le 2026-10-23 (invalidation des caches en temps réel) ;
-décisions [`decisions.md`](decisions.md) (R1 à R22) ; D3, D7, D9, D11, D13, D14, D17,
-D35, D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; specs 004
+décisions [`decisions.md`](decisions.md) (R1 à R25) ; D3, D7 et D31 (amendées le
+2026-10-23), D9, D11, D13, D14, D17, D35, D36
+([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; note de référence
+[`push-serveur.md`](../../docs/reference/push-serveur.md) ; specs 004
 (outbox, REQ-004-36, 37), 005 (sessions, jetons, RBAC), 006 (contrat HTTP, quotas,
 délestage), 012 (audit, télémétrie), 016 (clés d'ordre, REQ-016-14, 15) ; ADR 0018,
 0020, 0022. Sources primaires : § Références de [`design.md`](design.md).
 
-**Brouillon.** Rien n'est implémenté ; les décisions R1 à R22 sont des recommandations
-à valider, et la section « Arbitrages demandés » de [`decisions.md`](decisions.md)
-liste ce qui contredit ou amende une décision ou une spec existante.
+**Validée le 2026-10-23** : l'utilisateur a arbitré A1 à A8 et retenu les réponses
+recommandées aux questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Rien n'est
+encore implémenté.
+
+**Lecteurs du flux.** Un seul flux, deux façons de le lire : le shell web par
+`EventSource` (cookie de session BFF, `Origin` vérifié) ; la CLI, la bibliothèque Python
+et les connecteurs par une réponse HTTP lue en continu, avec l'en-tête `Authorization`.
+Un futur serveur MCP est un adaptateur distinct (R23), jamais ce point d'accès.
 
 ### Vocabulaire
 
@@ -86,7 +93,8 @@ valideurs possibles), `reset` (remise à zéro), et des **points de reprise** sa
 La donnée (`data:`) d'un événement doit être un objet JSON sur **une seule ligne** qui ne
 porte que des clés et des révisions : pour `changes`, l'identifiant du changeset (la
 révision des objets qu'il a écrits), la liste des objets visibles (type, identifiant) et
-les domaines visibles ; pour `changeset`, l'identifiant et le nouvel état. Elle ne doit
+les domaines visibles ; pour un événement de tâche de fond, l'identifiant CloudEvents
+de l'événement ; pour `changeset`, l'identifiant et le nouvel état. Elle ne doit
 porter ni valeur d'attribut ou de propriété, ni différentiel, ni auteur, ni motif.
 [R3, WHATWG HTML § 9.2.5, § 9.2.6]
 
@@ -123,9 +131,9 @@ Quand une requête porte `Last-Event-ID` (en-tête) ou, à défaut, le paramètr
 `last_event_id`, kartenn doit reprendre le flux **sans trou** à partir de ce curseur, sur
 n'importe quelle instance : tout événement validé après la position du curseur et
 visible de l'abonné doit lui être remis, au moins une fois, dans l'ordre d'application
-des changesets d'une même clé d'ordre (REQ-004-37, REQ-016-14). Un événement peut être
-remis deux fois ; la révision permet au client de l'ignorer. [R6, R7, D9, WHATWG HTML
-§ 9.2.3]
+des changesets d'une même clé d'ordre (REQ-004-37, REQ-016-14). Garantie : **aucun
+événement perdu, quelques doublons possibles** ; les cas de doublon et leur
+reconnaissance sont ceux de REQ-022-27. [R6, R7, D9, WHATWG HTML § 9.2.3]
 
 Acceptation :
 - Coupure réseau pendant trois changesets, reconnexion sur une autre instance avec le
@@ -178,10 +186,11 @@ Acceptation :
   clients se reconnectent sur l'autre instance, étalés, sans trou (REQ-022-7).
 
 #### REQ-022-13 — Intermédiaires
-kartenn doit servir le flux avec `Cache-Control: no-store`, `X-Accel-Buffering: no`,
-sans compression ni `Content-Length`, et écrire chaque événement sans tampon ; le guide
+kartenn doit servir le flux avec `Cache-Control: no-store`, `X-Accel-Buffering: no`, et
+`Incremental: ?1` si la configuration le demande (`[events] incremental`, faux par
+défaut ; RFC 10036), sans compression ni `Content-Length`, et écrire chaque événement sans tampon ; le guide
 de déploiement doit dire comment désactiver la mise en tampon et allonger le délai de
-lecture d'un mandataire inverse. [R12, REQ-006-32, D35]
+lecture d'un mandataire inverse. [R12, REQ-006-32, D35, RFC 10036 § 3-4]
 
 Acceptation :
 - `Accept-Encoding: gzip, br, zstd` : la réponse n'a pas de `Content-Encoding`.
@@ -196,13 +205,17 @@ en bout pour les navigateurs. [R13, RFC 9113 § 6.5.2, RFC 9112 § 9.4]
 #### REQ-022-15 — Authentification
 kartenn doit authentifier l'ouverture du flux comme toute requête `/v1` : cookie de
 session (navigateur), Basic (compte de service), Bearer (jeton d'accès) ; sans
-authentification valide → 401, sans jamais ouvrir le flux. Le flux n'exige pas la
-protection CSRF des méthodes non sûres (`GET`), mais une requête authentifiée par cookie
-dont `Sec-Fetch-Site` n'est ni `same-origin` ni absent doit être refusée (403). [R14,
-REQ-005-6, 9, 12, REQ-006-26, 28]
+authentification valide → 401, sans jamais ouvrir le flux. Une requête authentifiée par
+cookie doit être refusée (403) si elle porte un `Origin` différent de l'origine publique,
+ou un `Sec-Fetch-Site` autre que `same-origin` ; un `Origin` absent n'est accepté
+qu'avec `Sec-Fetch-Site: same-origin` ou sans en-tête de métadonnées (présence d'`Origin`
+sur un `GET` de même origine : à vérifier, note de référence). Les requêtes Basic et
+Bearer ne sont pas soumises à ce contrôle. [R14, REQ-005-6, 9, 12, REQ-006-26, 28,
+MCP 2025-11-25 transports (même règle d'`Origin`)]
 
 Acceptation :
-- `Sec-Fetch-Site: cross-site` avec un cookie valide → 403 ; avec Bearer → 200.
+- Cookie valide avec `Origin` d'un autre site → 403 ; `Sec-Fetch-Site: cross-site` → 403 ;
+  avec Bearer → 200.
 
 #### REQ-022-16 — Filtrage par les droits, sans oracle
 kartenn doit remettre à un abonné un objet d'un événement si et seulement si l'abonné a,
@@ -291,11 +304,23 @@ d'erreur, type de média `text/event-stream` et schéma JSON de la donnée de ch
 d'événement. [R22, REQ-006-34, 35]
 
 #### REQ-022-24 — Audit
-kartenn doit enregistrer `events.stream.opened` (filtres) et `events.stream.closed`
-(cause, durée, nombre d'événements remis, de `reset`, d'identifiants remis) pour chaque
-connexion, en criticité `low` ; les refus suivent REQ-012-8 (`authz.access.denied`,
-abus). Il ne doit pas produire d'événement d'audit par événement remis. [R16, REQ-012-8,
-18 — voir l'arbitrage A4]
+kartenn doit enregistrer `events.stream.opened` (acteur, filtres) et
+`events.stream.closed` (cause, durée, nombre d'événements remis, de `reset`, et les
+identifiants des objets remis, bornés par `audit.read_ids_max`, ceux au-delà comptés
+dans `targets_omitted`) pour chaque connexion, en criticité `low` ; les refus suivent
+REQ-012-8 (`authz.access.denied`, abus). Il ne doit pas produire d'événement d'audit par
+événement remis : le flux ne porte que des notifications, et toute lecture de contenu
+ou écriture passe par l'API REST, auditée par requête (REQ-012-18, amendée par A4).
+Quand les identifiants d'une connexion dépassent la borne, chaque remise au-delà doit
+être journalisée dans les **logs techniques**, au niveau DEBUG, sous le nom
+`events.delivery` (connexion, acteur, sorte, identifiants remis), hors du journal
+d'audit scellé, avec une rétention courte réglée sur la sortie (7 jours recommandés).
+[R16, R24, REQ-012-8, 18, L25]
+
+Acceptation :
+- `audit.read_ids_max = 2`, trois événements de deux objets remis : `events.stream.closed`
+  liste 2 identifiants et `targets_omitted = 4` ; deux enregistrements DEBUG
+  `events.delivery` nomment les 4 autres ; aucun n'entre dans le journal d'audit.
 
 #### REQ-022-25 — Télémétrie
 kartenn doit exposer les métriques `kartenn.events.streams` (connexions ouvertes),
@@ -317,9 +342,37 @@ kartenn doit tenir, sur le jeu de référence, à 50 changesets unitaires par se
 - surcoût du lecteur sur le p95 du changeset unitaire < 5 % (`NOTIFY` compris).
 [R18, D14, INV-34, INV-36]
 
+### H. Doublons
+
+#### REQ-022-27 — Doublons reconnus
+kartenn peut remettre deux fois un même événement dans ces seuls cas : (a) reprise par
+un curseur dont le plancher est sous le dernier numéro remis (événements entre les
+deux, déjà reçus) ; (b) reprise sur une autre instance (même effet, son anneau ne sait
+pas ce que la première a remis). Il ne doit jamais remettre deux fois un événement sur
+une même connexion sans reprise (le balayage de secours du lecteur est dédoublonné par
+l'instance). Un `reset` ne rejoue rien : il remplace les événements abandonnés par une
+invalidation complète, ce qui ne perd aucune information. Chaque événement `changes` ou `changeset` doit porter une
+identité stable (`changeset`, ou l'identifiant CloudEvents d'un événement de tâche) qui
+permet au client de reconnaître un doublon exact, et chaque objet sa révision, qui
+permet de reconnaître un changement déjà appliqué (ETag connu égal à la révision). Un
+doublon ne doit coûter au client au plus qu'une relecture conditionnelle (304). [R6,
+R25, ADR 0018]
+
+Acceptation :
+- Deux instances, transaction longue qui détient le numéro le plus bas, coupures et
+  reprises aléatoires sur l'une ou l'autre : l'ensemble des événements reçus contient
+  tous les événements validés visibles (aucun perdu) ; chaque doublon reçu porte un
+  `changeset` déjà vu ; sur une même connexion sans reprise, aucun doublon (test de
+  propriété).
+- Un client qui ignore les `changeset` déjà vus et compare les révisions n'émet aucune
+  relecture pour un doublon exact.
+
 ## Non-objectifs
 
 - WebSocket, flux bidirectionnel, abonnement à une requête arbitraire (filtre `QUERY`).
+- Point d'accès MCP : un futur serveur MCP est un adaptateur séparé (`POST /mcp`,
+  Streamable HTTP révision 2026-07-28, `subscriptions/listen`) sur la même source
+  d'événements ; `/v1/events` n'est jamais réutilisé comme point d'accès MCP (R23).
 - Notifications aux personnes (courriel, messagerie) : consommateurs de l'outbox à part.
 - Webhooks sortants vers des tiers : relais d'outbox par consommateur (ADR 0018), autre
   spec.
@@ -332,5 +385,5 @@ kartenn doit tenir, sur le jeu de référence, à 50 changesets unitaires par se
 
 ## Questions ouvertes
 
-Voir [`decisions.md`](decisions.md), § Questions ouvertes (Q-022-1 à Q-022-12) et
-§ Arbitrages demandés (A1 à A8).
+Toutes closes le 2026-10-23 : voir [`decisions.md`](decisions.md), § Arbitrages (A1 à
+A8) et § Questions (Q-022-1 à 12).

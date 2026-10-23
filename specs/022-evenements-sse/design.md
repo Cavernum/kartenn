@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
@@ -46,14 +46,15 @@ flowchart LR
 |---|---|
 | Paramètres | `types`, `domains`, `objects`, `kinds` (listes séparées par des virgules, bornes de REQ-022-2) ; `last_event_id` (secours quand l'en-tête ne peut être posé) |
 | En-têtes lus | `Accept`, `Last-Event-ID` (prioritaire sur le paramètre), authentification, `Sec-Fetch-Site` |
-| En-têtes écrits | `Content-Type: text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`, `Kartenn-Request-Id` |
+| En-têtes écrits | `Content-Type: text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`, `Incremental: ?1` (si `[events] incremental`, RFC 10036), `Kartenn-Request-Id` |
 | Erreurs avant ouverture | 400 filtre, 401, 403, 406, 429 (identité), 503 (instance, arrêt) — Problem Details |
 | Après ouverture | jamais d'erreur HTTP : `reset` ou fermeture |
 
 Pile de middlewares : comme `/v1` (authentification, quota, corrélation), **sauf** le
 délestage `quota::shed` et la compression (`compression.rs`), remplacés par le plafond
-de flux (REQ-022-22). Le contrôle `Sec-Fetch-Site` pour une session par cookie réutilise
-`csrf.rs` en mode lecture (REQ-022-15). Pas de CORS : la route ne répond jamais
+de flux (REQ-022-22). Pour une session par cookie, le contrôle d'`Origin` et de
+`Sec-Fetch-Site` réutilise `csrf.rs` (règle de REQ-006-28 appliquée à ce `GET`,
+REQ-022-15) : 403 sinon. Pas de CORS : la route ne répond jamais
 `Access-Control-Allow-Origin` ; la CSP du shell (`connect-src 'self'`, 007) couvre
 `EventSource` et `fetch` (CSP3 § 6.1.2).
 
@@ -90,14 +91,15 @@ data: {"reason":"overflow"}
 
 - `changes` : `changeset` est la révision (ETag fort, 006 `object_version`) de chaque
   objet listé ; une tâche de fond sans changeset (REQ-016-15) donne `"task":"<module>:
-  <tâche>"` et pas de révision : le client relit sans condition. `domains` : domaines
+  <tâche>"`, `"event":"<id CloudEvents>"` et pas de révision : le client relit sans
+  condition. `domains` : domaines
   visibles de l'événement. `truncated` : invalidation large (REQ-022-5), avec `types`.
 - `changeset` : état d'un changeset en attente (`pending`, `applied`, `rejected`,
   `withdrawn`, `expired`, `stale`), l'événement `org.kartenn.changeset.<état>` de la 004.
 - Point de reprise : `id:` seul suivi d'une ligne vide. Selon WHATWG § 9.2.6 (« dispatch
   the event »), le dernier identifiant de la source est mis à jour **avant** le test du
   tampon de données vide : le client natif avance son `Last-Event-ID` sans recevoir
-  d'événement. *(À vérifier mot à mot dans la note de référence, tâche 1.)*
+  d'événement. *(À vérifier mot à mot : note de référence, § SSE.)*
 - Maintien : `: ping` toutes les 15 s de silence (§ 9.2.7, conseil informatif).
 - `retry:` tiré dans [1 000, 3 000] ms à l'ouverture, dans [500, 5 000] ms à l'arrêt.
 
@@ -133,6 +135,30 @@ donc le **plancher** du lecteur :
   droits appliqués), puis enchaîne sur le direct ; si `f` est sous le bas de l'anneau,
   `reset` `too_old`. Les événements entre `f` et `s` déjà reçus reviennent : le client
   les ignore par la révision (son ETag est déjà celui-là).
+
+#### Doublons (REQ-022-27, arbitrage A2)
+
+Garantie : **aucun événement perdu, quelques doublons possibles.**
+
+| Cas | Pourquoi | Ampleur |
+|---|---|---|
+| Reprise sur la même instance | Le curseur porte le plancher `f`, pas l'ensemble des numéros remis ; l'anneau rejoue tout ce qui est `> f`, dont les événements entre `f` et `s` déjà reçus | Les événements validés pendant que le plancher était retenu (transaction longue) |
+| Reprise sur une autre instance | Même rejeu ; l'autre instance ne sait pas ce que la première a remis | Idem ; jamais plus que l'anneau |
+| Même connexion, sans reprise | Impossible : le lecteur ne publie chaque numéro qu'une fois (ensemble des numéros vus au-dessus de son plancher, balayage de secours compris) | Aucun |
+| `reset` (trop ancien, débordement, droits) | Ne rejoue rien : invalidation complète | Aucun doublon, aucune perte d'information |
+
+Reconnaissance par le client : (1) doublon exact — l'identité de l'événement
+(`changeset`, ou `event` pour une tâche) est dans l'ensemble des 1 000 dernières vues :
+ignoré sans requête ; (2) changement déjà appliqué — la révision d'un objet égale son
+ETag en cache : rien à relire ; (3) sinon, relecture conditionnelle (`If-None-Match`),
+au pire un 304. Les identifiants de changeset ne sont pas ordonnés : le client ne
+compare pas deux révisions, il compare seulement à l'égalité.
+
+Test (tâche 10) : propriété sur deux instances, transaction longue qui retient le
+plancher, coupures et reprises tirées au hasard : reçus ⊇ validés visibles ; tout
+doublon porte une identité déjà vue ; aucun doublon sans reprise.
+
+#### Plancher
 
 Le plancher du lecteur monte comme `pass_floor` (migration 0027), **en mémoire** : à
 chaque passe, noter `pending_max` et `pg_snapshot_xmax` ; quand `pg_snapshot_xmin` les a
@@ -229,9 +255,19 @@ d'éléments (`itemSchema`, types de média séquentiels dont `text/event-stream
 | Événement | Sévérité | Criticité | Détails |
 |---|---|---|---|
 | `events.stream.opened` | INFO | low | `criteria` (filtres), `resumed` (bool) |
-| `events.stream.closed` | INFO | low | `cause` (`client`, `shutdown`, `revoked`, `expired`, `overflow`), `duration_ms`, `delivered`, `resets`, `targets` (identifiants remis, bornés par `audit.read_ids_max`) |
+| `events.stream.closed` | INFO | low | `cause` (`client`, `shutdown`, `revoked`, `expired`, `overflow`), `duration_ms`, `delivered`, `resets`, cibles = identifiants remis bornés par `audit.read_ids_max`, `targets_omitted` |
 
-À ajouter au catalogue (`docs/spec/evenements-audit.md`, schéma JSON). Métriques de
+À ajouter au catalogue (`docs/spec/evenements-audit.md`, schéma JSON). Pourquoi pas un
+événement par remise : le flux ne porte que des notifications ; toute lecture de contenu
+et toute écriture passent par l'API REST, auditées par requête, donc chaque action reste
+rattachée à son acteur (A4).
+
+Au-delà de la borne, chaque remise est écrite dans les **logs techniques** (012), pas
+dans le journal d'audit : enregistrement DEBUG `events.delivery` (connexion, acteur,
+sorte, identifiants), émis seulement quand la borne de la connexion est atteinte, filtré
+et retenu par la configuration de la sortie (rétention courte, 7 jours recommandés dans
+`docs/exploitation/observabilite.md`). Il ne passe pas par l'outbox d'audit ni le
+scellement. Métriques de
 REQ-022-25 ; span `events.reader.pass` (lot, durée, plancher), span
 `events.visibility` (sujets, objets).
 
@@ -250,14 +286,34 @@ cliente et commandes `watch`), qui le reprendront.
   ; la relecture passe par l'API REST avec `If-None-Match` (304 si inchangé).
 - **`changeset`** : rafraîchir la vue du changeset et la liste des propositions.
 - **`reset`** : `invalidateQueries()` sans filtre ; continuer sur le même flux.
-- **Reconnexion** : le client lit lui-même le statut HTTP et `Retry-After` (le client
-  natif `EventSource` échoue sans se reconnecter sur un statut autre que 200, WHATWG
-  § 9.2.2, et ne lit pas `Retry-After`) : le SDK utilise un lecteur de flux par `fetch`
-  qui pose `Last-Event-ID` lui-même, avec attente croissante plafonnée et aléatoire ;
-  401 → reconnexion de la session, pas de boucle.
+- **Shell web : `EventSource`** (cookie BFF envoyé nativement, même origine). Une
+  coupure réseau est reprise par le navigateur avec `Last-Event-ID`. Un statut autre que
+  200 (401, 429, 503) ferme l'objet sans reconnexion (WHATWG § 9.2.2) : le SDK observe
+  l'état `CLOSED`, vérifie la session, puis rouvre un `EventSource` avec attente
+  croissante plafonnée et aléatoire, en passant le dernier curseur reçu par le paramètre
+  `last_event_id` (un nouvel objet n'envoie pas l'en-tête).
+- **CLI, bibliothèque Python, connecteurs** : requête `GET` lue en continu, en-tête
+  `Authorization` (Basic ou Bearer), `Last-Event-ID` posé par le client ; ils lisent le
+  statut et `Retry-After` et appliquent la même attente.
 - **Navigateur** : un seul flux par navigateur partagé entre onglets.
-- **Machines** : Basic ou Bearer dans `Authorization`, même contrat ; un connecteur qui
-  doit tout recevoir sans perte utilise un relais d'outbox dédié (ADR 0018), pas ce flux.
+- **Doublons** : ignorer les identités d'événement déjà vues, comparer les révisions à
+  l'égalité (§ Doublons).
+- Un connecteur qui doit recevoir le contenu de chaque événement sans perte utilise un
+  relais d'outbox dédié (ADR 0018), pas ce flux.
+
+Dépendances : les specs 020 et 021 (à venir) reprennent ce contrat ; elles relèvent du
+débat web D-1, et D17 n'est pas modifiée par la 022 (A8).
+
+## Futur adaptateur MCP (R23)
+
+Un serveur MCP sera un **adaptateur séparé**, `POST /mcp`, au transport Streamable HTTP
+de la révision 2026-07-28 : `subscriptions/listen` ouvre une réponse
+`text/event-stream` liée à la requête, dont le premier message est
+`notifications/subscriptions/acknowledged` ; pas de reprise par `Last-Event-ID` dans
+cette révision : un flux perdu se traite par réabonnement et relecture (l'équivalent du
+`reset`). Il se branche sur la même source (lecteur partagé et visibilité par lot), avec
+les droits de son appelant. `/v1/events` n'est jamais le point d'accès MCP : les deux
+contrats diffèrent (reprise, méthode, enveloppe JSON-RPC). Spec à venir.
 
 ## Exigences envers le noyau et les autres specs
 
@@ -325,10 +381,13 @@ cliente et commandes `watch`), qui le reprendront.
 
 ## ADR
 
-Proposée : **0033 — Événements poussés par SSE, vue volatile de l'outbox** (R1, R6,
-R18, R19, R20).
+Proposée : **0034 — Événements poussés par SSE, vue volatile de l'outbox** (R1, R6,
+R18, R19, R20, R23).
 
 ## Références
+
+Note de lecture : [`docs/reference/push-serveur.md`](../../docs/reference/push-serveur.md)
+(SSE, MCP, mandataires, alternatives, `LISTEN`/`NOTIFY` ; points « à vérifier »).
 
 - WHATWG HTML Living Standard, § 9.2 « Server-sent events »,
   <https://html.spec.whatwg.org/multipage/server-sent-events.html> : § 9.2.2 (interface
@@ -356,6 +415,10 @@ R18, R19, R20).
   <https://www.postgresql.org/docs/18/sql-listen.html>.
 - Documentation du module mandataire, `proxy_buffering` et `X-Accel-Buffering` :
   <https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering>.
+- RFC 10036, § 3-4 (`Incremental`) : <https://www.rfc-editor.org/rfc/rfc10036.html>.
+- MCP, transports 2025-03-26, 2025-11-25, 2026-07-28 et SEP-2575 :
+  <https://modelcontextprotocol.io/specification/versioning>,
+  <https://modelcontextprotocol.io/seps/2575>.
 - OpenAPI 3.2.0 (flux d'éléments, `itemSchema`) : <https://spec.openapis.org/oas/v3.2.0>
-  *(à vérifier, tâche 1)*.
+  *(à vérifier, note de référence)*.
 - ADR 0018, 0020, 0021, 0022 ; specs 004, 005, 006, 012, 016.

@@ -1,32 +1,37 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-23
 ---
 
 # 022 — Événements poussés (SSE) : tâches
 
-Brouillon : aucune tâche ne commence avant la validation de la spec, des arbitrages A1 à
-A8 et des questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Chaque tâche est un
+Spec validée le 2026-10-23 (arbitrages A1 à A8, questions Q-022-1 à 12,
+[`decisions.md`](decisions.md)) ; la 022 précède les specs web 020 et 021 (D31 amendée). Chaque tâche est un
 commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `où :` et
 `dépend de :`. Commandes lourdes par `k-heavy` (`k-check`, bancs).
 
 ## P0 — Références et décision
 
-- [ ] 1. Note de référence `docs/reference/evenements-sse.md` : WHATWG HTML § 9.2
-  (format, `Last-Event-ID`, échec sur statut ≠ 200, mise à jour de l'identifiant par un
-  bloc `id:` sans donnée, § 9.2.7 informatif), RFC 9110 § 10.2.3, § 15.6.4, RFC 6585
-  § 4, RFC 9112 § 9.4, RFC 9113 § 6.5.2, CSP3 § 6.1.2, Fetch (en-têtes), PostgreSQL 18
-  `LISTEN`/`NOTIFY`, `proxy_buffering`, OpenAPI 3.2 (`itemSchema`) ; normatif et
-  informatif séparés — REQ-022-6, 9, 13, 14, 23 — verify : chaque citation a son URL et
-  sa section ; les deux points « à vérifier » du design sont tranchés
-  - où : forme de `docs/reference/api-http.md`, `docs/reference/web-navigateur.md` ;
-    sous-agent `ref-researcher` ; design § Références
+- [x] 1. Note de référence `docs/reference/push-serveur.md` : SSE (WHATWG HTML § 9.2),
+  limites de connexions (RFC 9112 § 9.4, RFC 9113 § 6.5.2), mandataires (RFC 10036,
+  `X-Accel-Buffering`), statuts (RFC 9110, RFC 6585), Fetch et CSP3, MCP (révisions
+  2025-03-26, 2025-11-25, 2026-07-28, SEP-2575), alternatives (WebSocket,
+  WebTransport, interrogation longue, Server Push, Web Push), `LISTEN`/`NOTIFY` ;
+  normatif et choix de kartenn séparés — REQ-022-6, 9, 13 à 15, 23 — verify : chaque
+  affirmation a son URL et sa section ; points non relus marqués « à vérifier »
+  - où : forme de `docs/reference/api-http.md` ; étude du 2026-10-23 (arbitrage A1)
   - dépend de : —
-- [ ] 2. ADR 0033 « Événements poussés par SSE, vue volatile de l'outbox » (proposée) ;
-  amendements arbitrés : D7 (A1), REQ-006-30, 32 (A5), REQ-012-18 (A4), REQ-005-3, 7
-  (A6), REQ-004-36 (`NOTIFY`, E1) — verify : liens croisés ; `specs/README.md` à jour
-  - où : `docs/adr/0018-outbox-ordonnee-par-domaine.md` (forme), decisions § Arbitrages
-  - dépend de : 1, validation de la spec
+  - fait : note écrite avec la validation de la spec ; restent « à vérifier » (motif
+    MCP 2025-03-26, `connect-src` et `EventSource`, `Origin` sur un `GET` de même
+    origine, bloc `id:` sans donnée, RFC 9220, `WebSocketStream`, déploiement de
+    RFC 10036, OpenAPI 3.2), à lever avant les tâches 9 et 15.
+- [ ] 2. ADR 0034 « Événements poussés par SSE, vue volatile de l'outbox » (proposée) ;
+  amendements arbitrés : REQ-006-30, 32 (A5), REQ-012-18 et INV-50 (A4, R24),
+  REQ-005-3, 7 (A6), REQ-004-36 (`NOTIFY`, E1) ; D7 et D31 déjà amendées (A1, A7) —
+  verify : liens croisés ; `specs/README.md` à jour
+  - où : `docs/adr/0018-outbox-ordonnee-par-domaine.md` (forme), decisions § Arbitrages ;
+    marqueur « *Amendée par la 022 …* » comme REQ-004-37
+  - dépend de : 1
 
 ## P1 — Domaine pur
 
@@ -87,17 +92,21 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 - [ ] 9. `GET /v1/events` : négociation, filtres et bornes, authentification cookie,
   Basic, Bearer, `Sec-Fetch-Site`, pas de CORS, `ready` avec `retry:` aléatoire,
-  maintien 15 s, points de reprise 30 s, en-têtes (`no-store`, `X-Accel-Buffering: no`)
-  — REQ-022-1, 2, 9 à 11, 13, 15, 19 — verify : client SSE de test ; matrice cookie ×
-  `Sec-Fetch-Site` ; `Accept-Encoding` ignoré
+  maintien 15 s, points de reprise 30 s, en-têtes (`no-store`, `X-Accel-Buffering: no`,
+  `Incremental: ?1` en option), `Origin` et `Sec-Fetch-Site` pour le cookie —
+  REQ-022-1, 2, 9 à 11, 13, 15, 19 — verify : client SSE de test ; matrice cookie ×
+  `Origin` × `Sec-Fetch-Site` ; Basic et Bearer non soumis ; `Accept-Encoding` ignoré
   - où : nouveau `crates/kartenn-rest/src/events.rs` ; montage dans
     `crates/kartenn-rest/src/lib.rs` (pile de middlewares, l. 122-180) ; `csrf.rs`,
     `authn.rs`, `compression.rs` ; tests à l'image de `crates/kartenn-rest/tests/it/csrf.rs`
   - dépend de : 4, 8
 - [ ] 10. Reprise : `Last-Event-ID` et `last_event_id`, rejeu de l'anneau, `reset`
-  `too_old` et `invalid_cursor` — REQ-022-7, 8 — verify : coupure pendant trois
-  changesets, reprise sur la seconde instance ; transaction longue ; curseur d'une
-  autre identité
+  `too_old` et `invalid_cursor` ; identité d'événement (`changeset`, `event`) —
+  REQ-022-7, 8, 27 — verify : coupure pendant trois changesets, reprise sur la seconde
+  instance ; curseur d'une autre identité ; **test de propriété des doublons** (deux
+  instances, transaction longue qui retient le plancher, coupures et reprises au
+  hasard : reçus ⊇ validés visibles, tout doublon porte une identité déjà vue, aucun
+  doublon sans reprise)
   - où : `crates/kartenn-rest/src/events.rs` ; deux instances comme
     `crates/kartenn-server/tests` (`an_import_ends_on_another_instance_without_duplicates`)
   - dépend de : 9
@@ -120,8 +129,9 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/src/transport.rs` (`max_in_flight`),
     `crates/kartenn-server/src/http.rs` (`GracefulShutdown`, l. 109-)
   - dépend de : 9
-- [ ] 13. Guide de déploiement : mandataire inverse (tampon, délai de lecture,
-  HTTP/2), regroupeur de connexions et `LISTEN` — REQ-022-13, 14 — verify : relecture
+- [ ] 13. Guide de déploiement : mandataire inverse (tampon, `Incremental`, délai de
+  lecture, HTTP/2), regroupeur de connexions et `LISTEN`, rétention courte des logs
+  `events.delivery` (7 jours recommandés) — REQ-022-13, 14, 24 — verify : relecture
   - où : `docs/exploitation/configuration.md` (section `[events]`), `oci.md`,
     `nixos.md`, `observabilite.md` (métriques)
   - dépend de : 12
@@ -138,9 +148,11 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - où : `crates/kartenn-rest/src/openapi.rs`, `contract.rs`, `capabilities.rs` ; test
     `crates/kartenn-rest/tests/it/contract.rs`
   - dépend de : 9
-- [ ] 16. Audit `events.stream.opened` / `closed` ; métriques et spans — REQ-022-24, 25
-  — verify : événements au catalogue et au schéma ; métriques exposées ; aucune span
-  par connexion
+- [ ] 16. Audit `events.stream.opened` / `closed` (identifiants bornés par
+  `audit.read_ids_max`, `targets_omitted`) ; au-delà de la borne, log technique DEBUG
+  `events.delivery` hors audit ; métriques et spans — REQ-022-24, 25 — verify :
+  acceptation de REQ-022-24 ; événements au catalogue et au schéma ; aucun
+  `events.delivery` dans le journal d'audit ; aucune span par connexion
   - où : `docs/spec/evenements-audit.md`, `evenements-audit.schema.json`,
     `crates/kartenn-rest/src/audit.rs`, `crates/kartenn-telemetry` ; test voisin
     `crates/kartenn-rest/tests/it/audit.rs`
@@ -157,7 +169,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-bench/src/core_budgets.rs` (forme) ; sous-agent `bench-runner`
   - dépend de : 12
 - [ ] 18. Synchronisation : `docs/spec/` (interfaces : flux d'événements ; invariants
-  proposés ci-dessous ; architecture : lecteur partagé), ADR 0033 acceptée,
+  proposés ci-dessous ; architecture : lecteur partagé), ADR 0034 acceptée,
   `specs/README.md` — verify : sous-agent `spec-keeper` sans écart
   - où : `docs/spec/interfaces.md`, `docs/spec/invariants.md`, `docs/spec/architecture.md`
   - dépend de : 15, 16, 17
@@ -167,7 +179,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 | ID | Invariant | Garantie | Test |
 |---|---|---|---|
 | INV-67 | Un abonné ne reçoit jamais un objet qu'il ne peut lire au moment de la remise, ni la trace d'un événement caché | App (visibilité par lot) | Propriété, tâche 8 |
-| INV-68 | Une reprise depuis un curseur ne saute aucun événement validé après lui et visible, même après une transaction longue ; sinon `reset` | Plancher porté par le curseur | Tâche 10 |
+| INV-68 | Une reprise depuis un curseur ne saute aucun événement validé après lui et visible, même après une transaction longue ; sinon `reset`. Doublons seulement à la reprise, reconnaissables (identité, révision) | Plancher porté par le curseur | Tâche 10 (propriété des doublons) |
 | INV-69 | Le coût du flux en base ne dépend pas du nombre de connexions | Lecteur partagé | Tâche 7 |
 | INV-70 | Un abonné lent ne retarde ni le lecteur ni les autres abonnés | Tampon borné, `reset` | Tâche 8 |
 | INV-71 | Latence validation → client p95 < 500 ms à 50 écritures/s et 2 000 flux ; 5 000 flux par instance, < 64 Kio par flux | Banc `bench-events` | Tâche 17 |

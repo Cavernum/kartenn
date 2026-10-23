@@ -34,3 +34,4 @@ Chaque note contient :
 | [web-navigateur.md](web-navigateur.md) | CSP Level 3, SRI, import maps et `modulepreload`, Custom Elements et Shadow DOM, cookies sur le bouclage, IndexedDB et `BroadcastChannel`, WCAG 2.2 et APG, vue-i18n sans `eval`, prise en charge par les navigateurs | 007 |
 | [services-transports.md](services-transports.md) | Numéros de protocole, ports et noms de service (RFC 6335), ICMP | 010 |
 | [vlan-mac-ieee-802.md](vlan-mac-ieee-802.md) | VID IEEE 802.1Q (valeurs réservées), adresses MAC EUI-48 (RFC 9542) | 008, 009 |
+| [push-serveur.md](push-serveur.md) | Canal push serveur → client : SSE, MCP Streamable HTTP, mandataires, alternatives, `LISTEN`/`NOTIFY` | 022 |

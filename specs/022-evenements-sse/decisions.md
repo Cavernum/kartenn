@@ -1,8 +1,10 @@
 # 022 — Événements poussés (SSE) : journal des décisions
 
-Brouillon rédigé le 2026-10-23 sans entretien. Chaque décision retient la
-recommandation la plus standard ; toutes restent à valider par l'utilisateur, ainsi que
-les arbitrages A1 à A8 et les questions Q-022-1 à Q-022-12 en fin de journal.
+Rédigé le 2026-10-23 sans entretien, chaque décision retenant la recommandation la plus
+standard. **Validé le même jour** : l'utilisateur a tranché les arbitrages A1 à A8
+(A1 après une étude des normes, [`push-serveur.md`](../../docs/reference/push-serveur.md))
+et retenu les réponses recommandées aux questions Q-022-1 à 12 ; R23 à R25 sont issues
+de ces arbitrages.
 
 Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 [`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; ADR 0018 (outbox), 0020
@@ -24,7 +26,8 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - R11 arrêt propre : 503, `retry:` étalé, fermeture.
 - R12 pas de tampon ni de compression ; `X-Accel-Buffering: no`.
 - R13 HTTP/2 recommandé ; un flux par navigateur.
-- R14 authentification de `/v1` ; `Sec-Fetch-Site` pour le cookie ; pas de CORS.
+- R14 authentification de `/v1` ; `Origin` et `Sec-Fetch-Site` pour le cookie ; pas de
+  CORS.
 - R15 droits évalués à la remise, par lot et par instance.
 - R16 aucune trace d'un événement caché ; audit par connexion.
 - R17 révocation en 10 s au plus ; le flux n'est pas une activité de session.
@@ -33,6 +36,9 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - R20 tampon de 256 par connexion ; débordement → `reset`, fermeture à 30 s.
 - R21 plafonds 5 000 par instance, 16 par identité ; hors délestage.
 - R22 OpenAPI 3.1 avec extension ; capacités.
+- R23 un futur serveur MCP est un adaptateur séparé, jamais `/v1/events`.
+- R24 au-delà de la borne d'audit, chaque remise en log technique DEBUG.
+- R25 aucun événement perdu, quelques doublons possibles, reconnus par le client.
 
 ## R1 — SSE sur `GET /v1/events`
 - Décision : un flux `text/event-stream` (WHATWG HTML § 9.2) sur `GET /v1/events`, dans
@@ -44,8 +50,16 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
   périodique (ce qu'on remplace) ; webhooks vers les navigateurs (impossible) ;
   bibliothèque de publication externe (dépendance d'exploitation, contredit D9 qui veut
   la base pour seul point de cohérence).
+- Deux lecteurs du même flux : le shell web par `EventSource` (cookie BFF) ; la CLI, la
+  bibliothèque Python et les connecteurs par une réponse HTTP lue en continu, avec
+  `Authorization`.
+- Étude (A1) : MCP a déprécié son transport « HTTP+SSE » à deux points d'accès
+  (2025-03-26), puis retiré la reprise et l'écoute par `GET` (2026-07-28) pour ne pas
+  garder d'état par session (SEP-2575) ; ses réponses restent en `text/event-stream`.
+  Ce n'est pas un rejet du format, et l'état de reprise de kartenn est l'outbox, déjà en
+  base : la raison ne s'applique pas.
 - Conséquences : un point d'accès à longue durée à intégrer au délestage, à la
-  compression, à l'arrêt propre (R11, R12, R21) ; voir l'arbitrage A1 (D7).
+  compression, à l'arrêt propre (R11, R12, R21) ; D7 amendée (A1).
 
 ## R2 — Sortes d'événement
 - Décision : `ready` (ouverture, curseur courant, `retry:`), `changes` (objets écrits),
@@ -148,8 +162,9 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - Conséquences : un déploiement progressif ne perd aucun événement (reprise R7).
 
 ## R12 — Intermédiaires
-- Décision : `Cache-Control: no-store`, `X-Accel-Buffering: no`, pas de compression ni
-  de `Content-Length`, écriture sans tampon ; guide de déploiement.
+- Décision : `Cache-Control: no-store`, `X-Accel-Buffering: no`, `Incremental: ?1` en
+  option (RFC 10036, déploiement réel à vérifier), pas de compression ni de
+  `Content-Length`, écriture sans tampon ; guide de déploiement.
 - Pourquoi : un compresseur ou un mandataire qui met en tampon retient les événements
   (latence non tenue, maintien inopérant).
 - Rejeté : compression avec vidage par événement (gain faible sur des lignes courtes,
@@ -166,8 +181,10 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - Conséquences : partage entre onglets à concevoir dans le SDK (spec à venir).
 
 ## R14 — Authentification et origine
-- Décision : mêmes moyens que `/v1` (cookie, Basic, Bearer) ; pour le cookie,
-  `Sec-Fetch-Site` doit être `same-origin` ou absent ; aucune réponse CORS.
+- Décision : mêmes moyens que `/v1` (cookie, Basic, Bearer) ; pour le cookie, `Origin`
+  vérifié (égal à l'origine publique s'il est présent) et `Sec-Fetch-Site` égal à
+  `same-origin` ou absent, 403 sinon ; aucune réponse CORS ; droits revérifiés à la
+  relecture (R15).
 - Pourquoi : `GET` échappe à la protection CSRF (REQ-006-28), mais un flux ouvert depuis
   un autre site garderait une connexion authentifiée (lecture impossible pour l'attaquant
   sans CORS, mais coût et quotas consommés) ; le shell est de même origine
@@ -194,7 +211,7 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
   remise multiplierait le volume (5 000 connexions × 50 événements/s) alors que la
   lecture effective, par REST, est déjà auditée.
 - Rejeté : événement vide « quelque chose a changé » (oracle) ; audit par remise.
-- Conséquences : amende REQ-012-18 (A4).
+- Conséquences : amende REQ-012-18 (A4) ; au-delà de la borne, R24.
 
 ## R17 — Révocation et session
 - Décision : fermeture en 10 s au plus d'une connexion révoquée (changesets
@@ -254,68 +271,94 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - Rejeté : flux hors contrat ; passage immédiat à OpenAPI 3.2 (dépend du générateur).
 - Conséquences : un SDK généré lit l'extension (Q-022-9).
 
-## Arbitrages demandés
+## R23 — MCP : adaptateur séparé
+- Décision : un futur serveur MCP est un adaptateur distinct, `POST /mcp`, transport
+  Streamable HTTP de la révision 2026-07-28 (`subscriptions/listen`), branché sur la même
+  source d'événements (lecteur partagé, visibilité par lot) ; `/v1/events` n'est jamais
+  réutilisé comme point d'accès MCP.
+- Pourquoi : les contrats diffèrent (méthode, enveloppe JSON-RPC, accusé d'abonnement,
+  pas de reprise par `Last-Event-ID` côté MCP) ; les mêler figerait `/v1/events` sur les
+  révisions d'un protocole tiers.
+- Rejeté : servir MCP sur `/v1/events` ; transport « HTTP+SSE » de 2024-11-05 (déprécié).
+- Conséquences : spec à venir ; perte du flux MCP → réabonnement et relecture.
+- Décidé par : l'utilisateur (A1, 2026-10-23)
 
-Contradictions ou amendements de décisions et de specs existantes : rien n'est appliqué
-avant l'arbitrage.
+## R24 — Remises au-delà de la borne d'audit
+- Décision : quand les identifiants remis à une connexion dépassent
+  `audit.read_ids_max`, chaque remise suivante est écrite dans les logs techniques
+  (`events.delivery`, DEBUG : connexion, acteur, sorte, identifiants), hors du journal
+  d'audit scellé, avec une rétention courte réglée sur la sortie (7 jours recommandés).
+- Pourquoi : condition de l'utilisateur à l'audit par connexion (A4) ; la trace fine
+  reste disponible pour une enquête récente sans gonfler l'audit.
+- Rejeté : tout dans l'audit (volume) ; rien au-delà de la borne (trace perdue).
+- Conséquences : filtre de sortie et rétention à documenter (`observabilite.md`).
+- Décidé par : l'utilisateur (A4, 2026-10-23)
 
-- **A1 — D7 (REST, frontière publique unique).** Le flux n'est pas une ressource REST au
-  sens strict. Recommandation : le considérer comme partie de l'API HTTP `/v1` (même
-  authentification, RBAC, audit, quotas, contrat OpenAPI) et préciser D7 : « API HTTP
-  (REST et flux d'événements) ». Aucune autre frontière n'est ouverte.
-- **A2 — Hypothèse « `id` = position dans l'outbox » contre l'ADR 0018.** Les numéros ne
-  suivent pas l'ordre de validation entre clés d'ordre ; un `id` brut saute des
-  événements. Recommandation : R6 (curseur opaque qui porte le plancher), qui reste
-  dérivé de la position.
-- **A3 — D9 (aucun cache local faisant autorité).** L'anneau et l'état des connexions
-  sont locaux à une instance. Recommandation : confirmer qu'ils ne font pas autorité
-  (la base et l'outbox restent la vérité ; reprise sur toute instance ; pas
-  d'affinité).
-- **A4 — REQ-012-18 et INV-50 (toute lecture de l'API auditée avec ses identifiants).**
-  Recommandation : audit par connexion (R16), amender REQ-012-18 pour le flux.
-- **A5 — REQ-006-30 (délestage) et REQ-006-32 (compression).** Recommandation :
-  exclure `/v1/events` des deux, avec son propre plafond (R12, R21).
-- **A6 — REQ-005-3 et REQ-005-7 (révocation « à la requête suivante », inactivité).**
-  Recommandation : révocation en 10 s au plus pour un flux ouvert ; le flux ne compte
-  pas comme activité (un écran passif se ferme à 30 min d'inactivité).
-- **A7 — D31 (feuille de route).** Ni le flux, ni une bibliothèque cliente en Python,
-  ni des commandes `watch` n'y figurent (CLI « ensuite » ; D7 parle d'un SDK généré
-  depuis l'OpenAPI). Recommandation : placer la 022 avant les specs 020 et 021 (à
-  venir), comme brique transverse, et ouvrir une décision sur la bibliothèque cliente.
-- **A8 — D17 (shell Vue 3) et specs 020, 021 à venir.** Le contrat client cite le cœur
-  de TanStack Query, indépendant du framework ; la 022 ne tranche rien sur la réécriture
-  du shell. Recommandation : aucune modification de D17 par cette spec ; dépendance à
-  noter dans 020 et 021.
+## R25 — Doublons
+- Décision : garantie « aucun événement perdu, quelques doublons possibles ». Doublons
+  seulement à la reprise (même instance ou autre), jamais sur une connexion sans
+  reprise ; un `reset` ne rejoue rien. Le client reconnaît un doublon exact par
+  l'identité de l'événement (`changeset` ou `event`) et un changement déjà appliqué par
+  la révision (égalité avec l'ETag) ; au pire, une relecture conditionnelle (304).
+- Pourquoi : conséquence de R6 (le curseur porte un plancher, pas l'ensemble des
+  numéros remis) ; une garantie « exactement une fois » exigerait un état par abonné.
+- Rejeté : curseur portant l'ensemble des numéros remis (taille non bornée) ; état de
+  livraison par abonné en base (contredit R18).
+- Conséquences : test de propriété dédié (REQ-022-27, tâche 10).
+- Décidé par : l'utilisateur (A2, 2026-10-23)
 
-## Questions ouvertes
+## Arbitrages (tranchés le 2026-10-23 par l'utilisateur)
 
-- **Q-022-1** — Taille de l'anneau ? Recommandation : 15 min et 10⁴ événements par
+- **A1 — D7.** SSE retenu après étude ; un seul point d'accès `GET /v1/events`, partie de
+  l'API HTTP `/v1`. D7 amendée : « API HTTP (REST et flux d'événements) ». Deux lecteurs
+  (`EventSource` avec cookie et `Origin` vérifié ; réponse lue en continu avec
+  `Authorization`) ; droits revérifiés à la relecture ; `Cache-Control: no-store`,
+  `X-Accel-Buffering: no`, `Incremental: ?1` en option ; MCP séparé (R23).
+- **A2 — Curseur.** Curseur opaque chiffré qui porte le plancher (R6) ; doublons
+  documentés et testés (R25, REQ-022-27).
+- **A3 — D9.** L'anneau et l'état des connexions ne font pas autorité ; D9 inchangée.
+- **A4 — REQ-012-18 et INV-50.** Audit par connexion, identifiants remis bornés par
+  `audit.read_ids_max`, car chaque action reste rattachée à son acteur (le flux ne porte
+  que des notifications ; lectures de contenu et écritures passent par REST, auditées
+  par requête). Condition : au-delà de la borne, log DEBUG à rétention courte (R24).
+  REQ-012-18 à amender (tâche 2).
+- **A5 — REQ-006-30 et REQ-006-32.** `/v1/events` hors délestage et hors compression,
+  plafonds propres (5 000 par instance → 503, 16 par identité → 429). À amender
+  (tâche 2).
+- **A6 — REQ-005-3 et REQ-005-7.** Révocation en 10 s au plus pour un flux ouvert ; le
+  flux n'est pas une activité de session. À amender (tâche 2).
+- **A7 — D31.** La 022 précède les specs web 020 et 021 ; D31 amendée.
+- **A8 — D17.** Inchangée ; dépendance notée pour 020 et 021 et pour le débat web D-1.
+
+## Questions (closes le 2026-10-23 : réponse recommandée retenue)
+
+- **Q-022-1** — Taille de l'anneau ? Retenu : 15 min et 10⁴ événements par
   défaut, réglables ; à revoir après le banc.
-- **Q-022-2** — Filtres par entité, site ou sous-arbre de préfixes ? Recommandation :
+- **Q-022-2** — Filtres par entité, site ou sous-arbre de préfixes ? Retenu :
   non dans cette spec ; l'outbox ne porte pas ces ancres, le RBAC confine déjà ; à
   rouvrir si un connecteur le demande.
-- **Q-022-3** — Pousser les événements de module sans `subject` typé ? Recommandation :
+- **Q-022-3** — Pousser les événements de module sans `subject` typé ? Retenu :
   non ; le module déclare le type de son sujet (E3) pour être poussé.
 - **Q-022-4** — Variante JSON de rattrapage (`Accept: application/json`, page
   d'événements après un curseur) pour les clients qui ne tiennent pas un flux ?
-  Recommandation : oui, plus tard, tâche facultative (P4) ; même anneau, mêmes droits.
-- **Q-022-5** — Identifiants remis dans `events.stream.closed` ? Recommandation : oui,
+  Retenu : oui, plus tard, tâche facultative (P4) ; même anneau, mêmes droits.
+- **Q-022-5** — Identifiants remis dans `events.stream.closed` ? Retenu : oui,
   bornés par `audit.read_ids_max` (L25), le reste compté.
 - **Q-022-6** — Droits évalués à la remise ou à la validation du changeset ?
-  Recommandation : à la remise (R15).
-- **Q-022-7** — Plafond par identité ? Recommandation : 16 par défaut ; plafond propre
+  Retenu : à la remise (R15).
+- **Q-022-7** — Plafond par identité ? Retenu : 16 par défaut ; plafond propre
   aux comptes de service plus tard si un connecteur en a besoin.
-- **Q-022-8** — Charge utile de `NOTIFY` ? Recommandation : vide, un seul canal
+- **Q-022-8** — Charge utile de `NOTIFY` ? Retenu : vide, un seul canal
   `kartenn_outbox`.
-- **Q-022-9** — OpenAPI 3.2 (`itemSchema`) ? Recommandation : extension en 3.1
+- **Q-022-9** — OpenAPI 3.2 (`itemSchema`) ? Retenu : extension en 3.1
   maintenant, passage à 3.2 quand le générateur le permet (à vérifier dans la note).
-- **Q-022-10** — Curseur chiffré ou seulement signé ? Recommandation : chiffré (R6),
+- **Q-022-10** — Curseur chiffré ou seulement signé ? Retenu : chiffré (R6),
   coût négligeable, aucun volume lisible.
-- **Q-022-11** — Le flux doit-il compter comme activité de session ? Recommandation :
+- **Q-022-11** — Le flux doit-il compter comme activité de session ? Retenu :
   non (A6) ; le SDK affiche l'approche de l'échéance.
 - **Q-022-12** — La révision (ETag = dernier changeset qui a écrit l'objet ou ses
   propriétés) ne change pas quand une **valeur héritée** change : un client qui compare
-  l'ETag garderait une valeur résolue périmée. Recommandation : l'invalidation large par
+  l'ETag garderait une valeur résolue périmée. Retenu : l'invalidation large par
   type (R5) force la relecture sans condition pour ces cas ; vérifier à la 006 si la
   représentation REST inclut des valeurs résolues sous un ETag fort (sinon, rien à
   faire).
