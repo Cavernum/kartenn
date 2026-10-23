@@ -283,7 +283,7 @@ sont listés.
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
 | 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente | virtualisée ; tri `aria-sort` ; colonnes redimensionnables au clavier ; colonne de plugin (W5) |
-| 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, déplacement | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; déplacer au glisser et au clavier |
+| 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
 | 24 | `StatusBadge` | — | les six états | couleur + icône + libellé |
@@ -302,9 +302,34 @@ Contrat d'édition en place (`DataGrid`, `TreeGrid`, REQ-020-19), indépendant d
   `pending`, `draft`, `review`, `error` (avec code) ou valeur appliquée ;
 - en mode navigation, les flèches déplacent la cellule active (APG Grid) ; en mode
   édition, elles appartiennent à l'éditeur ;
-- déplacement d'un nœud d'arbre : glisser-déposer, **et** « Couper » (Ctrl+X) puis
-  « Coller dans » (Ctrl+V) sur la cible, **et** l'action « Déplacer vers… » qui ouvre un
-  `Combobox` de destinations ; l'hôte accepte ou refuse (`move({ node, target })`).
+- l'arbre ne change jamais lui-même la place d'un nœud : il rend la relation
+  parent-enfant de son modèle, et rien d'autre (REQ-020-32).
+
+Contrat de déplacement (`TreeGrid`, `Tree`, REQ-020-31, 32) :
+
+```ts
+type ParentMode = 'derived' | 'declared';
+type MoveCheck = { ok: true } | { ok: false; reason: string; code?: string };
+interface TreeMoveProps<N> {
+  parentMode: ParentMode;                          // 'derived' : aucun déplacement offert
+  canMove?(node: N, target: N | null): MoveCheck;  // synchrone, pour chaque cible survolée ou listée
+  onMove?(intent: { node: N; target: N | null }): void; // intention seulement
+  moveState?(node: N): 'idle' | 'pending' | { refused: MoveCheck };
+}
+```
+
+- `derived` : pas de `draggable`, pas de Ctrl+X/Ctrl+V, pas d'action « Déplacer vers… ».
+- `declared` : glisser-déposer, **et** « Couper » (Ctrl+X) puis « Coller dans » (Ctrl+V)
+  sur la cible, **et** « Déplacer vers… » (`Combobox` des seules cibles où `canMove` rend
+  `ok`). Pendant un glisser, la cible survolée n'est mise en évidence (`data-drop="ok"`)
+  qu'après `canMove` ; sinon `data-drop="refused"`, infobulle du motif et `CodeBadge` du
+  code, annonce `role="status"` ; `dragover` sans `preventDefault`, donc dépôt impossible.
+- Après un dépôt accepté : `onMove(intention)` ; le nœud garde sa place d'origine avec
+  `moveState = 'pending'` (icône et `aria-busy`) ; il ne change de place que si le modèle
+  fourni par l'hôte change ; `refused` affiche motif et code sur le nœud.
+- Garde de développement : à chaque rendu, pour chaque ligne visible, le parent visuel
+  (ligne de niveau `aria-level - 1` qui la précède) doit être le parent du modèle ; sinon
+  erreur levée (builds de développement et de test seulement).
 
 ## Catalogue `/_ui` (REQ-020-24)
 

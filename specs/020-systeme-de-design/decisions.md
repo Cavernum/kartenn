@@ -61,6 +61,8 @@ libellés par langue).
 - B28 WCAG 2.2 AA, axe `wcag22aa`, revue `a11y-auditor`.
 - B29 budgets de poids et de rendu de la bibliothèque.
 - B30 `@kartenn/ui` en MPL-2.0.
+- B31 déplacement contrôlé : aucun en parent déduit ; cibles vérifiées avant mise en évidence ; intention seulement.
+- B32 invariant : un nœud n'est affiché que sous le parent de son modèle.
 
 ## B1 — Brief et principes
 - Décision : le brief validé (design, § « Brief ») est la référence des revues
@@ -122,12 +124,32 @@ libellés par langue).
 
 ## B19 — Édition en place et déplacement
 - Décision : la grille et l'arbre offrent un contrat générique (cellule éditable,
-  `commit`, états `pending`/`draft`/`review`/`error`, `move`) ; la règle métier (droits,
+  `commit`, états `pending`/`draft`/`review`/`error` ; déplacement selon B31) ; la règle métier (droits,
   brouillon ou modification rapide, présent) est dans l'hôte (spec 021).
 - Pourquoi : un composant ne connaît ni les droits ni le changeset ; la même grille sert
   le shell et les plugins.
 - Rejeté : grille qui appelle l'API elle-même.
 - Décidé par : l'utilisateur (édition en place) ; contrat : choix de Claude
+
+## B31 — Déplacement contrôlé dans un arbre
+- Décision : l'arbre distingue parent déduit (`derived`, aucun déplacement) et parent
+  déclaré (`declared`) ; en `declared`, chaque cible est vérifiée par `canMove` avant
+  d'être mise en évidence, une cible refusée montre motif et code et n'accepte pas le
+  dépôt, « Déplacer vers… » ne liste que les cibles valides ; un dépôt n'émet qu'une
+  intention, le nœud reste à sa place en attente.
+- Pourquoi : retour de l'utilisateur du 2026-10-23 : un glisser dans un arbre déduit de
+  l'inclusion peut afficher des conteneurs qui contiennent des plages plus grandes que ce
+  que le préfixe permet ; la place d'un préfixe découle de sa valeur, jamais d'un geste.
+- Rejeté : glisser partout avec refus à la réponse du serveur ; déplacement affiché tout
+  de suite puis annulé.
+- Décidé par : l'utilisateur (principe, 2026-10-23) ; contrat : choix de Claude
+
+## B32 — Invariant d'affichage
+- Décision : l'arbre ne rend que la relation parent-enfant de son modèle ; garde vérifiée
+  à chaque rendu en développement et en test.
+- Pourquoi : rend l'affichage incorrect décrit par l'utilisateur impossible par
+  construction, et testable par propriété.
+- Décidé par : l'utilisateur (2026-10-23)
 
 ## B20 — Filtres typés
 - Décision : pastilles `propriété opérateur valeur`, listes fermées avec autocomplétion ;

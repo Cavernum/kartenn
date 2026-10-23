@@ -223,11 +223,67 @@ Acceptation :
 - Politique d'approbation active : la ligne passe « en revue » sans jamais afficher
   « appliqué ».
 
-#### REQ-021-17 — Déplacement dans un arbre
-Là où le parent d'un nœud est déclaré (et non déduit), l'arbre doit permettre de déplacer
-un nœud au glisser et au clavier, par une opération de changeset ; l'arbre des préfixes,
-déduit de l'inclusion (D34), n'offre pas de glisser : changer le domaine d'un préfixe est
-une action de menu. [X17, REQ-020-19, D34, Q-021-2]
+#### REQ-021-17 — Arbres à parent déduit
+Dans l'arbre des préfixes, et dans tout arbre dont le parent découle des données
+(inclusion, D34), le shell ne doit offrir **aucun** déplacement (mode `derived`,
+REQ-020-31) : l'utilisateur ne choisit jamais le parent. Changer la place d'un préfixe
+passe par la **modification de sa valeur** (ou de son domaine), par le brouillon ; l'arbre
+est alors recalculé à partir de la réponse du serveur (changeset appliqué, ou différentiel
+de la simulation du brouillon pour un aperçu marqué comme tel), jamais d'une déduction du
+client. [X17, D34, retour de l'utilisateur du 2026-10-23]
+
+Acceptation :
+- Arbre des préfixes : aucun glisser, aucune action « Déplacer vers… », Ctrl+X sans effet.
+- Valeur d'un préfixe changée de `10.1.2.0/24` en `10.1.0.0/23` dans le brouillon : l'arbre
+  au présent reste inchangé ; l'aperçu du brouillon montre la place rendue par la
+  simulation ; après application, l'arbre relu la montre.
+
+#### REQ-021-32 — Déplacement dans les arbres à parent déclaré
+Dans un arbre à parent déclaré (entités, sites, groupes de VLAN, machines et clusters,
+selon les modules), le shell doit vérifier chaque cible avant de la mettre en évidence
+(`canMove`, REQ-020-31) : pas de cycle (ni le nœud, ni un de ses descendants) ; type du
+parent compatible avec celui de l'enfant selon le contrat de l'API (schéma de l'opération
+de changement de parent) ; droit d'écriture sur le nœud **et** sur la cible (`/v1/me`) ;
+vue au présent (aucun déplacement sous `valid_at` ou `as_of`). Une cible refusée montre
+son motif, et le code de la règle serveur correspondante quand il existe (par exemple
+`machines.host.invalid`) ; y déposer ne fait rien ; « Déplacer vers… » ne liste que les
+cibles valides. Un déplacement accepté devient une opération du brouillon, ou, avec
+Ctrl+Entrée, un changeset immédiat. [X32, retour de l'utilisateur du 2026-10-23,
+REQ-020-31]
+
+Acceptation :
+- Glisser un cluster sur une de ses machines hébergées : cible en refus (cycle), dépôt sans
+  effet.
+- Cible sur laquelle l'utilisateur n'a pas le droit d'écriture : refus avec motif.
+- Sous `as_of` : aucun glisser possible.
+
+#### REQ-021-33 — Aucun optimisme pour un déplacement
+Même au présent, un déplacement ne doit **jamais** être affiché à sa nouvelle place avant
+que la simulation du changeset ou la réponse du serveur ne le confirme ; jusque-là, le
+nœud reste à sa place dans l'état « déplacement en attente ». Un refus (simulation
+invalide, 422, 403, 412) doit ramener visiblement le nœud à l'état normal à sa place, avec
+le code du refus. Le serveur reste seul juge : un déplacement accepté par le contrôle du
+client peut être refusé par le serveur, et ce refus doit être rendu sans perte. Cette
+règle déroge à l'optimisme de REQ-021-16, réservé aux valeurs. [X33, D-7, retour de
+l'utilisateur du 2026-10-23]
+
+Acceptation :
+- Parcours : déplacement d'une machine vers un cluster d'un autre site ; le contrôle du
+  client l'accepte, le serveur le refuse (`machines.host.site_mismatch`) : le nœud n'a
+  jamais quitté sa place, l'état « refusé » montre le code.
+- Réponse lente simulée : pendant l'attente, le nœud est à sa place, marqué « en attente ».
+
+#### REQ-021-34 — Invariant d'affichage des arbres
+Aucune vue d'arbre ne doit afficher un nœud sous un parent que les données ne soutiennent
+pas ; pour l'arbre des préfixes, aucun préfixe, plage ou adresse ne doit apparaître sous un
+préfixe qui ne le contient pas. [X34, REQ-020-32, D34]
+
+Acceptation :
+- Test de propriété de bout en bout : suites aléatoires de déplacements (arbres à parent
+  déclaré) et de modifications de valeurs de préfixes et de plages (par le brouillon et en
+  application directe, acceptées ou refusées), puis lecture de l'arbre rendu : chaque
+  ligne est contenue par sa ligne parente (comparaison CIDR des valeurs affichées) et a
+  pour parent celui que rend l'API.
 
 ### E. Filtres, libellés, codes
 

@@ -42,7 +42,7 @@ fusionnée).
 - X9 à X14 écrans : référentiel, changesets, brouillon, administration, plugins, session.
 - X15 édition en place vers le brouillon par défaut ; Ctrl+Entrée applique.
 - X16 optimisme au présent ; rendu de 202, 412, 422, 403.
-- X17 déplacement là où le parent est déclaré ; pas dans l'arbre des préfixes.
+- X17 aucun déplacement dans un arbre à parent déduit ; la place d'un préfixe suit sa valeur, relue du serveur.
 - X18 filtres typés tirés du contrat ; URL = paramètres de l'API.
 - X19 libellés : API (018), puis catalogue, puis clé.
 - X20 codes et `Request-Id` dans toute erreur.
@@ -57,6 +57,9 @@ fusionnée).
 - X29 WCAG 2.2 AA étendu ; consultation à 320 px, édition ≥ 1024 px.
 - X30 budgets étendus, bloquants.
 - X31 bascule en place, par zones.
+- X32 déplacement à parent déclaré : cibles vérifiées (cycle, type, droits, présent) avant mise en évidence.
+- X33 aucun optimisme pour un déplacement ; le serveur reste seul juge.
+- X34 invariant d'affichage des arbres, test de propriété de bout en bout.
 
 ## X2 — Espaces
 - Décision : liste fermée extensible d'espaces (`referential`, `changes`, `admin`,
@@ -94,12 +97,37 @@ fusionnée).
 - Rejeté : application directe à chaque cellule ; brouillon seul (pas de chemin rapide).
 - Décidé par : à arbitrer (Q-021-1, A4)
 
-## X17 — Déplacement
-- Décision : déplacement au glisser et au clavier là où le parent est déclaré ; pas de
-  glisser dans l'arbre des préfixes (déduit de l'inclusion, D34).
-- Pourquoi : déplacer un préfixe dans l'arbre n'a pas de sens : sa place découle de sa
-  valeur.
-- Décidé par : à arbitrer (Q-021-2)
+## X17 — Arbres à parent déduit
+- Décision : aucun déplacement (glisser, couper-coller, « Déplacer vers… ») dans l'arbre
+  des préfixes ni dans tout arbre déduit de l'inclusion ; la place d'un préfixe change par
+  sa valeur, par le brouillon ; l'arbre est relu du serveur ou montré en aperçu depuis la
+  simulation, jamais recalculé par le client.
+- Pourquoi : retour de l'utilisateur du 2026-10-23 : un glisser dans cet arbre peut
+  afficher des conteneurs qui contiennent des plages plus grandes que ce que le préfixe
+  permet ; la place découle de la valeur (D34).
+- Décidé par : l'utilisateur (2026-10-23)
+
+## X32 — Déplacement à parent déclaré
+- Décision : `canMove` vérifie cycle, compatibilité de types (contrat), droits sur les deux
+  bouts, présent ; cible refusée avec motif et code, dépôt sans effet ; « Déplacer vers… »
+  limité aux cibles valides.
+- Pourquoi : retour du 2026-10-23 ; une cible mise en évidence doit être une cible
+  possible.
+- Décidé par : l'utilisateur (principe) ; ordre des contrôles : choix de Claude
+
+## X33 — Pas d'optimisme structurel
+- Décision : un déplacement n'est montré à sa nouvelle place qu'après confirmation
+  (simulation ou réponse) ; attente à la place d'origine ; refus visible avec code ; tests
+  où le client accepte et le serveur refuse.
+- Pourquoi : retour du 2026-10-23 ; un déplacement change la structure lue par d'autres
+  vues (occupation, héritage) : l'annuler après coup affiche, un temps, un arbre faux.
+  D-7 (optimisme au présent) reste vrai pour les valeurs.
+- Décidé par : l'utilisateur (2026-10-23)
+
+## X34 — Invariant d'affichage
+- Décision : aucun nœud sous un parent que les données ne soutiennent pas ; garde du
+  composant (020/B32) et test de propriété de bout en bout.
+- Décidé par : l'utilisateur (2026-10-23)
 
 ## X18 — Filtres
 - Décision : les paramètres de l'URL sont ceux de l'API ; le modèle des filtres est tiré
@@ -169,9 +197,9 @@ fusionnée).
 
 - **Q-021-1** — Édition en place : brouillon par défaut et Ctrl+Entrée pour appliquer
   (recommandé), application directe avec motif, ou brouillon seul ?
-- **Q-021-2** — Déplacement dans les arbres : où le parent est déclaré seulement
-  (recommandé) ; l'arbre des préfixes n'a pas de glisser, « Changer de domaine… » au menu
-  si l'opération existe. Quels arbres à parent déclaré pour la v0.2 ? *Recommandation* :
+- **Q-021-2** — L'arbre des préfixes n'a aucun déplacement (X17, décidé) ; quels arbres
+  à parent déclaré offrent le déplacement en v0.2, et « Changer de domaine… » au menu si
+  l'opération existe ? *Recommandation* :
   hébergement d'une machine (cluster) et ancrage d'un groupe de VLAN, rien d'autre.
 - **Q-021-3** — Un flux par navigateur : verrou `navigator.locks` et `BroadcastChannel`
   (recommandé) ou `SharedWorker` ? Repli : un flux par onglet.

@@ -210,10 +210,37 @@ sequenceDiagram
   sa version lue comme `expected`.
 - Validation locale par les types du contrat ; la validation métier reste la simulation
   du brouillon ou la réponse 422.
-- Déplacement (X17) : pour les arbres à parent déclaré (groupes de VLAN ancrés, machines
-  hébergées par un cluster, selon les modules), `move` → opération de changement de
-  parent ; pour les préfixes (arbre déduit, D34), pas de glisser ; « Changer de domaine… »
-  au menu, s'il existe une opération qui le permet (Q-021-2).
+
+## Déplacements dans les arbres (REQ-021-17, 32 à 34)
+
+- **Parent déduit** (préfixes, D34) : `parentMode: 'derived'`, aucun déplacement. Changer
+  la place d'un préfixe = modifier sa valeur (ou son domaine, action de menu si
+  l'opération existe, Q-021-2) par le brouillon. L'arbre au présent n'est jamais retouché
+  par le client : il est relu après application (invalidation, X24) ; l'aperçu du
+  brouillon est un arbre distinct, marqué « aperçu », construit à partir du différentiel
+  de la simulation (`POST /v1/changesets?simulate=true`), jamais d'un calcul CIDR local.
+- **Parent déclaré** : `parentMode: 'declared'` ; `canMove(nœud, cible)` du shell, dans
+  l'ordre, rend le premier refus :
+  1. cible = nœud ou descendant connu (ancêtres de la cible dans le cache) → « cycle » ;
+  2. type de la cible absent des types de parent admis pour le type du nœud (table tirée
+     du contrat au build, comme `filters.ts`) → « parent incompatible » ;
+  3. `rights.can` faux pour l'écriture du nœud ou de la cible → « droit manquant » ;
+  4. contexte hors présent → « lecture datée » ;
+  chaque motif porte le code de la règle serveur équivalente quand elle existe (table du
+  module, par exemple `machines.host.invalid`).
+- **Après un dépôt accepté** : opération de changement de parent ajoutée au brouillon (ou
+  changeset immédiat avec Ctrl+Entrée et motif) ; `moveState = 'pending'` ; **aucun**
+  `setQueryData` sur les clés de l'arbre (dérogation à l'optimisme, X33) ; le nœud change
+  de place seulement quand les enfants relus de l'ancien et du nouveau parent le montrent
+  (réponse appliquée) ; pour un brouillon, la simulation valide marque le nœud « déplacé
+  dans le brouillon » à sa place d'origine, l'aperçu montrant la nouvelle place ; refus
+  (simulation invalide, 422, 403, 412) → `moveState = { refused }` avec code, nœud
+  inchangé.
+- **Invariant** (REQ-021-34) : la garde du composant (REQ-020-32) est active dans les
+  parcours ; le test de propriété de bout en bout (tâche 24) génère des suites aléatoires
+  de déplacements et de modifications de valeur à graine fixée, puis lit l'arbre rendu
+  (instantané d'accessibilité : niveau et valeur de chaque ligne) et vérifie la
+  contenance CIDR et le parent rendu par l'API.
 
 ## Filtres, libellés, codes (REQ-021-18 à 20)
 
@@ -409,6 +436,7 @@ jeu à 10⁶ objets.
 - **Préchargement refusé (403)** : ignoré ; la navigation affiche le refus.
 - **412 sur une cellule** : dialogue de fusion ancré à la cellule ; Échap garde la saisie
   dans le brouillon de l'éditeur.
+- **Déplacement refusé par le serveur après acceptation du client** : nœud jamais déplacé, état « refusé » avec code ; l'écart entre `canMove` et la règle serveur est consigné (table des codes à compléter).
 - **Bascule hors présent pendant une édition** : l'édition en cours est annulée et sa
   saisie proposée au brouillon (avec `valid_from`).
 - **Plugin qui enregistre une touche du shell** : refusé, journalisé en console, plugin
@@ -443,7 +471,7 @@ jeu à 10⁶ objets.
 |---|---|
 | Vitest (SDK) | clés et normalisation, fraîcheur par famille, 304, optimisme et retour, 202, 412, index des dépendants, flux (événements simulés : `ready`, `changes`, `truncated`, `reset`, doublons), élection du flux entre onglets (simulée) |
 | Vitest (shell) | registre des raccourcis (conflits, portée, désactivation), modèle des filtres tiré du contrat, `label`, éditabilité d'une cellule |
-| Playwright parcours | par zone ; fraîcheur à deux navigateurs ; édition en place (brouillon, appliquer, 202, 412) ; raccourcis ; palette ; lecture au passé ; plugins |
+| Playwright parcours | déplacements : cibles refusées, refus du serveur après acceptation du client, attente sans optimisme ; test de propriété de l'arbre (graine fixée, rejouable) ; par zone ; fraîcheur à deux navigateurs ; édition en place (brouillon, appliquer, 202, 412) ; raccourcis ; palette ; lecture au passé ; plugins |
 | Playwright captures | écrans clés comparés aux maquettes validées (020) |
 | axe, clavier | chaque étape ; scripts APG des composants (020) |
 | `bench-web` | REQ-021-30 |

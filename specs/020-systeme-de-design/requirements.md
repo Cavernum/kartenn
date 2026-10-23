@@ -249,14 +249,53 @@ la densité, `aria-rowcount`/`aria-rowindex`, `aria-level`/`aria-setsize`/`aria-
 offrir l'**édition en place** d'une cellule quand l'hôte la permet (Entrée ou F2 pour
 éditer, Échap pour annuler, Entrée ou Tab pour valider), avec validation, état
 « en attente », « en brouillon », « en revue » et erreur portée par la cellule ; et, pour
-l'arbre, le **déplacement** d'un nœud au glisser **et** au clavier (couper, coller, ou
-action « Déplacer vers… »). Le composant ne décide pas des droits : l'hôte lui dit quelles
+un arbre à parent **déclaré** seulement, le **déplacement** d'un nœud selon REQ-020-31.
+Le composant ne décide pas des droits : l'hôte lui dit quelles
 cellules sont éditables. [B19, retour du 2026-10-22, WCAG 2.5.7]
 
 Acceptation :
 - Grille de 10⁴ lignes au catalogue : au plus quelques centaines de lignes dans le DOM ;
   édition d'une cellule au clavier seul ; erreur affichée sur la cellule et annoncée.
-- Arbre de 10⁵ nœuds : déplacement d'un nœud au clavier sans glisser.
+- Arbre de 10⁵ nœuds à parent déclaré : déplacement d'un nœud au clavier sans glisser.
+
+#### REQ-020-31 — Déplacement contrôlé
+L'arbre doit connaître le **mode de parenté** que lui donne l'hôte : `derived` (parent
+déduit des données, comme l'arbre des préfixes par inclusion, D34) ou `declared` (parent
+choisi, comme une entité, un site, un groupe de VLAN, une machine hébergée). En mode
+`derived`, l'arbre ne doit offrir **aucun** déplacement : ni glisser, ni couper-coller, ni
+action « Déplacer vers… ». En mode `declared` :
+- pendant un glisser, chaque cible potentielle doit être vérifiée par la fonction
+  `canMove(nœud, cible)` de l'hôte **avant** d'être mise en évidence ; une cible refusée
+  montre un état de refus avec son motif (et le code de la règle serveur correspondante,
+  quand il y en a un) ; un dépôt sur une cible refusée ne fait rien ;
+- l'alternative au clavier (« Déplacer vers… ») ne liste que les cibles acceptées par
+  `canMove` ;
+- un dépôt accepté n'émet qu'une **intention** (`move({ nœud, cible })`) : l'arbre ne
+  déplace jamais le nœud lui-même ; il montre le nœud dans un état « déplacement en
+  attente » à sa place d'origine jusqu'à ce que l'hôte lui rende de nouvelles données ;
+  un refus de l'hôte (état « déplacement refusé », avec code) est visible sur le nœud,
+  resté à sa place. [B31, retour de l'utilisateur du 2026-10-23, WCAG 2.5.7]
+
+Acceptation :
+- Mode `derived` : aucun attribut `draggable`, aucune entrée de menu de déplacement, Ctrl+X
+  sans effet.
+- Mode `declared`, `canMove` qui refuse les descendants : survol d'un descendant pendant
+  le glisser → état de refus avec motif, aucune mise en évidence de cible ; dépôt → aucun
+  appel à `move`.
+- « Déplacer vers… » ne propose aucune cible refusée par `canMove`.
+- Dépôt accepté : le nœud reste à sa place, marqué « en attente », jusqu'aux nouvelles
+  données de l'hôte.
+
+#### REQ-020-32 — Invariant d'affichage de l'arbre
+L'arbre ne doit afficher un nœud que sous le parent que lui donnent les **données** de
+l'hôte (relation parent-enfant fournie par le modèle), jamais sous un parent déduit d'un
+geste de l'utilisateur ; en développement et en test, l'arbre doit vérifier que chaque
+ligne rendue a pour parent visuel le parent de son modèle, et lever une erreur sinon.
+[B32, retour de l'utilisateur du 2026-10-23]
+
+Acceptation :
+- Test de propriété (Vitest) : suites aléatoires de dépôts, refus, réponses tardives et
+  remplacements du modèle → à chaque rendu, parent visuel = parent du modèle.
 
 #### REQ-020-20 — Filtres typés
 Le système doit offrir une **pastille de filtre typé** (`propriété opérateur valeur`) et son

@@ -212,10 +212,16 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     remplacer) ; APG Grid
   - dépend de : 24
 - [ ] 26. `TreeGrid`, `Tree` : virtualisation, enfants paginés, `aria-setsize="-1"`,
-  édition en place, déplacement au glisser et au clavier — REQ-020-19 — verify : 10⁵
-  nœuds ; script Tree View/Treegrid ; déplacement au clavier seul ; ≤ 5 % de trames
-  perdues (banc de la tâche 27)
-  - où : `web/shell/src/tree/` (arbre actuel, pagination des enfants) ; APG Treegrid
+  édition en place, mode de parenté (`derived`/`declared`), déplacement contrôlé
+  (`canMove`, intention, états `pending`/`refused`), garde d'invariant — REQ-020-19, 31,
+  32 — verify : 10⁵ nœuds ; script Tree View/Treegrid ; `derived` : aucun moyen de
+  déplacer (glisser, Ctrl+X, menu) ; `declared` : cible refusée jamais mise en évidence,
+  dépôt sans effet, motif et code affichés ; « Déplacer vers… » sans cible refusée ; nœud
+  en attente à sa place ; test de propriété (dépôts, refus, réponses tardives et
+  remplacements aléatoires du modèle → parent visuel = parent du modèle) ; ≤ 5 % de
+  trames perdues (banc de la tâche 27)
+  - où : `web/shell/src/tree/` (arbre actuel, pagination des enfants) ; APG Treegrid ;
+    design § « Contrat de déplacement »
   - dépend de : 25
 
 ## P5 — Budgets et clôture

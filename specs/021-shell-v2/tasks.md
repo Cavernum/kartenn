@@ -134,6 +134,23 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
   - où : `web/shell/src/edit/{QuickEdit.vue,fields.ts,submit.ts}`, `rights/index.ts`,
     `views/NewView.vue`
   - dépend de : 11 ; 4
+- [ ] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
+  déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
+  relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur
+  les deux bouts, présent, codes des règles serveur) ; déplacement → brouillon ou
+  changeset, sans optimisme ; test de propriété de bout en bout — REQ-021-17, 32, 33,
+  34 — verify : Vitest de `canMove` (chaque refus, ordre) ; parcours : aucun moyen de
+  déplacer un préfixe ; cluster sur sa propre machine refusé ; machine vers un cluster
+  d'un autre site acceptée par le client puis refusée par le serveur
+  (`machines.host.site_mismatch`) sans que le nœud quitte sa place ; réponse ralentie →
+  nœud « en attente » à sa place ; test de propriété (graine fixée, 200 étapes de
+  déplacements et de modifications de valeurs de préfixes et de plages, acceptées ou
+  refusées) : chaque ligne contenue par sa ligne parente et parent égal à celui de l'API
+  - où : design § « Déplacements dans les arbres » ; `web/shell/src/tree/model.ts` ;
+    `web/sdk/scripts/gen.mjs` (table des parents admis, comme `dated.ts`) ;
+    `crates/kartenn-machines/src` (règles `machines.host.*`) ; 020 design § « Contrat de
+    déplacement »
+  - dépend de : 12 ; 020-26 ; le cas machines après 18
 - [ ] 13. Libellés et codes : `label` (API quand la 018 le servira, catalogues, clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et
   `Request-Id` — REQ-021-19, 20 — verify : Vitest de `label` ; parcours : erreur 422
@@ -167,7 +184,8 @@ comparées aux maquettes validées, revues `ui-reviewer` et `a11y-auditor`.
     `test/`
   - dépend de : 11, 12, 16
 - [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
-  un cluster (si Q-021-2 le retient) — verify : parcours `machines` vert
+  un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
+  `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
 - [ ] 19. Plugin d'exemple passé au SDK 2.0, **toujours sans framework**, en racine
