@@ -150,7 +150,9 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     couper la page après lui ; non-conformités par `(at, flow ou changeset)` décroissants,
     `as_of` figé, la clé de la dernière ligne lue avant le filtre des droits (page parfois
     plus courte). Pas d'index nouveau sur `anomaly` (pas de migration, tri des anomalies
-    ouvertes à chaque page) : à reprendre si un banc le demande.
+    ouvertes à chaque page) : à reprendre si un banc le demande. Bancs réduits du
+    2026-10-24 tenus : `bench-flow` page de non-conformités p95 4,5 ms, `bench-core`
+    page filtrée p95 22,8 ms.
 - [x] 30. `GET /v1/policy-reports` : liste paginée des rapports d'audit de la politique
   (état, date, lanceur), sous `policy.rule.admin` — amendement de la 010 —
   REQ-021-35 — verify : test REST (liste, droits, curseur)

@@ -614,4 +614,6 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     (`Draw`, pas proptest : une base par cas serait trop lente), nœuds changés = nœuds
     dont la suggestion de la source diffère avant et après application. Banc 010-19 :
     budget « preview of a rule of inference in its simulation, added » (1 s par 10⁴
-    nœuds de la portée).
+    nœuds de la portée) ; échelle réduite le 2026-10-24 : 30 001 nœuds, 3,6 s ajoutées
+    (limite 4 s, charge 2,3), tenu mais proche : environ 1,2 s par 10⁴ nœuds, à mesurer
+    sur le jeu complet.
