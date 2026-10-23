@@ -307,9 +307,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   écriture ne peut plus apparaître à `as_of`. La comparaison se fait avec `now()` de la
   base, lu avant les données (qui sont alors au moins aussi récentes). Alors :
   `Cache-Control: private, max-age=31536000, immutable`.
-- Sinon : `private, no-cache`, ETag ; objet : ETag fort = identifiant du dernier
-  changeset qui l'a modifié (le même que `expected`, REQ-004-11) ; liste : ETag faible =
-  empreinte du contenu de la page. `If-None-Match` → 304 sans corps.
+- Sinon : `private, no-cache`, ETag ; objet : ETag fort `"<version>.<empreinte>"`, la
+  version étant l'identifiant du dernier changeset qui l'a modifié (le même que
+  `expected`, REQ-004-11) et l'empreinte les 64 premiers bits (16 chiffres hexadécimaux)
+  du SHA-256 des octets du corps (H19) ; liste : ETag faible = empreinte du contenu de la
+  page. `If-None-Match` (étiquette entière) → 304 sans corps. Le kit des modules
+  (`kit::answer`) calcule l'étiquette composite pour toute lecture d'un objet.
 - Même au passé figé, la réponse reste `private` : elle dépend des droits de l'appelant,
   un cache partagé ne doit jamais la servir à un autre.
 
@@ -394,9 +397,10 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     sinon 422 ; `operation` est omis, `pointer` désigne le membre source (`/slug`,
     `/parent`, `/properties/<clé>`), `""` (le corps entier) pour la garde, une
     création, une clôture ou un `Update…`, `null` pour une règle de l'état final ;
-  - `If-Match` : une seule étiquette forte dont l'opaque est un UUID ; absent ou `*` →
-    428, plusieurs valeurs ou syntaxe invalide → 400, étiquette faible ou opaque qui
-    n'est pas un UUID → 412 (ne peut égaler aucune version).
+  - `If-Match` : une seule étiquette forte dont l'opaque est `<UUID>.<16 hex>` ou un
+    UUID nu ; seule la version (l'UUID) est comparée (H19) ; absent ou `*` → 428,
+    plusieurs valeurs ou syntaxe invalide → 400, étiquette faible ou opaque d'une autre
+    forme → 412 (ne peut égaler aucune version).
 - **Version d'un objet (arbitrage du 2026-10-19, 006-16)** : la version est le dernier
   changeset qui a écrit l'objet **ou ses propriétés**. Migration 0037 `object_version
   (object_id PK, changeset_id)`, mise à jour dans la transaction du changeset par toute
@@ -413,7 +417,8 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `Link: </v1/changesets/{id}>; rel="urn:kartenn:rel:changeset"` (type de relation
   d'extension : URI propre à kartenn, RFC 8288 §2.1.2) et `changeset` dans le corps.
 - **`If-Match`** : absent sur `PATCH`, `DELETE` ou une action de changeset → 428 ; la
-  valeur devient `expected` ; un conflit du pipeline (`expected` périmé) → 412.
+  version qu'elle porte (H19) devient `expected` ; un conflit du pipeline (`expected`
+  périmé) → 412.
   `If-Match: *` est refusé (428) : il ne protège de rien.
 - **Idempotence** : en-tête `Idempotency-Key` (1 à 255 caractères imprimables) →
   `ChangesetRequest.idempotency_key`.

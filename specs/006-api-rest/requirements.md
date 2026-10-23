@@ -202,16 +202,22 @@ Acceptation :
 - `application/json-patch+json` → 415.
 
 #### REQ-006-14 — Concurrence par ETag
-kartenn doit donner à chaque objet un ETag fort égal à sa version (dernier changeset qui
-l'a modifié) et exiger `If-Match` sur `PATCH` et `DELETE` : absent → 428 avec un
-problème qui explique comment resoumettre, périmé → 412. Dans `POST /v1/changesets`,
-`expected` reste facultatif, par opération. [H8, RFC 9110 §13.1.1, RFC 6585 §3,
-004/REQ-004-11]
+kartenn doit donner à chaque objet un ETag fort composite `"<version>.<empreinte>"` :
+sa version (dernier changeset qui l'a modifié, lui ou ses propriétés), puis une empreinte
+de tout ce que le corps montre d'autre (résumés des liés, valeurs héritées, collections
+embarquées), de sorte que l'ETag change dès que le corps change (RFC 9110 §8.8.1). Il doit
+exiger `If-Match` sur `PATCH` et `DELETE` et n'y comparer que la version : l'étiquette
+entière ou la version seule sont acceptées ; absent → 428 avec un problème qui explique
+comment resoumettre, version périmée → 412. Dans `POST /v1/changesets`, `expected`
+(la version) reste facultatif, par opération. [H8, H19, RFC 9110 §8.8.1, §8.8.3,
+§13.1.1, RFC 6585 §3, 004/REQ-004-11]
 
 Acceptation :
 - Deux clients lisent le même objet, le premier le modifie ; le `PATCH` du second avec
   l'ancien ETag → 412 et l'objet porte la modification du premier.
 - `PATCH` sans `If-Match` → 428.
+- Le parent d'un objet renommé : `If-None-Match` avec l'ancien ETag de l'objet → 200 et
+  le nouveau résumé ; `PATCH` de l'objet avec cet ancien ETag → 200.
 
 #### REQ-006-15 — Idempotence
 kartenn doit accepter l'en-tête `Idempotency-Key` sur `POST /v1/changesets` et sur les
