@@ -268,6 +268,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "report",
         sql: include_str!("../migrations/0003_report.sql"),
     },
+    ModuleMigration {
+        version: 4,
+        name: "labels",
+        sql: include_str!("../migrations/0004_labels.sql"),
+    },
 ];
 
 /// The background task that re-evaluates the deviations of the inference by origin node

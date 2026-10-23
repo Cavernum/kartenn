@@ -634,6 +634,10 @@
             },
             "type": "array"
           },
+          "default_locale": {
+            "description": "The default language of the instance (BCP 47, `[i18n] default_locale`): required\nin every `labels` table, served when no language asked matches (spec 018,\nREQ-018-12).",
+            "type": "string"
+          },
           "events": {
             "oneOf": [
               {
@@ -681,7 +685,8 @@
           "modules",
           "properties",
           "ui_plugins",
-          "limits"
+          "limits",
+          "default_locale"
         ],
         "type": "object"
       },

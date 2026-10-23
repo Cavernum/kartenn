@@ -69,7 +69,7 @@ impl Default for Options {
             axis: AxisKey::parse(ENVIRONMENT).expect("a property key"),
             default_flow_type: None,
             existing_environments: BTreeSet::new(),
-            locale: Locale::new("fr").expect("a language tag"),
+            locale: kartenn_core::labels::default_locale().clone(),
         }
     }
 }

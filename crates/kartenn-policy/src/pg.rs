@@ -147,7 +147,7 @@ pub(crate) async fn insert(
     let (from, to) = bounds(period);
     let sql = format!(
         "INSERT INTO {table} SELECT * FROM jsonb_populate_record(NULL::{table},
-             $1::jsonb || jsonb_build_object(
+             '{{\"labels\": {{}}}}'::jsonb || $1::jsonb || jsonb_build_object(
                  'valid_period', tstzrange(coalesce($2::timestamptz, now()), $3),
                  'changeset_id', $4::uuid))"
     );

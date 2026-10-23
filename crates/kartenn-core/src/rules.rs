@@ -243,6 +243,8 @@ rules! {
         "Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
+    LABEL_INVALID = "core.label.invalid", Error, ["REQ-018-9"], "018/R7, R9, RFC 5646 §2.1",
+        "Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut.";
     OBJECT_DEPENDENTS = "core.object.dependents", Error, ["REQ-008-10"], "D33, ADR 0026",
         "Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence.";
 }

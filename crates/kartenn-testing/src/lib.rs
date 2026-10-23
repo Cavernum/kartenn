@@ -260,6 +260,16 @@ pub async fn clone(conn: &mut PgConnection, template: &str, name: &str) -> Resul
     .await
 }
 
+/// Drops `name` if it exists, then creates it empty: for a test that applies the
+/// migrations itself, part of them first (a migration that moves data).
+///
+/// # Errors
+/// Those of the cluster.
+pub async fn create_empty(conn: &mut PgConnection, name: &str) -> Result<(), sqlx::Error> {
+    drop_database(conn, name).await?;
+    exec(conn, format!(r#"CREATE DATABASE "{name}""#)).await
+}
+
 /// What [`clean`] dropped.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Cleaned {

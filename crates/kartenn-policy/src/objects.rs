@@ -397,6 +397,12 @@ fn plan_with(
     if named.contains(&"label")
         && let Some(label) = f.label()?
     {
+        // Until the writes take `labels` (task 018-7), the label is that of the default
+        // language.
+        columns.insert(
+            "labels".into(),
+            serde_json::json!({ kartenn_core::labels::default_locale().as_str(): &label }),
+        );
         columns.insert("label".into(), label.into());
     }
     (spec.columns)(&f, &mut columns)?;

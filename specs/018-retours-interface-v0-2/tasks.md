@@ -130,7 +130,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   ignoré (seul `lang` mal formé vaut 400). Citations relues par un outil de résumé :
   points à revérifier listés en fin de note.
 
-- [ ] 6. Schéma : `labels jsonb` sur les tables propriétaires, reprise des `label` puis
+- [x] 6. Schéma : `labels jsonb` sur les tables propriétaires, reprise des `label` puis
   suppression des colonnes, `policy_value.label` vers `property_enum_value.labels`,
   `label_revision`, règle `core.label.invalid`, `[i18n] default_locale` publiée aux
   capacités, `Locale` au noyau — REQ-018-8, 12, 13 ; Q-018-5 à 7 — verify :
@@ -143,6 +143,24 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-rest/src/capabilities.rs` ; configuration du serveur
   (`crates/kartenn-server/src/`, section `[web]` à imiter)
   dépend de : 5
+  fait : migrations `0060_labels.sql` (noyau : `labels` sur déclarations, valeurs,
+  rôles ; `label_revision`) et `policy/0004_labels.sql` (six tables de la politique ;
+  `policy_value.label` → `property_enum_value.labels`), lignes et historique relabellisés
+  sans nouvelle version (déclencheur suspendu). `kartenn_core::labels` : `Locale`
+  (grammaire de la RFC 5646 §2.1, minuscules, 35 caractères au plus, `truncations` pour
+  Lookup), `Labels` (`parse`, `parse_required`, `stored`), `default_locale` ;
+  `core.label.invalid` dans `CHANGESET_RULES`. `[i18n] default_locale` (`fr` par défaut)
+  installé au démarrage (`I18n::install`, `run` et sous-commandes), publié par
+  `GET /v1/capabilities` (`default_locale`), documenté dans
+  `docs/exploitation/configuration.md`. Choix : (1) la suppression des colonnes `label`
+  passe avec les écritures (tâche 7, seconde migration) pour garder ce commit vert ;
+  d'ici là la politique écrit aussi `labels` ; (2) la reprise en SQL prend `fr`, seule
+  langue des données de la v0.2 (la migration ne lit pas la configuration) ; (3) la
+  langue par défaut est un réglage du processus (`OnceLock`, posé une fois au
+  démarrage) plutôt qu'un paramètre de chaque appel ; (4) une table vide est admise
+  (valeurs, déclarations), `parse_required` sert aux objets qui exigent un libellé.
+  Outillage : `kartenn_testing::create_empty` (base vide, migrations jouées en partie
+  par le test).
 
 - [ ] 7. Écritures : `labels` sur `declare_property`, `update_property`,
   `add_enum_value`, rôles (`PUT /v1/roles/{key}` : `{labels, entries}`) et opérations de

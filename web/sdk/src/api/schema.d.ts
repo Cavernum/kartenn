@@ -3917,6 +3917,12 @@ export interface components {
     Capabilities: {
       /** @description The major versions of the API served. */
       api_versions: string[];
+      /**
+       * @description The default language of the instance (BCP 47, `[i18n] default_locale`): required
+       *     in every `labels` table, served when no language asked matches (spec 018,
+       *     REQ-018-12).
+       */
+      default_locale: string;
       events?: components["schemas"]["EventsCapability"] | null;
       /** @description The limits. */
       limits: components["schemas"]["Limits"];

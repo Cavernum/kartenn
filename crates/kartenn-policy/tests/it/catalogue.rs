@@ -140,7 +140,7 @@ async fn each_rule_of_validation_refuses_its_case(pool: PgPool) {
             "policy.text.invalid",
             rule(
                 admin,
-                json!({ "effect": "deny", "texts": { "FR": { "body": TEXT } } }),
+                json!({ "effect": "deny", "texts": { "fr_FR": { "body": TEXT } } }),
             ),
         ),
         (

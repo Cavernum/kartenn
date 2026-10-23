@@ -452,6 +452,7 @@ pub async fn run(
         version: instance.version,
         instance: id.to_string(),
     };
+    config.i18n.install()?;
     let telemetry = telemetry(config, &identity)?;
     kartenn_telemetry::panic::install();
     // The modules of the build, before anything is recorded: a conflict stops the start.

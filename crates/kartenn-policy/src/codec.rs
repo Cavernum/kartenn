@@ -17,13 +17,10 @@ use crate::rules::{
     TEXT_INVALID,
 };
 
-/// The language every pedagogical text needs (REQ-010-33); the default language of the
-/// instance until it is configurable.
-pub(crate) const DEFAULT_LOCALE: &str = "fr";
-
-/// The default language, checked.
+/// The language every pedagogical text needs (REQ-010-33): the default language of the
+/// instance (`[i18n] default_locale`, REQ-018-12).
 pub(crate) fn default_locale() -> Locale {
-    Locale::new(DEFAULT_LOCALE).expect("a valid tag")
+    kartenn_core::labels::default_locale().clone()
 }
 
 /// Texts `{locale: {body, url?}}` (S29): checked, normalised (NFC), and their row form.
@@ -34,13 +31,16 @@ pub(crate) fn texts(value: &Value) -> Result<(Texts, Value), Violation> {
     let mut texts = BTreeMap::new();
     let mut row = Map::new();
     for (tag, text) in object {
-        let locale = Locale::new(tag)?;
+        let locale = crate::model::locale(tag)?;
         let body = text.get("body").and_then(Value::as_str).ok_or_else(|| {
             Violation::new(&TEXT_INVALID, format!("the text in {tag} has no body"))
         })?;
         let url = text.get("url").and_then(Value::as_str);
         let text = Text::new(body, url)?;
-        row.insert(tag.clone(), json!({ "body": text.body, "url": text.url }));
+        row.insert(
+            locale.as_str().to_owned(),
+            json!({ "body": text.body, "url": text.url }),
+        );
         texts.insert(locale, text);
     }
     Ok((Texts(texts), Value::Object(row)))

@@ -478,39 +478,20 @@ pub enum Effect {
     Deny,
 }
 
-/// A language tag of a pedagogical text: `ll` or `lll`, optionally followed by
-/// `-subtag`s of letters and digits (BCP 47 shape, without registry lookup).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Locale(String);
+pub use kartenn_core::labels::Locale;
 
-impl Locale {
-    /// Checks a tag (`policy.text.invalid`).
-    ///
-    /// # Errors
-    /// A violation of `policy.text.invalid`.
-    pub fn new(tag: &str) -> Result<Self, Violation> {
-        let mut parts = tag.split('-');
-        let primary = parts.next().unwrap_or_default();
-        let valid = (2..=3).contains(&primary.len())
-            && primary.bytes().all(|b| b.is_ascii_lowercase())
-            && parts.all(|p| {
-                (1..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric())
-            });
-        if valid {
-            Ok(Self(tag.to_owned()))
-        } else {
-            Err(Violation::new(
-                &TEXT_INVALID,
-                format!("{tag:?} n'est pas une étiquette de langue"),
-            ))
-        }
-    }
-
-    /// The tag.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+/// Checks the language tag of a pedagogical text (`policy.text.invalid`): BCP 47, in any
+/// case, kept in lower case.
+///
+/// # Errors
+/// A violation of `policy.text.invalid`.
+pub fn locale(tag: &str) -> Result<Locale, Violation> {
+    Locale::parse(tag).ok_or_else(|| {
+        Violation::new(
+            &TEXT_INVALID,
+            format!("{tag:?} n'est pas une étiquette de langue"),
+        )
+    })
 }
 
 /// Longest body of a pedagogical text, in characters.
@@ -886,7 +867,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn fr() -> Locale {
-        Locale::new("fr").unwrap()
+        Locale::parse("fr").unwrap()
     }
 
     fn entry(transport: &str, ports: Option<(i64, i64)>) -> Result<ServiceEntry, Violation> {
@@ -1114,13 +1095,13 @@ pub(crate) mod tests {
             fr(),
             Text::new("Bonne pratique.", Some("https://doc.invalid/x")).unwrap(),
         );
-        let en = Locale::new("en").unwrap();
+        let en = Locale::parse("en").unwrap();
         let (lang, text) = texts.get(&en, &fr()).unwrap();
         assert_eq!(lang, &fr());
         assert_eq!(text.body, "Bonne pratique.");
         assert!(Text::new("", None).is_err());
         assert!(Text::new("x", Some("ftp://x")).is_err());
-        assert!(Locale::new("fr-FR").is_ok() && Locale::new("FR").is_err());
+        assert!(locale("fr-FR").is_ok() && locale("fr_FR").is_err());
     }
 
     #[test]

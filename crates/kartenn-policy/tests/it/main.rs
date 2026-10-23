@@ -11,6 +11,7 @@ mod dated;
 mod differential;
 mod import;
 mod inference;
+mod labels;
 mod matrix;
 mod mismatch;
 mod obligation;
