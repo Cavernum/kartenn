@@ -7,11 +7,11 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 ## Synthèse des décisions (détail dans le journal ci-dessous)
 - **Produit** : kartenn, un référentiel réseau **déclaratif**, source de vérité, avec une validation de cohérence **bloquante** (D1). Environ 10⁶ objets, budgets jusqu'à 10⁷ (D2). Une organisation, éventuellement un groupe d'entités, avec des opérateurs externes (D3).
 - **Modèle** : domaines d'adressage obligatoires (D4) ; v4 et v6, familles d'adresses extensibles en vue d'IPv8 (D5) ; ancres entité, site et domaine (D12) ; arbre de préfixes déduit de l'inclusion CIDR (D34) ; **bitemporel** natif (D8, D10) ; écritures par **changesets** avec revue optionnelle (D11) ; suppression refusée par défaut, cascade explicite (D33) ; **propriétés héritables** dans le noyau (D19).
-- **Architecture** : hexagonale. Modules métier compilés (crates), plugins UI à chaud (Web Components), connecteurs hors processus (D6) ; **REST, seule frontière publique** (D7) ; N instances sans état, PostgreSQL ≥ 18 en primaire unique pour les écritures (D9, D15) ; Rust (D16) ; Vue 3 + TS (D17).
+- **Architecture** : hexagonale. Modules métier compilés (crates), plugins UI à chaud (Web Components), connecteurs hors processus (D6) ; **API HTTP `/v1` (REST et flux d'événements), seule frontière publique** (D7 amendée) ; N instances sans état, PostgreSQL ≥ 18 en primaire unique pour les écritures (D9, D15) ; Rust (D16) ; Vue 3 + TS (D17).
 - **Sécurité d'accès** : OIDC multi-émetteurs (humains) et Basic sur TLS (machines, secours) (D13) ; RBAC composable avec liaisons portées (D36).
 - **Qualité** : budgets p95 chiffrés et bancs d'essai en CI (D14) ; OCI, module NixOS, OpenTelemetry (D35) ; AGPL-3.0 (D37).
 - **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
-- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, CLI, TUI.
+- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, CLI, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) (D31 amendée).
 
 ## D1 — Source de vérité et sens de « contrôler »
 - Décision : l'outil est déclaratif et constitue la source de vérité. « Contrôler » veut dire qu'une validation de cohérence est bloquante : aucune incohérence n'est acceptée en écriture. Pas de découverte ni de pilotage actif pour l'instant.
@@ -56,6 +56,8 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Conséquences : l'API doit offrir des **opérations par lots atomiques** performantes (imports de 10⁵ à 10⁶ objets) et un endpoint de **capacités** (modules actifs). Le CLI et le MCP peuvent partager un SDK client généré depuis l'OpenAPI.
 - Rejeté : MCP dans le processus (deux surfaces), connecteurs dans le processus (contredit le « à chaud » et contourne l'audit).
 - Décidé par : recommandation acceptée
+- Amendement (spec 022, A1, 2026-10-23) : la frontière publique unique est l'**API HTTP `/v1` (REST et flux d'événements)**. Le flux `GET /v1/events` (server-sent events) en fait partie : mêmes authentification, RBAC, audit, quotas et contrat OpenAPI. Un futur serveur MCP est un adaptateur séparé (`POST /mcp`), branché sur la même source d'événements, jamais sur `/v1/events`.
+- Décidé par (amendement) : l'utilisateur, après une étude des normes ([`docs/reference/push-serveur.md`](../../docs/reference/push-serveur.md))
 
 ## D8 — Historique temporel natif
 - Décision : chaque objet est **versionné dans le temps** et l'on peut interroger directement l'état du réseau à une date X. Plus le journal d'audit (auteur, motif).
@@ -237,6 +239,8 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Garde-fou : les specs de Politique et Flux sont **écrites avant de figer le noyau** de v0.1, pour que le noyau les accueille sans refonte. Un prototype de résolution d'héritage sur 10⁶ nœuds est fait en v0.1.
 - Rejeté : Politique dans le MVP, tout dans le MVP.
 - Décidé par : l'utilisateur
+- Amendement (spec 022, A7, 2026-10-23) : les **événements poussés** (spec 022, flux SSE alimenté par l'outbox) sont une brique transverse qui précède les specs de réécriture du web (020, 021, à venir) ; la bibliothèque cliente et ses commandes `watch` en consomment le contrat.
+- Décidé par (amendement) : l'utilisateur
 
 ## D32 — Nom et emplacement
 - Décision : **kartenn** (« carte » en breton), dans `~/Repos/kartenn`, en monorepo git avec devenv. Structure : `crates/` (kartenn-core, kartenn-<module>, kartenn-server…), `web/` (shell et SDK de plugins), `docs/` (spec système, ADR, notes RFC et bonnes pratiques), `specs/` (specs de fonctionnalités), `devenv.nix` (Rust, Node, PostgreSQL 18).
