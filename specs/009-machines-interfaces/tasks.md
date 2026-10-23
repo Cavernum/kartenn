@@ -82,7 +82,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   restent à la tâche 4 ; nom d'interface mal formé et machine changée refusés par
   `machines.operation.invalid`.
 - [x] 4. VLAN d'une interface : modes `none`/`access`/`trunk`, VLAN vivants, droits
-  `vlan.vlan.read` — REQ-009-12, 18 (VLAN) — verify : `access_needs_one_vlan`,
+  `vlan.read` — REQ-009-12, 18 (VLAN) — verify : `access_needs_one_vlan`,
   `native_not_in_tagged`, `closed_vlan_refused`, `vlan_read_required`
   où : design « Opérations », « Routes » (droits) ; propriété et type `vlan.vlan` (008)
   dépend de : 3 ; 008 : 11
@@ -90,7 +90,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   contrôlés comme une garde dans `rights::check_guards`, `core.object.forbidden`, jamais
   en proposition). `kartenn-machines` : `handler.rs` (champ `vlan` `{mode, access,
   native, tagged}` de `create_interface` et `update_interface`, `null` ou absent : `none` ;
-  `VlanMode::from_parts` ; colonnes 802.1Q ; `vlan.vlan.read` sur chaque VLAN cité ;
+  `VlanMode::from_parts` ; colonnes 802.1Q ; `vlan.read` sur chaque VLAN cité ;
   `check` : VLAN vivant sur chaque version de l'interface), `pg.rs` (`insert_interface`
   depuis les colonnes planifiées, `dead_vlans`). Tests : `kartenn-machines/tests/machines.rs`
   (les quatre du verify).

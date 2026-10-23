@@ -94,7 +94,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   plus accordé, audit par rôle, second passage nul ; lecture datée et historique gardent
   l'ancien nom.
 
-- [ ] 4. Clients et docs du renommage : manifestes `web/plugins/{vlan,machines}`,
+- [x] 4. Clients et docs du renommage : manifestes `web/plugins/{vlan,machines}`,
   description de `waive_flow` (`openapi.rs`, `openapi-v1.json`, `schema.d.ts` régénéré),
   `docs/spec/{interfaces,invariants}.md`, ADR 0026 (exemples), amendement de l'ADR 0010,
   005/K12, 011/F12 — REQ-018-6 — verify : `k-web-check` ; test de contrat ; test
@@ -105,6 +105,15 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `specs/005-authn-rbac/decisions.md` (K12) ; `specs/011-registre-flux/decisions.md`
   (F12)
   dépend de : 2
+  fait : manifestes `vlan` et `machines` ; `interfaces.md`, `invariants.md` ; ADR 0026
+  (exemples, amendement 5) et ADR 0010 (amendement) ; amendements datés de 005/K12,
+  008/V13 et 011/F12. Noms remplacés aussi dans les exigences, conceptions et tâches
+  de 008, 009, 011, 016 et 017 ; les journaux de décision gardent les anciens noms
+  (historique), sauf les amendements ajoutés. La description de `waive_flow` et le
+  contrat régénéré sont passés avec la tâche 2. `no_old_permission_name_is_left`
+  couvre `crates/`, `web/`, `clients/`, `docs/spec/` (exceptions : `authz.rs`,
+  `docs/spec/permissions.md`). Rien à changer dans `clients/python` (aucun nom codé ;
+  l'instantané du catalogue ne porte pas les descriptions).
 
 ## Flux B — Libellés
 

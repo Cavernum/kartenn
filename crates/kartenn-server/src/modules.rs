@@ -154,7 +154,11 @@ mod tests {
     #[test]
     fn no_old_permission_name_is_left() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let exceptions = ["crates/kartenn-core/src/authz.rs"];
+        // The table and its tests; the catalogue, which lists the old names.
+        let exceptions = [
+            "crates/kartenn-core/src/authz.rs",
+            "docs/spec/permissions.md",
+        ];
         let mut found = Vec::new();
         for dir in OLD_NAME_FREE {
             visit(&root.join(dir), &mut |path, text| {
@@ -175,8 +179,9 @@ mod tests {
         assert_eq!(found, Vec::<String>::new());
     }
 
-    /// The trees held free of the old permission names.
-    const OLD_NAME_FREE: &[&str] = &["crates"];
+    /// The trees held free of the old permission names (REQ-018-6); the decision logs and
+    /// the ADR keep them as history.
+    const OLD_NAME_FREE: &[&str] = &["crates", "web", "clients", "docs/spec"];
 
     fn visit(dir: &std::path::Path, f: &mut dyn FnMut(&std::path::Path, &str)) {
         let Ok(entries) = std::fs::read_dir(dir) else {
@@ -186,10 +191,22 @@ mod tests {
             let path = entry.path();
             let name = entry.file_name();
             if path.is_dir() {
-                if !matches!(
-                    name.to_str(),
-                    Some("target" | "node_modules" | "dist" | ".venv" | "__pycache__")
-                ) {
+                // Dependencies, builds, caches and reports: not sources.
+                let skipped = name.to_str().is_none_or(|n| {
+                    n.starts_with('.')
+                        || matches!(
+                            n,
+                            "target"
+                                | "node_modules"
+                                | "dist"
+                                | "build"
+                                | "coverage"
+                                | "test-results"
+                                | "playwright-report"
+                                | "__pycache__"
+                        )
+                });
+                if !skipped {
                     visit(&path, f);
                 }
             } else if let Ok(text) = std::fs::read_to_string(&path) {

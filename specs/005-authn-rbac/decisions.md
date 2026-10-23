@@ -153,6 +153,12 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   des valeurs sensibles (003/P17) a enfin son droit.
 - Rejeté : permissions par module (trop grossières).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-23 (018/R2, Q-018-1, Q-018-2) : `<module>.<objet>.<action>`, ou
+  `<module>.<action>` quand l'objet porte le nom du module (`flow.read`, `vlan.write`,
+  `machines.read`) ; la dérogation d'un flux est `flow.waiver.grant`. Les anciens noms
+  sont refusés, sans alias ; le job de migration renomme ceux des rôles personnalisés
+  (018/Q-018-3). Table : `docs/spec/permissions.md`, « Anciens noms ».
+- Décidé par (amendement) : l'utilisateur (spec 018)
 
 ## K13 — Objets sans propriétaire, rattachement global
 - Décision : le rattachement d'un émetteur peut être **global** (typiquement l'IdP

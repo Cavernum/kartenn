@@ -54,15 +54,15 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   forcée et permission de validation, N39, amendement additif de la 004 et du contrat) ;
   instruction (`approve_review`, séparation des tâches) ; dérogation — REQ-011-1 à 4,
   8 à 10, 17, 21, 22 — verify : cas d'acceptation de REQ-011-8, 9, 21, 22 ; demande
-  par `flow.flow.request` vers un objet illisible acceptée ; écriture directe par
-  `flow.flow.write` vers un objet illisible → 404
+  par `flow.request` vers un objet illisible acceptée ; écriture directe par
+  `flow.write` vers un objet illisible → 404
   - où : opérations de `crates/kartenn-vlan`, `crates/kartenn-service/src/review.rs`
     (propositions, REQ-004-41, 42), `rights.rs`
   - dépend de : 2 ; et, pour le triage, 010-12 (instantané de la politique lu en base) et
     010-13 (évaluation de deux extrémités : développement en adresses, axes portés,
     explication), absents au 2026-10-21
   - levé le 2026-10-21 : la permission propre à une opération
-    (`Module::operation_permissions`, `flow.flow.request`, REQ-011-17, F12) et les
+    (`Module::operation_permissions`, `flow.request`, REQ-011-17, F12) et les
     acteurs du changeset (`ModuleTx::actors` : auteur, demandeur, validateur, pour
     `requester_id`, `reviewed_by`, `granted_by`, `flow.separation`) sont l'amendement 3
     de l'ADR 0026 ; reste à attendre 010-12 et 010-13
@@ -77,8 +77,8 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     `kartenn_policy::evaluate` par paire, synthèse), `src/pg.rs` (insertion, portion,
     marques du changeset `pg_temp.flow_written`, couverture des périodes, évaluations,
     enregistrement figé, dérogation, rejet), `src/module.rs` (opérations, opérations de
-    revue `approve_review` et `waive`, permissions `flow.flow.request`, `.waive`,
-    `.review`). Tests `crates/kartenn-flow/tests/it/requests.rs` : REQ-011-21 (conforme
+    revue `approve_review` et `waive`, permissions `flow.request`, `flow.waiver.grant`,
+    `flow.review`). Tests `crates/kartenn-flow/tests/it/requests.rs` : REQ-011-21 (conforme
     appliquée et figée ; refusée → proposition), REQ-011-8 (écriture directe refusée,
     `flow.review.required` et `flow.verdict.denied`), REQ-011-22 et 9 (instruite et
     dérogée par le validateur ; le demandeur, servi par un compte de service, n'instruit
@@ -234,10 +234,10 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   contrat de référence et types du SDK régénérés. Tests : `tests/it/rest.rs` (demande
   rendue avec son état et ses évaluations, lecture réduite du demandeur, 404 d'un
   inconnu, liste et filtres d'un lecteur, flux d'une adresse, non-conformités).
-  choix : un flux se lit sous `flow.flow.read` par le prédicat du noyau, ou par son
+  choix : un flux se lit sous `flow.read` par le prédicat du noyau, ou par son
   demandeur (évaluations réduites : adresses et élément décisif masqués) ; une page est
   coupée avant le filtre des droits (page parfois plus courte, jamais de fuite) ; les
-  non-conformités se lisent par entité (`flow.flow.read` globale ou sur l'entité) ou par
+  non-conformités se lisent par entité (`flow.read` globale ou sur l'entité) ou par
   le demandeur, sans curseur (une page) ; un `POST` retenu pour instruction (202) rend le
   changeset seul ; la liste des flux d'un objet ne vérifie pas la lecture de l'objet
   (elle ne rend que des flux lisibles) ; route `waiver` ajoutée (F6), additive ; pas de
@@ -289,8 +289,8 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
   les prolongations `flow.update`) ; ligne `id: null` (demande) avec le membre `review`
   (`changeset`, `kind`, `triage` lu dans l'opération complétée, sans recalcul ; triage
   étendu aux évaluations par paire s'il ne les garde pas) ; filtres applicables et
-  exclusions du design ; curseur sur le changeset ; droits `flow.flow.read`,
-  `flow.flow.review` sur l'entité ou demandeur, triage réduit ; contrat OpenAPI (schéma
+  exclusions du design ; curseur sur le changeset ; droits `flow.read`,
+  `flow.review` sur l'entité ou demandeur, triage réduit ; contrat OpenAPI (schéma
   `Flow` : `id` nullable, membre `review` ; paramètres `review`, `changeset`) et SDK
   régénérés — REQ-011-5, 14, 17 — verify : demande sous réserve → 202, puis
   `GET /v1/flows?state=requested` la rend avec `id` nul, son changeset et un triage égal
@@ -398,7 +398,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     Ligne `review.kind = extension` de la lecture : servie par la tâche 12 après sa
     fusion (test `a_patch_shortens_or_holds_an_extension`, `GET /v1/flows?review=pending`
     rend la prolongation avec l'`id` du flux et son triage).
-  - choix : la prolongation garde le droit de l'`update` (`flow.flow.write`, plus
+  - choix : la prolongation garde le droit de l'`update` (`flow.write`, plus
     `prop.core.owner.write` pour l'ancre) ; `approve_review` inscrit l'instructeur de
     maintenant à la fin du flux (un flux daté n'était pas couvert jusqu'à l'infini) et ne
     raccourcit que si la fin approuvée précède la fin courante (sinon le plafond seul est

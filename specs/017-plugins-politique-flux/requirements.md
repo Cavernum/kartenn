@@ -27,11 +27,11 @@ et `machines` (009, tâche 13).
 - **Responsable sécurité** : utilisateur qui détient `policy.rule.admin` (et, selon
   l'objet, les autres `policy.*.admin`, `policy.inference.admin` pour l'inférence) ;
   écrit la politique et lit le rapport d'audit.
-- **Demandeur** : utilisateur qui détient `flow.flow.request` (et `policy.flow.request`
+- **Demandeur** : utilisateur qui détient `flow.request` (et `policy.flow.request`
   pour la pré-vérification) sur l'entité de la demande.
-- **Instructeur** : utilisateur qui détient `flow.flow.review` (et, pour une dérogation,
-  `flow.flow.waive`) sur l'entité, distinct du demandeur.
-- **Lecteur des flux** : utilisateur qui détient `flow.flow.read` sur l'entité.
+- **Instructeur** : utilisateur qui détient `flow.review` (et, pour une dérogation,
+  `flow.waiver.grant`) sur l'entité, distinct du demandeur.
+- **Lecteur des flux** : utilisateur qui détient `flow.read` sur l'entité.
 - **Requête de conformité** : `QUERY /v1/verdicts` (ou `GET` à paramètres), sans
   écriture (REQ-010-38).
 - **Ensemble en préparation** : changements de politique composés dans le plugin avant
@@ -334,7 +334,7 @@ Acceptation :
 #### REQ-017-18 — Fiche d'un flux
 Le plugin `flow` doit montrer un flux : champs, période, état, évaluation de
 l'enregistrement et évaluations courantes par paire (`GET /v1/flows/{id}/evaluations`,
-réduites pour le demandeur sans `flow.flow.read`), dérogation, historique ; à toute date
+réduites pour le demandeur sans `flow.read`), dérogation, historique ; à toute date
 du contexte. [REQ-011-16, 23, U8]
 
 Acceptation :
@@ -379,7 +379,7 @@ Acceptation :
   la règle.
 
 #### REQ-017-22 — Dérogation et recertification
-Le plugin `flow` doit permettre à qui détient `flow.flow.waive` d'accorder ou de
+Le plugin `flow` doit permettre à qui détient `flow.waiver.grant` d'accorder ou de
 recertifier la dérogation d'un flux refusé (`POST /v1/flows/{id}/waiver` : motif, risque
 accepté, fin), et montrer qu'une recertification réévalue le flux contre la politique du
 jour. [REQ-011-9, UC-4]

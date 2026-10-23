@@ -164,6 +164,8 @@ ADR 0026 (contrat de module, proposée, implémentée par cette spec) ; 003 (pro
   le réseau et `vlan.vlan.read` sur le VLAN cible.
 - Pourquoi : D36 ; un VLAN n'a pas d'ancre propre.
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+- Amendé le 2026-10-23 (018/R2) : les permissions du VLAN sont `vlan.read|write|propose`
+  (la sorte `vlan.vlan` et la propriété `vlan.vlan` ne changent pas).
 
 ## V14 — Interface
 - Décision : plugin de première partie `web/plugins/vlan` (007/W6) : vues des groupes et

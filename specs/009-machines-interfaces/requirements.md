@@ -269,7 +269,7 @@ Acceptation :
 kartenn doit contrôler le module par `machines.cluster|machine|interface.read|write|
 propose`, évaluées sur le périmètre hérité ; rattacher ou détacher une adresse exige
 `machines.interface.write` sur l'interface et `core.address.read` sur l'adresse ; poser
-un VLAN exige `vlan.vlan.read` sur le VLAN.
+un VLAN exige `vlan.read` sur le VLAN.
 
 Acceptation :
 - Un écrivain des machines de E sans droit sur l'adressage rattache une adresse qu'il
