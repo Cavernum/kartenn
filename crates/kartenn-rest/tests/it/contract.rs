@@ -14,8 +14,9 @@ use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
 use kartenn_rest::contract::breaches;
 use kartenn_rest::health::PgReadiness;
+use kartenn_rest::kit::{commanded, documented, op, presented};
 use kartenn_rest::objects::Api;
-use kartenn_rest::openapi::{QUERY_EXTENSION, REFERENCE, json as produced};
+use kartenn_rest::openapi::{CLIENT_EXTENSION, QUERY_EXTENSION, REFERENCE, json as produced};
 use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::Settings;
 use kartenn_rest::versions::{Retirement, retire};
@@ -28,6 +29,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use time::macros::datetime;
 use tower::ServiceExt;
+use utoipa::openapi::path::HttpMethod;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 use uuid::Uuid;
@@ -233,6 +235,9 @@ fn the_contract_is_openapi_3_1_its_query_in_an_extension() {
     // Every operation answers a problem; the login routes and the probes are public.
     for (path, item) in document["paths"].as_object().unwrap() {
         for (method, operation) in item.as_object().unwrap() {
+            if method == CLIENT_EXTENSION {
+                continue;
+            }
             assert!(
                 operation["responses"].get("default").is_some(),
                 "{method} {path} answers no problem"
@@ -244,6 +249,96 @@ fn the_contract_is_openapi_3_1_its_query_in_an_extension() {
         serde_json::json!([])
     );
     assert!(document["paths"]["/v1/me"]["get"].get("security").is_none());
+}
+
+/// The extension `x-kartenn` of the reference (023/A5, task 023-5): every collection of
+/// the core and of the business modules tells the clients its natural key, among the
+/// filters of its list, and its columns; `kartenn policy check` is named.
+#[test]
+fn every_collection_tells_the_clients_its_key_and_its_columns() {
+    const MODULES: [&str; 5] = ["core", "vlan", "machines", "policy", "flow"];
+    let reference = reference();
+    let mut described = 0;
+    for (path, item) in reference["paths"].as_object().unwrap() {
+        let Some(get) = item.get("get") else {
+            continue;
+        };
+        let collection = path.strip_prefix("/v1/").is_some_and(|c| !c.contains('/'));
+        let tag = get["tags"][0].as_str().unwrap_or_default();
+        let paged = get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+            .as_str()
+            .is_some_and(|r| r.starts_with("#/components/schemas/Listing_"));
+        if !(collection && paged && MODULES.contains(&tag)) {
+            continue;
+        }
+        let extension = &item[CLIENT_EXTENSION];
+        let columns = extension["columns"].as_array();
+        assert!(
+            columns.is_some_and(|c| !c.is_empty()),
+            "{path} has no columns: {extension}"
+        );
+        let filters: Vec<&str> = get["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["in"] == "query")
+            .filter_map(|p| p["name"].as_str())
+            .collect();
+        for member in extension["key"].as_array().unwrap() {
+            assert!(
+                filters.contains(&member.as_str().unwrap()),
+                "{path}: the key {member} is not a filter"
+            );
+        }
+        described += 1;
+    }
+    assert_eq!(described, 25, "the collections described");
+    let prefixes = &reference["paths"]["/v1/prefixes"][CLIENT_EXTENSION];
+    assert_eq!(prefixes["key"], serde_json::json!(["domain", "value"]));
+    assert_eq!(
+        reference["paths"]["/v1/verdicts"]["get"][CLIENT_EXTENSION]["command"],
+        "check"
+    );
+}
+
+/// A module receives the extension through the kit: `presented` on the path item of its
+/// collection, `commanded` on an operation; a key that is not a filter is refused.
+#[test]
+fn the_kit_describes_the_collection_of_a_module() {
+    let router = || {
+        let list = op("list_gadgets", "gadget", "The gadgets.")
+            .query("slug", "Equal to.")
+            .answers("200", "A page.", "Problem")
+            .build();
+        let make = op("make_gadget", "gadget", "Makes a gadget.")
+            .answers("201", "Made.", "Problem")
+            .build();
+        OpenApiRouter::<Api>::new().routes(documented(
+            "/gadgets",
+            vec![(HttpMethod::Get, list), (HttpMethod::Post, make)],
+            Vec::new(),
+            axum::routing::get(|| async { "[]" }).post(|| async { "{}" }),
+        ))
+    };
+    let described = presented(router(), "/gadgets", &["slug"], &["slug", "size"]);
+    let described = commanded(described, "/gadgets", &HttpMethod::Post, "make");
+    let document = kartenn_rest::openapi::json_with(ModuleRegistry::empty(), vec![described]);
+    let item = &document["paths"]["/v1/gadgets"];
+    assert_eq!(
+        item[CLIENT_EXTENSION],
+        serde_json::json!({"key": ["slug"], "columns": ["slug", "size"]})
+    );
+    assert_eq!(
+        item["post"][CLIENT_EXTENSION],
+        serde_json::json!({"command": "make"})
+    );
+    assert!(item["get"].get(CLIENT_EXTENSION).is_none());
+    // The extension is an addition: the contract without it breaks nothing.
+    let bare = kartenn_rest::openapi::json_with(ModuleRegistry::empty(), vec![router()]);
+    assert_eq!(breaches(&bare, &document), []);
+    assert_eq!(breaches(&document, &bare), []);
+    let refused = std::panic::catch_unwind(|| presented(router(), "/gadgets", &["size"], &[]));
+    assert!(refused.is_err(), "a key that is not a filter");
 }
 
 /// A route of a test version, retired.
@@ -495,4 +590,60 @@ async fn the_contract_and_the_capabilities_are_served(pool: PgPool) {
     assert_eq!(limits["chunk_elements"], 10_000);
     assert_eq!(limits["body_bytes"], 4 * 1024 * 1024);
     assert_eq!(limits["idempotency_retention_seconds"], 86_400);
+}
+
+/// The contract is served under a strong `ETag`, the SHA-256 of its bytes, and
+/// `no-cache`; `If-None-Match` naming it answers 304 without body (023/A5, task 023-4).
+#[kartenn_testing::pg_test]
+async fn the_contract_is_revalidated_by_its_tag(pool: PgPool) {
+    use sha2::Digest as _;
+    let app = app(&pool, Uuid::now_v7(), Settings::default());
+    let get = |tag: Option<&str>| {
+        let mut request = Request::get("/v1/openapi.json");
+        if let Some(tag) = tag {
+            request = request.header("if-none-match", tag);
+        }
+        app.clone()
+            .oneshot(common::bearer(request.body(Body::empty()).unwrap()))
+    };
+    let response = get(None).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let tag = response.headers()["etag"].to_str().unwrap().to_owned();
+    assert_eq!(response.headers()["cache-control"], "no-cache");
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let hex = sha2::Sha256::digest(&bytes)
+        .iter()
+        .fold(String::new(), |hex, b| hex + &format!("{b:02x}"));
+    assert_eq!(
+        tag,
+        format!("\"{hex}\""),
+        "a strong tag, the SHA-256 of the body"
+    );
+    let response = get(Some(&format!("\"other\", {tag}"))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(response.headers()["etag"], tag.as_str());
+    assert_eq!(response.headers()["cache-control"], "no-cache");
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(body.is_empty());
+    let response = get(Some("\"other\"")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+/// Two instances of the same build serve the same tag: the document is serialised with
+/// its members sorted, whatever the order of the hash maps of each instance.
+#[test]
+fn the_tag_of_the_contract_is_that_of_the_build() {
+    let served = || {
+        let registry = kartenn_server::modules::registry().unwrap();
+        kartenn_rest::openapi::Served::of(&kartenn_rest::openapi::document_with(
+            &registry,
+            kartenn_server::modules::routers(),
+        ))
+    };
+    let first = served();
+    for _ in 0..4 {
+        assert_eq!(served().etag(), first.etag());
+    }
+    let core = kartenn_rest::openapi::Served::of(&kartenn_rest::openapi::document());
+    assert_ne!(core.etag(), first.etag(), "another contract, another tag");
 }

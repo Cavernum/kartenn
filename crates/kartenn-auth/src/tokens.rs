@@ -296,6 +296,12 @@ impl<S: KeySource> TokenVerifier<S> {
         self.issuers.iter().find(|i| i.id == id)
     }
 
+    /// The issuers, in the order of the configuration.
+    #[must_use]
+    pub fn issuers(&self) -> &[IssuerConfig] {
+        &self.issuers
+    }
+
     /// The local identifiers of the issuers, in the order of the configuration.
     pub fn issuer_ids(&self) -> impl Iterator<Item = &str> {
         self.issuers.iter().map(|i| i.id.as_str())

@@ -251,7 +251,7 @@ impl ETag {
 const DIGEST_DIGITS: usize = 16;
 
 /// `bytes` in lower-case hexadecimal.
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut hex, b| {
         let _ = write!(hex, "{b:02x}");
         hex

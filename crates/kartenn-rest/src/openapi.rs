@@ -6,7 +6,8 @@
 
 use std::sync::LazyLock;
 
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::MethodRouter;
 use serde_json::Value;
@@ -25,6 +26,9 @@ use utoipa::{IntoParams, PartialSchema, ToSchema};
 use utoipa_axum::router::{OpenApiRouter, UtoipaMethodRouter};
 use utoipa_axum::routes;
 
+use sha2::{Digest, Sha256};
+
+use crate::dated::ETag;
 use crate::objects::Api;
 use crate::problem::Problem;
 use kartenn_service::module::ModuleRegistry;
@@ -36,6 +40,11 @@ pub const REFERENCE: &str = "../../specs/006-api-rest/openapi-v1.json";
 /// The extension of a path item that holds its `QUERY` operation.
 pub const QUERY_EXTENSION: &str = "x-query";
 
+/// The extension that tells a client how to name and show a collection (on its path
+/// item: `key`, `columns`) or how to call an operation (`command`) (023/A5, design
+/// « Versions et contrat »).
+pub const CLIENT_EXTENSION: &str = "x-kartenn";
+
 /// The media type of a problem (RFC 9457 §3).
 const PROBLEM_TYPE: &str = "application/problem+json";
 
@@ -43,11 +52,12 @@ const PROBLEM_TYPE: &str = "application/problem+json";
 const SCHEMES: [&str; 3] = ["session", "bearer", "basic"];
 
 /// The operations open to anonymous callers: the login routes and the probes.
-const PUBLIC: [&str; 6] = [
+const PUBLIC: [&str; 7] = [
     "/v1/auth/login",
     "/v1/auth/callback",
     "/v1/auth/breakglass",
     "/v1/auth/issuers",
+    "/v1/auth/native-clients",
     "/health/live",
     "/health/ready",
 ];
@@ -133,23 +143,49 @@ fn module_kinds(document: &mut OpenApi, modules: &ModuleRegistry) {
     }
 }
 
-/// The contract a router of `/v1` serves at `GET /v1/openapi.json`, its own routes.
+/// The contract a router of `/v1` serves at `GET /v1/openapi.json`, its own routes, and
+/// its strong tag (023/A5, REQ-023-2): the SHA-256 of the bytes served, computed once.
 #[derive(Debug, Clone)]
-pub struct Served(axum::body::Bytes);
+pub struct Served {
+    bytes: axum::body::Bytes,
+    tag: ETag,
+}
 
 impl Served {
-    /// The served form of `document`.
+    /// The served form of `document`: compact JSON, its members sorted (through
+    /// [`Value`], whose maps are ordered), so that two instances of the same build serve
+    /// the same bytes under the same tag whatever the order of utoipa's hash maps.
     ///
     /// # Panics
     ///
     /// Never: an OpenAPI document serialises.
     #[must_use]
     pub fn of(document: &OpenApi) -> Self {
-        Self(
-            serde_json::to_vec(document)
-                .expect("an OpenAPI document serialises")
-                .into(),
-        )
+        let value = serde_json::to_value(document).expect("an OpenAPI document serialises");
+        let bytes = serde_json::to_vec(&value).expect("JSON values serialise");
+        let tag = ETag::fingerprint(crate::dated::hex(&Sha256::digest(&bytes)));
+        Self {
+            bytes: bytes.into(),
+            tag,
+        }
+    }
+
+    /// The strong tag of the document.
+    #[must_use]
+    pub fn etag(&self) -> &ETag {
+        &self.tag
+    }
+
+    /// The document under `no-cache` and its tag; 304 without body when `If-None-Match`
+    /// names the tag (RFC 9110 §13.1.2, §15.4.5).
+    fn answer(&self, headers: &HeaderMap) -> Response {
+        let tag = (ETAG, self.tag.header_value());
+        let cache = (CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+        if self.tag.none_match(headers) {
+            return (StatusCode::NOT_MODIFIED, [tag, cache]).into_response();
+        }
+        let media = (CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        ([media, tag, cache], self.bytes.clone()).into_response()
     }
 }
 
@@ -459,10 +495,109 @@ where
     router
 }
 
+/// Describes the collection at `path` of `router` to the clients, in the extension
+/// `x-kartenn` of its path item (023/A5, REQ-023-27): `key`, the filters of its list whose
+/// equality names one object at a date (its natural key; empty when it has none), in the
+/// order a reference gives them (`<domain>/<value>`); `columns`, the members a table shows
+/// by default. The library and the CLI work without it, by convention (ADR 0035).
+///
+/// # Panics
+///
+/// When `path` is not routed with a `GET` in `router`, or a member of `key` is not a query
+/// parameter of that `GET`: a mistake of the module, caught by its first test.
+pub fn presented<S>(
+    mut router: OpenApiRouter<S>,
+    path: &str,
+    key: &[&str],
+    columns: &[&str],
+) -> OpenApiRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let item = router
+        .get_openapi_mut()
+        .paths
+        .paths
+        .get_mut(path)
+        .unwrap_or_else(|| panic!("the collection {path} is routed"));
+    let get = item
+        .get
+        .as_ref()
+        .unwrap_or_else(|| panic!("the collection {path} is listed by a GET"));
+    let filters: Vec<&str> = get
+        .parameters
+        .iter()
+        .flatten()
+        .filter_map(|p| match p {
+            RefOr::T(p) if matches!(p.parameter_in, ParameterIn::Query) => Some(p.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    for member in key {
+        assert!(
+            filters.contains(member),
+            "the key {member} of {path} is a filter of its list"
+        );
+    }
+    extend(
+        &mut item.extensions,
+        serde_json::json!({ "key": key, "columns": columns }),
+    );
+    router
+}
+
+/// Names `method` at `path` of `router` as the command `command` of the clients, in the
+/// extension `x-kartenn` of the operation (023/A5): `kartenn policy check` rather than
+/// `kartenn verdicts list`.
+///
+/// # Panics
+///
+/// When `path` is not routed with `method` in `router`.
+pub fn commanded<S>(
+    mut router: OpenApiRouter<S>,
+    path: &str,
+    method: &HttpMethod,
+    command: &str,
+) -> OpenApiRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let item = router
+        .get_openapi_mut()
+        .paths
+        .paths
+        .get_mut(path)
+        .unwrap_or_else(|| panic!("{path} is routed"));
+    let operation = match method {
+        HttpMethod::Get => item.get.as_mut(),
+        HttpMethod::Put => item.put.as_mut(),
+        HttpMethod::Post => item.post.as_mut(),
+        HttpMethod::Delete => item.delete.as_mut(),
+        HttpMethod::Patch => item.patch.as_mut(),
+        HttpMethod::Options | HttpMethod::Head | HttpMethod::Trace => None,
+    }
+    .unwrap_or_else(|| panic!("{path} is routed with the method of {command}"));
+    extend(
+        &mut operation.extensions,
+        serde_json::json!({ "command": command }),
+    );
+    router
+}
+
+/// Merges `members` into the extension `x-kartenn` of `extensions`.
+fn extend(extensions: &mut Option<utoipa::openapi::extensions::Extensions>, members: Value) {
+    let current = extensions
+        .get_or_insert_default()
+        .entry(CLIENT_EXTENSION.to_owned())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    if let (Value::Object(current), Value::Object(members)) = (current, members) {
+        current.extend(members);
+    }
+}
+
 // ---------------------------------------------------------------- the document itself
 
-static DOCUMENT: LazyLock<Vec<u8>> =
-    LazyLock::new(|| serde_json::to_vec(&json()).expect("JSON values serialise"));
+static DOCUMENT: LazyLock<Served> = LazyLock::new(|| Served::of(&document()));
 
 /// The OpenAPI 3.1 document of this build (REQ-006-34).
 #[utoipa::path(
@@ -470,14 +605,16 @@ static DOCUMENT: LazyLock<Vec<u8>> =
     path = "/openapi.json",
     operation_id = "openapi",
     tag = "operations",
-    responses((status = 200, description = "The OpenAPI 3.1 document of the build.", body = Object))
+    responses(
+        (status = 200, description = "The OpenAPI 3.1 document of the build, under a strong \
+            `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`.", body = Object),
+        (status = 304, description = "`If-None-Match` names the tag of the document.")
+    )
 )]
-async fn openapi(served: Option<axum::Extension<Served>>) -> Response {
+async fn openapi(served: Option<axum::Extension<Served>>, headers: HeaderMap) -> Response {
     match served {
-        Some(axum::Extension(Served(bytes))) => {
-            ([(CONTENT_TYPE, "application/json")], bytes).into_response()
-        }
-        None => ([(CONTENT_TYPE, "application/json")], DOCUMENT.as_slice()).into_response(),
+        Some(axum::Extension(served)) => served.answer(&headers),
+        None => DOCUMENT.answer(&headers),
     }
 }
 

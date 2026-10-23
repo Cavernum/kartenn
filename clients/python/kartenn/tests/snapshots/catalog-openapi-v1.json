@@ -307,7 +307,7 @@
  "policy-reports": {
   "module": "policy",
   "verbs": [
-   "collection:create:request_policy_report",
+   "collection:report:request_policy_report",
    "object:get:show_policy_report",
    "object:items:policy_report_items"
   ]
@@ -461,7 +461,7 @@
  "verdicts": {
   "module": "policy",
   "verbs": [
-   "collection:list:show_verdicts",
+   "collection:check:show_verdicts",
    "collection:query:query_verdicts"
   ]
  },

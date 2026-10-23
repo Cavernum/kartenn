@@ -34,9 +34,15 @@ use crate::problem::{Problem, ProblemKind};
 
 /// The routes of the anomalies.
 pub fn routes() -> OpenApiRouter<Api> {
-    OpenApiRouter::new()
+    let router = OpenApiRouter::new()
         .routes(routes!(list))
-        .routes(routes!(acknowledge))
+        .routes(routes!(acknowledge));
+    crate::openapi::presented(
+        router,
+        "/anomalies",
+        &[],
+        &["rule", "object", "message", "opened_at"],
+    )
 }
 
 /// The filter of the list: rule, domain, entity.

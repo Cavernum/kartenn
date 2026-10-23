@@ -4965,6 +4965,47 @@
         ],
         "type": "string"
       },
+      "NativeClientDto": {
+        "description": "A public client of the native applications at an issuer (spec 023, T10/A5): what a\nCLI needs to obtain an access token of kartenn there, nothing secret.",
+        "properties": {
+          "audience": {
+            "description": "The audience the access tokens must carry for kartenn.",
+            "type": "string"
+          },
+          "client_id": {
+            "description": "The public client (RFC 8252), without secret: code flow with PKCE `S256` to a\nloopback redirection.",
+            "type": "string"
+          },
+          "device": {
+            "description": "Whether the issuer offers this client the device flow (RFC 8628).",
+            "type": "boolean"
+          },
+          "discovery_url": {
+            "description": "Its discovery document (OpenID Connect Discovery 1.0 §4).",
+            "type": "string"
+          },
+          "id": {
+            "description": "The local identifier of the issuer, that of `/v1/auth/issuers`.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "The scopes to ask for.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "discovery_url",
+          "client_id",
+          "audience",
+          "scopes",
+          "device"
+        ],
+        "type": "object"
+      },
       "Nature": {
         "description": "The nature of a prefix.",
         "enum": [
@@ -10062,6 +10103,18 @@
           "core"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "domain",
+          "value",
+          "usage",
+          "public"
+        ],
+        "key": [
+          "domain",
+          "value"
+        ]
+      },
       "x-query": {
         "operationId": "query_addresses",
         "requestBody": {
@@ -10814,6 +10867,15 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "kind"
+        ],
+        "key": [
+          "key"
+        ]
+      },
       "x-query": {
         "operationId": "query_admissibility_conditions",
         "requestBody": {
@@ -11387,6 +11449,15 @@
         "tags": [
           "core"
         ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "rule",
+          "object",
+          "message",
+          "opened_at"
+        ],
+        "key": []
       }
     },
     "/v1/anomalies/{id}/acknowledgement": {
@@ -11772,6 +11843,41 @@
           }
         },
         "summary": "Ends the session, then on to the end-session endpoint of the issuer.",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/v1/auth/native-clients": {
+      "get": {
+        "operationId": "native_clients",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NativeClientDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The public clients of the native applications."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "security": [],
+        "summary": "`GET /v1/auth/native-clients`, public: the public client of the native applications\nof each issuer configured with one (`native_client_id`), in the order of the\nconfiguration (spec 023, T10/A5). `issuers` is unchanged (REQ-007-41).",
         "tags": [
           "authentication"
         ]
@@ -12752,6 +12858,16 @@
           "machines"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "slug",
+          "site",
+          "owner"
+        ],
+        "key": [
+          "slug"
+        ]
+      },
       "x-query": {
         "operationId": "query_clusters",
         "requestBody": {
@@ -13493,6 +13609,14 @@
         "summary": "Creates a domain.",
         "tags": [
           "core"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "slug"
+        ],
+        "key": [
+          "slug"
         ]
       },
       "x-query": {
@@ -14247,6 +14371,15 @@
           "core"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "slug",
+          "parent"
+        ],
+        "key": [
+          "slug"
+        ]
+      },
       "x-query": {
         "operationId": "query_entities",
         "requestBody": {
@@ -14909,6 +15042,17 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "value_key",
+          "label",
+          "rank",
+          "transverse"
+        ],
+        "key": [
+          "key"
+        ]
+      },
       "x-query": {
         "operationId": "query_environments",
         "requestBody": {
@@ -15202,6 +15346,17 @@
         "tags": [
           "flow"
         ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "at",
+          "kind",
+          "state",
+          "rule_key",
+          "requester",
+          "entity"
+        ],
+        "key": []
       }
     },
     "/v1/flow-types": {
@@ -15341,6 +15496,15 @@
         "summary": "Creates in flow-types (policy.flow_type.create).",
         "tags": [
           "policy"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "label"
+        ],
+        "key": [
+          "key"
         ]
       },
       "x-query": {
@@ -16147,6 +16311,17 @@
         "tags": [
           "flow"
         ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "summary",
+          "state",
+          "review",
+          "outcome",
+          "waived",
+          "valid_from"
+        ],
+        "key": []
       },
       "x-query": {
         "operationId": "query_flows",
@@ -17568,6 +17743,17 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "axis_key",
+          "priority",
+          "domain_id"
+        ],
+        "key": [
+          "key"
+        ]
+      },
       "x-query": {
         "operationId": "query_inference_rules",
         "requestBody": {
@@ -18254,6 +18440,19 @@
         "summary": "Creates a interface.",
         "tags": [
           "machines"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "machine",
+          "name",
+          "mac",
+          "enabled",
+          "vlan"
+        ],
+        "key": [
+          "machine",
+          "name"
         ]
       },
       "x-query": {
@@ -19461,6 +19660,16 @@
           "machines"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "kind",
+          "host",
+          "site",
+          "owner"
+        ],
+        "key": []
+      },
       "x-query": {
         "operationId": "query_machines",
         "requestBody": {
@@ -20250,7 +20459,10 @@
                 }
               }
             },
-            "description": "The OpenAPI 3.1 document of the build."
+            "description": "The OpenAPI 3.1 document of the build, under a strong `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`."
+          },
+          "304": {
+            "description": "`If-None-Match` names the tag of the document."
           },
           "default": {
             "content": {
@@ -20406,6 +20618,16 @@
         "summary": "Creates in policy-axes (policy.axis.designate).",
         "tags": [
           "policy"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "property_key",
+          "carrier",
+          "inference"
+        ],
+        "key": [
+          "property"
         ]
       },
       "x-query": {
@@ -21058,6 +21280,14 @@
         "summary": "Creates in policy-exempt-roles (policy.exempt_role.create).",
         "tags": [
           "policy"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "role_key"
+        ],
+        "key": [
+          "role"
         ]
       },
       "x-query": {
@@ -21792,6 +22022,15 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "label"
+        ],
+        "key": [
+          "key"
+        ]
+      },
       "x-query": {
         "operationId": "query_policy_patterns",
         "requestBody": {
@@ -22343,7 +22582,10 @@
         "summary": "Asks for the audit report of the policy at a date (REQ-010-23); one at a time.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "command": "report"
+        }
       }
     },
     "/v1/policy-reports/{id}": {
@@ -22623,6 +22865,16 @@
         "summary": "Creates in policy-rules (policy.rule.create).",
         "tags": [
           "policy"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "effect",
+          "label"
+        ],
+        "key": [
+          "key"
         ]
       },
       "x-query": {
@@ -23277,6 +23529,16 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "property_key",
+          "value_key",
+          "label",
+          "rank",
+          "transverse"
+        ],
+        "key": []
+      },
       "x-query": {
         "operationId": "query_policy_values",
         "requestBody": {
@@ -23806,6 +24068,18 @@
         "summary": "Creates a prefix.",
         "tags": [
           "core"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "domain",
+          "value",
+          "nature",
+          "public"
+        ],
+        "key": [
+          "domain",
+          "value"
         ]
       },
       "x-query": {
@@ -25110,6 +25384,19 @@
           "core"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "domain",
+          "first",
+          "last",
+          "usage",
+          "public"
+        ],
+        "key": [
+          "domain",
+          "first"
+        ]
+      },
       "x-query": {
         "operationId": "query_ranges",
         "requestBody": {
@@ -25779,6 +26066,16 @@
         "summary": "Creates in risk-signals (policy.signal.create).",
         "tags": [
           "policy"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "kind",
+          "weight"
+        ],
+        "key": [
+          "key"
         ]
       },
       "x-query": {
@@ -26994,6 +27291,16 @@
           "policy"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "key",
+          "label",
+          "flow_type_id"
+        ],
+        "key": [
+          "key"
+        ]
+      },
       "x-query": {
         "operationId": "query_services",
         "requestBody": {
@@ -27655,6 +27962,15 @@
           "core"
         ]
       },
+      "x-kartenn": {
+        "columns": [
+          "slug",
+          "parent"
+        ],
+        "key": [
+          "slug"
+        ]
+      },
       "x-query": {
         "operationId": "query_sites",
         "requestBody": {
@@ -28289,7 +28605,10 @@
         "summary": "The verdicts of a query of compliance, by parameters (REQ-010-13).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "command": "check"
+        }
       },
       "x-query": {
         "operationId": "query_verdicts",
@@ -28467,6 +28786,17 @@
         "summary": "Creates a vlan_group.",
         "tags": [
           "vlan"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "slug",
+          "anchor",
+          "vid_min",
+          "vid_max"
+        ],
+        "key": [
+          "slug"
         ]
       },
       "x-query": {
@@ -29296,6 +29626,18 @@
         "summary": "Creates a vlan.",
         "tags": [
           "vlan"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "group",
+          "vid",
+          "name",
+          "status"
+        ],
+        "key": [
+          "group",
+          "vid"
         ]
       },
       "x-query": {

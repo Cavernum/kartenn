@@ -1511,6 +1511,20 @@ pub fn routes() -> ModuleRouter {
         &INTERFACE_WRITES,
         (kit::collection(list_interfaces), get(show_interface)),
     );
+    // A machine has no natural key: its name is not unique (spec 009).
+    router = kit::presented(router, "/clusters", &["slug"], &["slug", "site", "owner"]);
+    router = kit::presented(
+        router,
+        "/machines",
+        &[],
+        &["name", "kind", "host", "site", "owner"],
+    );
+    router = kit::presented(
+        router,
+        "/interfaces",
+        &["machine", "name"],
+        &["machine", "name", "mac", "enabled", "vlan"],
+    );
     let addresses_op = op(
         "machine_addresses",
         "machines",

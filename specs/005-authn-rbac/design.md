@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-18
+updated: 2026-10-23
 ---
 
 # 005 — Authentification et RBAC : conception
@@ -251,7 +251,21 @@ client_secret_file = "/run/secrets/oidc-interne"
 audience = "kartenn"            # jetons d'accès des clients non navigateur
 groups_claim = "groups"
 algorithms = ["RS256", "ES256"]
+# Amendement 023/A5 (2026-10-23), facultatif : client public des applications natives
+native_client_id = "kartenn-cli"            # autre que client_id ; sans secret
+native_scopes = ["openid", "offline_access"]  # défaut ["openid"] ; openid exigé
+native_device = true                        # l'émetteur offre le flux d'appareil
 ```
+
+**Clients natifs (amendement 023/A5, tâche 023-6).** Un émetteur peut déclarer le client
+public des applications natives (la CLI, RFC 8252) : `native_client_id`, distinct du
+client confidentiel du BFF, ses `native_scopes` (jetons de portée de RFC 6749 §3.3,
+`openid` parmi eux) et `native_device` (flux d'appareil, RFC 8628). `GET
+/v1/auth/native-clients`, publique, le publie avec l'URL de découverte et l'audience de
+l'émetteur ; un émetteur sans `native_client_id` n'y figure pas. kartenn n'émet toujours
+aucun jeton (K1) : les jetons d'accès de ce client sont validés comme ceux de tout
+client non navigateur (audience de l'émetteur). `native_scopes` ou `native_device` sans
+`native_client_id` arrête le démarrage.
 
 ### Audit (REQ-005-28)
 

@@ -29,6 +29,7 @@ use crate::problem::{Problem, ProblemKind};
 pub fn routes() -> OpenApiRouter<Arc<dyn Authenticator>> {
     OpenApiRouter::new()
         .routes(routes!(issuers))
+        .routes(routes!(native_clients))
         .routes(routes!(login))
         .routes(routes!(callback))
         .routes(routes!(breakglass))
@@ -65,6 +66,55 @@ async fn issuers(State(authenticator): State<Arc<dyn Authenticator>>) -> Json<Ve
             .issuers()
             .into_iter()
             .map(|id| IssuerDto { id })
+            .collect(),
+    )
+}
+
+/// A public client of the native applications at an issuer (spec 023, T10/A5): what a
+/// CLI needs to obtain an access token of kartenn there, nothing secret.
+#[derive(Debug, Serialize, ToSchema)]
+struct NativeClientDto {
+    /// The local identifier of the issuer, that of `/v1/auth/issuers`.
+    id: String,
+    /// Its discovery document (OpenID Connect Discovery 1.0 §4).
+    discovery_url: String,
+    /// The public client (RFC 8252), without secret: code flow with PKCE `S256` to a
+    /// loopback redirection.
+    client_id: String,
+    /// The audience the access tokens must carry for kartenn.
+    audience: String,
+    /// The scopes to ask for.
+    scopes: Vec<String>,
+    /// Whether the issuer offers this client the device flow (RFC 8628).
+    device: bool,
+}
+
+/// `GET /v1/auth/native-clients`, public: the public client of the native applications
+/// of each issuer configured with one (`native_client_id`), in the order of the
+/// configuration (spec 023, T10/A5). `issuers` is unchanged (REQ-007-41).
+#[utoipa::path(
+    get,
+    path = "/auth/native-clients",
+    operation_id = "native_clients",
+    tag = "authentication",
+    responses((status = 200, description = "The public clients of the native applications.",
+        body = Vec<NativeClientDto>))
+)]
+async fn native_clients(
+    State(authenticator): State<Arc<dyn Authenticator>>,
+) -> Json<Vec<NativeClientDto>> {
+    Json(
+        authenticator
+            .native_clients()
+            .into_iter()
+            .map(|c| NativeClientDto {
+                id: c.id,
+                discovery_url: c.discovery_url,
+                client_id: c.client_id,
+                audience: c.audience,
+                scopes: c.scopes,
+                device: c.device,
+            })
             .collect(),
     )
 }

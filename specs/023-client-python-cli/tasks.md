@@ -98,7 +98,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux S — ajouts au serveur (amendements additifs de la 006 et de la 005)
 
-- [ ] 4. ETag fort de `GET /v1/openapi.json` (empreinte SHA-256 du document de la build,
+- [x] 4. ETag fort de `GET /v1/openapi.json` (empreinte SHA-256 du document de la build,
   calculée une fois au démarrage), `Cache-Control: no-cache`, 304 sur `If-None-Match`.
   Amendement écrit dans `specs/006-api-rest/` (REQ-006-34 complétée). — T20 ;
   REQ-023-2 — verify : test REST (200 avec ETag, 304, ETag stable entre deux instances
@@ -107,7 +107,16 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     § Versions et contrat) ; tests voisins de `crates/kartenn-rest/tests/it/` (cache et
     304 des lectures)
   - dépend de : —
-- [ ] 5. Extension `x-kartenn`, produite par `kartenn_rest::kit` :
+  - choix : `openapi::Served` porte les octets et l'ETag (SHA-256 complet en hexadécimal,
+    par `ETag::fingerprint`, comparaison de `If-None-Match` de `dated`). Le document est
+    sérialisé par `serde_json::Value` (membres triés) : les extensions d'utoipa sont des
+    `HashMap`, dont l'ordre changerait d'un processus à l'autre et romprait l'égalité
+    des ETag entre instances. Le 304 est documenté dans le contrat (réponse ajoutée à
+    l'opération `openapi`, contrat et `schema.d.ts` régénérés). Tests :
+    `contract::the_contract_is_revalidated_by_its_tag`,
+    `contract::the_tag_of_the_contract_is_that_of_the_build`. La route reste
+    authentifiée comme avant (006) ; seul `native-clients` est public (tâche 6).
+- [x] 5. Extension `x-kartenn`, produite par `kartenn_rest::kit` :
   - `key` (clé naturelle) et `columns` sur les collections du noyau, de `vlan`,
     `machines`, `policy` et `flow` ;
   - `command` facultatif sur une opération ;
@@ -121,7 +130,20 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `x-query` à imiter, 006/design § Versions et contrat) ; `docs/adr/0026-contrat-de-module.md`
     clause 9
   - dépend de : —
-- [ ] 6. `GET /v1/auth/native-clients`, publique :
+  - choix : `kit::presented` et `kit::commanded` (dans `openapi.rs`, réexportés par le
+    kit). `key` nomme des **filtres** de la liste (ce que la CLI envoie pour résoudre une
+    référence), pas des membres : le kit refuse une clé qui n'en est pas un. Sans clé
+    (UUID seul) : `machines` (nom non unique), `flows`, `flow-nonconformities`,
+    `anomalies`, `policy-values` (aucun filtre de `value_key` ; à ajouter si la CLI le
+    demande). Entités et sites : `slug` seul (unique à une date). Commandes : `check`
+    sur `GET /v1/verdicts`, `report` sur `POST /v1/policy-reports`. 25 collections
+    décrites (test `contract::every_collection_tells_the_clients_its_key_and_its_columns`),
+    test du kit `contract::the_kit_describes_the_collection_of_a_module` (comparateur
+    vert dans les deux sens). Les collections du socle (`rights`, `changesets`, `imports`,
+    `audit`, `properties`) n'en portent pas : hors du périmètre de la tâche. Instantané
+    du catalogue de la bibliothèque régénéré (`check`, `report`). `schema.d.ts`
+    inchangé : openapi-typescript ignore les extensions.
+- [x] 6. `GET /v1/auth/native-clients`, publique :
   `[{id, discovery_url, client_id, audience, scopes, device}]`, seulement pour les
   émetteurs configurés avec `native_client_id`. Nouveaux champs `native_client_id`,
   `native_scopes` et `native_device` de `[[auth.issuers]]`. Amendements de la 005 et de
@@ -131,7 +153,18 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : route `auth/issuers` de `crates/kartenn-rest` (à imiter) ; configuration des
     émetteurs dans `crates/kartenn-auth` (005/design, bloc `[auth]`)
   - dépend de : —
-- [ ] 7. `kartenn-dev-idp` :
+  - choix : `IssuerConfig.native: Option<NativeClient>` (`kartenn-auth`), méthode
+    `Authenticator::native_clients` (vide par défaut, comme `issuers`) ; route ajoutée à
+    `authn::PUBLIC` et aux opérations publiques du contrat (`security: []`),
+    `operationId` `native_clients`. Défauts : `native_scopes = ["openid"]`,
+    `native_device = false`. Démarrage refusé si `native_client_id` égale `client_id`
+    (un client confidentiel n'est pas public), si une portée n'est pas un jeton de
+    RFC 6749 §3.3 ou si `openid` manque, et si `native_scopes`/`native_device` sont
+    posés sans `native_client_id`. `audience` publiée = celle de l'émetteur.
+    Tests : `sessions::the_native_clients_are_public`,
+    `config::tests::an_issuer_may_publish_a_native_client` et cas d'erreur.
+    `docs/exploitation/configuration.md` complété.
+- [x] 7. `kartenn-dev-idp` :
   - client public natif (sans secret) ;
   - redirection de bouclage à port libre (RFC 8252 §7.3) ;
   - PKCE `S256` exigé pour ce client ;
@@ -143,6 +176,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `crates/kartenn-dev-idp/src/server.rs` (`grant_types_supported` l. ~183,
     échange l. ~394) ; `web/e2e/users.toml` (forme de la configuration)
   - dépend de : —
+  - choix : table facultative `[native]` (`client_id` autre que celui du BFF,
+    `audience`, `redirect_uris` de bouclage sans port, `["http://127.0.0.1/callback",
+    "http://[::1]/callback"]` par défaut, `localhost` refusé (RFC 8252 §8.3), `device`,
+    `device_interval` (5 s), `device_expires_in` (600 s), `slow_down`). Client public
+    authentifié par `client_id` du formulaire sans secret (`token_endpoint_auth_methods`
+    gagne `none`) ; codes et jetons de rafraîchissement liés à leur client ; `resource`
+    ou `audience` autre que l'audience → `invalid_target`. Flux d'appareil :
+    `POST /device_authorization`, page `GET /device` (code tapé sans tiret ni casse) et
+    `POST /device` (choix de l'utilisateur ; un utilisateur à `error` refuse) ;
+    `slow_down` sur les `slow_down` premières interrogations d'un code et sur toute
+    interrogation avant l'intervalle, qui croît de 5 s ; `authorization_pending`,
+    `access_denied`, `expired_token`. Jeton d'accès du client public : JWT `at+jwt`
+    (`aud`, `client_id`, `scope`, `groups`, `jti`) ; le BFF garde son jeton opaque.
+    `dev/idp.toml`, `web/e2e/users.toml` (intervalle 1 s, un `slow_down`),
+    `dev/kartenn.toml` et `web/e2e/kartenn.toml` (`native_client_id = "kartenn-cli"`)
+    configurés pour la CLI. Tests de routeur sans TLS (`server/tests.rs`, `tower` et
+    `http-body-util` en dépendances de développement). Parcours web de bout en bout
+    (`k-web-e2e`) non relancé : le flux du BFF est couvert par
+    `the_refresh_tokens_rotate`.
 
 ## Flux B — bibliothèque `kartenn`
 

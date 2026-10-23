@@ -126,6 +126,11 @@ suivent.
    module est une évolution **additive** du contrat (006/H12) ; le contrat OpenAPI de
    référence est régénéré avec les modules livrés, et le module figure dans `modules`
    de `GET /v1/capabilities`.
+   *Note (2026-10-23, spec 023, A5) :* le module décrit ses collections aux clients
+   découverts (ADR 0035) par l'extension `x-kartenn` que produit le kit :
+   `kit::presented` (clé naturelle parmi les filtres de la liste, colonnes) sur chaque
+   collection, `kit::commanded` (nom de commande) sur une opération qui s'écarte des
+   verbes conventionnels. Sans elle, les clients suivent les conventions ci-dessus.
 10. **Événements.** Aucun type d'événement propre en v0.1 : les objets de module
     figurent dans `org.kartenn.changeset.applied` comme ceux du noyau (objets, résumé du
     différentiel). L'ordre par domaine (ADR 0018) vaut pour un changeset qui touche un

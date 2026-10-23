@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-19
+updated: 2026-10-23
 ---
 
 # 006 — API REST : conception
@@ -93,7 +93,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Imports | `POST /v1/imports` ; `PUT /v1/imports/{id}/chunks/{n}` ; `POST …/start`, `…/resume`, `…/cancel` ; `GET …/{id}` |
 | Droits | `roles`, `bindings`, `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état), `GET /v1/me` (session, droits effectifs résumés) |
 | Audit | `GET`/`QUERY /v1/audit-events` ; `POST /v1/identities/{id}/pseudonymisation` |
-| Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` |
+| Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` ; publiques : `GET /v1/auth/issuers` (007) et `GET /v1/auth/native-clients` (amendement 023/A5 : `[{id, discovery_url, client_id, audience, scopes, device}]`, client public des applications natives des seuls émetteurs configurés avec `native_client_id`, sans secret) |
 | Exploitation | `GET /v1/capabilities`, `GET /v1/openapi.json`, `PUT /v1/log-filters/{output}` ; `/health/live`, `/health/ready` |
 
 - Les actions d'un changeset sont des sous-ressources en `POST` (RFC 9205 §4.5 : une
@@ -542,6 +542,30 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 
 - Routeur `/v1` construit par features : chaque module ajoute ses routes et ses schémas
   (`OpenApiRouter` d'utoipa-axum). `GET /v1/openapi.json` sert le document de la build.
+- **Cache du contrat (amendement 023/A5, tâche 023-4)** : `openapi::Served` sérialise le
+  document une fois au démarrage, en JSON compact aux membres triés (passage par
+  `serde_json::Value` : les extensions d'utoipa sont des tables de hachage, dont l'ordre
+  varie d'un processus à l'autre), et calcule son ETag fort, le SHA-256 complet des
+  octets en hexadécimal. Réponse `Cache-Control: no-cache` ; `If-None-Match` (comparaison
+  faible, RFC 9110 §13.1.2) qui le nomme → 304 sans corps. Deux instances de la même
+  build servent donc le même ETag ; la bibliothèque cliente en fait une part de la
+  révision de son catalogue (023/REQ-023-2).
+- **Extension `x-kartenn` (amendement 023/A5, tâche 023-5)** : ce que les clients
+  découverts (ADR 0035) ne tirent pas des conventions. Le kit la produit, donc tout module
+  la reçoit :
+  - `kit::presented(router, "/<coll>", key, columns)` sur le `PathItem` de collection :
+    `{"key": [...], "columns": [...]}`. `key` liste les **filtres** de la liste dont
+    l'égalité désigne un seul objet à une date (la clé naturelle), dans l'ordre d'une
+    référence `<domaine>/<valeur>` ; vide quand l'objet n'en a pas (machine, flux, valeur
+    d'axe). Le kit refuse au démarrage une clé qui n'est pas un filtre. `columns` : les
+    membres d'une table par défaut ;
+  - `kit::commanded(router, path, méthode, nom)` sur une opération : `{"command": nom}`,
+    le verbe des clients (`GET /v1/verdicts` → `check`, `POST /v1/policy-reports` →
+    `report`).
+  Portent la clé et les colonnes les collections paginées du noyau (dont `anomalies`), de
+  `vlan`, `machines`, `policy` et `flow`. Le comparateur ne lit que les opérations :
+  l'extension est un ajout, et son retrait ne casse rien non plus (elle est facultative
+  pour les clients).
 - Contrat de référence : `specs/006-api-rest/openapi-v1.json`, régénéré par
   `cargo run -p kartenn-server --all-features -- openapi` (depuis la 008). Test : le document produit
   est comparé au fichier par un comparateur interne (chemins, opérations, paramètres

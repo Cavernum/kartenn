@@ -21,7 +21,7 @@ use jsonwebtoken::jwk::{Jwk, JwkSet};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use kartenn_auth::breakglass::{STEP, code, create};
 use kartenn_auth::http::HttpClient;
-use kartenn_auth::issuer::IssuerConfig;
+use kartenn_auth::issuer::{IssuerConfig, NativeClient};
 use kartenn_auth::keys::KeyRing;
 use kartenn_auth::oidc::{Oidc, Session};
 use kartenn_auth::secrets::FailureLimiter;
@@ -205,16 +205,29 @@ impl Fixture {
 
     /// With the issuers `ids`, in this order, all at `idp`.
     fn of_issuers(pool: &PgPool, idp: &Shared, settings: Settings, ids: &[&str]) -> Self {
+        let natives: Vec<_> = ids.iter().map(|&id| (id, None)).collect();
+        Self::of_natives(pool, idp, settings, &natives)
+    }
+
+    /// With the issuers `ids`, in this order, all at `idp`, each with its public client
+    /// of the native applications if any.
+    fn of_natives(
+        pool: &PgPool,
+        idp: &Shared,
+        settings: Settings,
+        ids: &[(&str, Option<NativeClient>)],
+    ) -> Self {
         let issuers = ids
             .iter()
-            .map(|&id| IssuerConfig {
-                id: id.into(),
+            .map(|(id, native)| IssuerConfig {
+                id: (*id).into(),
                 issuer: idp.lock().unwrap().base.clone(),
                 client_id: CLIENT.into(),
                 client_secret: "s".into(),
                 audience: CLIENT.into(),
                 groups_claim: "groups".into(),
                 algorithms: vec![Algorithm::ES256],
+                native: native.clone(),
             })
             .collect();
         let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
@@ -704,6 +717,56 @@ async fn the_issuers_of_the_login_are_public(pool: PgPool) {
         json(response).await,
         serde_json::json!([{"id": "main"}, {"id": "backup"}])
     );
+}
+
+/// `GET /v1/auth/native-clients` publishes, without session, the public client of the
+/// native applications of each issuer configured with one: no secret, no issuer without
+/// it; `issuers` still lists them all (spec 023, task 023-6; REQ-007-41).
+#[kartenn_testing::pg_test]
+async fn the_native_clients_are_public(pool: PgPool) {
+    let idp = idp().await;
+    let native = NativeClient {
+        client_id: "kartenn-cli".into(),
+        scopes: vec!["openid".into(), "offline_access".into()],
+        device: true,
+    };
+    let f = Fixture::of_natives(
+        &pool,
+        &idp,
+        Settings::default(),
+        &[("main", None), ("cli", Some(native))],
+    );
+    let response = f
+        .call(request("GET", "/v1/auth/native-clients", None, false))
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let base = idp.lock().unwrap().base.clone();
+    let body = json(response).await;
+    assert_eq!(
+        body,
+        serde_json::json!([{
+            "id": "cli",
+            "discovery_url": format!("{}/.well-known/openid-configuration", base.trim_end_matches('/')),
+            "client_id": "kartenn-cli",
+            "audience": CLIENT,
+            "scopes": ["openid", "offline_access"],
+            "device": true,
+        }])
+    );
+    assert!(!body.to_string().contains("\"s\""), "no secret: {body}");
+    let response = f
+        .call(request("GET", "/v1/auth/issuers", None, false))
+        .await;
+    assert_eq!(
+        json(response).await,
+        serde_json::json!([{"id": "main"}, {"id": "cli"}])
+    );
+    // Without any: an empty list.
+    let f = Fixture::new(&pool, &idp);
+    let response = f
+        .call(request("GET", "/v1/auth/native-clients", None, false))
+        .await;
+    assert_eq!(json(response).await, serde_json::json!([]));
 }
 
 /// A login through the issuer over `client`, as a browser on the page of kartenn sends

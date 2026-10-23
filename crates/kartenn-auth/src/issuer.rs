@@ -23,6 +23,22 @@ pub struct IssuerConfig {
     pub groups_claim: String,
     /// Algorithms accepted for its tokens (a closed list, RFC 8725 §3.1).
     pub algorithms: Vec<Algorithm>,
+    /// The public client of the native applications (the CLI) at this issuer, published
+    /// by `GET /v1/auth/native-clients` (spec 023, T10/A5); `None`: not published.
+    pub native: Option<NativeClient>,
+}
+
+/// A public client of the native applications at an issuer (RFC 8252): no secret, the
+/// code flow with PKCE to a loopback redirection, or the device flow (RFC 8628). Its
+/// access tokens carry the audience of the issuer, as any client's other than browsers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeClient {
+    /// Its client identifier at the issuer.
+    pub client_id: String,
+    /// The scopes it asks for.
+    pub scopes: Vec<String>,
+    /// Whether the issuer offers it the device flow.
+    pub device: bool,
 }
 
 impl fmt::Debug for IssuerConfig {
@@ -35,6 +51,7 @@ impl fmt::Debug for IssuerConfig {
             .field("audience", &self.audience)
             .field("groups_claim", &self.groups_claim)
             .field("algorithms", &self.algorithms)
+            .field("native", &self.native)
             .finish()
     }
 }

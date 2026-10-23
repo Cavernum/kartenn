@@ -419,6 +419,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/auth/native-clients": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/auth/native-clients`, public: the public client of the native applications
+     *     of each issuer configured with one (`native_client_id`), in the order of the
+     *     configuration (spec 023, T10/A5). `issuers` is unchanged (REQ-007-41).
+     */
+    get: operations["native_clients"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/bindings": {
     parameters: {
       query?: never;
@@ -5470,6 +5491,27 @@ export interface components {
      */
     NamedKind: "domain" | "entity" | "site";
     /**
+     * @description A public client of the native applications at an issuer (spec 023, T10/A5): what a
+     *     CLI needs to obtain an access token of kartenn there, nothing secret.
+     */
+    NativeClientDto: {
+      /** @description The audience the access tokens must carry for kartenn. */
+      audience: string;
+      /**
+       * @description The public client (RFC 8252), without secret: code flow with PKCE `S256` to a
+       *     loopback redirection.
+       */
+      client_id: string;
+      /** @description Whether the issuer offers this client the device flow (RFC 8628). */
+      device: boolean;
+      /** @description Its discovery document (OpenID Connect Discovery 1.0 §4). */
+      discovery_url: string;
+      /** @description The local identifier of the issuer, that of `/v1/auth/issuers`. */
+      id: string;
+      /** @description The scopes to ask for. */
+      scopes: string[];
+    };
+    /**
      * @description The nature of a prefix.
      * @enum {string}
      */
@@ -8411,6 +8453,35 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  native_clients: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The public clients of the native applications. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NativeClientDto"][];
+        };
       };
       /** @description A problem (RFC 9457). */
       default: {
@@ -13267,7 +13338,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The OpenAPI 3.1 document of the build. */
+      /** @description The OpenAPI 3.1 document of the build, under a strong `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -13275,6 +13346,13 @@ export interface operations {
         content: {
           "application/json": Record<string, never>;
         };
+      };
+      /** @description `If-None-Match` names the tag of the document. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description A problem (RFC 9457). */
       default: {
