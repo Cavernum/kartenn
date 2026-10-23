@@ -174,7 +174,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `changes`/changeset (ou `event` d'une tâche) et `changeset`/changeset/état, 10 000
     retenues (023) ; `ready` et `reset` jamais écartés. Profil hypothesis sans délai ni
     `too_slow` (machine partagée).
-- [ ] 9. Port de transport (`send`, `stream`, `sse`, synchrone et asynchrone) et
+- [x] 9. Port de transport (`send`, `stream`, `sse`, synchrone et asynchrone) et
   adaptateur httpx2 :
   - délais ;
   - HTTP/2 facultatif ;
@@ -191,6 +191,22 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/transport/`, `retry.py` ; design
     § Transport
   - dépend de : 8
+  - choix : un statut d'erreur garde la réponse ; `stream` et `sse` rendent alors son
+    corps dans `content` et rien en flux ; une réponse 200 qui n'est pas
+    `text/event-stream` est traitée de même. `sleep` fait partie du port (attente du
+    moteur d'événements, tests sans attente) ; l'adaptateur asynchrone attend par anyio,
+    dépendance de httpx2, importé seulement dans `transport/httpx2.py`. Délai de lecture
+    de 45 s pour `sse` (trois `: ping` manqués) plutôt qu'aucun : la coupure est alors
+    une `NetworkError` que le lecteur reprend. HTTP/2 automatique si `h2` est installé
+    (pas d'extra déclaré : le verrou n'en dépend pas), refus explicite si demandé sans
+    lui. Reprise : 3 rejeux au plus, 60 s au total, `Retry-After` sinon 1, 2, 4 s ; une
+    coupure réseau (jamais TLS) se rejoue pareil ; méthodes rejouables : `GET`, `HEAD`,
+    `OPTIONS`, `QUERY`, `PUT` (morceaux d'import), ou toute requête à
+    `Idempotency-Key` ; `PATCH` et `DELETE` ne le sont pas. Un même `traceparent` pour
+    les rejeux d'une requête. Journal `kartenn` en DEBUG : méthode, chemin sans requête,
+    statut, durée. Test TLS : deux CA générées par `cryptography` (ajoutée au groupe
+    `dev`, verrou régénéré hors ligne), « magasin du système » simulé par
+    `SSL_CERT_FILE`. Moteurs anyio asyncio et trio par la fixture `anyio_backend`.
 - [ ] 10. Catalogue :
   - dérivation (tableau du design) ;
   - modèle gelé ;
