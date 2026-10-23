@@ -13,7 +13,7 @@ python-downloads = "never"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["kartenn/src", "kartenn/tests", "kartenn-cli/src", "kartenn-cli/tests"]
+src = ["kartenn/src", "kartenn/tests", "kartenn-cli/src", "kartenn-cli/tests", "e2e", "bench"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -27,15 +27,23 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"*/tests/**" = [
+"{*/tests,e2e}/**" = [
   "INP001",  # tests are not a package
   "PLR2004", # magic values in assertions
   "S101",    # assert is the test idiom
   "S603",    # subprocess on the test interpreter
 ]
+"bench/**" = ["T201"] # a bench prints its table
 
 [tool.pyright]
-include = ["kartenn/src", "kartenn/tests", "kartenn-cli/src", "kartenn-cli/tests"]
+include = [
+  "kartenn/src",
+  "kartenn/tests",
+  "kartenn-cli/src",
+  "kartenn-cli/tests",
+  "e2e",
+  "bench",
+]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
 # The interpreter is the one of the active environment: `uv run pyright` (k-py-check), or

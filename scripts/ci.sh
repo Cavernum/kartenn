@@ -54,6 +54,7 @@ step web k-web-check
 step python k-py-check
 step python-wheels scripts/py-wheels.sh
 step e2e k-web-e2e
+step e2e-cli k-py-e2e
 [ "$nix_checks" -eq 0 ] || step nix k-heavy --all nix flake check --max-jobs 1 --cores 12
 
 [ "$failed" -eq 0 ] && echo "OK — CI verte (journaux : $logs)" || echo "KO — CI rouge (journaux : $logs)"

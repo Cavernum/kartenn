@@ -1,0 +1,11 @@
+# The end-to-end sessions of the CLI (spec 023, task 26), run by `k-py-e2e` only:
+# `uv run --no-sync pytest -c e2e/pytest.toml` from clients/python. In order (the scenes
+# build on each other, like the maquette), without coverage nor parallel workers.
+[pytest]
+minversion = "9.1"
+strict = true
+addopts = ["-ra", "-p", "no:randomly", "-p", "no:cacheprovider"]
+# A command waits at most 120 s (conftest); the session builds nothing.
+timeout = "300"
+timeout_method = "signal"
+assertion_text_diff_style = "block"

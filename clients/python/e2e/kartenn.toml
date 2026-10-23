@@ -1,0 +1,29 @@
+# kartenn-server of the end-to-end sessions of the Python CLI (spec 023, task 26): every
+# module, TLS on the loopback, the issuer of web/e2e/users.toml and its public client
+# `kartenn-cli`, no shell. Started by `web/e2e/serve.sh cli` on the kartenn_cli database;
+# paths are relative to the repository.
+[telemetry]
+outputs = [{ kind = "stdout", filter = "warn" }]
+
+[http]
+listen = "127.0.0.1:9443"
+public_origin = "https://127.0.0.1:9443"
+
+[http.tls]
+cert_file = "web/e2e/.state/cert.pem"
+key_file = "web/e2e/.state/key.pem"
+
+[auth]
+key_file = "web/e2e/.state/kartenn-keys"
+redirect_uri = "https://127.0.0.1:9443/v1/auth/callback"
+
+[[auth.issuers]]
+id = "dev"
+issuer = "https://127.0.0.1:9444"
+client_id = "kartenn"
+client_secret_file = "web/e2e/.state/idp-secret"
+audience = "kartenn"
+algorithms = ["ES256"]
+native_client_id = "kartenn-cli"
+native_scopes = ["openid", "offline_access"]
+native_device = true
