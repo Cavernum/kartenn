@@ -471,7 +471,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     client : `{"code", "detail"}`. Messages de la bibliothèque laissés en anglais ;
     messages propres à la CLI traduits. `--verbose` : méthode, chemin, statut, durée,
     `Request-Id` (006) sur la sortie d'erreur.
-- [ ] 17. Arbre dérivé :
+- [x] 17. Arbre dérivé :
   - groupes de modules, préfixe retiré, verbes, sous-ressources ;
   - aide tirée du contrat (module, opération HTTP) ;
   - module absent → code 2 et message de la maquette § 12.
@@ -480,6 +480,26 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn-cli/src/kartenn_cli/tree.py` ; design § Nommage ;
     maquette § 2, 3, 12
   - dépend de : 10, 16
+  - choix : `changesets`, `imports`, `proposals` ne sont pas dérivés (commandes
+    nommées `changeset` et `import`) ; `audit-events` devient `audit` (seul alias du
+    premier niveau). Verbes : noms d'action du contrat mis au verbe
+    (`acknowledgement` → `acknowledge`, `validation` → `approve`, `waiver` → `waive`,
+    `attachments` → `attach`/`detach`, `secrets` → `secrets add|revoke`…) ; `query`
+    caché (`list` bascule seul) ; noms pointés en sous-groupes, `properties REF` vaut
+    `properties show REF`. Sections de l'aide de la racine par tag (`core`,
+    `properties`, `graph` → noyau ; `rights`, `audit` → droits ; `operations` →
+    outils) ; description d'un module dans les catalogues de messages
+    (`module.about.<nom>`, le contrat ne décrit pas ses tags), sinon « Module <nom> ».
+    Un nom inconnu relit les capacités (au plus une fois par minute) avant de répondre ;
+    `client.module-unavailable` pour les modules connus (`policy`, `flow`, `vlan`,
+    `machines`) et pour une sous-ressource servie par un module absent (`flows`,
+    `evaluations` → `flow`), sinon « no such command » de click (code 2). La découverte
+    est anonyme (routes publiques), par un client sans authentification, et dit sa ligne
+    sur la sortie d'erreur (« Découverte du serveur… »), aussi pendant `--help`. Sans
+    serveur ni cache, `--help` liste les commandes locales et le dit en une ligne.
+    Budgets mesurés à cache chaud (contrat de référence, machine partagée, 20 à 40
+    tirages) : `--help` 100 ms en médiane, 119 ms au p95 ; `policy --help` 90/106 ms ;
+    `policy rules list --help` 93/113 ms.
 - [ ] 18. Lectures :
   - `--at`, `--as-of`, `--freeze` ;
   - filtres typés et `--prop` ;

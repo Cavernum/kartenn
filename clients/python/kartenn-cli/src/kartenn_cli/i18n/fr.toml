@@ -2,6 +2,10 @@
 # traduisent pas.
 
 [help]
+operation = "{method} {path}  ({operation}) — module {module}"
+resource = "Ressource {name} (module {module}) : verbes dérivés du contrat du serveur."
+nested = "Verbes « {name} »."
+module = "{about} (module {module} {version}, servi par {host}).\nCommandes dérivées du contrat du serveur ; « kartenn api » pour le reste."
 subcommand = "COMMANDE [ARGS]..."
 commands = "Commandes"
 options = "Options"
@@ -16,6 +20,14 @@ rights = "Droits et audit"
 tools = "Outils"
 others = "Autres"
 global = "Options"
+named = "Parcours"
+resources = "Ressources"
+verbs = "Verbes"
+params = "Paramètres"
+filters = "Filtres"
+dates = "Dates"
+output = "Sortie"
+write = "Écriture"
 
 [metavar]
 name = "NOM"
@@ -33,6 +45,9 @@ no_input = "Jamais de question, de navigateur ni d'éditeur."
 token_file = "Fichier de jetons explicite (0600), sans trousseau."
 verbose = "Requêtes, durées, identifiants de requête."
 version = "Version du client."
+fields = "Membres à rendre (a,b.c)."
+query = "Projection JMESPath, avant le rendu."
+ids = "Montrer les identifiants (UUID) en table."
 
 [config]
 help = "Profils de configuration (sans aucun secret)."
@@ -108,3 +123,17 @@ unauthenticated = "Reconnectez-vous : kartenn login"
 
 [render]
 masked = "‹masquée›"
+
+[module]
+unavailable = "Le module « {module} » n'est pas servi par ce serveur."
+unavailable_sub = "« {what} » est servi par le module « {module} », absent de ce serveur."
+profile = "Profil {profile} — {url}, version {version}"
+served = "Modules servis : {modules}"
+no_update = "La commande existe quand le serveur sert le module ; aucune mise à jour du client n'est nécessaire."
+about_generic = "Module {name}."
+
+[module.about]
+policy = "Politique de flux : règles, matrice, catalogue, vérification."
+flow = "Registre de flux : demandes, instruction, dérogations."
+vlan = "VLAN et groupes de VLAN."
+machines = "Machines, interfaces, grappes."

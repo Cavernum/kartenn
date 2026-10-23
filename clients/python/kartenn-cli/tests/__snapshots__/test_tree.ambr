@@ -1,0 +1,211 @@
+# serializer version: 1
+# name: test_help_of_each_group[path0]
+  '''
+  Usage: kartenn policy [OPTIONS] COMMANDE [ARGS]...
+  
+    Politique de flux : règles, matrice, catalogue, vérification. (module policy 0.2.0, servi par
+    kartenn.example.org).
+    Commandes dérivées du contrat du serveur ; « kartenn api » pour le reste.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Ressources:
+    admissibility-conditions, axes, environments, exempt-roles, flow-types, inference-rules, matrix,
+    patterns, reports, risk-signals, rules, services, values, verdicts
+  
+  '''
+# ---
+# name: test_help_of_each_group[path1]
+  '''
+  Usage: kartenn flow [OPTIONS] COMMANDE [ARGS]...
+  
+    Registre de flux : demandes, instruction, dérogations. (module flow 0.2.0, servi par
+    kartenn.example.org).
+    Commandes dérivées du contrat du serveur ; « kartenn api » pour le reste.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Ressources:
+    nonconformities
+  
+  Verbes:
+    close, create, evaluations, get, history, list, properties, update, waive
+  
+  '''
+# ---
+# name: test_help_of_each_group[path2]
+  '''
+  Usage: kartenn vlan [OPTIONS] COMMANDE [ARGS]...
+  
+    VLAN et groupes de VLAN. (module vlan 0.2.0, servi par kartenn.example.org).
+    Commandes dérivées du contrat du serveur ; « kartenn api » pour le reste.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Ressources:
+    groups
+  
+  Verbes:
+    close, create, get, history, list, prefixes, properties, update
+  
+  '''
+# ---
+# name: test_help_of_each_group[path3]
+  '''
+  Usage: kartenn machines [OPTIONS] COMMANDE [ARGS]...
+  
+    Machines, interfaces, grappes. (module machines 0.2.0, servi par kartenn.example.org).
+    Commandes dérivées du contrat du serveur ; « kartenn api » pour le reste.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Ressources:
+    clusters, interfaces
+  
+  Verbes:
+    addresses, close, create, flows, get, history, hosted, list, properties, update
+  
+  '''
+# ---
+# name: test_help_of_each_group[path4]
+  '''
+  Usage: kartenn prefixes [OPTIONS] COMMANDE [ARGS]...
+  
+    Ressource prefixes (module core) : verbes dérivés du contrat du serveur.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Commandes:
+    ancestors   `GET /v1/prefixes/{id}/ancestors`: the ancestors the caller may read, nearest first
+    children    `GET /v1/prefixes/{id}/children`: the direct children the caller may read, in address
+    close       Closes the prefix.
+    create      Creates a prefix.
+    flows       The flows of the prefix, those the caller may read (REQ-011-15).
+    get         The prefix.
+    history     The versions of the prefix, on both axes (REQ-004-18).
+    list        The prefixes the caller may read, by natural key; `prop.<key>` filters by property
+                (`:betw
+    next-free   `GET /v1/prefixes/{id}/next-free?kind=prefix&length=<n>` in a container, or
+    occupancy   `GET /v1/prefixes/{id}/occupancy`: used and total addresses (REQ-002-43), as decimal
+    properties  Verbes « properties ».
+    update      Modifies the prefix (JSON Merge Patch).
+  
+  '''
+# ---
+# name: test_help_of_each_group[path5]
+  '''
+  Usage: kartenn audit [OPTIONS] COMMANDE [ARGS]...
+  
+    Ressource audit-events (module audit) : verbes dérivés du contrat du serveur.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Commandes:
+    list  `GET`/`QUERY /v1/audit-events?from=…&to=…&name=…&actor=…&object=…`: the events, the
+  
+  '''
+# ---
+# name: test_help_of_each_group[path6]
+  '''
+  Usage: kartenn policy rules list [OPTIONS]
+  
+    The policy-rules of the policy.
+    GET|QUERY /v1/policy-rules  (list_policy_rules) — module policy
+  
+  Filtres:
+    --key KEY              Equal to, or held by, `key`.
+    --effect EFFECT        Equal to, or held by, `effect`.
+    --pattern PATTERN      Equal to, or held by, `pattern_id`.
+    --flow-type FLOW-TYPE  Equal to, or held by, `flow_type_ids`.
+    --service SERVICE      Equal to, or held by, `service_ids`.
+  
+  Dates:
+    --at DATE     Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339.
+    --as-of DATE  Temps système : ce que kartenn affirmait alors.
+  
+  Sortie:
+    -o, --output FORMAT  table | json | ndjson | yaml | csv  [défaut : table sur un terminal]
+    --fields A,B         Membres à rendre (a,b.c).
+    --query JMESPATH     Projection JMESPath, avant le rendu.
+    --keys / --labels    Clés internes ou libellés.
+    --ids                Montrer les identifiants (UUID) en table.
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  '''
+# ---
+# name: test_help_of_each_group[path7]
+  '''
+  Usage: kartenn prefixes properties [OPTIONS] COMMANDE [ARGS]...
+  
+    Verbes « properties ».
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Commandes:
+    explain  How the value of a property resolves on the object (REQ-003-14).
+    show     The resolved values of the properties of the object.
+    suggest  The value the source of a property expects for the object (REQ-003-23).
+  
+  '''
+# ---
+# name: test_help_of_each_group[path8]
+  '''
+  Usage: kartenn service-accounts secrets [OPTIONS] COMMANDE [ARGS]...
+  
+    Verbes « secrets ».
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Commandes:
+    add     `POST /v1/service-accounts/{id}/secrets` `{expires_at}`: 201 and the secret shown once.
+    revoke  `DELETE /v1/service-accounts/{id}/secrets/{secret}`: revokes the secret.
+  
+  '''
+# ---
+# name: test_root_help_lists_the_modules_served
+  '''
+  Usage: kartenn [OPTIONS] COMMANDE [ARGS]...
+  
+    Client de kartenn — profil « prod », https://kartenn.example.org (0.2.0).
+  
+  Options:
+    -p, --profile NOM     Profil de configuration.
+    -o, --output FORMAT   table | json | ndjson | yaml | csv  [défaut : table sur un terminal]
+    --at DATE             Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339.
+    --as-of DATE          Temps système : ce que kartenn affirmait alors.
+    --keys / --labels     Clés internes ou libellés.
+    --lang [fr|en]        Langue des messages.
+    --no-input            Jamais de question, de navigateur ni d'éditeur.
+    --token-file FICHIER  Fichier de jetons explicite (0600), sans trousseau.
+    -v, --verbose         Requêtes, durées, identifiants de requête.
+    --version             Version du client.
+    -h, --help            Cette aide.
+  
+  Noyau:
+    addresses, anomalies, domains, entities, graph, prefixes, property-declarations, property-gaps,
+    ranges, sites
+  
+  Modules servis:
+    vlan      VLAN et groupes de VLAN.   [module vlan 0.2.0]
+    machines  Machines, interfaces, grappes.   [module machines 0.2.0]
+    policy    Politique de flux : règles, matrice, catalogue, vérification.   [module policy 0.2.0]
+    flow      Registre de flux : demandes, instruction, dérogations.   [module flow 0.2.0]
+  
+  Droits et audit:
+    audit, bindings, identities, issuer-attachments, roles, service-accounts
+  
+  Outils:
+    log-filters, config
+  
+  '''
+# ---

@@ -26,7 +26,9 @@ from kartenn_cli.i18n import LANGS, resolve, set_lang, t
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from kartenn.catalog import Catalog
     from kartenn_cli.runtime import Runtime
+    from kartenn_cli.tree import Layout
 
 __all__ = ["KartennGroup", "cli", "main"]
 
@@ -34,6 +36,8 @@ __all__ = ["KartennGroup", "cli", "main"]
 STATIC: dict[str, tuple[str, str, str]] = {
     "config": ("kartenn_cli.config", "config_group", "tools"),
 }
+# Static commands shown with their help in the root help; the others by name only.
+STATIC_DESCRIBED = frozenset({"api", "changeset", "import"})
 SECTIONS = ("core", "writes", "modules", "rights", "tools", "others")
 _LAST: dict[str, Runtime] = {}
 
@@ -101,31 +105,76 @@ class KartennGroup(TGroup):
 
     sections: ClassVar[tuple[str, ...]] = SECTIONS
 
-    def list_commands(self, ctx: click.Context) -> list[str]:  # noqa: ARG002 - the catalog, later
-        return sorted(STATIC)
+    def _tree(self, ctx: click.Context) -> tuple[Catalog, Layout] | None:
+        """The catalog in the cache (or discovered once); a line and nothing more when
+        the server cannot be reached: the local commands stay."""
+        found = _runtime(ctx)
+        try:
+            return found.tree()
+        except _handled() as error:
+            if "_tree_failed" not in found.__dict__:
+                found.__dict__["_tree_failed"] = True
+                click.echo(t("discovery.failed", error=getattr(error, "code", error)), err=True)
+            return None
 
-    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:  # noqa: ARG002
-        found = STATIC.get(cmd_name)
-        if found is not None:
-            module = importlib.import_module(found[0])
-            command = getattr(module, found[1])
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        names = set(STATIC)
+        tree = self._tree(ctx)
+        if tree is not None:
+            names |= set(tree[1].resources) | set(tree[1].modules) | set(tree[1].mains)
+        return sorted(names)
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        static = STATIC.get(cmd_name)
+        if static is not None:
+            module = importlib.import_module(static[0])
+            command = getattr(module, static[1])
             return command if isinstance(command, click.Command) else None
-        return None
+        from kartenn_cli.tree import KNOWN_MODULES, Unavailable, module_unavailable  # noqa: PLC0415
+        from kartenn_cli.tree import resource_command as derived  # noqa: PLC0415
+
+        tree = self._tree(ctx)
+        if tree is None:
+            return None
+        command = derived(cmd_name, *tree)
+        if command is not None or ctx.resilient_parsing:
+            return command
+        found = _runtime(ctx)
+        tree = found.tree(discover=True)
+        if tree is None:  # pragma: no cover - a profile was read above
+            return None
+        command = derived(cmd_name, *tree)
+        if command is None and cmd_name in KNOWN_MODULES:
+            error = module_unavailable(cmd_name, tree[0], found.require_profile())
+            return Unavailable(cmd_name, error)
+        return command
 
     def description(self, ctx: click.Context) -> str:
         found = _runtime(ctx)
         profile = found.profile_or_none()
         if profile is None:
             return t("help.root_no_profile")
-        catalog = found.cached_catalog()
-        version = catalog.version if catalog is not None else "?"
+        tree = self._tree(ctx)
+        version = tree[0].version if tree is not None else "?"
         return t("help.root", profile=profile.name, url=profile.url, version=version)
 
-    def command_sections(self, ctx: click.Context) -> list[Section]:  # noqa: ARG002
+    def command_sections(self, ctx: click.Context) -> list[Section]:
+        from kartenn_cli.tree import root_entries  # noqa: PLC0415
+
         grouped: dict[str, list[tuple[str, str]]] = {name: [] for name in self.sections}
+        tree = self._tree(ctx)
+        if tree is not None:
+            for section, entries in root_entries(*tree).items():
+                grouped[section] += entries
         for name, (_, _, section) in sorted(STATIC.items()):
-            grouped[section].append((name, ""))
+            grouped[section].append((name, self._static_help(ctx, name)))
         return [(t(f"help.section.{key}"), entries) for key, entries in grouped.items() if entries]
+
+    def _static_help(self, ctx: click.Context, name: str) -> str:
+        if name not in STATIC_DESCRIBED:
+            return ""
+        command = self.get_command(ctx, name)
+        return t(command.help or "") if command is not None else ""
 
     def invoke(self, ctx: click.Context) -> Any:  # noqa: ANN401 - what the command returns
         try:

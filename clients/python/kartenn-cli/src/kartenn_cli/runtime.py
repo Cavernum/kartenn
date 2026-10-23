@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from kartenn.profiles import Profile
     from kartenn.transport.port import Transport
     from kartenn_cli.render import Output
+    from kartenn_cli.tree import Layout
 
 __all__ = ["TRANSPORT", "Runtime", "runtime"]
 
@@ -152,10 +153,14 @@ class Runtime:
 
     @property
     def json_errors(self) -> bool:
-        try:
-            return self.output_format() == "json"
-        except CliError:
-            return False
+        """A problem is written in JSON when JSON was asked for, not by default."""
+        profile = self.profile_or_none()
+        asked = (
+            self.settings.output
+            or os.environ.get("KARTENN_OUTPUT")
+            or (profile.output if profile else None)
+        )
+        return asked == "json"
 
     # Catalog and client ----------------------------------------------------------
 
@@ -214,11 +219,22 @@ class Runtime:
         """The catalog, discovered without authentication (public routes); a line on the
         standard error when it was not in the cache or its revision changed."""
         from kartenn.catalog import discover  # noqa: PLC0415
+        from kartenn.client import Client  # noqa: PLC0415
 
         profile = self.require_profile()
         url = profile.url.rstrip("/")
         before = self.cache.last(url)
-        catalog = self.client.run_unauthenticated(discover(url, self.cache))
+        if "client" in self.__dict__:
+            catalog = self.client.run_unauthenticated(discover(url, self.cache))
+        else:
+            with Client(
+                profile.url,
+                ca_bundle=profile.ca_bundle,
+                http2=profile.http2,
+                transport=self.transport(profile),
+                cache=self.cache,
+            ) as anonymous:
+                catalog = anonymous.run_unauthenticated(discover(url, self.cache))
         if before is None or before.revision != catalog.revision:
             modules = ", ".join(catalog.module_names) or "—"
             previous = (
@@ -230,6 +246,23 @@ class Runtime:
             line = t(key, version=catalog.version, previous=previous, modules=modules)
             click.echo(line, err=True)
         return catalog
+
+    def tree(self, *, discover: bool = False) -> tuple[Catalog, Layout] | None:
+        """The catalog and its layout: from the cache when it holds one, else discovered;
+        discovered anyway with `discover` (capabilities read at most once a minute)."""
+        from kartenn_cli.tree import layout  # noqa: PLC0415
+
+        if self.profile is None:
+            return None
+        kept: tuple[Catalog, Layout, bool] | None = self.__dict__.get("_tree")
+        if kept is not None and (kept[2] or not discover):
+            return kept[0], kept[1]
+        catalog = None if discover else self.cached_catalog()
+        discovered = catalog is None
+        if catalog is None:
+            catalog = self.catalog
+        self.__dict__["_tree"] = (catalog, layout(catalog), discovered)
+        return catalog, self.__dict__["_tree"][1]
 
     def close(self) -> None:
         if "client" in self.__dict__:
