@@ -82,12 +82,18 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - fait : `outbox::notify` (canal `outbox::CHANNEL`) appelé après chaque insertion
     (une instruction de plus par transaction, mesurée par le banc) ; test
     `a_committed_changeset_notifies_the_outbox_once`.
-- [ ] 6. Plancher en mémoire : variante sans écriture de `floor.rs` (`pending_max`,
+- [x] 6. Plancher en mémoire : variante sans écriture de `floor.rs` (`pending_max`,
   `pending_xmax`, montée sur `pg_snapshot_xmin`) et balayage de la fenêtre — E6,
   REQ-022-7 — verify : transaction longue qui détient un numéro inférieur, jamais sautée
   - où : `crates/kartenn-store-pg/src/floor.rs`, migration 0027 (commentaire), tests
     `a_running_transaction_is_never_skipped`, `pass_floor`
   - dépend de : 2
+  - fait : `crates/kartenn-store-pg/src/events.rs` (`Floor`, `raise`, `read`, `sweep`,
+    `recent`, `kinds`, et pour les tâches 8 et 11 `visible`, `states`,
+    `administrative`) ; test `a_long_transaction_holding_a_lower_number_is_never_skipped`
+    (`kartenn-service/tests/it/events_floor.rs`). Choix : plancher de départ = juste sous
+    le premier événement rechargé dans l'anneau (sinon le dernier numéro) ; le balayage
+    horaire relit la fenêtre de l'anneau.
 - [ ] 7. Lecteur : connexion d'écoute dédiée (reconnexion avec attente croissante),
   interrogation de secours à 1 s, passe par lot de 1 000, typage groupé par
   `changeset_operation`, anneau (15 min, 10⁴) rechargé au démarrage — REQ-022-7, 20 —
