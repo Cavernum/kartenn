@@ -491,7 +491,17 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   (`kartenn-service/src/expected.rs`, `Defaults::fresh`, 0,35 s) ; le banc tire les
   adresses de la suggestion depuis les règles (dix minutes hors mesure → 30 ms).
   choix : les items de la rubrique `unclassified` suivent l'ordre de l'index keyset
-  (domaine, valeur, identifiant) et non plus l'identifiant seul. Le banc n'est pas
+  (domaine, valeur, identifiant) et non plus l'identifiant seul.
+  — suite (2026-10-23) : la rubrique `transverse` n'était pas mesurée (aucune valeur
+  transverse au banc). Le banc marque transverse le dernier environnement et chronomètre
+  ses fenêtres une à une dans un rapport à part (ligne INFO). Au banc réduit, 144 fenêtres
+  prenaient 5,4 s (37 ms en moyenne, décroissant avec les origines restantes : en plan
+  générique, la fenêtre triait toutes les origines restantes de la propriété lues par la
+  clé primaire GiST), soit de l'ordre de 9 min extrapolé au jeu complet (×10 fenêtres,
+  ×10 par fenêtre), à la limite du budget de 10 min. La fenêtre parcourt désormais l'index
+  btree par objet de `property_origin` sous une barrière `OFFSET 0`
+  (`kartenn-policy/src/report.rs`, `transverse`) : 1,8 s (13 ms par fenêtre, constant),
+  rapport complet 7,0 s → 3,8 s au banc réduit ; ≈ 18 s extrapolés au jeu complet. Le banc n'est pas
   branché en CI (pas de CI du dépôt) : « bloquant » = le script échoue si un budget
   est dépassé.
 - [x] 20. Synchronisation de `docs/spec/` (spec-keeper), ADR proposées → acceptées

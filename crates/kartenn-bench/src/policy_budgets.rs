@@ -6,8 +6,9 @@
 //! service, machine × machine (16 × 16 addresses) for a flow type of 10 services, a raw
 //! port covered by 20 services, the suggestion of the inference; through the write
 //! pipeline: the policy differential of a changeset of rules, the control of the
-//! inference on a changeset of 10⁴ objects; the background tasks: the audit report and a
-//! full re-evaluation of the deviations of the inference.
+//! inference on a changeset of 10⁴ objects; the background tasks: the audit report (and,
+//! for information, the windows of its rubric of transverse values, one environment being
+//! transverse) and a full re-evaluation of the deviations of the inference.
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -29,9 +30,9 @@ use rand::RngExt;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
+use sqlx::{PgConnection, PgPool};
 
 use crate::Dataset;
 use crate::core_budgets::{Prepared, prepare, unitary};
@@ -40,6 +41,8 @@ use crate::vlan_budgets::{app_with, get, import, reader, sync};
 
 /// The size of the policy of the budget (REQ-010-28).
 const ENVIRONMENTS: usize = 50;
+/// The transverse environment, among them.
+const TRANSVERSE: usize = ENVIRONMENTS - 1;
 const FLOW_TYPES: usize = 20;
 const SERVICES: usize = 1_000;
 const RULES: usize = 10_000;
@@ -105,8 +108,14 @@ fn env(i: usize) -> String {
 fn catalogue_items() -> anyhow::Result<Vec<ImportItem>> {
     let flow_type = |t: usize| t + 1;
     let mut items = vec![plain(op("examples.install", json!({}))?)];
+    // The last environment is transverse: the rubric of the nodes holding one has
+    // something to list (REQ-010-23).
     for e in 0..ENVIRONMENTS {
-        items.push(plain(op("environment.create", json!({ "key": env(e) }))?));
+        let mut fields = json!({ "key": env(e) });
+        if e == TRANSVERSE {
+            fields["transverse"] = true.into();
+        }
+        items.push(plain(op("environment.create", fields)?));
     }
     for t in 0..FLOW_TYPES {
         items.push(item(op(
@@ -730,13 +739,14 @@ async fn measure(
             break;
         }
     }
-    drop(conn);
     budgets.push(Budget {
         name: "audit report",
         limit: Duration::from_mins(10),
         measured: t.elapsed(),
         note: format!("{runs} runs of the task; {}", load_now()),
     });
+    transverse_windows(&mut conn, report).await?;
+    drop(conn);
     progress(&load("policy report"));
 
     // The inference: 2 000 rules on the networks of the dataset, a fifth of them on the
@@ -879,6 +889,67 @@ async fn measure(
     });
     progress(&load("policy inference check"));
     Ok(budgets)
+}
+
+/// The windows of the rubric `transverse` of the audit report (nodes holding a transverse
+/// value), timed one by one in a report of their own, reported then removed: the rubric
+/// goes over every resolved origin of the axes with a transverse value, by windows of
+/// [`kartenn_policy::report::BATCH`] objects, each in the write transaction of a run.
+async fn transverse_windows(conn: &mut PgConnection, report: &mut String) -> anyhow::Result<()> {
+    let rubric = kartenn_policy::report::RUBRICS
+        .iter()
+        .position(|r| *r == "transverse")
+        .context("the rubric transverse")?;
+    let rubric = i32::try_from(rubric)?;
+    let id = match kartenn_policy::report::request(&mut *conn, OffsetDateTime::now_utc(), None)
+        .await?
+    {
+        kartenn_policy::report::Requested::Started(id) => id,
+        kartenn_policy::report::Requested::Busy(id) => bail!("a report {id} is already running"),
+    };
+    sqlx::query("UPDATE policy.policy_report SET rubric = $2 WHERE id = $1")
+        .bind(id)
+        .bind(rubric)
+        .execute(&mut *conn)
+        .await?;
+    let mut windows = Vec::new();
+    loop {
+        let at: i32 = sqlx::query_scalar("SELECT rubric FROM policy.policy_report WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await?;
+        if at != rubric {
+            break;
+        }
+        let t = Instant::now();
+        kartenn_policy::report::run_with(&mut *conn, kartenn_policy::report::BATCH, 1).await?;
+        windows.push(t.elapsed());
+    }
+    let listed: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM policy.policy_report_item WHERE report_id = $1")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await?;
+    sqlx::query("DELETE FROM policy.policy_report WHERE id = $1")
+        .bind(id)
+        .execute(&mut *conn)
+        .await?;
+    if listed == 0 {
+        bail!("the rubric transverse listed no node");
+    }
+    let total: Duration = windows.iter().sum();
+    let n = u32::try_from(windows.len())?;
+    writeln!(
+        report,
+        "INFO audit report, rubric transverse: {n} windows of {} objects in {total:?} \
+         (mean {:?}, first {:?}, last {:?}, max {:?}), {listed} nodes listed",
+        kartenn_policy::report::BATCH,
+        total / n.max(1),
+        windows.first().copied().unwrap_or_default(),
+        windows.last().copied().unwrap_or_default(),
+        windows.iter().max().copied().unwrap_or_default(),
+    )?;
+    Ok(())
 }
 
 /// The load average of the machine over a minute, as `uptime` prints it.
