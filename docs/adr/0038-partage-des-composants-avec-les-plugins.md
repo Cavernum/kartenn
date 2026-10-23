@@ -17,7 +17,9 @@ VLAN) et leur propre feuille ; les composants du shell leur sont inaccessibles ;
 langage visuel diverge. La 017 prévoyait deux plugins de plus sur le même modèle (U2).
 
 Arbitrages de l'utilisateur du 2026-10-23 : D-2 (le framework et `@kartenn/ui` passent
-par l'import map), D-3 (DOM léger pour les plugins de première partie). Contraintes :
+par l'import map), D-3 (DOM léger pour les plugins de première partie), et **D-1 :
+Vue 3**, retenu après un prototype comparatif (Vue 3 et Reka UI contre React 19 et React
+Aria, même arbre et même table éditables) ; D17 et l'ADR 0011 restent telles quelles. Contraintes :
 CSP `style-src 'self'` sans `unsafe-inline` (pas de `<style>`, pas d'attribut `style`
 analysé, pas de `cssText`), SRI de chaque module (ADR 0025), Custom Element comme
 frontière d'extension (D17, W5).
@@ -25,7 +27,7 @@ frontière d'extension (D17, W5).
 ## Decision
 
 1. **Import map étendue.** L'import map du shell désigne, en plus de `@kartenn/sdk` :
-   le framework retenu par D-1, `@kartenn/ui` (module) et `@kartenn/ui/style.css`
+   `vue` (D-1), `@kartenn/ui` (module) et `@kartenn/ui/style.css`
    (feuille, servie avec empreinte). Ce sont des **instances uniques** ; le build des
    plugins de première partie les marque `external`. Leur empreinte SRI est publiée
    comme celle du SDK, l'import map reste le seul script en ligne permis par la CSP.
@@ -51,18 +53,19 @@ frontière d'extension (D17, W5).
    en chaîne : la CSS de la bibliothèque est un fichier servi ; les styles dynamiques
    passent par le CSSOM (`setProperty`) ou des variables CSS.
 
-## Dépend de D-1 (framework, prototype en cours)
+## Résolution de D-1 : Vue 3 (2026-10-23)
 
-- Le **nom** du framework dans l'import map et les modules annexes à partager
-  (runtime seul ; le routeur et l'i18n du shell ne sont pas partagés avec les plugins,
-  qui passent par le SDK pour la navigation et les catalogues).
-- La façon de monter une application dans l'hôte (application par élément ou racine de
-  rendu par élément) et de partager le contexte (injection de dépendances ou
-  fournisseur de contexte).
-- La vérification que les primitives accessibles retenues ne posent aucun style
-  bloqué par la CSP (parcours avec rapport de violations CSP, tâche du prototype).
-Le principe (instances uniques par l'import map, DOM léger, plages au manifeste) est
-indépendant de D-1.
+- L'import map désigne **`vue`** : le build navigateur *runtime* de production, **sans le
+  compilateur de gabarits** (qui évalue du code et serait refusé par une CSP sans
+  `unsafe-eval`) ; les plugins livrent des gabarits précompilés. Plage du manifeste :
+  `framework: "^3.5.0"`. vue-router et vue-i18n restent internes au shell : les plugins
+  naviguent et traduisent par le SDK.
+- Hôte d'un plugin de première partie : l'élément personnalisé crée une application par
+  élément (`createApp`), lui fournit (`provide`) le contexte du SDK et le `QueryClient`
+  (`VueQueryPlugin`), la monte dans son DOM léger à `connectedCallback` et la démonte à
+  `disconnectedCallback`.
+- CSP : vérifiée au prototype pour les primitives retenues (zéro violation en usage, après
+  retrait de `ComboboxViewport`) ; la liste des composants interdits est dans l'ADR 0036.
 
 ## Alternatives
 

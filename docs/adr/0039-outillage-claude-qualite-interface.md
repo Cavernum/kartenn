@@ -54,11 +54,15 @@ plus).
    agents au plus, chacun en worktree. Le rôle de concepteur et les arbitrages
    esthétiques restent dans l'agent principal avec l'utilisateur.
 
-## Dépend de D-1 (framework, prototype en cours)
+## Résolution de D-1 : Vue 3 (2026-10-23)
 
-- Les règles ESLint du hook et du skill (`eslint-plugin-vue` ou règles JSX) et les
-  extraits de code des exemples du skill.
-Agents, hook, skill et banc ne dépendent pas de D-1 dans leur principe.
+- Le hook et le skill emploient `eslint-plugin-vue` (règles de l'ADR 0036) et
+  `no-restricted-imports` pour les composants Reka interdits ; les exemples du skill sont
+  des SFC `<script setup>`.
+- Le skill `kartenn-ui` consigne les pièges de Reka relevés au prototype (sélection par
+  copie, navigation virtualisée, interception du clavier, `<style>` injecté,
+  `aria-hidden` du Combobox, types perdus dans les slots) ; `a11y-auditor` rejoue les
+  scripts clavier à chaque montée de version de Reka.
 
 ## Alternatives
 

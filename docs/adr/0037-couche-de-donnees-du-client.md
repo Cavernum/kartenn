@@ -68,16 +68,16 @@ Décisions D7 (amendée), D8, D10, D11 ; ADR 0005, 0018, 0022 ; 007/W8 à W10, W
 7. **Mémoire** : `gcTime` par famille, pages de liste plafonnées, base IndexedDB fermée
    sur `pagehide` (bfcache) et revalidation au `pageshow` persistant.
 
-## Dépend de D-1 (framework, prototype en cours)
+## Résolution de D-1 : Vue 3 (2026-10-23)
 
-- L'**adaptateur** du cache au framework (`@tanstack/vue-query` ou
-  `@tanstack/react-query`) : fin, il ne fait que brancher le `QueryClient` du SDK ; il
-  vit dans `@kartenn/ui`, jamais dans `@kartenn/sdk`, qui reste sans framework
-  (REQ-007-12).
-- L'intégration au routeur (gardes de navigation et déclaration des requêtes de route)
-  suit le routeur de la pile retenue.
-Le cœur (`query-core`), les clés, les règles de fraîcheur, d'optimisme et
-d'invalidation ne dépendent pas de D-1.
+- **Adaptateur** : `@tanstack/vue-query`, branché sur le `QueryClient` du SDK
+  (`VueQueryPlugin` avec `queryClient` fourni) ; il vit dans `@kartenn/ui`, jamais dans
+  `@kartenn/sdk`, qui reste sans framework (REQ-007-12).
+- **Routeur** : vue-router ; chaque route déclare `meta.queries(params, time)` ; une garde
+  `beforeResolve` lance les préchargements et attend au plus 100 ms.
+- **Données volumineuses** : les objets lus pour un arbre ou une grille ne sont pas rendus
+  réactifs en profondeur (`shallowRef`, `markRaw`) ; c'est le cache qui porte la
+  réactivité (leçon du prototype : enveloppes profondes coûteuses et identité perdue).
 
 ## Alternatives
 
