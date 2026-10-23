@@ -99,7 +99,8 @@ async fn record_all<J: AuditJournal>(
 }
 
 /// The permission that reads an object of `kind`: `core.<kind>.read` for the core,
-/// `<module>.<type>.read` for a qualified type of a module (ADR 0026, clause 8).
+/// that of [`kartenn_core::authz::type_read_permission`] for a qualified type of a module
+/// (ADR 0026, clause 8; spec 018, R4).
 #[must_use]
 pub fn read_permission(kind: &str) -> String {
     if kind.contains('.') {

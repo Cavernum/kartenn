@@ -4,7 +4,7 @@
 //! and its evaluations; the evaluations of a flow at (`valid_at`, `as_of`); the
 //! non-conformities; the flows of an address, a prefix, an interface or a machine.
 //!
-//! Rights (REQ-011-17): a flow is read under `flow.flow.read` on its entity, by the
+//! Rights (REQ-011-17): a flow is read under `flow.read` on its entity, by the
 //! predicate of the core (ADR 0021); its requester reads it too, with the explanation
 //! reduced (REQ-010-25). A flow the caller may not read answers as an absent one.
 
@@ -541,7 +541,7 @@ fn filter_of(wanted: &BTreeMap<&str, &str>) -> Result<FlowFilter, Problem> {
     Ok(filter)
 }
 
-/// The flows of `ids` the caller reads at `at`: under `flow.flow.read` by the predicate
+/// The flows of `ids` the caller reads at `at`: under `flow.read` by the predicate
 /// of the core on their entity (ADR 0021), or as their requester (REQ-011-17).
 async fn visible(
     api: &Api,
@@ -580,7 +580,7 @@ async fn visible(
 }
 
 /// The moment and the read scope of a request of `principal` (the scope of
-/// `flow.flow.read`).
+/// `flow.read`).
 async fn reading(
     api: &Api,
     principal: &Principal,
@@ -691,8 +691,8 @@ fn cursor_of(key: &Value) -> Result<Cursor, Problem> {
 }
 
 /// The requests pending a review among `rows` the caller reads, by proposal and rank,
-/// each with whether its triage is reduced (F19, REQ-011-17): under `flow.flow.read` or
-/// `flow.flow.review` on the entity of the request, in full; as its requester, reduced
+/// each with whether its triage is reduced (F19, REQ-011-17): under `flow.read` or
+/// `flow.review` on the entity of the request, in full; as its requester, reduced
 /// (REQ-010-25).
 async fn reviews_seen(
     api: &Api,
@@ -790,7 +790,7 @@ async fn of_object(
     .await
 }
 
-/// Whether the caller reads the flow `id`: `Some(false)` under `flow.flow.read`,
+/// Whether the caller reads the flow `id`: `Some(false)` under `flow.read`,
 /// `Some(true)` as its requester only (explanation reduced), `None` otherwise.
 async fn access(
     api: &Api,
@@ -900,7 +900,7 @@ async fn evaluations(
 }
 
 /// `GET /v1/flow-nonconformities` (REQ-011-25): newest first, filtered; a caller reads the
-/// rows of the entities where it holds `flow.flow.read`, and those of its own requests.
+/// rows of the entities where it holds `flow.read`, and those of its own requests.
 async fn nonconformities(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -965,7 +965,7 @@ async fn nonconformities(
     Ok(respond_page(&headers, &moment, &items, None))
 }
 
-/// The entities of `ids` where the scope of `flow.flow.read` reaches: globally, or the
+/// The entities of `ids` where the scope of `flow.read` reaches: globally, or the
 /// entity granted (a flow is anchored on its entity, ADR 0026).
 async fn readable_entities(
     api: &Api,
@@ -1220,7 +1220,7 @@ pub fn routes() -> ModuleRouter {
     let waiver_op = op(
         "waive_flow",
         "flow",
-        "Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`.",
+        "Grants a dated waiver to the flow (REQ-011-9), under `flow.waiver.grant`.",
     )
     .path("id", the, true)
     .header("If-Match", true, kit::IF_MATCH_OBJECT)

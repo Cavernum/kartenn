@@ -16788,7 +16788,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`.",
+        "summary": "Grants a dated waiver to the flow (REQ-011-9), under `flow.waiver.grant`.",
         "tags": [
           "flow"
         ]

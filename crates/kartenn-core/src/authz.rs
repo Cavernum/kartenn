@@ -1,7 +1,8 @@
 //! Catalogue of permissions and delivered roles (spec 005, REQ-005-16, 17; K12; D36).
 //!
-//! A permission is `<module>.<object>.<action>`, or `prop.<key>.<action>` for a property
-//! (003). A role lists catalogue permissions and two patterns: `prop.*.<action>` covers the
+//! A permission is `<module>.<object>.<action>`, `<module>.<action>` when the object is
+//! named after the module (spec 018, R2: `flow.read`), or `prop.<key>.<action>` for a
+//! property (003). A role lists catalogue permissions and two patterns: `prop.*.<action>` covers the
 //! properties that are **not sensitive** (a sensitive one needs its own permission,
 //! 003/P17), and `*` covers everything. `docs/spec/permissions.md` is generated from here, with the
 //! permissions of the modules of the build, and checked by a test of `kartenn-server`.
@@ -16,7 +17,7 @@ use std::sync::{PoisonError, RwLock};
 /// A permission of the catalogue.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Permission {
-    /// `<module>.<object>.<action>`.
+    /// `<module>.<object>.<action>`, or `<module>.<action>` (spec 018, R2).
     pub name: &'static str,
     /// What it allows, in one sentence.
     pub summary: &'static str,
@@ -195,18 +196,33 @@ fn type_permissions(kind: &str) -> Option<TypePermissions> {
         .find(|t| t.kind == kind)
 }
 
+/// The permission `<kind>.<action>` by the naming rule (spec 018, R2, R4): a type named
+/// after its module, `m.m`, gives `m.<action>`.
+fn default_type_permission(kind: &str, action: &str) -> String {
+    match kind.split_once('.') {
+        Some((module, ty)) if module == ty => format!("{module}.{action}"),
+        _ => format!("{kind}.{action}"),
+    }
+}
+
 /// The read permission of the object type `kind` of a module: its declared one, else
-/// `<kind>.read`.
+/// `<kind>.read`, or `<module>.read` for a type named after its module (spec 018, R4).
 #[must_use]
 pub fn type_read_permission(kind: &str) -> String {
-    type_permissions(kind).map_or_else(|| format!("{kind}.read"), |t| t.read.to_owned())
+    type_permissions(kind).map_or_else(
+        || default_type_permission(kind, "read"),
+        |t| t.read.to_owned(),
+    )
 }
 
 /// The write permission of the object type `kind` of a module: its declared one, else
-/// `<kind>.write`.
+/// `<kind>.write`, or `<module>.write` for a type named after its module (spec 018, R4).
 #[must_use]
 pub fn type_write_permission(kind: &str) -> String {
-    type_permissions(kind).map_or_else(|| format!("{kind}.write"), |t| t.write.to_owned())
+    type_permissions(kind).map_or_else(
+        || default_type_permission(kind, "write"),
+        |t| t.write.to_owned(),
+    )
 }
 
 /// The permission `name` of the catalogue, if any.
@@ -221,9 +237,13 @@ pub fn permission(name: &str) -> Option<&'static Permission> {
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
 /// `prop.*.<action>`, or `*`. The key of a property permission is checked against the
-/// declarations by the service (`rbac::check`).
+/// declarations by the service (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] is
+/// refused, with no alias (spec 018, REQ-018-3, Q-018-2).
 #[must_use]
 pub fn valid_role_entry(entry: &str) -> bool {
+    if RENAMED_PERMISSIONS.iter().any(|(old, _)| *old == entry) {
+        return false;
+    }
     if entry == "*" || permission(entry).is_some() {
         return true;
     }
@@ -381,6 +401,15 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
             .join(", ");
         let _ = writeln!(out, "| {} | `{}` | {} |", r.label, r.key, entries);
     }
+    out.push_str(
+        "\n## Anciens noms\n\n\
+         Renommées par la spec 018 (R2, R3). Un ancien nom est refusé dans un rôle\n\
+         (`core.role.invalid`) ; il ne reste que dans l'historique et le journal d'audit.\n\n\
+         | Ancien nom | Nouveau nom |\n|---|---|\n",
+    );
+    for (old, new) in RENAMED_PERMISSIONS {
+        let _ = writeln!(out, "| `{old}` | `{new}` |");
+    }
     out
 }
 
@@ -426,6 +455,30 @@ mod tests {
         assert_eq!(catalogue_problems(&[&REPEATED]).len(), 1);
         assert_eq!(catalogue_problems(&[&SHORT, &ACTION_AS_RESOURCE]).len(), 1);
         assert_eq!(catalogue_problems(&[&SHORT, &SHORT]).len(), 1);
+    }
+
+    /// REQ-018-3: an old name stands in no role, even when a catalogue still declares it.
+    #[test]
+    fn an_old_permission_name_is_refused() {
+        static OLD: Permission = Permission {
+            name: "flow.flow.read",
+            summary: "",
+            global_only: false,
+        };
+        register(&[&OLD]);
+        for (old, _) in RENAMED_PERMISSIONS {
+            assert!(!valid_role_entry(old), "{old}");
+        }
+    }
+
+    /// R4: a type named after its module reads and writes under `<module>.<action>`; the
+    /// other types keep `<kind>.<action>`, unless their module declares otherwise
+    /// (`machines.machine`, see `kartenn-server`).
+    #[test]
+    fn a_module_kind_reads_under_the_short_permission() {
+        assert_eq!(type_read_permission("vlan.vlan"), "vlan.read");
+        assert_eq!(type_write_permission("flow.flow"), "flow.write");
+        assert_eq!(type_read_permission("vlan.group"), "vlan.group.read");
     }
 
     /// R3: the table renames each old name once, to a name of the new grammar.

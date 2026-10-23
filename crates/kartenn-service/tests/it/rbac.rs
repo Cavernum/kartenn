@@ -857,6 +857,11 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
         let outcome = t.submit_as(&root, vec![set_role("odd", entries)]).await;
         assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{entries:?}");
     }
+    // An old name of spec 018, with no alias (REQ-018-3).
+    for (old, _) in kartenn_core::authz::RENAMED_PERMISSIONS {
+        let outcome = t.submit_as(&root, vec![set_role("odd", &[old])]).await;
+        assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{old}");
+    }
     // A declared property, a pattern, or a property declared by the same changeset.
     let outcome = t
         .submit_as(

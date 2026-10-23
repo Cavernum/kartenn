@@ -125,9 +125,9 @@ permissions! {
     GROUP_READ = "vlan.group.read", "Lire les groupes de VLAN.";
     GROUP_WRITE = "vlan.group.write", "Créer, modifier ou clore un groupe de VLAN.";
     GROUP_PROPOSE = "vlan.group.propose", "Proposer un changement d'un groupe de VLAN.";
-    VLAN_READ = "vlan.vlan.read", "Lire les VLAN.";
-    VLAN_WRITE = "vlan.vlan.write", "Créer, modifier ou clore un VLAN.";
-    VLAN_PROPOSE = "vlan.vlan.propose", "Proposer un changement d'un VLAN.";
+    VLAN_READ = "vlan.read", "Lire les VLAN.";
+    VLAN_WRITE = "vlan.write", "Créer, modifier ou clore un VLAN.";
+    VLAN_PROPOSE = "vlan.propose", "Proposer un changement d'un VLAN.";
 }
 
 /// The VLAN module (spec 008).

@@ -49,7 +49,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `an_old_permission_name_is_refused`, `a_module_kind_reads_under_the_short_permission`)
   passent avec la tâche 2.
 
-- [ ] 2. Renommage dans les modules et le service : catalogues `vlan`, `machines`,
+- [x] 2. Renommage dans les modules et le service : catalogues `vlan`, `machines`,
   `flow` (dont `flow.waiver.grant`), rôles livrés, appels de contrôle, tests et bancs ;
   `docs/spec/permissions.md` régénéré avec « Anciens noms » — REQ-018-2, 6 — verify :
   `k-check` complet ; `the_published_catalogue_matches_the_code`
@@ -59,6 +59,21 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-{service,rest,flow,policy,vlan,machines}/src/**` ;
   `crates/*/tests/it/**` ; `crates/kartenn-bench/src/{*_budgets.rs,rbac.rs}`
   dépend de : 1
+  fait : catalogues renommés (`WAIVER_GRANT` = `flow.waiver.grant`, opération `waive`
+  inchangée), `REVIEW` du gestionnaire de flux, lecture du VLAN par `machines` ; refus
+  explicite des anciens noms dans `valid_role_entry`, le message de `core.role.invalid`
+  nomme le nouveau nom (pas d'alias) ; `type_*_permission` selon R2 (`m.m` → `m.<action>`).
+  Choix : `machines.machine` n'est pas `m.m` au sens strict (pluriel) ; plutôt qu'une
+  règle de pluriel, le module `machines` déclare ses `TypePermissions`
+  (`machines.read`, `machines.write`). Tests du noyau
+  (`permission_names_omit_the_module_resource`, `an_old_permission_name_is_refused`,
+  `a_module_kind_reads_under_the_short_permission`), du serveur sur le catalogue du
+  build (mêmes noms, `renamed_permissions_target_the_catalogue`,
+  `no_old_permission_name_is_left` sur `crates/`) et du service (anciens noms refusés
+  par `a_role_names_known_permissions_only`). `docs/spec/permissions.md` régénéré avec
+  « Anciens noms » ; la description de `waive_flow` (dans `kartenn-flow/src/rest.rs`)
+  change ici, avec `openapi-v1.json` et `schema.d.ts` régénérés, pour garder le test de
+  contrat vert.
 
 - [ ] 3. Migration des rôles personnalisés : étape `rename_permissions` du job de
   migration, changeset `système`, motif `permission rename 018`, idempotente —

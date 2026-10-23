@@ -171,11 +171,8 @@ impl Env {
 
     /// A person granted the reading of machines and interfaces on the entity `entity`.
     async fn reader_on(&self, entity: Uuid) -> Uuid {
-        self.granted(
-            entity,
-            &["machines.machine.read", "machines.interface.read"],
-        )
-        .await
+        self.granted(entity, &["machines.read", "machines.interface.read"])
+            .await
     }
 
     /// A person granted `permissions` on the entity `entity`.
@@ -842,7 +839,7 @@ async fn owner_change_moves_interface_scope(pool: PgPool) {
     let eth0 = env.interface(m, "eth0").await;
     assert_eq!(env.owner(eth0).await, Some(acme));
     let (on_acme, on_other) = (env.reader_on(acme).await, env.reader_on(other).await);
-    assert!(env.reads(on_acme, "machines.machine.read", m).await);
+    assert!(env.reads(on_acme, "machines.read", m).await);
     assert!(env.reads(on_acme, "machines.interface.read", eth0).await);
     assert!(!env.reads(on_other, "machines.interface.read", eth0).await);
     // The machine to the other entity: its interface follows, in the differential too.
@@ -1022,7 +1019,7 @@ async fn vlan_read_required(pool: PgPool) {
     let acme = env.entity("acme").await;
     let m = env.create("m", "physical", json!({})).await;
     let writer = [
-        "machines.machine.read",
+        "machines.read",
         "machines.interface.read",
         "machines.interface.write",
     ];
@@ -1045,10 +1042,10 @@ async fn vlan_read_required(pool: PgPool) {
         .granted(
             acme,
             &[
-                "machines.machine.read",
+                "machines.read",
                 "machines.interface.read",
                 "machines.interface.write",
-                "vlan.vlan.read",
+                "vlan.read",
             ],
         )
         .await;
@@ -1197,7 +1194,7 @@ async fn attach_needs_address_read_only(pool: PgPool) {
         .granted(
             acme,
             &[
-                "machines.machine.read",
+                "machines.read",
                 "machines.interface.read",
                 "machines.interface.write",
                 "core.address.read",

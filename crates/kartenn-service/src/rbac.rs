@@ -201,8 +201,13 @@ pub(crate) fn plan(
                 return Err(invalid(format!("the role '{key}' needs a label")));
             }
             if let Some(bad) = entries.iter().find(|e| !valid_role_entry(e)) {
+                // An old name is refused, its new one named (spec 018, REQ-018-3).
+                let renamed = kartenn_core::authz::RENAMED_PERMISSIONS
+                    .iter()
+                    .find(|(old, _)| old == bad)
+                    .map_or_else(String::new, |(_, new)| format!(" (renamed '{new}')"));
                 return Err(invalid(format!(
-                    "'{bad}' is not a permission of the catalogue"
+                    "'{bad}' is not a permission of the catalogue{renamed}"
                 )));
             }
             let mut entries = entries.clone();

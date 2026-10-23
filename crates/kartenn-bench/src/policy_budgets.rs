@@ -591,7 +591,7 @@ async fn measure(
             "core.address.read",
             "core.prefix.read",
             "core.domain.read",
-            "machines.machine.read",
+            "machines.read",
             "machines.interface.read",
         ],
     )

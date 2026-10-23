@@ -1255,7 +1255,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Grants a dated waiver to the flow (REQ-011-9), under `flow.flow.waive`. */
+    /** Grants a dated waiver to the flow (REQ-011-9), under `flow.waiver.grant`. */
     post: operations["waive_flow"];
     delete?: never;
     options?: never;

@@ -27,7 +27,7 @@ use sqlx::types::time::OffsetDateTime;
 
 /// What a requester holds on the entity (REQ-011-17): the request, and the anchor of the
 /// flow it creates (`core.owner`, set by the module in the changeset).
-pub(crate) const REQUEST: &[&str] = &["flow.flow.request", "prop.core.owner.write"];
+pub(crate) const REQUEST: &[&str] = &["flow.request", "prop.core.owner.write"];
 
 pub(crate) struct Env {
     pub(crate) pool: PgPool,
@@ -405,10 +405,10 @@ async fn acceptance_of_req_011_22_a_reviewed_and_waived_request_applies(pool: Pg
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let (requester, reviewer) = (env.person().await, env.person().await);
     let authorizer = grants(requester, REQUEST)
-        .everywhere(reviewer, "flow.flow.request")
+        .everywhere(reviewer, "flow.request")
         .everywhere(reviewer, "prop.core.owner.write")
-        .everywhere(reviewer, "flow.flow.review")
-        .everywhere(reviewer, "flow.flow.waive");
+        .everywhere(reviewer, "flow.review")
+        .everywhere(reviewer, "flow.waiver.grant");
     let id = proposal(
         &env.submit_as(
             &authorizer,
@@ -462,10 +462,10 @@ async fn acceptance_of_req_011_22_the_requester_does_not_review(pool: PgPool) {
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let (service, requester) = (env.person().await, env.person().await);
     let authorizer = grants(service, REQUEST)
-        .everywhere(requester, "flow.flow.request")
+        .everywhere(requester, "flow.request")
         .everywhere(requester, "prop.core.owner.write")
-        .everywhere(requester, "flow.flow.review")
-        .everywhere(requester, "flow.flow.waive");
+        .everywhere(requester, "flow.review")
+        .everywhere(requester, "flow.waiver.grant");
     let mut context = RequestContext::person(service);
     context.on_behalf_of = Some(requester);
     let id = proposal(
@@ -515,10 +515,10 @@ async fn acceptance_of_req_011_9_ceilings_of_waiver_and_review(pool: PgPool) {
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let (requester, reviewer) = (env.person().await, env.person().await);
     let authorizer = grants(requester, REQUEST)
-        .everywhere(reviewer, "flow.flow.request")
+        .everywhere(reviewer, "flow.request")
         .everywhere(reviewer, "prop.core.owner.write")
-        .everywhere(reviewer, "flow.flow.review")
-        .everywhere(reviewer, "flow.flow.waive");
+        .everywhere(reviewer, "flow.review")
+        .everywhere(reviewer, "flow.waiver.grant");
     let id = proposal(
         &env.submit_as(
             &authorizer,
@@ -562,7 +562,7 @@ async fn a_rejected_request_is_a_nonconformity(pool: PgPool) {
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let (requester, reviewer) = (env.person().await, env.person().await);
     let authorizer = grants(requester, REQUEST)
-        .everywhere(reviewer, "flow.flow.review")
+        .everywhere(reviewer, "flow.review")
         .everywhere(reviewer, "core.changeset.approve");
     let id = proposal(
         &env.submit_as(
@@ -596,7 +596,7 @@ async fn a_rejected_request_is_a_nonconformity(pool: PgPool) {
 }
 
 /// REQ-011-17: a request needs no read of its endpoints; the direct write by
-/// `flow.flow.write` towards an object its author may not read is refused as an absent
+/// `flow.write` towards an object its author may not read is refused as an absent
 /// object.
 #[kartenn_testing::pg_test]
 async fn acceptance_of_req_011_17_reads_of_the_endpoints(pool: PgPool) {
@@ -615,7 +615,7 @@ async fn acceptance_of_req_011_17_reads_of_the_endpoints(pool: PgPool) {
     let writer = env.person().await;
     let outcome = env
         .submit_as(
-            &grants(writer, &["flow.flow.write", "prop.core.owner.write"]),
+            &grants(writer, &["flow.write", "prop.core.owner.write"]),
             writer,
             vec![flow("register", env.fields(prod, dev).await)],
         )

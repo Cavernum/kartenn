@@ -124,8 +124,8 @@ impl Env {
             &[
                 "vlan.group.read",
                 "vlan.group.write",
-                "vlan.vlan.read",
-                "vlan.vlan.write",
+                "vlan.read",
+                "vlan.write",
                 "core.prefix.read",
             ],
             None,
@@ -453,10 +453,7 @@ async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
     assert_eq!(body["items"].as_array().unwrap().len(), 2, "{body}");
     // A reader of `acme`: the network of `far` is absent, and nothing counts it.
     let reader = env
-        .person(
-            &["vlan.vlan.read", "core.prefix.read"],
-            Some(("entity", acme)),
-        )
+        .person(&["vlan.read", "core.prefix.read"], Some(("entity", acme)))
         .await;
     let app = env.app(reader);
     let (status, _, body) = call(
@@ -497,7 +494,7 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
         .await;
     let writer = env
         .person(
-            &["vlan.group.read", "vlan.vlan.read", "vlan.vlan.write"],
+            &["vlan.group.read", "vlan.read", "vlan.write"],
             Some(("entity", acme)),
         )
         .await;

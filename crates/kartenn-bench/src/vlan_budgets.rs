@@ -383,11 +383,7 @@ pub(crate) async fn run(
     )
     .fetch_all(pool)
     .await?;
-    let identity = reader(
-        pool,
-        &["vlan.group.read", "vlan.vlan.read", "core.prefix.read"],
-    )
-    .await?;
+    let identity = reader(pool, &["vlan.group.read", "vlan.read", "core.prefix.read"]).await?;
     let app = app(pool, registry, vec![kartenn_vlan::rest::routes()], identity)?;
     let mut budgets = Vec::new();
 
