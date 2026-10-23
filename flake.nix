@@ -17,7 +17,12 @@
         })
         systems);
   in {
-    packages = forAll (pkgs: rec {
+    packages = forAll (pkgs: let
+      # The Python clients (spec 023, REQ-023-42): their own versions and releases.
+      python = pkgs.callPackage ./nix/package/python.nix {};
+    in rec {
+      kartenn-py = python.kartenn;
+      inherit (python) kartenn-cli;
       kartenn-server = pkgs.callPackage ./nix/package/server.nix {};
       kartenn-web = pkgs.callPackage ./nix/package/web.nix {};
       kartenn = pkgs.callPackage ./nix/package {inherit kartenn-server kartenn-web;};
