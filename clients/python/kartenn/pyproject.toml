@@ -1,0 +1,56 @@
+[project]
+name = "kartenn"
+version = "0.1.0.dev0"
+description = "Python client library of the kartenn API, discovered from its contract"
+readme = "README.md"
+license = "MPL-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+# REQ-023-44: nothing else at run time, nothing of the CLI.
+dependencies = ["httpx2>=2.16", "platformdirs>=4"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+  "anyio>=4.12",
+  "coverage>=7.17",
+  "hypothesis>=6.150",
+  "packaging>=25",
+  "pytest>=9.1",
+  "pytest-cov>=7",
+  "pytest-randomly>=4",
+  "pytest-timeout>=2.4",
+  "pytest-xdist>=3.8",
+  "trio>=0.32",
+]
+# Local comfort only, never in CI (`-p no:sugar`): `uv sync --group confort`.
+confort = ["pytest-icdiff>=0.9", "pytest-sugar>=1.1"]
+
+[tool.pytest]
+minversion = "9.1"
+strict = true
+testpaths = ["tests"]
+addopts = ["-ra", "--cov", "--cov-report=term-missing:skip-covered"]
+# pytest-timeout declares a string option: a TOML integer is refused.
+timeout = "30"
+timeout_method = "signal"
+# Readable native diffs of strings (T23: replaces pytest-clarity).
+assertion_text_diff_style = "block"
+
+[tool.coverage.run]
+branch = true
+parallel = true
+patch = ["subprocess"]
+source_pkgs = ["kartenn"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

@@ -1,0 +1,42 @@
+# Development workspace of the Python clients (spec 023, T7): one lock for the library
+# `kartenn` (MPL-2.0) and the CLI `kartenn-cli` (AGPL-3.0), the CLI resolved on the local
+# library. Nothing here is published: each package has its own pyproject, version, tests
+# and release. Lint and type checking are shared (`k-py-check`).
+
+[tool.uv.workspace]
+members = ["kartenn", "kartenn-cli"]
+
+[tool.uv]
+# The interpreter comes from Nix (devenv: UV_PYTHON, UV_PYTHON_DOWNLOADS=never).
+python-downloads = "never"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["kartenn/src", "kartenn/tests", "kartenn-cli/src", "kartenn-cli/tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812", # trailing commas: left to the formatter
+  "CPY",    # copyright headers: the licence is the one of the package
+  "D",      # docstring style: not enforced
+  "ISC001", # implicit concatenation: conflicts with the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/**" = [
+  "INP001",  # tests are not a package
+  "PLR2004", # magic values in assertions
+  "S101",    # assert is the test idiom
+  "S603",    # subprocess on the test interpreter
+]
+
+[tool.pyright]
+include = ["kartenn/src", "kartenn/tests", "kartenn-cli/src", "kartenn-cli/tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+# The interpreter is the one of the active environment: `uv run pyright` (k-py-check), or
+# the devenv shell, whose uv environment is .devenv/state/venv.
+reportMissingModuleSource = "error"
+reportUnnecessaryTypeIgnoreComment = "error"

@@ -790,7 +790,11 @@ in {
       # devenv writes its lock without a final newline, on every update.
       excludes = ["^devenv\\.lock$"];
     };
-    trim-trailing-whitespace.enable = true;
+    trim-trailing-whitespace = {
+      enable = true;
+      # syrupy snapshots (spec 023) keep the output as printed, indented blank lines too.
+      excludes = ["\\.ambr$"];
+    };
     rustfmt.enable = true;
     # Under the machine-wide semaphore (kHeavy): the hook runs after every edit.
     clippy = {

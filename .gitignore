@@ -25,6 +25,15 @@ devenv.local.yaml
 /docs/exploitation/secrets/
 /docs/exploitation/kartenn.dump
 
+# Python clients (spec 023); the uv environment of devenv is .devenv/state/venv
+/clients/python/.venv/
+__pycache__/
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.coverage
+.coverage.*
+
 # node
 node_modules/
 dist/

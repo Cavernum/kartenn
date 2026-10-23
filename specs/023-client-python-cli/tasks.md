@@ -26,7 +26,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Socle
 
-- [ ] 1. Squelette des deux paquets distincts. Contenu :
+- [x] 1. Squelette des deux paquets distincts. Contenu :
   - `clients/python/pyproject.toml` (espace de travail uv de développement, ruff,
     pyright strict) ;
   - `kartenn/pyproject.toml` : MPL-2.0, version 0.1.0.dev0, `requires-python >=3.11`,
@@ -44,6 +44,21 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : design § Disposition, § Stratégie de test (bloc TOML) ; licence MPL de
     `web/sdk/package.json` ; texte AGPL de la racine (`LICENSE`)
   - dépend de : —
+  - choix : clés de pytest 9.1.1 confirmées (`strict`, `minversion`, `testpaths`,
+    `addopts`, `assertion_text_diff_style = "block"`) ; `timeout = "30"` en chaîne, car
+    pytest-timeout déclare une option texte et la table TOML native refuse un entier.
+    Licences en expressions SPDX (`MPL-2.0`, `AGPL-3.0-only` comme le serveur), textes
+    copiés de `crates/syslog-sender/LICENSE` et de la racine. `uv_build>=0.12.22,<0.13`
+    (version de l'uv de devenv). CLI : `kartenn>=0.1.0.dev0,<1` (X = 0) ; squelette
+    click minimal (`--version`, `--help`, instantané syrupy). Ruff : `select = ["ALL"]`
+    sauf `D`, `CPY`, `COM812`, `ISC001` ; pyright strict, `pythonVersion = "3.11"`, sur
+    l'environnement actif (`uv run pyright`). Test d'indépendance : `Requires-Dist`
+    d'exécution = httpx2 et platformdirs, puis import de tous les modules de `kartenn`
+    dans un interpréteur neuf sans qu'aucun module de la CLI n'entre dans
+    `sys.modules` (l'environnement de travail les contient tous). `trio` et `packaging`
+    ajoutés aux groupes `dev` (moteur trio d'anyio, lecture des exigences).
+    pytest-sugar 1.1.1 fonctionne avec pytest-xdist 3.8.0 (`-n 4 --force-sugar`) : il
+    entre, avec pytest-icdiff, dans un groupe facultatif `confort`, hors du groupe `dev`.
 - [ ] 2. devenv : Python ≥ 3.11 et uv dans `devenv.nix`. Script `k-py-check` **en sh
   POSIX** (dash : pas de `pipefail`, de tableaux ni de `[[`) qui lance, pour chaque paquet,
   `ruff check`, `ruff format --check`, `pyright` et `pytest -n auto -p no:sugar`. Les
