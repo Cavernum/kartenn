@@ -22,13 +22,15 @@ use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::read;
 use serde::Serialize;
 use serde_json::{Value, json};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::cursor::{Listing, respond_page};
-use crate::dated::Dates;
+use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
+use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, gate, href, instant, store};
 use crate::problem::{Problem, ProblemKind};
 
@@ -48,17 +50,18 @@ pub fn routes() -> OpenApiRouter<Api> {
 /// The filter of the list: rule, domain, entity.
 type Wanted = (Option<String>, Option<Uuid>, Option<Uuid>);
 
-/// `rule`, `domain` and `entity`, each at most once; anything else → 400.
-fn filter(query: Option<&str>) -> Result<Wanted, Problem> {
+/// `rule`, `domain` and `entity` among the parameters left by the page, each at most
+/// once; anything else → 400.
+fn filter(params: &[(String, String)]) -> Result<Wanted, Problem> {
     let (mut rule, mut domain, mut entity) = (None, None, None);
-    for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
-        let slot = match name.as_ref() {
+    for (name, value) in params {
+        let slot = match name.as_str() {
             "rule" => &mut rule,
             "domain" => &mut domain,
             "entity" => &mut entity,
             other => return Err(bad(format!("unknown parameter {other}"))),
         };
-        if slot.replace(value.into_owned()).is_some() {
+        if slot.replace(value.clone()).is_some() {
             return Err(bad(format!("{name} is given more than once")));
         }
     }
@@ -130,8 +133,55 @@ fn represent(anomaly: &Anomaly, kind: Option<Kind>) -> AnomalyDto {
     }
 }
 
+/// The page of a list of anomalies `name` asks for (task 021-29): read at the current
+/// state on each page, it takes neither `valid_at` nor `as_of`; its key, after a first
+/// page.
+pub(crate) fn anomaly_page(
+    api: &Api,
+    query: Option<&str>,
+    name: &str,
+) -> Result<(Page, Option<(OffsetDateTime, Uuid)>), Problem> {
+    let page = Page::from_query(query.unwrap_or_default(), &api.ring, name)?;
+    if page.after().is_none() && page.dates != Dates::default() {
+        return Err(bad(format!("the {name} take neither valid_at nor as_of")));
+    }
+    let after = page
+        .after()
+        .map(|key| {
+            let invalid = || Problem::new(ProblemKind::InvalidCursor);
+            let (at, id) =
+                serde_json::from_value::<(String, Uuid)>(key.clone()).map_err(|_| invalid())?;
+            let at = OffsetDateTime::parse(&at, &Rfc3339).map_err(|_| invalid())?;
+            Ok::<_, Problem>((at, id))
+        })
+        .transpose()?;
+    Ok((page, after))
+}
+
+/// The link of the page after `found` in the list `name`, read at `moment`, when the
+/// store gave more than a page: `found` is cut to the page.
+pub(crate) fn anomaly_next(
+    api: &Api,
+    page: &Page,
+    name: &str,
+    moment: &Moment,
+    found: &mut Vec<(Anomaly, Option<Kind>)>,
+) -> Option<String> {
+    let size = usize::from(page.size);
+    (found.len() > size).then(|| {
+        found.truncate(size);
+        let last = &found[size - 1].0;
+        let at = last
+            .opened_at
+            .format(&Rfc3339)
+            .expect("a date of the database formats");
+        let cursor = page.next_current(&api.ring, name, moment, json!([at, last.id]));
+        next_href(&format!("/v1/{name}"), &cursor)
+    })
+}
+
 /// `GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller
-/// may read now, oldest first (REQ-002-36).
+/// may read now, oldest first (REQ-002-36), by pages (task 021-29).
 #[utoipa::path(
     get,
     path = "/anomalies",
@@ -141,6 +191,7 @@ fn represent(anomaly: &Anomaly, kind: Option<Kind>) -> AnomalyDto {
         ("rule" = Option<String>, Query, description = "The rule."),
         ("domain" = Option<Uuid>, Query, description = "The domain of the object."),
         ("entity" = Option<Uuid>, Query, description = "The entity of the object."),
+        PageParams,
     ),
     responses((status = 200, description = "The open anomalies.", body = Listing<AnomalyDto>))
 )]
@@ -151,7 +202,9 @@ async fn list(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let (rule, domain, entity) = filter(query.as_deref())?;
+    const NAME: &str = "anomalies";
+    let (page, after) = anomaly_page(&api, query.as_deref(), NAME)?;
+    let (rule, domain, entity) = filter(&page.filters)?;
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let moment = Dates::default().at(now, api.bound)?;
     let scope = api
@@ -162,10 +215,13 @@ async fn list(
         rule: rule.as_deref(),
         domain,
         entity,
+        property: None,
     };
-    let mut found = anomalies::open_within(&api.pool, &wanted, &scope)
+    let limit = i64::from(page.size) + 1;
+    let mut found = anomalies::open_page(&api.pool, &wanted, &scope, after, Some(limit))
         .await
         .map_err(|e| store(&e))?;
+    let next = anomaly_next(&api, &page, NAME, &moment, &mut found);
     crate::properties::mask_gaps(&api, &context, &mut found).await?;
     let items: Vec<AnomalyDto> = found.iter().map(|(a, k)| represent(a, *k)).collect();
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
@@ -175,7 +231,7 @@ async fn list(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    Ok(respond_page(&headers, &moment, &items, None))
+    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
 /// The body of an action that needs a motive.
@@ -283,15 +339,21 @@ mod tests {
 
     #[test]
     fn the_filter_takes_a_rule_a_domain_and_an_entity() {
+        let pairs = |query: &str| -> Vec<(String, String)> {
+            form_urlencoded::parse(query.as_bytes())
+                .map(|(n, v)| (n.into_owned(), v.into_owned()))
+                .collect()
+        };
         let domain = Uuid::now_v7();
-        let (rule, found, entity) = filter(Some(&format!("rule=core.x&domain={domain}"))).unwrap();
+        let (rule, found, entity) =
+            filter(&pairs(&format!("rule=core.x&domain={domain}"))).unwrap();
         assert_eq!(
             (rule.as_deref(), found, entity),
             (Some("core.x"), Some(domain), None)
         );
-        assert!(filter(Some("domain=x")).is_err());
-        assert!(filter(Some("rule=a&rule=b")).is_err());
-        assert!(filter(Some("valid_at=2020-01-01T00:00:00Z")).is_err());
+        assert!(filter(&pairs("domain=x")).is_err());
+        assert!(filter(&pairs("rule=a&rule=b")).is_err());
+        assert!(filter(&pairs("colour=red")).is_err());
     }
 
     #[test]

@@ -1207,6 +1207,75 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
 }
 
+/// The anomalies and the deviations page by signed cursor, oldest first, to the last
+/// page (task 021-29); an altered cursor is refused, as dates beside the first page.
+#[kartenn_testing::pg_test]
+async fn anomalies_and_deviations_page_by_cursor(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    let mut opened = Vec::new();
+    let mut gaps = Vec::new();
+    for n in 0..5 {
+        let net = prefix(&pool, lab, &format!("10.1.{n}.0/24")).await;
+        opened.push(anomaly(&pool, author, net, "core.test.paged").await);
+        let gap = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+        let key = if n % 2 == 0 {
+            "policy.zone"
+        } else {
+            "policy.env"
+        };
+        sqlx::query("UPDATE anomaly SET message = $2 WHERE id = $1")
+            .bind(gap)
+            .bind(format!("{key}: resolved a, expected b"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        if n % 2 == 0 {
+            gaps.push(gap);
+        }
+    }
+    // The same opening for all: the identifier orders them.
+    sqlx::query("UPDATE anomaly SET opened_at = '2026-01-01T00:00:00Z'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    opened.sort();
+    gaps.sort();
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let strings = |ids: &[Uuid]| ids.iter().map(Uuid::to_string).collect::<Vec<_>>();
+
+    let uri = "/v1/anomalies?rule=core.test.paged&page_size=1";
+    assert_eq!(walk(&app, uri).await, strings(&opened));
+    let uri = "/v1/property-gaps?property=policy.zone&page_size=1";
+    assert_eq!(walk(&app, uri).await, strings(&gaps));
+    // Two pages of two, then one: the filter cut before the page.
+    let body = ok(&app, "/v1/property-gaps?property=policy.zone&page_size=2").await;
+    assert_eq!(ids_of(&body), strings(&gaps[..2]));
+    let next = body["links"]["next"].as_str().unwrap().to_owned();
+    let body = ok(&app, &next).await;
+    assert_eq!(ids_of(&body), strings(&gaps[2..]));
+    assert!(body["links"]["next"].is_null(), "{body}");
+
+    // An altered cursor, a date: 400.
+    let first = ok(&app, "/v1/anomalies?page_size=1").await;
+    let next = first["links"]["next"].as_str().unwrap();
+    let (head, last) = next.split_at(next.len() - 1);
+    let altered = format!("{head}{}", if last == "A" { "B" } else { "A" });
+    let response = get(&app, &altered).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        json_of(response).await["type"],
+        "urn:kartenn:problem:invalid-cursor"
+    );
+    for uri in [
+        "/v1/anomalies?valid_at=2026-01-01T00:00:00Z",
+        "/v1/property-gaps?as_of=2026-01-01T00:00:00Z",
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+    }
+}
+
 /// The identifiers of every page of the list at `uri`, following `next`.
 async fn walk(app: &Router, uri: &str) -> Vec<String> {
     let (mut ids, mut uri) = (Vec::new(), uri.to_owned());

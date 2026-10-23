@@ -113,6 +113,9 @@ pub struct AnomalyFilter<'a> {
     /// One entity: the entity, its descendants, and the objects whose resolved owner
     /// (`core.owner`) is one of them now.
     pub entity: Option<Uuid>,
+    /// One property: the anomalies whose message starts with `<key>:`, as those of
+    /// `prop.resolution.expected_mismatch` do (spec 006, `GET /v1/property-gaps`).
+    pub property: Option<&'a str>,
 }
 
 /// Open anomalies matching `filter`: unacknowledged ones, and acknowledged ones whose object
@@ -138,6 +141,29 @@ pub async fn open_within(
     filter: &AnomalyFilter<'_>,
     scope: &ReadScope,
 ) -> sqlx::Result<Vec<(Anomaly, Option<Kind>)>> {
+    open_page(pool, filter, scope, None, None).await
+}
+
+/// A page of [`open_within`], by opening then identifier (task 021-29): the anomalies
+/// after `after` (`(opened_at, id)` of the last one read), `limit` at most (all when
+/// `None`). The key condition is written only after a first page, so that it stays a
+/// condition of the scan rather than a filter of a generic plan.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn open_page(
+    pool: &PgPool,
+    filter: &AnomalyFilter<'_>,
+    scope: &ReadScope,
+    after: Option<(OffsetDateTime, Uuid)>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<(Anomaly, Option<Kind>)>> {
+    let keyset = if after.is_some() {
+        "AND (a.opened_at, a.id) > ($6::timestamptz, $7::uuid)"
+    } else {
+        "AND $6::timestamptz IS NULL AND $7::uuid IS NULL"
+    };
     let object_readable = readable("x.id", "x.kind", "x.domain_id", "x.value", "now()");
     let sql = format!(
         "WITH RECURSIVE s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
@@ -168,7 +194,10 @@ pub async fn open_within(
            AND ($4::jsonb IS NULL OR EXISTS (
                    SELECT 1 FROM carrier_object x
                    WHERE x.id = a.object_id AND x.valid_period @> now() AND {object_readable}))
-         ORDER BY a.opened_at, a.id",
+           AND ($5::text IS NULL OR left(a.message, length($5) + 1) = $5 || ':')
+           {keyset}
+         ORDER BY a.opened_at, a.id
+         LIMIT $8::bigint",
         last_changeset_sql()
     );
     sqlx::query_as(sqlx::AssertSqlSafe(sql))
@@ -176,6 +205,10 @@ pub async fn open_within(
         .bind(filter.domain)
         .bind(filter.entity)
         .bind(scope.to_json())
+        .bind(filter.property)
+        .bind(after.map(|(at, _)| at))
+        .bind(after.map(|(_, id)| id))
+        .bind(limit)
         .fetch_all(pool)
         .await
         .map(|rows: Vec<Row>| rows.into_iter().map(listed).collect())

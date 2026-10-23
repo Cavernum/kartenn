@@ -60,6 +60,11 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "kind", type: "string" },
   ],
   "/v1/admissibility-conditions/{id}/history": [],
+  "/v1/anomalies": [
+    { name: "rule", type: "string" },
+    { name: "domain", type: "string" },
+    { name: "entity", type: "string" },
+  ],
   "/v1/audit-events": [
     { name: "from", type: "string" },
     { name: "to", type: "string" },
@@ -214,6 +219,11 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/prefixes/{id}/history": [],
   "/v1/property-declarations": [],
   "/v1/property-declarations/{key}/values": [],
+  "/v1/property-gaps": [
+    { name: "property", type: "string" },
+    { name: "domain", type: "string" },
+    { name: "entity", type: "string" },
+  ],
   "/v1/proposals": [],
   "/v1/ranges": [
     { name: "domain", type: "string", collection: "/v1/domains" },

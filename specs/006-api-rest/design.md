@@ -108,6 +108,11 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `motive` (membre réservé, sinon 422 `motive-required`), et enregistre un événement
   d'audit ; il n'exige pas `If-Match`, l'acquittement étant lié à la version courante
   de l'objet (REQ-002-36). Une anomalie d'un objet invisible répond 404.
+  Paginée par curseur signé (021-29, REQ-021-35) : ordre d'ouverture puis identifiant,
+  lue à l'état courant à chaque page (pas de `valid_at` ni d'`as_of`, refusés à la
+  première page), filtres `rule`, `domain`, `entity` dans le curseur ; requête par clé
+  (`(opened_at, id) > (…)` seulement quand une page suit, pour garder le prédicat
+  indexable) et `LIMIT page_size + 1`.
 - **Propriétés (arbitrage du 2026-10-19)** :
   - déclarations et listes de valeurs : lisibles par tout appelant authentifié (un
     schéma, pas une donnée ; lecture non auditée), datées, paginées par clé ; une
@@ -132,7 +137,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     ouvertes de la règle `prop.resolution.expected_mismatch` dont l'objet est lisible,
     `{id, property, object, message, opened_at}`. Leur message cite la valeur résolue :
     pour une propriété sensible sans `prop.<clé>.read`, il est remplacé par un texte
-    générique, ici comme dans `/v1/anomalies`.
+    générique, ici comme dans `/v1/anomalies`. Paginés comme `/v1/anomalies`
+    (021-29) ; le filtre `property` passe en SQL (préfixe `<clé>:` du message de la
+    règle) pour que la page soit coupée après lui.
 - **Cycle d'un changeset (arbitrage du 2026-10-19, 006-17)** :
   - lecture : `GET /v1/changesets/{id}`, `GET /v1/changesets` et `GET …/{id}/diff`
     exigent `core.changeset.read`, nouvelle permission du catalogue 005, globale

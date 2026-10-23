@@ -11728,6 +11728,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -11752,7 +11772,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller\nmay read now, oldest first (REQ-002-36).",
+        "summary": "`GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller\nmay read now, oldest first (REQ-002-36), by pages (task 021-29).",
         "tags": [
           "core"
         ]
@@ -25692,6 +25712,26 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],

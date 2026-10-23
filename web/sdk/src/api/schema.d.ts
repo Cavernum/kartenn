@@ -274,7 +274,7 @@ export interface paths {
     };
     /**
      * `GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller
-     *     may read now, oldest first (REQ-002-36).
+     *     may read now, oldest first (REQ-002-36), by pages (task 021-29).
      */
     get: operations["list_anomalies"];
     put?: never;
@@ -8338,6 +8338,10 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
       };
       header?: never;
       path?: never;
@@ -16173,6 +16177,10 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
       };
       header?: never;
       path?: never;

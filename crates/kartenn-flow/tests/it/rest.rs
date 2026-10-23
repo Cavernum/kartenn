@@ -563,3 +563,62 @@ async fn a_patch_shortens_or_holds_an_extension(pool: PgPool) {
     let (_, page) = call(&writer, Method::GET, "/v1/flows", None).await;
     assert!(items(&page).iter().all(|i| i["review"].is_null()), "{page}");
 }
+
+/// The non-conformities page by signed cursor, newest first, to the last page (task
+/// 021-29); an altered cursor is refused.
+#[kartenn_testing::pg_test]
+async fn nonconformities_page_by_cursor(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let reviewer = env.granted(&[]).await;
+    let mut rejected = Vec::new();
+    for n in 0..5 {
+        let changeset = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO flow.flow_rejection (changeset_id, request, evaluation, reason,
+                                              reviewed_by, requester_id, entity_id, rejected_at)
+             VALUES ($1, '{}', '{}', 'non', $2, $2, $3,
+                     now() - make_interval(hours => $4))",
+        )
+        .bind(changeset)
+        .bind(reviewer)
+        .bind(env.acme)
+        .bind(n % 2)
+        .execute(&pool)
+        .await
+        .unwrap();
+        rejected.push((n % 2, changeset));
+    }
+    // Newest first, then by changeset descending.
+    rejected.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    let wanted: Vec<String> = rejected.iter().map(|(_, c)| c.to_string()).collect();
+    let reader = env.app(env.granted(&["flow.read"]).await);
+    let (mut seen, mut uri) = (
+        Vec::new(),
+        "/v1/flow-nonconformities?page_size=2".to_owned(),
+    );
+    let mut altered = None;
+    loop {
+        let (status, page) = call(&reader, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert!(items(&page).len() <= 2, "{page}");
+        seen.extend(
+            items(&page)
+                .iter()
+                .map(|i| i["changeset"].as_str().unwrap().to_owned()),
+        );
+        match page["links"]["next"].as_str() {
+            Some(next) => {
+                let (head, last) = next.split_at(next.len() - 1);
+                altered.get_or_insert_with(|| {
+                    format!("{head}{}", if last == "A" { "B" } else { "A" })
+                });
+                next.clone_into(&mut uri);
+            }
+            None => break,
+        }
+    }
+    assert_eq!(seen, wanted);
+    let (status, problem) = call(&reader, Method::GET, &altered.unwrap(), None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
+    assert_eq!(problem["type"], "urn:kartenn:problem:invalid-cursor");
+}
