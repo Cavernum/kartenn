@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 # Enchaîne les tâches non cochées d'une spec, chacune dans une session Claude Code neuve
 # (`claude -p "/tache NNN-M"`) : chaque tâche repart d'un contexte minimal au lieu
 # d'hériter de l'historique des précédentes (CLAUDE.md, « Économie de contexte »).

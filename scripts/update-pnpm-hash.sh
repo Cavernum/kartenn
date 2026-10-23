@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 # Recomputes the hash of the pnpm dependencies in nix/package/web.nix after a change of
 # web/pnpm-lock.yaml (spec 015, design « Flake »): builds the dependencies with a dummy
 # hash, reads the one Nix expects from the error and writes it back.

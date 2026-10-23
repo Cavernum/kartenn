@@ -5,6 +5,11 @@
 # Nix: the binary caches of nixpkgs and of devenv-nixpkgs (the nixpkgs of devenv.yaml and
 # of the flake), read only and checked by their public keys: no cache account, no secret.
 # No GitHub token in nix.conf either: these jobs run the code of pull requests.
+#
+# The scripts of the repository are POSIX sh for the dash of Nix (`#!/usr/bin/env dash`,
+# `set -o pipefail`, dash >= 0.5.13): they run under `nix shell … nixpkgs#dash`, never under
+# the dash of the runner, which lacks pipefail. The `run:` steps stay in GitHub's bash
+# (`-eo pipefail`).
 name: CI
 
 on:
@@ -40,7 +45,7 @@ jobs:
             extra-trusted-public-keys = devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=
       - name: actionlint, zizmor, shellcheck
         run: |
-          nix shell --inputs-from . nixpkgs#actionlint nixpkgs#zizmor nixpkgs#shellcheck \
+          nix shell --inputs-from . nixpkgs#dash nixpkgs#actionlint nixpkgs#zizmor nixpkgs#shellcheck \
             --command scripts/ci-lint.sh
 
   devenv:
@@ -88,7 +93,7 @@ jobs:
           echo "PostgreSQL ne répond pas" >&2
           exit 1
       - name: scripts/ci.sh --no-nix
-        run: scripts/ci.sh --no-nix
+        run: nix shell --inputs-from . nixpkgs#dash --command scripts/ci.sh --no-nix
       - name: Logs
         if: ${{ failure() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

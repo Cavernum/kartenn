@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 # Servers of the end-to-end journeys (spec 007, REQ-007-34), started by Playwright
 # (`webServer`, in this order, before global-setup.ts):
 # - `serve.sh idp`: builds the binaries, writes the material of web/e2e/.state (authority,

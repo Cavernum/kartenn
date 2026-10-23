@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 # Release of kartenn (ADR 0033), independent of any forge: the forge workflows only call it.
 #
 #   scripts/release.sh notes [X.Y.Z]        the message of the tag to come (default
@@ -39,9 +39,24 @@ need() {
   done
 }
 
+# matches <text> <ERE>: the whole text matches the extended regular expression (through
+# the environment: `awk -v` would interpret the backslashes).
+matches() { M_TEXT=$1 M_RE=$2 awk 'BEGIN { exit !(ENVIRON["M_TEXT"] ~ ENVIRON["M_RE"]) }'; }
+# feed <text> <command…>: the command with <text> and a newline on stdin.
+feed() {
+  feed_text=$1
+  shift
+  "$@" <<EOF
+$feed_text
+EOF
+}
+
 semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-check_version() { [[ $1 =~ $semver ]] || die "version invalide : « $1 » (attendu : X.Y.Z)"; }
-check_tag() { [[ $1 == v* ]] && [[ ${1#v} =~ $semver ]] || die "étiquette invalide : « $1 » (attendu : vX.Y.Z)"; }
+check_version() { matches "$1" "$semver" || die "version invalide : « $1 » (attendu : X.Y.Z)"; }
+check_tag() {
+  case $1 in v*) matches "${1#v}" "$semver" && return 0 ;; esac
+  die "étiquette invalide : « $1 » (attendu : vX.Y.Z)"
+}
 
 # The newest release tag, by version (empty without one).
 last_tag() { git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true; }
@@ -50,13 +65,15 @@ version_gt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | 
 
 # https URL of a git remote (scp-like, ssh:// or https://), without `.git`.
 remote_url() {
-  local url
+  local url host
   url=$(git remote get-url "$1" 2>/dev/null) || return 1
   url=${url%.git}
   case $url in
     https://*) ;;
-    ssh://*) url=${url#ssh://}; url=${url#*@}; url=https://${url/:[0-9]*\//\/} ;;
-    *@*:*) url=${url#*@}; url=https://${url/://} ;;
+    # ssh://[user@]host[:port]/path: the port dropped.
+    ssh://*) url=${url#ssh://}; url=${url#*@}; host=${url%%/*}; url=https://${host%%:*}/${url#*/} ;;
+    # [user@]host:path
+    *@*:*) url=${url#*@}; url=https://${url%%:*}/${url#*:} ;;
     *) return 1 ;;
   esac
   printf '%s\n' "$url"
@@ -145,10 +162,11 @@ cmd_tag_notes() {
 # Sets <version> in the workspace, the internal dependencies of the crates of kartenn, the
 # web packages and Cargo.lock. The Nix package reads the first two (nix/package).
 set_version() {
-  local new=$1 old
+  local new=$1 old old_re
   old=$(cargo_version <Cargo.toml)
   [ -n "$old" ] || die "Cargo.toml : version du workspace introuvable"
   [ "$old" != "$new" ] || return 0
+  old_re=$(printf '%s\n' "$old" | sed 's/\./\\./g')
   say "version : $old → $new"
   awk -v new="$new" '
     /^\[/ { section = $0 }
@@ -157,9 +175,9 @@ set_version() {
   ' Cargo.toml >Cargo.toml.new && mv Cargo.toml.new Cargo.toml
   local manifest
   for manifest in crates/kartenn-*/Cargo.toml; do
-    sed -E -i "/^kartenn-workspace-hack/! s/^(kartenn-[a-z0-9-]+ = \\{ version = )\"${old//./\\.}\"/\\1\"$new\"/" "$manifest"
+    sed -E -i "/^kartenn-workspace-hack/! s/^(kartenn-[a-z0-9-]+ = \\{ version = )\"$old_re\"/\\1\"$new\"/" "$manifest"
   done
-  if grep -nE "^kartenn-[a-z0-9-]+ = .*version = \"${old//./\\.}\"" crates/kartenn-*/Cargo.toml | grep -v '^[^:]*:[0-9]*:kartenn-workspace-hack'; then
+  if grep -nE "^kartenn-[a-z0-9-]+ = .*version = \"$old_re\"" crates/kartenn-*/Cargo.toml | grep -v '^[^:]*:[0-9]*:kartenn-workspace-hack'; then
     die "dépendances internes restées en $old (ci-dessus)"
   fi
   local package
@@ -215,9 +233,10 @@ verify_signature() (
     say "$status"
     die "$tag : signature invalide ou clé absente de .github/release-keys"
   fi
-  grep -q '^\[GNUPG:\] GOODSIG ' <<<"$status" || die "$tag : pas de signature valide (GOODSIG)"
-  fpr=$(awk '$2 == "VALIDSIG" { print $12 }' <<<"$status")
-  { [ -n "$fpr" ] && grep -qx "$fpr" <<<"$allowed"; } || die "$tag : signée par « $fpr », hors de .github/release-keys"
+  feed "$status" grep -q '^\[GNUPG:\] GOODSIG ' || die "$tag : pas de signature valide (GOODSIG)"
+  # shellcheck disable=SC2016 # an awk program, through feed
+  fpr=$(feed "$status" awk '$2 == "VALIDSIG" { print $12 }')
+  { [ -n "$fpr" ] && feed "$allowed" grep -qx "$fpr"; } || die "$tag : signée par « $fpr », hors de .github/release-keys"
   printf '%s\n' "$fpr"
 )
 
@@ -354,11 +373,11 @@ cmd_prepare() {
     [ -n "$slug" ] || die "dépôt GitHub introuvable pour la vérification de la CI (KARTENN_REPO_URL)"
     runs=$(gh run list --repo "$slug" --workflow ci.yml --commit "$head" --event push \
       --json status,conclusion,url --limit 20) || die "gh run list : échec (gh auth status ?)"
-    [ "$(jq length <<<"$runs")" -gt 0 ] || die "aucune exécution de la CI sur $slug pour $head"
-    [ "$(jq -r '.[0].status' <<<"$runs")" = completed ] || die "CI en cours sur $head : $(jq -r '.[0].url' <<<"$runs")"
-    [ "$(jq -r '.[0].conclusion' <<<"$runs")" = success ] ||
-      die "CI non verte sur $head ($(jq -r '.[0].conclusion' <<<"$runs")) : $(jq -r '.[0].url' <<<"$runs")"
-    say "CI verte sur $head : $(jq -r '.[0].url' <<<"$runs")"
+    [ "$(feed "$runs" jq length)" -gt 0 ] || die "aucune exécution de la CI sur $slug pour $head"
+    [ "$(feed "$runs" jq -r '.[0].status')" = completed ] || die "CI en cours sur $head : $(feed "$runs" jq -r '.[0].url')"
+    [ "$(feed "$runs" jq -r '.[0].conclusion')" = success ] ||
+      die "CI non verte sur $head ($(feed "$runs" jq -r '.[0].conclusion')) : $(feed "$runs" jq -r '.[0].url')"
+    say "CI verte sur $head : $(feed "$runs" jq -r '.[0].url')"
   fi
 
   # 3. Version, changelog, commit. From here, `recovery` says how to undo.
@@ -379,9 +398,11 @@ cmd_prepare() {
   # 4. The signed tag: `--cleanup=verbatim` keeps the `#` of the markdown headings, which
   # the default cleanup would strip as comments.
   section_body "## [$VERSION]" | tag_message "$VERSION" >"$message"
-  local sign=(--sign)
-  [ -z "${K_RELEASE_SIGNING_KEY:-}" ] || sign=(--local-user "$K_RELEASE_SIGNING_KEY")
-  git tag "${sign[@]}" --cleanup=verbatim --file "$message" "$tag"
+  if [ -z "${K_RELEASE_SIGNING_KEY:-}" ]; then
+    git tag --sign --cleanup=verbatim --file "$message" "$tag"
+  else
+    git tag --local-user "$K_RELEASE_SIGNING_KEY" --cleanup=verbatim --file "$message" "$tag"
+  fi
   stage=tagged
   git tag --verify "$tag" >/dev/null 2>&1 || die "git tag --verify $tag : échec"
   local fpr
@@ -398,7 +419,8 @@ cmd_prepare() {
   for remote in $remotes; do say "  git push --atomic $remote refs/heads/main refs/tags/$tag"; done
   local answer=
   if [ -t 0 ]; then
-    read -r -p "Taper « $tag » pour pousser maintenant, autre chose pour s'arrêter : " answer
+    printf '%s' "Taper « $tag » pour pousser maintenant, autre chose pour s'arrêter : " >&2
+    read -r answer
   fi
   if [ "$answer" != "$tag" ]; then
     stage=kept
