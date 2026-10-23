@@ -169,6 +169,11 @@ class _Changeset:
             raise ClientError("client.changeset-too-large", msg)
         kinds = operation_kinds(catalog)
         for index, operation in enumerate(self.operations):
+            # An operation of a module is `<module>.<operation>` (ADR 0026, clause 6): its
+            # module served is all the client can check.
+            module, dot, _ = str(operation["op"]).partition(".")
+            if dot and catalog.has(module):
+                continue
             if kinds and operation["op"] not in kinds:
                 msg = f"/operations/{index}: unknown operation {operation['op']!r}"
                 raise ClientError("client.unknown-operation", msg)

@@ -133,6 +133,11 @@ def test_local_refusals(tmp_path: Path) -> None:
         with pytest.raises(ClientError) as kind:
             cs.submit()
         assert kind.value.code == "client.unknown-operation"
+        absent = kn.changeset(motive="m")
+        absent.add({"op": "demo.create_widget"})
+        with pytest.raises(ClientError) as module:
+            absent.submit()
+        assert module.value.code == "client.unknown-operation"
         big = kn.changeset(motive="m")
         for n in range(3):
             big.add({"op": "create_domain", "slug": f"d{n}"})
@@ -145,6 +150,16 @@ def test_local_refusals(tmp_path: Path) -> None:
         with pytest.raises(ClientError):
             nothing.submit()
     assert server.seen == []
+
+
+def test_an_operation_of_a_module_served_is_sent(tmp_path: Path) -> None:
+    server = FakeServer()
+    server.route("POST", "/v1/changesets", httpx2.Response(200, json=SIMULATED))
+    with server.client(tmp_path) as kn:
+        cs = kn.changeset(motive="m")
+        cs.add({"op": "vlan.create_vlan", "vid": 140})
+        assert not cs.simulate().valid
+    assert body(server.seen[-1])["operations"] == [{"op": "vlan.create_vlan", "vid": 140}]
 
 
 def test_actions_on_an_existing_changeset(tmp_path: Path) -> None:
