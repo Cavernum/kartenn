@@ -291,7 +291,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   (`kartenn-rest/tests/it/events.rs` : flux ouvert par une identité sans droit, rôle
   relibellé, `labels` reçu avec `revision` seule, égale à celle du dictionnaire).
 
-- [ ] 12. Bibliothèque et CLI Python : `client.labels(lang)`, cache par révision dans le
+- [x] 12. Bibliothèque et CLI Python : `client.labels(lang)`, cache par révision dans le
   cache XDG, `If-None-Match`, invalidation par `labels` et `ready`, `resolve` avec repli ;
   CLI : libellés en table, clés avec `--keys` et en JSON ; amendement de 023/T15 —
   REQ-018-21 — verify : pytest `test_labels_cache_by_revision`,
@@ -300,6 +300,20 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `clients/python/kartenn-cli/src/kartenn_cli/main.py` ;
   `specs/023-client-python-cli/decisions.md` (T15)
   dépend de : 10 (11 pour l'invalidation par événement)
+  fait : `kartenn.labels` (`Dictionary` : `label`, `resolve` avec repli sur la clé ;
+  `LabelCache` ; plan `fetch` sous `If-None-Match`) ; `Context.labels` (mémoire jusqu'à
+  `forget_labels`, disque dans `<catalogue>/labels/` par serveur, profil et langue ; lu
+  à une date : ni gardé ni conditionnel) ; `Client.labels(lang)` et
+  `AsyncClient.labels(lang)` ; `events()`/`aevents()` rendent obsolètes les
+  dictionaires en mémoire à `labels`, `ready` et `reset` ; paramètre `profile` des
+  clients (posé par `from_profile` et la CLI). CLI : `Output.labels` en table seulement
+  (et sans `--keys`), `Runtime.label_of` : valeur de liste fermée d'une colonne de
+  propriété par le dictionnaire (lu seulement pour une telle colonne ; sans lui, la
+  clé), table `labels` dans la langue de la CLI ; `/v1/labels` hors des ressources du
+  catalogue et exclu de la couverture de la CLI (`kartenn api labels`). Amendement daté
+  de 023/T15. Tests : `test_labels_cache_by_revision`, `test_labels_event_invalidates`
+  (`clients/python/kartenn/tests/test_labels.py`), `test_cli_shows_labels_in_tables`
+  (`kartenn-cli/tests/test_reads.py`).
 
 - [ ] 13. Banc du dictionnaire : complet par langue p95 < 50 ms, 304 p95 < 10 ms, taille
   < 1 Mo sur le jeu des bancs — REQ-018-20 — verify : `bench-core` dans les budgets

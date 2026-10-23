@@ -72,6 +72,8 @@ class Output:
     width: int | None = None
     zone: tzinfo | None = None
     columns: tuple[str, ...] = field(default_factory=tuple[str, ...])
+    # The label a table shows for a value of a column (spec 018), `None` for its key.
+    labels: Callable[[str, object], str | None] | None = None
 
     @property
     def table(self) -> bool:
@@ -148,7 +150,14 @@ class Output:
         columns = self.fields or self._columns(rows)
         if columns:
             self._write(
-                render_table(rows, columns, keys=self.keys, color=self.color, width=self.width)
+                render_table(
+                    rows,
+                    columns,
+                    keys=self.keys,
+                    color=self.color,
+                    width=self.width,
+                    labels=self.labels,
+                )
             )
 
     def value(self, data: object) -> None:

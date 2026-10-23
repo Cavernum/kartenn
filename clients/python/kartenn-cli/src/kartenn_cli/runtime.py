@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import sys
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import click
 
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from kartenn import Client
     from kartenn.auth import Auth, TokenStore
     from kartenn.catalog import Catalog, CatalogCache
+    from kartenn.labels import Dictionary
     from kartenn.profiles import Profile
     from kartenn.transport.port import Transport
     from kartenn_cli.render import Output
@@ -144,6 +145,8 @@ class Runtime:
         return Output(
             format=fmt,
             keys=keys,
+            # Labels in a table only; the formats of data carry keys (T15).
+            labels=self.label_of if fmt == "table" and not keys else None,
             color=self.color,
             zone=self.zone,
             columns=tuple(columns),
@@ -232,7 +235,34 @@ class Runtime:
             token_store=self.token_store,
             transport=transport,
             cache=self.cache,
+            profile=profile.name,
         )
+
+    def label_of(self, column: str, value: object) -> str | None:
+        """The label a table shows for `value` in `column` (spec 018; T15): a value of
+        the closed list `column`, or a table of labels in the language of the CLI. Without
+        the dictionary (an older server, a refusal), none: the key shows. The dictionary
+        is read only for a column of a property (`<namespace>.<name>`)."""
+        if column == "labels" and isinstance(value, dict):
+            table = cast("dict[str, object]", value)
+            found = table.get(self.lang) or next(iter(table.values()), None)
+            return found if isinstance(found, str) else None
+        if not isinstance(value, str) or "." not in column:
+            return None
+        dictionary = self._dictionary
+        if dictionary is None:
+            return None
+        # A column of a property is its key, or `properties.<key>` with `--fields`.
+        return dictionary.label("value", column.removeprefix("properties."), value)
+
+    @cached_property
+    def _dictionary(self) -> Dictionary | None:
+        from kartenn import ClientError  # noqa: PLC0415
+
+        try:
+            return self.client.labels(self.lang)
+        except ClientError:
+            return None
 
     @cached_property
     def catalog(self) -> Catalog:

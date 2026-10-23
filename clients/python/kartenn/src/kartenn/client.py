@@ -27,6 +27,7 @@ from kartenn.auth.basic import BasicAuth, Secret
 from kartenn.auth.bearer import BearerToken
 from kartenn.auth.oidc_native import Issuer, OidcNative
 from kartenn.auth.store import MemoryStore
+from kartenn.labels import invalidating
 from kartenn.profiles import Profile, read_profile
 from kartenn.resources import AsyncResource, Context, Resource
 from kartenn.retry import AsyncSender, RetryPolicy, Sender
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from kartenn._core.plans import Plan
     from kartenn.auth import Auth, TokenStore
     from kartenn.catalog import Catalog, CatalogCache
+    from kartenn.labels import Dictionary
     from kartenn.transport.port import AsyncTransport, Transport
 
 __all__ = ["AsyncClient", "Client", "auth_of_profile", "store_key"]
@@ -126,6 +128,7 @@ class Client:
         transport: Transport | None = None,
         cache: CatalogCache | None = None,
         retry: RetryPolicy | None = None,
+        profile: str | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self._auth: Auth = auth or Anonymous()
@@ -135,7 +138,7 @@ class Client:
 
             transport = Httpx2Transport(self.url, ca_bundle=ca_bundle, http2=http2)
         self._sender = Sender(transport, user_agent=_agent(), policy=retry)
-        self._context = Context.of(self.url, cache)
+        self._context = Context.of(self.url, cache, profile=profile or "")
         self.token_store: TokenStore = token_store or MemoryStore()
         self._owner = True
 
@@ -160,6 +163,7 @@ class Client:
             token_store=store,
             transport=transport,
             cache=cache,
+            profile=profile.name,
         )
 
     # Sending ---------------------------------------------------------------------
@@ -205,6 +209,12 @@ class Client:
     def resource(self, name: str) -> Resource:
         self.catalog.resource(name)
         return Resource(self._context, self.run, name)
+
+    def labels(self, lang: str | None = None) -> Dictionary:
+        """The dictionary of labels of `lang` (spec 018), the default language of the
+        server when `None`: kept in memory until an event `labels`, `ready` or `reset`
+        of `events()`, on disk between runs (revalidated under `If-None-Match`)."""
+        return self.run(self._context.labels(lang))
 
     def __getattr__(self, attribute: str) -> Resource:
         if attribute.startswith("_"):
@@ -313,7 +323,7 @@ class Client:
         def renew(response: Response) -> bool:
             return run(self._auth.unauthorized(response), self._sender.send)
 
-        return events.follow(
+        followed = events.follow(
             request,
             EventTracker(last_event_id),
             open_stream=transport.sse,
@@ -322,6 +332,14 @@ class Client:
             sleep=transport.sleep,
             reconnect=reconnect,
         )
+        return self._observed(followed)
+
+    def _observed(self, followed: Iterator[events.Event]) -> Iterator[events.Event]:
+        """The events, the dictionaries of labels made stale by those that say so."""
+        for event in followed:
+            if invalidating(event.kind):
+                self._context.forget_labels()
+            yield event
 
     # Life ------------------------------------------------------------------------
 
@@ -356,6 +374,7 @@ class AsyncClient:
         transport: AsyncTransport | None = None,
         cache: CatalogCache | None = None,
         retry: RetryPolicy | None = None,
+        profile: str | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self._auth: Auth = auth or Anonymous()
@@ -365,7 +384,7 @@ class AsyncClient:
 
             transport = AsyncHttpx2Transport(self.url, ca_bundle=ca_bundle, http2=http2)
         self._sender = AsyncSender(transport, user_agent=_agent(), policy=retry)
-        self._context = Context.of(self.url, cache)
+        self._context = Context.of(self.url, cache, profile=profile or "")
         self.token_store: TokenStore = token_store or MemoryStore()
         self._owner = True
 
@@ -399,6 +418,10 @@ class AsyncClient:
 
     def resource(self, name: str) -> AsyncResource:
         return AsyncResource(self._context, self.run, name)
+
+    async def labels(self, lang: str | None = None) -> Dictionary:
+        """The dictionary of labels of `lang` (spec 018), as `Client.labels`."""
+        return await self.run(self._context.labels(lang))
 
     def __getattr__(self, attribute: str) -> AsyncResource:
         if attribute.startswith("_"):
@@ -500,6 +523,8 @@ class AsyncClient:
             sleep=transport.sleep,
             reconnect=reconnect,
         ):
+            if invalidating(event.kind):
+                self._context.forget_labels()
             yield event
 
     async def aclose(self) -> None:
