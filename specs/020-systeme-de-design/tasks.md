@@ -42,6 +42,17 @@ emploient.
   - où : `.claude/agents/test-runner.md`, `bench-runner.md` (forme, frontmatter
     `tools`, `model`) ; `.claude/hooks/fin-tache.sh` (forme d'un hook) ; ADR 0039
   - dépend de : —
+  - fait en partie (à cocher après les deux restes) : `.claude/agents/ui-reviewer.md`, `a11y-auditor.md` (sonnet ; Read, Grep, Glob,
+    Bash, `mcp__playwright__*`) ; `.claude/skills/kartenn-ui/SKILL.md` (`paths: web/**`,
+    contrat, CSS, CSP, inventaire avec statut, raccourcis réservés de la 021, pièges de
+    Reka, clichés, outillage) ; hook `.claude/hooks/web-apres-edition.sh` déclaré dans
+    `devenv.nix` (`claude.code.hooks.web-apres-edition`, `PostToolUse`,
+    `Edit|MultiEdit|Write`) : outils de l'espace du fichier (`web/` ou `web/v2/`), une
+    ligne `systemMessage` en succès, diagnostics en code 2 (vérifié : couleur brute dans
+    un `.css` de `web/v2` → diagnostic Stylelint) ; `bench-runner` étendu à `bench-web`.
+    Restent : la ligne de CLAUDE.md (non modifié par l'agent, texte proposé au rapport) ;
+    l'essai des deux agents sur une page du shell actuel, à faire dans une session qui
+    les charge (agents ajoutés en cours de session non invocables).
 - [x] 3. Stylelint et lint du code : `web/v2/stylelint.config.js` (règles du design,
   § « Architecture CSS », dont la règle maison des couches et la liste fermée des
   composants flottants à ombre) ; interdiction des éléments interactifs bruts et du style

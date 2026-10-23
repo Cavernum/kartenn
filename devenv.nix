@@ -1035,6 +1035,14 @@ in {
       hookType = "Stop";
       command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/fin-tache.sh'';
     };
+    # Interface quality (ADR 0039, § 4): Prettier, Stylelint and ESLint on the one web/**
+    # file just edited; diagnostics go back to the agent.
+    hooks.web-apres-edition = {
+      name = "Format and lint the edited web file";
+      hookType = "PostToolUse";
+      matcher = "^(Edit|MultiEdit|Write)$";
+      command = ''"$CLAUDE_PROJECT_DIR"/.claude/hooks/web-apres-edition.sh'';
+    };
     hooks.reprise-froide = {
       name = "Stop once before rewriting an expired cache";
       hookType = "UserPromptSubmit";
