@@ -232,7 +232,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   à côté de leurs définitions (le français reste le résumé de la définition, pas de
   réécriture des macros), sortes (`core.prefix`…), états (`changeset.*`,
   `changeset.kind.*`, `import.*`), natures et usages ; `English` et `of_module` pour les
-  modules. `Module::labels()` (défaut vide, ADR 0026 amendement 6), rempli par `vlan`,
+  modules. `Module::labels()` (défaut vide, ADR 0026 amendement 7), rempli par `vlan`,
   `machines`, `policy` et `flow` (fichier `labels.rs` de chaque crate : permissions,
   règles, sortes, états `flow.*`, verdicts et issues) ; `ModuleRegistry::labels()`.
   `ProblemKind::labels()` : français, et l'anglais du `title`. `kartenn_rest::labels::
@@ -256,7 +256,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   fait : `kartenn_rest::labels` (route `labels`, schéma `Labels`) ; lectures
   `kartenn_store_pg::labels_read` (`revision`, `stored` aux dates de la lecture,
   `held` : entrées et rôles détenus sur une portée quelconque) ; `Module::label_tables()`
-  (ADR 0026, amendement 6 complété), rempli par `policy` (six espaces `policy.*` sous
+  (ADR 0026, amendement 7 complété), rempli par `policy` (six espaces `policy.*` sous
   `policy.catalogue.read`) ; `temporal::snapshot` accepte `<schéma>.<table>`.
   Négociation : `lang` (400 si mal formée) sinon `Accept-Language` (poids, `q=0` et `*`
   écartés, plage mal formée ignorée), Lookup parmi les langues présentes (`fr`, `en`, la
