@@ -157,8 +157,10 @@ couverture des champs), `amorcage.md`, `plugins.md` (W4), `mise-a-jour.md`,
 
 ## CI (E14)
 
-`scripts/ci.sh` : `devenv test`, `k-web-e2e`, `nix flake check` ; sortie courte. Pas de
-fichier de forge.
+`scripts/ci.sh` : `devenv test`, `k-web-e2e`, `nix flake check` ; sortie courte.
+Amendé par l'ADR 0033 : `.github/workflows/ci.yml` et `release.yml` appellent
+`scripts/ci.sh`, `scripts/ci-lint.sh` et `scripts/release.sh` ; procédure dans
+`docs/developpement/publication.md`.
 
 ## Stratégie de test
 
