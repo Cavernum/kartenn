@@ -112,6 +112,7 @@ fn input(key: &str, value_type: TypeInput) -> DeclarationInput {
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     }
 }
 
@@ -127,6 +128,7 @@ fn add_value(property: Ref, key: &str) -> Operation {
         local: None,
         property,
         key: key.into(),
+        labels: std::collections::BTreeMap::new(),
     }
 }
 
@@ -327,6 +329,7 @@ fn policy(values: &[&str], carriers: &[&str]) -> ModuleDeclarations {
             },
             values.iter().map(|v| (*v).to_owned()).collect(),
         )],
+        labels: std::collections::BTreeMap::new(),
     }
 }
 
@@ -401,6 +404,105 @@ async fn module_declarations_follow_the_code(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(current, 0);
+}
+
+/// R10, REQ-018-11: the synchronisation writes the labels of the code when they are
+/// missing or its own, and never replaces an administrator's.
+#[kartenn_testing::pg_test]
+async fn an_administrator_label_survives_the_module_sync(pool: PgPool) {
+    use kartenn_core::labels::Compiled;
+    let f = Fixture::new(&pool).await;
+    let labelled = |property: (&'static str, &'static str), prod: (&'static str, &'static str)| {
+        ModuleDeclarations {
+            labels: [
+                (
+                    "policy.environment".to_owned(),
+                    Compiled::new(property.0, property.1),
+                ),
+                (
+                    "policy.environment/prod".to_owned(),
+                    Compiled::new(prod.0, prod.1),
+                ),
+            ]
+            .into(),
+            ..policy(&["prod", "dev"], &["prefix"])
+        }
+    };
+    let sync = |module: ModuleDeclarations| {
+        let store = f.store.clone();
+        async move {
+            sync_modules(&store, &Unrestricted, &[module], MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }
+    };
+    let labels = |sql: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, serde_json::Value>(sql)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    let (property, prod) = (
+        "SELECT labels FROM property_declaration
+          WHERE key = 'policy.environment' AND valid_period @> now()",
+        "SELECT labels FROM property_enum_value WHERE key = 'prod' AND valid_period @> now()",
+    );
+    sync(labelled(
+        ("Environnement", "Environment"),
+        ("Production", "Production"),
+    ))
+    .await;
+    assert_eq!(
+        labels(property).await,
+        serde_json::json!({"fr": "Environnement", "en": "Environment"})
+    );
+    assert_eq!(
+        labels(prod).await,
+        serde_json::json!({"fr": "Production", "en": "Production"})
+    );
+    // The module's labels follow its code.
+    sync(labelled(
+        ("Environnement", "Environment"),
+        ("Production", "Live"),
+    ))
+    .await;
+    assert_eq!(labels(prod).await["en"], "Live");
+    // An administrator relabels the property, in French only.
+    let env = f.property("policy.environment").await;
+    f.applied(vec![Operation::UpdateProperty {
+        id: Ref::Id(env),
+        declaration: DeclarationInput {
+            key: "policy.environment".into(),
+            value_type: TypeInput::ENUM,
+            cardinality: Cardinality::Set,
+            carriers: vec!["prefix".into()],
+            inherit: Some("addressing".into()),
+            module: Some("policy".into()),
+            obligations: Vec::new(),
+            expected: None,
+            labels: Some([("fr".to_owned(), "Milieu".to_owned())].into()),
+        },
+    }])
+    .await;
+    let outcomes = sync(labelled(("Environnement", "Env."), ("Production", "Live"))).await;
+    assert!(outcomes.is_empty(), "{outcomes:?}");
+    assert_eq!(
+        labels(property).await,
+        serde_json::json!({"fr": "Milieu"}),
+        "the administrator's labels stay"
+    );
+    assert!(
+        sync(labelled(
+            ("Environnement", "Environment"),
+            ("Production", "Live")
+        ))
+        .await
+        .is_empty(),
+        "an administrator's labels are no longer the module's"
+    );
 }
 
 #[kartenn_testing::pg_test]

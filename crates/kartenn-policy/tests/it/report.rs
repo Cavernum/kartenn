@@ -25,11 +25,11 @@ async fn catalogue(env: &Env) {
         op("environment.create", json!({ "key": "global" })),
         op(
             "flow_type.create",
-            json!({ "local": 1, "key": "admin", "label": "Administration" }),
+            json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
         ),
         op(
             "service.create",
-            json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+            json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 22 }] }),
         ),
     ])
@@ -54,7 +54,7 @@ async fn id(pool: &PgPool, table: &str, key: &str) -> Uuid {
 /// An `allow` (or `deny`) rule of `admin` from `source` to `destination`.
 async fn rule(env: &Env, key: &str, effect: &str, source: Value, destination: Value) {
     let admin = id(&env.pool, "policy_flow_type", "admin").await;
-    let mut fields = json!({ "key": key, "label": key, "effect": effect,
+    let mut fields = json!({ "key": key, "labels": { "fr": key }, "effect": effect,
                              "flow_types": [{ "id": admin }],
                              "source": source, "destination": destination });
     if effect == "deny" {

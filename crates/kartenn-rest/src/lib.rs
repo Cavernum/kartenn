@@ -20,6 +20,7 @@ pub mod filter;
 pub mod health;
 pub mod imports;
 pub mod kit;
+pub mod labels;
 pub mod modules;
 pub mod objects;
 pub mod on_behalf;
@@ -81,6 +82,7 @@ pub fn api_with(
         .merge(audit::routes())
         .merge(capabilities::routes())
         .merge(events::routes())
+        .merge(labels::routes())
         .merge(openapi::routes())
         .merge(modules::graph())
         .merge(modules::routes(modules));

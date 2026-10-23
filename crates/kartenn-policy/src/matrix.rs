@@ -212,7 +212,6 @@ mod write {
     use super::Key;
     use crate::codec;
     use crate::handler::{invalid, plan};
-    use crate::model::Label;
     use crate::module::{ENVIRONMENT, RULE};
     use crate::rules::{MATRIX_STALE, RULE_CONDITIONAL_DENY};
 
@@ -243,8 +242,10 @@ mod write {
         patterns: Vec<Ref>,
         #[serde(default)]
         texts: Option<Value>,
+        /// The labels of the rule a new cell creates (spec 018); by default
+        /// `<source> → <destination>` in the default language.
         #[serde(default)]
-        label: Option<String>,
+        labels: Option<Value>,
         /// The `ETag` of the matrix of the flow type read at present (S35); none: no check.
         #[serde(default)]
         if_match: Option<String>,
@@ -504,14 +505,17 @@ mod write {
         if let Some(existing) = set.completed.existing {
             return Ok(plan(RULE, existing, false, json!({ "update": columns })));
         }
-        let label = set
-            .label
-            .unwrap_or_else(|| format!("{} → {}", set.source, set.destination));
-        let label = Label::new(&label)?.as_str().to_owned();
+        let labels = match &set.labels {
+            Some(labels) => kartenn_core::labels::Labels::parse_required(labels)?.to_json(),
+            None => json!({
+                kartenn_core::labels::default_locale().as_str():
+                    format!("{} → {}", set.source, set.destination),
+            }),
+        };
         let mut row = json!({
             "id": object,
             "key": format!("matrix-{}", object.simple()),
-            "label": label,
+            "labels": labels,
             "source": { ENVIRONMENT: [set.source] },
             "destination": { ENVIRONMENT: [set.destination] },
             "same": [],

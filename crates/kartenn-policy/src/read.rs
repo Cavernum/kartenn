@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use crate::codec;
 use crate::model::{
-    Axis, AxisKey, AxisValue, Carrier, Condition, Effect, FlowSelector, FlowType, Key, Label,
-    Pattern, Rule, Service, Signal, ValueAttributes,
+    Axis, AxisKey, AxisValue, Carrier, Condition, Effect, FlowSelector, FlowType, Key, Pattern,
+    Rule, Service, Signal, ValueAttributes,
 };
 use crate::pg::store;
 use crate::snapshot::Parts;
@@ -95,11 +95,8 @@ fn keys(ids: &[Uuid], of: &BTreeMap<Uuid, Key>) -> BTreeSet<Key> {
     ids.iter().filter_map(|id| of.get(id).cloned()).collect()
 }
 
-fn key_label(table: &str, row: &Value) -> Result<(Key, Label), StoreError> {
-    match (Key::new(text(row, "key")), Label::new(text(row, "label"))) {
-        (Ok(key), Ok(label)) => Ok((key, label)),
-        _ => Err(corrupt(table, row)),
-    }
+fn key_of(table: &str, row: &Value) -> Result<Key, StoreError> {
+    Key::new(text(row, "key")).map_err(|_| corrupt(table, row))
 }
 
 /// The identifiers of `rows` and their keys.
@@ -162,8 +159,8 @@ pub async fn parts(
     let flow_types = read["policy_flow_type"]
         .iter()
         .map(|row| {
-            let (key, label) = key_label("policy_flow_type", row)?;
-            Ok(FlowType { key, label })
+            let key = key_of("policy_flow_type", row)?;
+            Ok(FlowType { key })
         })
         .collect::<Result<Vec<_>, StoreError>>()?;
     let service_keys = ids_to_keys(&read["policy_service"]);
@@ -175,21 +172,19 @@ pub async fn parts(
             Some((row, flow_type.clone()))
         })
         .map(|(row, flow_type)| {
-            let (key, label) = key_label("policy_service", row)?;
+            let key = key_of("policy_service", row)?;
             let (entries, _) =
                 codec::entries(&row["entries"]).map_err(|_| corrupt("policy_service", row))?;
-            Service::new(key, label, &[flow_type], entries)
-                .map_err(|_| corrupt("policy_service", row))
+            Service::new(key, &[flow_type], entries).map_err(|_| corrupt("policy_service", row))
         })
         .collect::<Result<Vec<_>, StoreError>>()?;
     let pattern_keys = ids_to_keys(&read["policy_pattern"]);
     let patterns = read["policy_pattern"]
         .iter()
         .map(|row| {
-            let (key, label) = key_label("policy_pattern", row)?;
+            let key = key_of("policy_pattern", row)?;
             Ok(Pattern {
                 key,
-                label,
                 texts: codec::stored_texts(&row["texts"]),
             })
         })
@@ -198,7 +193,7 @@ pub async fn parts(
     let rules = read["policy_rule"]
         .iter()
         .map(|row| {
-            let (key, label) = key_label("policy_rule", row)?;
+            let key = key_of("policy_rule", row)?;
             let selector = |side: &str| {
                 codec::selector(&row[side])
                     .map(|(s, _)| s)
@@ -206,7 +201,6 @@ pub async fn parts(
             };
             Ok(Rule {
                 key,
-                label,
                 source: selector("source")?,
                 destination: selector("destination")?,
                 same: codec::axes(&row["same"]).map_err(|_| corrupt("policy_rule", row))?,

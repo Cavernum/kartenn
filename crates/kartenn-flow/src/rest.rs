@@ -249,10 +249,8 @@ pub struct NonconformityDto {
     pub motive: Option<String>,
     /// The rule in cause.
     pub rule: Option<Uuid>,
-    /// Its key.
+    /// Its key; its labels are served by `GET /v1/labels` (space `policy.rule`).
     pub rule_key: Option<String>,
-    /// Its label.
-    pub rule_label: Option<String>,
     /// Its educational texts by language.
     #[schema(value_type = Option<Object>)]
     pub rule_texts: Option<Value>,
@@ -404,7 +402,6 @@ fn nonconformity_dto(n: Nonconformity) -> NonconformityDto {
         motive: n.motive,
         rule: n.rule,
         rule_key: n.rule_key,
-        rule_label: n.rule_label,
         rule_texts: n.rule_texts,
         at: rfc3339(n.at),
         kind: n.kind,

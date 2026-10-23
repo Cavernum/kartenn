@@ -82,8 +82,8 @@ impl Env {
         .unwrap();
         let role = Uuid::now_v7();
         sqlx::query(
-            "INSERT INTO role (id, key, label, valid_period, changeset_id)
-             VALUES ($1, $2, 'r', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', 'r'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
         )
         .bind(role)
         .bind(format!("r_{}", role.simple()))
@@ -157,16 +157,16 @@ async fn policy(env: &Env) {
         op("environment.create", json!({ "key": "dev" })),
         op(
             "flow_type.create",
-            json!({ "local": 1, "key": "admin", "label": "Administration" }),
+            json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
         ),
         op(
             "service.create",
-            json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+            json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                     "entries": [{ "transport": "tcp", "ports": 22 }] }),
         ),
         op(
             "rule.create",
-            json!({ "key": "prod-dev", "label": "Prod vers dev", "effect": "allow",
+            json!({ "key": "prod-dev", "labels": { "fr": "Prod vers dev" }, "effect": "allow",
                     "flow_types": [{ "local": 1 }],
                     "source": { "policy.environment": ["prod"] },
                     "destination": { "policy.environment": ["dev"] } }),
@@ -310,7 +310,7 @@ async fn a_family_is_written_under_its_administration(pool: PgPool) {
         &admin,
         Method::POST,
         "/v1/flow-types",
-        Some(json!({ "key": "backup", "label": "Sauvegarde", "motive": "m" })),
+        Some(json!({ "key": "backup", "labels": { "fr": "Sauvegarde" }, "motive": "m" })),
         &[],
     )
     .await;
@@ -322,7 +322,7 @@ async fn a_family_is_written_under_its_administration(pool: PgPool) {
         &admin,
         Method::PATCH,
         &location,
-        Some(json!({ "label": "Sauvegardes", "motive": "m" })),
+        Some(json!({ "labels": { "fr": "Sauvegardes" }, "motive": "m" })),
         &[
             ("if-match", &etag),
             ("content-type", "application/merge-patch+json"),
@@ -331,7 +331,8 @@ async fn a_family_is_written_under_its_administration(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let (_, headers, object) = call(&admin, Method::GET, &location, None, &[]).await;
-    assert_eq!(object["label"], "Sauvegardes");
+    assert_eq!(object["labels"]["fr"], "Sauvegardes");
+    assert!(object.get("label").is_none(), "no resolved label (R20)");
     let etag = headers.etag.unwrap().to_str().unwrap().to_owned();
     let (status, _, body) = call(
         &admin,
@@ -350,7 +351,7 @@ async fn a_family_is_written_under_its_administration(pool: PgPool) {
         &admin,
         Method::POST,
         "/v1/policy-patterns",
-        Some(json!({ "key": "p", "label": "P", "motive": "m" })),
+        Some(json!({ "key": "p", "labels": { "fr": "P" }, "motive": "m" })),
         &[],
     )
     .await;

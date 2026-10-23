@@ -30,6 +30,24 @@ use std::collections::HashMap;
 /// server configuration).
 pub(crate) const EVENT_SOURCE: &str = "urn:kartenn:instance";
 
+/// The event of a changeset that changed labels, `org.kartenn.labels.changed`
+/// `{"revision": <n>}` (spec 018, R23; ADR 0040).
+pub const LABELS_CHANGED: &str = "labels.changed";
+
+/// The versioned tables that carry a column `labels` (spec 018, Q-018-6): closing or
+/// restoring a row there changes the dictionary.
+const LABEL_TABLES: &[&str] = &[
+    "property_declaration",
+    "property_enum_value",
+    "role",
+    "policy.policy_flow_type",
+    "policy.policy_service",
+    "policy.policy_pattern",
+    "policy.policy_rule",
+    "policy.policy_condition",
+    "policy.policy_signal",
+];
+
 /// Advisory lock key of public space (ADR 0015).
 const PUBLIC_SPACE_LOCK: i64 = 0x6b61_7274_656e_6e50; // "kartennN"
 
@@ -67,6 +85,10 @@ impl kartenn_service::module::ModuleTx for PgTx {
             data,
         });
         Ok(())
+    }
+
+    fn labels_written(&mut self) {
+        self.labels_written = true;
     }
 
     fn register(
@@ -303,6 +325,9 @@ pub struct PgTx {
     pub(crate) events: Vec<ModuleEvent>,
     /// Who stands behind the changeset, as its modules read it (ADR 0026, amendment 3).
     pub(crate) actors: kartenn_service::module::ModuleActors,
+    /// A column `labels` changed in this transaction (spec 018, R22): the applied
+    /// changeset increments the revision of the labels.
+    pub(crate) labels_written: bool,
 }
 
 /// An event emitted by a module, waiting for the journal of its transaction.
@@ -315,6 +340,49 @@ pub(crate) struct ModuleEvent {
 }
 
 impl PgTx {
+    /// Increments the revision of the labels (spec 018, R22) and queues the event
+    /// `org.kartenn.labels.changed` `{revision}` for the outbox of the changeset. The row
+    /// lock orders the changesets that write labels.
+    async fn bump_labels(&mut self) -> Result<(), StoreError> {
+        let revision: i64 = sqlx::query_scalar(
+            "UPDATE label_revision SET revision = revision + 1 WHERE id = 1 RETURNING revision",
+        )
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        self.events.push(ModuleEvent {
+            event: LABELS_CHANGED.to_owned(),
+            subject: None,
+            data: serde_json::json!({ "revision": revision }),
+        });
+        Ok(())
+    }
+
+    /// Notes a write of `labels` on the version of `id` in `table` valid at `at`, when
+    /// they differ from `labels`.
+    async fn note_labels(
+        &mut self,
+        table: &str,
+        id: Uuid,
+        at: Option<OffsetDateTime>,
+        labels: &serde_json::Value,
+    ) -> Result<(), StoreError> {
+        if self.labels_written {
+            return Ok(());
+        }
+        let current: Option<serde_json::Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT labels FROM {table}
+             WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())"
+        )))
+        .bind(id)
+        .bind(at)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        self.labels_written = current.as_ref() != Some(labels);
+        Ok(())
+    }
+
     /// Writes the events emitted by modules in this transaction (REQ-016-15): one row of
     /// the outbox each, of type `org.kartenn.<module>.<name>`, its own CloudEvents `id`.
     async fn write_events(
@@ -359,6 +427,8 @@ impl PgTx {
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let (at, _) = bounds(period)?;
+        // A labelled object closed leaves the dictionary (spec 018, R22).
+        self.labels_written |= LABEL_TABLES.contains(&t);
         let shortened = self
             .guarded(
                 sqlx::AssertSqlSafe(format!(
@@ -399,6 +469,8 @@ impl PgTx {
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let (a, b) = bounds(period)?;
+        // A labelled object given back may bring its former labels (spec 018, R22).
+        self.labels_written |= LABEL_TABLES.contains(&target);
         let at: Option<OffsetDateTime> = sqlx::query_scalar(
             "SELECT applied_at FROM changeset WHERE id = $1 AND state = 'applied'",
         )
@@ -440,7 +512,7 @@ impl PgTx {
     async fn write_declaration(
         &mut self,
         id: Uuid,
-        d: &Declaration,
+        (d, labels): (&Declaration, &serde_json::Value),
         start: Option<OffsetDateTime>,
         end: Bind,
         changeset: Uuid,
@@ -449,8 +521,8 @@ impl PgTx {
         let sql = format!(
             "INSERT INTO property_declaration
                  (id, key, value_type, type_params, cardinality, carriers, inherit_tree, valid_period, changeset_id,
-                  expected_source, expected_mode)
-             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, {}, $10, $11, $12)",
+                  expected_source, expected_mode, labels)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, {}, $10, $11, $12, $13::jsonb)",
             period_sql(8, 9)
         );
         let binds = vec![
@@ -466,6 +538,7 @@ impl PgTx {
             Bind::Uuid(changeset),
             Bind::OptText(d.expected.as_ref().map(|e| e.source.clone())),
             Bind::OptText(d.expected.as_ref().map(|e| e.mode.as_str().to_owned())),
+            Bind::Text(labels.to_string()),
         ];
         self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
             .await
@@ -556,6 +629,7 @@ impl Store for PgStore {
             modules: self.modules.clone(),
             events: Vec::new(),
             actors: kartenn_service::module::ModuleActors::default(),
+            labels_written: false,
         })
     }
 
@@ -917,6 +991,21 @@ impl WriteTx for PgTx {
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let (at, until) = bounds(period)?;
+        if let kartenn_service::rbac::RbacOp::SetRole { key, labels, .. } = op
+            && !self.labels_written
+        {
+            let current: Option<serde_json::Value> = sqlx::query_scalar(
+                "SELECT labels FROM role
+                 WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+            )
+            .bind(key)
+            .bind(at)
+            .fetch_optional(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+            self.labels_written = current != Some(labels.to_json());
+        }
+        self.labels_written |= matches!(op, kartenn_service::rbac::RbacOp::CloseRole { .. });
         crate::rbac_admin::write(&mut self.tx, op, at, until, changeset).await
     }
 
@@ -938,6 +1027,19 @@ impl WriteTx for PgTx {
 
     async fn role_entries(&mut self, key: &str) -> Result<Option<Vec<String>>, StoreError> {
         crate::rbac_admin::role_entries(&mut self.tx, key).await
+    }
+
+    async fn role_labels(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<kartenn_service::operations::RawLabels>, StoreError> {
+        let labels: Option<sqlx::types::Json<kartenn_service::operations::RawLabels>> =
+            sqlx::query_scalar("SELECT labels FROM role WHERE key = $1 AND valid_period @> now()")
+                .bind(key)
+                .fetch_optional(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        Ok(labels.map(|l| l.0))
     }
 
     async fn custom_roles_citing(
@@ -1229,6 +1331,11 @@ impl WriteTx for PgTx {
             }
             Change::Sensitive(sensitive) => {
                 patch.insert("sensitive".into(), (*sensitive).into());
+            }
+            Change::Labels(labels) => {
+                let labels = labels.to_json();
+                self.note_labels(table(kind), id, a, &labels).await?;
+                patch.insert("labels".into(), labels);
             }
             Change::Obligation { scope, required } => {
                 return self
@@ -1892,12 +1999,20 @@ impl WriteTx for PgTx {
         &mut self,
         id: Uuid,
         declaration: &Declaration,
+        labels: &kartenn_core::labels::Labels,
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let (a, b) = bounds(period)?;
-        self.write_declaration(id, declaration, a, Bind::Time(b), changeset)
-            .await?;
+        self.labels_written |= !labels.is_empty();
+        self.write_declaration(
+            id,
+            (declaration, &labels.to_json()),
+            a,
+            Bind::Time(b),
+            changeset,
+        )
+        .await?;
         Ok(self
             .set_obligations(id, &declaration.obligations, a, b, changeset)
             .await?)
@@ -1969,12 +2084,14 @@ impl WriteTx for PgTx {
         &mut self,
         id: Uuid,
         declaration: &Declaration,
+        labels: Option<&kartenn_core::labels::Labels>,
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
+        type Version = (bool, Option<OffsetDateTime>, serde_json::Value);
         let (at, _) = bounds(period)?;
-        let version: Option<(bool, Option<OffsetDateTime>)> = sqlx::query_as(
-            "SELECT lower(valid_period) = coalesce($2::timestamptz, now()), upper(valid_period)
+        let version: Option<Version> = sqlx::query_as(
+            "SELECT lower(valid_period) = coalesce($2::timestamptz, now()), upper(valid_period), labels
              FROM property_declaration WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
         )
         .bind(id)
@@ -1982,9 +2099,11 @@ impl WriteTx for PgTx {
         .fetch_optional(&mut *self.tx)
         .await
         .map_err(store_err)?;
-        let Some((starts_here, end)) = version else {
+        let Some((starts_here, end, current)) = version else {
             return Err(WriteError::NoVersion(id));
         };
+        let labels = labels.map_or(current.clone(), kartenn_core::labels::Labels::to_json);
+        self.labels_written |= labels != current;
         // A version starting at the same instant is replaced; an older one is shortened
         // and followed by the new version up to its former end.
         let shorten = if starts_here {
@@ -2002,7 +2121,7 @@ impl WriteTx for PgTx {
         }
         self.guarded(sqlx::AssertSqlSafe(shorten.to_owned()), binds, id)
             .await?;
-        self.write_declaration(id, declaration, at, Bind::Time(end), changeset)
+        self.write_declaration(id, (declaration, &labels), at, Bind::Time(end), changeset)
             .await?;
         Ok(self
             .set_obligations(id, &declaration.obligations, at, end, changeset)
@@ -2065,6 +2184,34 @@ impl WriteTx for PgTx {
         Ok(out)
     }
 
+    async fn labels_in(
+        &mut self,
+        namespace: &str,
+    ) -> Result<Vec<(String, kartenn_service::operations::RawLabels, bool)>, StoreError> {
+        type Row = (
+            String,
+            sqlx::types::Json<kartenn_service::operations::RawLabels>,
+            bool,
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT d.key, d.labels, coalesce(c.author_id = $2, false)
+               FROM property_declaration d LEFT JOIN changeset c ON c.id = d.changeset_id
+              WHERE split_part(d.key, '.', 1) = $1 AND d.valid_period @> now()
+             UNION ALL
+             SELECT d.key || '/' || e.key, e.labels, coalesce(c.author_id = $2, false)
+               FROM property_enum_value e
+               JOIN property_declaration d ON d.id = e.property_id AND d.valid_period @> now()
+               LEFT JOIN changeset c ON c.id = e.changeset_id
+              WHERE split_part(d.key, '.', 1) = $1 AND e.valid_period @> now()",
+        )
+        .bind(namespace)
+        .bind(kartenn_service::declarations::SYSTEM_AUTHOR)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(rows.into_iter().map(|(k, l, s)| (k, l.0, s)).collect())
+    }
+
     async fn declarations_in(
         &mut self,
         namespace: &str,
@@ -2103,13 +2250,15 @@ impl WriteTx for PgTx {
         id: Uuid,
         property: Uuid,
         key: &str,
+        labels: &kartenn_core::labels::Labels,
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
         let (a, b) = bounds(period)?;
+        self.labels_written |= !labels.is_empty();
         let sql = format!(
-            "INSERT INTO property_enum_value (id, property_id, key, valid_period, changeset_id)
-             VALUES ($1, $2, $3, {}, $6)",
+            "INSERT INTO property_enum_value (id, property_id, key, valid_period, changeset_id, labels)
+             VALUES ($1, $2, $3, {}, $6, $7::jsonb)",
             period_sql(4, 5)
         );
         let binds = vec![
@@ -2119,6 +2268,7 @@ impl WriteTx for PgTx {
             Bind::Time(a),
             Bind::Time(b),
             Bind::Uuid(changeset),
+            Bind::Text(labels.to_json().to_string()),
         ];
         self.guarded(sqlx::AssertSqlSafe(sql), binds, id)
             .await
@@ -2743,6 +2893,9 @@ impl WriteTx for PgTx {
 
     async fn journal_applied(&mut self, journal: &Journal<'_>) -> Result<(), StoreError> {
         write_journal(&mut self.tx, journal, &self.instance).await?;
+        if std::mem::take(&mut self.labels_written) {
+            self.bump_labels().await?;
+        }
         // The events of the modules, under the ordering keys of the changeset (REQ-016-15).
         let keys: Vec<String> = journal
             .domains

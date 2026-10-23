@@ -70,6 +70,10 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - Rejeté : une sorte par type CloudEvents (couple le client aux noms internes de
   l'outbox) ; une sorte par type d'objet (le filtre `types` suffit).
 - Conséquences : la traduction outbox → SSE est une table fermée (design).
+- Amendement (2026-10-24, spec 018, R23, REQ-018-18) : sorte `labels`, émise après
+  tout changeset qui change la révision des libellés (`org.kartenn.labels.changed`),
+  remise à toute connexion (la révision ne révèle rien), `data` `{"revision": …}`
+  seulement ; le client relit `GET /v1/labels` sous `If-None-Match`.
 
 ## R3 — Charge utile minimale
 - Décision : clés (type, identifiant), domaines, révision (= changeset, l'ETag fort de

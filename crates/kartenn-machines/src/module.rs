@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::{Permission, TypePermissions};
+use kartenn_core::labels::Compiled;
 use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
@@ -34,6 +35,27 @@ pub const INTERFACE_ROLES: &[&str] = &[
     "storage",
     "cluster",
     "service",
+];
+
+/// The French and English labels of the declarations and values of the module (spec
+/// 018, R10): `<property>` or `<property>/<value>`.
+const LABELS: &[(&str, &str, &str)] = &[
+    (INTERFACE_ROLE, "Rôle de l'interface", "Interface role"),
+    (FQDN, "Nom complet (FQDN)", "Fully qualified domain name"),
+    (
+        "machines.interface_role/administration",
+        "Administration",
+        "Administration",
+    ),
+    ("machines.interface_role/backup", "Sauvegarde", "Backup"),
+    (
+        "machines.interface_role/monitoring",
+        "Supervision",
+        "Monitoring",
+    ),
+    ("machines.interface_role/storage", "Stockage", "Storage"),
+    ("machines.interface_role/cluster", "Grappe", "Cluster"),
+    ("machines.interface_role/service", "Service", "Service"),
 ];
 
 /// A property of the module carried by `carrier`, single-valued and not inherited.
@@ -295,6 +317,10 @@ impl Module for Machines {
                 ),
                 (declaration(FQDN, TypeSpec::Fqdn, MACHINE), Vec::new()),
             ],
+            labels: LABELS
+                .iter()
+                .map(|(key, fr, en)| ((*key).to_owned(), Compiled::new(fr, en)))
+                .collect(),
         })
     }
     fn permissions(&self) -> &'static [&'static Permission] {
@@ -310,6 +336,9 @@ impl Module for Machines {
     }
     fn rules(&self) -> &'static [&'static Rule] {
         MACHINES_RULES
+    }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, MACHINES_RULES, &crate::labels::ENGLISH)
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS

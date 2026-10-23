@@ -121,7 +121,7 @@ fn catalogue_items() -> anyhow::Result<Vec<ImportItem>> {
         items.push(item(op(
             "flow_type.create",
             json!({ "local": flow_type(t), "key": format!("ft{t:02}"),
-                    "label": format!("Type de flux {t}") }),
+                    "labels": { "fr": format!("Type de flux {t}") } }),
         )?));
     }
     for s in 0..SERVICES {
@@ -136,14 +136,14 @@ fn catalogue_items() -> anyhow::Result<Vec<ImportItem>> {
         }
         items.push(item(op(
             "service.create",
-            json!({ "key": format!("svc{s:03}"), "label": format!("Service {s}"),
+            json!({ "key": format!("svc{s:03}"), "labels": { "fr": format!("Service {s}") },
                     "flow_type": { "local": flow_type(t) }, "entries": entries }),
         )?));
     }
     for p in 0..PATTERNS {
         items.push(item(op(
             "pattern.create",
-            json!({ "key": format!("pat{p:02}"), "label": format!("Motif {p}"),
+            json!({ "key": format!("pat{p:02}"), "labels": { "fr": format!("Motif {p}") },
                     "texts": { "fr": { "body": TEXT } } }),
         )?));
     }
@@ -204,7 +204,7 @@ fn rule_items(
     // The rule every machine × machine draw evaluates: env00 to env01 for ft00.
     items.push(item(op(
         "rule.create",
-        json!({ "key": "bench-wide", "label": "Banc large", "effect": "allow",
+        json!({ "key": "bench-wide", "labels": { "fr": "Banc large" }, "effect": "allow",
                 "flow_types": [{ "id": flow_types[0] }],
                 "source": { "policy.environment": [env(0)] },
                 "destination": { "policy.environment": [env(1)] } }),
@@ -215,7 +215,7 @@ fn rule_items(
             source["policy.exposure"] = json!(["interne", "administration"]);
         }
         let mut fields = json!({
-            "key": format!("r{r:05}"), "label": format!("Règle {r}"),
+            "key": format!("r{r:05}"), "labels": { "fr": format!("Règle {r}") },
             "source": source,
             "destination": { "policy.environment": some_environments(rng) },
             "flow_types": (0..rng.random_range(1..=2))
@@ -694,7 +694,7 @@ async fn measure(
     for i in 0..20 {
         let operation = op(
             "rule.create",
-            json!({ "key": format!("bench-deny-{i}"), "label": format!("Interdiction {i}"),
+            json!({ "key": format!("bench-deny-{i}"), "labels": { "fr": format!("Interdiction {i}") },
                     "effect": "deny", "texts": { "fr": { "body": TEXT } },
                     "flow_types": [{ "id": flow_types[rng.random_range(0..FLOW_TYPES)] }],
                     "source": { "policy.environment": some_environments(rng) },

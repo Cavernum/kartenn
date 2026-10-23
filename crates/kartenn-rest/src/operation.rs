@@ -8,6 +8,7 @@ use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
 use kartenn_core::properties::{Expected, ExpectedMode};
 use kartenn_core::values::Cardinality;
 use kartenn_service::operations::ModuleOperation;
+use kartenn_service::operations::RawLabels;
 use kartenn_service::operations::{
     BindingScope, BindingSubject, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput,
     SecretRecord, TypeInput,
@@ -292,6 +293,10 @@ pub(crate) struct DeclarationDto {
     /// The source of its expected values.
     #[serde(default)]
     expected: Option<ExpectedDto>,
+    /// Its labels by language, `{<tag>: <text>}` (spec 018): absent, none for a new
+    /// declaration and those in force for an update.
+    #[serde(default)]
+    labels: Option<RawLabels>,
 }
 
 impl From<DeclarationDto> for DeclarationInput {
@@ -305,6 +310,7 @@ impl From<DeclarationDto> for DeclarationInput {
             module: None,
             obligations: d.obligations.into_iter().map(Into::into).collect(),
             expected: d.expected.map(Into::into),
+            labels: d.labels,
         }
     }
 }
@@ -621,12 +627,12 @@ pub(crate) enum CoreOperationDto {
         #[schema(value_type = AddressUsageSchema)]
         usage: AddressUsage,
     },
-    /// Defines a role, or replaces its label and entries (005, REQ-005-17, 25).
+    /// Defines a role, or replaces its labels and entries (005, REQ-005-17, 25).
     SetRole {
         /// Stable key.
         key: String,
-        /// Label.
-        label: String,
+        /// Labels by language, `{<tag>: <text>}`: the default language at least.
+        labels: RawLabels,
         /// Entries.
         entries: Vec<String>,
     },
@@ -865,6 +871,19 @@ pub(crate) enum CoreOperationDto {
         property: RefDto,
         /// Key, `[a-z0-9-]`.
         key: String,
+        /// Labels by language, `{<tag>: <text>}` (spec 018).
+        #[serde(default)]
+        labels: RawLabels,
+    },
+    /// Replaces the labels of a closed-list value; its key never changes (spec 018,
+    /// REQ-018-9).
+    UpdateEnumValue {
+        /// Property of type `enum`.
+        property: RefDto,
+        /// Key of the value.
+        key: String,
+        /// Labels by language, `{<tag>: <text>}`; empty, the value has none.
+        labels: RawLabels,
     },
     /// Assigns a value to a property of an object (REQ-003-4, 8, 12).
     AssignProperty {
@@ -1021,11 +1040,11 @@ impl From<CoreOperationDto> for Operation {
             },
             CoreOperationDto::SetRole {
                 key,
-                label,
+                labels,
                 entries,
             } => Self::SetRole {
                 key,
-                label,
+                labels,
                 entries,
             },
             CoreOperationDto::CloseRole { key } => Self::CloseRole { key },
@@ -1203,10 +1222,21 @@ impl From<CoreOperationDto> for Operation {
                 local,
                 property,
                 key,
+                labels,
             } => Self::AddEnumValue {
                 local,
                 property: property.into(),
                 key,
+                labels,
+            },
+            CoreOperationDto::UpdateEnumValue {
+                property,
+                key,
+                labels,
+            } => Self::UpdateEnumValue {
+                property: property.into(),
+                key,
+                labels,
             },
             CoreOperationDto::AssignProperty {
                 object,
@@ -1358,6 +1388,7 @@ mod tests {
             Operation::DeclareProperty { .. } => "declare_property",
             Operation::UpdateProperty { .. } => "update_property",
             Operation::AddEnumValue { .. } => "add_enum_value",
+            Operation::UpdateEnumValue { .. } => "update_enum_value",
             Operation::AssignProperty { .. } => "assign_property",
             Operation::ClearProperty { .. } => "clear_property",
             Operation::UnassignProperty { .. } => "unassign_property",
@@ -1380,6 +1411,7 @@ mod tests {
             "carriers": ["prefix"], "inherit": "addressing",
             "obligations": [{"scope": "domain", "id": id}, {"scope": "object_type", "kind": "prefix"}],
             "expected": {"source": "ipam", "mode": "check"},
+            "labels": {"fr": "VLAN", "en": "VLAN"},
         });
         let mut declare = declaration.clone();
         declare["op"] = json!("declare_property");
@@ -1398,7 +1430,7 @@ mod tests {
                 "first": "10.0.0.1", "last": "10.0.0.9", "usage": "dhcp"}),
             json!({"op": "create_address", "local": 4, "domain": {"id": id},
                 "address": "10.0.0.1", "usage": "gateway"}),
-            json!({"op": "set_role", "key": "r", "label": "R", "entries": ["*"]}),
+            json!({"op": "set_role", "key": "r", "labels": {"fr": "R"}, "entries": ["*"]}),
             json!({"op": "close_role", "key": "r"}),
             json!({"op": "bind", "local": 5, "subject": {"kind": "group", "issuer": "i", "group": "g"},
                 "role": "r", "scope": {"kind": "entity", "id": {"local": 2}}}),
@@ -1425,7 +1457,10 @@ mod tests {
             json!({"op": "rename", "kind": "site", "id": {"id": id}, "slug": "n", "expected": other}),
             declare,
             update,
-            json!({"op": "add_enum_value", "local": 1, "property": {"id": id}, "key": "k"}),
+            json!({"op": "add_enum_value", "local": 1, "property": {"id": id}, "key": "k",
+                "labels": {"fr": "K"}}),
+            json!({"op": "update_enum_value", "property": {"id": id}, "key": "k",
+                "labels": {"fr": "K", "en": "K"}}),
             json!({"op": "assign_property", "object": {"id": id}, "kind": "prefix",
                 "property": {"local": 3}, "values": [true, 4, "x"]}),
             json!({"op": "clear_property", "object": {"id": id}, "kind": "domain", "property": {"id": other}}),
@@ -1451,7 +1486,7 @@ mod tests {
             assert_eq!(Operation::from(mirrored), direct, "{sample}");
             named.insert(name(&direct));
         }
-        assert_eq!(named.len(), 36, "one sample per operation of the service");
+        assert_eq!(named.len(), 37, "one sample per operation of the service");
         let item = json!({"external_id": "x", "operation": samples()[1]});
         let direct: ImportItem = serde_json::from_value(item.clone()).unwrap();
         let mirrored: ImportItemDto = serde_json::from_value(item).unwrap();

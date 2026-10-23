@@ -164,6 +164,7 @@ async fn a_changeset_closes_only_the_anomalies_of_the_rules_it_evaluated(pool: P
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     };
     let ops = vec![
         Operation::CreateDomain {

@@ -32,12 +32,12 @@ pub(crate) async fn under_reserve(env: &Env) {
     env.applied(vec![
         policy(
             "pattern.create",
-            json!({ "local": 1, "key": "bastion", "label": "Bastion",
+            json!({ "local": 1, "key": "bastion", "labels": { "fr": "Bastion" },
                     "texts": { "fr": { "body": "Passer par le bastion." } } }),
         ),
         policy(
             "rule.create",
-            json!({ "key": "prod-prod", "label": "Prod vers prod", "effect": "allow",
+            json!({ "key": "prod-prod", "labels": { "fr": "Prod vers prod" }, "effect": "allow",
                     "flow_types": [{ "id": admin }],
                     "source": { "policy.environment": ["prod"] },
                     "destination": { "policy.environment": ["prod"] },

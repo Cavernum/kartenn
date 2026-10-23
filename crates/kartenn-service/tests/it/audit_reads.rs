@@ -34,6 +34,7 @@ fn text(local: u32, key: &str) -> Operation {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         },
     }
 }

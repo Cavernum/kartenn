@@ -151,6 +151,10 @@ struct Capabilities {
     limits: Limits,
     /// The event stream; `null` when it is off.
     events: Option<EventsCapability>,
+    /// The default language of the instance (BCP 47, `[i18n] default_locale`): required
+    /// in every `labels` table, served when no language asked matches (spec 018,
+    /// REQ-018-12).
+    default_locale: &'static str,
 }
 
 /// The routes of the capabilities, under `/v1`.
@@ -263,6 +267,7 @@ async fn capabilities(
             ring_seconds: hub.settings.ring_age.as_secs(),
             heartbeat_seconds: hub.settings.heartbeat.as_secs(),
         }),
+        default_locale: kartenn_core::labels::default_locale().as_str(),
     })
     .into_response())
 }

@@ -113,6 +113,7 @@ impl Env {
             local: None,
             property: Ref::Id(env.property("core.external_system").await),
             key: "ticketing".into(),
+            labels: std::collections::BTreeMap::new(),
         }])
         .await;
         env.applied(vec![
@@ -120,16 +121,16 @@ impl Env {
             policy("environment.create", json!({ "key": "dev" })),
             policy(
                 "flow_type.create",
-                json!({ "local": 1, "key": "admin", "label": "Administration" }),
+                json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
             ),
             policy(
                 "service.create",
-                json!({ "key": "ssh", "label": "SSH", "flow_type": { "local": 1 },
+                json!({ "key": "ssh", "labels": { "fr": "SSH" }, "flow_type": { "local": 1 },
                         "entries": [{ "transport": "tcp", "ports": 22 }] }),
             ),
             policy(
                 "rule.create",
-                json!({ "key": "prod-dev", "label": "Prod vers dev", "effect": "allow",
+                json!({ "key": "prod-dev", "labels": { "fr": "Prod vers dev" }, "effect": "allow",
                         "flow_types": [{ "local": 1 }],
                         "source": { "policy.environment": ["prod"] },
                         "destination": { "policy.environment": ["dev"] } }),

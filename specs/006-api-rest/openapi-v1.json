@@ -332,6 +332,15 @@
         "description": "An event of the audit journal, as journaled (spec 012, REQ-012-17).",
         "type": "object"
       },
+      "BTreeMap": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "propertyNames": {
+          "type": "string"
+        },
+        "type": "object"
+      },
       "Batches": {
         "description": "The batches of an import.",
         "properties": {
@@ -634,6 +643,10 @@
             },
             "type": "array"
           },
+          "default_locale": {
+            "description": "The default language of the instance (BCP 47, `[i18n] default_locale`): required\nin every `labels` table, served when no language asked matches (spec 018,\nREQ-018-12).",
+            "type": "string"
+          },
           "events": {
             "oneOf": [
               {
@@ -681,7 +694,8 @@
           "modules",
           "properties",
           "ui_plugins",
-          "limits"
+          "limits",
+          "default_locale"
         ],
         "type": "object"
       },
@@ -1363,6 +1377,17 @@
                 "description": "The key.",
                 "type": "string"
               },
+              "labels": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/BTreeMap",
+                    "description": "Its labels by language, `{<tag>: <text>}` (spec 018): absent, none for a new\ndeclaration and those in force for an update."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "obligations": {
                 "description": "Where it is required.",
                 "items": {
@@ -1422,6 +1447,16 @@
             "description": "The key.",
             "type": "string"
           },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary\n`GET /v1/labels` serves them resolved.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "links": {
             "$ref": "#/components/schemas/DeclarationLinks",
             "description": "Links."
@@ -1447,6 +1482,7 @@
           "cardinality",
           "carriers",
           "sensitive",
+          "labels",
           "links"
         ],
         "type": "object"
@@ -2078,6 +2114,27 @@
         ],
         "type": "object"
       },
+      "Fallback": {
+        "description": "The entries the dictionary served in the default language, lacking one in the\nlanguage served.",
+        "properties": {
+          "keys": {
+            "description": "`<space>/<key>`, or `value/<property>/<value>`.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lang": {
+            "description": "The default language of the instance.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lang",
+          "keys"
+        ],
+        "type": "object"
+      },
       "Flow": {
         "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date. A request pending a review (F19) has\nno identifier yet, and carries its `review`.",
         "properties": {
@@ -2275,14 +2332,7 @@
             ]
           },
           "rule_key": {
-            "description": "Its key.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "rule_label": {
-            "description": "Its label.",
+            "description": "Its key; its labels are served by `GET /v1/labels` (space `policy.rule`).",
             "type": [
               "string",
               "null"
@@ -3175,6 +3225,59 @@
         ],
         "type": "object"
       },
+      "Labels": {
+        "description": "The dictionary of labels for one language.",
+        "properties": {
+          "as_of": {
+            "description": "The system time asked for, when one was.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_lang": {
+            "description": "The default language of the instance.",
+            "type": "string"
+          },
+          "fallback": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Fallback",
+                "description": "The entries served in the default language."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lang": {
+            "description": "The language served (BCP 47, lower case), also in `Content-Language`.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "The revision of the labels: `<stored>-<compiled>`.",
+            "type": "string"
+          },
+          "spaces": {
+            "description": "The labels by space then key; `value` by property, then value.",
+            "type": "object"
+          },
+          "valid_at": {
+            "description": "The valid time asked for, when one was.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lang",
+          "default_lang",
+          "revision",
+          "spaces"
+        ],
+        "type": "object"
+      },
       "Limits": {
         "description": "The limits a client must respect.",
         "properties": {
@@ -3623,6 +3726,16 @@
                   "description": "The key.",
                   "type": "string"
                 },
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary\n`GET /v1/labels` serves them resolved.",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
                 "links": {
                   "$ref": "#/components/schemas/DeclarationLinks",
                   "description": "Links."
@@ -3648,6 +3761,7 @@
                 "cardinality",
                 "carriers",
                 "sensitive",
+                "labels",
                 "links"
               ],
               "type": "object"
@@ -4238,15 +4352,21 @@
                   "description": "Stable key.",
                   "type": "string"
                 },
-                "label": {
-                  "description": "Label.",
-                  "type": "string"
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary\n`GET /v1/labels` serves them resolved.",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
                 }
               },
               "required": [
                 "key",
                 "href",
-                "label",
+                "labels",
                 "builtin",
                 "entries"
               ],
@@ -5902,7 +6022,7 @@
             "type": "object"
           },
           {
-            "description": "Defines a role, or replaces its label and entries (005, REQ-005-17, 25).",
+            "description": "Defines a role, or replaces its labels and entries (005, REQ-005-17, 25).",
             "properties": {
               "entries": {
                 "description": "Entries.",
@@ -5915,9 +6035,9 @@
                 "description": "Stable key.",
                 "type": "string"
               },
-              "label": {
-                "description": "Label.",
-                "type": "string"
+              "labels": {
+                "$ref": "#/components/schemas/BTreeMap",
+                "description": "Labels by language, `{<tag>: <text>}`: the default language at least."
               },
               "op": {
                 "enum": [
@@ -5928,7 +6048,7 @@
             },
             "required": [
               "key",
-              "label",
+              "labels",
               "entries",
               "op"
             ],
@@ -6752,6 +6872,10 @@
                 "description": "Key, `[a-z0-9-]`.",
                 "type": "string"
               },
+              "labels": {
+                "$ref": "#/components/schemas/BTreeMap",
+                "description": "Labels by language, `{<tag>: <text>}` (spec 018)."
+              },
               "local": {
                 "description": "Local name for later operations.",
                 "format": "int32",
@@ -6775,6 +6899,36 @@
             "required": [
               "property",
               "key",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Replaces the labels of a closed-list value; its key never changes (spec 018,\nREQ-018-9).",
+            "properties": {
+              "key": {
+                "description": "Key of the value.",
+                "type": "string"
+              },
+              "labels": {
+                "$ref": "#/components/schemas/BTreeMap",
+                "description": "Labels by language, `{<tag>: <text>}`; empty, the value has none."
+              },
+              "op": {
+                "enum": [
+                  "update_enum_value"
+                ],
+                "type": "string"
+              },
+              "property": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "Property of type `enum`."
+              }
+            },
+            "required": [
+              "property",
+              "key",
+              "labels",
               "op"
             ],
             "type": "object"
@@ -8593,15 +8747,21 @@
             "description": "Stable key.",
             "type": "string"
           },
-          "label": {
-            "description": "Label.",
-            "type": "string"
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary\n`GET /v1/labels` serves them resolved.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
           }
         },
         "required": [
           "key",
           "href",
-          "label",
+          "labels",
           "builtin",
           "entries"
         ],
@@ -8618,13 +8778,19 @@
             },
             "type": "array"
           },
-          "label": {
-            "description": "Label.",
-            "type": "string"
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels by language, `{<tag>: <text>}`: the default language of the instance at\nleast (spec 018, REQ-018-9).",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
           }
         },
         "required": [
-          "label",
+          "labels",
           "entries"
         ],
         "type": "object"
@@ -15396,7 +15562,6 @@
       "x-kartenn": {
         "columns": [
           "value_key",
-          "label",
           "rank",
           "transverse"
         ],
@@ -16009,7 +16174,7 @@
       "x-kartenn": {
         "columns": [
           "key",
-          "label"
+          "labels"
         ],
         "key": [
           "key"
@@ -19914,6 +20079,88 @@
         ]
       }
     },
+    "/v1/labels": {
+      "get": {
+        "operationId": "labels",
+        "parameters": [
+          {
+            "description": "The language wanted, a BCP 47 tag; it prevails over `Accept-Language`.",
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The spaces wanted, separated by commas (`value,role`); all by default.",
+            "in": "query",
+            "name": "spaces",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Labels"
+                }
+              }
+            },
+            "description": "The labels by space, in the language served (`Content-Language`)."
+          },
+          "304": {
+            "description": "Unchanged since the `ETag` of `If-None-Match`."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A malformed `lang` or date."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/labels`: the dictionary of labels for one language (REQ-018-14 to 17, 19).",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/v1/log-filters/{output}": {
       "put": {
         "operationId": "set_log_filter",
@@ -22533,7 +22780,7 @@
       "x-kartenn": {
         "columns": [
           "key",
-          "label"
+          "labels"
         ],
         "key": [
           "key"
@@ -23475,7 +23722,7 @@
         "columns": [
           "key",
           "effect",
-          "label"
+          "labels"
         ],
         "key": [
           "key"
@@ -24137,7 +24384,6 @@
         "columns": [
           "property_key",
           "value_key",
-          "label",
           "rank",
           "transverse"
         ],
@@ -27587,7 +27833,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`PUT /v1/roles/{key}` `{label, entries}`: defines or replaces the role; 201 when it is\ncreated.",
+        "summary": "`PUT /v1/roles/{key}` `{labels, entries}`: defines or replaces the role; 201 when it is\ncreated.",
         "tags": [
           "rights"
         ]
@@ -28064,7 +28310,7 @@
       "x-kartenn": {
         "columns": [
           "key",
-          "label",
+          "labels",
           "flow_type_id"
         ],
         "key": [

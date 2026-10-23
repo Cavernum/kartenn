@@ -129,6 +129,35 @@ def test_prop_and_fields_in_json(keyed: FakeServer) -> None:
     assert params["prop.dns.fqdn:exists"] == "true"
 
 
+def test_cli_shows_labels_in_tables(keyed: FakeServer) -> None:
+    """REQ-018-21 (T15 amended): a table shows the label of a closed-list value from the
+    dictionary, the key when it has none; `--keys` and the formats of data show keys."""
+    keyed.route("GET", "/v1/prefixes", page(PREFIXES[1:3]))
+    dictionary = {
+        "lang": "fr",
+        "default_lang": "fr",
+        "revision": "1-aa",
+        "spaces": {"value": {"policy.environment": {"prod": "Production"}}},
+    }
+    keyed.route(
+        "GET",
+        "/v1/labels",
+        httpx2.Response(200, json=dictionary, headers={"ETag": '"1-aa.00"'}),
+    )
+    fields = ("--fields", "value,properties.policy.environment")
+    table = kartenn("prefixes", "list", "-o", "table", *fields)
+    assert table.exit_code == 0, table.output
+    assert "Production" in table.stdout
+    assert "recette" in table.stdout, "no label: the key"
+    assert keyed.seen[-1].url.params["lang"] == "fr"
+    keys = kartenn("prefixes", "list", "-o", "table", "--keys", *fields)
+    assert "prod" in keys.stdout
+    assert "Production" not in keys.stdout
+    data = kartenn("prefixes", "list", "-o", "json", *fields)
+    assert '"prod"' in data.stdout
+    assert "Production" not in data.stdout
+
+
 def test_a_property_repeated_is_one_of(keyed: FakeServer) -> None:
     keyed.route("GET", "/v1/prefixes", page([]))
     kartenn("prefixes", "list", "--prop", "a.b=1", "--prop", "a.b=2", "--prop", "a.b=3")

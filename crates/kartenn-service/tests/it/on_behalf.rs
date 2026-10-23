@@ -70,7 +70,7 @@ async fn connector(pool: &PgPool, store: &PgStore) -> Uuid {
             vec![
                 Operation::SetRole {
                     key: "connector".into(),
-                    label: "Connecteur".into(),
+                    labels: [("fr".into(), "Connecteur".into())].into(),
                     entries: vec!["core.identity.act_on_behalf".into()],
                 },
                 Operation::Bind {

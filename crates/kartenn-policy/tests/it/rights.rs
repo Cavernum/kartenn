@@ -70,7 +70,7 @@ async fn a_family_is_administered_under_its_own_permission(pool: PgPool) {
     let flow_type = || {
         vec![op(
             "flow_type.create",
-            json!({ "key": "adm", "label": "Adm" }),
+            json!({ "key": "adm", "labels": { "fr": "Adm" } }),
         )]
     };
     let rules_only = Grants::new().everywhere(env.author, "policy.rule.admin");
@@ -92,7 +92,7 @@ async fn an_environment_needs_the_environment_administration(pool: PgPool) {
     let create = || {
         vec![op(
             "environment.create",
-            json!({ "key": "recette", "label": "Recette" }),
+            json!({ "key": "recette", "labels": { "fr": "Recette" } }),
         )]
     };
     // The values of the axes, and the value of the closed list the core adds, without the

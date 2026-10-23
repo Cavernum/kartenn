@@ -3,8 +3,10 @@
 pub mod addr;
 pub mod audit;
 pub mod authz;
+pub mod code_labels;
 pub mod family;
 pub mod inheritance;
+pub mod labels;
 pub mod objects;
 pub mod occupancy;
 pub mod period;

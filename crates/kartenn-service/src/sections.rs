@@ -40,7 +40,8 @@ pub(crate) fn touched(planned: &[Planned]) -> Vec<(ObjectKind, Uuid)> {
             Planned::Address { object, .. } => Some((ObjectKind::Address, object.id)),
             Planned::Declare { id, .. }
             | Planned::UpdateDeclaration { id, .. }
-            | Planned::EnumValue { id, .. } => Some((ObjectKind::Property, *id)),
+            | Planned::EnumValue { id, .. }
+            | Planned::EnumLabels { property: id, .. } => Some((ObjectKind::Property, *id)),
             _ => None,
         };
         if let Some(target) = target

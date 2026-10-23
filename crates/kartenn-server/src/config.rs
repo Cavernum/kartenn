@@ -48,6 +48,9 @@ pub struct Config {
     /// The event stream `GET /v1/events` (spec 022).
     #[serde(default)]
     pub events: Events,
+    /// Languages (spec 018, REQ-018-12).
+    #[serde(default)]
+    pub i18n: I18n,
 }
 
 /// The event stream (spec 022): on by default with the API.
@@ -184,6 +187,53 @@ fn check_events(events: &Events) -> Result<(), String> {
         return Err("events.retry_min_ms: at most retry_max_ms".into());
     }
     Ok(())
+}
+
+/// Languages of the instance (spec 018, R9, REQ-018-12).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct I18n {
+    /// The default language (BCP 47 tag): required in every `labels` table, served when
+    /// no language asked matches, and the language of the pedagogical texts of the
+    /// policy; `fr` by default.
+    #[serde(default = "default_locale")]
+    pub default_locale: String,
+}
+
+fn default_locale() -> String {
+    kartenn_core::labels::FALLBACK_LOCALE.to_owned()
+}
+
+impl Default for I18n {
+    fn default() -> Self {
+        Self {
+            default_locale: default_locale(),
+        }
+    }
+}
+
+impl I18n {
+    /// The default language, checked by [`load`].
+    ///
+    /// # Panics
+    /// On a tag that [`load`] would have refused.
+    #[must_use]
+    pub fn locale(&self) -> kartenn_core::labels::Locale {
+        kartenn_core::labels::Locale::parse(&self.default_locale).expect("checked at load")
+    }
+
+    /// Makes the default language that of the process (core, modules, API), once at
+    /// start.
+    ///
+    /// # Errors
+    /// [`ConfigError::Invalid`] when another language was installed before.
+    pub fn install(&self) -> Result<(), ConfigError> {
+        kartenn_core::labels::set_default_locale(self.locale()).map_err(|current| {
+            ConfigError::Invalid(format!(
+                "i18n.default_locale: {current} already in force in this process"
+            ))
+        })
+    }
 }
 
 /// Where the database is (spec 015, REQ-015-4, design « Configuration de la base »).
@@ -944,6 +994,12 @@ fn check(config: &Config) -> Result<(), ConfigError> {
             _ => {}
         }
     }
+    if kartenn_core::labels::Locale::parse(&config.i18n.default_locale).is_none() {
+        return invalid(format!(
+            "i18n.default_locale: {:?} is not a language tag (BCP 47)",
+            config.i18n.default_locale
+        ));
+    }
     if config.audit.seal_interval_ms == 0 || config.audit.relay_interval_ms == 0 {
         return invalid("audit intervals must be positive".into());
     }
@@ -1329,6 +1385,22 @@ mod tests {
             let error = from_toml(&text).unwrap_err().to_string();
             assert!(error.contains(reason), "{reason}: {error}");
         }
+    }
+
+    /// REQ-018-12: `[i18n] default_locale`, `fr` by default, a BCP 47 tag.
+    #[test]
+    fn the_default_locale_is_configured() {
+        assert_eq!(from_toml("").unwrap().i18n.locale().as_str(), "fr");
+        let config = from_toml("[i18n]\ndefault_locale = \"en-GB\"").unwrap();
+        assert_eq!(config.i18n.locale().as_str(), "en-gb");
+        config.i18n.install().unwrap();
+        assert_eq!(kartenn_core::labels::default_locale().as_str(), "en-gb");
+        assert!(config.i18n.install().is_ok());
+        let error = from_toml("[i18n]\ndefault_locale = \"en_GB\"")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("i18n.default_locale"), "{error}");
+        assert!(from_toml("[i18n]\nlocale = \"en\"").is_err());
     }
 
     #[test]

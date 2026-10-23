@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use kartenn_core::addr::{Addr, AddrError, Prefix};
 use kartenn_core::family::ALL;
+use kartenn_core::labels::Labels;
 use kartenn_core::objects::{self, Address, IpRange, PrefixObject, RangeUsage, Slug};
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::properties::Declaration;
@@ -275,15 +276,25 @@ pub(crate) enum Planned {
     Declare {
         id: Uuid,
         declaration: Declaration,
+        labels: Labels,
     },
     UpdateDeclaration {
         id: Uuid,
         declaration: Declaration,
+        /// `None`: the labels in force.
+        labels: Option<Labels>,
     },
     EnumValue {
         id: Uuid,
         property: Uuid,
         key: Slug,
+        labels: Labels,
+    },
+    /// New labels of the closed-list value `key` of `property` (spec 018).
+    EnumLabels {
+        property: Uuid,
+        key: Slug,
+        labels: Labels,
     },
     /// `values` `None`: explicit "no value".
     Assign {
@@ -322,6 +333,8 @@ impl Planned {
             | Self::Declare { id, .. }
             | Self::UpdateDeclaration { id, .. }
             | Self::EnumValue { id, .. } => *id,
+            // The property: its write right covers its values (REQ-003-5).
+            Self::EnumLabels { property, .. } => *property,
             Self::Assign { object, .. }
             | Self::Unassign { object, .. }
             | Self::BindExternal { object, .. } => *object,
@@ -369,6 +382,7 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             property,
         } => vec![(*object, *kind), (*property, ObjectKind::Property)],
         Operation::AddEnumValue { property, .. }
+        | Operation::UpdateEnumValue { property, .. }
         | Operation::SetSensitivity { property, .. }
         | Operation::AddObligation { property, .. }
         | Operation::RemoveObligation { property, .. } => {
@@ -1017,7 +1031,8 @@ fn plan(
                 }),
                 Operation::DeclareProperty { .. }
                 | Operation::UpdateProperty { .. }
-                | Operation::AddEnumValue { .. } => {
+                | Operation::AddEnumValue { .. }
+                | Operation::UpdateEnumValue { .. } => {
                     match crate::declarations::plan(op, id, |r| resolve(r, &ids), modules) {
                         Ok(p) => planned.push(p),
                         Err(v) => violations.push(v),
@@ -1176,6 +1191,7 @@ async fn lock_targets<T: WriteTx>(
             | Planned::Declare { .. }
             | Planned::UpdateDeclaration { .. }
             | Planned::EnumValue { .. }
+            | Planned::EnumLabels { .. }
             | Planned::BindExternal { .. }
             | Planned::Rbac(_)
             | Planned::Policy(_)
@@ -1533,16 +1549,56 @@ async fn apply<T: WriteTx>(
                 }
                 close(tx, modules, *kind, *id, period, changeset).await
             }
-            Planned::Declare { id, declaration } => {
-                crate::declarations::declare(tx, *id, declaration, period, changeset).await
-            }
-            Planned::UpdateDeclaration { id, declaration } => {
-                crate::declarations::update(tx, *id, declaration, period, changeset, violations)
+            Planned::Declare {
+                id,
+                declaration,
+                labels,
+            } => {
+                crate::declarations::declare(tx, *id, (declaration, labels), period, changeset)
                     .await
             }
-            Planned::EnumValue { id, property, key } => {
-                crate::declarations::add_enum_value(tx, *id, *property, key, period, changeset)
-                    .await
+            Planned::UpdateDeclaration {
+                id,
+                declaration,
+                labels,
+            } => {
+                crate::declarations::update(
+                    tx,
+                    *id,
+                    (declaration, labels.as_ref()),
+                    period,
+                    changeset,
+                    violations,
+                )
+                .await
+            }
+            Planned::EnumValue {
+                id,
+                property,
+                key,
+                labels,
+            } => {
+                crate::declarations::add_enum_value(
+                    tx,
+                    *id,
+                    (*property, key, labels),
+                    period,
+                    changeset,
+                )
+                .await
+            }
+            Planned::EnumLabels {
+                property,
+                key,
+                labels,
+            } => {
+                crate::declarations::relabel_enum_value(
+                    tx,
+                    (*property, key, labels),
+                    period,
+                    changeset,
+                )
+                .await
             }
             Planned::Expect { id, expected, .. } => {
                 if let Some(v) =

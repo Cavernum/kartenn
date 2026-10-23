@@ -173,6 +173,7 @@ async fn refusals_of_rights_and_administration_are_audited(pool: PgPool) {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         },
     };
     submit(

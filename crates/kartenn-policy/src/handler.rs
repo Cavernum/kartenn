@@ -23,7 +23,6 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::checks;
-use crate::model::Label;
 use crate::module::{AXIS, ENVIRONMENT, EXAMPLES, INFERENCE_RULE, KINDS, VALUE};
 use crate::objects::{plan_object, unique_columns};
 use crate::pg::{self, table};
@@ -130,8 +129,10 @@ struct UpdateAxis {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Attributes {
+    /// The labels of the value, written on the closed-list value of the core (spec 018,
+    /// Q-018-7).
     #[serde(default)]
-    label: Option<String>,
+    labels: Option<kartenn_service::operations::RawLabels>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
@@ -147,7 +148,8 @@ struct ValueCompleted {
     /// The attributes already recorded for the value, which a description modifies.
     #[serde(default)]
     existing: Option<Uuid>,
-    /// The property `policy.environment`, for the value it creates or closes.
+    /// The property of the value: `policy.environment` for an environment created or
+    /// closed, that of the value described, whose closed-list value takes the labels.
     #[serde(default)]
     property: Option<Uuid>,
     /// The closed-list value an environment closes.
@@ -199,9 +201,6 @@ fn attribute_columns(
     attributes: &Attributes,
 ) -> Result<Map<String, Value>, Violation> {
     let mut columns = Map::new();
-    if let Some(label) = &attributes.label {
-        columns.insert("label".into(), Label::new(label)?.as_str().into());
-    }
     if let Some(description) = &attributes.description {
         if description.chars().count() > DESCRIPTION_MAX_CHARS
             || description.chars().any(|c| c.is_control() && c != '\n')
@@ -229,7 +228,7 @@ fn value_row(
     value: &str,
     mut columns: Map<String, Value>,
 ) -> Map<String, Value> {
-    for column in ["label", "description", "rank"] {
+    for column in ["description", "rank"] {
         columns.entry(column).or_insert(Value::Null);
     }
     columns.entry("transverse").or_insert(false.into());
@@ -317,21 +316,35 @@ impl Handler {
         let columns = attribute_columns(operation, &describe.attributes)?;
         // A value of `policy.environment` is an environment (S15).
         let environment = key.to_string() == ENVIRONMENT;
-        if let Some(existing) = describe.completed.existing {
-            return Ok(plan(
+        let mut planned = if let Some(existing) = describe.completed.existing {
+            plan(
                 VALUE,
                 existing,
                 false,
                 json!({ "update": columns, "environment": environment }),
-            ));
+            )
+        } else {
+            let row = value_row(object, &key.to_string(), &describe.value, columns);
+            plan(
+                VALUE,
+                object,
+                true,
+                json!({ "create": row, "environment": environment }),
+            )
+        };
+        // The labels of the value live in the core (Q-018-7): an ordinary operation of
+        // the core on the closed-list value, which must exist.
+        if let Some(labels) = describe.attributes.labels {
+            let property = describe.completed.property.ok_or_else(|| {
+                invalid(operation, format!("{key} is not a declared closed list"))
+            })?;
+            planned.core.push(Operation::UpdateEnumValue {
+                property: Ref::Id(property),
+                key: describe.value,
+                labels,
+            });
         }
-        let row = value_row(object, &key.to_string(), &describe.value, columns);
-        Ok(plan(
-            VALUE,
-            object,
-            true,
-            json!({ "create": row, "environment": environment }),
-        ))
+        Ok(planned)
     }
 
     fn plan_create_environment(
@@ -357,6 +370,7 @@ impl Handler {
             local: None,
             property: Ref::Id(property),
             key: create.key,
+            labels: create.attributes.labels.unwrap_or_default(),
         });
         Ok(planned)
     }
@@ -442,6 +456,7 @@ impl Handler {
                         at,
                     )
                     .await?;
+                    completed.property = pg::property(conn, &property, at).await?;
                 }
             }
             "environment.create" => {
@@ -517,6 +532,10 @@ impl Handler {
             .iter()
             .filter_map(|c| columns.get(*c).and_then(Value::as_str).map(|v| (*c, v)))
             .collect();
+        // Labels written: the revision of the labels moves with the changeset (spec 018).
+        if columns.get("labels").is_some() {
+            tx.labels_written();
+        }
         let conn = connection(tx)?;
         if !unique.is_empty() {
             pg::unique(conn, &table, id, &unique, period, duplicate_rule(name)).await?;

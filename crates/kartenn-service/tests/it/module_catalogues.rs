@@ -25,7 +25,7 @@ async fn set_role(pool: &PgPool, store: &PgStore, entries: &[&str]) -> Outcome {
         period: None,
         operations: vec![Operation::SetRole {
             key: "kit_reader".into(),
-            label: "Kit reader".into(),
+            labels: [("fr".into(), "Kit reader".into())].into(),
             entries: entries.iter().map(|e| (*e).to_owned()).collect(),
         }],
         simulate: false,

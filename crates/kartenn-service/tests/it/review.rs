@@ -59,6 +59,7 @@ impl Fixture {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         };
         f.applied(vec![
             Operation::DeclareProperty {
@@ -69,11 +70,13 @@ impl Fixture {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "dev".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::CreateDomain {
                 local: Some(2),
@@ -422,6 +425,7 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
         module: "policy".into(),
         version: "1".into(),
         properties: Vec::new(),
+        labels: std::collections::BTreeMap::new(),
     };
     sync_modules(&f.store, &Unrestricted, &[module], MAX_OPERATIONS)
         .await

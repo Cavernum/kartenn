@@ -25,6 +25,7 @@ fn declare(local: u32, key: &str, value_type: TypeInput, heritable: bool) -> Ope
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         },
     }
 }
@@ -73,6 +74,7 @@ async fn an_object_is_read_with_its_resolved_properties(pool: PgPool) {
             local: None,
             property: Ref::Local(1),
             key: "prod".into(),
+            labels: std::collections::BTreeMap::new(),
         },
         declare(
             2,

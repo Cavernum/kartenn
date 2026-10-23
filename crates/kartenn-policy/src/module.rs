@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kartenn_core::authz::{Permission, TypePermissions};
+use kartenn_core::labels::Compiled;
 use kartenn_core::properties::{
     Declarant, Declaration, Expected, ExpectedMode, InheritTree, PropertyKey, TypeSpec,
 };
@@ -13,7 +14,8 @@ use kartenn_core::rules::Rule;
 use kartenn_core::values::Cardinality;
 use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{
-    JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    JobSpec, LabelTable, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose,
+    OperationType, Reference,
 };
 
 use crate::rules::POLICY_RULES;
@@ -79,6 +81,73 @@ pub(crate) const EXAMPLES: &[(&str, &[&str])] = &[
     ),
     ("policy.application", &[]),
     ("policy.owner", &[]),
+];
+
+/// The objects of the policy that own labels, read under `policy.catalogue.read` (spec
+/// 018, R24).
+static LABEL_TABLES: &[LabelTable] = &[
+    labelled("policy.flow_type", "policy.policy_flow_type"),
+    labelled("policy.service", "policy.policy_service"),
+    labelled("policy.pattern", "policy.policy_pattern"),
+    labelled("policy.rule", "policy.policy_rule"),
+    labelled("policy.condition", "policy.policy_condition"),
+    labelled("policy.signal", "policy.policy_signal"),
+];
+
+const fn labelled(space: &'static str, table: &'static str) -> LabelTable {
+    LabelTable {
+        space,
+        table,
+        permission: "policy.catalogue.read",
+    }
+}
+
+/// The French and English labels of the declarations and values of the module (spec
+/// 018, R10): `<property>` or `<property>/<value>`.
+const LABELS: &[(&str, &str, &str)] = &[
+    (ENVIRONMENT, "Environnement", "Environment"),
+    (
+        DECLARED_ENVIRONMENT,
+        "Environnement déclaré",
+        "Declared environment",
+    ),
+    (PERSONAL_DATA, "Données personnelles", "Personal data"),
+    ("policy.exposure", "Exposition", "Exposure"),
+    ("policy.exposure/internet", "Internet", "Internet"),
+    ("policy.exposure/partenaires", "Partenaires", "Partners"),
+    ("policy.exposure/interne", "Interne", "Internal"),
+    (
+        "policy.exposure/administration",
+        "Administration",
+        "Administration",
+    ),
+    ("policy.sensitivity", "Sensibilité", "Sensitivity"),
+    ("policy.sensitivity/public", "Public", "Public"),
+    ("policy.sensitivity/interne", "Interne", "Internal"),
+    (
+        "policy.sensitivity/confidentiel",
+        "Confidentiel",
+        "Confidential",
+    ),
+    ("policy.sensitivity/restreint", "Restreint", "Restricted"),
+    ("policy.criticality", "Criticité", "Criticality"),
+    ("policy.criticality/standard", "Standard", "Standard"),
+    ("policy.criticality/importante", "Importante", "Important"),
+    ("policy.criticality/vitale", "Vitale", "Vital"),
+    ("policy.conduit_role", "Rôle de relais", "Conduit role"),
+    (
+        "policy.conduit_role/stockage-objets",
+        "Stockage d'objets",
+        "Object storage",
+    ),
+    (
+        "policy.conduit_role/passerelle-api",
+        "Passerelle d'API",
+        "API gateway",
+    ),
+    ("policy.conduit_role/bastion", "Bastion", "Bastion"),
+    ("policy.application", "Application", "Application"),
+    ("policy.owner", "Responsable", "Owner"),
 ];
 
 /// The indicator of personal data that goes with `policy.sensitivity` (REQ-010-29).
@@ -268,6 +337,16 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "report",
         sql: include_str!("../migrations/0003_report.sql"),
     },
+    ModuleMigration {
+        version: 4,
+        name: "labels",
+        sql: include_str!("../migrations/0004_labels.sql"),
+    },
+    ModuleMigration {
+        version: 5,
+        name: "label_dropped",
+        sql: include_str!("../migrations/0005_label_dropped.sql"),
+    },
 ];
 
 /// The background task that re-evaluates the deviations of the inference by origin node
@@ -450,6 +529,10 @@ impl Module for Policy {
             module: "policy".into(),
             version: env!("CARGO_PKG_VERSION").into(),
             properties,
+            labels: LABELS
+                .iter()
+                .map(|(key, fr, en)| ((*key).to_owned(), Compiled::new(fr, en)))
+                .collect(),
         })
     }
     fn permissions(&self) -> &'static [&'static Permission] {
@@ -460,6 +543,12 @@ impl Module for Policy {
     }
     fn rules(&self) -> &'static [&'static Rule] {
         POLICY_RULES
+    }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, POLICY_RULES, &crate::labels::ENGLISH)
+    }
+    fn label_tables(&self) -> &'static [LabelTable] {
+        LABEL_TABLES
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS

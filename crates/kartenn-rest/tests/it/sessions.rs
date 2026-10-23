@@ -420,8 +420,8 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     let issuer = Session::unseal(&f.ring, &[&session]).unwrap().issuer;
     let role = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, 'viewer', 'v', tstzrange(now() - interval '1 day', NULL), gen_random_uuid());
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, 'viewer', jsonb_build_object('fr', 'v'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid());
          ",
     )
     .bind(role)

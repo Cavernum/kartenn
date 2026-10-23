@@ -24,12 +24,12 @@ async fn catalogue(env: &Env) {
             .map(|k| op("environment.create", json!({ "key": k })))
             .chain([op(
                 "flow_type.create",
-                json!({ "local": 1, "key": "admin", "label": "Administration" }),
+                json!({ "local": 1, "key": "admin", "labels": { "fr": "Administration" } }),
             )])
             .chain([("ssh", 22), ("rdp", 3389), ("winrm", 5985)].map(|(key, port)| {
                 op(
                     "service.create",
-                    json!({ "key": key, "label": key.to_uppercase(), "flow_type": { "local": 1 },
+                    json!({ "key": key, "labels": { "fr": key.to_uppercase() }, "flow_type": { "local": 1 },
                             "entries": [{ "transport": "tcp", "ports": port }] }),
                 )
             }))
@@ -50,7 +50,7 @@ async fn admin(pool: &PgPool) -> Uuid {
 /// A rule of the flow type `admin` from `source` to `destination` environments.
 fn rule(admin: Uuid, key: &str, effect: &str, source: &str, destination: &str) -> Operation {
     let mut body = json!({
-        "key": key, "label": key, "effect": effect,
+        "key": key, "labels": { "fr": key }, "effect": effect,
         "flow_types": [{ "id": admin }],
         "source": { "policy.environment": [source] },
         "destination": { "policy.environment": [destination] },
@@ -170,7 +170,7 @@ async fn a_policy_on_opens_holds_the_changeset(pool: PgPool) {
     let quiet = env
         .submit(vec![op(
             "flow_type.create",
-            json!({ "key": "files", "label": "Fichiers" }),
+            json!({ "key": "files", "labels": { "fr": "Fichiers" } }),
         )])
         .await;
     assert!(matches!(quiet, Outcome::Applied { .. }), "{quiet:?}");

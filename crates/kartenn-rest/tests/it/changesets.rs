@@ -39,8 +39,8 @@ async fn writer(pool: &PgPool, verb: &str) -> Uuid {
     .unwrap();
     let role = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, 'writer', 'writer', tstzrange(now() - interval '1 day', NULL),
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, 'writer', jsonb_build_object('fr', 'writer'), tstzrange(now() - interval '1 day', NULL),
                  gen_random_uuid())",
     )
     .bind(role)

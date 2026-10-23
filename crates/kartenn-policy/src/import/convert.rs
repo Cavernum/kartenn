@@ -26,8 +26,8 @@ use crate::codec;
 use crate::infer::criterion;
 use crate::inference::{InferenceRule, MAX_DEPTH, NameRegex};
 use crate::model::{
-    Axis, AxisKey, AxisValue, Carrier, Effect, FlowSelector, FlowType, Key, Label, Locale, Pattern,
-    Rule, Selector, Service, Text, Texts,
+    Axis, AxisKey, AxisValue, Carrier, Effect, FlowSelector, FlowType, Key, Locale, Pattern, Rule,
+    Selector, Service, Text, Texts,
 };
 use crate::module::ENVIRONMENT;
 use crate::snapshot::Parts;
@@ -69,7 +69,7 @@ impl Default for Options {
             axis: AxisKey::parse(ENVIRONMENT).expect("a property key"),
             default_flow_type: None,
             existing_environments: BTreeSet::new(),
-            locale: Locale::new("fr").expect("a language tag"),
+            locale: kartenn_core::labels::default_locale().clone(),
         }
     }
 }
@@ -192,8 +192,10 @@ fn collect(rule: &SourceRule, out: &mut Vec<String>) {
     }
 }
 
-fn label(name: &str) -> Label {
-    Label::new(name).unwrap_or_else(|_| Label::new("(sans libellé)").expect("a label"))
+/// The labels of an object named `name` at origin, in the default language (spec 018).
+fn labels_of(name: &str) -> serde_json::Value {
+    let text = kartenn_core::labels::label_text(name).unwrap_or_else(|_| "(sans libellé)".into());
+    json!({ kartenn_core::labels::default_locale().as_str(): text })
 }
 
 /// Converts the policy of origin (see the module documentation).
@@ -268,12 +270,9 @@ pub fn convert(inputs: &Inputs, options: &Options) -> Conversion {
         let local = b.local();
         b.push(
             "flow_type.create",
-            json!({ "local": local, "key": key.as_str(), "label": label(&name).as_str() }),
+            json!({ "local": local, "key": key.as_str(), "labels": labels_of(&name) }),
         );
-        parts_flow_types.push(FlowType {
-            key: key.clone(),
-            label: label(&name),
-        });
+        parts_flow_types.push(FlowType { key: key.clone() });
         flow_types.insert(name, (key, local));
     }
 
@@ -333,18 +332,14 @@ pub fn convert(inputs: &Inputs, options: &Options) -> Conversion {
             }
         };
         let key = Key::new(&b.unique(key.as_str())).expect("a key");
-        let Ok(service) = Service::new(
-            key.clone(),
-            label(name),
-            std::slice::from_ref(&flow_type),
-            checked,
-        ) else {
+        let Ok(service) = Service::new(key.clone(), std::slice::from_ref(&flow_type), checked)
+        else {
             continue;
         };
         let local = b.local();
         b.push(
             "service.create",
-            json!({ "local": local, "key": key.as_str(), "label": label(name).as_str(),
+            json!({ "local": local, "key": key.as_str(), "labels": labels_of(name),
                     "flow_type": { "local": flow_local }, "entries": entries_json }),
         );
         parts_services.push(service);
@@ -361,17 +356,16 @@ pub fn convert(inputs: &Inputs, options: &Options) -> Conversion {
             let (texts, texts_json) = b.text(&body);
             let rule_key = Key::new(&b.unique(&format!("catalogue-deny-{}", key.as_str())))
                 .unwrap_or_else(|_| Key::new(&b.unique("catalogue-deny")).expect("a key"));
-            let rule_label = label(&format!("Interdit au catalogue : {name}"));
+            let rule_labels = labels_of(&format!("Interdit au catalogue : {name}"));
             let rule_local = b.local();
             b.push(
                 "rule.create",
                 json!({ "local": rule_local, "key": rule_key.as_str(),
-                        "label": rule_label.as_str(), "effect": "deny",
+                        "labels": rule_labels, "effect": "deny",
                         "services": [{ "local": local }], "texts": texts_json }),
             );
             parts_rules.push(Rule {
                 key: rule_key,
-                label: rule_label,
                 source: Selector::new(),
                 destination: Selector::new(),
                 same: BTreeSet::new(),
@@ -402,12 +396,11 @@ pub fn convert(inputs: &Inputs, options: &Options) -> Conversion {
             b.push(
                 "pattern.create",
                 json!({ "local": local, "key": key,
-                        "label": "Revue manuelle (import)", "texts": texts_json }),
+                        "labels": labels_of("Revue manuelle (import)"), "texts": texts_json }),
             );
             let key = Key::new(&key).expect("a key");
             parts_patterns.push(Pattern {
                 key: key.clone(),
-                label: label("Revue manuelle (import)"),
                 texts,
             });
             (key, local)
@@ -467,7 +460,6 @@ pub fn convert(inputs: &Inputs, options: &Options) -> Conversion {
         let key = Key::new(&b.unique(&format!("matrix-{}", parts_rules.len() + 1))).expect("a key");
         parts_rules.push(Rule {
             key,
-            label: label(&format!("{src} → {dst}")),
             source: Selector::from([(axis.clone(), BTreeSet::from([AxisValue::new(src)]))]),
             destination: Selector::from([(axis.clone(), BTreeSet::from([AxisValue::new(dst)]))]),
             same: BTreeSet::new(),

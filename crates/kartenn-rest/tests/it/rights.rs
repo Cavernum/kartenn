@@ -39,8 +39,8 @@ async fn person_on(pool: &PgPool, entries: &[&str], scope: Option<(&str, Uuid)>)
     .unwrap();
     let role = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO role (id, key, label, valid_period, changeset_id)
-         VALUES ($1, $2, 'r', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, $2, jsonb_build_object('fr', 'r'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
     )
     .bind(role)
     .bind(format!("r_{}", role.simple()))
@@ -134,7 +134,7 @@ async fn put_role(app: &Router, key: &str, entries: &[&str]) -> StatusCode {
         with_body(
             "PUT",
             &format!("/v1/roles/{key}"),
-            &json!({"motive": "a role", "label": key, "entries": entries}),
+            &json!({"motive": "a role", "labels": { "fr": key }, "entries": entries}),
         ),
     )
     .await;
@@ -442,4 +442,38 @@ async fn attachments_and_identities_are_administered(pool: PgPool) {
     let state = json_of(send(&admin, get(&uri)).await).await;
     assert_eq!(state["disabled"], true);
     assert!(state["revoked_after"].is_string());
+}
+
+/// REQ-018-7, R20: a role carries its labels as a table neutral in language, without a
+/// resolved `label`; the body and its `ETag` do not vary with `Accept-Language`.
+#[kartenn_testing::pg_test]
+async fn a_body_does_not_vary_with_the_language(pool: PgPool) {
+    let admin = app_as(&pool, person(&pool, &["*"]).await);
+    let body = json!({"motive": "m", "labels": {"fr": "Lecteur des flux", "en": "Flow reader"},
+                      "entries": ["core.entity.read"]});
+    let response = send(&admin, with_body("PUT", "/v1/roles/flow_reader", &body)).await;
+    assert!(
+        response.status().is_success(),
+        "{}",
+        json_of(response).await
+    );
+    let mut seen = Vec::new();
+    for language in ["fr", "en", "de-CH, en;q=0.5"] {
+        let request = Request::get("/v1/roles/flow_reader")
+            .header(header::ACCEPT_LANGUAGE, language)
+            .body(Body::empty())
+            .unwrap();
+        let response = send(&admin, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get(header::CONTENT_LANGUAGE).is_none());
+        let etag = response.headers().get(header::ETAG).cloned();
+        let role = json_of(response).await;
+        assert_eq!(
+            role["labels"],
+            json!({"fr": "Lecteur des flux", "en": "Flow reader"})
+        );
+        assert!(role.get("label").is_none(), "{role}");
+        seen.push((etag, role));
+    }
+    assert!(seen.windows(2).all(|w| w[0] == w[1]), "{seen:?}");
 }

@@ -5,6 +5,7 @@
 //! handler in the write pipeline and its storage in PostgreSQL.
 
 pub mod group;
+mod labels;
 pub mod module;
 pub mod rules;
 pub mod vlan;

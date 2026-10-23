@@ -19,12 +19,12 @@ pub const RBAC_OBJECT: Uuid = Uuid::from_u128(2);
 /// An administration operation, resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RbacOp {
-    /// Defines a role or replaces its label and entries.
+    /// Defines a role or replaces its labels and entries.
     SetRole {
         /// Key.
         key: String,
-        /// Label.
-        label: String,
+        /// Labels by language, checked.
+        labels: kartenn_core::labels::Labels,
         /// Entries.
         entries: Vec<String>,
     },
@@ -193,13 +193,17 @@ pub(crate) fn plan(
     let planned = match op {
         Operation::SetRole {
             key,
-            label,
+            labels,
             entries,
         } => (|| {
             let key = role_key(key)?;
-            if label.trim().is_empty() {
-                return Err(invalid(format!("the role '{key}' needs a label")));
-            }
+            let labels = kartenn_core::labels::Labels::parse_map(labels).and_then(|l| {
+                if l.is_empty() {
+                    Err(invalid(format!("the role '{key}' needs a label")))
+                } else {
+                    Ok(l)
+                }
+            })?;
             if let Some(bad) = entries.iter().find(|e| !valid_role_entry(e)) {
                 // An old name is refused, its new one named (spec 018, REQ-018-3).
                 let renamed = kartenn_core::authz::RENAMED_PERMISSIONS
@@ -215,7 +219,7 @@ pub(crate) fn plan(
             entries.dedup();
             Ok(RbacOp::SetRole {
                 key,
-                label: label.trim().to_owned(),
+                labels,
                 entries,
             })
         })(),
@@ -425,13 +429,13 @@ async fn undeclared<T: WriteTx + Send>(
     Ok(())
 }
 
-/// A role as stored now: its key, label and entries.
+/// A role as stored now: its key, labels and entries.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredRole {
     /// Its key.
     pub key: String,
-    /// Its label.
-    pub label: String,
+    /// Its labels by language.
+    pub labels: crate::operations::RawLabels,
     /// Its entries, sorted.
     pub entries: Vec<String>,
 }
@@ -474,7 +478,7 @@ pub async fn rename_permissions<S: crate::port::Store>(
             entries.dedup();
             Operation::SetRole {
                 key: role.key,
-                label: role.label,
+                labels: role.labels,
                 entries,
             }
         })
@@ -511,6 +515,7 @@ pub async fn sync_roles<S: crate::port::Store>(
     for role in BUILTIN_ROLES {
         let mut tx = store.begin().await?;
         let stored = tx.role_entries(role.key).await?;
+        let labels = tx.role_labels(role.key).await?;
         tx.rollback().await?;
         let mut wanted: Vec<String> = role
             .entries_with(&modules)
@@ -518,10 +523,13 @@ pub async fn sync_roles<S: crate::port::Store>(
             .map(str::to_owned)
             .collect();
         wanted.sort();
-        if stored.as_ref() != Some(&wanted) {
+        // Its French and English labels too (spec 018, REQ-018-13): a delivered role is
+        // changed by this synchronisation only (`core.role.builtin`).
+        let wanted_labels = role.labels.raw();
+        if stored.as_ref() != Some(&wanted) || labels.as_ref() != Some(&wanted_labels) {
             operations.push(Operation::SetRole {
                 key: role.key.to_owned(),
-                label: role.label.to_owned(),
+                labels: wanted_labels,
                 entries: wanted,
             });
         }

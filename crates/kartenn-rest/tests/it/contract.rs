@@ -527,6 +527,26 @@ async fn capabilities_list_registered_modules(pool: PgPool) {
     assert!(module("core", &capabilities).is_some(), "{capabilities}");
 }
 
+/// REQ-018-12: the capabilities publish the default language of the instance.
+#[kartenn_testing::pg_test]
+async fn the_capabilities_publish_the_default_locale(pool: PgPool) {
+    kartenn_core::labels::set_default_locale(kartenn_core::labels::Locale::parse("en").unwrap())
+        .unwrap();
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'reader') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (status, capabilities) = read(
+        &app(&pool, identity, Settings::default()),
+        "/v1/capabilities",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{capabilities}");
+    assert_eq!(capabilities["default_locale"], "en");
+}
+
 /// The collections the registry reserves for the core are those of the contract: a module
 /// can take none of them (REQ-008-1).
 #[test]

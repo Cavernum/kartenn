@@ -84,6 +84,7 @@ impl Fixture {
             module: None,
             obligations,
             expected: None,
+            labels: None,
         }
     }
 
@@ -98,11 +99,13 @@ impl Fixture {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "dev".into(),
+                labels: std::collections::BTreeMap::new(),
             },
         ])
         .await;

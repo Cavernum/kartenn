@@ -16,7 +16,7 @@ from kartenn_cli.i18n import t
 from kartenn_cli.render.data import dump_json, missing, pick
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 __all__ = ["atom", "cell", "csv_cell", "default_columns", "render_table"]
 
@@ -72,16 +72,26 @@ def _object_cell(data: Mapping[str, Any], *, keys: bool) -> str:
     return NONE if shown is None else str(shown)
 
 
-def cell(value: object, *, keys: bool = False) -> str:
-    """The text of a value in a cell."""
+def cell(
+    value: object,
+    *,
+    keys: bool = False,
+    label: Callable[[object], str | None] | None = None,
+) -> str:
+    """The text of a value in a cell; `label` gives the label of a key (spec 018)."""
     if value is None or missing(value):
         return NONE
     if isinstance(value, bool):
         return "true" if value else "false"
+    if not keys and label is not None and not isinstance(value, list):
+        found = label(value)
+        if found is not None:
+            return found
     if isinstance(value, dict):
         return _object_cell(cast("dict[str, Any]", value), keys=keys)
     if isinstance(value, list):
-        return ", ".join(cell(v, keys=keys) for v in cast("list[object]", value)) or NONE
+        items = cast("list[object]", value)
+        return ", ".join(cell(v, keys=keys, label=label) for v in items) or NONE
     return str(value)
 
 
@@ -92,20 +102,31 @@ def csv_cell(value: object) -> str:
     return "" if (found := cell(value, keys=True)) == NONE else found
 
 
-def render_table(
+def render_table(  # noqa: PLR0913 - the options of a table
     items: Sequence[Mapping[str, Any]],
     columns: Sequence[str],
     *,
     keys: bool = False,
     color: bool = False,
     width: int | None = None,
+    labels: Callable[[str, object], str | None] | None = None,
 ) -> str:
-    """The table as text, without trailing spaces."""
+    """The table as text, without trailing spaces; `labels` gives the label of a value of
+    a column (a closed-list value, a table of labels), the key showing otherwise."""
     from rich.console import Console  # noqa: PLC0415 - rich only for tables
     from rich.table import Table  # noqa: PLC0415
     from rich.text import Text  # noqa: PLC0415
 
-    rows = [[cell(pick(item, column)[1], keys=keys) for column in columns] for item in items]
+    def of(column: str) -> Callable[[object], str | None] | None:
+        resolve = labels
+        if resolve is None:
+            return None
+        return lambda value: resolve(column, value)
+
+    rows = [
+        [cell(pick(item, column)[1], keys=keys, label=of(column)) for column in columns]
+        for item in items
+    ]
     table = Table(
         box=None,
         show_edge=False,

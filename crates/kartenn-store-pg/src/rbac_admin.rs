@@ -97,12 +97,16 @@ pub(crate) async fn custom_roles_citing(
     conn: &mut PgConnection,
     permissions: &[&str],
 ) -> Result<Vec<kartenn_service::rbac::StoredRole>, StoreError> {
-    let rows: Vec<(String, String, Vec<String>)> = sqlx::query_as(
-        "SELECT r.key, r.label, array_agg(p.permission ORDER BY p.permission)
+    let rows: Vec<(
+        String,
+        sqlx::types::Json<kartenn_service::operations::RawLabels>,
+        Vec<String>,
+    )> = sqlx::query_as(
+        "SELECT r.key, r.labels, array_agg(p.permission ORDER BY p.permission)
          FROM role r
          JOIN role_permission p ON p.role_id = r.id AND p.valid_period @> now()
          WHERE r.valid_period @> now() AND NOT r.builtin
-         GROUP BY r.key, r.label
+         GROUP BY r.key, r.labels
          HAVING bool_or(p.permission = ANY($1))
          ORDER BY r.key",
     )
@@ -112,9 +116,9 @@ pub(crate) async fn custom_roles_citing(
     .map_err(store_err)?;
     Ok(rows
         .into_iter()
-        .map(|(key, label, entries)| kartenn_service::rbac::StoredRole {
+        .map(|(key, labels, entries)| kartenn_service::rbac::StoredRole {
             key,
-            label,
+            labels: labels.0,
             entries,
         })
         .collect())
@@ -137,34 +141,37 @@ pub(crate) async fn binding_scope(
 /// The period of a new row: from `$1` (transaction time if null) to `$2`.
 const PERIOD: &str = "tstzrange(coalesce($1::timestamptz, now()), $2::timestamptz)";
 
-/// Defines the role `key`, or replaces its label and entries.
+/// Defines the role `key`, or replaces its labels and entries.
 async fn set_role(
     conn: &mut PgConnection,
-    (key, label, entries): (&str, &str, &[String]),
+    (key, labels, entries): (&str, &kartenn_core::labels::Labels, &[String]),
     at: Option<OffsetDateTime>,
     until: Option<OffsetDateTime>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
+    let labels = labels.to_json();
     let role = if let Some(role) = role_id(conn, key, at).await? {
-        sqlx::query("UPDATE role SET label = $2, changeset_id = $3 WHERE id = $1 AND label <> $2")
-            .bind(role)
-            .bind(label)
-            .bind(changeset)
-            .execute(&mut *conn)
-            .await
-            .map_err(write_err)?;
+        sqlx::query(
+            "UPDATE role SET labels = $2, changeset_id = $3 WHERE id = $1 AND labels <> $2",
+        )
+        .bind(role)
+        .bind(&labels)
+        .bind(changeset)
+        .execute(&mut *conn)
+        .await
+        .map_err(write_err)?;
         role
     } else {
         let role = Uuid::now_v7();
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            "INSERT INTO role (id, key, label, builtin, valid_period, changeset_id)
+            "INSERT INTO role (id, key, labels, builtin, valid_period, changeset_id)
              VALUES ($3, $4, $5, $6, {PERIOD}, $7)"
         )))
         .bind(at)
         .bind(until)
         .bind(role)
         .bind(key)
-        .bind(label)
+        .bind(&labels)
         .bind(BUILTIN_ROLES.iter().any(|r| r.key == key))
         .bind(changeset)
         .execute(&mut *conn)
@@ -422,9 +429,9 @@ pub(crate) async fn write(
     match op {
         RbacOp::SetRole {
             key,
-            label,
+            labels,
             entries,
-        } => set_role(conn, (key, label, entries), at, until, changeset).await,
+        } => set_role(conn, (key, labels, entries), at, until, changeset).await,
         RbacOp::CloseRole { key } => {
             let Some(role) = role_id(conn, key, at).await? else {
                 return Err(WriteError::NoVersion(RBAC_OBJECT));

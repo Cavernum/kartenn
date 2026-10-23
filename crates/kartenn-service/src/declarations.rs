@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use kartenn_core::labels::{Compiled, Labels};
 use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
 use kartenn_core::properties::{
@@ -16,7 +17,8 @@ use uuid::{Uuid, uuid};
 use crate::authz::Authorizer;
 use crate::module::ModuleRegistry;
 use crate::operations::{
-    ChangesetRequest, DeclarationInput, ObjectKind, ObligationInput, Operation, Ref, TypeInput,
+    ChangesetRequest, DeclarationInput, ObjectKind, ObligationInput, Operation, RawLabels, Ref,
+    TypeInput,
 };
 use crate::pipeline::{Outcome, Planned, RequestError, submit};
 use crate::port::{PropertyFacts, Store, StoreError, WriteError, WriteTx};
@@ -140,31 +142,63 @@ pub(crate) fn plan(
     resolve: impl Fn(Ref) -> Uuid,
     modules: &ModuleRegistry,
 ) -> Result<Planned, Violation> {
+    let enum_key = |key: &str, subject: Uuid| {
+        Slug::parse(key).map_err(|_| {
+            Violation::new(
+                &rules::PROP_ENUM_VALUE_INVALID,
+                format!("{key:?} is not a closed-list key [a-z0-9-]"),
+            )
+            .with_subjects([subject])
+        })
+    };
+    let labels = |raw: &RawLabels, subject: Uuid| {
+        Labels::parse_map(raw).map_err(|v| v.with_subjects([subject]))
+    };
     match op {
         Operation::DeclareProperty { declaration: d, .. } => Ok(Planned::Declare {
             id,
             declaration: declaration(d, modules)?,
+            labels: d
+                .labels
+                .as_ref()
+                .map(|l| labels(l, id))
+                .transpose()?
+                .unwrap_or_default(),
         }),
         Operation::UpdateProperty {
             id: target,
             declaration: d,
-        } => Ok(Planned::UpdateDeclaration {
-            id: resolve(*target),
-            declaration: declaration(d, modules)?,
-        }),
-        Operation::AddEnumValue { property, key, .. } => Slug::parse(key)
-            .map(|key| Planned::EnumValue {
-                id,
-                property: resolve(*property),
-                key,
+        } => {
+            let target = resolve(*target);
+            Ok(Planned::UpdateDeclaration {
+                id: target,
+                declaration: declaration(d, modules)?,
+                labels: d.labels.as_ref().map(|l| labels(l, target)).transpose()?,
             })
-            .map_err(|_| {
-                Violation::new(
-                    &rules::PROP_ENUM_VALUE_INVALID,
-                    format!("{key:?} is not a closed-list key [a-z0-9-]"),
-                )
-                .with_subjects([id])
-            }),
+        }
+        Operation::AddEnumValue {
+            property,
+            key,
+            labels: raw,
+            ..
+        } => Ok(Planned::EnumValue {
+            id,
+            property: resolve(*property),
+            key: enum_key(key, id)?,
+            labels: labels(raw, id)?,
+        }),
+        Operation::UpdateEnumValue {
+            property,
+            key,
+            labels: raw,
+        } => {
+            let property = resolve(*property);
+            Ok(Planned::EnumLabels {
+                property,
+                key: enum_key(key, property)?,
+                labels: labels(raw, property)?,
+            })
+        }
         other => unreachable!("not a declaration operation: {other:?}"),
     }
 }
@@ -219,6 +253,7 @@ fn input(declaration: &Declaration) -> DeclarationInput {
             })
             .collect(),
         expected: declaration.expected.clone(),
+        labels: None,
     }
 }
 
@@ -329,13 +364,13 @@ async fn check_values_of<T: WriteTx>(
 pub(crate) async fn declare<T: WriteTx>(
     tx: &mut T,
     id: Uuid,
-    declaration: &Declaration,
+    (declaration, labels): (&Declaration, &Labels),
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
     check_scopes(tx, None, declaration, period).await?;
     check_values_of(tx, declaration, period).await?;
-    tx.insert_declaration(id, declaration, period, changeset)
+    tx.insert_declaration(id, declaration, labels, period, changeset)
         .await?;
     let missing: Vec<Uuid> = missing_values(tx, id, None, declaration, period)
         .await?
@@ -405,7 +440,7 @@ impl PropertyUsage for Usage {
 pub(crate) async fn update<T: WriteTx>(
     tx: &mut T,
     id: Uuid,
-    new: &Declaration,
+    (new, labels): (&Declaration, Option<&Labels>),
     period: Option<Period>,
     changeset: Uuid,
     violations: &mut Vec<Violation>,
@@ -414,14 +449,30 @@ pub(crate) async fn update<T: WriteTx>(
         return Err(WriteError::NoVersion(id));
     };
     if old == *new {
-        return Ok(());
+        // The labels alone, over the period (spec 018): unchanged, nothing is written.
+        return match labels {
+            Some(labels) => {
+                tx.modify(
+                    ObjectKind::Property,
+                    id,
+                    &crate::port::Change::Labels(labels.clone()),
+                    period,
+                    changeset,
+                )
+                .await
+            }
+            None => Ok(()),
+        };
     }
     check_scopes(tx, Some(&old), new, period).await?;
     check_values_of(tx, new, period).await?;
     let facts = tx.property_facts(id, old.spec.id(), period).await?;
     let missing = missing_values(tx, id, Some(&old), new, period).await?;
     match check_evolution(&old, new, &Usage(facts, missing)) {
-        Ok(()) => tx.replace_declaration(id, new, period, changeset).await,
+        Ok(()) => {
+            tx.replace_declaration(id, new, labels, period, changeset)
+                .await
+        }
         Err(v) => {
             violations.push(v.with_subjects([id]));
             Ok(())
@@ -433,8 +484,7 @@ pub(crate) async fn update<T: WriteTx>(
 pub(crate) async fn add_enum_value<T: WriteTx>(
     tx: &mut T,
     id: Uuid,
-    property: Uuid,
-    key: &Slug,
+    (property, key, labels): (Uuid, &Slug, &Labels),
     period: Option<Period>,
     changeset: Uuid,
 ) -> Result<(), WriteError> {
@@ -443,7 +493,7 @@ pub(crate) async fn add_enum_value<T: WriteTx>(
             spec: TypeSpec::Enum { values_of: None },
             ..
         }) => {
-            tx.insert_enum_value(id, property, key.as_str(), period, changeset)
+            tx.insert_enum_value(id, property, key.as_str(), labels, period, changeset)
                 .await
         }
         Some(Declaration {
@@ -468,6 +518,36 @@ pub(crate) async fn add_enum_value<T: WriteTx>(
         )),
         None => Err(WriteError::NoVersion(property)),
     }
+}
+
+/// Replaces the labels of the closed-list value `key` of `property` over `period`
+/// (spec 018, REQ-018-9): a new version of the value, its key unchanged.
+pub(crate) async fn relabel_enum_value<T: WriteTx>(
+    tx: &mut T,
+    (property, key, labels): (Uuid, &Slug, &Labels),
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let ids = tx
+        .enum_values_covering(property, &[key.as_str().to_owned()], period)
+        .await?;
+    let Some(&value) = ids.get(key.as_str()) else {
+        return Err(WriteError::Rule(
+            Violation::new(
+                &rules::PROP_ENUM_VALUE_INVALID,
+                format!("{key} is not a value of the closed list over the period"),
+            )
+            .with_subjects([property]),
+        ));
+    };
+    tx.modify(
+        ObjectKind::EnumValue,
+        value,
+        &crate::port::Change::Labels(labels.clone()),
+        period,
+        changeset,
+    )
+    .await
 }
 
 /// Final-state checks of closures (REQ-003-6, P8): a closed property keeps no assignment,
@@ -541,12 +621,34 @@ pub struct ModuleDeclarations {
     pub version: String,
     /// Declarations, each with the keys of its closed-list values.
     pub properties: Vec<(Declaration, Vec<String>)>,
+    /// French and English labels of the declarations (by key) and of their values
+    /// (`<key>/<value>`) (spec 018, R10).
+    pub labels: BTreeMap<String, Compiled>,
+}
+
+/// The labels a synchronisation writes for an object whose code says `code`, given the
+/// labels in force and whether the system wrote them (R10): absent or the module's, the
+/// module's; an administrator's, kept as it is (completed, it would become the system's,
+/// which the next synchronisation would replace). `None`: no change.
+fn synced_labels(
+    code: Option<&Compiled>,
+    current: Option<&(RawLabels, bool)>,
+) -> Option<RawLabels> {
+    let wanted = code?.raw();
+    match current {
+        None => Some(wanted),
+        Some((labels, by_system)) if labels.is_empty() || *by_system => {
+            (*labels != wanted).then_some(wanted)
+        }
+        Some(_) => None,
+    }
 }
 
 /// Operations bringing the stored declarations of a module in line with its code.
 fn sync_operations(
     module: &ModuleDeclarations,
     stored: &[(Uuid, Declaration, Vec<String>)],
+    labels: &HashMap<String, (RawLabels, bool)>,
 ) -> Vec<Operation> {
     let by_key: HashMap<String, &(Uuid, Declaration, Vec<String>)> =
         stored.iter().map(|s| (s.1.key.to_string(), s)).collect();
@@ -554,12 +656,16 @@ fn sync_operations(
     let mut local = 0;
     for (declaration, values) in &module.properties {
         let key = declaration.key.to_string();
+        let relabelled = synced_labels(module.labels.get(&key), labels.get(&key));
         let (property, known): (Ref, &[String]) =
             if let Some((id, current, keys)) = by_key.get(&key) {
-                if current != declaration {
+                if current != declaration || relabelled.is_some() {
                     operations.push(Operation::UpdateProperty {
                         id: Ref::Id(*id),
-                        declaration: input(declaration),
+                        declaration: DeclarationInput {
+                            labels: relabelled,
+                            ..input(declaration)
+                        },
                     });
                 }
                 (Ref::Id(*id), keys)
@@ -567,16 +673,30 @@ fn sync_operations(
                 local += 1;
                 operations.push(Operation::DeclareProperty {
                     local: Some(local),
-                    declaration: input(declaration),
+                    declaration: DeclarationInput {
+                        labels: relabelled,
+                        ..input(declaration)
+                    },
                 });
                 (Ref::Local(local), &[])
             };
-        for value in values.iter().filter(|v| !known.contains(v)) {
-            operations.push(Operation::AddEnumValue {
-                local: None,
-                property,
-                key: value.clone(),
-            });
+        for value in values {
+            let at = format!("{key}/{value}");
+            let relabelled = synced_labels(module.labels.get(&at), labels.get(&at));
+            if !known.contains(value) {
+                operations.push(Operation::AddEnumValue {
+                    local: None,
+                    property,
+                    key: value.clone(),
+                    labels: relabelled.unwrap_or_default(),
+                });
+            } else if let Some(labels) = relabelled {
+                operations.push(Operation::UpdateEnumValue {
+                    property,
+                    key: value.clone(),
+                    labels,
+                });
+            }
         }
     }
     let in_code: BTreeSet<String> = module
@@ -614,8 +734,14 @@ pub async fn sync_modules<S: Store, A: Authorizer>(
     for module in modules {
         let mut tx = store.begin().await?;
         let stored = tx.declarations_in(&module.module).await?;
+        let labels: HashMap<String, (RawLabels, bool)> = tx
+            .labels_in(&module.module)
+            .await?
+            .into_iter()
+            .map(|(key, labels, by_system)| (key, (labels, by_system)))
+            .collect();
         tx.rollback().await?;
-        let operations = sync_operations(module, &stored);
+        let operations = sync_operations(module, &stored, &labels);
         if operations.is_empty() {
             continue;
         }
@@ -722,5 +848,16 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                 Vec::new(),
             ),
         ],
+        labels: BTreeMap::from([
+            (
+                "core.owner".to_owned(),
+                Compiled::new("Entité propriétaire", "Owning entity"),
+            ),
+            (
+                EXTERNAL_SYSTEM.to_owned(),
+                Compiled::new("Système externe", "External system"),
+            ),
+            ("core.site".to_owned(), Compiled::new("Site", "Site")),
+        ]),
     }
 }

@@ -166,6 +166,13 @@ impl Bench {
                     local: None,
                     property: Ref::Local(local),
                     key: format!("v{v}"),
+                    // Labelled in the two languages shipped, as the dictionary serves
+                    // them (spec 018).
+                    labels: [
+                        ("fr".to_owned(), format!("Valeur {v}")),
+                        ("en".to_owned(), format!("Value {v}")),
+                    ]
+                    .into(),
                 });
             }
         }
@@ -217,6 +224,13 @@ fn input(
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: Some(
+            [
+                ("fr".to_owned(), key.to_owned()),
+                ("en".to_owned(), key.to_owned()),
+            ]
+            .into(),
+        ),
     }
 }
 

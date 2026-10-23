@@ -21,15 +21,15 @@ pub struct RoleRead {
     pub id: Uuid,
     /// Key.
     pub key: String,
-    /// Label.
-    pub label: String,
+    /// Labels by language, `{<tag>: <text>}`.
+    pub labels: serde_json::Value,
     /// Delivered with kartenn.
     pub builtin: bool,
     /// Entries, sorted.
     pub entries: Vec<String>,
 }
 
-const ROLES: &str = "SELECT r.id, r.key, r.label, r.builtin,
+const ROLES: &str = "SELECT r.id, r.key, r.labels, r.builtin,
             coalesce((SELECT array_agg(rp.permission ORDER BY rp.permission)
                       FROM role_permission rp
                       WHERE rp.role_id = r.id AND rp.valid_period @> now()), '{}') AS entries

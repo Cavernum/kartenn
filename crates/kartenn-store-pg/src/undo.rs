@@ -183,7 +183,7 @@ async fn roles_touched(
     let sql = rbac_sql(
         "role",
         &["id"],
-        &["key", "label"],
+        &["key", "labels"],
         "UNION SELECT DISTINCT role_id FROM role_permission WHERE changeset_id = $1
          UNION SELECT DISTINCT role_id FROM role_permission_history
                WHERE changeset_id = $1 OR sys_end = $2",
@@ -215,7 +215,10 @@ async fn roles_touched(
                 Some(RbacBefore {
                     period,
                     state: RbacState::Role {
-                        label: row.try_get("b_label").map_err(store_err)?,
+                        labels: row
+                            .try_get::<sqlx::types::Json<_>, _>("b_labels")
+                            .map_err(store_err)?
+                            .0,
                         entries,
                     },
                 })

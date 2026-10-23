@@ -46,6 +46,8 @@ pub enum Change {
     Slug(Slug),
     /// Whether a property is sensitive (REQ-003-27).
     Sensitive(bool),
+    /// The labels of a property or a closed-list value (spec 018, REQ-018-9).
+    Labels(kartenn_core::labels::Labels),
     /// An administrator's obligation on a property, added or removed (REQ-008-28).
     Obligation {
         /// Where the property is required.
@@ -360,8 +362,8 @@ pub struct RbacBefore {
 pub enum RbacState {
     /// A role.
     Role {
-        /// Label.
-        label: String,
+        /// Labels by language.
+        labels: crate::operations::RawLabels,
         /// Entries.
         entries: Vec<String>,
     },
@@ -626,6 +628,12 @@ pub trait WriteTx {
         &mut self,
         key: &str,
     ) -> impl Future<Output = Result<Option<Vec<String>>, StoreError>> + Send;
+
+    /// The labels of the role `key` in force now, if it exists (spec 018).
+    fn role_labels(
+        &mut self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
 
     /// The roles not delivered with kartenn, in force now, that hold one of `permissions`,
     /// by key (spec 018, REQ-018-4).
@@ -965,11 +973,12 @@ pub trait WriteTx {
         id: Uuid,
     ) -> impl Future<Output = Result<Option<(Uuid, Prefix)>, StoreError>> + Send;
 
-    /// Inserts a property declaration (REQ-003-1 to 3).
+    /// Inserts a property declaration (REQ-003-1 to 3) with its labels (spec 018).
     fn insert_declaration(
         &mut self,
         id: Uuid,
         declaration: &Declaration,
+        labels: &kartenn_core::labels::Labels,
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
@@ -998,11 +1007,12 @@ pub trait WriteTx {
     ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
 
     /// Replaces the version of a declaration valid at the start of `period`, from that
-    /// start to the end of the version (REQ-003-6).
+    /// start to the end of the version (REQ-003-6); its labels are `labels`, or kept.
     fn replace_declaration(
         &mut self,
         id: Uuid,
         declaration: &Declaration,
+        labels: Option<&kartenn_core::labels::Labels>,
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;
@@ -1013,12 +1023,21 @@ pub trait WriteTx {
         namespace: &str,
     ) -> impl Future<Output = Result<Vec<(Uuid, Declaration, Vec<String>)>, StoreError>> + Send;
 
-    /// Inserts a closed-list value (REQ-003-5, 7).
+    /// The labels in force of the declarations of a namespace and of their closed-list
+    /// values (spec 018, R10): `<property>` or `<property>/<value>`, the labels, and
+    /// whether the system wrote the version (a synchronisation), not an administrator.
+    fn labels_in(
+        &mut self,
+        namespace: &str,
+    ) -> impl Future<Output = Result<Vec<(String, crate::operations::RawLabels, bool)>, StoreError>> + Send;
+
+    /// Inserts a closed-list value (REQ-003-5, 7) with its labels (spec 018).
     fn insert_enum_value(
         &mut self,
         id: Uuid,
         property: Uuid,
         key: &str,
+        labels: &kartenn_core::labels::Labels,
         period: Option<Period>,
         changeset: Uuid,
     ) -> impl Future<Output = Result<(), WriteError>> + Send;

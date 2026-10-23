@@ -220,6 +220,7 @@ async fn entity_trees_and_references_follow(pool: PgPool) {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         },
     }])
     .await;

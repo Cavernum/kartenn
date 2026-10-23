@@ -22,6 +22,7 @@ from kartenn._core.plans import checked
 from kartenn._core.problems import ClientError
 from kartenn._core.requests import filters_from, idempotency_key, list_request
 from kartenn.catalog import CatalogCache, discover
+from kartenn.labels import Dictionary, LabelCache, fetch
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping
@@ -142,6 +143,12 @@ class _Shared:
     url: str
     cache: CatalogCache
     catalog: Catalog | None = None
+    # The profile, which the dictionary of labels depends on (filtered by rights).
+    profile: str = ""
+    # The dictionaries of labels by language ("" for the default one), and those read
+    # since the last event that may have changed them (spec 018).
+    labels: dict[str, Dictionary] = field(default_factory=dict[str, Dictionary])
+    fresh: set[str] = field(default_factory=set[str])
 
 
 @dataclass(frozen=True)
@@ -154,8 +161,8 @@ class Context:
     defaults: dict[str, str] = field(default_factory=dict[str, str])
 
     @classmethod
-    def of(cls, url: str, cache: CatalogCache | None = None) -> Context:
-        return cls(_Shared(url, cache or CatalogCache()))
+    def of(cls, url: str, cache: CatalogCache | None = None, *, profile: str = "") -> Context:
+        return cls(_Shared(url, cache or CatalogCache(), profile=profile))
 
     def at(self, valid_at: datetime | str | None, as_of: datetime | str | None) -> Context:
         return replace(self, valid_at=to_param(valid_at), as_of=to_param(as_of))
@@ -172,6 +179,33 @@ class Context:
     def model(self, name: str) -> Plan[Model]:
         catalog = yield from self.catalog()
         return catalog.resource(name)
+
+    # The labels ------------------------------------------------------------------
+
+    def labels(self, lang: str | None = None) -> Plan[Dictionary]:
+        """The dictionary of `lang` (spec 018): in memory until an event may have changed
+        it, else asked again under `If-None-Match` from the copy on disk; at a date, read
+        as it is and kept nowhere."""
+        if self.valid_at or self.as_of:
+            return (yield from fetch(lang, None, valid_at=self.valid_at, as_of=self.as_of))
+        shared = self.shared
+        key = lang or ""
+        known = shared.labels.get(key)
+        if known is not None and key in shared.fresh:
+            return known
+        disk = LabelCache(shared.cache.directory / "labels")
+        if known is None:
+            known = disk.load(shared.url, shared.profile, key)
+        found = yield from fetch(lang, known)
+        if found is not known:
+            disk.save(shared.url, shared.profile, key, found)
+        shared.labels[key] = found
+        shared.fresh.add(key)
+        return found
+
+    def forget_labels(self) -> None:
+        """The dictionaries in memory are stale: the next read revalidates them."""
+        self.shared.fresh.clear()
 
     # Requests --------------------------------------------------------------------
 

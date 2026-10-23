@@ -991,10 +991,9 @@ pub struct Nonconformity {
     pub motive: Option<String>,
     /// The rule in cause.
     pub rule: Option<Uuid>,
-    /// Its key, label and educational texts at the date.
+    /// Its key and educational texts at the date; its labels are served by the dictionary
+    /// (spec 018, R20).
     pub rule_key: Option<String>,
-    /// Its label.
-    pub rule_label: Option<String>,
     /// Its texts by language.
     pub rule_texts: Option<Value>,
     /// When it arose: the rejection, or the start of the evaluation.
@@ -1061,7 +1060,7 @@ pub async fn nonconformities(
                       ORDER BY e.decisive_id NULLS LAST LIMIT 1) v ON TRUE
                   WHERE s.valid_period @> $1::timestamptz AND s.summary = 'denied')
              SELECT x.state, x.flow, x.changeset, x.requester, x.entity, x.motive, x.rule,
-                    pr.key, pr.label, pr.texts, x.at, x.kind
+                    pr.key, pr.texts, x.at, x.kind
                FROM rows x
                LEFT JOIN policy.policy_rule pr ON pr.id = x.rule
                 AND pr.valid_period @> $1::timestamptz
@@ -1117,10 +1116,9 @@ pub async fn nonconformities(
                 motive: row.try_get(5)?,
                 rule: row.try_get(6)?,
                 rule_key: row.try_get(7)?,
-                rule_label: row.try_get(8)?,
-                rule_texts: row.try_get(9)?,
-                at: row.try_get(10)?,
-                kind: row.try_get(11)?,
+                rule_texts: row.try_get(8)?,
+                at: row.try_get(9)?,
+                kind: row.try_get(10)?,
             })
         })
         .collect::<Result<_, sqlx::Error>>()

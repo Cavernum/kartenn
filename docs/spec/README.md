@@ -152,6 +152,7 @@ Non-objectifs :
 | [0037](../adr/0037-couche-de-donnees-du-client.md) | Couche de données du client web : `@tanstack/query-core` dans le SDK, clés datées, préchargement, invalidation par le flux SSE, optimisme au présent seulement (spec 021) | accepted |
 | [0038](../adr/0038-partage-des-composants-avec-les-plugins.md) | `vue` et `@kartenn/ui` partagés avec les plugins par l'import map, DOM léger en première partie ; amende l'ADR 0025 (specs 020, 021) | accepted |
 | [0039](../adr/0039-outillage-claude-qualite-interface.md) | Outillage Claude pour la qualité de l'interface : `ui-reviewer`, `a11y-auditor`, skill `kartenn-ui`, hook après édition, `bench-web` dans `bench-runner` | accepted |
+| [0040](../adr/0040-dictionnaire-de-libelles.md) | Dictionnaire de libellés : corps neutres en langue, `labels` sur les tables propriétaires, libellés compilés des codes, `GET /v1/labels` négocié, révision et ETag, événement `labels`, filtrage par droits (spec 018) | accepted |
 
 ## Questions ouvertes
 

@@ -173,8 +173,8 @@ impl Env {
         .unwrap();
         let role = Uuid::now_v7();
         sqlx::query(
-            "INSERT INTO role (id, key, label, valid_period, changeset_id)
-             VALUES ($1, $2, 'r', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', 'r'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
         )
         .bind(role)
         .bind(format!("r_{}", role.simple()))

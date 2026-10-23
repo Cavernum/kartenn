@@ -38,6 +38,7 @@ fn declaration(
         module: None,
         obligations: Vec::new(),
         expected: None,
+        labels: None,
     }
 }
 
@@ -79,11 +80,13 @@ impl Fixture {
                 local: None,
                 property: Ref::Local(1),
                 key: "prod".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::AddEnumValue {
                 local: None,
                 property: Ref::Local(1),
                 key: "dev".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::DeclareProperty {
                 local: Some(2),
@@ -357,6 +360,7 @@ async fn an_admin_enum_reads_in_batch_and_takes_a_module_obligation(pool: PgPool
                 local: None,
                 property: Ref::Local(1),
                 key: "a".into(),
+                labels: std::collections::BTreeMap::new(),
             },
             Operation::CreateDomain {
                 local: Some(2),

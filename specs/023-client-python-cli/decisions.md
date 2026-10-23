@@ -268,6 +268,15 @@ compte 279 opérations, dont 25 collections à `QUERY` (extension `x-query`), et
 - Les libellés par langue servis par l'API sont à traiter avec la réécriture du web
   (Q-023-3).
 - Décidé par : recommandation acceptée
+- Amendement (2026-10-24, spec 018, REQ-018-21 ; Q-023-3 close) : les libellés viennent
+  du dictionnaire `GET /v1/labels` dans la langue de la CLI (T21). La bibliothèque le
+  garde par (serveur, profil, langue) : en mémoire jusqu'à un événement `labels`,
+  `ready` ou `reset` du flux, sur disque dans le cache du catalogue (T20,
+  `<catalogue>/labels/`) d'un lancement à l'autre, relu sous `If-None-Match` ;
+  `Dictionary.resolve` retombe sur la clé. En table, la CLI montre le libellé d'une
+  valeur de liste fermée (colonne d'une propriété) et la langue de la CLI d'une table
+  `labels` ; `--keys` et les formats de données gardent les clés. `/v1/labels` n'est
+  pas une ressource du catalogue ; `kartenn api labels` y accède.
 
 ## T16 — Problèmes et codes de sortie
 - Décision : un problème est rendu dans l'ordre code, titre, détail, identifiant de

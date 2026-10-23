@@ -267,8 +267,10 @@ struct RoleItem {
     key: String,
     /// Its URL.
     href: String,
-    /// Label.
-    label: String,
+    /// Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+    /// `GET /v1/labels` serves them resolved.
+    #[schema(value_type = std::collections::BTreeMap<String, String>)]
+    labels: Value,
     /// Built in kartenn.
     builtin: bool,
     /// Its entries: permissions, `prop.<key>.<action>`, `prop.*.<action>`, `*`.
@@ -279,7 +281,7 @@ fn role_item(role: &RoleRead) -> RoleItem {
     RoleItem {
         key: role.key.clone(),
         href: role_href(&role.key),
-        label: role.label.clone(),
+        labels: role.labels.clone(),
         builtin: role.builtin,
         entries: role.entries.clone(),
     }
@@ -343,15 +345,16 @@ async fn role(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct RoleMembers {
-    /// Label.
-    #[schema(required = true, value_type = String)]
-    label: Option<String>,
+    /// Labels by language, `{<tag>: <text>}`: the default language of the instance at
+    /// least (spec 018, REQ-018-9).
+    #[schema(required = true, value_type = std::collections::BTreeMap<String, String>)]
+    labels: Option<kartenn_service::operations::RawLabels>,
     /// Entries.
     #[schema(required = true, value_type = Vec<String>)]
     entries: Option<Vec<String>>,
 }
 
-/// `PUT /v1/roles/{key}` `{label, entries}`: defines or replaces the role; 201 when it is
+/// `PUT /v1/roles/{key}` `{labels, entries}`: defines or replaces the role; 201 when it is
 /// created.
 #[utoipa::path(
     put,
@@ -375,7 +378,7 @@ async fn set_role(
     raw: Bytes,
 ) -> Result<Response, Problem> {
     let (members, reserved): (RoleMembers, _) = body(&headers, &raw, "application/json", false)?;
-    let label = required(members.label, "label")?;
+    let labels = required(members.labels, "labels")?;
     let entries = required(members.entries, "entries")?;
     let exists = rbac_read::role(&api.pool, &key).await?.is_some();
     let href = role_href(&key);
@@ -392,7 +395,7 @@ async fn set_role(
     };
     let operation = Operation::SetRole {
         key,
-        label,
+        labels,
         entries,
     };
     submit(

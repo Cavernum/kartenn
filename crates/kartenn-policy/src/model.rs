@@ -14,10 +14,9 @@ use kartenn_core::rules::Violation;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::rules::{
-    CONDITION_PARAMS_INVALID, KEY_SYNTAX, LABEL_INVALID, RULE_CONDITIONAL_DENY,
-    RULE_FLOW_SELECTOR_EMPTY, RULE_TERM_EMPTY, RULE_UNKNOWN_AXIS, SERVICE_ENTRIES_EMPTY,
-    SERVICE_ENTRY_INVALID, SERVICE_FLOW_TYPE, SERVICE_WIDE_PORTS, SIGNAL_PARAMS_INVALID,
-    TEXT_INVALID, TEXT_MISSING,
+    CONDITION_PARAMS_INVALID, KEY_SYNTAX, RULE_CONDITIONAL_DENY, RULE_FLOW_SELECTOR_EMPTY,
+    RULE_TERM_EMPTY, RULE_UNKNOWN_AXIS, SERVICE_ENTRIES_EMPTY, SERVICE_ENTRY_INVALID,
+    SERVICE_FLOW_TYPE, SERVICE_WIDE_PORTS, SIGNAL_PARAMS_INVALID, TEXT_INVALID, TEXT_MISSING,
 };
 
 /// Key of a flow type, service, rule, pattern, condition or signal: 1 to 63 characters
@@ -58,39 +57,6 @@ impl Key {
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
-    }
-}
-
-/// Longest label, in characters.
-pub const LABEL_MAX_CHARS: usize = 200;
-
-/// A display label: NFC text of 1 to 200 characters without control characters.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Label(String);
-
-impl Label {
-    /// Normalises (NFC) and checks a label (`policy.label.invalid`).
-    ///
-    /// # Errors
-    /// A violation of `policy.label.invalid`.
-    pub fn new(raw: &str) -> Result<Self, Violation> {
-        let text: String = raw.nfc().collect();
-        let len = text.chars().count();
-        if len == 0 || len > LABEL_MAX_CHARS || text.chars().any(char::is_control) {
-            return Err(Violation::new(
-                &LABEL_INVALID,
-                format!(
-                    "libellé de {len} caractères : de 1 à {LABEL_MAX_CHARS}, sans caractère de contrôle"
-                ),
-            ));
-        }
-        Ok(Self(text))
-    }
-
-    /// The label text.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -157,13 +123,11 @@ pub struct ValueAttributes {
     pub rank: Option<i32>,
 }
 
-/// A flow type (REQ-010-4).
+/// A flow type (REQ-010-4); its labels are a row's, served by the dictionary (spec 018).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlowType {
     /// Key.
     pub key: Key,
-    /// Label.
-    pub label: Label,
 }
 
 /// A transport of a service entry (REQ-010-5).
@@ -359,8 +323,6 @@ pub const WIDE_PORTS: u32 = 1024;
 pub struct Service {
     /// Key.
     pub key: Key,
-    /// Label.
-    pub label: Label,
     /// Its one flow type.
     pub flow_type: Key,
     /// Its entries, non-empty.
@@ -374,7 +336,6 @@ impl Service {
     /// Violations of `policy.service.flow_type` and `policy.service.entries_empty`.
     pub fn new(
         key: Key,
-        label: Label,
         flow_types: &[Key],
         entries: Vec<ServiceEntry>,
     ) -> Result<Self, Vec<Violation>> {
@@ -399,7 +360,6 @@ impl Service {
         }
         Ok(Self {
             key,
-            label,
             flow_type: flow_types[0].clone(),
             entries,
         })
@@ -478,39 +438,20 @@ pub enum Effect {
     Deny,
 }
 
-/// A language tag of a pedagogical text: `ll` or `lll`, optionally followed by
-/// `-subtag`s of letters and digits (BCP 47 shape, without registry lookup).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Locale(String);
+pub use kartenn_core::labels::Locale;
 
-impl Locale {
-    /// Checks a tag (`policy.text.invalid`).
-    ///
-    /// # Errors
-    /// A violation of `policy.text.invalid`.
-    pub fn new(tag: &str) -> Result<Self, Violation> {
-        let mut parts = tag.split('-');
-        let primary = parts.next().unwrap_or_default();
-        let valid = (2..=3).contains(&primary.len())
-            && primary.bytes().all(|b| b.is_ascii_lowercase())
-            && parts.all(|p| {
-                (1..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric())
-            });
-        if valid {
-            Ok(Self(tag.to_owned()))
-        } else {
-            Err(Violation::new(
-                &TEXT_INVALID,
-                format!("{tag:?} n'est pas une étiquette de langue"),
-            ))
-        }
-    }
-
-    /// The tag.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+/// Checks the language tag of a pedagogical text (`policy.text.invalid`): BCP 47, in any
+/// case, kept in lower case.
+///
+/// # Errors
+/// A violation of `policy.text.invalid`.
+pub fn locale(tag: &str) -> Result<Locale, Violation> {
+    Locale::parse(tag).ok_or_else(|| {
+        Violation::new(
+            &TEXT_INVALID,
+            format!("{tag:?} n'est pas une étiquette de langue"),
+        )
+    })
 }
 
 /// Longest body of a pedagogical text, in characters.
@@ -588,8 +529,6 @@ impl Texts {
 pub struct Rule {
     /// Key.
     pub key: Key,
-    /// Label.
-    pub label: Label,
     /// Selector of the source.
     pub source: Selector,
     /// Selector of the destination.
@@ -699,8 +638,6 @@ impl Rule {
 pub struct Pattern {
     /// Key.
     pub key: Key,
-    /// Label.
-    pub label: Label,
     /// Pedagogical texts (required).
     pub texts: Texts,
 }
@@ -886,7 +823,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn fr() -> Locale {
-        Locale::new("fr").unwrap()
+        Locale::parse("fr").unwrap()
     }
 
     fn entry(transport: &str, ports: Option<(i64, i64)>) -> Result<ServiceEntry, Violation> {
@@ -923,7 +860,6 @@ pub(crate) mod tests {
     fn services_of_req_010_5_are_accepted() {
         let ssh = Service::new(
             key("ssh"),
-            Label::new("SSH").unwrap(),
             &[key("admin")],
             vec![entry("tcp", Some((22, 22))).unwrap()],
         )
@@ -934,7 +870,7 @@ pub(crate) mod tests {
             entry("tcp", Some((3389, 3389))).unwrap(),
             entry("udp", Some((3389, 3389))).unwrap(),
         ];
-        assert!(Service::new(key("rdp"), Label::new("RDP").unwrap(), &[key("admin")], rdp).is_ok());
+        assert!(Service::new(key("rdp"), &[key("admin")], rdp).is_ok());
     }
 
     #[test]
@@ -985,14 +921,12 @@ pub(crate) mod tests {
         );
         let two_types = Service::new(
             key("x"),
-            Label::new("X").unwrap(),
             &[key("admin"), key("application")],
             vec![entry("tcp", Some((1, 1))).unwrap()],
         )
         .unwrap_err();
         assert_eq!(two_types[0].rule.id, "policy.service.flow_type");
-        let no_entry =
-            Service::new(key("x"), Label::new("X").unwrap(), &[key("admin")], vec![]).unwrap_err();
+        let no_entry = Service::new(key("x"), &[key("admin")], vec![]).unwrap_err();
         assert_eq!(no_entry[0].rule.id, "policy.service.entries_empty");
     }
 
@@ -1000,7 +934,6 @@ pub(crate) mod tests {
     fn a_service_over_1024_ports_warns_once_per_transport() {
         let wide = Service::new(
             key("wide"),
-            Label::new("Wide").unwrap(),
             &[key("application")],
             vec![
                 entry("tcp", Some((1000, 1600))).unwrap(),
@@ -1018,7 +951,6 @@ pub(crate) mod tests {
     fn rule(effect: Effect) -> Rule {
         Rule {
             key: key("r"),
-            label: Label::new("R").unwrap(),
             source: Selector::from([(axis("policy.environment"), BTreeSet::from(["dev".into()]))]),
             destination: Selector::new(),
             same: BTreeSet::new(),
@@ -1087,7 +1019,6 @@ pub(crate) mod tests {
         assert!(with_text.check(&axes, &fr()).is_ok());
         let pattern = Pattern {
             key: key("relay"),
-            label: Label::new("Relais").unwrap(),
             texts: Texts::default(),
         };
         assert_eq!(
@@ -1114,13 +1045,13 @@ pub(crate) mod tests {
             fr(),
             Text::new("Bonne pratique.", Some("https://doc.invalid/x")).unwrap(),
         );
-        let en = Locale::new("en").unwrap();
+        let en = Locale::parse("en").unwrap();
         let (lang, text) = texts.get(&en, &fr()).unwrap();
         assert_eq!(lang, &fr());
         assert_eq!(text.body, "Bonne pratique.");
         assert!(Text::new("", None).is_err());
         assert!(Text::new("x", Some("ftp://x")).is_err());
-        assert!(Locale::new("fr-FR").is_ok() && Locale::new("FR").is_err());
+        assert!(locale("fr-FR").is_ok() && locale("fr_FR").is_err());
     }
 
     #[test]

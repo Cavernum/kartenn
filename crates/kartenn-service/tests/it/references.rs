@@ -68,6 +68,7 @@ impl Fixture {
                         module: None,
                         obligations: Vec::new(),
                         expected: None,
+                        labels: None,
                     },
                 },
             ])

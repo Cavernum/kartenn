@@ -129,6 +129,7 @@ impl Fixture {
                 source: "by-prefix".into(),
                 mode,
             }),
+            labels: None,
         };
         f.applied(
             &sources("1"),
@@ -141,11 +142,13 @@ impl Fixture {
                     local: None,
                     property: Ref::Local(1),
                     key: "prod".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
                 Operation::AddEnumValue {
                     local: None,
                     property: Ref::Local(1),
                     key: "dev".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
             ],
         )
@@ -285,6 +288,7 @@ async fn a_declared_source_must_exist(pool: PgPool) {
             source: "nowhere".into(),
             mode: ExpectedMode::Check,
         }),
+        labels: None,
     };
     match f
         .submit(
@@ -581,6 +585,7 @@ async fn a_rule_written_in_the_changeset_applies_to_its_creations(pool: PgPool) 
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
+                labels: None,
             },
         }],
     )

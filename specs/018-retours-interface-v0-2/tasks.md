@@ -117,14 +117,20 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux B — Libellés
 
-- [ ] 5. ADR 0040 « Dictionnaire de libellés » (acceptée avec la spec) et note de
+- [x] 5. ADR 0040 « Dictionnaire de libellés » (acceptée avec la spec) et note de
   référence (RFC 5646 §2.1, RFC 4647 §3.4, RFC 9110 §8.5, §12.5.4, §12.5.5 ; normatif /
   choix de kartenn) — R19 à R24 — verify : relecture de l'utilisateur
   où : `docs/adr/0035-clients-decouverts-depuis-le-contrat.md` (forme) ;
   `docs/reference/noms-dates-texte.md` (forme des notes)
   dépend de : —
+  fait : `docs/adr/0040-dictionnaire-de-libelles.md` (acceptée, indexée dans
+  `docs/spec/README.md`) et `docs/reference/langues-negociation.md` (indexée). Choix
+  notés dans la note : `?lang=` sans liste ni poids, `q=0` écarté, étiquettes
+  `grandfathered` refusées, casse normalisée en minuscules, `Accept-Language` mal formé
+  ignoré (seul `lang` mal formé vaut 400). Citations relues par un outil de résumé :
+  points à revérifier listés en fin de note.
 
-- [ ] 6. Schéma : `labels jsonb` sur les tables propriétaires, reprise des `label` puis
+- [x] 6. Schéma : `labels jsonb` sur les tables propriétaires, reprise des `label` puis
   suppression des colonnes, `policy_value.label` vers `property_enum_value.labels`,
   `label_revision`, règle `core.label.invalid`, `[i18n] default_locale` publiée aux
   capacités, `Locale` au noyau — REQ-018-8, 12, 13 ; Q-018-5 à 7 — verify :
@@ -137,8 +143,26 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-rest/src/capabilities.rs` ; configuration du serveur
   (`crates/kartenn-server/src/`, section `[web]` à imiter)
   dépend de : 5
+  fait : migrations `0060_labels.sql` (noyau : `labels` sur déclarations, valeurs,
+  rôles ; `label_revision`) et `policy/0004_labels.sql` (six tables de la politique ;
+  `policy_value.label` → `property_enum_value.labels`), lignes et historique relabellisés
+  sans nouvelle version (déclencheur suspendu). `kartenn_core::labels` : `Locale`
+  (grammaire de la RFC 5646 §2.1, minuscules, 35 caractères au plus, `truncations` pour
+  Lookup), `Labels` (`parse`, `parse_required`, `stored`), `default_locale` ;
+  `core.label.invalid` dans `CHANGESET_RULES`. `[i18n] default_locale` (`fr` par défaut)
+  installé au démarrage (`I18n::install`, `run` et sous-commandes), publié par
+  `GET /v1/capabilities` (`default_locale`), documenté dans
+  `docs/exploitation/configuration.md`. Choix : (1) la suppression des colonnes `label`
+  passe avec les écritures (tâche 7, seconde migration) pour garder ce commit vert ;
+  d'ici là la politique écrit aussi `labels` ; (2) la reprise en SQL prend `fr`, seule
+  langue des données de la v0.2 (la migration ne lit pas la configuration) ; (3) la
+  langue par défaut est un réglage du processus (`OnceLock`, posé une fois au
+  démarrage) plutôt qu'un paramètre de chaque appel ; (4) une table vide est admise
+  (valeurs, déclarations), `parse_required` sert aux objets qui exigent un libellé.
+  Outillage : `kartenn_testing::create_empty` (base vide, migrations jouées en partie
+  par le test).
 
-- [ ] 7. Écritures : `labels` sur `declare_property`, `update_property`,
+- [x] 7. Écritures : `labels` sur `declare_property`, `update_property`,
   `add_enum_value`, rôles (`PUT /v1/roles/{key}` : `{labels, entries}`) et opérations de
   la politique ; `update_enum_value` ; corps neutres (plus de `label`) ; incrément de
   `label_revision` et événement d'outbox `org.kartenn.labels.changed` ; shell actuel
@@ -151,8 +175,29 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-policy/src/{handler.rs,rest.rs:111-280}` ; outbox (ADR 0018) dans
   `crates/kartenn-store-pg/src/` ; `web/shell/src/admin/{RolesView.vue,write.ts}`
   dépend de : 6
+  fait : `labels` (table brute `RawLabels`, vérifiée en `Labels` par le pipeline) sur
+  `DeclarationInput` (facultative : absente, aucune à la déclaration et celles en vigueur
+  à la mise à jour), `add_enum_value`, `set_role` (`PUT /v1/roles/{key}` `{labels,
+  entries}`) ; opération `update_enum_value` (`Planned::EnumLabels`, `Change::Labels` par
+  `kartenn_portion`, droit `core.property.admin`). Lectures : `labels` sur les rôles et
+  les déclarations. Politique : `labels` requis sur types de flux, services, motifs et
+  règles, facultatif sur conditions et signaux ; `value.describe` et
+  `environment.create` écrivent les libellés au noyau (`update_enum_value`,
+  `add_enum_value`) ; cellule de matrice `labels` ; `policy.label.invalid` et le type
+  `Label` disparaissent du modèle (les verdicts ne portent que des clés) ; la non-
+  conformité perd `rule_label` (clé seule, R20). Migrations `0061_role_label_dropped.sql`
+  et `policy/0005_label_dropped.sql` (dernière recopie, suppression des colonnes
+  `label` et de `policy_value.label`). Révision : `PgTx` note toute écriture qui change
+  `labels` (insertion non vide, `Change::Labels` différent, rôle, objet de module par
+  `ModuleTx::labels_written`, clôture ou restauration d'une ligne d'une table à
+  libellés) ; `journal_applied` incrémente `label_revision` une fois et écrit
+  `org.kartenn.labels.changed` `{revision}` (entier de la base ; l'empreinte des libellés
+  compilés s'y joint au dictionnaire, tâche 10). Shell : `RolesView` lit `labels`
+  (langue de l'interface, sinon la première, sinon la clé) et écrit celle de
+  l'interface ; données des parcours e2e en `labels`. Les migrations du noyau prennent
+  0060 et 0061 (0059 est pris sur `main`).
 
-- [ ] 8. Libellés des modules et des rôles livrés : descripteurs avec `labels`,
+- [x] 8. Libellés des modules et des rôles livrés : descripteurs avec `labels`,
   `sync_modules` sans écraser un libellé d'administrateur, `BuiltinRole` FR/EN —
   REQ-018-11, 13 ; R10 — verify : `an_administrator_label_survives_the_module_sync`,
   `builtin_roles_have_french_and_english_labels`
@@ -160,8 +205,19 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   (`crates/kartenn-policy/src/module.rs`, propriétés déclarées) ;
   `crates/kartenn-core/src/authz.rs` (`BuiltinRole`, l. ~200)
   dépend de : 7
+  fait : `kartenn_core::labels::Compiled { fr, en }` (avec la langue par défaut de
+  l'instance, en anglais, quand ce n'est ni `fr` ni `en`, R9) ; `BuiltinRole.labels`,
+  `sync_roles` compare aussi les libellés (port `WriteTx::role_labels`) ;
+  `ModuleDeclarations.labels` (`<propriété>` ou `<propriété>/<valeur>`), renseigné pour
+  le noyau (`core.owner`, `core.external_system`, `core.site`), `vlan`, `machines` (dont
+  les rôles d'interface livrés) et `policy` (axes d'exemple et leurs valeurs) ;
+  `sync_modules` lit les libellés en vigueur et leur auteur (port `WriteTx::labels_in`,
+  auteur `système` ou non) : il écrit ceux du code s'ils manquent ou venaient du
+  système, jamais ceux d'un administrateur. Choix : un libellé d'administrateur n'est pas
+  complété des langues qui lui manquent (le compléter en ferait une version du système,
+  que la synchronisation suivante remplacerait).
 
-- [ ] 9. Libellés compilés FR/EN : descriptions des permissions, résumés des règles,
+- [x] 9. Libellés compilés FR/EN : descriptions des permissions, résumés des règles,
   titres des problèmes, sortes, états, natures et usages ; fonction `labels()` du
   contrat de module ; empreinte calculée au démarrage — REQ-018-10 ; R8 — verify :
   `every_code_has_french_and_english_labels` (permissions, règles, problèmes, sortes,
@@ -171,8 +227,23 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-{vlan,machines,policy,flow}/src/{module.rs,rules.rs}` ;
   `docs/adr/0026-contrat-de-module.md` (clause additive)
   dépend de : 2
+  fait : `kartenn_core::labels::CodeLabel` (espace, clé, `fr`, `en`) ;
+  `kartenn_core::code_labels` : anglais des permissions et des règles du noyau en tables
+  à côté de leurs définitions (le français reste le résumé de la définition, pas de
+  réécriture des macros), sortes (`core.prefix`…), états (`changeset.*`,
+  `changeset.kind.*`, `import.*`), natures et usages ; `English` et `of_module` pour les
+  modules. `Module::labels()` (défaut vide, ADR 0026 amendement 7), rempli par `vlan`,
+  `machines`, `policy` et `flow` (fichier `labels.rs` de chaque crate : permissions,
+  règles, sortes, états `flow.*`, verdicts et issues) ; `ModuleRegistry::labels()`.
+  `ProblemKind::labels()` : français, et l'anglais du `title`. `kartenn_rest::labels::
+  CodeCatalogue::of(registry)` assemble le tout, ajoute les anciens noms des permissions
+  renommées (« … (ancien nom de flow.read) », R6) et calcule l'empreinte (SHA-256 du
+  rendu trié, 16 caractères hexadécimaux), une fois, au démarrage du routeur (tâche 10).
+  Tests : `every_code_of_the_core_has_french_and_english_labels` (noyau, et aucune
+  entrée anglaise orpheline), `every_code_has_french_and_english_labels`
+  (`kartenn-server`, build complet), `the_problems_and_former_names_are_labelled`.
 
-- [ ] 10. `GET /v1/labels` : espaces, négociation (`lang`, `Accept-Language`, Lookup),
+- [x] 10. `GET /v1/labels` : espaces, négociation (`lang`, `Accept-Language`, Lookup),
   `Content-Language`, `Vary`, repli signalé, ETag `"<révision>.<empreinte>"`, 304,
   lecture datée et `Cache-Control`, filtrage par droits (R24), mise en mémoire par
   instance, contrat — REQ-018-14 à 17, 19 — verify : `labels_are_negotiated`,
@@ -182,16 +253,45 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `capabilities.rs` à imiter ; `openapi.rs`) ; ETag de 006/H19 (`crates/kartenn-rest/src/`,
   fonction d'étiquette composite) ; `specs/006-api-rest/openapi-v1.json`
   dépend de : 8, 9
+  fait : `kartenn_rest::labels` (route `labels`, schéma `Labels`) ; lectures
+  `kartenn_store_pg::labels_read` (`revision`, `stored` aux dates de la lecture,
+  `held` : entrées et rôles détenus sur une portée quelconque) ; `Module::label_tables()`
+  (ADR 0026, amendement 7 complété), rempli par `policy` (six espaces `policy.*` sous
+  `policy.catalogue.read`) ; `temporal::snapshot` accepte `<schéma>.<table>`.
+  Négociation : `lang` (400 si mal formée) sinon `Accept-Language` (poids, `q=0` et `*`
+  écartés, plage mal formée ignorée), Lookup parmi les langues présentes (`fr`, `en`, la
+  langue par défaut et celles des tables), puis la langue par défaut. Repli signalé dans
+  `fallback` (`<espace>/<clé>`, `value/<propriété>/<valeur>`) ; entrée sans libellé
+  absente. Révision `<compteur>-<empreinte des libellés compilés>`, ETag fort
+  `"<révision>.<empreinte du corps>"` (`ETag::labels`), 304 ; `Content-Language`,
+  `Vary: Accept-Language` ; `Cache-Control` `private, max-age=86400` à un `as_of` figé,
+  `private, no-cache` sinon. Droits (R24) : `policy.*` et espaces de module sous leur
+  permission, valeurs d'une propriété sensible sous `prop.<clé>.read`, rôles sous
+  `core.rbac.read` sinon ceux de ses liaisons, codes à tous. Mise en mémoire par
+  instance des lectures au présent (clé : base, révision, langue, espaces, droits ;
+  60 s au plus, une valeur dont la validité commence plus tard apparaissant sans
+  écriture). `valid_at` et `as_of` ne figurent dans le corps que s'ils sont demandés
+  (un corps au présent reste identique d'une lecture à l'autre). `labels` ajouté à
+  `CORE_COLLECTIONS`. Contrat et `schema.d.ts` régénérés.
 
-- [ ] 11. Événement SSE `labels` : ligne de la table de traduction outbox → SSE, remise à
+- [x] 11. Événement SSE `labels` : ligne de la table de traduction outbox → SSE, remise à
   toute connexion, contrat OpenAPI de `/v1/events` ; amendement de 022/R2 —
   REQ-018-18 ; R23 — verify : `a_label_change_is_pushed_as_a_labels_event` (vrai
   serveur, flux ouvert)
   où : `kartenn-service::events` (022-3, sortes) et le répartiteur (022-8) ;
   `specs/022-evenements-sse/{decisions.md (R2),design.md (« Format »)}`
   dépend de : 7, 022-3, 022-8
+  fait : la 022 (fusionnée) traduisait déjà `org.kartenn.labels.changed` en sorte
+  `labels` (`kartenn_service::events`, `Kind::Labels`, remise sans filtre `types`,
+  contrat de `/v1/events` et `REQ-022-3` amendés). Ajouts : le lecteur
+  (`kartenn_rest::events::reader`) joint au compteur de l'outbox l'empreinte des
+  libellés compilés du build, pour que la révision poussée soit celle que sert
+  `GET /v1/labels` ; amendement daté de 022/R2 et ligne de la table de traduction du
+  design de la 022 ; test `a_label_change_is_pushed_as_a_labels_event`
+  (`kartenn-rest/tests/it/events.rs` : flux ouvert par une identité sans droit, rôle
+  relibellé, `labels` reçu avec `revision` seule, égale à celle du dictionnaire).
 
-- [ ] 12. Bibliothèque et CLI Python : `client.labels(lang)`, cache par révision dans le
+- [x] 12. Bibliothèque et CLI Python : `client.labels(lang)`, cache par révision dans le
   cache XDG, `If-None-Match`, invalidation par `labels` et `ready`, `resolve` avec repli ;
   CLI : libellés en table, clés avec `--keys` et en JSON ; amendement de 023/T15 —
   REQ-018-21 — verify : pytest `test_labels_cache_by_revision`,
@@ -200,11 +300,33 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `clients/python/kartenn-cli/src/kartenn_cli/main.py` ;
   `specs/023-client-python-cli/decisions.md` (T15)
   dépend de : 10 (11 pour l'invalidation par événement)
+  fait : `kartenn.labels` (`Dictionary` : `label`, `resolve` avec repli sur la clé ;
+  `LabelCache` ; plan `fetch` sous `If-None-Match`) ; `Context.labels` (mémoire jusqu'à
+  `forget_labels`, disque dans `<catalogue>/labels/` par serveur, profil et langue ; lu
+  à une date : ni gardé ni conditionnel) ; `Client.labels(lang)` et
+  `AsyncClient.labels(lang)` ; `events()`/`aevents()` rendent obsolètes les
+  dictionnaires en mémoire à `labels`, `ready` et `reset` ; paramètre `profile` des
+  clients (posé par `from_profile` et la CLI). CLI : `Output.labels` en table seulement
+  (et sans `--keys`), `Runtime.label_of` : valeur de liste fermée d'une colonne de
+  propriété par le dictionnaire (lu seulement pour une telle colonne ; sans lui, la
+  clé), table `labels` dans la langue de la CLI ; `/v1/labels` hors des ressources du
+  catalogue et exclu de la couverture de la CLI (`kartenn api labels`). Amendement daté
+  de 023/T15. Tests : `test_labels_cache_by_revision`, `test_labels_event_invalidates`
+  (`clients/python/kartenn/tests/test_labels.py`), `test_cli_shows_labels_in_tables`
+  (`kartenn-cli/tests/test_reads.py`).
 
-- [ ] 13. Banc du dictionnaire : complet par langue p95 < 50 ms, 304 p95 < 10 ms, taille
+- [x] 13. Banc du dictionnaire : complet par langue p95 < 50 ms, 304 p95 < 10 ms, taille
   < 1 Mo sur le jeu des bancs — REQ-018-20 — verify : `bench-core` dans les budgets
   où : `crates/kartenn-bench/src/{core_budgets.rs,http.rs}`
   dépend de : 10
+  fait : mesures dans `http.rs` (`bench-http`, qui sert le routeur réel avec
+  l'authentification ; `bench-core` mesure le service sans HTTP) : dictionnaire complet
+  d'une langue (`fr`, `en` en alternance, budget 50 ms), même lecture sous son `ETag`
+  (304, budget 10 ms), taille non compressée (< 1 Mo) ; la lecture des libellés stockés
+  sert de mesure « service ». Jeu des bancs : valeurs des propriétés de `props.rs`
+  libellées en français et en anglais. `bench-http 1 small` (2026-10-24) : 12 060
+  octets, p95 2,4 ms (complet) et 2,3 ms (304), tous les budgets tenus ; mesure à
+  l'échelle de test, la pleine échelle reste à passer.
 
 ## Flux C — Suggestions
 

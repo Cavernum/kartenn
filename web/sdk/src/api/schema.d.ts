@@ -1778,6 +1778,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/labels`: the dictionary of labels for one language (REQ-018-14 to 17, 19). */
+    get: operations["labels"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/log-filters/{output}": {
     parameters: {
       query?: never;
@@ -3117,7 +3134,7 @@ export interface paths {
     /** `GET /v1/roles/{key}`. */
     get: operations["show_role"];
     /**
-     * `PUT /v1/roles/{key}` `{label, entries}`: defines or replaces the role; 201 when it is
+     * `PUT /v1/roles/{key}` `{labels, entries}`: defines or replaces the role; 201 when it is
      *     created.
      */
     put: operations["set_role"];
@@ -3814,6 +3831,9 @@ export interface components {
     };
     /** @description An event of the audit journal, as journaled (spec 012, REQ-012-17). */
     AuditEvent: Record<string, never>;
+    BTreeMap: {
+      [key: string]: string;
+    };
     /** @description The batches of an import. */
     Batches: {
       /** @description Applied. */
@@ -3917,6 +3937,12 @@ export interface components {
     Capabilities: {
       /** @description The major versions of the API served. */
       api_versions: string[];
+      /**
+       * @description The default language of the instance (BCP 47, `[i18n] default_locale`): required
+       *     in every `labels` table, served when no language asked matches (spec 018,
+       *     REQ-018-12).
+       */
+      default_locale: string;
       events?: components["schemas"]["EventsCapability"] | null;
       /** @description The limits. */
       limits: components["schemas"]["Limits"];
@@ -4171,6 +4197,7 @@ export interface components {
       inherit?: string | null;
       /** @description The key. */
       key: string;
+      labels?: components["schemas"]["BTreeMap"] | null;
       /** @description Where it is required. */
       obligations?: components["schemas"]["Obligation"][];
     };
@@ -4190,6 +4217,13 @@ export interface components {
       inherit?: string | null;
       /** @description The key. */
       key: string;
+      /**
+       * @description Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+       *     `GET /v1/labels` serves them resolved.
+       */
+      labels: {
+        [key: string]: string;
+      };
       /** @description Links. */
       links: components["schemas"]["DeclarationLinks"];
       /** @description The parameters of its type. */
@@ -4445,6 +4479,16 @@ export interface components {
       value: Record<string, never>;
     };
     /**
+     * @description The entries the dictionary served in the default language, lacking one in the
+     *     language served.
+     */
+    Fallback: {
+      /** @description `<space>/<key>`, or `value/<property>/<value>`. */
+      keys: string[];
+      /** @description The default language of the instance. */
+      lang: string;
+    };
+    /**
      * @description A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its
      *     derived state, summary and outcome at the date. A request pending a review (F19) has
      *     no identifier yet, and carries its `review`.
@@ -4550,10 +4594,8 @@ export interface components {
        * @description The rule in cause.
        */
       rule?: string | null;
-      /** @description Its key. */
+      /** @description Its key; its labels are served by `GET /v1/labels` (space `policy.rule`). */
       rule_key?: string | null;
-      /** @description Its label. */
-      rule_label?: string | null;
       /** @description Its educational texts by language. */
       rule_texts?: Record<string, never> | null;
       /** @description `rejected`, `noncompliant` or `waived`. */
@@ -4880,6 +4922,22 @@ export interface components {
       /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
       id: string;
     };
+    /** @description The dictionary of labels for one language. */
+    Labels: {
+      /** @description The system time asked for, when one was. */
+      as_of?: string | null;
+      /** @description The default language of the instance. */
+      default_lang: string;
+      fallback?: components["schemas"]["Fallback"] | null;
+      /** @description The language served (BCP 47, lower case), also in `Content-Language`. */
+      lang: string;
+      /** @description The revision of the labels: `<stored>-<compiled>`. */
+      revision: string;
+      /** @description The labels by space then key; `value` by property, then value. */
+      spaces: Record<string, never>;
+      /** @description The valid time asked for, when one was. */
+      valid_at?: string | null;
+    };
     /** @description The limits a client must respect. */
     Limits: {
       /** @description The most bytes of a request body. */
@@ -5060,6 +5118,13 @@ export interface components {
         inherit?: string | null;
         /** @description The key. */
         key: string;
+        /**
+         * @description Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+         *     `GET /v1/labels` serves them resolved.
+         */
+        labels: {
+          [key: string]: string;
+        };
         /** @description Links. */
         links: components["schemas"]["DeclarationLinks"];
         /** @description The parameters of its type. */
@@ -5275,8 +5340,13 @@ export interface components {
         href: string;
         /** @description Stable key. */
         key: string;
-        /** @description Label. */
-        label: string;
+        /**
+         * @description Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+         *     `GET /v1/labels` serves them resolved.
+         */
+        labels: {
+          [key: string]: string;
+        };
       }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
@@ -5882,8 +5952,8 @@ export interface components {
           entries: string[];
           /** @description Stable key. */
           key: string;
-          /** @description Label. */
-          label: string;
+          /** @description Labels by language, `{<tag>: <text>}`: the default language at least. */
+          labels: components["schemas"]["BTreeMap"];
           /** @enum {string} */
           op: "set_role";
         }
@@ -6151,6 +6221,8 @@ export interface components {
       | {
           /** @description Key, `[a-z0-9-]`. */
           key: string;
+          /** @description Labels by language, `{<tag>: <text>}` (spec 018). */
+          labels?: components["schemas"]["BTreeMap"];
           /**
            * Format: int32
            * @description Local name for later operations.
@@ -6158,6 +6230,16 @@ export interface components {
           local?: number | null;
           /** @enum {string} */
           op: "add_enum_value";
+          /** @description Property of type `enum`. */
+          property: components["schemas"]["Ref"];
+        }
+      | {
+          /** @description Key of the value. */
+          key: string;
+          /** @description Labels by language, `{<tag>: <text>}`; empty, the value has none. */
+          labels: components["schemas"]["BTreeMap"];
+          /** @enum {string} */
+          op: "update_enum_value";
           /** @description Property of type `enum`. */
           property: components["schemas"]["Ref"];
         }
@@ -6829,15 +6911,25 @@ export interface components {
       href: string;
       /** @description Stable key. */
       key: string;
-      /** @description Label. */
-      label: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+       *     `GET /v1/labels` serves them resolved.
+       */
+      labels: {
+        [key: string]: string;
+      };
     };
     /** @description The members of a role. */
     RoleMembers: {
       /** @description Entries. */
       entries: string[];
-      /** @description Label. */
-      label: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}`: the default language of the instance at
+       *     least (spec 018, REQ-018-9).
+       */
+      labels: {
+        [key: string]: string;
+      };
     };
     /** @description The body that defines a role. */
     RoleWrite: components["schemas"]["Reserved"] & components["schemas"]["RoleMembers"];
@@ -12988,6 +13080,60 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  labels: {
+    parameters: {
+      query?: {
+        /** @description The language wanted, a BCP 47 tag; it prevails over `Accept-Language`. */
+        lang?: string;
+        /** @description The spaces wanted, separated by commas (`value,role`); all by default. */
+        spaces?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The labels by space, in the language served (`Content-Language`). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Labels"];
+        };
+      };
+      /** @description Unchanged since the `ETag` of `If-None-Match`. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description A malformed `lang` or date. */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
       /** @description A problem (RFC 9457). */

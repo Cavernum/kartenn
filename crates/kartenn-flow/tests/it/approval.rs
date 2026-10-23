@@ -125,7 +125,7 @@ async fn acceptance_of_req_011_12_the_anomaly_of_a_broken_flow(pool: PgPool) {
     assert_eq!(open_anomalies(&pool, id).await, 1, "an unrelated changeset");
     env.applied(vec![policy(
         "rule.create",
-        json!({ "key": "prod-dev-again", "label": "Prod vers dev", "effect": "allow",
+        json!({ "key": "prod-dev-again", "labels": { "fr": "Prod vers dev" }, "effect": "allow",
                 "flow_types": [{ "id": flow_type(&pool).await }],
                 "source": { "policy.environment": ["prod"] },
                 "destination": { "policy.environment": ["dev"] } }),

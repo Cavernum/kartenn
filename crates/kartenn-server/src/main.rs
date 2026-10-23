@@ -147,6 +147,7 @@ fn configured(
     argument: Option<&str>,
 ) -> anyhow::Result<(kartenn_server::config::Config, String)> {
     let config = kartenn_server::config::load(file.map(Path::new))?;
+    config.i18n.install()?;
     let url = config.database_url(argument)?;
     Ok((config, url))
 }

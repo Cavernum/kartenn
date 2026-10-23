@@ -79,6 +79,75 @@ mod tests {
         );
     }
 
+    /// REQ-018-10: every code of the build — permission, rule, problem, kind of object,
+    /// state of the core and of its modules — has a French and an English label.
+    #[test]
+    fn every_code_has_french_and_english_labels() {
+        let registry = super::registry().expect("the modules of the build");
+        let catalogue = kartenn_rest::labels::CodeCatalogue::of(&registry);
+        let labelled = |space: &str, key: &str| {
+            catalogue
+                .labels()
+                .iter()
+                .any(|l| l.space == space && l.key == key && !l.fr.is_empty() && !l.en.is_empty())
+        };
+        let mut missing = Vec::new();
+        let of_modules = registry.permissions();
+        let permissions = kartenn_core::authz::PERMISSIONS
+            .iter()
+            .chain(of_modules.iter())
+            .map(|p| p.name);
+        missing.extend(
+            permissions
+                .filter(|p| !labelled("permission", p))
+                .map(|p| format!("permission/{p}")),
+        );
+        let rules = kartenn_core::rules::all_rules()
+            .chain(registry.modules().flat_map(|m| m.rules().iter().copied()))
+            .map(|r| r.id);
+        missing.extend(
+            rules
+                .filter(|r| !labelled("rule", r))
+                .map(|r| format!("rule/{r}")),
+        );
+        missing.extend(
+            kartenn_rest::problem::ProblemKind::ALL
+                .iter()
+                .filter(|k| !labelled("problem", k.slug()))
+                .map(|k| format!("problem/{}", k.slug())),
+        );
+        missing.extend(
+            registry
+                .object_types()
+                .map(|t| t.kind)
+                .chain(["core.prefix", "core.address", "core.entity", "core.site"])
+                .filter(|k| !labelled("kind", k))
+                .map(|k| format!("kind/{k}")),
+        );
+        missing.extend(
+            [
+                "changeset.pending",
+                "import.running",
+                "flow.active",
+                "flow.noncompliant",
+            ]
+            .into_iter()
+            .filter(|s| !labelled("state", s))
+            .map(|s| format!("state/{s}")),
+        );
+        assert!(
+            missing.is_empty(),
+            "without French and English: {missing:?}"
+        );
+        let blank: Vec<String> = catalogue
+            .labels()
+            .iter()
+            .filter(|l| l.fr.is_empty() || l.en.is_empty())
+            .map(|l| format!("{}/{}", l.space, l.key))
+            .collect();
+        assert!(blank.is_empty(), "a label missing: {blank:?}");
+    }
+
     /// `docs/spec/permissions.md` is the catalogue of this build: the core and its modules
     /// (spec 005, REQ-005-16; spec 008, REQ-008-8).
     #[test]

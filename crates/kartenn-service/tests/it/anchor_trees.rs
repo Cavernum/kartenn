@@ -74,11 +74,13 @@ impl Fixture {
                     local: None,
                     property: Ref::Local(1),
                     key: "a".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
                 Operation::AddEnumValue {
                     local: None,
                     property: Ref::Local(1),
                     key: "b".into(),
+                    labels: std::collections::BTreeMap::new(),
                 },
             ],
             0,
@@ -261,6 +263,7 @@ fn declaration(
         module: None,
         obligations,
         expected: None,
+        labels: None,
     }
 }
 
@@ -556,6 +559,7 @@ async fn an_entity_obligation_follows_owners_and_moves(pool: PgPool) {
         module: None,
         obligations,
         expected: None,
+        labels: None,
     };
     let scoped = vec![ObligationInput::Entity { id: group }];
     let (rules, objects) = refusal(

@@ -8,6 +8,7 @@ mod dated_reads;
 mod harness;
 mod history_maintenance;
 mod keys;
+mod labels;
 mod module_migrations;
 mod properties;
 mod rbac_schema;

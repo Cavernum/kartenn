@@ -11,18 +11,30 @@ import { useAdminWrite } from "./write.ts";
 // Roles (REQ-007-19, spec 005): the built-in ones and those of the organisation, a role
 // defined or changed (`PUT /v1/roles/{key}`), a role of the organisation closed.
 
+// A role carries its labels by language (spec 018, R20): the table shows the one of the
+// language of the interface, else the first one, else the key; the form writes the label
+// of the language of the interface and keeps the others.
 interface Role extends Record<string, unknown> {
   key: string;
-  label: string;
+  labels: Record<string, string>;
   builtin: boolean;
   entries: string[];
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const writes = useWrites();
 const write = useAdminWrite();
 const pager = shallowRef(new Pager<Role>(withQuery("/v1/roles", { page_size: "100" })));
-const form = reactive({ key: "", label: "", entries: "", motive: "" });
+const form = reactive({
+  key: "",
+  label: "",
+  labels: {} as Record<string, string>,
+  entries: "",
+  motive: "",
+});
+
+const labelOf = (role: Role): string =>
+  role.labels[locale.value] ?? Object.values(role.labels)[0] ?? role.key;
 
 const columns = computed(() => [
   { key: "key", label: t("admin.key") },
@@ -37,7 +49,9 @@ const cell = (role: Role, key: string): string =>
       : t("admin.no")
     : key === "entries"
       ? role.entries.join(", ")
-      : String(role[key] ?? "—");
+      : key === "label"
+        ? labelOf(role)
+        : String(role[key] ?? "—");
 
 function reload(): void {
   pager.value = new Pager<Role>(withQuery("/v1/roles", { page_size: "100" }));
@@ -45,13 +59,18 @@ function reload(): void {
 }
 
 function edit(role: Role): void {
-  Object.assign(form, { key: role.key, label: role.label, entries: role.entries.join("\n") });
+  Object.assign(form, {
+    key: role.key,
+    label: labelOf(role),
+    labels: { ...role.labels },
+    entries: role.entries.join("\n"),
+  });
 }
 
 async function save(): Promise<void> {
   const done = await write.run("PUT", `/v1/roles/${encodeURIComponent(form.key)}`, {
     motive: form.motive,
-    label: form.label,
+    labels: { ...form.labels, [locale.value]: form.label },
     entries: entriesOf(form.entries),
   });
   if (done) {

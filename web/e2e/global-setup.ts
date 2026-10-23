@@ -36,7 +36,7 @@ export default async function globalSetup(): Promise<void> {
     });
     await expectOk(api, "PUT", `/v1/roles/${CONTRIBUTOR.key}`, {
       motive: "end-to-end journeys",
-      label: CONTRIBUTOR.label,
+      labels: { fr: CONTRIBUTOR.label },
       entries: CONTRIBUTOR.entries,
     });
     for (const [group, roles] of Object.entries(GROUPS)) {
@@ -60,7 +60,7 @@ export default async function globalSetup(): Promise<void> {
         {
           op: "set_role",
           key: "e2e_rbac_reader",
-          label: "Lecture des droits",
+          labels: { fr: "Lecture des droits" },
           entries: ["core.rbac.read"],
         },
         { op: "bind", subject: redacteurs, role: "reader", scope: { kind: "global" } },

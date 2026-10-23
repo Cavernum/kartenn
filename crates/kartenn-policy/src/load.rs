@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::codec;
 use crate::model::{
-    Axis, AxisValue, Carrier, Effect, FlowSelector, FlowType, Key, Label, Pattern, Rule, Service,
+    Axis, AxisValue, Carrier, Effect, FlowSelector, FlowType, Key, Pattern, Rule, Service,
     ValueAttributes,
 };
 use crate::pg::store;
@@ -85,12 +85,9 @@ fn cited(row: &Value, column: &str, keys: &BTreeMap<Uuid, Key>) -> std::collecti
         .unwrap_or_default()
 }
 
-/// Key and label of a row; `None` for a row that does not decode (never written so).
-fn named(row: &Value) -> Option<(Key, Label)> {
-    Some((
-        Key::new(&text(row, "key")).ok()?,
-        Label::new(&text(row, "label")).ok()?,
-    ))
+/// Key of a row; `None` for a row that does not decode (never written so).
+fn named(row: &Value) -> Option<Key> {
+    Key::new(&text(row, "key")).ok()
 }
 
 /// An axis from its row.
@@ -133,7 +130,7 @@ struct Cited {
 
 /// A rule from its row, its citations resolved to keys.
 fn rule(r: &Value, keys: &Cited) -> Option<Rule> {
-    let (key, label) = named(r)?;
+    let key = named(r)?;
     let selector = |side: &str| {
         r.get(side)
             .and_then(|s| codec::selector(s).ok())
@@ -142,7 +139,6 @@ fn rule(r: &Value, keys: &Cited) -> Option<Rule> {
     };
     Some(Rule {
         key,
-        label,
         source: selector("source"),
         destination: selector("destination"),
         same: r
@@ -174,7 +170,7 @@ async fn services(
     let mut keys = BTreeMap::new();
     let mut services = Vec::new();
     for r in rows(conn, "policy.policy_service", at, state).await? {
-        let Some((key, label)) = named(&r) else {
+        let Some(key) = named(&r) else {
             continue;
         };
         let flow_type: Vec<Key> = id(&r, "flow_type_id")
@@ -184,9 +180,7 @@ async fn services(
         let Ok((entries, _)) = codec::entries(&r["entries"]) else {
             continue;
         };
-        if let (Some(i), Ok(service)) =
-            (id(&r, "id"), Service::new(key, label, &flow_type, entries))
-        {
+        if let (Some(i), Ok(service)) = (id(&r, "id"), Service::new(key, &flow_type, entries)) {
             keys.insert(i, service.key.clone());
             services.push(service);
         }
@@ -218,20 +212,19 @@ pub(crate) async fn parts(
     let mut flow_type_keys = BTreeMap::new();
     let mut flow_types = Vec::new();
     for r in rows(conn, "policy.policy_flow_type", at, state).await? {
-        if let (Some(i), Some((key, label))) = (id(&r, "id"), named(&r)) {
+        if let (Some(i), Some(key)) = (id(&r, "id"), named(&r)) {
             flow_type_keys.insert(i, key.clone());
-            flow_types.push(FlowType { key, label });
+            flow_types.push(FlowType { key });
         }
     }
     let (services, service_keys) = services(conn, at, state, &flow_type_keys).await?;
     let mut pattern_keys = BTreeMap::new();
     let mut patterns = Vec::new();
     for r in rows(conn, "policy.policy_pattern", at, state).await? {
-        if let (Some(i), Some((key, label))) = (id(&r, "id"), named(&r)) {
+        if let (Some(i), Some(key)) = (id(&r, "id"), named(&r)) {
             pattern_keys.insert(i, key.clone());
             patterns.push(Pattern {
                 key,
-                label,
                 texts: codec::stored_texts(&r["texts"]),
             });
         }

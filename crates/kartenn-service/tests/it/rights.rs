@@ -51,6 +51,7 @@ impl Fixture {
             module: None,
             obligations: Vec::new(),
             expected: None,
+            labels: None,
         };
         let assign = |local, value: &str| Operation::AssignProperty {
             object: Ref::Local(local),
@@ -75,11 +76,13 @@ impl Fixture {
                         local: None,
                         property: Ref::Local(2),
                         key: "prod".into(),
+                        labels: std::collections::BTreeMap::new(),
                     },
                     Operation::AddEnumValue {
                         local: None,
                         property: Ref::Local(2),
                         key: "dev".into(),
+                        labels: std::collections::BTreeMap::new(),
                     },
                     prefix(3, Ref::Local(1), "10.0.0.0/8", Nature::Container),
                     prefix(4, Ref::Local(1), "10.5.0.0/16", Nature::Container),

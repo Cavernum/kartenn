@@ -187,6 +187,41 @@ impl User {
         builder.body(body).expect("valid parts")
     }
 
+    /// `GET path` with the headers `extra`: its duration until the whole body, its status,
+    /// its `ETag` and its body (as sent: compressed unless `Accept-Encoding` is removed).
+    async fn get_with(
+        &mut self,
+        path: &str,
+        extra: &[(header::HeaderName, &str)],
+        identity: bool,
+    ) -> anyhow::Result<(Duration, StatusCode, Option<String>, Bytes)> {
+        let mut request = self.request("GET", path, None);
+        if identity {
+            request.headers_mut().remove(header::ACCEPT_ENCODING);
+        }
+        for (name, value) in extra {
+            request
+                .headers_mut()
+                .insert(name.clone(), header::HeaderValue::from_str(value)?);
+        }
+        self.client.ready().await?;
+        let t = Instant::now();
+        let response = self
+            .client
+            .sender
+            .send_request(request)
+            .await
+            .context("sending a request")?;
+        let status = response.status();
+        let etag = response
+            .headers()
+            .get(header::ETAG)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let body = response.into_body().collect().await?.to_bytes();
+        Ok((t.elapsed(), status, etag, body))
+    }
+
     /// The duration of `method path` until the whole body, or why it did not answer
     /// `expected`.
     async fn timed(
@@ -758,12 +793,74 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             )
             .await?;
     }
+    // The dictionary of labels (spec 018, REQ-018-20): the whole of one language, then
+    // the same under its `ETag` (304); the stored labels read by the service.
+    let mut dictionary = Pair::new(
+        "dictionary of labels, one language",
+        Duration::from_millis(50),
+    );
+    let mut unchanged = Pair::new("dictionary of labels, 304", Duration::from_millis(10));
+    let mut largest = 0;
+    for i in 0..200 {
+        let lang = if i % 2 == 0 { "fr" } else { "en" };
+        let path = format!("/v1/labels?lang={lang}");
+        let user = &mut users[next()];
+        let mut etag = None;
+        let stored = async || {
+            kartenn_store_pg::labels_read::stored(&pool, OffsetDateTime::now_utc(), None, &[])
+                .await
+                .map(drop)
+                .map_err(|e| anyhow!(e))
+        };
+        dictionary
+            .measure(i, stored, async || {
+                let (elapsed, status, tag, body) = user.get_with(&path, &[], i < 2).await?;
+                if status != StatusCode::OK {
+                    bail!("GET {path}: {status}");
+                }
+                if i < 2 {
+                    largest = largest.max(body.len());
+                }
+                etag = tag;
+                Ok(elapsed)
+            })
+            .await?;
+        let etag = etag.context("the dictionary has an ETag")?;
+        unchanged
+            .measure(i, stored, async || {
+                let (elapsed, status, _, _) = user
+                    .get_with(&path, &[(header::IF_NONE_MATCH, etag.as_str())], false)
+                    .await?;
+                if status != StatusCode::NOT_MODIFIED {
+                    bail!("GET {path} under its ETag: {status}");
+                }
+                Ok(elapsed)
+            })
+            .await?;
+    }
     progress(&format!("scenarios: {:?}", started.elapsed()));
 
     // INV-33: twice the current read through HTTP (floor 5 ms).
     dated.limit = (p95(read.http.clone()) * 2).max(Duration::from_millis(5));
     let mut ok = true;
-    for pair in [read, dated, page, subtree, dated_subtree, changeset] {
+    // REQ-018-20: less than 1 MB uncompressed.
+    let small = largest < 1_000_000;
+    ok &= small;
+    writeln!(
+        report,
+        "{} dictionary of labels, one language: {largest} bytes uncompressed, budget < 1 MB",
+        if small { "PASS" } else { "FAIL" },
+    )?;
+    for pair in [
+        read,
+        dated,
+        page,
+        subtree,
+        dated_subtree,
+        changeset,
+        dictionary,
+        unchanged,
+    ] {
         let service = p95(pair.service);
         let http = p95(pair.http);
         let overhead = http.saturating_sub(service);

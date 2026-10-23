@@ -202,6 +202,10 @@ pub(crate) struct DeclarationItem {
     sensitive: bool,
     /// The source of its expected values.
     expected: Option<ExpectedItem>,
+    /// Its labels by language, `{<tag>: <text>}` (spec 018, R20): the dictionary
+    /// `GET /v1/labels` serves them resolved.
+    #[schema(value_type = std::collections::BTreeMap<String, String>)]
+    labels: Value,
     /// Links.
     links: DeclarationLinks,
 }
@@ -220,6 +224,7 @@ pub(crate) fn declaration_of(found: &DeclarationRead) -> DeclarationItem {
             source: source.clone(),
             mode: mode.clone(),
         }),
+        labels: found.labels.clone(),
         links: DeclarationLinks {
             values: format!("/v1/property-declarations/{}/values", found.key),
         },

@@ -23,8 +23,6 @@ rules! {
     POLICY_RULES;
     KEY_SYNTAX = "policy.key.syntax", Error, ["REQ-010-4", "REQ-010-5", "REQ-010-8"], "010/S5",
         "Une clé de la politique a de 1 à 63 caractères [a-z0-9] et des traits d'union non doublés ni en bord.";
-    LABEL_INVALID = "policy.label.invalid", Error, ["REQ-010-4", "REQ-010-5", "REQ-010-8"], "010/S5",
-        "Un libellé a de 1 à 200 caractères, sans caractère de contrôle.";
     SERVICE_ENTRY_INVALID = "policy.service.entry_invalid", Error, ["REQ-010-5"], "010/S5, RFC 6335 §6",
         "Un couple d'un service a un transport connu, des ports 1–65535 pour tcp, udp, sctp et dccp, un type et un code ICMP 0–255 sans port, un protocole IP 0–255 sans port.";
     SERVICE_FLOW_TYPE = "policy.service.flow_type", Error, ["REQ-010-5"], "010/S5, D29",

@@ -561,8 +561,8 @@ pub(crate) mod tests {
     use super::*;
     use crate::model::tests::{axis, fr, key};
     use crate::model::{
-        Axis, Carrier, Condition, FlowSelector, FlowType, Label, Pattern, RawEntry, Service,
-        ServiceEntry, Signal, Text, Texts, ValueAttributes,
+        Axis, Carrier, Condition, FlowSelector, FlowType, Pattern, RawEntry, Service, ServiceEntry,
+        Signal, Text, Texts, ValueAttributes,
     };
     use crate::snapshot::Parts;
     use proptest::prelude::*;
@@ -582,13 +582,7 @@ pub(crate) mod tests {
             ..RawEntry::default()
         })
         .unwrap();
-        Service::new(
-            key(name),
-            Label::new(name).unwrap(),
-            &[key(flow_type)],
-            vec![entry],
-        )
-        .unwrap()
+        Service::new(key(name), &[key(flow_type)], vec![entry]).unwrap()
     }
 
     pub(crate) fn rule(
@@ -606,7 +600,6 @@ pub(crate) mod tests {
         };
         Rule {
             key: key(name),
-            label: Label::new(name).unwrap(),
             source: selector(source),
             destination: selector(destination),
             same: BTreeSet::new(),
@@ -666,10 +659,7 @@ pub(crate) mod tests {
             ],
             flow_types: ["admin", "application", "file", "database"]
                 .iter()
-                .map(|t| FlowType {
-                    key: key(t),
-                    label: Label::new(t).unwrap(),
-                })
+                .map(|t| FlowType { key: key(t) })
                 .collect(),
             services: vec![
                 service("ssh", "admin", 22),
@@ -817,7 +807,6 @@ pub(crate) mod tests {
         let mut p = parts(vec![conditional, to_store, from_store]);
         p.patterns.push(Pattern {
             key: key("object-storage-relay"),
-            label: Label::new("Relais par stockage d'objets").unwrap(),
             texts: texts(),
         });
         p
@@ -904,7 +893,6 @@ pub(crate) mod tests {
         let mut p = parts(vec![conditional, member]);
         p.patterns.push(Pattern {
             key: key("relay"),
-            label: Label::new("Relais").unwrap(),
             texts: texts(),
         });
         let s = PolicySnapshot::new(p);

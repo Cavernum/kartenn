@@ -21,6 +21,7 @@ mod identities;
 pub mod imports;
 pub mod jobs;
 pub mod keys;
+pub mod labels_read;
 pub mod list;
 pub mod maintenance;
 pub mod modules;
