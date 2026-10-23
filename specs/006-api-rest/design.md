@@ -614,7 +614,13 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   - droits : créer est ouvert à tout appelant authentifié ; déposer, démarrer,
     reprendre, annuler et lire sont réservés à l'auteur (un autre appelant → 404, comme
     un objet invisible). Aucune permission nouvelle : chaque lot est un changeset de
-    l'auteur, soumis à ses droits lot par lot ;
+    l'auteur, soumis à ses droits lot par lot. Ses droits comptent ses groupes : la
+    tâche de fond n'a pas son jeton, donc `start` et `resume` gardent dans l'import un
+    instantané de son émetteur et de ses groupes (colonne `import.author_subject`,
+    migration 0059), comme un changeset en attente garde celui de son auteur (005,
+    REQ-005-22) ; chaque lot est soumis avec lui (correctif du 2026-10-23 : sans lui,
+    une personne dont les droits viennent d'un groupe voyait ses lots refusés par
+    `core.object.forbidden`) ;
   - `POST /v1/imports {source}` → 201, `Location`, corps = représentation ;
   - `PUT /v1/imports/{id}/chunks/{n} {elements: [{external_id, operation}]}` (`n ≥ 0`,
     trous admis, morceaux lus par `n` croissant au démarrage ; opérations sous la forme

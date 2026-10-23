@@ -572,7 +572,7 @@ par `BROWSER` qui choisit Alice chez l'émetteur et suit la redirection de boucl
 | § 8 `--dry-run` et `--into-changeset` : `create_<x>` du noyau, `vlan.create_vlan`, refus en code 8 | vert |
 | § 8 `prefixes create --dry-run` | xfail strict : membres REST (`value`) ≠ opération (`prefix`), le point ouvert de la tâche 18 |
 | § 10 import refusé à l'application (code 6, règle), réseau créé, `--resume` jusqu'à `done` | vert, sous le compte de secours |
-| § 10 import par Alice (OIDC, droits par groupe) | xfail strict : `core.object.forbidden` à l'application |
+| § 10 import par Alice (OIDC, droits par groupe) | vert depuis le correctif serveur du 2026-10-23 : l'import garde l'émetteur et les groupes de son auteur au démarrage (006, `import.author_subject`) ; avant, `core.object.forbidden` à l'application |
 | § 11 `kartenn api` | vert |
 | § 6 `policy check` autorisé, refusé en code 9 | vert (après correction : `<kind>:<id>` sur le fil) |
 | § 7 `flow request` | vert avec le système externe nommé par son UUID, lu en base |

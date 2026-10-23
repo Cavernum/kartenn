@@ -498,17 +498,15 @@ def test_import_with_an_error_then_resumed(cli: Cli) -> None:
     assert {"198.51.100.21", "203.0.113.70"} <= set(addresses)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="serveur : l'application d'un import par une personne connectée par OIDC est "
-    "refusée (core.object.forbidden) alors que ses droits viennent d'un groupe ; le compte "
-    "de secours passe (droits liés à l'identité)",
-)
 def test_import_by_alice(cli: Cli) -> None:
+    """Alice's rights come from a group of hers at the issuer: the batches, run in a
+    background task without her token, are submitted with the groups she started it with."""
     (cli.home / "alice.csv").write_text(
         "domain,address,usage,external_id\ninterne,198.51.100.30,host,src-0101\n"
     )
     cli("import", "alice.csv", "--resource", "addresses", "--id-column", "external_id")
+    addresses = ids_by(cli, "addresses", "list", "--domain", "interne", key="value")
+    assert "198.51.100.30" in addresses
 
 
 # 11. Generic command --------------------------------------------------------------------

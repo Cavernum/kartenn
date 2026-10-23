@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use kartenn_server::jobs::{Runner, Scheduler, Tasks};
+use kartenn_service::authz::Subject;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
@@ -131,6 +132,62 @@ async fn importer(pool: &PgPool) -> Uuid {
     .fetch_one(pool)
     .await
     .unwrap();
+    let role = everything(pool).await;
+    sqlx::query(
+        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
+                              valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(identity)
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    identity
+}
+
+/// A person signed in at an issuer attached globally, granted everything everywhere only
+/// through a group of hers at that issuer (005, K4): as she is when she starts an import.
+async fn group_importer(pool: &PgPool) -> Subject {
+    const ISSUER: &str = "https://idp.example";
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, issuer, subject)
+         VALUES (gen_random_uuid(), 'Alice', $1, 'alice') RETURNING id",
+    )
+    .bind(ISSUER)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let role = everything(pool).await;
+    sqlx::query(
+        "INSERT INTO issuer_attachment (issuer, entity_id, valid_period, changeset_id)
+         VALUES ($1, NULL, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(ISSUER)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO binding (id, subject_kind, issuer, group_name, role_id, scope_kind,
+                              scope_id, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'group', $1, 'admins', $2, 'global', NULL,
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(ISSUER)
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    Subject {
+        id: identity,
+        issuer: Some(ISSUER.into()),
+        groups: vec!["admins".into()],
+    }
+}
+
+/// A role granting every permission.
+async fn everything(pool: &PgPool) -> Uuid {
     let role = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO role (id, key, label, valid_period, changeset_id)
@@ -148,18 +205,7 @@ async fn importer(pool: &PgPool) -> Uuid {
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .execute(pool)
-    .await
-    .unwrap();
-    identity
+    role
 }
 
 /// A domain, a network and `count` addresses of it.
@@ -209,9 +255,18 @@ fn addresses(count: u32) -> Vec<kartenn_service::port::ImportItem> {
 /// `elements` deposited in chunks of 5 000 and started: the import is `sorting`, its task
 /// is due.
 async fn started_import(pool: &PgPool, elements: &[kartenn_service::port::ImportItem]) -> Uuid {
+    let author = Subject::from(importer(pool).await);
+    started_import_by(pool, elements, &author).await
+}
+
+/// [`started_import`] by `author`, as signed in when starting it.
+async fn started_import_by(
+    pool: &PgPool,
+    elements: &[kartenn_service::port::ImportItem],
+    author: &Subject,
+) -> Uuid {
     let store = kartenn_store_pg::write::PgStore::new(pool.clone());
-    let author = importer(pool).await;
-    let import = kartenn_service::import::open_import(&store, author, "legacy")
+    let import = kartenn_service::import::open_import(&store, author.id, "legacy")
         .await
         .unwrap();
     for (n, chunk) in elements.chunks(5_000).enumerate() {
@@ -228,11 +283,61 @@ async fn started_import(pool: &PgPool, elements: &[kartenn_service::port::Import
         assert_eq!(deposit, kartenn_store_pg::imports::Deposit::Created);
     }
     assert!(
-        kartenn_store_pg::imports::start(pool, import)
+        kartenn_store_pg::imports::start(pool, import, author)
             .await
             .unwrap()
     );
     import
+}
+
+/// REQ-005-22, REQ-006-18: the batches of an import run in a background task, without the
+/// token of its author; they are submitted with the issuer and groups she had when
+/// starting it, her rights coming only from a group.
+#[kartenn_testing::pg_test]
+async fn an_import_runs_with_the_groups_of_its_author(pool: PgPool) {
+    only_imports_due(&pool).await;
+    let alice = group_importer(&pool).await;
+    let import = started_import_by(&pool, &addresses(3), &alice).await;
+    let scheduler = Scheduler::new(pool.clone(), Uuid::now_v7());
+    assert_eq!(
+        scheduler.tick(&tasks(&pool)).await,
+        Some(format!("import:{import}"))
+    );
+    let store = kartenn_store_pg::write::PgStore::new(pool.clone());
+    let status = kartenn_service::import::import_status(&store, import)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(status.state, "done", "{status:?}");
+    assert_eq!(rows(&pool, "address").await, 3);
+
+    // Her identity alone holds no right: without the snapshot, the batch is refused.
+    let refused = kartenn_service::pipeline::submit(
+        &store,
+        &kartenn_store_pg::rbac::PgAuthorizer::new(pool.clone()),
+        &kartenn_service::ChangesetRequest {
+            author: alice.id,
+            motive: "sans groupes".into(),
+            period: None,
+            operations: vec![kartenn_service::Operation::CreateDomain {
+                local: None,
+                slug: "other".into(),
+            }],
+            simulate: false,
+            idempotency_key: None,
+        },
+        kartenn_service::pipeline::MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(
+            &refused,
+            kartenn_service::pipeline::Outcome::Refused { violations, .. }
+                if violations.iter().any(|v| v.rule.id == "core.object.forbidden")
+        ),
+        "{refused:?}"
+    );
 }
 
 /// The batches `elements` are cut in.
