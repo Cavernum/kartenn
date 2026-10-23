@@ -6,8 +6,13 @@
 export declare const CONTRACT: string;
 export declare const SCHEMA: string;
 export declare const DATED: string;
+export declare const FILTERS: string;
 export declare function readContract(): { paths: Record<string, unknown> } & Record<
   string,
   unknown
 >;
-export declare function generate(spec: unknown): Promise<{ schema: string; dated: string }>;
+export declare function generate(spec: unknown): Promise<{
+  schema: string;
+  dated: string;
+  filters: string;
+}>;

@@ -98,7 +98,7 @@
     flows       The flows of the prefix, those the caller may read (REQ-011-15).
     get         The prefix.
     history     The versions of the prefix, on both axes (REQ-004-18).
-    list        The prefixes the caller may read, by natural key; `prop.<key>` filters by property
+    list        The prefixes the caller may read, by natural key; `prop.{key}` filters by property
                 (`:betw
     next-free   `GET /v1/prefixes/{id}/next-free?kind=prefix&length=<n>` in a container, or
     occupancy   `GET /v1/prefixes/{id}/occupancy`: used and total addresses (REQ-002-43), as decimal
@@ -129,12 +129,11 @@
     GET|QUERY /v1/policy-rules  (list_policy_rules) — module policy
   
   Filtres:
-    --key KEY               Equal to, or held by, `key`.
-    --effect EFFECT         Equal to, or held by, `effect`.
-    --pattern PATTERN       Equal to, or held by, `pattern_id`.
-    --flow-type FLOW-TYPE   Equal to, or held by, `flow_type_ids`.
-    --service SERVICE       Equal to, or held by, `service_ids`.
-    --prop CLÉ[:OP]=VALEUR  Propriété : =, :between=a..b, :exists=true|false (répétable).
+    --key KEY              Equal to, or held by, `key`.
+    --effect EFFECT        Equal to, or held by, `effect`.
+    --pattern PATTERN      Equal to, or held by, `pattern_id`.
+    --flow-type FLOW-TYPE  Equal to, or held by, `flow_type_ids`.
+    --service SERVICE      Equal to, or held by, `service_ids`.
   
   Dates:
     --at DATE     Temps applicatif (valid_at) : 2026-11-01, -7d, RFC 3339.

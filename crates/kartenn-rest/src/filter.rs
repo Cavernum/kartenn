@@ -64,13 +64,18 @@ fn is_key(key: &str) -> bool {
 }
 
 /// The filters of the parameters `params` (those left by [`crate::cursor::Page`]) in a
-/// collection whose fields of the core are `core`.
+/// collection whose fields of the core are `core`, filtered by property when
+/// `properties`.
 ///
 /// # Errors
 ///
 /// 400 naming the parameter: unknown field or operator, a `between` or an `exists` given
 /// twice, a malformed or empty value.
-pub fn parse(params: &[(String, String)], core: &[&'static str]) -> Result<Vec<Filter>, Problem> {
+pub fn parse(
+    params: &[(String, String)],
+    core: &[&'static str],
+    properties: bool,
+) -> Result<Vec<Filter>, Problem> {
     let mut grouped: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for (name, value) in params {
         grouped.entry(name).or_default().push(value);
@@ -80,6 +85,12 @@ pub fn parse(params: &[(String, String)], core: &[&'static str]) -> Result<Vec<F
         .map(|(name, values)| {
             let (field, op) = name.split_once(':').unwrap_or((name, ""));
             let field = match field.strip_prefix("prop.") {
+                Some(_) if !properties => {
+                    return Err(bad(format!(
+                        "unknown parameter {name}: properties filter the prefixes, ranges \
+                         and addresses of a domain"
+                    )));
+                }
                 Some(key) if is_key(key) => Field::Property(key.to_owned()),
                 Some(_) => return Err(bad(format!("{name}: malformed property key"))),
                 None => match core.iter().find(|c| **c == field) {
@@ -327,7 +338,7 @@ mod tests {
     }
 
     fn filters(query: &str) -> Result<Vec<Filter>, Problem> {
-        parse(&params(query), CORE)
+        parse(&params(query), CORE, true)
     }
 
     fn detail(query: &str) -> String {

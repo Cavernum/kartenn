@@ -293,6 +293,18 @@ def test_lists_at_dates(cli: Cli) -> None:
         "interne  203.0.113.0/24     container  false",
         "5 éléments",
     ]
+    # Maquette § 4: `--within`, a filter the contract declares (task 021-28).
+    run = cli(
+        "prefixes", "list", "--domain", "interne", "--within", "198.51.100.0/24", "-o", "table"
+    )
+    assert lines(run) == [
+        "DOMAIN   VALUE              NATURE     PUBLIC",
+        "interne  198.51.100.0/24    container  false",
+        "interne  198.51.100.0/26    network    false",
+        "interne  198.51.100.64/26   network    false",
+        "interne  198.51.100.128/25  network    false",
+        "4 éléments",
+    ]
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(FACTS["before"]))
     run = cli("prefixes", "list", "--domain", "interne", "-o", "table", "--as-of", stamp)
     assert lines(run) == ["DOMAIN  VALUE  NATURE  PUBLIC", "0 élément — état au <date>"]

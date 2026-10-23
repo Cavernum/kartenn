@@ -405,7 +405,7 @@ since = "Reprendre après ce curseur."
 help = "Script de complétion d'un shell (bash, zsh, fish), à charger depuis sa configuration."
 
 [filter]
-unknown = "Filtre inconnu : {option}. Filtres : {filters}, --prop CLÉ[:OP]=VALEUR."
+unknown = "Filtre inconnu : {option}. Filtres : {filters}."
 
 [ref]
 no_key = "« {resource} » ne déclare pas de clé naturelle (x-kartenn) : désignez l'objet par son UUID, pas « {ref} »."

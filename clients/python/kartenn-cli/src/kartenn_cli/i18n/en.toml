@@ -405,7 +405,7 @@ since = "Resume after this cursor."
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
 
 [filter]
-unknown = "Unknown filter: {option}. Filters: {filters}, --prop KEY[:OP]=VALUE."
+unknown = "Unknown filter: {option}. Filters: {filters}."
 
 [ref]
 no_key = "“{resource}” declares no natural key (x-kartenn): name the object by its UUID, not “{ref}”."

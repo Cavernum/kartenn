@@ -45,7 +45,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The addresses the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The addresses the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_addresses"];
     put?: never;
     /** Creates a address. */
@@ -763,7 +763,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The domains the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The domains the caller may read, by natural key. */
     get: operations["list_domains"];
     put?: never;
     /** Creates a domain. */
@@ -889,7 +889,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The entities the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The entities the caller may read, by natural key. */
     get: operations["list_entities"];
     put?: never;
     /** Creates a entity. */
@@ -2604,7 +2604,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The prefixes the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The prefixes the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_prefixes"];
     put?: never;
     /** Creates a prefix. */
@@ -2886,7 +2886,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The ranges the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The ranges the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`. */
     get: operations["list_ranges"];
     put?: never;
     /** Creates a range. */
@@ -3312,7 +3312,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The sites the caller may read, by natural key; `prop.<key>` filters by property (`:between`, `:exists`). */
+    /** The sites the caller may read, by natural key. */
     get: operations["list_sites"];
     put?: never;
     /** Creates a site. */
@@ -7533,10 +7533,20 @@ export interface operations {
   list_addresses: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The address (repeated: one of). */
         value?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The usage (repeated: one of). */
+        usage?: components["schemas"]["AddressUsage"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -9565,7 +9575,7 @@ export interface operations {
   list_domains: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
@@ -9980,9 +9990,9 @@ export interface operations {
   list_entities: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the parent entity (repeated: one of). */
         parent?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
@@ -15495,10 +15505,20 @@ export interface operations {
   list_prefixes: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The prefix, in CIDR notation (repeated: one of). */
         value?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The nature (repeated: one of). */
+        nature?: components["schemas"]["Nature"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -16217,10 +16237,20 @@ export interface operations {
   list_ranges: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the domain (repeated: one of). */
         domain?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description The first address of the range (repeated: one of). */
         first?: string;
+        /** @description Inside this prefix, in CIDR notation, itself included (repeated: inside one of them); a range has both bounds inside. */
+        within?: string;
+        /** @description The usage (repeated: one of). */
+        usage?: components["schemas"]["RangeUsage"];
+        /** @description The property `{key}` equal to the value (repeated: one of). */
+        "prop.{key}"?: string;
+        /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
+        "prop.{key}:between"?: string;
+        /** @description The property `{key}` present (`true`) or absent (`false`). */
+        "prop.{key}:exists"?: boolean;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -17710,9 +17740,9 @@ export interface operations {
   list_sites: {
     parameters: {
       query?: {
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug equal to (repeated: one of). */
         slug?: string;
-        /** @description Equal to (repeated: one of). */
+        /** @description Slug of the parent site (repeated: one of). */
         parent?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;

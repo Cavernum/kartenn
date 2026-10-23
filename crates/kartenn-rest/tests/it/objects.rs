@@ -211,6 +211,99 @@ async fn the_natural_key_is_a_filter(pool: PgPool) {
     }
 }
 
+/// `within`, `nature` and `usage` filter the objects of a domain (design « Filtres »,
+/// task 021-28): inclusion in a CIDR (the prefix itself included, both bounds of a
+/// range), one of the values; with a property filter, on the page of the engine.
+#[kartenn_testing::pg_test]
+async fn within_nature_and_usage_filter_the_lists(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let container = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let inside = prefix(&pool, lab, "10.1.2.0/24").await;
+    let outside = prefix(&pool, lab, "10.2.0.0/24").await;
+    let gateway = address(&pool, lab, "10.1.2.1").await;
+    address(&pool, lab, "10.2.0.1").await;
+    let host = insert(
+        &pool,
+        &format!(
+            "INSERT INTO address (id, domain_id, address, usage, public, registry_version,
+                                  valid_period, changeset_id)
+             VALUES (gen_random_uuid(), $1::uuid, '10.1.2.2', 'host', false, 'test', {SINCE})
+             RETURNING id"
+        ),
+        &[&lab.to_string()],
+    )
+    .await;
+    let range = |text: &'static str| {
+        let pool = pool.clone();
+        async move {
+            insert(
+                &pool,
+                &format!(
+                    "INSERT INTO ip_range (id, domain_id, range, usage, public,
+                                           registry_version, valid_period, changeset_id)
+                     VALUES (gen_random_uuid(), $1::uuid, $2::inetrange, 'dhcp', false,
+                             'test', {SINCE})
+                     RETURNING id"
+                ),
+                &[&lab.to_string(), text],
+            )
+            .await
+        }
+    };
+    let held = range("[10.1.2.10,10.1.2.20]").await;
+    range("[10.1.255.250,10.2.0.5]").await;
+    let env = declare(&pool, "policy.env", false).await;
+    assign(&pool, env, container, "prod", &[]).await;
+    assign(&pool, env, outside, "prod", &[]).await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let ids = |body: &Value| {
+        let mut ids = ids_of(body);
+        ids.sort();
+        ids
+    };
+    let sorted = |mut ids: Vec<Uuid>| {
+        ids.sort();
+        ids.iter().map(Uuid::to_string).collect::<Vec<_>>()
+    };
+
+    let body = ok(&app, "/v1/prefixes?within=10.1.0.0/16").await;
+    assert_eq!(ids(&body), sorted(vec![container, inside]), "{body}");
+    let body = ok(&app, "/v1/prefixes?within=10.1.0.0/16&nature=network").await;
+    assert_eq!(ids(&body), sorted(vec![inside]), "{body}");
+    let body = ok(&app, "/v1/prefixes?nature=container&nature=network").await;
+    assert_eq!(ids(&body).len(), 3, "{body}");
+    let body = ok(&app, "/v1/addresses?within=10.1.2.0/24").await;
+    assert_eq!(ids(&body), sorted(vec![gateway, host]), "{body}");
+    let body = ok(&app, "/v1/addresses?within=10.1.0.0/16&usage=host").await;
+    assert_eq!(ids(&body), sorted(vec![host]), "{body}");
+    let body = ok(&app, "/v1/ranges?within=10.1.0.0/16").await;
+    assert_eq!(ids(&body), sorted(vec![held]), "{body}");
+    let body = ok(&app, "/v1/ranges?usage=static").await;
+    assert_eq!(ids(&body), Vec::<String>::new(), "{body}");
+    // Beside a property filter: the objects of the engine, then the fields of the core.
+    let body = ok(
+        &app,
+        "/v1/prefixes?domain=lab&prop.policy.env=prod&within=10.1.0.0/16",
+    )
+    .await;
+    assert_eq!(ids(&body), sorted(vec![container]), "{body}");
+
+    // A value out of the enumeration, a CIDR with host bits, a filter of another
+    // collection: 400 naming it.
+    for (uri, named) in [
+        ("/v1/prefixes?nature=dhcp", "nature"),
+        ("/v1/ranges?usage=gateway", "usage"),
+        ("/v1/addresses?within=10.1.2.1/24", "within"),
+        ("/v1/prefixes?usage=host", "usage"),
+        ("/v1/entities?within=10.0.0.0/8", "within"),
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn every_collection_reads_with_its_summaries(pool: PgPool) {
     let lab = domain(&pool, "lab").await;

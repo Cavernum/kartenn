@@ -115,7 +115,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
 Contrat complété (X41, REQ-021-35) ; chaque tâche amende la spec du module concerné et
 régénère le contrat de référence et les types du SDK. `k-check` pour chacune.
 
-- [ ] 28. Paramètres de filtre déclarés : `prop.<clé>`, `prop.<clé>:between`,
+- [x] 28. Paramètres de filtre déclarés : `prop.<clé>`, `prop.<clé>:between`,
   `prop.<clé>:exists`, `within`, `usage`, `nature`, `value`, `first`, `parent`, `slug` et
   tout autre filtre servi, décrits dans les `parameters` de l'OpenAPI des routes de liste
   (cœur et modules) ; test de contrat : tout paramètre accepté est déclaré — amendement de
@@ -125,6 +125,17 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - où : `crates/kartenn-rest/src/filter.rs`, `openapi.rs`, `contract.rs` ;
     `specs/006-api-rest/openapi-v1.json` ; `web/sdk/scripts/gen.mjs`
   - dépend de : —
+  - fait le 2026-10-23 : `within`, `nature`, `usage` n'étaient pas servis (REQ-006-9 les
+    promettait) : servis en égalité (`list::objects`, `$12` CIDR, `$13` valeurs) puis
+    déclarés ; filtres de propriétés en trois gabarits `prop.{key}`, `prop.{key}:between`,
+    `prop.{key}:exists` marqués `x-kartenn.template`, sur les seules listes qui filtrent
+    par propriété (006/H20, forme du contrat choisie par Claude) ; `x-kartenn.collection`
+    sur `domain` et `parent` ; une liste sans propriétés refuse `prop.…` comme paramètre
+    inconnu ; test de contrat `declared.rs` (sonde de chaque liste par tous les noms de
+    filtre du contrat) ; `web/sdk/src/api/filters.ts` généré ; client Python : filtres
+    sans gabarit, `--prop` seulement sur une liste qui le déclare, `--within` de la
+    maquette rejoué dans `k-py-e2e`. Rien d'amendé dans la 016 (aucun filtre de liste
+    n'en vient).
 - [ ] 29. Curseurs sur `GET /v1/anomalies`, `/v1/property-gaps` (006, 016) et
   `/v1/flow-nonconformities` (011) — REQ-021-35 — verify : parcours par curseur jusqu'à
   la dernière page sur un jeu de plus d'une page ; curseur signé refusé s'il est altéré

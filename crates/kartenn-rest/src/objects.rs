@@ -38,9 +38,9 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use time::OffsetDateTime;
 use time::format_description::well_known::{Iso8601, Rfc3339};
-use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
 use utoipa::openapi::{RefOr, Schema};
+use utoipa::{PartialSchema, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use uuid::Uuid;
 
@@ -177,18 +177,93 @@ const fn linked(kind: Kind) -> Option<Kind> {
     }
 }
 
-/// The filters of the natural key of a collection.
-const fn key_fields(kind: Kind) -> &'static [&'static str] {
+/// The filters of the list of `kind` on its fields of the core: its natural key, then
+/// `within` (inside a CIDR) and the nature or the usage (design « Filtres »).
+const fn filter_fields(kind: Kind) -> &'static [&'static str] {
     match kind {
         Kind::Entity | Kind::Site => &["slug", "parent"],
         Kind::Domain => &["slug"],
-        Kind::Prefix | Kind::Address => &["domain", "value"],
-        Kind::Range => &["domain", "first"],
+        Kind::Prefix => &["domain", "value", "within", "nature"],
+        Kind::Range => &["domain", "first", "within", "usage"],
+        Kind::Address => &["domain", "value", "within", "usage"],
     }
 }
 
+/// `list` with the filters of the collection of `kind` declared (021/X41): each field of
+/// [`filter_fields`], typed, and the property filters on the objects of a domain.
+fn declare_filters(mut list: crate::openapi::Op, kind: Kind) -> crate::openapi::Op {
+    let text = || String::schema();
+    let named = |collection: &str| Some(json!({ "collection": collection }));
+    let reference = |name: &str| RefOr::Ref(utoipa::openapi::Ref::from_schema_name(name));
+    for field in filter_fields(kind) {
+        list = match (*field, kind) {
+            ("slug", _) => list.filter(field, "Slug equal to (repeated: one of).", text(), None),
+            ("parent", Kind::Site) => list.filter(
+                field,
+                "Slug of the parent site (repeated: one of).",
+                text(),
+                named("/v1/sites"),
+            ),
+            ("parent", _) => list.filter(
+                field,
+                "Slug of the parent entity (repeated: one of).",
+                text(),
+                named("/v1/entities"),
+            ),
+            ("domain", _) => list.filter(
+                field,
+                "Slug of the domain (repeated: one of).",
+                text(),
+                named("/v1/domains"),
+            ),
+            ("value", Kind::Prefix) => list.filter(
+                field,
+                "The prefix, in CIDR notation (repeated: one of).",
+                text(),
+                None,
+            ),
+            ("value", _) => list.filter(field, "The address (repeated: one of).", text(), None),
+            ("first", _) => list.filter(
+                field,
+                "The first address of the range (repeated: one of).",
+                text(),
+                None,
+            ),
+            ("within", _) => list.filter(
+                field,
+                "Inside this prefix, in CIDR notation, itself included (repeated: inside one \
+                 of them); a range has both bounds inside.",
+                text(),
+                None,
+            ),
+            ("nature", _) => list.filter(
+                field,
+                "The nature (repeated: one of).",
+                reference("Nature"),
+                None,
+            ),
+            ("usage", Kind::Range) => list.filter(
+                field,
+                "The usage (repeated: one of).",
+                reference("RangeUsage"),
+                None,
+            ),
+            _ => list.filter(
+                field,
+                "The usage (repeated: one of).",
+                reference("AddressUsage"),
+                None,
+            ),
+        };
+    }
+    if kind.in_domain() {
+        list = list.property_filters();
+    }
+    list
+}
+
 /// How the clients name and show a collection (023/A5): its natural key, among
-/// [`key_fields`] (a slug is unique among the entities, the sites, the domains), and the
+/// [`filter_fields`] (a slug is unique among the entities, the sites, the domains), and the
 /// columns of a table.
 const fn presentation(kind: Kind) -> (&'static [&'static str], &'static [&'static str]) {
     match kind {
@@ -243,18 +318,15 @@ pub fn routes() -> OpenApiRouter<Api> {
         schemas_of::<VersionDto>(&mut schemas);
         schemas.push(listing_of::<VersionDto>());
         let listing = format!("Listing_{dto}");
-        let mut list_op = op(
-            &format!("list_{name}"),
-            "core",
-            &format!(
-                "The {name} the caller may read, by natural key; `prop.<key>` filters by \
-                 property (`:between`, `:exists`)."
-            ),
-        );
-        for field in key_fields(kind) {
-            list_op = list_op.query(field, "Equal to (repeated: one of).");
-        }
-        let list_op = list_op
+        let summary = if kind.in_domain() {
+            format!(
+                "The {name} the caller may read, by natural key; `prop.{{key}}` filters by \
+                 property (`:between`, `:exists`), with one `domain`."
+            )
+        } else {
+            format!("The {name} the caller may read, by natural key.")
+        };
+        let list_op = declare_filters(op(&format!("list_{name}"), "core", &summary), kind)
             .params::<DatesParams>()
             .params::<PageParams>()
             .answers("200", "A page of the collection.", &listing)
@@ -738,13 +810,15 @@ struct Wanted {
     slugs: Vec<String>,
     links: Vec<String>,
     values: Vec<String>,
+    within: Vec<String>,
+    usages: Vec<String>,
     /// Conditions on properties, by key.
     properties: Vec<(String, Condition)>,
 }
 
 fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
     let mut wanted = Wanted::default();
-    for found in filter::parse(params, key_fields(kind))? {
+    for found in filter::parse(params, filter_fields(kind), kind.in_domain())? {
         let name = match found.field {
             Field::Core(name) => name,
             Field::Property(key) => {
@@ -756,6 +830,26 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
         match name {
             "slug" => wanted.slugs.extend(canonical(name, values, slug)?),
             "parent" | "domain" => wanted.links.extend(canonical(name, values, slug)?),
+            "within" => wanted.within.extend(canonical(name, values, |v| {
+                Prefix::parse_any(&ALL, v).ok().map(|p| p.to_string())
+            })?),
+            "nature" => wanted.usages.extend(canonical(name, values, |v| {
+                serde_json::from_value::<Nature>(json!(v))
+                    .ok()
+                    .map(|_| v.to_owned())
+            })?),
+            "usage" if kind == Kind::Range => {
+                wanted.usages.extend(canonical(name, values, |v| {
+                    serde_json::from_value::<RangeUsage>(json!(v))
+                        .ok()
+                        .map(|_| v.to_owned())
+                })?);
+            }
+            "usage" => wanted.usages.extend(canonical(name, values, |v| {
+                serde_json::from_value::<AddressUsage>(json!(v))
+                    .ok()
+                    .map(|_| v.to_owned())
+            })?),
             "value" if kind == Kind::Prefix => {
                 wanted.values.extend(canonical(name, values, |v| {
                     Prefix::parse_any(&ALL, v).ok().map(|p| p.to_string())
@@ -930,6 +1024,8 @@ async fn list(
                 links: &wanted.links,
                 values: &wanted.values,
                 ids: &[],
+                within: &wanted.within,
+                usages: &wanted.usages,
             },
             moment.valid_at,
             Some(moment.as_of()),
@@ -964,6 +1060,8 @@ async fn list(
                 kind,
                 &Criteria {
                     ids: &ids,
+                    within: &wanted.within,
+                    usages: &wanted.usages,
                     ..Criteria::default()
                 },
                 moment.valid_at,

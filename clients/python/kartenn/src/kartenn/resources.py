@@ -254,6 +254,9 @@ class Context:
             )
             params = [("cursor", cursor)] + ([("page_size", str(page_size))] if page_size else [])
             return (yield from page(Request("GET", listing.path, tuple(params)), None))
+        if prop and not listing.takes_properties:
+            msg = f"the list of {name} takes no property filter"
+            raise ClientError("client.unknown-filter", msg)
         known = [p.name for p in listing.filters]
         found = filters_from(filters, prop, known=known)
         dates = to_param(valid_at) or self.valid_at, to_param(as_of) or self.as_of

@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { DATED, SCHEMA, generate, readContract } from "../scripts/gen.mjs";
+import { DATED, FILTERS, SCHEMA, generate, readContract } from "../scripts/gen.mjs";
 import { createClient } from "../src/api/client.ts";
 import { ApiProblem } from "../src/api/problem.ts";
 
@@ -178,6 +178,29 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
     const fresh = await generate(readContract());
     expect(fresh.schema).toBe(readFileSync(SCHEMA, "utf8"));
     expect(fresh.dated).toBe(readFileSync(DATED, "utf8"));
+    expect(fresh.filters).toBe(readFileSync(FILTERS, "utf8"));
+  });
+
+  it("the filters of a list are those of its parameters, property filters included", async () => {
+    const { FILTERS: lists } = await import("../src/api/filters");
+    const names = (path: string) => (lists[path] ?? []).map((f) => f.name);
+    expect(names("/v1/prefixes")).toEqual([
+      "domain",
+      "value",
+      "within",
+      "nature",
+      "prop.{key}",
+      "prop.{key}:between",
+      "prop.{key}:exists",
+    ]);
+    const nature = lists["/v1/prefixes"]?.find((f) => f.name === "nature");
+    expect(nature?.enum).toEqual(["container", "network"]);
+    const domain = lists["/v1/ranges"]?.find((f) => f.name === "domain");
+    expect(domain?.collection).toBe("/v1/domains");
+    const exists = lists["/v1/addresses"]?.find((f) => f.name === "prop.{key}:exists");
+    expect(exists?.type).toBe("boolean");
+    expect(exists?.template?.key.collection).toBe("/v1/property-declarations");
+    expect(names("/v1/entities")).toEqual(["slug", "parent"]);
   });
 
   it("a contract changed without regeneration fails the comparison", async () => {

@@ -172,16 +172,17 @@ def list_params(command: VerbCommand) -> list[click.Parameter]:
         query_option(param, section=section, multiple=True, catalog=command.catalog)
         for param in command.operation.filters
     ]
-    params.append(
-        Option(
-            ["--prop"],
-            multiple=True,
-            metavar="metavar.prop",
-            help="opt.prop",
-            section=section,
-            shell_complete=complete_prop,
+    if command.operation.takes_properties:
+        params.append(
+            Option(
+                ["--prop"],
+                multiple=True,
+                metavar="metavar.prop",
+                help="opt.prop",
+                section=section,
+                shell_complete=complete_prop,
+            )
         )
-    )
     params += date_params(freeze=True)
     params += output_params()
     pages = "help.section.output"
@@ -267,7 +268,10 @@ class ListCommand(VerbCommand):
         try:
             return super().parse_args(ctx, args)
         except click.NoSuchOption as error:
-            filters = ", ".join(f"--{p.name.replace('_', '-')}" for p in self.operation.filters)
+            names = [f"--{p.name.replace('_', '-')}" for p in self.operation.filters]
+            if self.operation.takes_properties:
+                names.append(f"--prop {t('metavar.prop')}")
+            filters = ", ".join(names)
             raise CliError(
                 "client.unknown-filter",
                 t("filter.unknown", option=error.option_name, filters=filters or "—"),
