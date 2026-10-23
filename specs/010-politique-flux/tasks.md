@@ -607,10 +607,13 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     évalue tous les héritiers (dans la portée ou non) des origines porteuses d'une
     anomalie ouverte. Constat : une simulation sans le droit ne répond pas 403 mais 200
     `valid: false` avec `core.object.forbidden` et sans section (REQ-004-9) ; la REQ et
-    le design sont corrigés en ce sens. Non fait : masquage des valeurs d'un axe sensible
-    dans les lignes (les axes livrés ne le sont pas ; il faudrait un crochet du noyau à
-    la lecture du différentiel) ; `docs/spec/interfaces.md` ne décrit pas les lignes des
-    sections de module, rien à y ajouter. Oracle : graine fixe sur quatre petits arbres
+    le design sont corrigés en ce sens. Masquage d'un axe sensible (2026-10-24, à la
+    demande de la coordination) : les côtés d'une ligne de nœud portent `masking`
+    (`expected`, `candidates`, `rule`, `declared`), que le noyau masque à la lecture sans
+    `prop.<axe>.read` sur le nœud (ADR 0026, amendement 6 ; `changesets::mask_rows`, en
+    simulation comme à la lecture de la section) ; test REST
+    `the_preview_masks_the_values_of_a_sensitive_axis`. `docs/spec/interfaces.md` ne
+    décrit pas les lignes des sections de module, rien à y ajouter. Oracle : graine fixe sur quatre petits arbres
     (`Draw`, pas proptest : une base par cas serait trop lente), nœuds changés = nœuds
     dont la suggestion de la source diffère avant et après application. Banc 010-19 :
     budget « preview of a rule of inference in its simulation, added » (1 s par 10⁴

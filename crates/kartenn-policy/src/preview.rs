@@ -103,6 +103,12 @@ fn shown(axis: &AxisKey, revision: i64, side: &Side) -> Value {
         "declared": side.declared,
         "origin": side.origin,
         "deviates": side.deviates,
+        // The values of a sensitive axis, masked by the core at the read of the row
+        // without `prop.<axis>.read` on the node (REQ-005-21, S36).
+        "masking": {
+            "property": axis.to_string(),
+            "members": ["expected", "candidates", "rule", "declared"],
+        },
     })
 }
 

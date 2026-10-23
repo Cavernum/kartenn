@@ -341,6 +341,18 @@ s'écrit sous `m.read` et `m.write` ; un type dont le nom diffère de celui du m
 job de migration renomme ceux des rôles personnalisés par un changeset système
 (018/Q-018-3).
 
+### Amendement 6 — 2026-10-24, valeurs sensibles d'une section (010 S36, REQ-005-21)
+
+Une ligne de section (clause 13) peut montrer des valeurs d'une propriété sensible
+(l'aperçu de l'inférence, 010/S36). Le module le dit sur chaque côté de la ligne
+concerné par le membre `masking` : `{"property": "<clé>", "members": ["<membre>", …]}`.
+À la lecture (échantillon d'une simulation, `GET /v1/changesets/{id}/diff?section=`),
+le noyau (`kartenn_rest::changesets::mask_rows`) remplace ces membres par `null` et
+ajoute `masked: true` quand la propriété est sensible et que l'appelant n'a pas
+`prop.<clé>.read` sur l'objet de la ligne ; chaque valeur laissée visible est une
+divulgation auditée (`data.sensitive.read`), comme dans le différentiel des propriétés.
+La section stockée garde les valeurs : le masquage dépend de qui lit, pas de qui écrit.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

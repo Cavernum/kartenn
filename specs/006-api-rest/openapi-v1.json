@@ -8871,7 +8871,7 @@
             "type": "object"
           },
           "before": {
-            "description": "What the module shows of it before; `null`: absent.",
+            "description": "What the module shows of it before; `null`: absent. A side may name, under\n`masking`, the members a sensitive property hides (`masked: true` then).",
             "type": "object"
           },
           "kind": {

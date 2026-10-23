@@ -353,7 +353,10 @@ tâche 010-22).
 Une règle qui cite un domaine ne s'évalue que dans ce domaine : la portée ne sort pas
 de ce que son auteur administre. La relecture d'un changeset soumis suit la règle
 commune du différentiel (`core.changeset.read`) ; les valeurs d'un axe sensible sont
-masquées sans `prop.<clé>.read`, comme dans le différentiel des propriétés (REQ-005-21).
+masquées sans `prop.<clé>.read`, comme dans le différentiel des propriétés (REQ-005-21) :
+chaque côté d'une ligne de nœud nomme sous `masking` les membres qui portent des valeurs
+(`expected`, `candidates`, `rule`, `declared`), que le noyau met à `null` avec
+`masked: true` à la lecture (ADR 0026, amendement 6).
 
 **Erreurs.** Aucun problème nouveau : opérations invalides
 (`policy.inference.regex_invalid`, `criterion_invalid`, `depth`) → 422

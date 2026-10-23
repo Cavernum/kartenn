@@ -17,11 +17,11 @@ use sqlx::types::Uuid;
 use crate::support::env::{Env, op};
 
 const SECTION: &str = "policy.combinations";
-const NETWORK: &str = "10.9.0.0/24";
+pub(crate) const NETWORK: &str = "10.9.0.0/24";
 
 /// The environments `prod`, `dev` and `rec`, a network of 11 addresses (12 nodes), 3 of
 /// them declared `dev`; the identifiers of the network and of the addresses.
-async fn tree(env: &Env) -> (Uuid, Vec<Uuid>) {
+pub(crate) async fn tree(env: &Env) -> (Uuid, Vec<Uuid>) {
     env.applied(
         ["prod", "dev", "rec"]
             .iter()

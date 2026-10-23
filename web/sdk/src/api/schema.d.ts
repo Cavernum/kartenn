@@ -6943,7 +6943,10 @@ export interface components {
     SectionRowDto: {
       /** @description What the module shows of it after; `null`: absent. */
       after: Record<string, never>;
-      /** @description What the module shows of it before; `null`: absent. */
+      /**
+       * @description What the module shows of it before; `null`: absent. A side may name, under
+       *     `masking`, the members a sensitive property hides (`masked: true` then).
+       */
       before: Record<string, never>;
       /** @description Its qualified type. */
       kind: string;

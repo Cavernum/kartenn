@@ -703,3 +703,98 @@ async fn the_reports_are_listed_by_pages(pool: PgPool) {
     let (status, _, _) = call(&reader, Method::GET, "/v1/policy-reports", None, &[]).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+/// The rows `policy.inference.node` of the section of `answer` (a simulation) or of
+/// `page` (a page of the section).
+fn preview_nodes(rows: &Value) -> Vec<Value> {
+    rows.as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["kind"] == "policy.inference.node")
+        .cloned()
+        .collect()
+}
+
+/// S36, REQ-005-21: on a sensitive axis, the values of the preview (expected, candidates,
+/// rule, declared) are masked for a reader without `prop.<axis>.read` on the node, in the
+/// simulation as in the section of the changeset applied; shown with the right.
+#[kartenn_testing::pg_test]
+async fn the_preview_masks_the_values_of_a_sensitive_axis(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (_, addresses) = crate::preview::tree(&env).await;
+    sqlx::query(
+        "UPDATE property_declaration SET sensitive = true WHERE key = 'policy.environment'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let rights = ["policy.inference.admin", "core.changeset.read"];
+    let blind = env.app(env.person(&rights).await);
+    let mut seeing_rights = rights.to_vec();
+    seeing_rights.push("prop.policy.environment.read");
+    let seeing = env.app(env.person(&seeing_rights).await);
+    let body = json!({
+        "motive": "aperçu",
+        "operations": [{
+            "op": "policy.inference_rule.create", "key": "r-prod",
+            "axis": "policy.environment", "priority": 0,
+            "criteria": [{ "within": [crate::preview::NETWORK] }], "values": ["prod"],
+        }],
+    });
+    let section = |answer: &Value| -> Value {
+        answer["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["name"] == "policy.combinations")
+            .map_or_else(|| panic!("no section: {answer}"), |s| s["rows"].clone())
+    };
+    let declared_dev = |rows: &[Value]| {
+        rows.iter()
+            .find(|r| r["object"] == addresses[0].to_string())
+            .cloned()
+            .unwrap()
+    };
+
+    let uri = "/v1/changesets?simulate=true";
+    let (status, _, answer) = call(&blind, Method::POST, uri, Some(body.clone()), &[]).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let rows = preview_nodes(&section(&answer));
+    assert_eq!(rows.len(), 12, "{answer}");
+    let row = declared_dev(&rows);
+    for side in ["before", "after"] {
+        let shown = &row[side];
+        assert_eq!(shown["masked"], true, "{row}");
+        for member in ["expected", "candidates", "rule", "declared"] {
+            assert_eq!(shown[member], Value::Null, "{member}: {row}");
+        }
+    }
+    assert_eq!(
+        row["after"]["deviates"], true,
+        "the deviation is not a value"
+    );
+    let (status, _, answer) = call(&seeing, Method::POST, uri, Some(body.clone()), &[]).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let row = declared_dev(&preview_nodes(&section(&answer)));
+    assert_eq!(row["after"]["expected"], json!(["prod"]), "{row}");
+    assert_eq!(row["after"]["declared"], json!(["dev"]));
+    assert!(row["after"].get("masked").is_none(), "{row}");
+
+    // Applied: the section of the changeset, masked the same way at its read.
+    let (status, _, applied) = call(&seeing, Method::POST, "/v1/changesets", Some(body), &[]).await;
+    assert_eq!(status, StatusCode::CREATED, "{applied}");
+    let id = applied["id"]
+        .as_str()
+        .or_else(|| applied["changeset"]["id"].as_str())
+        .unwrap_or_else(|| panic!("{applied}"))
+        .to_owned();
+    let page = format!("/v1/changesets/{id}/diff?section=policy.combinations&page_size=1000");
+    let (status, _, read) = call(&blind, Method::GET, &page, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{read}");
+    let row = declared_dev(&preview_nodes(&read["rows"]));
+    assert_eq!(row["after"]["masked"], true, "{row}");
+    assert_eq!(row["after"]["expected"], Value::Null);
+    let (_, _, read) = call(&seeing, Method::GET, &page, None, &[]).await;
+    let row = declared_dev(&preview_nodes(&read["rows"]));
+    assert_eq!(row["after"]["expected"], json!(["prod"]), "{row}");
+}

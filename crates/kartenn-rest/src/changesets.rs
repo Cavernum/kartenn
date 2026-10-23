@@ -367,15 +367,16 @@ impl From<&DiffCount> for DiffCountDto {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub(crate) struct SectionRowDto {
     /// The object.
-    object: Uuid,
+    pub(crate) object: Uuid,
     /// Its qualified type.
     kind: String,
-    /// What the module shows of it before; `null`: absent.
+    /// What the module shows of it before; `null`: absent. A side may name, under
+    /// `masking`, the members a sensitive property hides (`masked: true` then).
     #[schema(value_type = Object)]
-    before: Value,
+    pub(crate) before: Value,
     /// What the module shows of it after; `null`: absent.
     #[schema(value_type = Object)]
-    after: Value,
+    pub(crate) after: Value,
     /// Start of the period of the change; `null`: that of the changeset.
     valid_from: Option<String>,
     /// End of the period of the change; `null`: unbounded, or that of the changeset.
@@ -408,6 +409,88 @@ impl From<&kartenn_service::module::DiffRow> for SectionRowDto {
     }
 }
 
+/// The member of a side of a row of a module section that names what a sensitive
+/// property hides there (ADR 0026, clause 13; 010/S36): `{"property": "<key>",
+/// "members": ["<member>", …]}`. Read without `prop.<key>.read` on the object of the
+/// row, the members named are `null` and the side carries `masked: true` (REQ-005-21).
+pub const MASKING: &str = "masking";
+
+/// Masks, in `rows`, the members a side names under [`MASKING`] when its property is
+/// sensitive and the caller may not read it on the object of the row; every value left
+/// of a sensitive property is a disclosure, audited.
+pub(crate) async fn mask_rows(
+    api: &Api,
+    context: &RequestContext,
+    rows: &mut [SectionRowDto],
+) -> Result<(), Problem> {
+    let named = |side: &Value| {
+        side.get(MASKING)
+            .and_then(|m| m.get("property"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    if !rows
+        .iter()
+        .any(|r| named(&r.before).is_some() || named(&r.after).is_some())
+    {
+        return Ok(());
+    }
+    let sensitive = property_read::sensitive_keys(&api.pool)
+        .await
+        .map_err(|e| store(&e))?;
+    let mut wanted: std::collections::BTreeMap<String, BTreeSet<Uuid>> =
+        std::collections::BTreeMap::new();
+    for row in rows.iter() {
+        for side in [&row.before, &row.after] {
+            if let Some(key) = named(side).filter(|k| sensitive.contains(k)) {
+                wanted.entry(key).or_default().insert(row.object);
+            }
+        }
+    }
+    let authorizer = api.authorizer();
+    let mut shown: BTreeSet<(String, Uuid)> = BTreeSet::new();
+    for (key, objects) in wanted {
+        let objects: Vec<Uuid> = objects.into_iter().collect();
+        for object in kartenn_service::reads::sensitive_disclosed(
+            &authorizer,
+            &api.journal,
+            context,
+            &key,
+            &objects,
+        )
+        .await?
+        {
+            shown.insert((key.clone(), object));
+        }
+    }
+    for row in rows.iter_mut() {
+        let object = row.object;
+        for side in [&mut row.before, &mut row.after] {
+            let Some(key) = named(side).filter(|k| sensitive.contains(k)) else {
+                continue;
+            };
+            if shown.contains(&(key, object)) {
+                continue;
+            }
+            let members: Vec<String> = side[MASKING]["members"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|m| m.as_str().map(str::to_owned))
+                .collect();
+            if let Value::Object(map) = side {
+                for member in members {
+                    if map.contains_key(&member) {
+                        map.insert(member, Value::Null);
+                    }
+                }
+                map.insert("masked".into(), Value::Bool(true));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A section of the differential in a simulation: its size and its first rows
 /// (REQ-008-26).
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -417,7 +500,7 @@ pub(crate) struct SectionSampleDto {
     /// Its rows.
     count: u64,
     /// Its first rows.
-    rows: Vec<SectionRowDto>,
+    pub(crate) rows: Vec<SectionRowDto>,
 }
 
 impl From<&kartenn_service::pipeline::SectionSample> for SectionSampleDto {
@@ -697,12 +780,13 @@ pub(crate) async fn submit_answered(
         MAX_OPERATIONS,
     )
     .await?;
-    answered(api, outcome, answer).await
+    answered(api, context, outcome, answer).await
 }
 
 /// The response to `outcome`, as `answer` says; a failed revalidation is refused (422).
 pub(crate) async fn answered(
     api: &Api,
+    context: &RequestContext,
     outcome: Outcome,
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
@@ -751,15 +835,22 @@ pub(crate) async fn answered(
             sample,
             cascaded: closures,
             sections,
-        } => Json(ChangesetSimulated {
-            valid: !found.iter().any(Violation::is_error),
-            violations: violations(api, &found, answer.pointers).await?,
-            diff: diff.iter().map(DiffCountDto::from).collect(),
-            sample: sample.iter().map(DiffItemDto::from).collect(),
-            cascaded: cascaded(&closures),
-            sections: sections.iter().map(SectionSampleDto::from).collect(),
-        })
-        .into_response(),
+        } => {
+            let mut sections: Vec<SectionSampleDto> =
+                sections.iter().map(SectionSampleDto::from).collect();
+            for section in &mut sections {
+                mask_rows(api, context, &mut section.rows).await?;
+            }
+            Json(ChangesetSimulated {
+                valid: !found.iter().any(Violation::is_error),
+                violations: violations(api, &found, answer.pointers).await?,
+                diff: diff.iter().map(DiffCountDto::from).collect(),
+                sample: sample.iter().map(DiffItemDto::from).collect(),
+                cascaded: cascaded(&closures),
+                sections,
+            })
+            .into_response()
+        }
         other => {
             tracing::error!(name: "http.changeset.unexpected", outcome = ?other, "a changeset had an unexpected outcome");
             Problem::new(ProblemKind::Internal).into_response()
