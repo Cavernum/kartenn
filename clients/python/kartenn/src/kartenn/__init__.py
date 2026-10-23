@@ -23,7 +23,9 @@ from kartenn._core.problems import (
 from kartenn._core.requests import between, exists
 from kartenn.auth import FileStore, MemoryStore, TokenStore
 from kartenn.catalog import UnknownResource
+from kartenn.changesets import Simulation
 from kartenn.client import AsyncClient, Client
+from kartenn.imports import ImportProgress, ImportRefused, file_digest, ndjson_elements
 from kartenn.resources import Applied, Pending, Record
 
 __all__ = [
@@ -36,6 +38,8 @@ __all__ = [
     "Conflict",
     "FileStore",
     "Forbidden",
+    "ImportProgress",
+    "ImportRefused",
     "KartennError",
     "MemoryStore",
     "NetworkError",
@@ -47,6 +51,7 @@ __all__ = [
     "Record",
     "Refused",
     "ServerError",
+    "Simulation",
     "TokenStore",
     "Unauthenticated",
     "Unavailable",
@@ -55,6 +60,8 @@ __all__ = [
     "__version__",
     "between",
     "exists",
+    "file_digest",
+    "ndjson_elements",
 ]
 
 __version__ = version("kartenn")

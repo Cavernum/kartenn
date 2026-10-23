@@ -17,6 +17,7 @@ import os
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any, Self, TypeVar
 
+from kartenn import changesets, imports
 from kartenn._core.plans import arun, run
 from kartenn._core.problems import ClientError
 from kartenn._core.requests import user_agent
@@ -29,7 +30,7 @@ from kartenn.retry import AsyncSender, RetryPolicy, Sender
 
 if TYPE_CHECKING:
     import os as _os
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from datetime import datetime
     from pathlib import Path
     from types import TracebackType
@@ -194,6 +195,52 @@ class Client:
             )
         )
 
+    # Changesets and imports ------------------------------------------------------
+
+    def changeset(
+        self,
+        *,
+        motive: str,
+        valid_from: datetime | str | None = None,
+        valid_to: datetime | str | None = None,
+        on_behalf_of: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> changesets.ChangesetBuilder:
+        """A changeset to compose, then simulate or submit."""
+        plans = changesets.builder(
+            self._context,
+            motive=motive,
+            valid_from=valid_from,
+            valid_to=valid_to,
+            on_behalf_of=on_behalf_of,
+            idempotency_key=idempotency_key,
+        )
+        return changesets.ChangesetBuilder(plans, self.run)
+
+    def changeset_of(self, ref: object) -> changesets.ChangesetHandle:
+        """An existing changeset, by its identifier or as read."""
+        return changesets.ChangesetHandle(changesets.existing(self._context, ref), self.run)
+
+    def import_session(
+        self,
+        source: str,
+        *,
+        digest: str,
+        chunk_elements: int | None = None,
+        state_dir: Path | None = None,
+        on_progress: Callable[[imports.ImportProgress], None] | None = None,
+    ) -> imports.ImportSession:
+        """An import of `source`, its digest identifying the content (`file_digest`)."""
+        plans = imports.plans(
+            self._context,
+            source=source,
+            digest=digest,
+            chunk_elements=chunk_elements,
+            state_dir=state_dir,
+            on_progress=on_progress,
+        )
+        return imports.ImportSession(plans, self.run, self._sender.transport.sleep)
+
     # Life ------------------------------------------------------------------------
 
     def close(self) -> None:
@@ -292,6 +339,47 @@ class AsyncClient:
             operation_id, body=body, etag=etag, key=idempotency_key, headers=headers, params=params
         )
         return await self.run(plan)
+
+    def changeset(
+        self,
+        *,
+        motive: str,
+        valid_from: datetime | str | None = None,
+        valid_to: datetime | str | None = None,
+        on_behalf_of: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> changesets.AsyncChangesetBuilder:
+        plans = changesets.builder(
+            self._context,
+            motive=motive,
+            valid_from=valid_from,
+            valid_to=valid_to,
+            on_behalf_of=on_behalf_of,
+            idempotency_key=idempotency_key,
+        )
+        return changesets.AsyncChangesetBuilder(plans, self.run)
+
+    def changeset_of(self, ref: object) -> changesets.AsyncChangesetHandle:
+        return changesets.AsyncChangesetHandle(changesets.existing(self._context, ref), self.run)
+
+    def import_session(
+        self,
+        source: str,
+        *,
+        digest: str,
+        chunk_elements: int | None = None,
+        state_dir: Path | None = None,
+        on_progress: Callable[[imports.ImportProgress], None] | None = None,
+    ) -> imports.AsyncImportSession:
+        plans = imports.plans(
+            self._context,
+            source=source,
+            digest=digest,
+            chunk_elements=chunk_elements,
+            state_dir=state_dir,
+            on_progress=on_progress,
+        )
+        return imports.AsyncImportSession(plans, self.run, self._sender.transport.sleep)
 
     async def aclose(self) -> None:
         if self._owner:

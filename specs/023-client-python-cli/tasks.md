@@ -269,7 +269,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     autres à la tâche 13. `FileStore` refuse un fichier lisible par d'autres
     (`client.store-permissions`). Auth par plans (`authorize`, `unauthorized`) : une
     seule nouvelle tentative après un 401 si l'auth se renouvelle.
-- [ ] 12. Changesets et imports :
+- [x] 12. Changesets et imports :
   - `ChangesetBuilder`, simulation, soumission (`Applied`, `Pending`, `Refused`),
     actions sous `If-Match`, différentiel paginé par section ;
   - `ImportSession` : morceaux, état local XDG, reprise par empreinte, rappel
@@ -279,6 +279,24 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/changesets.py`, `imports.py` ; 006/design
     § Imports et tâches de fond ; 017/decisions Q-017-1
   - dépend de : 11
+  - choix : `kn.changeset(motive=…)` rend le constructeur ; `add(op)` rend l'indice
+    (référence locale `{"local": n}`), `create(ressource, …)` prend pour `op`
+    l'`operationId` de la création de la ressource, résolu à l'envoi. Discriminants lus
+    dans le schéma `Operation` du contrat (références et `oneOf`/`allOf` suivis) ; une
+    clé d'idempotence par constructeur, absente de la simulation ;
+    `Kartenn-On-Behalf-Of` pour « pour le compte de ». `kn.changeset_of(réf)` :
+    `read`, `approve([opérations])`, `reject(motif)`, `withdraw`, `undo(simulate=)`
+    sous l'`If-Match` de la lecture (relue si absente, oubliée après chaque action) ;
+    `diff(section=, prop=)` rend un `Listing` de lignes génériques. Imports :
+    `kn.import_session(source, digest=…)` ; `run` crée toujours un nouvel import,
+    `resume` exige l'état local de (serveur, source) et la même empreinte ; état effacé
+    après `start`. Morceaux numérotés depuis 0, `chunk_elements` des capacités par
+    défaut (borné par elles), découpage par nombre d'éléments seulement (pas par
+    `body_bytes`). Lignes des éléments gardées dans un `array` (8 octets par élément) pour
+    traduire l'indice d'une violation (dernier entier du `pointer`, ou membre `element`)
+    en ligne source. `wait` suit au rythme de `Retry-After` (5 s sans lui). Test de
+    10⁶ éléments sous `tracemalloc` sur un transport muet : pic sous 100 Mio (environ
+    17 s).
 - [ ] 13. Authentification : Basic, Bearer fourni, OIDC natif (bouclage `127.0.0.1` à
   port libre, PKCE `S256`, `state`, `nonce`), flux d'appareil, rafraîchissement, secours
   avec `Origin`. Note `docs/reference/oauth-clients-natifs.md` (RFC 8252, 8628, 9700,
