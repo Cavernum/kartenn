@@ -46,6 +46,11 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `devenv.nix` `scripts.k-web-check`, `scripts.k-web-e2e` (vers les lignes 494 et 533) ;
     `web/e2e/kartenn.toml`, `web/e2e/serve.sh`
   - dépend de : —
+  - en cours : espace, lockfile, `ui`, `shell`, `e2e`, lint, étape de `ci.sh` et commandes
+    devenv faits avec la 020 (2026-10-23) ; paquet `sdk` copié le 2026-10-24 (1.0.0, MPL-2.0,
+    `LICENSE`, contrat généré depuis `web/v2/sdk/scripts/gen.mjs`, test du paquet sur
+    `tools/notices.ts`) ; `tokens` retiré du SDK (les jetons sont ceux de `@kartenn/ui`).
+    Reste : `plugins`, configuration de test de kartenn-server sur les builds de `web/v2/`.
 
 - [ ] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le

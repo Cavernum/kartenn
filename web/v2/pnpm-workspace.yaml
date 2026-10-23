@@ -2,6 +2,12 @@
 # until the cutover commit. Packages appear with their tasks (020, 021).
 packages:
   - tools
+  - sdk
   - ui
   - shell
   - e2e
+
+# openapi-typescript 7 declares TypeScript ^5 and generates the same types under 6.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: "6"
