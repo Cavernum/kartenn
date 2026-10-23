@@ -172,7 +172,7 @@ emploient.
 
 ## P2 — Catalogue et captures
 
-- [ ] 8. Catalogue `/_ui` nu : routes hors production (index, jetons, icônes, page de
+- [x] 8. Catalogue `/_ui` nu : routes hors production (index, jetons, icônes, page de
   composant générique qui lit `<Nom>.catalogue.*`), commutateurs mode/densité/langue dans
   l'URL ; absent du build de production — REQ-020-24 — verify : test sur le manifeste du
   build de production (aucun module `_ui`) ; parcours `/_ui/jetons` sans violation axe
@@ -180,6 +180,22 @@ emploient.
   - où : `web/shell/src/router.ts` (routes paresseuses), `web/shell/vite.config.ts`
     (mode), `web/shell/src/theme.ts` (mode forcé) ; design § « Catalogue »
   - dépend de : 5, 6, 7
+  - fait : `web/v2/shell/` (Vue, vue-router, `@kartenn/ui`) : `router.ts` ajoute les
+    routes de `src/_ui/routes.ts` si `import.meta.env.MODE !== "production"` (branche
+    éliminée au build de production) ; pages `/_ui` (index), `/_ui/jetons` (nuanciers,
+    états, échelles, typographie, colonne de chiffres, densité, mouvement, valeurs lues
+    sur la racine), `/_ui/icones` (planche de revue des icônes métier avec leurs voisines
+    Lucide, puis la liste fermée), `/_ui/c/<composant>` (états de
+    `<Nom>.catalogue.ts`, lus par `@kartenn/ui/catalogue` ; `?etat=` isole un état) ;
+    commutateurs `?mode=`, `?densite=`, `?langue=` sur la racine (`data-theme`,
+    `data-density`, `lang`) ; `vite build --mode catalogue` vers `web/v2/dist/catalogue`,
+    publié en artefact par `.github/workflows/ci.yml` ; préchargement de Geist par un
+    greffon Vite (`preloadFont`, `<link rel=preload>` au nom à empreinte, tâche 6) ;
+    `test/build.test.ts` (aucun module `_ui` au manifeste de production, polices en
+    fichiers, préchargement, aucun style en ligne dans `index.html`). Le parcours axe de
+    `/_ui/jetons` est dans le projet `visual` (tâche 9). Choix de Claude : jeton
+    `--k-measure-prose` (72ch) ; la langue ne change pour l'instant que `lang` (pas encore
+    de catalogue de traduction dans le nouveau shell).
 - [ ] 9. Régression visuelle et contrôles transverses : projet Playwright `visual`
   (Chromium, 1280 × 800, échelle 1, mouvement réduit, horloge, locale et fuseau fixes,
   `vite preview` sur `127.0.0.1:4173`) ; aide `snap(page, état)` (capture et instantané

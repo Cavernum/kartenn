@@ -16,6 +16,10 @@
       "types": "./src/icons/index.ts",
       "import": "./src/icons/index.ts"
     },
+    "./catalogue": {
+      "types": "./src/catalogue.ts",
+      "import": "./src/catalogue.ts"
+    },
     "./style.css": "./src/style.css"
   },
   "scripts": {

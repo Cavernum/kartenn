@@ -95,6 +95,18 @@ jobs:
           exit 1
       - name: scripts/ci.sh --no-nix
         run: nix shell --inputs-from . nixpkgs#dash --command scripts/ci.sh --no-nix
+      # The catalogue of the design system (spec 020, REQ-020-24, Q-020-2): the test build of
+      # the new shell with /_ui, to browse without a checkout (`vite preview` or any static
+      # server with a fallback to index.html).
+      - name: Catalogue /_ui
+        run: devenv shell -- pnpm -C web/v2/shell run build:catalogue
+      - name: Catalogue artefact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: catalogue-ui-${{ github.run_attempt }}
+          path: web/v2/dist/catalogue
+          retention-days: 14
+          if-no-files-found: error
       - name: Logs
         if: ${{ failure() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

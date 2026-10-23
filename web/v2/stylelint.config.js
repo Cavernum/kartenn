@@ -46,8 +46,6 @@ const STRICT = [
   "/^(min-|max-)?(width|height|inline-size|block-size)$/",
   "/^(min-|max-)?(inline|block)-size$/",
   "flex-basis",
-  "grid-template-columns",
-  "grid-template-rows",
 ];
 
 export default {

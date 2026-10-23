@@ -100,6 +100,7 @@ export const tokens = [
   "--k-weight-regular",
   "--k-weight-medium",
   "--k-weight-semibold",
+  "--k-measure-prose",
   "--k-row-height",
   "--k-header-height",
   "--k-control-height-sm",

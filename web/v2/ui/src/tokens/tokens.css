@@ -124,6 +124,7 @@
     --k-weight-regular: 400;
     --k-weight-medium: 500;
     --k-weight-semibold: 600;
+    --k-measure-prose: 72ch;
 
     /* Density (REQ-020-2): compact by default */
     --k-row-height: 28px;
