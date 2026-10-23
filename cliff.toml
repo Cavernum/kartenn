@@ -1,0 +1,103 @@
+# git-cliff: the release notes of kartenn (ADR 0033), rendered from the Conventional Commits.
+# One template for the two uses: a section of CHANGELOG.md, and the body of the annotated
+# tag `vX.Y.Z` (the same section without its heading line), which becomes the body of the
+# GitHub release. Driven by scripts/release.sh (k-release-notes, k-release); a bare
+# `git cliff --unreleased` previews it too.
+#
+# Variables read by the template (set by scripts/release.sh):
+# - KARTENN_REPO_URL: https URL of the repository, for the commit, pull request and compare
+#   links; empty: no links. Nothing names a repository here: forks and mirrors reuse it.
+# - KARTENN_RELEASE_HIGHLIGHTS: the hand-written highlights of the version (the
+#   `## [Non publié]` section of CHANGELOG.md); the commit list then folds under them.
+# - KARTENN_RELEASE_DATE: the date of the heading (YYYY-MM-DD); default: today.
+
+[changelog]
+# No header nor footer: scripts/release.sh inserts the section into CHANGELOG.md, whose
+# introduction and earlier sections are kept as written.
+header = ""
+footer = ""
+trim = true
+render_always = true
+body = """
+{%- set repo = get_env(name="KARTENN_REPO_URL", default="") | trim_end_matches(pat="/") -%}
+{%- set highlights = get_env(name="KARTENN_RELEASE_HIGHLIGHTS", default="") | trim -%}
+{%- if version -%}
+## [{{ version | trim_start_matches(pat="v") }}] — {{ get_env(name="KARTENN_RELEASE_DATE", default=now() | date(format="%Y-%m-%d")) }}
+{%- else -%}
+## [Non publié]
+{%- endif %}
+{% if highlights %}
+{{ highlights }}
+{% endif %}
+{%- if repo and previous and previous.version and version %}
+[Différences avec {{ previous.version }}]({{ repo }}/compare/{{ previous.version }}...{{ version }})
+{% endif %}
+{%- set breaking = commits | filter(attribute="breaking", value=true) -%}
+{%- if commits | length > 0 %}
+{%- if highlights %}
+<details>
+<summary>Liste des commits ({{ commits | length }})</summary>
+{% endif %}
+{%- if breaking | length > 0 %}
+### Ruptures de compatibilité
+{% for commit in breaking %}
+- {% if commit.scope %}**{{ commit.scope }}** : {% endif %}{{ commit.breaking_description | default(value=commit.message) }}
+{%- if repo %} ([`{{ commit.id | truncate(length=7, end="") }}`]({{ repo }}/commit/{{ commit.id }})){% else %} (`{{ commit.id | truncate(length=7, end="") }}`){% endif %}
+{%- endfor %}
+{% endif %}
+{%- for group, group_commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in group_commits %}
+- {% if commit.scope %}**{{ commit.scope }}** : {% endif %}
+{%- if commit.breaking %}(rupture) {% endif %}
+{%- if repo -%}
+{{ commit.message | replace_regex(from="\\(#([0-9]+)\\)", to="([#$1](" ~ repo ~ "/pull/$1))") }} ([`{{ commit.id | truncate(length=7, end="") }}`]({{ repo }}/commit/{{ commit.id }}))
+{%- else -%}
+{{ commit.message }} (`{{ commit.id | truncate(length=7, end="") }}`)
+{%- endif %}
+{%- endfor %}
+{% endfor %}
+{%- if highlights %}
+</details>
+{% endif %}
+{%- elif not highlights %}
+Aucun changement notable.
+{% endif %}
+"""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+# Commits that match no parser below are left out.
+filter_commits = true
+split_commits = false
+# A breaking change is listed even when its type is otherwise skipped.
+protect_breaking_commits = true
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+topo_order = false
+sort_commits = "oldest"
+# Groups are sorted by name: the HTML comment fixes their order, `striptags` hides it.
+commit_parsers = [
+  # Noise: the merge commits of the integration branches, the release commit itself, the
+  # work tooling, the tests, the internal specification work (specs/, docs/spec/) and the
+  # highlights written in CHANGELOG.md.
+  { message = "^merge", skip = true },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^(chore|style|test|wip)", skip = true },
+  { message = "^docs\\((specs?|claude|changelog)\\)", skip = true },
+  { message = "^[a-z]+\\((security|sec)\\)", group = "<!-- 4 -->Sécurité" },
+  { message = "^feat", group = "<!-- 0 -->Ajouté" },
+  { message = "^refactor", group = "<!-- 1 -->Modifié" },
+  { message = "^fix", group = "<!-- 2 -->Corrigé" },
+  { message = "^perf", group = "<!-- 3 -->Performances" },
+  { message = "^revert", group = "<!-- 5 -->Annulé" },
+  { message = "^docs", group = "<!-- 6 -->Documentation" },
+  { message = "^(build|ci)", group = "<!-- 7 -->Construction et intégration continue" },
+]
+
+[bump]
+# SemVer before 1.0 (spec 015, E12): a feature or a breaking change bumps the minor
+# number, anything else the patch number.
+features_always_bump_minor = true
+breaking_always_bump_major = false
+initial_tag = "v0.1.0"

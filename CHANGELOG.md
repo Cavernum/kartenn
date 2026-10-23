@@ -2,8 +2,12 @@
 
 Toutes les évolutions notables de kartenn. Format inspiré de
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
-[SemVer 2.0.0](https://semver.org/lang/fr/). Tenu à la main à partir des Conventional
-Commits (spec 015, E12) ; chaque version publiée porte une étiquette annotée `vX.Y.Z`.
+[SemVer 2.0.0](https://semver.org/lang/fr/). Chaque version publiée porte une étiquette
+annotée et signée `vX.Y.Z` dont le message reprend sa section (ADR 0033).
+
+Les sections des versions sont écrites par `k-release` : les faits marquants rédigés à la
+main sous « Non publié », puis la liste des Conventional Commits rendue par git-cliff
+(`cliff.toml`). Une section publiée ne se modifie plus.
 
 ## [Non publié]
 

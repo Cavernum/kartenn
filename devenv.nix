@@ -295,6 +295,10 @@ in {
     pkgs.vue-language-server
     pkgs.vtsls
     pkgs.playwright-mcp
+    # Releases (ADR 0033): notes from the Conventional Commits. gpg and gh stay those of
+    # the system: the maintainer's agent and keyring, the maintainer's login.
+    pkgs.git-cliff
+    pkgs.jq
     # Lint of the GitHub workflows and of the scripts (ADR 0033).
     pkgs.actionlint
     pkgs.zizmor
@@ -516,8 +520,22 @@ in {
     '';
   };
 
-  # Lint of the GitHub workflows (ADR 0033). The tree is the one of the current directory,
-  # not $DEVENV_ROOT, which a worktree may inherit from another checkout.
+  # Releases (ADR 0033, docs/developpement/publication.md): the logic lives in
+  # scripts/release.sh, which the GitHub workflows call too. The tree is the one of the
+  # current directory, not $DEVENV_ROOT, which a worktree may inherit from another checkout.
+  scripts.k-release-notes = {
+    description = "Preview the tag message (release notes) of the next or given version";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" notes "$@"'';
+  };
+  scripts.k-release = {
+    description = "Release X.Y.Z: version, CHANGELOG.md, commit, signed tag, push after confirmation";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" prepare "$@"'';
+  };
+  scripts.k-release-verify = {
+    description = "Verify a release tag: signature by a key of .github/release-keys, main, versions";
+    exec = ''exec "$(git rev-parse --show-toplevel)/scripts/release.sh" verify "$@"'';
+  };
+  # Lint of the GitHub workflows (ADR 0033).
   scripts.k-ci-lint = {
     description = "actionlint, zizmor and shellcheck on the GitHub workflows and release scripts";
     exec = ''exec "$(git rev-parse --show-toplevel)/scripts/ci-lint.sh" "$@"'';
