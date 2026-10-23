@@ -10,13 +10,32 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+from kartenn.auth.basic import BasicAuth, Secret
+from kartenn.auth.bearer import BearerToken
+from kartenn.auth.breakglass import Breakglass
+from kartenn.auth.device import DeviceCode, device_login
+from kartenn.auth.oidc_native import Issuer, OidcNative
 from kartenn.auth.store import FileStore, MemoryStore, TokenStore
 
 if TYPE_CHECKING:
     from kartenn._core.messages import Request, Response
     from kartenn._core.plans import Plan
 
-__all__ = ["Anonymous", "Auth", "FileStore", "MemoryStore", "TokenStore"]
+__all__ = [
+    "Anonymous",
+    "Auth",
+    "BasicAuth",
+    "BearerToken",
+    "Breakglass",
+    "DeviceCode",
+    "FileStore",
+    "Issuer",
+    "MemoryStore",
+    "OidcNative",
+    "Secret",
+    "TokenStore",
+    "device_login",
+]
 
 
 class Auth(Protocol):

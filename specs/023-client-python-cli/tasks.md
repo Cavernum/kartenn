@@ -297,7 +297,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     en ligne source. `wait` suit au rythme de `Retry-After` (5 s sans lui). Test de
     10⁶ éléments sous `tracemalloc` sur un transport muet : pic sous 100 Mio (environ
     17 s).
-- [ ] 13. Authentification : Basic, Bearer fourni, OIDC natif (bouclage `127.0.0.1` à
+- [x] 13. Authentification : Basic, Bearer fourni, OIDC natif (bouclage `127.0.0.1` à
   port libre, PKCE `S256`, `state`, `nonce`), flux d'appareil, rafraîchissement, secours
   avec `Origin`. Note `docs/reference/oauth-clients-natifs.md` (RFC 8252, 8628, 9700,
   7636, citations recoupées). — REQ-023-6, 7, 8, 40 — verify :
@@ -308,6 +308,30 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `clients/python/kartenn/src/kartenn/auth/` ; design § Authentification ;
     005/design § Jetons Bearer ; forme des notes de `docs/reference/`
   - dépend de : 9 (7 pour le test réel)
+  - choix : chaque mode est un `Auth` à plans (`authorize`, `unauthorized`,
+    `check_server`). `Secret` masqué dans toute représentation, lu d'un `TokenStore`
+    (`kartenn:<profil>:secret`) ou de `KARTENN_SECRET_FILE` (première ligne) ; Basic
+    refusé hors `https`, bouclage permis seulement par `allow_insecure_loopback`.
+    OIDC : émetteur complet dans le profil (`discovery_url`, `client_id`…) ou identifiant
+    résolu par `GET /v1/auth/native-clients` (contrat de la tâche 6, pas encore servi :
+    testé sur réponses simulées) ; document de découverte refusé s'il annonce des
+    méthodes PKCE sans `S256` ; audience demandée par `resource` (RFC 8707) quand c'est
+    une URI absolue, par l'extension `audience` sinon ; jetons dans le `TokenStore`
+    (`access_token`, `refresh_token`, `expires_at`), le jeton d'identité jamais gardé ni
+    envoyé ; rafraîchissement 60 s avant l'expiration ou une fois sur un 401, échec →
+    jetons effacés et `client.login-required`. `login` (bouclage) et `device_login`
+    sont synchrones et prennent `Client.run_unauthenticated` (ajouté, avec
+    `Client.sleep`) : la connexion interactive est l'affaire de la CLI ; l'`AsyncClient`
+    rafraîchit par les mêmes plans. Flux d'appareil : intervalle de 5 s par défaut,
+    +5 s cumulés par `slow_down`, arrêt sur `access_denied`, `expired_token` ou
+    `expires_in` dépassé ; l'avertissement de RFC 8628 §5.4 est rendu avec le code.
+    Secours : cookie de la première ligne `Set-Cookie`, phrase de passe et code oubliés
+    après usage, `Origin` sur l'ouverture et sur toute écriture, cookie oublié sur un
+    401. Pas de verrou entre processus autour du rafraîchissement (proposition de la
+    note, laissée à la CLI). Note `docs/reference/oauth-clients-natifs.md` rédigée par
+    un sous-agent sur les sources primaires (citations marquées « à vérifier » quand
+    non recoupées) et indexée. Test contre `kartenn-dev-idp` non fait : la tâche 7
+    n'est pas sur `main`.
 - [ ] 14. Événements : `events()` et `aevents()` sur `GET /v1/events`, filtres, reprise,
   doublons, `reset`, absence quand `capabilities.events` vaut `null`. — REQ-023-38 —
   verify : `MockTransport` en flux SSE (coupure puis reprise avec `Last-Event-ID`,

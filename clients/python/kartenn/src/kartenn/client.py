@@ -22,7 +22,9 @@ from kartenn._core.plans import arun, run
 from kartenn._core.problems import ClientError
 from kartenn._core.requests import user_agent
 from kartenn.auth import Anonymous
+from kartenn.auth.basic import BasicAuth, Secret
 from kartenn.auth.bearer import BearerToken
+from kartenn.auth.oidc_native import Issuer, OidcNative
 from kartenn.auth.store import MemoryStore
 from kartenn.profiles import Profile, read_profile
 from kartenn.resources import AsyncResource, Context, Resource
@@ -41,7 +43,7 @@ if TYPE_CHECKING:
     from kartenn.catalog import Catalog, CatalogCache
     from kartenn.transport.port import AsyncTransport, Transport
 
-__all__ = ["AsyncClient", "Client", "auth_of_profile"]
+__all__ = ["AsyncClient", "Client", "auth_of_profile", "store_key"]
 
 T = TypeVar("T")
 _UNAUTHORIZED = 401
@@ -55,8 +57,25 @@ def _attribute_to_resource(attribute: str) -> str:
     return attribute.replace("_", "-")
 
 
-def auth_of_profile(profile: Profile, store: TokenStore) -> Auth:  # noqa: ARG001 - task 13
-    """The authentication a profile names."""
+def store_key(profile: str) -> str:
+    """The prefix of the entries of a profile in a `TokenStore` (`kartenn:<profile>`)."""
+    return f"kartenn:{profile}"
+
+
+def _issuer(profile: Profile) -> Issuer | str:
+    """The issuer of a profile: given in full (`discovery_url`, `client_id`…), else its
+    local identifier, resolved by `GET /v1/auth/native-clients`."""
+    extra = profile.extra
+    if "discovery_url" in extra and "client_id" in extra:
+        return Issuer.parse({**extra, "id": profile.issuer})
+    if profile.issuer is None:
+        msg = f"the profile {profile.name!r} names no issuer"
+        raise ClientError("client.invalid-configuration", msg)
+    return profile.issuer
+
+
+def auth_of_profile(profile: Profile, store: TokenStore) -> Auth:
+    """The authentication a profile names (design § Authentification)."""
     if profile.auth == "none":
         return Anonymous()
     if profile.auth == "token":
@@ -65,6 +84,28 @@ def auth_of_profile(profile: Profile, store: TokenStore) -> Auth:  # noqa: ARG00
             msg = f"the profile {profile.name!r} expects a token in KARTENN_TOKEN"
             raise ClientError("client.login-required", msg)
         return BearerToken(token)
+    if profile.auth == "basic":
+        if profile.account is None:
+            msg = f"the profile {profile.name!r} names no account"
+            raise ClientError("client.invalid-configuration", msg)
+        kept = store.get(f"{store_key(profile.name)}:secret")
+        path = os.environ.get("KARTENN_SECRET_FILE")
+        if kept is not None:
+            secret = Secret(kept)
+        elif path:
+            secret = Secret.from_file(path)
+        else:
+            msg = (
+                f"no secret for the account {profile.account!r}: keep it in the keyring, "
+                "or name its file in KARTENN_SECRET_FILE"
+            )
+            raise ClientError("client.secret-required", msg)
+        return BasicAuth(profile.account, secret)
+    if profile.auth == "oidc":
+        return OidcNative(_issuer(profile), store, key=store_key(profile.name))
+    if profile.auth == "breakglass":
+        msg = "a break-glass session is opened by kartenn login --breakglass, never by a profile"
+        raise ClientError("client.login-required", msg)
     msg = f"unknown authentication {profile.auth!r} in the profile {profile.name!r}"
     raise ClientError("client.invalid-configuration", msg)
 
@@ -135,6 +176,13 @@ class Client:
 
     def run(self, plan: Plan[T]) -> T:
         return run(plan, self.send)
+
+    def run_unauthenticated(self, plan: Plan[T]) -> T:
+        """A plan whose requests carry no authentication (the issuer, a login)."""
+        return run(plan, self._sender.send)
+
+    def sleep(self, seconds: float) -> None:
+        self._sender.transport.sleep(seconds)
 
     # The catalog -----------------------------------------------------------------
 
@@ -299,6 +347,12 @@ class AsyncClient:
 
     async def run(self, plan: Plan[T]) -> T:
         return await arun(plan, self.send)
+
+    async def run_unauthenticated(self, plan: Plan[T]) -> T:
+        return await arun(plan, self._sender.send)
+
+    async def sleep(self, seconds: float) -> None:
+        await self._sender.transport.sleep(seconds)
 
     async def load(self, *, refresh: bool = False) -> Catalog:
         return await self.run(self._context.catalog(refresh=refresh))
