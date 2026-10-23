@@ -47,6 +47,8 @@ BASE: dict[str, tuple[str, ...]] = {
     ),
     "api spec": ("openapi",),
     "capabilities": ("capabilities",),
+    # The stream of the 022 (`GET /v1/events`).
+    "watch": ("events",),
     "health": ("live", "ready"),
     "login": ("breakglass", "native_clients", "me"),
     "logout": ("logout",),

@@ -5,6 +5,10 @@
 [telemetry]
 outputs = [{ kind = "stdout", filter = "warn" }]
 
+# A server without the event stream (spec 022), for the scene « watch » without it.
+[events]
+enabled = false
+
 [http]
 listen = "127.0.0.1:9445"
 public_origin = "https://127.0.0.1:9445"

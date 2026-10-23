@@ -31,7 +31,8 @@ _COLLECTION = {"get": "list", "post": "create", "query": "query", "put": "replac
 _OBJECT = {"get": "get", "patch": "update", "delete": "close", "put": "set", "post": "post"}
 _PROPERTY_VERBS = {"explanation": "properties.explain", "suggestion": "properties.suggest"}
 # Not collections: the base the library codes by hand.
-_NOT_RESOURCES = frozenset({"auth", "capabilities", "me", "openapi.json"})
+# `events` is the stream of the 022, followed by `client.events()` and `kartenn watch`.
+_NOT_RESOURCES = frozenset({"auth", "capabilities", "events", "me", "openapi.json"})
 _SUCCESS = ("200", "201", "202", "204")
 
 
