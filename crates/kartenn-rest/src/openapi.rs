@@ -6,7 +6,8 @@
 
 use std::sync::LazyLock;
 
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::MethodRouter;
 use serde_json::Value;
@@ -25,6 +26,9 @@ use utoipa::{IntoParams, PartialSchema, ToSchema};
 use utoipa_axum::router::{OpenApiRouter, UtoipaMethodRouter};
 use utoipa_axum::routes;
 
+use sha2::{Digest, Sha256};
+
+use crate::dated::ETag;
 use crate::objects::Api;
 use crate::problem::Problem;
 use kartenn_service::module::ModuleRegistry;
@@ -133,23 +137,49 @@ fn module_kinds(document: &mut OpenApi, modules: &ModuleRegistry) {
     }
 }
 
-/// The contract a router of `/v1` serves at `GET /v1/openapi.json`, its own routes.
+/// The contract a router of `/v1` serves at `GET /v1/openapi.json`, its own routes, and
+/// its strong tag (023/A5, REQ-023-2): the SHA-256 of the bytes served, computed once.
 #[derive(Debug, Clone)]
-pub struct Served(axum::body::Bytes);
+pub struct Served {
+    bytes: axum::body::Bytes,
+    tag: ETag,
+}
 
 impl Served {
-    /// The served form of `document`.
+    /// The served form of `document`: compact JSON, its members sorted (through
+    /// [`Value`], whose maps are ordered), so that two instances of the same build serve
+    /// the same bytes under the same tag whatever the order of utoipa's hash maps.
     ///
     /// # Panics
     ///
     /// Never: an OpenAPI document serialises.
     #[must_use]
     pub fn of(document: &OpenApi) -> Self {
-        Self(
-            serde_json::to_vec(document)
-                .expect("an OpenAPI document serialises")
-                .into(),
-        )
+        let value = serde_json::to_value(document).expect("an OpenAPI document serialises");
+        let bytes = serde_json::to_vec(&value).expect("JSON values serialise");
+        let tag = ETag::fingerprint(crate::dated::hex(&Sha256::digest(&bytes)));
+        Self {
+            bytes: bytes.into(),
+            tag,
+        }
+    }
+
+    /// The strong tag of the document.
+    #[must_use]
+    pub fn etag(&self) -> &ETag {
+        &self.tag
+    }
+
+    /// The document under `no-cache` and its tag; 304 without body when `If-None-Match`
+    /// names the tag (RFC 9110 §13.1.2, §15.4.5).
+    fn answer(&self, headers: &HeaderMap) -> Response {
+        let tag = (ETAG, self.tag.header_value());
+        let cache = (CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+        if self.tag.none_match(headers) {
+            return (StatusCode::NOT_MODIFIED, [tag, cache]).into_response();
+        }
+        let media = (CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        ([media, tag, cache], self.bytes.clone()).into_response()
     }
 }
 
@@ -461,8 +491,7 @@ where
 
 // ---------------------------------------------------------------- the document itself
 
-static DOCUMENT: LazyLock<Vec<u8>> =
-    LazyLock::new(|| serde_json::to_vec(&json()).expect("JSON values serialise"));
+static DOCUMENT: LazyLock<Served> = LazyLock::new(|| Served::of(&document()));
 
 /// The OpenAPI 3.1 document of this build (REQ-006-34).
 #[utoipa::path(
@@ -470,14 +499,16 @@ static DOCUMENT: LazyLock<Vec<u8>> =
     path = "/openapi.json",
     operation_id = "openapi",
     tag = "operations",
-    responses((status = 200, description = "The OpenAPI 3.1 document of the build.", body = Object))
+    responses(
+        (status = 200, description = "The OpenAPI 3.1 document of the build, under a strong \
+            `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`.", body = Object),
+        (status = 304, description = "`If-None-Match` names the tag of the document.")
+    )
 )]
-async fn openapi(served: Option<axum::Extension<Served>>) -> Response {
+async fn openapi(served: Option<axum::Extension<Served>>, headers: HeaderMap) -> Response {
     match served {
-        Some(axum::Extension(Served(bytes))) => {
-            ([(CONTENT_TYPE, "application/json")], bytes).into_response()
-        }
-        None => ([(CONTENT_TYPE, "application/json")], DOCUMENT.as_slice()).into_response(),
+        Some(axum::Extension(served)) => served.answer(&headers),
+        None => DOCUMENT.answer(&headers),
     }
 }
 

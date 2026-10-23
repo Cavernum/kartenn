@@ -496,3 +496,59 @@ async fn the_contract_and_the_capabilities_are_served(pool: PgPool) {
     assert_eq!(limits["body_bytes"], 4 * 1024 * 1024);
     assert_eq!(limits["idempotency_retention_seconds"], 86_400);
 }
+
+/// The contract is served under a strong `ETag`, the SHA-256 of its bytes, and
+/// `no-cache`; `If-None-Match` naming it answers 304 without body (023/A5, task 023-4).
+#[kartenn_testing::pg_test]
+async fn the_contract_is_revalidated_by_its_tag(pool: PgPool) {
+    use sha2::Digest as _;
+    let app = app(&pool, Uuid::now_v7(), Settings::default());
+    let get = |tag: Option<&str>| {
+        let mut request = Request::get("/v1/openapi.json");
+        if let Some(tag) = tag {
+            request = request.header("if-none-match", tag);
+        }
+        app.clone()
+            .oneshot(common::bearer(request.body(Body::empty()).unwrap()))
+    };
+    let response = get(None).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let tag = response.headers()["etag"].to_str().unwrap().to_owned();
+    assert_eq!(response.headers()["cache-control"], "no-cache");
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let hex = sha2::Sha256::digest(&bytes)
+        .iter()
+        .fold(String::new(), |hex, b| hex + &format!("{b:02x}"));
+    assert_eq!(
+        tag,
+        format!("\"{hex}\""),
+        "a strong tag, the SHA-256 of the body"
+    );
+    let response = get(Some(&format!("\"other\", {tag}"))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(response.headers()["etag"], tag.as_str());
+    assert_eq!(response.headers()["cache-control"], "no-cache");
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(body.is_empty());
+    let response = get(Some("\"other\"")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+/// Two instances of the same build serve the same tag: the document is serialised with
+/// its members sorted, whatever the order of the hash maps of each instance.
+#[test]
+fn the_tag_of_the_contract_is_that_of_the_build() {
+    let served = || {
+        let registry = kartenn_server::modules::registry().unwrap();
+        kartenn_rest::openapi::Served::of(&kartenn_rest::openapi::document_with(
+            &registry,
+            kartenn_server::modules::routers(),
+        ))
+    };
+    let first = served();
+    for _ in 0..4 {
+        assert_eq!(served().etag(), first.etag());
+    }
+    let core = kartenn_rest::openapi::Served::of(&kartenn_rest::openapi::document());
+    assert_ne!(core.etag(), first.etag(), "another contract, another tag");
+}

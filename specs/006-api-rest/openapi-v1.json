@@ -20250,7 +20250,10 @@
                 }
               }
             },
-            "description": "The OpenAPI 3.1 document of the build."
+            "description": "The OpenAPI 3.1 document of the build, under a strong `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`."
+          },
+          "304": {
+            "description": "`If-None-Match` names the tag of the document."
           },
           "default": {
             "content": {

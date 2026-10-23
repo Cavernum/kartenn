@@ -13267,7 +13267,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The OpenAPI 3.1 document of the build. */
+      /** @description The OpenAPI 3.1 document of the build, under a strong `ETag` (the SHA-256 of its bytes) and `Cache-Control: no-cache`. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -13275,6 +13275,13 @@ export interface operations {
         content: {
           "application/json": Record<string, never>;
         };
+      };
+      /** @description `If-None-Match` names the tag of the document. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description A problem (RFC 9457). */
       default: {

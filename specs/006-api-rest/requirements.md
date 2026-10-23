@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-19
+updated: 2026-10-23
 ---
 
 # 006 — API REST : exigences
@@ -415,6 +415,10 @@ kartenn doit servir le contrat OpenAPI 3.1 de sa build à `GET /v1/openapi.json`
 généré depuis le code ; un test doit comparer le contrat de la build toutes features au
 contrat de référence du dépôt et échouer sur tout retrait ou changement de type. [H12,
 D7]
+Amendement 023/A5 (2026-10-23) : le document est servi avec un ETag fort, empreinte
+SHA-256 de ses octets calculée une fois au démarrage, et `Cache-Control: no-cache` ; un
+`If-None-Match` qui le nomme reçoit 304 sans corps. Deux instances de la même build
+servent le même ETag. [023/REQ-023-2, RFC 9110 §8.8.3, §13.1.2]
 
 #### REQ-006-35 — Capacités
 kartenn doit exposer `GET /v1/capabilities` : modules actifs et versions, propriétés

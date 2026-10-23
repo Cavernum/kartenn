@@ -98,7 +98,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Flux S — ajouts au serveur (amendements additifs de la 006 et de la 005)
 
-- [ ] 4. ETag fort de `GET /v1/openapi.json` (empreinte SHA-256 du document de la build,
+- [x] 4. ETag fort de `GET /v1/openapi.json` (empreinte SHA-256 du document de la build,
   calculée une fois au démarrage), `Cache-Control: no-cache`, 304 sur `If-None-Match`.
   Amendement écrit dans `specs/006-api-rest/` (REQ-006-34 complétée). — T20 ;
   REQ-023-2 — verify : test REST (200 avec ETag, 304, ETag stable entre deux instances
@@ -107,6 +107,15 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     § Versions et contrat) ; tests voisins de `crates/kartenn-rest/tests/it/` (cache et
     304 des lectures)
   - dépend de : —
+  - choix : `openapi::Served` porte les octets et l'ETag (SHA-256 complet en hexadécimal,
+    par `ETag::fingerprint`, comparaison de `If-None-Match` de `dated`). Le document est
+    sérialisé par `serde_json::Value` (membres triés) : les extensions d'utoipa sont des
+    `HashMap`, dont l'ordre changerait d'un processus à l'autre et romprait l'égalité
+    des ETag entre instances. Le 304 est documenté dans le contrat (réponse ajoutée à
+    l'opération `openapi`, contrat et `schema.d.ts` régénérés). Tests :
+    `contract::the_contract_is_revalidated_by_its_tag`,
+    `contract::the_tag_of_the_contract_is_that_of_the_build`. La route reste
+    authentifiée comme avant (006) ; seul `native-clients` est public (tâche 6).
 - [ ] 5. Extension `x-kartenn`, produite par `kartenn_rest::kit` :
   - `key` (clé naturelle) et `columns` sur les collections du noyau, de `vlan`,
     `machines`, `policy` et `flow` ;

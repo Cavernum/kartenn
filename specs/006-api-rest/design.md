@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-19
+updated: 2026-10-23
 ---
 
 # 006 — API REST : conception
@@ -542,6 +542,14 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 
 - Routeur `/v1` construit par features : chaque module ajoute ses routes et ses schémas
   (`OpenApiRouter` d'utoipa-axum). `GET /v1/openapi.json` sert le document de la build.
+- **Cache du contrat (amendement 023/A5, tâche 023-4)** : `openapi::Served` sérialise le
+  document une fois au démarrage, en JSON compact aux membres triés (passage par
+  `serde_json::Value` : les extensions d'utoipa sont des tables de hachage, dont l'ordre
+  varie d'un processus à l'autre), et calcule son ETag fort, le SHA-256 complet des
+  octets en hexadécimal. Réponse `Cache-Control: no-cache` ; `If-None-Match` (comparaison
+  faible, RFC 9110 §13.1.2) qui le nomme → 304 sans corps. Deux instances de la même
+  build servent donc le même ETag ; la bibliothèque cliente en fait une part de la
+  révision de son catalogue (023/REQ-023-2).
 - Contrat de référence : `specs/006-api-rest/openapi-v1.json`, régénéré par
   `cargo run -p kartenn-server --all-features -- openapi` (depuis la 008). Test : le document produit
   est comparé au fichier par un comparateur interne (chemins, opérations, paramètres
