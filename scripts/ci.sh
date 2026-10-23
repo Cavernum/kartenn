@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Continuous integration of kartenn, independent of any forge (spec 015, E14): one line per
-# step, the detail of a failure in a log file. Prerequisites: Nix with flakes, devenv, and
-# the development PostgreSQL running (`devenv up -d`, or `devenv up` in another shell).
+# Continuous integration of kartenn, independent of any forge (spec 015, E14; ADR 0033): one
+# line per step, the detail of a failure in a log file. The GitHub workflow
+# (.github/workflows/ci.yml) runs this same script. Prerequisites: Nix with flakes, devenv,
+# and the development PostgreSQL running (`devenv up -d postgres`, or `devenv up` in
+# another shell).
 #
 #   scripts/ci.sh            every step
 #   scripts/ci.sh --no-nix   without `nix flake check` (image and virtual machine)
+#
+# Under GitHub Actions (GITHUB_ACTIONS=true), the log of a failed step is also printed, in
+# a collapsed group.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 nix_checks=1
 [ "${1:-}" != --no-nix ] || nix_checks=0
@@ -23,17 +28,24 @@ step() {
   else
     echo "KO  $name ($((SECONDS - start)) s) — $logs/$name.log"
     tail -5 "$logs/$name.log" | sed 's/^/    /'
+    if [ "${GITHUB_ACTIONS:-}" = true ]; then
+      echo "::group::journal de $name"
+      cat "$logs/$name.log"
+      echo "::endgroup::"
+    fi
     failed=1
   fi
 }
 
 if ! devenv shell -- pg_isready -q -h 127.0.0.1 >/dev/null 2>&1; then
-  echo "KO  PostgreSQL de développement injoignable : lancer \`devenv up -d\` d'abord"
+  echo "KO  PostgreSQL de développement injoignable : lancer \`devenv up -d postgres\` d'abord"
   exit 1
 fi
 
 step hakari bash -c 'cargo hakari generate --diff && cargo hakari manage-deps --dry-run'
-step sqlx-offline k-heavy --pg cargo sqlx prepare --workspace --check -- --all-targets
+# The offline metadata is compared with a database at the last migration.
+step sqlx-offline k-heavy --pg bash -c \
+  'sqlx migrate run --source crates/kartenn-store-pg/migrations && cargo sqlx prepare --workspace --check -- --all-targets'
 step rust k-check
 step web k-web-check
 step e2e k-web-e2e

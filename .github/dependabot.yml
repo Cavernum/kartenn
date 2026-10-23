@@ -1,0 +1,19 @@
+# Version updates (ADR 0033): the GitHub actions only, pinned by commit, grouped in one
+# weekly pull request, a week after their release. Cargo and pnpm are left out: their
+# updates also need `cargo hakari generate`, the sqlx metadata or the pnpm hash of the
+# Nix package (scripts/update-pnpm-hash.sh), which a bot pull request would not carry.
+# Security alerts and updates are enabled in the repository settings instead.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+      include: scope
