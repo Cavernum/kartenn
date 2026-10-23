@@ -21,7 +21,7 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
 > *Amendement accepté le 2026-10-23 ([`decisions.md`](decisions.md), § « Amendement —
 > socle 020 et 021 »)* : la tâche 1 se fait au catalogue `/_ui/ecrans/` du nouveau shell
 > avec `@kartenn/ui`, après la tâche 15 de la 020 ; les tâches web suivantes s'écrivent en
-> Vue 3 sur `@kartenn/ui` et le SDK 2.0, en DOM léger, sous `web/v2/plugins/policy` et
+> Vue 3 sur `@kartenn/ui` et le SDK 1.0, en DOM léger, sous `web/v2/plugins/policy` et
 > `web/v2/plugins/flow`, après les tâches 021-17 à 19 (socle de la 020 et de la 021).
 > Les chemins `web/plugins/<module>` des lignes `où :` désignent l'existant à imiter ; le
 > code nouveau va sous `web/v2/`.

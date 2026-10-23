@@ -427,6 +427,8 @@ Acceptation :
 ### J. Budgets
 
 #### REQ-007-32 — Budgets du navigateur
+*Remplacée par REQ-021-30 (2026-10-23) : 300 Ko gzip modules partagés compris, 50 Ko par
+plugin, INP, navigation en cache, CLS, trames perdues, mémoire.*
 Le shell doit tenir, mesuré par Playwright sur le jeu à 10⁶ objets, CPU ralenti ×4 :
 shell initial ≤ 300 Ko gzip hors plugins (découpé par route) ; premier écran utile ≤ 2 s
 après la connexion ; rendu d'une page de 100 lignes ≤ 100 ms après la réponse ; arbre à

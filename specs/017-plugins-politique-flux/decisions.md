@@ -196,17 +196,28 @@ qui s'aligne sur les specs [020](../020-systeme-de-design/decisions.md) et
 - **U2 remplacée** : les plugins `policy` et `flow` s'écrivent avec le framework partagé et
   `@kartenn/ui` par l'import map, en DOM léger (ADR 0038), et non plus en Custom Elements
   sans framework ; le Custom Element reste la frontière d'extension (hôte mince). Ils
-  lisent par le cache du SDK 2.0 (ADR 0037) et suivent les règles d'édition, de filtres,
+  lisent par le cache du SDK 1.0 (ADR 0037) et suivent les règles d'édition, de filtres,
   de libellés et de codes de la 021.
 - **U14 remplacée** : les maquettes se construisent dans le catalogue `/_ui/ecrans/` avec
   les vrais composants (020, REQ-020-25), après les maquettes E1 à E10 de la 020, et non
   plus en pages statiques hors du build ; la validation reste consignée ici (U14).
 - **Ordre** : les tâches web de la 017 attendent le socle de la 020 et de la 021
-  (`@kartenn/ui`, SDK 2.0, hôte des plugins du nouveau shell, plugins VLAN et Machines
+  (`@kartenn/ui`, SDK 1.0, hôte des plugins du nouveau shell, plugins VLAN et Machines
   portés) ; elles s'écrivent dans l'arborescence du nouveau shell (`web/v2/plugins/`,
   021, § « Migration ») ; les tâches d'amendement de la 010 et de la 011 n'en dépendent
   pas.
-- U3 à U13 inchangées.
+- **Matrice et ensemble en préparation** (planche des squelettes, 2026-10-23) : les
+  changements de la matrice et des règles vont au **brouillon du shell**
+  (`policy.matrix.set` avec `if_match`), l'effet simulé est montré en pied de matrice et
+  dans le panneau du brouillon ; l'« ensemble en préparation » propre au plugin
+  (Q-017-1 A) est remplacé (021/X36).
+- **Files d'instruction** : « Instruction » (Flux) et « À instruire » (cœur) liées par
+  l'action « Instruire dans Flux » sur le type `changeset` (021/X37) ; tuiles `widget` de
+  l'Accueil (021/X38) ; onglet « Flux » sur les fiches de machine et d'interface.
+- **Serveur** : liste `GET /v1/policy-reports`, curseur de `/v1/flow-nonconformities`,
+  aperçu d'une règle d'inférence (010/S36, accepté) : tâches 021-29 à 31 ; la tâche 15 de
+  la 017 est débloquée par 021-31.
+- U3 à U13 inchangées, sauf Q-017-1 (ensemble en préparation) remplacée ci-dessus.
 
 ## Questions arbitrées
 

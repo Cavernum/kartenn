@@ -33,7 +33,7 @@ flowchart LR
 ```
 
 *Amendement du 2026-10-23* : les deux plugins s'écrivent en Vue 3 sur `@kartenn/ui` et le
-SDK 2.0, en DOM léger, dans `web/v2/plugins/` (U2 remplacée ; specs 020, 021) ; le
+SDK 1.0, en DOM léger, dans `web/v2/plugins/` (U2 remplacée ; specs 020, 021) ; le
 paragraphe suivant décrit la forme initiale, dont restent le manifeste, les catalogues et
 le bac à sable.
 
