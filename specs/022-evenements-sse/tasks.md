@@ -58,7 +58,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `applied` ; un événement de module dans un changeset porte `event` (son identité) ;
     sorte `labels` (018) traduite depuis `org.kartenn.labels.changed`. E2 vérifiée :
     `Planned::object` couvre les affectations.
-- [ ] 4. Curseur : `(plancher, dernier numéro, identité, émission)`, chiffré AES-256-GCM
+- [x] 4. Curseur : `(plancher, dernier numéro, identité, émission)`, chiffré AES-256-GCM
   avec une clé dérivée du trousseau, préfixe `k1.` ; refus d'un curseur altéré, d'une
   autre identité ou d'une autre clé — REQ-022-6, 8 — verify : aller-retour ; octet
   modifié → invalide ; rotation de clé : l'ancienne reste lisible
@@ -66,6 +66,9 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `signed.rs` (`Purpose`, `KeyRing`) ; `crates/kartenn-rest/src/cursor.rs` (curseur
     signé de REQ-006-8, forme)
   - dépend de : 3
+  - fait : `crates/kartenn-rest/src/events/cursor.rs` sur `seal`/`open`, usage
+    `Purpose::EventCursor` (`kartenn/event-cursor/v1`) ; forme `k1.<clé>.<base64url>`
+    (l'identifiant de clé reste lisible pour la rotation) ; 40 octets en clair.
 
 ## P2 — Lecteur partagé
 

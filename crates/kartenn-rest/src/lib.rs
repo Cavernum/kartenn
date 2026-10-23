@@ -15,6 +15,7 @@ pub mod cursor;
 mod cycle;
 pub mod dated;
 pub mod error;
+pub mod events;
 pub mod filter;
 pub mod health;
 pub mod imports;
