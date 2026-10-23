@@ -7,6 +7,7 @@ scripts restent rejouables (base `spike_gist`, jeu `kartenn-bench gen 42`).
 |---|---|---|---|
 | [001 — Contraintes d'exclusion GiST](001-gist-exclusions.md) | 002-6 | Conception confirmée ; règles de migration ajoutées | Plages sans `subtype_diff`, `CHECK` de famille (002/A12) |
 | [004 — Temps système et historique](004-historique.md) | 004-1 | ADR 0017 confirmé | Aucune (précisions : `SECURITY DEFINER`, aucun droit d'écriture sur l'historique) |
+| [005 — Framework du shell web](005-framework-web.md) | 021-1 | Vue 3 + Reka UI tient les budgets ; Reka encadré, grille maison | D-1 : Vue 3, D17 et ADR 0011 inchangées (ADR 0036 à 0039) |
 | [003 — Résolution matérialisée](003-resolution.md) | 003-1 | Variante « valeur » hors budget ; variante « origine » dans le budget | Matérialiser l'origine (003/P9, ADR 0016 amendé) ; changements d'origine > 10⁵ objets en < 60 s (003/P10) |
 
 Règles transverses issues des prototypes (à appliquer dans toutes les migrations) :
