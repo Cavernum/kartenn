@@ -4,8 +4,9 @@
 //!
 //! The contract gives a module one section: `policy.combinations` carries, by the kind of
 //! its rows, the summary of the policy differential (`policy.summary`), the combinations
-//! whose verdict of principle flips (`policy.combination`) and the nodes reclassified on
-//! an axis with their heirs (`policy.reclassified`).
+//! whose verdict of principle flips (`policy.combination`), the nodes reclassified on
+//! an axis with their heirs (`policy.reclassified`) and the preview of the inference
+//! (`policy.inference.summary`, `policy.inference.node`; [`crate::preview`], S36).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -209,6 +210,7 @@ pub(crate) async fn section(
         rows.extend(policy.flips.iter().map(flip_row));
     }
     rows.extend(reclassified(conn, at).await?);
+    rows.extend(crate::preview::rows(conn, context).await?);
     Ok((!rows.is_empty()).then(|| DiffSection {
         name: SECTION.into(),
         rows,

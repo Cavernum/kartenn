@@ -337,13 +337,19 @@ section du module `policy.combinations` (le contrat donne une section par module
    `policy.inference_check` reste seule à le faire, après application.
 
 **Temps.** `valid_at` : le début de validité le plus tôt des opérations d'inférence du
-changeset, à défaut le présent ; règles, arbre et valeurs déclarées sont lus à cette
-date. `as_of` : l'état connu à la transaction (avant) et l'état qu'elle écrit (après).
+changeset, à défaut le présent (tâche 010-22 : les débuts et, pour une clôture, les
+fins des versions que la transaction écrit, à partir du présent ; une écriture
+rétroactive s'évalue au présent) ; règles, arbre et valeurs déclarées sont lus à cette
+date. La chaîne d'un nœud (arbre, site, entité, propriétés testées) est lue dans l'état
+d'après ; les règles et la valeur déclarée de l'axe (origine comprise), avant et après. `as_of` : l'état connu à la transaction (avant) et l'état qu'elle écrit (après).
 La section d'un changeset appliqué est figée à son calcul : la relire plus tard ne
 réévalue rien ; elle porte son `valid_at`.
 
 **Droits.** Ceux de l'écriture : le pipeline exige des opérations, simulées ou non,
-`policy.inference.admin` sur le domaine cité, sinon globale (REQ-010-46) ; 403 sinon.
+`policy.inference.admin` sur le domaine cité, sinon globale (REQ-010-46) ; sinon
+l'écriture répond 403 et la simulation (200, REQ-004-9) rend `valid: false` avec la
+violation `core.object.forbidden` et aucune section, donc aucun aperçu (constat de la
+tâche 010-22).
 Une règle qui cite un domaine ne s'évalue que dans ce domaine : la portée ne sort pas
 de ce que son auteur administre. La relecture d'un changeset soumis suit la règle
 commune du différentiel (`core.changeset.read`) ; les valeurs d'un axe sensible sont
@@ -351,7 +357,8 @@ masquées sans `prop.<clé>.read`, comme dans le différentiel des propriétés 
 
 **Erreurs.** Aucun problème nouveau : opérations invalides
 (`policy.inference.regex_invalid`, `criterion_invalid`, `depth`) → 422
-`changeset-refused`, sans section ; permission manquante → 403. Une portée trop grande
+`changeset-refused` à l'écriture, `valid: false` en simulation, sans section ;
+permission manquante : voir « Droits ». Une portée trop grande
 n'est pas une erreur (`truncated`).
 
 **Approbation.** Aucune mesure nouvelle : `policy.opens` et `policy.closes` restent

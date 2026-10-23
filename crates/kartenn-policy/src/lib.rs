@@ -39,6 +39,8 @@ mod objects;
 #[cfg(feature = "pg")]
 mod pg;
 #[cfg(feature = "pg")]
+pub mod preview;
+#[cfg(feature = "pg")]
 pub mod read;
 #[cfg(feature = "pg")]
 pub mod report;

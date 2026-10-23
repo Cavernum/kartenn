@@ -564,7 +564,7 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   (412 de trop, sans danger) ; les réponses 412 et 428 restent sous `default` du
   contrat, comme pour les `PATCH` ; dépendance `sha2` (déjà dans l'espace de travail)
   ajoutée à la fonctionnalité `pg` ; le cache de clichés devient `cache::shared`.
-- [ ] 22. Aperçu de l'inférence dans le différentiel (S36, acceptée le 2026-10-23) : quand un changeset écrit une
+- [x] 22. Aperçu de l'inférence dans le différentiel (S36, acceptée le 2026-10-23) : quand un changeset écrit une
   règle d'inférence, la contribution ajoute à `policy.combinations` les lignes
   `policy.inference.summary` (par axe : `valid_at`, `scope`, `scope_exact`, `changed`,
   `opens`, `closes`, `origins_opened`, `origins_closed`, `truncated`) et
@@ -594,3 +594,24 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   (arbres de fixture) ; `crates/kartenn-bench` pour le banc
   - dépend de : 15, 18 ; S36 (acceptée le 2026-10-23)
   - débloque : 017-15
+  - fait le 2026-10-24 (tâche 021-31) : `crates/kartenn-policy/src/preview.rs`, appelé
+    par `contribution::section` ; `infer::rules_in` (règles avant ou après la
+    transaction), `InferenceRule::reaches` et `holds`. Choix de Claude : `valid_at` = le
+    plus tôt des débuts (et des fins, pour une clôture) que la transaction écrit à partir
+    du présent, sinon le présent (une écriture rétroactive s'évalue au présent) ; la
+    chaîne d'un nœud est lue dans l'état d'après, seules les règles et la valeur déclarée
+    de l'axe (avec son origine) le sont avant et après ; portée bornée en SQL par les
+    critères `domain`, `within`, `equals` des racines touchées, décompte borné à
+    `SCOPE_MAX + 1` (d'où `scope` = 10⁵ + 1 au plus quand `truncated`) ; un nœud est
+    « changé » si son attendu, ses candidats ou son écart changent ; `origins_closed`
+    évalue tous les héritiers (dans la portée ou non) des origines porteuses d'une
+    anomalie ouverte. Constat : une simulation sans le droit ne répond pas 403 mais 200
+    `valid: false` avec `core.object.forbidden` et sans section (REQ-004-9) ; la REQ et
+    le design sont corrigés en ce sens. Non fait : masquage des valeurs d'un axe sensible
+    dans les lignes (les axes livrés ne le sont pas ; il faudrait un crochet du noyau à
+    la lecture du différentiel) ; `docs/spec/interfaces.md` ne décrit pas les lignes des
+    sections de module, rien à y ajouter. Oracle : graine fixe sur quatre petits arbres
+    (`Draw`, pas proptest : une base par cas serait trop lente), nœuds changés = nœuds
+    dont la suggestion de la source diffère avant et après application. Banc 010-19 :
+    budget « preview of a rule of inference in its simulation, added » (1 s par 10⁴
+    nœuds de la portée).

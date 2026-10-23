@@ -24,6 +24,7 @@ use crate::handler::{invalid, plan};
 use crate::inference::{
     Criterion, Expectation, InferenceRule, NameRegex, Node, NodeKind, PropertyTest, expected,
 };
+use crate::load::State;
 use crate::model::{AxisKey, AxisValue, Key};
 use crate::module::INFERENCE_RULE;
 use crate::pg::store;
@@ -208,15 +209,39 @@ pub async fn rules_at(
     conn: &mut PgConnection,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<InferenceRule>, StoreError> {
-    let rows: Vec<StoredRule> = sqlx::query_as(
-        "SELECT id, key, axis_key, parent_id, priority, criteria, value_keys, domain_id
-               FROM policy.policy_inference_rule
-              WHERE valid_period @> coalesce($1::timestamptz, now())",
-    )
-    .bind(at)
-    .fetch_all(&mut *conn)
-    .await
-    .map_err(|e| store(&e))?;
+    rules_in(conn, at, State::After).await
+}
+
+/// [`rules_at`] in `state` of the transaction: with its writes, or as the rules stood
+/// before them (the versions it superseded are in the history, ended at its start).
+///
+/// # Errors
+/// A failure of the database.
+pub(crate) async fn rules_in(
+    conn: &mut PgConnection,
+    at: Option<OffsetDateTime>,
+    state: State,
+) -> Result<Vec<InferenceRule>, StoreError> {
+    const COLUMNS: &str = "id, key, axis_key, parent_id, priority, criteria, value_keys, domain_id";
+    let sql = match state {
+        State::After => format!(
+            "SELECT {COLUMNS} FROM policy.policy_inference_rule
+              WHERE valid_period @> coalesce($1::timestamptz, now())"
+        ),
+        State::Before => format!(
+            "SELECT {COLUMNS} FROM policy.policy_inference_rule
+              WHERE valid_period @> coalesce($1::timestamptz, now()) AND sys_start < now()
+             UNION ALL
+             SELECT {COLUMNS} FROM policy.policy_inference_rule_history
+              WHERE valid_period @> coalesce($1::timestamptz, now()) AND sys_start < now()
+                AND sys_end >= now()"
+        ),
+    };
+    let rows: Vec<StoredRule> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(at)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
     let mut read: Vec<Row> = Vec::new();
     for (id, key, axis, parent, priority, stored, keys, domain) in rows {
         let (Ok(key), Ok(axis), Ok(mut criteria)) =
@@ -367,7 +392,7 @@ async fn lineage(
 }
 
 /// The keys of the properties the criteria of `rules` test.
-fn tested(rules: &[InferenceRule]) -> Vec<String> {
+pub(crate) fn tested(rules: &[InferenceRule]) -> Vec<String> {
     fn walk(rule: &InferenceRule, out: &mut BTreeSet<String>) {
         for c in &rule.criteria {
             if let Criterion::Property(key, _) = c {
@@ -401,7 +426,7 @@ fn kind_of(nature: &str) -> NodeKind {
 /// which is not a node. Read in a few queries for all of them: the objects of a changeset
 /// mostly share their domain and containers (REQ-010-54).
 #[allow(clippy::too_many_lines)] // the members, then the nodes, each read once
-async fn chains(
+pub(crate) async fn chains(
     conn: &mut PgConnection,
     views: &[ObjectView],
     keys: &[String],

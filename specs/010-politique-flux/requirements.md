@@ -522,8 +522,9 @@ Acceptation :
   changé.
 - Règle dont la portée dépasse 10⁵ nœuds : synthèse avec le décompte de la portée et
   `truncated`, sans ligne de nœud ni décompte d'écarts.
-- Simulation par une identité sans `policy.inference.admin` sur le domaine cité : 403,
-  comme l'écriture.
+- Simulation par une identité sans `policy.inference.admin` sur le domaine cité :
+  refusée comme l'écriture (`core.object.forbidden`, `valid: false`, aucune section ;
+  l'écriture répond 403).
 
 ### H. Classification obligatoire et audit
 

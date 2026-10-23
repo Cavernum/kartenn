@@ -163,12 +163,18 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `GET /v1/policy-reports/{id}` ; `x-kartenn` (colonnes) sur la collection. CLI :
     l'opération est exclue de la couverture (`kartenn api`), `policy report` en tient
     lieu ; une option de liste reste à ajouter si le besoin vient.
-- [ ] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
+- [x] 31. Aperçu d'une règle d'inférence (010, amendement S36, accepté) : route décrite par
   l'amendement, sans écriture ; débloque la tâche 017-15 — REQ-021-35 — verify : tests
   de l'amendement S36
   - où : `specs/010-politique-flux/` (amendement S36) ; `crates/kartenn-policy/src/`
     (moteur d'inférence)
   - dépend de : —
+  - fait le 2026-10-24 : amendement S36 repris (cherry-pick de 7d7255e, conflit résolu
+    sur le résumé et les questions ouvertes de REQ-010), marqué accepté, puis implémenté
+    (tâche 010-22, cochée avec ses notes). S36 n'ajoute pas de route : l'aperçu se lit
+    par `POST /v1/changesets?simulate=true` et `GET /v1/changesets/{id}/diff?section=
+    policy.combinations` (lignes `policy.inference.summary` et `policy.inference.node`) ;
+    la tâche 017-15 est débloquée.
 - Dépendance serveur hors de la 021 : `GET /v1/labels` et l'événement `labels` (spec 018,
   validée) avant la tâche 13.
 

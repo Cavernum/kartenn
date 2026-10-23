@@ -286,6 +286,19 @@ impl InferenceRule {
         self.criteria.iter().map(|c| c.observe(node)).collect()
     }
 
+    /// Whether the rule matches a node of `chain`, the node or an ancestor: the node is
+    /// in its scope (REQ-010-43, transmitted to the sub-branch).
+    #[must_use]
+    pub fn reaches(&self, chain: &[Node]) -> bool {
+        self.deepest(chain, 0).is_some()
+    }
+
+    /// Whether the rule or one of its exceptions is `key`.
+    #[must_use]
+    pub fn holds(&self, key: &Key) -> bool {
+        &self.key == key || self.exceptions.iter().any(|e| e.holds(key))
+    }
+
     /// The deepest node of `chain[from..]` the rule matches, with its observations.
     fn deepest(&self, chain: &[Node], from: usize) -> Option<(usize, Vec<String>)> {
         (from..chain.len())

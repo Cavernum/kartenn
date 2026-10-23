@@ -14,6 +14,7 @@ mod inference;
 mod matrix;
 mod mismatch;
 mod obligation;
+mod preview;
 mod report;
 mod rest;
 mod rights;
