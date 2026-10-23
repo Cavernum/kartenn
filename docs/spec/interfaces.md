@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-21
+updated: 2026-10-23
 ---
 
 # Interfaces
@@ -20,7 +20,7 @@ curseurs, filtres, OpenAPI) ; aucune logique métier : chaque route appelle le s
 |---|---|---|
 | Transport | HTTPS (TLS terminé par kartenn ou par un proxy de confiance) ; HTTP/1.1 et HTTP/2 ; JSON (RFC 8259) ; compression `zstd`, `br`, `gzip` sauf réponses portant un secret | D13, RFC 9110, REQ-006-31, 32 |
 | Versionnement | Version majeure dans le chemin (`/v1`), évolution additive seulement ; retrait annoncé par `Deprecation` (RFC 9745) et `Sunset` (RFC 8594) | 006/H12, Q-ouv-7 close |
-| Contrat | OpenAPI 3.1 tiré du code (utoipa), servi à `GET /v1/openapi.json` ; contrat de référence versionné, comparé par un test (retrait ou changement de type → échec) ; `QUERY` en extension `x-query` jusqu'à OpenAPI 3.2 ; SDK clients générés (TypeScript, Rust) | D7, REQ-006-34 |
+| Contrat | OpenAPI 3.1 tiré du code (utoipa), servi à `GET /v1/openapi.json` ; contrat de référence versionné, comparé par un test (retrait ou changement de type → échec) ; `QUERY` en extension `x-query` jusqu'à OpenAPI 3.2 ; SDK clients générés (TypeScript, Rust) ; clients Python dérivés à l'exécution (ADR 0035) ; ETag fort et 304 du contrat, extension `x-kartenn` (spec 023) | D7, REQ-006-34 |
 | Ressources | Collections à plat (`entities`, `sites`, `domains`, `prefixes`, `ranges`, `addresses`…), un objet par UUID canonique ; clé naturelle en filtre ; objets complets avec un résumé des objets liés ; ni `fields=` ni `expand=` | 002/A9, REQ-006-1, 2 |
 | Écriture | `POST /v1/changesets` (opérations multiples, atomiques) ; routes de ressource (`POST`, `PATCH` en JSON Merge Patch RFC 7396, `DELETE`) qui enveloppent un changeset d'une opération ; réponses 201, 200 ou 202 (en attente d'approbation) | D11, REQ-006-11 à 13 |
 | Simulation | `POST /v1/changesets?simulate=true` → validation, anomalies, différentiel, sans écriture | 003/REQ-003-20 |
@@ -208,6 +208,34 @@ changesets en attente, et `org.kartenn.<module>.<nom>` pour les événements que
 un module (REQ-016-15). Le transport (webhook, file de messages) et une `source` propre
 à chaque déploiement (aujourd'hui `urn:kartenn:instance`) restent à spécifier : la 006
 les a exclus (événements sortants).
+
+## Clients Python et CLI (D7 amendée, ADR 0035 ; spec 023)
+
+- Deux paquets de `clients/python/`, versions et publications PyPI propres : la
+  bibliothèque `kartenn` (MPL-2.0 ; `httpx2`, `platformdirs`) et la CLI `kartenn-cli`
+  (commande `kartenn`, AGPL-3.0). Paquets Nix `kartenn-py` et `kartenn-cli` du flake
+  (complétions bash, zsh, fish et page de manuel installées).
+- **Découverte** : aucune ressource de module n'est connue du client. Le catalogue est
+  dérivé à l'exécution de `GET /v1/capabilities` et `GET /v1/openapi.json` (conventions
+  REST de l'ADR 0026, clause 9 ; extension `x-kartenn` : clé naturelle et colonnes d'une
+  collection, commande nommée d'une opération), en cache XDG par révision (version,
+  modules, ETag du contrat ; capacités relues après une minute, contrat revalidé par
+  `If-None-Match`). Les étiquettes du socle que les capacités listent parmi les modules
+  (`core`, `rights`, `audit`…) restent à la racine de la CLI.
+- **Authentification** : client public natif par émetteur (`GET /v1/auth/native-clients`,
+  champs `native_*` de `[[auth.issuers]]`) : navigateur et redirection de bouclage
+  (RFC 8252, PKCE S256) ou flux d'appareil (RFC 8628) ; jetons au trousseau ou dans un
+  fichier explicite (`--token-file`, 0600). Comptes de service en Basic, jeton porteur
+  (`KARTENN_TOKEN`), compte de secours (`--breakglass`).
+- **Écritures** : `Idempotency-Key`, `If-Match` d'une lecture préalable, motif ;
+  `--dry-run` et `--into-changeset` traduisent une écriture REST en opération de
+  changeset (`create_<x>`, `update_<x>`, `close`, `<module>.<operationId>`) faute de
+  correspondance dans le contrat (point ouvert). Imports par morceaux avec reprise.
+- **Codes de sortie** : 0 succès, 2 usage, 3 introuvable, 4 authentification,
+  5 conflit, 6 refus, 7 indisponible, 8 simulation refusée, 9 verdict refusé
+  (`--exit-status`), 10 en attente (`--require-applied`).
+- Vérifié bout en bout par `k-py-e2e` (maquette rejouée contre kartenn-server,
+  PostgreSQL et kartenn-dev-idp) ; budgets de démarrage par `bench-cli`.
 
 ## Connecteurs (D1, D7)
 

@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-19
+updated: 2026-10-23
 ---
 
 # kartenn — spécification système
@@ -41,7 +41,8 @@ Objectifs :
   clients, comptes de service en Basic, comptes de secours à deux facteurs ; RBAC par
   périmètre et par propriété, émetteurs confinés à leurs entités (D13, D36, 003/P6–P7,
   spec 005).
-- Interfaces : REST et Web en v0.1 ; CLI, TUI et MCP ensuite, comme clients REST (D7).
+- Interfaces : REST et Web en v0.1 ; bibliothèque et CLI Python (spec 023), puis TUI et
+  MCP, comme clients REST (D7).
 
 Non-objectifs :
 - Découverte automatique du réseau (D1) : la source est déclarative ; des connecteurs
@@ -145,7 +146,7 @@ Non-objectifs :
 | [0031](../adr/0031-evaluations-de-flux-materialisees.md) | Évaluations de flux matérialisées, maintenues dans la transaction ; état et validité dérivés (spec 011) | accepted |
 | [0032](../adr/0032-instance-postgresql-des-bancs.md) | Instance PostgreSQL dédiée aux bancs (5433, `k-pg-bench`), verrou `k-heavy --bench`, attentes bornées, échelles réduite et complète | accepted |
 | [0033](../adr/0033-publication-des-versions.md) | Publication des versions : notes par git-cliff, étiquettes signées par le mainteneur, CI et release GitHub Actions appelant des scripts neutres, image sur GHCR | accepted |
-| [0035](../adr/0035-clients-decouverts-depuis-le-contrat.md) | Clients Python découverts depuis le contrat : ressources dérivées des conventions REST et de `x-kartenn`, cache par révision, port de transport sur httpx2 (spec 023) | proposed |
+| [0035](../adr/0035-clients-decouverts-depuis-le-contrat.md) | Clients Python découverts depuis le contrat : ressources dérivées des conventions REST et de `x-kartenn`, cache par révision, port de transport sur httpx2 (spec 023) | accepted |
 | [0036](../adr/0036-systeme-de-design-kartenn-ui.md) | Système de design : jetons, CSS en `@layer`, Stylelint strict, Geist, Lucide, bibliothèque `@kartenn/ui` en Vue 3 sur Reka UI encadré, grille maison, catalogue et captures bloquantes (spec 020) | accepted |
 | [0037](../adr/0037-couche-de-donnees-du-client.md) | Couche de données du client web : `@tanstack/query-core` dans le SDK, clés datées, préchargement, invalidation par le flux SSE, optimisme au présent seulement (spec 021) | accepted |
 | [0038](../adr/0038-partage-des-composants-avec-les-plugins.md) | `vue` et `@kartenn/ui` partagés avec les plugins par l'import map, DOM léger en première partie ; amende l'ADR 0025 (specs 020, 021) | accepted |

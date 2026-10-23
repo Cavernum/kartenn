@@ -682,7 +682,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
 
 ## Fin — réunion des flux
 
-- [ ] 26. Bout en bout : script `k-py-e2e` (sh POSIX, `k-heavy --pg`) qui :
+- [x] 26. Bout en bout : script `k-py-e2e` (sh POSIX, `k-heavy --pg`) qui :
   - construit et lance `kartenn-server` sur la base `kartenn_cli` recréée et
     `kartenn-dev-idp` ;
   - crée le compte de secours et charge les données de la maquette par la CLI ;
@@ -693,12 +693,38 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   - où : `web/e2e/serve.sh`, `web/e2e/global-setup.ts` (à imiter) ; `devenv.nix`
     (`scripts.k-web-e2e`, l. ~492)
   - dépend de : 4, 5, 6, 7, 25
-- [ ] 27. Banc `bench-cli` : budgets de REQ-023-39 (hyperfine, ou boucle chronométrée
+  - choix : `serve.sh` gagne `cli-prepare` (deux builds du serveur, la seconde sans
+    `policy` ni `flow` copiée sous `.state`, bases `kartenn_cli` et `kartenn_cli_labo`,
+    comptes de secours), `cli` (9443) et `cli-labo` (9445), sans shell web ; mêmes
+    verrous que `k-web-e2e` (ports et `.state` partagés). pytest dans
+    `clients/python/e2e` (`pytest.toml` à part : ni couverture ni ordre aléatoire), la
+    commande installée en sous-processus, pexpect pour le terminal, `BROWSER` = un script
+    qui choisit Alice chez kartenn-dev-idp. Le jeu de la maquette passe par la CLI
+    (changeset local), assertions sur les lignes normalisées plutôt qu'instantanés
+    syrupy (une sortie de serveur réel change à chaque évolution du contrat). Ce qui ne
+    peut pas encore marcher est un `xfail(strict=True)` motivé (rouge le jour où ça
+    passe) ; `watch` est sauté tant que `capabilities.events` est absent (022 pas sur
+    main), sa variante sans flux (code 2) est testée. Résultat : 16 verts, 1 sauté,
+    3 xfail (design § Bout en bout). Corrigé côté client : étiquettes du socle à la racine
+    (`Catalog.served_modules`), `policy check` en `<kind>:<id>`, référence d'un module
+    par sa collection (`vlan-groups`), import en pause = code 6 avec son rapport,
+    `--from-file` illisible = code 2, bannière de simulation sur stderr et `-o` d'une
+    écriture transmis à `--dry-run`. Étape `e2e-cli` de `scripts/ci.sh`. Variables de
+    mise au point : `E2E_SERVERS=running`, `E2E_HOME`.
+- [x] 27. Banc `bench-cli` : budgets de REQ-023-39 (hyperfine, ou boucle chronométrée
   sous `k-heavy`, cache chaud et froid), résultats consignés dans le design —
   REQ-023-39 — verify : budgets tenus, ou écart documenté et arbitré
   - où : forme de consignation des bancs (`crates/kartenn-bench`, 006 § Budgets)
   - dépend de : 26
-- [ ] 28. Livraison :
+  - choix : un bouchon HTTP du contrat de référence sur le bouclage plutôt que le
+    serveur : les budgets sont ceux du client, sans PostgreSQL ; `k-heavy --bench`
+    comme les autres bancs. Boucle chronométrée (hyperfine absent de l'environnement),
+    30 exécutions après une à blanc. Les budgets réseau (complétion serveur, surcoût de
+    `prefixes list`, débit d'import) ne sont pas mesurés ici. Résultats dans le design
+    § Banc : p50 tenus partout ; au p95, `--version` (107 ms) et la complétion locale
+    (113 ms) dépassent sous charge 14 de la machine partagée — écart documenté, à
+    arbitrer (machine de banc dédiée ou budget relevé).
+- [x] 28. Livraison :
   - deux paquets Nix du flake (`kartenn-py`, `kartenn-cli`) ; complétions et page de
     manuel installées ;
   - `docs/spec/` synchronisée (interfaces : clients) ;
@@ -709,6 +735,16 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
   `devenv test` vert
   - où : paquets de la 015 (`specs/015-paquetage-deploiement/`, ADR 0029)
   - dépend de : 27
+  - choix : `nix/package/python.nix`, sur le Python de nixpkgs ; les dépendances de
+    nixpkgs sous la borne du pyproject (httpx2, httpcore2, click) sont les roues pures
+    de `uv.lock`, URL et empreinte lues dans le verrou (pas d'entrée uv2nix) ; click
+    passe à rich-click seul (une surcharge de l'ensemble reconstruirait ses dépendants).
+    Borne de `uv_build` relâchée au build (nixpkgs en retard d'une mineure). Complétions
+    générées par la CLI, page de manuel par help2man. `nix build .#kartenn-cli` puis
+    `result/bin/kartenn --version` : `kartenn, version 0.1.0.dev0`. Les paquets gardent
+    leur version propre (hors du contrôle `checks.version`). CI : construits par le job
+    flake. `docs/spec` (interfaces, architecture, README) et ADR 0035 acceptée ; README
+    des deux paquets.
 
 ## Différé
 
