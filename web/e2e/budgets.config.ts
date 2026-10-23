@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [{ name: "budgets", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "bash web/e2e/serve.sh idp",
+      command: "dash web/e2e/serve.sh idp",
       cwd: repository,
       url: `${ISSUER}/.well-known/openid-configuration`,
       ignoreHTTPSErrors: true,
@@ -30,7 +30,7 @@ export default defineConfig({
     },
     {
       // A release build and the load of 10⁶ objects.
-      command: "bash web/e2e/serve.sh budgets",
+      command: "dash web/e2e/serve.sh budgets",
       cwd: repository,
       url: `${BASE_URL}/health/ready`,
       ignoreHTTPSErrors: true,

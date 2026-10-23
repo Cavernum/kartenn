@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 # Continuous integration of kartenn, independent of any forge (spec 015, E14; ADR 0033): one
 # line per step, the detail of a failure in a log file. The GitHub workflow
 # (.github/workflows/ci.yml) runs this same script. Prerequisites: Nix with flakes, devenv,
@@ -20,13 +20,13 @@ failed=0
 
 # step <name> <command…>: runs the command in the devenv shell, prints OK or KO.
 step() {
-  local name=$1
+  local name=$1 start
   shift
-  local start=$SECONDS
+  start=$(date +%s)
   if devenv shell -- "$@" >"$logs/$name.log" 2>&1; then
-    echo "OK  $name ($((SECONDS - start)) s)"
+    echo "OK  $name ($(($(date +%s) - start)) s)"
   else
-    echo "KO  $name ($((SECONDS - start)) s) — $logs/$name.log"
+    echo "KO  $name ($(($(date +%s) - start)) s) — $logs/$name.log"
     tail -5 "$logs/$name.log" | sed 's/^/    /'
     if [ "${GITHUB_ACTIONS:-}" = true ]; then
       echo "::group::journal de $name"
@@ -42,9 +42,11 @@ if ! devenv shell -- pg_isready -q -h 127.0.0.1 >/dev/null 2>&1; then
   exit 1
 fi
 
-step hakari bash -c 'cargo hakari generate --diff && cargo hakari manage-deps --dry-run'
+# The scripts of devenv.nix too (K_DASH_SCRIPTS), which the lint job does not see.
+step lint k-ci-lint
+step hakari dash -c 'cargo hakari generate --diff && cargo hakari manage-deps --dry-run'
 # The offline metadata is compared with a database at the last migration.
-step sqlx-offline k-heavy --pg bash -c \
+step sqlx-offline k-heavy --pg dash -c \
   'sqlx migrate run --source crates/kartenn-store-pg/migrations && cargo sqlx prepare --workspace --check -- --all-targets'
 step rust k-check
 step web k-web-check

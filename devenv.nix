@@ -6,14 +6,20 @@
 }: let
   # Frontend (ADR 0024): pnpm workspace under web/; the tooling stays inert until it exists.
   hasWeb = builtins.pathExists ./web/package.json;
+  # The shell scripts of the project are POSIX sh run by the dash of Nix (>= 0.5.13, which
+  # has `set -o pipefail`; the /bin/sh of a Debian or Ubuntu runner may not): the scripts
+  # written here (pkgs.writers.writeDash), the devenv scripts (nix/dash-scripts.nix) and
+  # scripts/*.sh. A script re-executed under k-heavy names this dash, never `sh`.
+  dash = lib.getExe pkgs.dash;
   # Pre-commit hands paths relative to the repository; tools run from web/.
   # The toolchain is absolute: pre-commit also runs outside the devenv shell.
   webHook = tool:
-    pkgs.writeShellScript "web-${tool}" ''
+    pkgs.writers.writeDash "web-${tool}" ''
       set -euo pipefail
       [ -f web/package.json ] || exit 0
       export PATH=${lib.makeBinPath [config.languages.javascript.package config.languages.javascript.pnpm.package]}:$PATH
-      exec pnpm -C web exec ${tool} "''${@#web/}"
+      for path do shift; set -- "$@" "''${path#web/}"; done
+      exec pnpm -C web exec ${tool} "$@"
     '';
   # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
   # sessions and worktrees share one machine, and each cargo would otherwise take every
@@ -35,7 +41,7 @@
   # A waiting caller says on stderr who holds what, since when, and repeats it every
   # 5 min; it gives up with code 75 after K_HEAVY_WAIT minutes (45 for a lock, no limit
   # for a slot by default; 0 for no limit).
-  kHeavy = pkgs.writeShellScriptBin "k-heavy" ''
+  kHeavy = pkgs.writers.writeDashBin "k-heavy" ''
     set -uo pipefail
     pg=0
     bench=0
@@ -124,9 +130,12 @@
     [ -z "''${K_HEAVY_HELD:-}" ] || run "$@"
     if [ "$all" -eq 1 ]; then
       # In order, blocking: two --all callers cannot deadlock, and a plain caller never
-      # waits while holding a slot.
+      # waits while holding a slot. Slot i on fd 2+i: dash only opens fds 0 to 9, and 7 to 9
+      # are taken above.
+      [ "$slots" -le 4 ] || { echo "k-heavy --all : au plus 4 créneaux (K_HEAVY_SLOTS=$slots)" >&2; exit 2; }
       for i in $(${pkgs.coreutils}/bin/seq 1 "$slots"); do
-        exec {fd}>"$dir/slot.$i"
+        fd=$(( i + 2 ))
+        eval "exec $fd>\"\$dir/slot.$i\""
         acquire "$fd" "slot.$i" "$slotwait"
       done
       export K_HEAVY_HELD=all
@@ -187,7 +196,7 @@
       pg.initialDatabases
       + pg.initialScript;
   in
-    pkgs.writeShellScriptBin "k-pg-bench" ''
+    pkgs.writers.writeDashBin "k-pg-bench" ''
       set -euo pipefail
       export PATH=${lib.makeBinPath [pg.package pkgs.coreutils pkgs.util-linux]}:$PATH
       base=''${XDG_STATE_HOME:-$HOME/.local/state}/kartenn/pg-bench
@@ -230,11 +239,12 @@
             ${pg.package}/bin/postgres -D "$data"
         fi
       else
-        # Without the descriptors of k-heavy: the server would hold its locks forever.
+        # Without the descriptors of k-heavy (3 to 9): the server would hold its locks
+        # forever. dash cannot name a descriptor above 9.
         (
-          for fd in /proc/$$/fd/*; do
+          for fd in "/proc/$$/fd"/*; do
             n=''${fd##*/}
-            [ "$n" -le 2 ] || eval "exec $n>&-" 2>/dev/null || true
+            [ "$n" -le 2 ] || [ "$n" -gt 9 ] || eval "exec $n>&-" 2>/dev/null || true
           done
           pg_ctl -D "$data" -l "$base/postgres.log" -w start >/dev/null
         )
@@ -254,7 +264,7 @@
     inherit description;
     exec = ''
       set -euo pipefail
-      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench bash "$0" "$@"
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
       k-pg-bench
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
@@ -262,6 +272,24 @@
       cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"}
     '';
   };
+  # The clippy hook under the machine-wide semaphore; absolute toolchain: pre-commit also
+  # runs outside the devenv shell.
+  clippyHook = pkgs.writers.writeDash "clippy-heavy" ''
+    export PATH=${lib.makeBinPath [pkgs.cargo pkgs.clippy pkgs.rustc pkgs.stdenv.cc pkgs.pkg-config pkgs.coreutils]}:$PATH
+    export SQLX_OFFLINE=true RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
+    exec ${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features
+  '';
+  # Every dash script of this file, as dash runs it, for `shellcheck -s dash`
+  # (scripts/ci-lint.sh): the devenv scripts are the text of their `exec`.
+  lintedScripts =
+    [
+      "${kHeavy}/bin/k-heavy"
+      "${pgBench}/bin/k-pg-bench"
+      (webHook "prettier")
+      clippyHook
+    ]
+    ++ lib.mapAttrsToList (name: script: pkgs.writeText "${name}.sh" script.exec)
+    (lib.filterAttrs (_: script: script.package == pkgs.dash) config.scripts);
   # Development console (D35, spec 012/L17): OpenObserve shows logs, traces and metrics
   # in one UI (http://127.0.0.1:5080). Development-only credentials, bound to loopback;
   # the header is the Basic encoding of the same pair.
@@ -271,7 +299,7 @@
     basic = "ZGV2QGthcnRlbm4uaW52YWxpZDpEZXYtb25seS0xIQ==";
   };
 in {
-  imports = [./nix/options.nix];
+  imports = [./nix/options.nix ./nix/dash-scripts.nix];
 
   # Backend (D16): Rust workspace under crates/.
   languages.rust = {
@@ -303,7 +331,11 @@ in {
     pkgs.actionlint
     pkgs.zizmor
     pkgs.shellcheck
+    # The shell of the scripts (`#!/usr/bin/env dash`, see `dash` above).
+    pkgs.dash
   ];
+  # The scripts of this file as dash runs them, for `shellcheck -s dash` (scripts/ci-lint.sh).
+  env.K_DASH_SCRIPTS = toString lintedScripts;
 
   # Frontend (D17, ADR 0024): Vue 3 + TypeScript shell and plugin SDK, a pnpm workspace
   # under web/. `pnpm install` runs on shell entry once web/package.json exists.
@@ -395,7 +427,7 @@ in {
     description = "Migrate the development database and refresh the sqlx offline metadata";
     exec = ''
       set -euo pipefail
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg bash "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg ${dash} "$0" "$@"
       sqlx migrate run --source crates/kartenn-store-pg/migrations
       cargo sqlx prepare --workspace -- --all-targets
     '';
@@ -423,17 +455,18 @@ in {
       ws=--workspace
       for a in "$@"; do case $a in -p | -p* | --package | --package=*) ws= ;; esac; done
       # The build takes the package selection only: run options (--no-fail-fast, filters…)
-      # are refused next to --no-run.
-      pkgs=()
+      # are refused next to --no-run. Crate names hold no blank: a word list is enough.
+      sel=
       prev=
       for a in "$@"; do
-        case $prev in -p | --package) pkgs+=("$prev" "$a") ;; esac
-        case $a in -p?* | --package=*) pkgs+=("$a") ;; esac
+        case $prev in -p | --package) sel="$sel $prev $a" ;; esac
+        case $a in -p?* | --package=*) sel="$sel $a" ;; esac
         prev=$a
       done
       # Build the test binaries before taking the PostgreSQL lock: another worktree only
       # waits for our test run, not for our compilation.
-      if ! k-heavy cargo nextest run --no-run $ws --all-features "''${pkgs[@]}" >"$log/build" 2>&1; then
+      # shellcheck disable=SC2086 # $ws and $sel: word lists
+      if ! k-heavy cargo nextest run --no-run $ws --all-features $sel >"$log/build" 2>&1; then
         echo "KO build ($log/build)"; grep -E '^error|^ *--> ' "$log/build" | head -40; exit 1
       fi
       # Stale test databases and templates (ADR 0028), dropped under the lock: no other
@@ -466,11 +499,10 @@ in {
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
-      # The script file has no shebang: run it through bash, not /bin/sh (dash on CI runners).
-      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy bash "$0" "$@"
+      [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy ${dash} "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
-      cd "$dir"
+      cd "$dir" || exit 1
       log=$(mktemp -d -t k-web-check.XXXXXX)
       # ko <step> <log> <pattern> [hint]: the matching lines, else the end of the log.
       ko() {
@@ -485,11 +517,12 @@ in {
         ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
       # Package by package, so that error paths are prefixed with the package directory.
       tsc=0
+      pnpm -r ls --depth -1 --parseable >"$log/packages"
       while read -r pkg; do
         rel=''${pkg#"$PWD"}; rel=''${rel#/}
         (cd "$pkg" && pnpm run --if-present --silent typecheck) 2>&1 |
           sed -E "s#^([^ ][^(]*\([0-9]+,[0-9]+\): error)#''${rel:+$rel/}\1#" >>"$log/tsc" || tsc=1
-      done < <(pnpm -r ls --depth -1 --parseable)
+      done <"$log/packages"
       [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
@@ -505,10 +538,10 @@ in {
       export NO_COLOR=1 FORCE_COLOR=0
       # Exclusive: the journeys own the kartenn_e2e database and fixed loopback ports, and
       # take every slot, since a build beside them stretches the browser timeouts.
-      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all bash "$0" "$@"
+      [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --pg --all ${dash} "$0" "$@"
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
-      cd "$dir"
+      cd "$dir" || exit 1
       log=$(mktemp -d -t k-web-e2e.XXXXXX)
       # The journeys and their configuration live in the e2e package (spec 007, task 10).
       if ! pnpm -C e2e exec playwright test --reporter=line "$@" >"$log/e2e" 2>&1; then
@@ -611,7 +644,7 @@ in {
     description = "Check the budgets of the browser on a fresh kartenn_bench database";
     exec = ''
       set -euo pipefail
-      [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg bash "$0" "$@"
+      [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg ${dash} "$0" "$@"
       k-pg-bench
       export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
       [ "''${2:-}" != small ] || export BENCH_SMALL=1
@@ -723,23 +756,20 @@ in {
     clippy = {
       enable = true;
       # Absolute toolchain: pre-commit also runs outside the devenv shell.
-      entry = lib.mkForce "${pkgs.writeShellScript "clippy-heavy" ''
-        export PATH=${lib.makeBinPath [pkgs.cargo pkgs.clippy pkgs.rustc pkgs.stdenv.cc pkgs.pkg-config pkgs.coreutils]}:$PATH
-        export SQLX_OFFLINE=true RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
-        exec ${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features
-      ''}";
+      entry = lib.mkForce "${clippyHook}";
     };
-    # GitHub workflows and release scripts (ADR 0033), with absolute tools: pre-commit also
-    # runs outside the devenv shell. zizmor offline here; `GH_TOKEN=… k-ci-lint` online.
+    # GitHub workflows and scripts (ADR 0033), with absolute tools: pre-commit also runs
+    # outside the devenv shell. zizmor offline here; `GH_TOKEN=… k-ci-lint` online.
     ci-lint = {
       enable = true;
       name = "actionlint, zizmor, shellcheck";
-      entry = "${pkgs.writeShellScript "ci-lint" ''
-        export PATH=${lib.makeBinPath [pkgs.actionlint pkgs.zizmor pkgs.shellcheck]}:$PATH
+      entry = "${pkgs.writers.writeDash "ci-lint" ''
+        export PATH=${lib.makeBinPath [pkgs.actionlint pkgs.zizmor pkgs.shellcheck pkgs.dash]}:$PATH
+        export K_DASH_SCRIPTS=${lib.escapeShellArg (toString lintedScripts)}
         unset GH_TOKEN
         exec scripts/ci-lint.sh
       ''}";
-      files = "^(\\.github/.*\\.ya?ml|scripts/.*\\.sh)$";
+      files = "^(\\.github/.*\\.ya?ml|scripts/.*\\.sh|web/e2e/serve\\.sh|\\.claude/.*\\.sh|devenv\\.nix|nix/dash-scripts\\.nix)$";
       pass_filenames = false;
     };
     # Frontend, with web/'s own tool versions; no-ops until web/ exists.

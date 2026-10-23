@@ -29,7 +29,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "bash web/e2e/serve.sh idp",
+      command: "dash web/e2e/serve.sh idp",
       cwd: repository,
       url: `${ISSUER}/.well-known/openid-configuration`,
       ignoreHTTPSErrors: true,
@@ -39,7 +39,7 @@ export default defineConfig({
       stdout: "ignore",
     },
     {
-      command: "bash web/e2e/serve.sh kartenn",
+      command: "dash web/e2e/serve.sh kartenn",
       cwd: repository,
       url: `${BASE_URL}/health/ready`,
       ignoreHTTPSErrors: true,

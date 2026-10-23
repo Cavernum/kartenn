@@ -42,7 +42,7 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          nix shell --inputs-from . nixpkgs#gnupg nixpkgs#jq \
+          nix shell --inputs-from . nixpkgs#dash nixpkgs#gnupg nixpkgs#jq \
             --command scripts/release.sh verify "$TAG"
 
   ci:
@@ -78,7 +78,9 @@ jobs:
       - name: scripts/release.sh artefacts
         env:
           TAG: ${{ github.ref_name }}
-        run: scripts/release.sh artefacts "$TAG" "$RUNNER_TEMP/dist"
+        run: |
+          nix shell --inputs-from . nixpkgs#dash \
+            --command scripts/release.sh artefacts "$TAG" "$RUNNER_TEMP/dist"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-dist
@@ -113,6 +115,8 @@ jobs:
         working-directory: ${{ runner.temp }}/dist
         run: sha256sum --check --strict SHA256SUMS
       # skopeo and gh of the runner image: no Nix in the job that holds write permissions.
+      # Hence scripts/release.sh under the bash of the runner here: its dash (0.5.12) has
+      # no `set -o pipefail`, and bash runs the POSIX script unchanged.
       - name: Image to GHCR
         id: image
         env:
@@ -126,7 +130,7 @@ jobs:
           image=ghcr.io/${REPOSITORY,,}
           printf '%s' "$GHCR_TOKEN" | skopeo login --username "$ACTOR" --password-stdin ghcr.io
           archive=$(echo "$RUNNER_TEMP"/dist/kartenn-"$version"-oci-*.tar.gz)
-          digest=$(scripts/release.sh push-image "$archive" "$image:$version")
+          digest=$(bash scripts/release.sh push-image "$archive" "$image:$version")
           skopeo logout ghcr.io
           echo "image $image:$version@$digest"
           {
@@ -148,7 +152,7 @@ jobs:
           notes=$RUNNER_TEMP/notes.md
           code=$'\x60'
           {
-            scripts/release.sh tag-notes "$TAG"
+            bash scripts/release.sh tag-notes "$TAG"
             printf '\n---\n\nImage OCI : %s, empreinte %s.\n' \
               "$code$IMAGE_REF$code" "$code$IMAGE_DIGEST$code"
           } >"$notes"

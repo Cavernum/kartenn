@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# POSIX sh (linted as dash) but started by bash: it is launched from a plain terminal,
+# outside devenv, where dash may be missing.
 # Enchaîne les tâches non cochées d'une spec, chacune dans une session Claude Code neuve
 # (`claude -p "/tache NNN-M"`) : chaque tâche repart d'un contexte minimal au lieu
 # d'hériter de l'historique des précédentes (CLAUDE.md, « Économie de contexte »).

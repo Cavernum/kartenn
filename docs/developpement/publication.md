@@ -16,6 +16,12 @@ la CI.
 Toutes appellent `scripts/release.sh` ou `scripts/ci-lint.sh`, utilisables hors de devenv
 et d'une autre forge.
 
+Les scripts du dépôt (`scripts/*.sh`, `web/e2e/serve.sh`, les scripts de `devenv.nix`)
+sont du sh POSIX exécuté par le dash de Nix (`#!/usr/bin/env dash`) : dash 0.5.13 ou
+plus, pour `set -o pipefail`, que le dash de Debian 12 ou d'Ubuntu 24.04 n'a pas. Hors de
+devenv : `nix shell nixpkgs#dash --command scripts/release.sh …`. `k-ci-lint` les passe à
+`shellcheck --shell=dash`, ceux de `devenv.nix` compris depuis le shell devenv.
+
 ## Préparer
 
 1. Rédiger les faits marquants sous `## [Non publié]` de `CHANGELOG.md`, au fil de l'eau
