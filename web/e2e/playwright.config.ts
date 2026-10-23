@@ -11,6 +11,9 @@ const repository = fileURLToPath(new URL("../..", import.meta.url));
 export default defineConfig({
   testDir: "journeys",
   forbidOnly: !!process.env.CI,
+  // CI runners are slower and noisier than a workstation: one retry there, reported as
+  // « flaky » in the summary rather than hidden. Locally a failure stays a failure.
+  retries: process.env.CI ? 1 : 0,
   // One instance and one data set: journeys of both browsers share them.
   workers: 2,
   globalSetup: "./global-setup.ts",

@@ -518,6 +518,11 @@ in {
         exit 1
       fi
       echo "OK — $(grep -E '^ *[0-9]+ passed' "$log/e2e" | tail -1 | sed 's/^ *//')"
+      # A journey that passed only on its retry (CI) is named, never hidden.
+      if grep -qE '^ *[0-9]+ flaky' "$log/e2e"; then
+        echo "ATTENTION — $(grep -E '^ *[0-9]+ flaky' "$log/e2e" | tail -1 | sed 's/^ *//')"
+        grep -A3 -E '^ *[0-9]+ flaky' "$log/e2e" | tail -n +2 | sed "s#$PWD/##"
+      fi
     '';
   };
 
