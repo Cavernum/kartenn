@@ -33,6 +33,10 @@
 //! `kartenn-bench policy <database-url> <seed> [small]`: the budgets of the flow policy
 //! module (REQ-010-28, 54) on the dataset of `core`, the VLAN and machines modules deployed.
 //!
+//! `kartenn-bench events <database-url> <seed> [small]`: the budgets of the event stream
+//! (REQ-022-26): latency at 50 changesets per second, memory per stream, a storm of
+//! resumptions, the overhead of the reader, the visibility of a batch.
+//!
 //! `kartenn-bench seed <database-url> <seed> [small]`: loads the dataset of `core`, and a
 //! domain whose container has 10⁵ networks, into a database migrated by
 //! `kartenn-server migrate`, for the budgets of the browser (`bench-web`, REQ-007-32);
@@ -136,6 +140,18 @@ fn main() -> anyhow::Result<()> {
             };
             level.verdict(&report, ok, "a budget is exceeded")
         }
+        [command, database, _seed, rest @ ..] if command == "events" => {
+            let level = Level::of(rest)?;
+            println!("{}", level.announce());
+            let sizes = match level {
+                Level::Full => kartenn_bench::events_budgets::Sizes::FULL,
+                Level::Reduced => kartenn_bench::events_budgets::Sizes::REDUCED,
+                Level::Small => kartenn_bench::events_budgets::Sizes::SMALL,
+            };
+            let (report, ok) = tokio::runtime::Runtime::new()?
+                .block_on(kartenn_bench::events_budgets::run(database, sizes))?;
+            level.verdict(&report, ok, "a budget is exceeded")
+        }
         [command, database, seed, rest @ ..] if command == "seed" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             // The standard output is the ids of the seeded domain (`bench-web`).
@@ -171,7 +187,7 @@ fn main() -> anyhow::Result<()> {
             ))
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|telemetry|seed <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|events|telemetry|seed <database-url> <seed> [small]"
         ),
     }
 }

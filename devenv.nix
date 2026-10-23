@@ -725,6 +725,11 @@ in {
   scripts.bench-http =
     bench "http" "Measure the budgets of the core through HTTP on a fresh kartenn_bench database";
 
+  # The budgets of the event stream (spec 022, REQ-022-26): latency at 50 changesets per
+  # second, memory per stream, a storm of resumptions: `bench-events [seed] [small]`.
+  scripts.bench-events =
+    bench "events" "Measure the budgets of the event stream on a fresh kartenn_bench database";
+
   # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
   # the Playwright project `budgets` against kartenn-server in release on the dataset of
   # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`. It also takes the

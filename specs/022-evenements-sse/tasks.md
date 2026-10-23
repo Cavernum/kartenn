@@ -246,7 +246,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 ## P6 — Budgets et synchronisation
 
-- [ ] 17. Banc `bench-events` : 2 000 puis 5 000 flux en processus, 50 changesets/s ;
+- [x] 17. Banc `bench-events` : 2 000 puis 5 000 flux en processus, 50 changesets/s ;
   latence validation → écriture (p95, p99), mémoire par flux, tempête de 5 000 reprises
   en 10 s, surcoût de `NOTIFY` sur le changeset unitaire, coût de la requête de
   visibilité (500 sujets × 1 000 objets) — REQ-022-26 — verify : chaque mesure sous son
@@ -254,6 +254,16 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - où : `crates/kartenn-bench/src/http.rs` (banc HTTP en processus),
     `crates/kartenn-bench/src/core_budgets.rs` (forme) ; sous-agent `bench-runner`
   - dépend de : 12
+  - fait : `crates/kartenn-bench/src/events_budgets.rs`, `bench-events` (devenv) ; flux
+    ouverts par le `Hub` en processus (l'authentification de l'ouverture est celle de
+    `bench-http`). Échelle réduite (2026-10-23, 200 puis 500 flux, 20 identités) :
+    validation → écriture p95 3,7 ms, p99 4,5 ms, aucun événement perdu ; 5,4 Kio par
+    flux au repos ; 500 reprises servies en 81 ms, changeset unitaire p95 8,0 ms pendant
+    la tempête ; surcoût du lecteur (`NOTIFY` compris, 5 tours alternés) 0,05 ms sur un
+    p95 de 6,8 ms ; visibilité d'un lot 9,9 ms (33 sujets × 1 000 objets). La requête de
+    visibilité regroupe les sujets de même portée (`events::visible`) : sans ce
+    regroupement, 173 ms à l'échelle réduite, à surveiller à l'échelle complète si les
+    portées sont toutes distinctes. Mesure complète : à lancer par l'orchestrateur.
 - [ ] 18. Synchronisation : `docs/spec/` (interfaces : flux d'événements ; invariants
   proposés ci-dessous ; architecture : lecteur partagé), ADR 0034 acceptée,
   `specs/README.md` — verify : sous-agent `spec-keeper` sans écart

@@ -229,8 +229,20 @@ pub async fn visible(
     if scopes.is_empty() || objects.is_empty() {
         return Ok(Vec::new());
     }
-    let (subjects, jsons): (Vec<i32>, Vec<serde_json::Value>) = scopes.iter().cloned().unzip();
-    sqlx::query_as(
+    // Subjects of the same scope (the same role on the same perimeter) are asked once.
+    let mut distinct: Vec<&serde_json::Value> = Vec::new();
+    let mut of_scope: Vec<Vec<i32>> = Vec::new();
+    for (n, json) in scopes {
+        if let Some(k) = distinct.iter().position(|d| *d == json) {
+            of_scope[k].push(*n);
+        } else {
+            distinct.push(json);
+            of_scope.push(vec![*n]);
+        }
+    }
+    let subjects: Vec<i32> = (0..i32::try_from(distinct.len()).unwrap_or(i32::MAX)).collect();
+    let jsons: Vec<serde_json::Value> = distinct.into_iter().cloned().collect();
+    let pairs: Vec<(i32, Uuid)> = sqlx::query_as(
         "WITH s AS MATERIALIZED (
              SELECT t.n, k.* FROM unnest($1::int[], $2::jsonb[]) AS t(n, scope),
                   LATERAL kartenn_scopes(t.scope) k),
@@ -253,7 +265,18 @@ pub async fn visible(
     .bind(objects)
     .fetch_all(&mut *conn)
     .await
-    .map_err(store_err)
+    .map_err(store_err)?;
+    Ok(pairs
+        .into_iter()
+        .flat_map(|(k, id)| {
+            usize::try_from(k)
+                .ok()
+                .and_then(|k| of_scope.get(k))
+                .into_iter()
+                .flatten()
+                .map(move |n| (*n, id))
+        })
+        .collect())
 }
 
 /// The state of each identity among `ids` (REQ-005-3): disabled, and its sessions
