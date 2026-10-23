@@ -1,0 +1,6 @@
+# The new shell (spec 021, « Migration »): its own workspace beside web/, never served
+# until the cutover commit. Packages appear with their tasks (020, 021).
+packages:
+  - ui
+  - shell
+  - e2e

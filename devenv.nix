@@ -11,16 +11,19 @@
   # written here (pkgs.writers.writeDash), the devenv scripts (nix/dash-scripts.nix) and
   # scripts/*.sh. A script re-executed under k-heavy names this dash, never `sh`.
   dash = lib.getExe pkgs.dash;
-  # Pre-commit hands paths relative to the repository; tools run from web/.
+  # Pre-commit hands paths relative to the repository; tools run from the workspace (web/,
+  # or web/v2/ for the new shell, spec 021 « Migration »).
   # The toolchain is absolute: pre-commit also runs outside the devenv shell.
-  webHook = tool:
-    pkgs.writers.writeDash "web-${tool}" ''
+  workspaceHook = dir: tool:
+    pkgs.writers.writeDash "${builtins.replaceStrings ["/"] ["-"] dir}-${tool}" ''
       set -euo pipefail
-      [ -f web/package.json ] || exit 0
+      [ -f ${dir}/package.json ] || exit 0
       export PATH=${lib.makeBinPath [config.languages.javascript.package config.languages.javascript.pnpm.package]}:$PATH
-      for path do shift; set -- "$@" "''${path#web/}"; done
-      exec pnpm -C web exec ${tool} "$@"
+      for path do shift; set -- "$@" "''${path#${dir}/}"; done
+      exec pnpm -C ${dir} exec ${tool} "$@"
     '';
+  webHook = workspaceHook "web";
+  web2Hook = workspaceHook "web/v2";
   # Machine-wide semaphore for heavy commands (builds, tests, benches, end-to-end): several
   # sessions and worktrees share one machine, and each cargo would otherwise take every
   # core. At most K_HEAVY_SLOTS (default 2) commands run at once, niced, each with
@@ -545,6 +548,11 @@ in {
       echo "OK — $(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')"
     '';
   };
+  # The new shell (spec 021, « Migration »): the same checks on its own workspace.
+  scripts.k-web2-check = {
+    description = "k-web-check on the workspace of the new shell (web/v2)";
+    exec = ''WEB_DIR=web/v2 exec k-web-check "$@"'';
+  };
 
   # Same for the Python clients (spec 023, T25), in ${PY_DIR:-clients/python}: ruff (lint
   # and format) and pyright on the uv workspace, then pytest with branch coverage in each
@@ -889,6 +897,10 @@ in {
         fi
       done
     fi
+    # The new shell (spec 021, « Migration »): its own pnpm workspace beside web/.
+    if [ -f web/v2/package.json ]; then
+      pnpm -C web/v2 install --frozen-lockfile --reporter=silent || echo "pnpm install de web/v2 en échec" >&2
+    fi
   '';
 
   git-hooks.hooks = {
@@ -931,13 +943,28 @@ in {
       name = "prettier (web)";
       entry = "${webHook "prettier"} --write --ignore-unknown";
       files = "^web/.*\\.(vue|ts|tsx|js|mjs|json|css|html|md)$";
-      excludes = ["(^|/)pnpm-lock\\.yaml$"];
+      excludes = ["(^|/)pnpm-lock\\.yaml$" "^web/v2/"];
     };
     web-eslint = {
       enable = true;
       name = "eslint (web)";
       entry = "${webHook "eslint"} --fix";
       files = "^web/.*\\.(vue|ts|tsx|js|mjs)$";
+      excludes = ["^web/v2/"];
+    };
+    # The new shell, with the tools of its own workspace (spec 021, « Migration »).
+    web2-prettier = {
+      enable = true;
+      name = "prettier (web/v2)";
+      entry = "${web2Hook "prettier"} --write --ignore-unknown";
+      files = "^web/v2/.*\\.(vue|ts|tsx|js|mjs|json|css|html|md)$";
+      excludes = ["(^|/)pnpm-lock\\.yaml$"];
+    };
+    web2-eslint = {
+      enable = true;
+      name = "eslint (web/v2)";
+      entry = "${web2Hook "eslint"} --fix";
+      files = "^web/v2/.*\\.(vue|ts|tsx|js|mjs)$";
     };
   };
 
@@ -986,7 +1013,7 @@ in {
         "${config.devenv.state}/playwright-mcp"
       ];
     };
-    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*"];
+    permissions.rules.Bash.allow = ["k-web-check:*" "k-web-e2e:*" "k-web2-check:*"];
     # The user-level Claude Code config already runs `pre-commit run --files`
     # after each edit; devenv's own copy of that hook would run it twice.
     hooks.git-hooks-run.enable = false;

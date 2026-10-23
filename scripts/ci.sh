@@ -50,6 +50,8 @@ step sqlx-offline k-heavy --pg dash -c \
   'sqlx migrate run --source crates/kartenn-store-pg/migrations && cargo sqlx prepare --workspace --check -- --all-targets'
 step rust k-check
 step web k-web-check
+# The new shell, in its own workspace until the cutover (spec 021, « Migration »).
+step web-v2 k-web2-check
 # Python clients (spec 023): lint, types and tests, then the wheels and their licences.
 step python k-py-check
 step python-wheels scripts/py-wheels.sh
