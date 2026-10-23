@@ -1,0 +1,382 @@
+---
+status: draft
+updated: 2026-10-23
+---
+
+# 021 — Shell v2 : exigences
+
+## Résumé
+
+Réécriture de la **partie client** de la 007 sur le système de design de la 020 : nouvelle
+mise en page (barre latérale repliable groupée par espace, palette de commandes Ctrl+K,
+fil d'Ariane, barre d'état haute avec pastille de date et « Brouillon (n) »), raccourcis
+clavier complets et découvrables, écrans du référentiel, des changesets et revues, du
+brouillon, de l'administration et des plugins réécrits avec `@kartenn/ui`, édition en
+place selon les droits, filtres typés, clés et libellés, codes visibles. Le SDK passe en
+**version 2.0** : cache de données partagé (`@tanstack/query-core`), préchargement à
+l'intention, invalidation par le flux SSE de la 022, optimisme au présent seulement ; le
+framework et `@kartenn/ui` sont partagés avec les plugins par l'import map. Les budgets
+du navigateur s'étendent (INP, navigation en cache, CLS, trames perdues, mémoire) et
+restent bloquants.
+
+La 007 garde le **serveur** (service du shell, en-têtes, CSP, répertoire des plugins, SRI,
+capacités, rechargement à chaud, émetteur de développement, ajouts à l'API) ; sa partie
+client est remplacée ou amendée par cette spec (design, § « Ce qui reste de la 007 »).
+
+Sources : arbitrages de l'utilisateur du 2026-10-23 (D-1 à D-12, brief, direction) ;
+retours sur les maquettes du 2026-10-22 ; D7 (amendée), D8, D10, D11, D17, D31 (amendée),
+D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; specs 007, 017,
+020, 022 (validée), 006 (H19, ETag composite) et 018 (non fusionnée : permissions
+`module.action`, libellés par langue) ; ADR 0025,
+[0037](../../docs/adr/0037-couche-de-donnees-du-client.md),
+[0038](../../docs/adr/0038-partage-des-composants-avec-les-plugins.md) ; note
+[`web-navigateur.md`](../../docs/reference/web-navigateur.md).
+
+**Brouillon du 2026-10-23.** Restent les « Arbitrages demandés » et les questions Q-021-1
+à 14 de [`decisions.md`](decisions.md). Le framework (D-1) attend un prototype : les
+points qui en dépendent sont marqués **[D-1]**. Rien n'est implémenté.
+
+Ordre (D31 amendée) : la 022 précède ; la 020 fournit jetons, composants et maquettes
+validées avant tout écran ; la 017 (Politique, Flux) vient après, sur ce socle.
+
+### Vocabulaire
+
+- **Espace** : groupe d'entrées de la barre latérale (Référentiel, Changesets,
+  Administration, et les espaces que déclarent les modules, par exemple Réseau ou
+  Sécurité).
+- **Palette** : dialogue de commandes ouvert par Ctrl+K (⌘K sur macOS).
+- **Pastille de date** : bouton de la barre d'état qui montre le contexte temporel
+  (« Présent » ou la date) et ouvre le sélecteur de période.
+- **Hors présent** : `valid_at` ou `as_of` posé dans l'URL (007/W9).
+- **Édition en place** : modification d'une cellule de table ou d'un nœud d'arbre sans
+  quitter la vue.
+- **Modification rapide** : changeset d'une opération par la route de ressource, avec
+  motif et `If-Match` (REQ-007-25).
+- **Requête** (du cache) : lecture identifiée par une clé, gardée, dédupliquée et
+  revalidée par le `QueryClient` du SDK.
+- **Préchargement à l'intention** : lecture lancée au survol, au focus ou à l'approche d'un
+  lien, avant le clic.
+- **Optimisme** : mise à jour de l'affichage avant la réponse du serveur, défaite en cas
+  d'échec.
+
+## Exigences
+
+### A. Mise en page
+
+#### REQ-021-1 — Cadre
+Le shell doit présenter : une barre latérale à gauche, une barre d'état en haut (fil
+d'Ariane, pastille de date, « Brouillon (n) », menu de l'utilisateur), et une surface de
+travail en panneaux ; les repères ARIA `navigation`, `banner`, `main` et un lien
+d'évitement vers le contenu. `index.html` doit contenir le squelette statique de ce cadre
+(feuille en fichier, aucune règle en ligne), remplacé sans décalage par l'application.
+[X1, maquette E1, REQ-020-23]
+
+Acceptation :
+- CLS ≤ 0,05 du premier rendu à l'écran utile ; aucun écran blanc pendant le chargement.
+- Le lien d'évitement est le premier élément focalisable.
+
+#### REQ-021-2 — Barre latérale
+La barre latérale doit grouper ses entrées par espace, accueillir les entrées des plugins
+dans l'espace que déclare leur manifeste, se replier en icônes (avec noms accessibles et
+infobulles) et garder son état localement ; elle doit afficher les compteurs utiles
+(propositions à instruire). [X2, REQ-020-16]
+
+Acceptation :
+- Un plugin qui déclare l'espace `security` apparaît sous « Sécurité » ; sans module
+  correspondant, l'espace est absent.
+- Repliée puis rechargée, la barre reste repliée.
+
+#### REQ-021-3 — Palette de commandes
+Ctrl+K (⌘K) doit ouvrir la palette depuis tout écran : navigation vers chaque vue,
+actions de la vue courante (créer, modifier, ouvrir le brouillon, revenir au présent),
+recherche d'objets par valeur (adresse, préfixe) et par nom, objets récents ; les plugins
+doivent pouvoir y ajouter leurs commandes par le SDK ; une commande hors des droits est
+absente. [X3, REQ-007-20]
+
+Acceptation :
+- Ctrl+K, « 10.1. », Entrée → la fiche du préfixe ou de l'adresse correspondante.
+- Une commande « Créer un groupe de VLAN » est absente sans `vlan.group.write`.
+
+#### REQ-021-4 — Fil d'Ariane
+Chaque écran doit montrer son fil d'Ariane (espace, collection, objet et ses ancêtres
+pertinents), dont chaque élément sauf le dernier est un lien. [X4]
+
+#### REQ-021-5 — Contexte temporel dans la barre d'état
+La pastille de date doit montrer « Présent » ou la date affichée (avec fuseau) et ouvrir
+le sélecteur de période (`valid_at`, `as_of`). Hors présent, une **bande ambre** doit
+traverser la page sous la barre d'état, nommer le contexte (`role="status"`) et offrir le
+retour au présent ; sous `as_of`, toute écriture est désactivée (édition en place,
+modification rapide, brouillon) ; sous `valid_at` seul, l'édition en place et la
+modification rapide sont désactivées et le brouillon reste permis avec `valid_from`
+prérempli. Chaque contrôle désactivé dit pourquoi (infobulle). [X5, REQ-007-22, 23,
+Q-021-13]
+
+Acceptation :
+- `as_of` passé : bande visible, boutons d'écriture désactivés avec motif, soumission du
+  brouillon refusée par le shell.
+- « Revenir au présent » retire `valid_at` et `as_of` de l'URL.
+
+#### REQ-021-6 — Brouillon dans la barre d'état
+« Brouillon (n) » doit compter les opérations du brouillon de l'onglet et ouvrir un
+panneau latéral non modal : opérations, simulation continue (différentiel, violations avec
+leurs codes, cascades), motif, dates d'effet, soumission. [X6, REQ-007-26, 27]
+
+Acceptation :
+- Ajouter une opération depuis une table met à jour le compteur sans recharger la vue ;
+  le panneau se ferme par Échap et rend le focus.
+
+### B. Raccourcis
+
+#### REQ-021-7 — Jeu de raccourcis
+Le shell doit offrir : Ctrl+K (palette), `/` (champ de filtre ou de recherche de la vue),
+`g` puis une lettre (navigation, table du design), `c` (créer dans la collection
+courante), `e` (modifier l'objet ou la cellule courante), `?` (aide des raccourcis),
+Échap (fermer la couche ouverte) ; chaque raccourci doit être affiché dans les menus, les
+infobulles des boutons et l'aide `?`, et localisé. Les plugins peuvent déclarer des
+raccourcis de leur vue, sans redéfinir ceux du shell. [X7, brief tour 3]
+
+Acceptation :
+- `g` puis `c` → liste des changesets ; `?` → aide qui liste tous les raccourcis actifs,
+  ceux du plugin courant compris.
+
+#### REQ-021-8 — Raccourcis sans conflit
+Un raccourci à une touche ne doit s'activer ni quand le focus est dans un champ éditable,
+ni dans un composant qui consomme les caractères (recherche à la saisie d'un arbre,
+édition de cellule), ni avec une touche de modification autre que Maj ; aucun raccourci ne
+doit utiliser une combinaison réservée aux lecteurs d'écran ou au navigateur (Insert,
+Verr. Maj, Ctrl+Alt+flèches, F6, Ctrl+L, Ctrl+T…) ; un réglage doit permettre de
+désactiver les raccourcis à une touche. [X8, WCAG 2.1.4]
+
+Acceptation :
+- Saisie de « gc » dans un champ de filtre : aucune navigation.
+- Raccourcis à une touche désactivés : `g c` ne fait rien, Ctrl+K reste actif.
+
+### C. Écrans
+
+#### REQ-021-9 — Référentiel
+Le shell doit offrir les écrans du référentiel : domaines, arbre des préfixes (arbre en
+grille : préfixe, occupation, colonnes de plugins), plages, adresses, entités, sites ;
+fiche d'objet (attributs, propriétés résolues et leur explication, occupation et prochain
+libre d'un préfixe, historique, anomalies, onglets et panneaux de plugins, menu
+d'actions) ; anomalies et leur acquittement ; propriétés (déclarations, valeurs, écarts).
+Chaque vue de données a ses trois états (chargement, vide, erreur). [X9, REQ-007-17,
+REQ-020-23, maquettes E1 à E3]
+
+#### REQ-021-10 — Changesets et revues
+Le shell doit montrer la liste filtrée des changesets, le différentiel groupé par objet
+(`DiffList`), l'état, et permettre selon les droits validation, rejet, retrait,
+annulation ; les propositions à instruire de l'utilisateur doivent avoir leur vue et
+leur compteur. [X10, REQ-007-18, maquette E4]
+
+#### REQ-021-11 — Brouillon
+Le brouillon garde les règles de la 007 (IndexedDB par identité et onglet, simulation
+continue, clé d'idempotence, effacement à la déconnexion) ; il est montré dans le panneau
+latéral (REQ-021-6) et en page `/draft`. [X11, REQ-007-26, 27, maquette E5]
+
+#### REQ-021-12 — Administration
+Le shell doit offrir l'administration de la 007 (rôles, liaisons, émetteurs, comptes de
+service et secrets montrés une fois, identités, audit et son export, imports) ; les
+permissions y sont affichées sous leur nom servi (`module.action` quand la ressource est
+le module, spec 018), en chasse fixe, avec leur libellé quand il existe. [X12,
+REQ-007-19, maquette E7]
+
+#### REQ-021-13 — Hôte des plugins
+Le shell doit accueillir les cinq emplacements de la 007 (vue, onglet, panneau, colonne,
+action) dans le nouveau cadre ; une erreur d'un plugin reste confinée à son emplacement
+(encart d'erreur avec code) ; la page « À propos » liste les plugins chargés et écartés
+avec leur motif. [X13, REQ-007-9, 13, maquette E10]
+
+#### REQ-021-14 — Session
+La connexion, la reconnexion sur 401 (retour à la même URL et au même contexte), la
+déconnexion (effacement du brouillon et des préférences sensibles) suivent REQ-007-28 ;
+l'approche de l'échéance de session est signalée avant qu'elle n'arrive (le flux SSE ne
+compte pas comme activité, 022/A6). [X14, REQ-007-28, Q-022-11]
+
+### D. Écriture
+
+#### REQ-021-15 — Édition en place
+Les tables et l'arbre doivent permettre l'édition en place d'une cellule quand
+l'utilisateur détient le droit d'écriture du type et de l'attribut (`/v1/me`) et que la
+vue est au présent ; par défaut, une édition ajoute une **opération au brouillon** et
+marque la cellule « en brouillon » ; « Appliquer maintenant » (Ctrl+Entrée) passe par la
+modification rapide (REQ-021-16), motif demandé en ligne. Une cellule non éditable ne
+doit pas offrir l'éditeur et dit pourquoi. [X15, retour du 2026-10-22, REQ-020-19,
+Q-021-1]
+
+Acceptation :
+- Lecteur : aucune cellule éditable ; auteur : édition d'un nom de préfixe au clavier
+  seul → compteur du brouillon à 1, cellule marquée.
+- Ctrl+Entrée avec motif → 200 : valeur appliquée ; 202 : cellule « en revue ».
+
+#### REQ-021-16 — Modification rapide, optimisme et réponses
+Une modification rapide au présent doit mettre l'affichage à jour avant la réponse
+(optimisme) et le défaire sur erreur ; aucune mise à jour optimiste hors présent. Les
+réponses doivent être rendues ainsi : 200/201 → valeur appliquée, avis avec lien vers le
+changeset ; **202 → « proposé, en revue »**, jamais « appliqué », lien vers la
+proposition ; **412 → relecture de l'objet, saisie gardée** et montrée à côté des valeurs
+actuelles ; 422 → violations sur les champs, avec leurs codes ; 403 ou
+`core.object.forbidden` → refus, saisie gardée. [X16, D-7, REQ-007-20, 25, ADR 0037]
+
+Acceptation :
+- Deux onglets modifient le même préfixe : le second reçoit 412, voit la nouvelle valeur
+  et retrouve sa saisie.
+- Politique d'approbation active : la ligne passe « en revue » sans jamais afficher
+  « appliqué ».
+
+#### REQ-021-17 — Déplacement dans un arbre
+Là où le parent d'un nœud est déclaré (et non déduit), l'arbre doit permettre de déplacer
+un nœud au glisser et au clavier, par une opération de changeset ; l'arbre des préfixes,
+déduit de l'inclusion (D34), n'offre pas de glisser : changer le domaine d'un préfixe est
+une action de menu. [X17, REQ-020-19, D34, Q-021-2]
+
+### E. Filtres, libellés, codes
+
+#### REQ-021-18 — Filtres typés
+Chaque liste doit offrir les filtres typés de la 020 sur les propriétés que sa route sait
+filtrer (paramètres du contrat OpenAPI et propriétés déclarées) ; les valeurs d'un domaine
+fermé (environnements, sites, entités, états, listes fermées de propriétés) sont proposées
+par autocomplétion depuis l'API ; les filtres sont dans l'URL. [X18, REQ-020-20,
+REQ-007-22]
+
+Acceptation :
+- Adresses filtrées par `site = <site>` et `core.owner = <entité>` ; le lien copié rouvre
+  la même vue.
+
+#### REQ-021-19 — Clé et libellé
+Toute valeur à clé (environnement, axe, état, type d'objet, permission, rôle) doit être
+affichée par son libellé dans la langue de l'utilisateur, à défaut sa clé, la clé restant
+accessible (REQ-020-21) ; tant que le serveur ne sert pas de libellés (spec 018), seuls
+les libellés des catalogues du shell et des plugins s'appliquent. [X19, retour du
+2026-10-22, Q-021-10]
+
+#### REQ-021-20 — Codes visibles
+Toute erreur affichée (avis, encart, dialogue, cellule) doit montrer le code du problème
+et de chaque violation, et l'identifiant de la requête, copiables (REQ-020-22) ; le
+message lisible reste la traduction du `type` (REQ-007-29). [X20, retour du 2026-10-22]
+
+### F. Données
+
+#### REQ-021-21 — Cache partagé
+Le shell et les plugins doivent lire par le `QueryClient` unique du SDK, avec des clés
+produites par les fabriques du SDK, qui portent la ressource, ses paramètres, les filtres
+normalisés et le contexte temporel ; une lecture à `as_of` passé est gardée sans
+revalidation ; toute autre relecture part en `If-None-Match` avec l'ETag gardé, opaque.
+[X21, ADR 0037, 006/H19]
+
+Acceptation :
+- Retour sur une fiche déjà vue : aucune requête réseau si fraîche, sinon une requête
+  304 et aucun squelette.
+
+#### REQ-021-22 — Préchargement
+Un lien interne doit précharger les requêtes déclarées par sa route cible au survol (après
+un court délai) ou au focus ; la navigation attend au plus 100 ms puis affiche la donnée en
+cache ou un squelette ; une liste précharge sa page suivante à l'approche de la fin, un
+arbre les enfants d'un nœud survolé ; les modules d'un plugin sont préchargés au survol de
+son entrée. [X22, D-5, ADR 0037]
+
+Acceptation :
+- Navigation vers une fiche survolée : marque de rendu ≤ 100 ms après le clic (banc).
+
+#### REQ-021-23 — Invalidation par le flux d'événements
+Le SDK doit tenir **un** flux `GET /v1/events` par navigateur, partagé entre ses onglets,
+et appliquer le contrat de la 022 : ouvrir le flux avant les lectures ; `ready` et
+`reset` invalident tout ; `changes` invalide chaque objet nommé dont la `version` connue
+diffère de `changeset`, les listes de son type, et les requêtes qui montrent cet objet
+(résumés de liés, fiches composites) ; `truncated` invalide par type et domaine ;
+`changeset` rafraîchit le changeset et les propositions. Sans flux (refus, coupure
+durable), le cache revalide au retour sur l'onglet, à la reconnexion et au retour du
+bfcache. [X23, 022, D-6]
+
+Acceptation :
+- Deux navigateurs : un renommage dans le premier apparaît dans la fiche ouverte du second
+  en moins de 2 s, sans action.
+- Renommage d'un domaine : les fiches de ses préfixes ouvertes se mettent à jour (ETag
+  composite, H19).
+- Trois onglets ouverts : une seule connexion `/v1/events`.
+
+#### REQ-021-24 — Invalidation de ses propres écritures
+Après un changeset appliqué par l'utilisateur, le SDK doit invalider les objets nommés par
+la réponse, leurs collections et leurs dépendants connus, sans attendre le flux. [X24,
+ADR 0037]
+
+### G. API des plugins (SDK 2.0)
+
+#### REQ-021-25 — SDK 2.0
+Le SDK doit passer en version majeure 2.0 et offrir, en plus de la 1.x : le `QueryClient`
+partagé, les fabriques de clés, l'abonnement aux événements, des aides d'écriture
+(modification rapide avec optimisme et rendu des réponses, ajout au brouillon), la
+déclaration de commandes, de raccourcis et d'entrées de barre latérale ; il reste sans
+dépendance à un framework. [X25, REQ-007-12, ADR 0037]
+
+Acceptation :
+- Un plugin sans framework lit par le `QueryClient` et reçoit les invalidations.
+
+#### REQ-021-26 — Modules partagés et manifeste
+L'import map doit désigner `@kartenn/sdk`, le framework **[D-1]**, `@kartenn/ui` et sa
+feuille, chacun avec son empreinte ; le manifeste d'un plugin doit pouvoir déclarer les
+plages `ui` et `framework`, vérifiées au chargement comme `sdk`, et l'espace de ses
+entrées. [X26, ADR 0038, REQ-007-5, 9]
+
+Acceptation :
+- Plugin qui exige `ui: ^3` sur un shell en `@kartenn/ui` 2.x → écarté `incompatible`.
+
+#### REQ-021-27 — Rendu des plugins
+Les plugins de première partie doivent rendre en DOM léger avec `@kartenn/ui` ; un plugin
+tiers peut garder une racine d'ombre et lier la feuille par `handle.styles()` ; le plugin
+d'exemple reste sans framework. [X27, ADR 0038, REQ-007-21]
+
+### H. Langue
+
+#### REQ-021-28 — i18n
+REQ-007-29 reste exigée (FR et EN, mêmes clés, `Intl`, erreurs par `type`, catalogues des
+plugins) ; les noms des touches et les raccourcis sont localisés ; les libellés suivent
+REQ-021-19. [X28, REQ-007-29]
+
+### I. Accessibilité
+
+#### REQ-021-29 — WCAG 2.2 AA
+REQ-007-33 reste exigée pour tous les écrans ; en plus : parcours complet au clavier de la
+palette, de la barre latérale repliée, du panneau du brouillon, de l'édition en place ;
+focus jamais masqué par la barre d'état ou la bande (2.4.11) ; consultation lisible à
+320 px CSS de large (1.4.10), édition réservée aux largeurs ≥ 1024 px avec un message.
+[X29, REQ-007-33, REQ-020-28, Q-021-12]
+
+### J. Budgets
+
+#### REQ-021-30 — Budgets du navigateur
+`bench-web` doit mesurer et faire échouer au-delà de : shell initial ≤ 300 Ko gzip
+(framework et `@kartenn/ui` compris, plugins exclus) ; chaque plugin ≤ 50 Ko gzip hors
+modules partagés ; premier écran utile ≤ 2 s ; page de 100 lignes ≤ 100 ms ; **INP ≤
+200 ms** au 75ᵉ centile de chaque interaction scénarisée (ouvrir un nœud, filtrer, éditer
+une cellule, changer d'onglet, ouvrir la palette) ; **navigation entre routes en cache ≤
+100 ms** jusqu'à la marque de rendu ; **CLS ≤ 0,05** au premier écran et à chaque
+navigation ; arbre de 10⁵ nœuds défilé avec **≤ 5 % de trames perdues** ; **tas JS** après
+10⁴ lignes défilées et 50 navigations ≤ un plafond fixé après le prototype D-1 ; plugin
+lent écarté à 5 s. Mesures sur Chromium, CPU ralenti ×4, jeu à 10⁶ objets. [X30, D-10,
+REQ-007-32, D14] **[D-1]** pour le plafond de mémoire.
+
+Acceptation :
+- `bench-web` : chaque mesure sous son budget, sortie non nulle sinon ; tableau rendu par
+  `bench-runner`.
+
+### K. Migration
+
+#### REQ-021-31 — Bascule par zones
+La réécriture doit se faire par zones (cadre, référentiel, changesets, brouillon,
+administration, hôte des plugins), chaque zone remplaçant ses vues 1.x et ses parcours de
+bout en bout restant verts à chaque commit ; les plugins VLAN et Machines sont portés
+ensuite ; la v0.1 sort avec l'interface actuelle. [X31, phases du design, Q-021-4]
+
+## Non-objectifs
+
+- Le serveur du shell et des plugins (service, CSP, SRI, répertoire, capacités) : la 007,
+  inchangée, sauf l'entrée de l'import map.
+- Les plugins Politique et Flux : la 017, sur ce socle.
+- Le langage de requête écrit : Q-020-10.
+- Le stockage et le versionnement des libellés par langue : la 018.
+- Le rendu serveur, une application mobile, le hors-ligne (au-delà du brouillon local).
+- Une couche de compatibilité SDK 1.x (Q-021-14).
+
+## Questions ouvertes
+
+Q-021-1 à 14, avec recommandations : [`decisions.md`](decisions.md), § « Questions ».
