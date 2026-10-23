@@ -117,12 +117,18 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux B — Libellés
 
-- [ ] 5. ADR 0040 « Dictionnaire de libellés » (acceptée avec la spec) et note de
+- [x] 5. ADR 0040 « Dictionnaire de libellés » (acceptée avec la spec) et note de
   référence (RFC 5646 §2.1, RFC 4647 §3.4, RFC 9110 §8.5, §12.5.4, §12.5.5 ; normatif /
   choix de kartenn) — R19 à R24 — verify : relecture de l'utilisateur
   où : `docs/adr/0035-clients-decouverts-depuis-le-contrat.md` (forme) ;
   `docs/reference/noms-dates-texte.md` (forme des notes)
   dépend de : —
+  fait : `docs/adr/0040-dictionnaire-de-libelles.md` (acceptée, indexée dans
+  `docs/spec/README.md`) et `docs/reference/langues-negociation.md` (indexée). Choix
+  notés dans la note : `?lang=` sans liste ni poids, `q=0` écarté, étiquettes
+  `grandfathered` refusées, casse normalisée en minuscules, `Accept-Language` mal formé
+  ignoré (seul `lang` mal formé vaut 400). Citations relues par un outil de résumé :
+  points à revérifier listés en fin de note.
 
 - [ ] 6. Schéma : `labels jsonb` sur les tables propriétaires, reprise des `label` puis
   suppression des colonnes, `policy_value.label` vers `property_enum_value.labels`,
