@@ -514,7 +514,7 @@ in {
   # Convention: each workspace package defines a `typecheck` script (vue-tsc); vitest
   # runs from the workspace root (projects).
   scripts.k-web-check = {
-    description = "prettier, eslint, vue-tsc and vitest, printing a one-line verdict or the failures only";
+    description = "prettier, eslint, stylelint (web/v2), vue-tsc and vitest, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
@@ -534,6 +534,11 @@ in {
         ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write ."
       pnpm exec eslint . >"$log/eslint" 2>&1 ||
         ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
+      # Style lint where the workspace has one (web/v2, spec 020, REQ-020-13).
+      if [ -f stylelint.config.js ]; then
+        pnpm exec stylelint --allow-empty-input '**/*.{css,vue}' >"$log/stylelint" 2>&1 ||
+          ko stylelint "$log/stylelint" '^[^ ]|^ +[0-9]+:[0-9]+ +✖'
+      fi
       # Package by package, so that error paths are prefixed with the package directory.
       tsc=0
       pnpm -r ls --depth -1 --parseable >"$log/packages"
@@ -965,6 +970,12 @@ in {
       name = "eslint (web/v2)";
       entry = "${web2Hook "eslint"} --fix";
       files = "^web/v2/.*\\.(vue|ts|tsx|js|mjs)$";
+    };
+    web2-stylelint = {
+      enable = true;
+      name = "stylelint (web/v2)";
+      entry = "${web2Hook "stylelint"} --fix --allow-empty-input";
+      files = "^web/v2/.*\\.(vue|css)$";
     };
   };
 

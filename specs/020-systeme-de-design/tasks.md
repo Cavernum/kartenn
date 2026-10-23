@@ -42,7 +42,7 @@ emploient.
   - où : `.claude/agents/test-runner.md`, `bench-runner.md` (forme, frontmatter
     `tools`, `model`) ; `.claude/hooks/fin-tache.sh` (forme d'un hook) ; ADR 0039
   - dépend de : —
-- [ ] 3. Stylelint et lint du code : `web/v2/stylelint.config.js` (règles du design,
+- [x] 3. Stylelint et lint du code : `web/v2/stylelint.config.js` (règles du design,
   § « Architecture CSS », dont la règle maison des couches et la liste fermée des
   composants flottants à ombre) ; interdiction des éléments interactifs bruts et du style
   en chaîne dans les écrans et plugins ; intégrés à `k-web-check` et au hook
@@ -53,6 +53,21 @@ emploient.
     `scripts.k-web-check` (vers la ligne 494) ; `.pre-commit-config.yaml` (entrée
     `eslint (web)`, forme)
   - dépend de : —
+  - fait : `web/v2/stylelint.config.js` (`declaration-strict-value`, `use-logical`,
+    `color-no-hex`, `function-disallowed-list`, `selector-max-*`, liste `FLOATING`) et
+    quatre règles maison dans `web/v2/tools/stylelint/plugins.js` : `known-layer`,
+    `token-reference` (seuls les `var(--k-…)` se lisent ; une propriété personnalisée hors
+    jetons n'est qu'un alias de jeton), `raw-length` (longueur ou durée écrite, même dans
+    `calc()`, que `declaration-strict-value` ignore ; `1px` en largeur de bordure
+    seulement), `floating-shadow` (ombres de couche dans les feuilles de `FLOATING`,
+    liseré `--k-shadow-inset-…` partout) ; `web/v2/eslint.config.js` : éléments bruts et
+    `reka-ui` direct interdits dans `shell/src` (hors `_ui`) et `plugins/*/src`, liaison de
+    style en chaîne, `v-html`, `cssText`, `<style>` créé, `setAttribute('style')`, parties
+    Reka interdites partout ; tests de cas interdits et corrigés dans
+    `web/v2/tools/test/` ; Stylelint lancé par `k-web-check` quand l'espace a une
+    configuration (donc `k-web2-check`), hooks pre-commit `prettier`, `eslint`,
+    `stylelint (web/v2)`. Choix de Claude : écrans et plugins n'importent pas `reka-ui`
+    directement (ils passent par `@kartenn/ui`).
 
 ## P1 — Jetons, police, icônes
 
