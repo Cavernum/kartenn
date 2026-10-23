@@ -369,6 +369,20 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 - **Version** : l'égalité « déjà à jour » se teste sur le champ `version` du corps, jamais
   sur l'ETag (opaque, 006/H19) ; sans `version` dans le corps, invalidation sans
   condition (relecture en `If-None-Match`, 304 si rien n'a changé).
+- **Relevé de `version` par ressource** (tâche 3, contrat `openapi-v1.json` du
+  2026-10-24) :
+
+  | Ressources | `version` dans le corps | Effet côté client |
+  |---|---|---|
+  | objets du cœur (entités, sites, domaines, préfixes, plages, adresses) | non | invalidation sans condition, relecture en `If-None-Match` |
+  | objets des modules (VLAN, machines, politique, flux), changesets | non | idem |
+  | `Capabilities`, `Module`, `UiPlugin` | oui, mais version du logiciel, pas une révision | jamais comparée : ces lectures n'ont pas de clé d'objet |
+
+  La comparaison n'est faite que sur une clé d'objet (`keys.object`) ; elle s'appliquera
+  sans changement de code le jour où un corps d'objet portera sa révision. Les références
+  d'un corps sont relevées par tout membre `id` qui porte un UUID, à toute profondeur
+  (résumés `Summary`, `Reference`, `ObjectRef`, éléments embarqués, éléments d'une liste) :
+  les identifiants d'objet sont des UUID uniques entre types, l'index se passe donc du type.
 
 ### Préchargement (REQ-021-22)
 

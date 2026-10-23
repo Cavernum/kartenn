@@ -74,7 +74,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `ApiProblem.code` rend le slug. Modèle de filtres (`filterModel`, `parseFilters`,
     `filterSearch`) et type `FiltersOf<P>` tirés du contrat généré. Vitest :
     `test/cache.test.ts`, `test/filters.test.ts`.
-- [ ] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
+- [x] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
   (schémas de résumé du contrat), index `id → clés`, comparaison sur `version` ; relevé,
   par ressource, de la présence de `version` dans le corps — REQ-021-23 — verify : Vitest
   sur des corps du contrat (préfixe avec résumé de domaine, fiche de machine) ; tableau
@@ -83,6 +83,13 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `crates/kartenn-rest/src/dated.rs` (`ETag::record`, `own_version`) pour la règle
     serveur ; 006/H19
   - dépend de : 2
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/dependents.ts` (`refsOf`, `versionOf`, index
+    `Dependents` tenu par les notifications du cache, oubli à l'éviction) et
+    `invalidate.ts` (objets, listes de leur type, dépendants ; `truncated` par type, relu
+    sans `If-None-Match` ; jamais `as_of`). Relevé consigné dans le design (§ « Clés et
+    fraîcheur ») : aucun corps d'objet du contrat ne porte `version` aujourd'hui, la
+    relecture conditionnelle fait donc tout le travail. Choix noté : l'index est par
+    identifiant seul (UUID uniques entre types). Vitest : `test/dependents.test.ts`.
 - [ ] 4. Écritures : `write.quick` (annulation des lectures de la clé, optimisme au
   présent, retour arrière, issues `applied`/`proposed`/`conflict`/`invalid`/`forbidden`),
   invalidation de ses propres écritures (objets de la réponse, collections, dépendants) ;
