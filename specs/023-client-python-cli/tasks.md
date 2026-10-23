@@ -627,10 +627,21 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `flow request` : extrémités `TYPE:RÉF` (référence résolue par la collection du type)
     ou JSON, service et entité par clé, `--ref SYSTÈME:ID`. `flow review` :
     approbation ou rejet du changeset en attente du flux (lu par `show_flow`).
-- [ ] 23. `kartenn api` : méthodes dont `QUERY`, `-f`, `--data @fichier|-`, `-H`,
+- [x] 23. `kartenn api` : méthodes dont `QUERY`, `-f`, `--data @fichier|-`, `-H`,
   `--paginate` — REQ-023-19 — verify : maquette § 11
   - où : `clients/python/kartenn-cli/src/kartenn_cli/main.py`
   - dépend de : 18
+  - choix : dans `api.py` (et non `main.py`, gardé léger). Méthode insensible à la
+    casse ; chemin absolu (`/…`) ; `-f` en paramètres de requête même pour `QUERY` ;
+    `--at`/`--as-of` ajoutent `valid_at`/`as_of` ; `--data` pose `Content-Type:
+    application/json` sauf `-H` contraire ; un `POST` reçoit une `Idempotency-Key`
+    si `-H` n'en donne pas. Réponse JSON rendue (JSON d'une ligne par défaut), texte
+    tel quel, rien sans corps ; erreur rendue comme un problème avec son code de
+    sortie. `--paginate` sur une page `{items}` suit `links.next` et écrit un élément
+    par ligne (`ndjson` par défaut), une réponse non paginée est rendue telle quelle.
+    Outils de la racine ajoutés ici : `api spec` (le contrat), `capabilities`,
+    `health [live|ready]`, `stubs generate --out` (même génération que
+    `python -m kartenn`).
 - [ ] 24. `login` (bouclage, `--device`, `--breakglass`), `logout`, `me`, et `watch`
   (filtres, `--since`, `ndjson`). `--follow` d'un import ou d'un changeset sur le flux
   d'événements quand il existe. — REQ-023-7, 8, 38 — verify : maquette § 1 et 15 sur

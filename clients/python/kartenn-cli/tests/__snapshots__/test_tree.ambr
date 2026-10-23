@@ -224,7 +224,9 @@
     audit, bindings, identities, issuer-attachments, roles, service-accounts
   
   Outils:
-    log-filters, completion, config
+    api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
+         contrat.
+    log-filters, capabilities, completion, config, health, stubs
   
   '''
 # ---

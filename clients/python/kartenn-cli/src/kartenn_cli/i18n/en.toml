@@ -320,6 +320,26 @@ none = "The flow {flow} has no pending changeset."
 [review.opt]
 approve = "Approve, or reject (motive required)."
 
+[api]
+help = "Call any operation of the API (QUERY included); “kartenn api spec”: the contract."
+pair = "“{given}” takes the form key{sep}value."
+method = "Unknown method: {given} ({methods})."
+path = "The path starts with /: “{given}”."
+
+[api.opt]
+field = "Query parameter key=value (repeatable)."
+data = "Body: JSON, @file or - (standard input)."
+header = "Header “Name: value” (repeatable)."
+paginate = "Every page, one element per line."
+
+[tools]
+capabilities = "Capabilities of the server: version, modules, limits."
+health = "Health probes of the server (live, ready)."
+healthy = "{probe}: {status}"
+stubs = "Type stubs of the server for the checkers (pyright, mypy)."
+stubs_generate = "Write <out>/kartenn_server/__init__.pyi."
+stubs_out = "Output directory (typings by default)."
+
 [completion]
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
 
