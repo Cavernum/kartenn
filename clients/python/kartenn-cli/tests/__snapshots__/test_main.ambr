@@ -38,6 +38,7 @@
   
   Écritures:
     changeset  Composer, simuler, appliquer, instruire des changesets.
+    import     Importer un fichier par morceaux, avec reprise.
   
   Outils:
     completion, config

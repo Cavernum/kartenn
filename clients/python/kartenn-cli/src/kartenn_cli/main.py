@@ -37,6 +37,7 @@ STATIC: dict[str, tuple[str, str, str]] = {
     "config": ("kartenn_cli.config", "config_group", "tools"),
     "completion": ("kartenn_cli.complete", "completion_command", "tools"),
     "changeset": ("kartenn_cli.changeset", "changeset_group", "writes"),
+    "import": ("kartenn_cli.importing", "import_command", "writes"),
 }
 # Static commands shown with their help in the root help; the others by name only.
 STATIC_DESCRIBED = frozenset({"api", "changeset", "import"})

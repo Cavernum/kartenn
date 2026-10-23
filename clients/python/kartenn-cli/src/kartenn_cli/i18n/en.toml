@@ -231,6 +231,26 @@ stale = "The object changed since it was read (412)."
 reopen = "Open the editor again on the current version?"
 invalid = "The document is not a YAML object: {error}"
 
+[import]
+help = "Import a file by chunks, with resumption."
+no_create = "“{resource}” has no creation: nothing to import."
+sending = "Sending"
+chunks = "Sending: {chunks} chunks, {elements} elements"
+resource_required = "{file} is not an NDJSON of ImportElement: name its resource (--resource)."
+other = "The resumption is the one of import {found}, not {given}."
+uploaded = "import {id} uploaded"
+sorting = "import {id} sorting"
+back = "The import is back to “uploading”: fix it, then “kartenn import --resume {id} {file}”."
+final = "Import {id}: {state}, {elements} elements, in {elapsed} s."
+
+[import.opt]
+resource = "Resource of the objects of a CSV or a JSON (prefixes, addresses…)."
+id_column = "Column of the identifier in the source (external_id)."
+source = "Name of the source (the name of the file by default)."
+resume = "Resume the import ID: only the chunks not confirmed are sent."
+chunk = "Elements per chunk (at most the limit of the server)."
+follow = "Follow the import to its final state (by default)."
+
 [completion]
 help = "Completion script of a shell (bash, zsh, fish), to load from its configuration."
 

@@ -203,6 +203,7 @@
   
   Écritures:
     changeset  Composer, simuler, appliquer, instruire des changesets.
+    import     Importer un fichier par morceaux, avec reprise.
   
   Modules servis:
     vlan      VLAN et groupes de VLAN.   [module vlan 0.2.0]

@@ -585,13 +585,26 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     version courante, modifications de l'utilisateur en commentaire. Découverte du
     catalogue désormais authentifiée (flux S : `capabilities` et `openapi.json` ne sont
     pas publics) ; sans connexion, `--help` dit « kartenn login ».
-- [ ] 21. `import` : NDJSON, CSV et JSON par ressource (`--resource`, `--id-column`),
+- [x] 21. `import` : NDJSON, CSV et JSON par ressource (`--resource`, `--id-column`),
   avancement (rich sur terminal, lignes sinon), `--resume`, `--follow`, violations à la
   ligne source — REQ-023-32 — verify : maquette § 10 sur transport simulé ;
   `import.unknown-reference` avec `fichier:ligne`
   - où : `clients/python/kartenn-cli/src/kartenn_cli/importing.py` ; schéma
     `ImportElement` du contrat
   - dépend de : 20
+  - choix : `importing.py`. NDJSON (`.ndjson`) tel quel ; sinon CSV (ligne = ligne du
+    fichier, en-tête en 1) ou JSON (tableau, rang à partir de 1) avec `--resource`
+    exigé (`client.resource-required`). Une ligne devient l'opération de création de la
+    tâche 20 (même point ouvert sur la correspondance REST → changeset) : colonnes
+    typées par le schéma, références résolues par clé naturelle une seule fois par
+    valeur, `prop.<clé>` dans `properties`, cellules vides omises, `--id-column` en
+    `external_id`. Source par défaut : le nom du fichier. Suivi jusqu'à l'état final par
+    défaut (`--no-follow` pour rendre la main après le démarrage), par la
+    bibliothèque (`wait`) ; avancement rich sur la sortie d'erreur d'un terminal (morceaux
+    et éléments ; le total n'est pas connu en flux), une ligne par étape sinon. Refus du
+    tri : problème de l'import, violation à `fichier:ligne`, consigne de reprise, code 6.
+    `--resume ID` reprend l'import local de la source (empreinte vérifiée), et dit si
+    l'identifiant diffère.
 - [ ] 22. Commandes nommées : `policy check` (`--exit-status`), `policy matrix show|set`,
   `policy report`, `flow request|review|waive`. Table `named.py` liée aux `operationId`,
   masquée si une opération manque. — REQ-023-20 — verify : maquette § 6 et 7 ; contrat
