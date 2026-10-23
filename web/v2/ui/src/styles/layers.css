@@ -1,0 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The order of the cascade layers (REQ-020-12), fixed before any rule: whatever the order
+ * in which plugins load their sheets, a later layer wins over an earlier one. */
+@layer reset, tokens, base, components, plugins, utilities;

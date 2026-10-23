@@ -44,13 +44,11 @@ const knownLayer = createPlugin(knownLayerName, (primary) => (root, result) => {
       report({ ruleName: knownLayerName, result, node, message: knownLayerMessages.outside(what) });
     }
   };
+  // Imports are left alone: the imported sheets are linted themselves.
   root.each((node) => {
     if (node.type === "rule") check(node, `rule « ${node.selector} »`);
     else if (node.type === "atrule" && !["layer", "import", "charset"].includes(node.name)) {
       check(node, `@${node.name}`);
-    } else if (node.type === "atrule" && node.name === "import" && !/\blayer\(/.test(node.params)) {
-      // An imported sheet must name its layer, unless it only declares layers itself.
-      if (!/layers\.css/.test(node.params)) check(node, "@import without layer()");
     }
   });
 });

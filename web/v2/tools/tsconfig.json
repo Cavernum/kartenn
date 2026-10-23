@@ -4,5 +4,5 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["test", "stylelint", "vitest.config.ts"]
+  "include": ["test", "stylelint", "notices.ts", "vitest.config.ts"]
 }

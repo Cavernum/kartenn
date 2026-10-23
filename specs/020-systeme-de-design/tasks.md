@@ -82,7 +82,7 @@ emploient.
 
 ## P1 — Jetons, police, icônes
 
-- [ ] 4. Paquet `web/v2/ui` (`@kartenn/ui`, MPL-2.0) : `package.json` (`vue`, `reka-ui` en
+- [x] 4. Paquet `web/v2/ui` (`@kartenn/ui`, MPL-2.0) : `package.json` (`vue`, `reka-ui` en
   version exacte, `@tanstack/vue-virtual`), `LICENSE`, `src/index.ts`, `src/style.css`
   (ordre des couches en tête), espace pnpm — REQ-020-12, 30, 33 — verify : `pnpm -C web/v2/ui
   build` produit `style.css` et le module ; test de licences vert ; test : Reka sans `^`
@@ -91,6 +91,15 @@ emploient.
     `web/pnpm-workspace.yaml` ; `web/shell/vite.config.ts` (`sharedSdk`, pour l'entrée de
     build en bibliothèque)
   - dépend de : 3
+  - fait : `web/v2/ui/` (`package.json` MPL-2.0, `reka-ui` 2.11.0 exact, `vue`,
+    `@tanstack/vue-virtual` ; `LICENSE`, texte officiel de la MPL 2.0 ; `src/index.ts`,
+    `src/style.css` qui importe d'abord `styles/layers.css`) ; `vite.config.ts` en
+    bibliothèque (`dist/index.js`, `dist/style.css`, `vue`, `reka-ui` et
+    `@tanstack/vue-virtual` externes) ; `test/package.test.ts` (licence et en-têtes, Reka
+    exact, ordre des couches) avec `web/v2/tools/notices.ts` copié du SDK. Choix de
+    Claude : la règle `kartenn/known-layer` laisse les `@import` (les feuilles importées
+    se lintent elles-mêmes), sans quoi `style.css` ne pouvait importer une feuille qui
+    déclare sa propre couche.
 - [ ] 5. Jetons : `tokens/tokens.css` (table du design § « Jetons » : couleurs, états,
   environnements, espacement, rayons, bordures, élévation, typographie, densité,
   mouvement ; clair, sombre, confortable), `styles/reset.css`, `base.css`,
