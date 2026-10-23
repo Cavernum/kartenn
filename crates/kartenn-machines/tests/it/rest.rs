@@ -501,6 +501,73 @@ async fn machines_filtered_by_owner(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
+async fn machines_filtered_by_site(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    env.applied(vec![
+        Operation::CreateSite {
+            local: None,
+            slug: "paris".into(),
+            parent: None,
+        },
+        Operation::CreateSite {
+            local: None,
+            slug: "lyon".into(),
+            parent: None,
+        },
+    ])
+    .await;
+    let site = |slug: &'static str| {
+        env.id(
+            "SELECT id FROM site WHERE slug = $1 AND valid_period @> now()",
+            slug,
+        )
+    };
+    let (paris, lyon) = (site("paris").await, site("lyon").await);
+    for (name, site) in [
+        ("web2", Some(paris)),
+        ("db1", Some(lyon)),
+        ("web1", Some(paris)),
+        ("app1", None),
+    ] {
+        let mut fields = json!({"name": name, "kind": "physical", "owner": {"id": acme}});
+        if let Some(site) = site {
+            fields["site"] = json!({"id": site});
+        }
+        env.applied(vec![op("create_machine", fields)]).await;
+    }
+    let app = env.app(env.admin().await);
+    let (status, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/machines?site={paris}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body, "name"), ["web1", "web2"]);
+    let (_, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/machines?site={lyon}&owner={acme}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&body, "name"), ["db1"], "{body}");
+    let (_, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/machines?site={lyon}&kind=virtual"),
+        None,
+        &[],
+    )
+    .await;
+    assert!(ids(&body, "name").is_empty(), "{body}");
+}
+
+#[kartenn_testing::pg_test]
 async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     let env = Env::new(&pool).await;
     let acme = env.entity("acme").await;
