@@ -169,25 +169,59 @@ class _Progress:
             self._bar.update(self._task, description=description)
 
 
+def _manage(
+    found: Runtime, *, cancel: str | None, status: str | None, resume: str | None, listing: bool
+) -> None:
+    """Without a file: the imports of the server (`--list`, `--status`, `--cancel`), or the
+    resumption of a paused import (`--resume ID`)."""
+    from kartenn_cli.reads import Dates, write_pages  # noqa: PLC0415
+
+    client = found.client
+    if listing:
+        pages = client.resource("imports").list().pages()
+        write_pages(
+            found.output(),
+            pages,
+            every=False,
+            dates=Dates(None, None, frozen=False),
+            zone=found.zone,
+        )
+    elif cancel or status or resume:
+        operation = "cancel_import" if cancel else "show_import" if status else "resume_import"
+        answer = client.call(operation, id=cancel or status or resume)
+        body: object = getattr(answer, "body", answer)
+        found.output().value(dict(cast("dict[str, Any]", body)) if isinstance(body, dict) else body)
+    else:
+        raise CliError("client.file-required", t("import.file_required"))
+
+
 @command(name="import", help="import.help")
-@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument(
+    "file", required=False, type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
 @click.option("--resource", help="import.opt.resource")
 @click.option("--id-column", help="import.opt.id_column")
 @click.option("--source", help="import.opt.source")
 @click.option("--resume", "resume", metavar="ID", help="import.opt.resume")
 @click.option("--chunk", type=click.IntRange(1), metavar="N", help="import.opt.chunk")
 @click.option("--follow/--no-follow", default=True, help="import.opt.follow")
+@click.option("--cancel", metavar="ID", help="import.opt.cancel")
+@click.option("--status", metavar="ID", help="import.opt.status")
+@click.option("--list", "listing", is_flag=True, help="import.opt.list")
 @click.pass_context
 def import_command(  # noqa: PLR0913, PLR0917 - the options of an import
     ctx: click.Context,
-    file: Path,
+    file: Path | None,
     resource: str | None,
     id_column: str | None,
     source: str | None,
     resume: str | None,
     chunk: int | None,
+    cancel: str | None,
+    status: str | None,
     *,
     follow: bool,
+    listing: bool,
 ) -> None:
     from kartenn import ImportRefused, file_digest, ndjson_elements  # noqa: PLC0415
     from kartenn_cli.runtime import runtime  # noqa: PLC0415
@@ -195,6 +229,9 @@ def import_command(  # noqa: PLR0913, PLR0917 - the options of an import
     found = runtime(ctx)
     client = found.client
     catalog = client.catalog
+    if file is None:
+        _manage(found, cancel=cancel, status=status, resume=resume, listing=listing)
+        return
     if resource is None and file.suffix.lower() != ".ndjson":
         raise CliError("client.resource-required", t("import.resource_required", file=file.name))
     elements: Callable[[], Iterator[tuple[int, Any]]]

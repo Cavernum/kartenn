@@ -244,6 +244,7 @@ uploaded = "import {id} envoyé"
 sorting = "import {id} en tri"
 back = "L'import est revenu à l'état « envoi » : corrigez puis « kartenn import --resume {id} {file} »."
 final = "Import {id} : {state}, {elements} éléments, en {elapsed} s."
+file_required = "Un fichier à importer, ou --list, --status ID, --cancel ID, --resume ID (import en pause)."
 
 [import.opt]
 resource = "Ressource des objets d'un CSV ou d'un JSON (prefixes, addresses…)."
@@ -252,6 +253,9 @@ source = "Nom de la source (le nom du fichier par défaut)."
 resume = "Reprendre l'import ID : seuls les morceaux non confirmés partent."
 chunk = "Éléments par morceau (au plus la limite du serveur)."
 follow = "Suivre l'import jusqu'à son état final (par défaut)."
+cancel = "Annuler l'import ID."
+status = "État de l'import ID."
+list = "Lister les imports."
 
 [named]
 endpoint = "Extrémité « {given} » : TYPE:RÉF (machine:bastion-1, prefix:interne/198.51.100.0/24) ou un objet JSON."

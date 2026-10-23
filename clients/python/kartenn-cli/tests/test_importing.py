@@ -180,6 +180,18 @@ def test_a_file_of_objects_needs_its_resource(server: FakeServer, tmp_path: Path
     assert kartenn("import", str(path), "--resource", "audit-events").exit_code == 2
 
 
+def test_imports_of_the_server(server: FakeServer) -> None:
+    Imports(server)
+    server.route("GET", "/v1/imports", {"items": [{"id": IMPORT, "state": "paused"}], "links": {}})
+    server.route("POST", "/v1/imports/{id}/cancel", {"id": IMPORT, "state": "cancelled"})
+    server.route("POST", "/v1/imports/{id}/resume", {"id": IMPORT, "state": "running"})
+    assert json.loads(kartenn("import", "--list").stdout)[0]["state"] == "paused"
+    assert json.loads(kartenn("import", "--status", IMPORT).stdout)["state"] == "sorting"
+    assert json.loads(kartenn("import", "--cancel", IMPORT).stdout)["state"] == "cancelled"
+    assert json.loads(kartenn("import", "--resume", IMPORT).stdout)["state"] == "running"
+    assert "client.file-required" in kartenn("import").stderr
+
+
 def test_progress_on_a_terminal(
     server: FakeServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

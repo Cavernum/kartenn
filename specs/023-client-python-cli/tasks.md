@@ -663,11 +663,22 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `changeset show --follow` suit le changeset sur le flux (événement `changeset` à
     état final) ou relit toutes les 2 s ; `import` suit par relecture (la bibliothèque
     attend au rythme de `Retry-After`), non par le flux.
-- [ ] 25. Couverture : `coverage.py` (exclusions motivées) et test qui classe chaque
+- [x] 25. Couverture : `coverage.py` (exclusions motivées) et test qui classe chaque
   opération du contrat de référence — REQ-023-43 — verify : une opération ajoutée à un
   contrat de test et non classée fait échouer le test
   - où : design § Couverture de l'API
   - dépend de : 22, 23, 24
+  - choix : `coverage.py` : `EXCLUDED` (raison par opération) et `BASE` (commandes
+    écrites à la main et leurs opérations) ; `reached(catalogue)` dérive l'arbre
+    (verbes, sous-groupes, `query` compté pour `list`) et ajoute la table `NAMED` et
+    `BASE` ; `unclassified` nomme le reste. Contrat de référence au 2026-10-23 (après le
+    flux S) : 305 opérations, 301 avec une commande, 4 exclues : `login`,
+    `login_callback`, `login_issuers` (BFF du navigateur) et `query_verdicts`
+    (`policy check` passe par `GET`). `PUT …/chunks/{n}` est compté pour `import`, qui
+    l'emploie, et non exclu. Pour couvrir les imports, `import` sans fichier prend
+    `--list`, `--status ID`, `--cancel ID` et `--resume ID` (reprise côté serveur d'un
+    import en pause ; avec un fichier, `--resume` renvoie les morceaux manquants).
+    `native_clients` (flux S) est compté pour `login`.
 
 ## Fin — réunion des flux
 
