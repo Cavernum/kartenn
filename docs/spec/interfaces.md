@@ -237,6 +237,33 @@ les a exclus (événements sortants).
 - Vérifié bout en bout par `k-py-e2e` (maquette rejouée contre kartenn-server,
   PostgreSQL et kartenn-dev-idp) ; budgets de démarrage par `bench-cli`.
 
+## Flux d'événements (D7 amendée, ADR 0034 ; spec 022)
+`GET /v1/events`, `text/event-stream` (WHATWG HTML § 9.2), dans l'API `/v1` :
+- Sortes : `ready` (ouverture, `retry:` tiré entre 1 et 3 s), `changes` (objets écrits :
+  `changeset` = révision, `objects` typés, `domains` ; au-delà de 1 000 objets ou pour
+  les valeurs héritées, `truncated` et `types` ; une tâche de fond donne `task` et
+  `event`), `changeset` (état d'un changeset en attente, pour son auteur et ses
+  valideurs possibles), `labels` (révision des libellés, 018), `reset` (`too_old`,
+  `invalid_cursor`, `overflow`, `rights_changed`), points de reprise (`id:` seul, au
+  plus toutes les 30 s). Maintien `: ping` après 15 s de silence. Données : clés et
+  révisions seulement, JSON sur une ligne ; schémas dans le contrat
+  (`x-kartenn-events`).
+- Filtres `types`, `domains`, `objects`, `kinds` (ET, bornés, 400
+  `events.filter.invalid`) ; reprise par `Last-Event-ID` ou `last_event_id`, curseur
+  opaque `k1.` chiffré (AES-256-GCM, trousseau) qui porte le plancher du lecteur et
+  l'identité ; reprise sur toute instance par l'anneau (15 min, 10⁴ événements) ;
+  doublons possibles à la reprise seulement, reconnus par l'identité et la révision.
+- Authentification de `/v1` ; pour le cookie, `Origin` égal à l'origine publique et
+  `Sec-Fetch-Site: same-origin` quand ils sont présents (403 sinon) ; pas de CORS.
+- Droits évalués à la remise, par lot (une requête sujets × objets) ; révocation en
+  10 s au plus ; le flux n'est pas une activité de session.
+- Hors délestage et hors compression ; plafonds 5 000 flux par instance (503) et 16 par
+  identité (429) ; arrêt : `retry:` étalé puis fermeture. `Cache-Control: no-store`,
+  `X-Accel-Buffering: no`, `Incremental: ?1` en option.
+- Capacités : `events` (bornes des filtres, taille d'un événement, plafond par
+  identité, durée de l'anneau, maintien) ou `null`.
+- Audit par connexion (`events.stream.opened`, `events.stream.closed`) ; au-delà de
+  `audit.read_ids_max`, log technique DEBUG `events.delivery`.
 ## Connecteurs (D1, D7)
 
 - Processus externes, clients REST, authentifiés par compte de service.

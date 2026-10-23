@@ -54,6 +54,7 @@ flowchart LR
 | Authentification (`kartenn-auth`) | Trousseau de clés (HKDF par usage), cookies scellés, flux OIDC du BFF, jetons d'accès RFC 9068, secrets des comptes de service, comptes de secours (Argon2id, TOTP) ; derrière les ports `Identities`, `SecretHasher`, `BreakglassVerifier` de la couche service | — |
 | Autorisation (service et adaptateur) | Port `Authorizer` ; décisions et administration dans la couche service ; visibilités et prédicats SQL dans l'adaptateur PostgreSQL (`PgAuthorizer`, ADR 0021) | Identités, rôles, liaisons, rattachements, secrets |
 | Workers | Relais outbox (webhooks, invalidations), jobs longs (imports, rapports) ; répartis sans doublon | État des jobs |
+| Flux d'événements (022, ADR 0034) | Un lecteur partagé par instance suit l'outbox (`LISTEN`/`NOTIFY`, secours à 1 s, plancher en mémoire), traduit et range dans un anneau ; un répartiteur décide les droits par lot et remet à chaque connexion par un tampon borné ; point d'accès `GET /v1/events` | Aucune : vue volatile de l'outbox (anneau en mémoire) |
 | Shell Web | Navigation, vues du noyau, changesets et brouillon local, administration ; hôte des plugins UI ; client de l'API ; servi par kartenn-server sur la même origine que l'API (spec 007, ADR 0025) | Brouillon et préférences dans le navigateur (IndexedDB, `localStorage`), effacés à la déconnexion |
 | Clients Python (`kartenn`, `kartenn-cli`) | Bibliothèque et CLI découvertes depuis le contrat servi : catalogue dérivé, commandes des modules sans nouvelle version du client ; OIDC natif, changesets, imports (spec 023, ADR 0035) | Catalogue en cache et configuration XDG, jetons au trousseau |
 | Connecteurs | Import / synchronisation depuis des sources externes via l'API | Correspondances d'identifiants (dans kartenn) |
@@ -228,6 +229,10 @@ flowchart TB
   sous bail par `FOR UPDATE SKIP LOCKED` (ADR 0023, spec 006).
   Les partitions d'historique demandent le propriétaire du schéma : le job de migration
   les crée trois mois à l'avance, et se relance au moins chaque mois (004-25).
+- Le flux d'événements (spec 022) est lu **une fois par instance** : chaque instance tient
+  une connexion PostgreSQL hors du pool en `LISTEN kartenn_outbox`, garde un anneau en
+  mémoire de 15 min qui ne fait pas autorité (D9) et sert les reprises de n'importe quelle
+  instance ; à l'arrêt, ses flux reçoivent un `retry:` étalé puis sont fermés.
 - Lectures sur réplicas possibles, sauf lecture de ses propres écritures (lecture sur
   le primaire après un changeset).
 - Livrables (spec 015, ADR 0029, D35 amendée) : un `flake.nix` qui suit le nixpkgs de

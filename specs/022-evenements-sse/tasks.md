@@ -241,8 +241,9 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `events/audit.rs` (ouverture enregistrée avant le flux, en échec fermé ; fermeture
     à la chute du corps ; `events.delivery` DEBUG au-delà de `read_ids_max`) ;
     métriques `kartenn.events.*` (`kartenn-telemetry/src/otel.rs`, copiées de
-    `Hub::stats` à chaque tour du relais) ; span `events.reader.pass`. L'acceptation
-    chiffrée de REQ-022-24 (borne 2, 4 omis) n'a pas de test dédié — point ouvert.
+    `Hub::stats` à chaque tour du relais) ; span `events.reader.pass`. Test
+    `the_audit_records_the_stream_by_connection` (borne 2, 4 omis ; ajouté à la tâche
+    18) ; l'écriture DEBUG `events.delivery` n'est pas vérifiée par un test.
 
 ## P6 — Budgets et synchronisation
 
@@ -264,11 +265,21 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     visibilité regroupe les sujets de même portée (`events::visible`) : sans ce
     regroupement, 173 ms à l'échelle réduite, à surveiller à l'échelle complète si les
     portées sont toutes distinctes. Mesure complète : à lancer par l'orchestrateur.
-- [ ] 18. Synchronisation : `docs/spec/` (interfaces : flux d'événements ; invariants
+- [x] 18. Synchronisation : `docs/spec/` (interfaces : flux d'événements ; invariants
   proposés ci-dessous ; architecture : lecteur partagé), ADR 0034 acceptée,
   `specs/README.md` — verify : sous-agent `spec-keeper` sans écart
   - où : `docs/spec/interfaces.md`, `docs/spec/invariants.md`, `docs/spec/architecture.md`
   - dépend de : 15, 16, 17
+  - fait : `docs/spec/interfaces.md` (section « Flux d'événements »), `invariants.md`
+    (INV-67 à 71, mesures réduites), `architecture.md` (composant, déploiement) ;
+    ADR 0034 acceptée ; REQ-022-3 marquée amendée par la 018 (`labels`) ; tests ajoutés
+    après la passe `spec-keeper` : `the_audit_records_the_stream_by_connection`,
+    `a_cursor_older_than_the_ring_starts_over`. Écarts relevés et laissés ouverts :
+    `authn.session.closed` (cause `revoked`) n'est enregistré qu'à la reconnexion
+    refusée (couche d'authentification), pas à la fermeture du flux par la
+    revérification ; pas de test de bout en bout de `truncated`, d'`Incremental`, de la
+    coupure de `LISTEN` ni de l'échéance (`QuietEnd`, `exp`) ; budgets INV-71 mesurés à
+    l'échelle réduite seulement.
 
 ### Invariants proposés (numéros à attribuer à la synchronisation)
 

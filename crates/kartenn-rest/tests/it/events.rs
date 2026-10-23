@@ -145,12 +145,22 @@ async fn instance(pool: &PgPool, ring: &KeyRing, settings: EventSettings) -> Ins
 }
 
 fn app(pool: &PgPool, ring: &KeyRing, hub: &Arc<Hub>, who: Principal) -> Router {
+    app_audited(pool, ring, hub, who, ReadAudit::default())
+}
+
+fn app_audited(
+    pool: &PgPool,
+    ring: &KeyRing,
+    hub: &Arc<Hub>,
+    who: Principal,
+    audit: ReadAudit,
+) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: ring.clone(),
         bound: Duration::from_secs(60),
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
-        audit: ReadAudit::default(),
+        audit,
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from([]),
         modules: Arc::default(),
@@ -548,10 +558,17 @@ async fn resumption_points_move_the_cursor_of_an_idle_subscriber(pool: PgPool) {
     for p in ["10.1.0.0/16", "10.2.0.0/16"] {
         apply(&pool, writer, vec![prefix_in(d, p)]).await;
     }
-    assert!(
-        client.drain(Duration::from_secs(2)).await.is_empty(),
-        "nothing visible"
-    );
+    // The floor rises once no older transaction runs in the cluster: other tests may
+    // hold one for a while (a long transaction delays the point, never an event).
+    for _ in 0..15 {
+        assert!(
+            client.drain(Duration::from_secs(1)).await.is_empty(),
+            "nothing visible"
+        );
+        if client.parser.last_id != ready.last_id {
+            break;
+        }
+    }
     assert_ne!(client.parser.last_id, ready.last_id, "the cursor moved");
 }
 
@@ -1074,4 +1091,111 @@ async fn resumptions_lose_nothing_and_duplicate_only_on_resumption(pool: PgPool)
         assert!(got.contains(c), "lost: {c}");
     }
     assert!(received.len() >= committed.len());
+}
+
+/// REQ-022-24: with `audit.read_ids_max = 2`, three events of two objects each:
+/// `events.stream.closed` names 2 objects and counts 4 omitted; the opening is recorded.
+#[kartenn_testing::pg_test]
+async fn the_audit_records_the_stream_by_connection(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let app = app_audited(
+        &pool,
+        &ring,
+        &i.hub,
+        reader.clone(),
+        ReadAudit { ids_max: 2 },
+    );
+    let (_, mut client) = open(&app, "/v1/events?types=core.prefix", None).await;
+    client.next(WAIT).await.unwrap();
+    let mut written = Vec::new();
+    for n in 0..3 {
+        written.push(
+            apply(
+                &pool,
+                writer,
+                vec![
+                    prefix_in(d, &format!("10.{n}.0.0/16")),
+                    prefix_in(d, &format!("10.{n}.128.0/17")),
+                ],
+            )
+            .await,
+        );
+    }
+    let mut got = 0;
+    while got < written.len() {
+        let e = client.next_of("changes", WAIT).await.expect("changes");
+        if written.contains(&serde_json::from_value(data(&e)["changeset"].clone()).unwrap()) {
+            got += 1;
+        }
+    }
+    drop(client);
+    let closed = tokio::time::timeout(WAIT, async {
+        loop {
+            let row: Option<(Vec<Uuid>, Value)> = sqlx::query_as(
+                "SELECT target_ids, details FROM audit.event
+                 WHERE name = 'events.stream.closed' AND actor_id = $1",
+            )
+            .bind(reader.identity)
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+            if let Some(row) = row {
+                return row;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("events.stream.closed");
+    assert_eq!(closed.0.len(), 2);
+    assert_eq!(closed.1["targets_omitted"], 4);
+    assert_eq!(closed.1["delivered"], 3);
+    assert_eq!(closed.1["cause"], "client");
+    let opened: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit.event WHERE name = 'events.stream.opened' AND actor_id = $1",
+    )
+    .bind(reader.identity)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(opened, 1);
+}
+
+/// REQ-022-8: a cursor below what the ring keeps starts over (`reset` `too_old`).
+#[kartenn_testing::pg_test]
+async fn a_cursor_older_than_the_ring_starts_over(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            ring_max: 2,
+            ..quick()
+        },
+    )
+    .await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let app = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    let (_, mut client) = open(&app, "/v1/events", None).await;
+    let ready = client.next(WAIT).await.unwrap();
+    drop(client);
+    for n in 0..5 {
+        apply(&pool, writer, vec![prefix_in(d, &format!("10.{n}.0.0/16"))]).await;
+    }
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let (_, mut resumed) = open(&app, "/v1/events", Some(&ready.last_id)).await;
+    assert_eq!(resumed.next(WAIT).await.unwrap().event, "ready");
+    let reset = resumed.next(WAIT).await.unwrap();
+    assert_eq!(reset.event, "reset");
+    assert_eq!(data(&reset)["reason"], "too_old");
 }
