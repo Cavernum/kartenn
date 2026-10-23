@@ -116,7 +116,7 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `contract::the_contract_is_revalidated_by_its_tag`,
     `contract::the_tag_of_the_contract_is_that_of_the_build`. La route reste
     authentifiée comme avant (006) ; seul `native-clients` est public (tâche 6).
-- [ ] 5. Extension `x-kartenn`, produite par `kartenn_rest::kit` :
+- [x] 5. Extension `x-kartenn`, produite par `kartenn_rest::kit` :
   - `key` (clé naturelle) et `columns` sur les collections du noyau, de `vlan`,
     `machines`, `policy` et `flow` ;
   - `command` facultatif sur une opération ;
@@ -130,6 +130,19 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     `x-query` à imiter, 006/design § Versions et contrat) ; `docs/adr/0026-contrat-de-module.md`
     clause 9
   - dépend de : —
+  - choix : `kit::presented` et `kit::commanded` (dans `openapi.rs`, réexportés par le
+    kit). `key` nomme des **filtres** de la liste (ce que la CLI envoie pour résoudre une
+    référence), pas des membres : le kit refuse une clé qui n'en est pas un. Sans clé
+    (UUID seul) : `machines` (nom non unique), `flows`, `flow-nonconformities`,
+    `anomalies`, `policy-values` (aucun filtre de `value_key` ; à ajouter si la CLI le
+    demande). Entités et sites : `slug` seul (unique à une date). Commandes : `check`
+    sur `GET /v1/verdicts`, `report` sur `POST /v1/policy-reports`. 25 collections
+    décrites (test `contract::every_collection_tells_the_clients_its_key_and_its_columns`),
+    test du kit `contract::the_kit_describes_the_collection_of_a_module` (comparateur
+    vert dans les deux sens). Les collections du socle (`rights`, `changesets`, `imports`,
+    `audit`, `properties`) n'en portent pas : hors du périmètre de la tâche. Instantané
+    du catalogue de la bibliothèque régénéré (`check`, `report`). `schema.d.ts`
+    inchangé : openapi-typescript ignore les extensions.
 - [ ] 6. `GET /v1/auth/native-clients`, publique :
   `[{id, discovery_url, client_id, audience, scopes, device}]`, seulement pour les
   émetteurs configurés avec `native_client_id`. Nouveaux champs `native_client_id`,

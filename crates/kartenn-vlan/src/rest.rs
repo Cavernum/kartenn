@@ -1066,6 +1066,18 @@ pub fn routes() -> ModuleRouter {
         VLAN_MEMBERS,
         ("vlan.create_vlan", "vlan.update_vlan"),
     );
+    router = kit::presented(
+        router,
+        "/vlan-groups",
+        &["slug"],
+        &["slug", "anchor", "vid_min", "vid_max"],
+    );
+    router = kit::presented(
+        router,
+        "/vlans",
+        &["group", "vid"],
+        &["group", "vid", "name", "status"],
+    );
     let group = "The group.";
     let occupancy_op = op(
         "vlan_group_occupancy",

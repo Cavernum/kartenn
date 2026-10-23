@@ -106,6 +106,28 @@ enum Close {
 
 const KEYED: &str = "t.key";
 
+/// How the clients name and show the collection `name` (023/A5): the filters of its
+/// natural key, the members of a table (the columns of its row, [`object_of`]). A value
+/// of an axis has no filter of its own key: it is named by its UUID.
+fn presentation(name: &str) -> (&'static [&'static str], &'static [&'static str]) {
+    match name {
+        "policy-axes" => (&["property"], &["property_key", "carrier", "inference"]),
+        "policy-values" => (
+            &[],
+            &["property_key", "value_key", "label", "rank", "transverse"],
+        ),
+        "environments" => (&["key"], &["value_key", "label", "rank", "transverse"]),
+        "services" => (&["key"], &["key", "label", "flow_type_id"]),
+        "policy-rules" => (&["key"], &["key", "effect", "label"]),
+        "admissibility-conditions" => (&["key"], &["key", "kind"]),
+        "risk-signals" => (&["key"], &["key", "kind", "weight"]),
+        "policy-exempt-roles" => (&["role"], &["role_key"]),
+        "inference-rules" => (&["key"], &["key", "axis_key", "priority", "domain_id"]),
+        // flow-types, policy-patterns
+        _ => (&["key"], &["key", "label"]),
+    }
+}
+
 static COLLECTIONS: &[Collection] = &[
     Collection {
         kind: AXIS,
@@ -1818,6 +1840,8 @@ pub fn routes() -> ModuleRouter {
     let mut router = ModuleRouter::new();
     for c in COLLECTIONS {
         router = collection_routes(router, c);
+        let (key, columns) = presentation(c.name);
+        router = kit::presented(router, &format!("/{}", c.name), key, columns);
     }
     let matrix_op = op(
         "show_policy_matrix",
@@ -1932,6 +1956,8 @@ pub fn routes() -> ModuleRouter {
             Vec::new(),
             get(report_items),
         ));
+    let router = kit::commanded(router, "/verdicts", &HttpMethod::Get, "check");
+    let router = kit::commanded(router, "/policy-reports", &HttpMethod::Post, "report");
     query_extension(router)
 }
 

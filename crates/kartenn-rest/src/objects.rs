@@ -187,6 +187,28 @@ const fn key_fields(kind: Kind) -> &'static [&'static str] {
     }
 }
 
+/// How the clients name and show a collection (023/A5): its natural key, among
+/// [`key_fields`] (a slug is unique among the entities, the sites, the domains), and the
+/// columns of a table.
+const fn presentation(kind: Kind) -> (&'static [&'static str], &'static [&'static str]) {
+    match kind {
+        Kind::Entity | Kind::Site => (&["slug"], &["slug", "parent"]),
+        Kind::Domain => (&["slug"], &["slug"]),
+        Kind::Prefix => (
+            &["domain", "value"],
+            &["domain", "value", "nature", "public"],
+        ),
+        Kind::Range => (
+            &["domain", "first"],
+            &["domain", "first", "last", "usage", "public"],
+        ),
+        Kind::Address => (
+            &["domain", "value"],
+            &["domain", "value", "usage", "public"],
+        ),
+    }
+}
+
 /// The schema of an object of `kind` and those it refers to, its name first.
 fn object_schemas(kind: Kind) -> (String, Vec<(String, RefOr<Schema>)>) {
     fn of<T: ToSchema + 'static>() -> (String, Vec<(String, RefOr<Schema>)>) {
@@ -275,6 +297,8 @@ pub fn routes() -> OpenApiRouter<Api> {
             ),
         ));
         router = queryable(router, &format!("/{name}"), &format!("query_{name}"));
+        let (key, columns) = presentation(kind);
+        router = crate::openapi::presented(router, &format!("/{name}"), key, columns);
         let the = format!("The {one}.");
         let show_op = op(&format!("show_{one}"), "core", &format!("The {one}."))
             .path("id", &the, true)

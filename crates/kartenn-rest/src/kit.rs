@@ -26,7 +26,9 @@ pub use crate::dated::{Dates, DatesParams, ETag, Moment, respond, respond_object
 pub use crate::filter::{ListQuery, collection};
 pub use crate::objects::{Api, Target};
 use crate::objects::{audited, gate_target};
-pub use crate::openapi::{Op, documented, listing_of, op, queryable, schemas_of};
+pub use crate::openapi::{
+    Op, commanded, documented, listing_of, op, presented, queryable, schemas_of,
+};
 pub use crate::problem::{Problem, ProblemKind};
 pub use crate::resources::MERGE_PATCH;
 use crate::resources::{WHOLE, entity_tag, invalid, members, reserved};

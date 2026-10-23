@@ -40,6 +40,11 @@ pub const REFERENCE: &str = "../../specs/006-api-rest/openapi-v1.json";
 /// The extension of a path item that holds its `QUERY` operation.
 pub const QUERY_EXTENSION: &str = "x-query";
 
+/// The extension that tells a client how to name and show a collection (on its path
+/// item: `key`, `columns`) or how to call an operation (`command`) (023/A5, design
+/// « Versions et contrat »).
+pub const CLIENT_EXTENSION: &str = "x-kartenn";
+
 /// The media type of a problem (RFC 9457 §3).
 const PROBLEM_TYPE: &str = "application/problem+json";
 
@@ -487,6 +492,106 @@ where
             .build(),
     );
     router
+}
+
+/// Describes the collection at `path` of `router` to the clients, in the extension
+/// `x-kartenn` of its path item (023/A5, REQ-023-27): `key`, the filters of its list whose
+/// equality names one object at a date (its natural key; empty when it has none), in the
+/// order a reference gives them (`<domain>/<value>`); `columns`, the members a table shows
+/// by default. The library and the CLI work without it, by convention (ADR 0035).
+///
+/// # Panics
+///
+/// When `path` is not routed with a `GET` in `router`, or a member of `key` is not a query
+/// parameter of that `GET`: a mistake of the module, caught by its first test.
+pub fn presented<S>(
+    mut router: OpenApiRouter<S>,
+    path: &str,
+    key: &[&str],
+    columns: &[&str],
+) -> OpenApiRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let item = router
+        .get_openapi_mut()
+        .paths
+        .paths
+        .get_mut(path)
+        .unwrap_or_else(|| panic!("the collection {path} is routed"));
+    let get = item
+        .get
+        .as_ref()
+        .unwrap_or_else(|| panic!("the collection {path} is listed by a GET"));
+    let filters: Vec<&str> = get
+        .parameters
+        .iter()
+        .flatten()
+        .filter_map(|p| match p {
+            RefOr::T(p) if matches!(p.parameter_in, ParameterIn::Query) => Some(p.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    for member in key {
+        assert!(
+            filters.contains(member),
+            "the key {member} of {path} is a filter of its list"
+        );
+    }
+    extend(
+        &mut item.extensions,
+        serde_json::json!({ "key": key, "columns": columns }),
+    );
+    router
+}
+
+/// Names `method` at `path` of `router` as the command `command` of the clients, in the
+/// extension `x-kartenn` of the operation (023/A5): `kartenn policy check` rather than
+/// `kartenn verdicts list`.
+///
+/// # Panics
+///
+/// When `path` is not routed with `method` in `router`.
+pub fn commanded<S>(
+    mut router: OpenApiRouter<S>,
+    path: &str,
+    method: &HttpMethod,
+    command: &str,
+) -> OpenApiRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let item = router
+        .get_openapi_mut()
+        .paths
+        .paths
+        .get_mut(path)
+        .unwrap_or_else(|| panic!("{path} is routed"));
+    let operation = match method {
+        HttpMethod::Get => item.get.as_mut(),
+        HttpMethod::Put => item.put.as_mut(),
+        HttpMethod::Post => item.post.as_mut(),
+        HttpMethod::Delete => item.delete.as_mut(),
+        HttpMethod::Patch => item.patch.as_mut(),
+        HttpMethod::Options | HttpMethod::Head | HttpMethod::Trace => None,
+    }
+    .unwrap_or_else(|| panic!("{path} is routed with the method of {command}"));
+    extend(
+        &mut operation.extensions,
+        serde_json::json!({ "command": command }),
+    );
+    router
+}
+
+/// Merges `members` into the extension `x-kartenn` of `extensions`.
+fn extend(extensions: &mut Option<utoipa::openapi::extensions::Extensions>, members: Value) {
+    let current = extensions
+        .get_or_insert_default()
+        .entry(CLIENT_EXTENSION.to_owned())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    if let (Value::Object(current), Value::Object(members)) = (current, members) {
+        current.extend(members);
+    }
 }
 
 // ---------------------------------------------------------------- the document itself

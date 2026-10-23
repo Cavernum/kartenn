@@ -550,6 +550,22 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   faible, RFC 9110 §13.1.2) qui le nomme → 304 sans corps. Deux instances de la même
   build servent donc le même ETag ; la bibliothèque cliente en fait une part de la
   révision de son catalogue (023/REQ-023-2).
+- **Extension `x-kartenn` (amendement 023/A5, tâche 023-5)** : ce que les clients
+  découverts (ADR 0035) ne tirent pas des conventions. Le kit la produit, donc tout module
+  la reçoit :
+  - `kit::presented(router, "/<coll>", key, columns)` sur le `PathItem` de collection :
+    `{"key": [...], "columns": [...]}`. `key` liste les **filtres** de la liste dont
+    l'égalité désigne un seul objet à une date (la clé naturelle), dans l'ordre d'une
+    référence `<domaine>/<valeur>` ; vide quand l'objet n'en a pas (machine, flux, valeur
+    d'axe). Le kit refuse au démarrage une clé qui n'est pas un filtre. `columns` : les
+    membres d'une table par défaut ;
+  - `kit::commanded(router, path, méthode, nom)` sur une opération : `{"command": nom}`,
+    le verbe des clients (`GET /v1/verdicts` → `check`, `POST /v1/policy-reports` →
+    `report`).
+  Portent la clé et les colonnes les collections paginées du noyau (dont `anomalies`), de
+  `vlan`, `machines`, `policy` et `flow`. Le comparateur ne lit que les opérations :
+  l'extension est un ajout, et son retrait ne casse rien non plus (elle est facultative
+  pour les clients).
 - Contrat de référence : `specs/006-api-rest/openapi-v1.json`, régénéré par
   `cargo run -p kartenn-server --all-features -- openapi` (depuis la 008). Test : le document produit
   est comparé au fichier par un comparateur interne (chemins, opérations, paramètres

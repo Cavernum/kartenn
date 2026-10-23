@@ -1285,6 +1285,26 @@ pub fn routes() -> ModuleRouter {
             Vec::new(),
             get(nonconformities),
         ));
+    // A flow has no natural key: it is named by its UUID (REQ-011-4).
+    router = kit::presented(
+        router,
+        "/flows",
+        &[],
+        &[
+            "summary",
+            "state",
+            "review",
+            "outcome",
+            "waived",
+            "valid_from",
+        ],
+    );
+    router = kit::presented(
+        router,
+        "/flow-nonconformities",
+        &[],
+        &["at", "kind", "state", "rule_key", "requester", "entity"],
+    );
     router = object_routes(router, "addresses", EndpointKind::Address, "address");
     router = object_routes(router, "prefixes", EndpointKind::Prefix, "prefix");
     router = object_routes(router, "interfaces", EndpointKind::Interface, "interface");

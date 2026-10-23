@@ -419,6 +419,9 @@ Amendement 023/A5 (2026-10-23) : le document est servi avec un ETag fort, emprei
 SHA-256 de ses octets calculée une fois au démarrage, et `Cache-Control: no-cache` ; un
 `If-None-Match` qui le nomme reçoit 304 sans corps. Deux instances de la même build
 servent le même ETag. [023/REQ-023-2, RFC 9110 §8.8.3, §13.1.2]
+Amendement 023/A5 (2026-10-23) : le contrat porte l'extension `x-kartenn` (clé naturelle
+et colonnes d'une collection, nom de commande d'une opération), produite par le kit des
+modules ; c'est un ajout pour le comparateur. [023/REQ-023-27, ADR 0035]
 
 #### REQ-006-35 — Capacités
 kartenn doit exposer `GET /v1/capabilities` : modules actifs et versions, propriétés
