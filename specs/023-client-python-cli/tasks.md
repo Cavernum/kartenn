@@ -332,13 +332,25 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     un sous-agent sur les sources primaires (citations marquées « à vérifier » quand
     non recoupées) et indexée. Test contre `kartenn-dev-idp` non fait : la tâche 7
     n'est pas sur `main`.
-- [ ] 14. Événements : `events()` et `aevents()` sur `GET /v1/events`, filtres, reprise,
+- [x] 14. Événements : `events()` et `aevents()` sur `GET /v1/events`, filtres, reprise,
   doublons, `reset`, absence quand `capabilities.events` vaut `null`. — REQ-023-38 —
   verify : `MockTransport` en flux SSE (coupure puis reprise avec `Last-Event-ID`,
   doublon écarté, `reset` rendu, 429 puis `Retry-After`)
   - où : `clients/python/kartenn/src/kartenn/events.py` ; design § Événements ;
     022/design § Contrat consommé par les clients
   - dépend de : 9, 11
+  - choix : `kn.events(...)` (synchrone) vérifie aussitôt `capabilities.events` et rend
+    un itérateur sans fin ; `kn.aevents(...)` (asynchrone) est un générateur qui vérifie à
+    la première itération. Filtres en listes séparées par des virgules ;
+    `last_event_id=` reprend après un curseur connu ; `reconnect=False` s'arrête à la
+    fin du flux. Avant ouverture : un 401 renouvelle une fois par l'`Auth` du client puis
+    rouvre, 429 et 503 attendent `Retry-After` (sinon l'attente croissante), toute autre
+    erreur lève son problème. Coupure (fin du flux, `NetworkError`, 45 s de silence) →
+    reprise après l'attente du suivi (tâche 8) ; un échec TLS n'est jamais repris.
+    Chaque ouverture porte `User-Agent` et un `traceparent` neuf, pas de nouvelle
+    tentative du transport : le suivi gère ses propres attentes. Codé contre le
+    contrat de la 022 (capacité `events`, `GET /v1/events`), pas encore servi : testé sur
+    flux simulés.
 - [ ] 15. Stubs : `python -m kartenn stubs generate` (`TypedDict`, `Literal`,
   `Protocol`, surcharge de `Client.__getattr__`) — REQ-023-17 — verify : pyright signale
   un membre inconnu dans un script d'exemple ; les stubs ne sont jamais importés à

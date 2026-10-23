@@ -17,10 +17,11 @@ import os
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any, Self, TypeVar
 
-from kartenn import changesets, imports
+from kartenn import changesets, events, imports
 from kartenn._core.plans import arun, run
 from kartenn._core.problems import ClientError
 from kartenn._core.requests import user_agent
+from kartenn._core.sse import EventTracker
 from kartenn.auth import Anonymous
 from kartenn.auth.basic import BasicAuth, Secret
 from kartenn.auth.bearer import BearerToken
@@ -32,7 +33,7 @@ from kartenn.retry import AsyncSender, RetryPolicy, Sender
 
 if TYPE_CHECKING:
     import os as _os
-    from collections.abc import Callable, Mapping
+    from collections.abc import AsyncIterator, Callable, Iterable, Iterator, Mapping
     from datetime import datetime
     from pathlib import Path
     from types import TracebackType
@@ -289,6 +290,39 @@ class Client:
         )
         return imports.ImportSession(plans, self.run, self._sender.transport.sleep)
 
+    # Events ----------------------------------------------------------------------
+
+    def events(  # noqa: PLR0913 - the filters of the 022
+        self,
+        *,
+        types: Iterable[str] | None = None,
+        domains: Iterable[str] | None = None,
+        objects: Iterable[str] | None = None,
+        kinds: Iterable[str] | None = None,
+        last_event_id: str | None = None,
+        reconnect: bool = True,
+    ) -> Iterator[events.Event]:
+        """The events of `GET /v1/events` (022), resumed after each cut."""
+        events.require_events(self.catalog)
+        request = events.event_request(types=types, domains=domains, objects=objects, kinds=kinds)
+        transport = self._sender.transport
+
+        def authorize(request: Request) -> Request:
+            return run(self._auth.authorize(self._sender.prepare(request)), self._sender.send)
+
+        def renew(response: Response) -> bool:
+            return run(self._auth.unauthorized(response), self._sender.send)
+
+        return events.follow(
+            request,
+            EventTracker(last_event_id),
+            open_stream=transport.sse,
+            authorize=authorize,
+            renew=renew,
+            sleep=transport.sleep,
+            reconnect=reconnect,
+        )
+
     # Life ------------------------------------------------------------------------
 
     def close(self) -> None:
@@ -434,6 +468,39 @@ class AsyncClient:
             on_progress=on_progress,
         )
         return imports.AsyncImportSession(plans, self.run, self._sender.transport.sleep)
+
+    async def aevents(  # noqa: PLR0913 - the filters of the 022
+        self,
+        *,
+        types: Iterable[str] | None = None,
+        domains: Iterable[str] | None = None,
+        objects: Iterable[str] | None = None,
+        kinds: Iterable[str] | None = None,
+        last_event_id: str | None = None,
+        reconnect: bool = True,
+    ) -> AsyncIterator[events.Event]:
+        """The events of `GET /v1/events` (022), resumed after each cut."""
+        events.require_events(await self.load())
+        request = events.event_request(types=types, domains=domains, objects=objects, kinds=kinds)
+        transport = self._sender.transport
+
+        async def authorize(request: Request) -> Request:
+            prepared = self._sender.prepare(request)
+            return await arun(self._auth.authorize(prepared), self._sender.send)
+
+        async def renew(response: Response) -> bool:
+            return await arun(self._auth.unauthorized(response), self._sender.send)
+
+        async for event in events.afollow(
+            request,
+            EventTracker(last_event_id),
+            open_stream=transport.sse,
+            authorize=authorize,
+            renew=renew,
+            sleep=transport.sleep,
+            reconnect=reconnect,
+        ):
+            yield event
 
     async def aclose(self) -> None:
         if self._owner:
