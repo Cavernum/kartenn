@@ -7,6 +7,11 @@ packages:
   - shell
   - e2e
 
+# No install script runs: vue-demi (under @tanstack/vue-query) would only switch its entry
+# to Vue 2, and its default entry is Vue 3.
+allowBuilds:
+  vue-demi: false
+
 # openapi-typescript 7 declares TypeScript ^5 and generates the same types under 6.
 peerDependencyRules:
   allowedVersions:

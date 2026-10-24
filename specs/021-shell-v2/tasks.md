@@ -167,6 +167,17 @@ aucun en parallèle sur `@kartenn/ui` (020).
     (`Manifest`, `sdk_range`), `capabilities.rs` ; `crates/kartenn-rest/src/web.rs`
     (`import_map`, `csp`) ; `web/sdk/src/semver.ts` ; `web/shell/src/plugins/loader.ts`
   - dépend de : 2 ; 020-4
+  - en cours : adaptateur Vue écrit le 2026-10-24, provisoirement dans
+    `web/v2/shell/src/data/query.ts` (`@kartenn/ui` étant en chantier par la 020) :
+    `installData(app)` (`VueQueryPlugin` sur le `QueryClient` du SDK), `useLabel`,
+    `useLocale`, `useEventsState` ; `@tanstack/vue-query` épinglé en 5.102.4 comme
+    `query-core`, script d'installation de `vue-demi` refusé (`allowBuilds`, entrée Vue 3
+    par défaut). Constat : passé tel quel, le client du cœur n'est jamais observé par
+    vue-query (ses composables ne s'abonnent que si le client porte la ref
+    `isRestoring`) ; l'adaptateur la pose, test `shell/test/data.test.ts` en garde.
+    Pas encore branché dans `main.ts` (le cadre, tâche 9, appellera `installData` et
+    `startData`). Reste : déplacement dans `@kartenn/ui`, import map, manifeste, `commands`,
+    `shortcuts`.
 
 ## P1 bis — Côté serveur (avant les écrans)
 
