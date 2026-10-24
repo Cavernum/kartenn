@@ -95,3 +95,16 @@ def test_spec_capabilities_health_and_stubs(server: FakeServer, tmp_path: Path) 
     stubs = kartenn("stubs", "generate", "--out", str(out))
     assert stubs.exit_code == 0, stubs.output
     assert (out / "kartenn_server" / "__init__.pyi").exists()
+
+
+def test_stats(server: FakeServer) -> None:
+    counters = {
+        "objects": {"core.prefix": 3},
+        "pending": {"to_apply": 1, "mine": 0},
+        "anomalies": {"open": 2},
+        "modules": {"vlan": {"reserved": 4}},
+    }
+    server.route("GET", "/v1/stats", counters)
+    result = kartenn("stats", "-o", "json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == counters

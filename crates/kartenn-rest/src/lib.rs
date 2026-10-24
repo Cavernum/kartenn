@@ -35,6 +35,7 @@ pub mod resources;
 pub mod rights;
 mod rules;
 pub mod simulation;
+pub mod stats;
 pub mod transport;
 pub mod tree;
 pub mod versions;
@@ -88,6 +89,7 @@ pub fn api_with(
         .merge(events::routes())
         .merge(labels::routes())
         .merge(rules::routes())
+        .merge(stats::routes())
         .merge(openapi::routes())
         .merge(modules::graph())
         .merge(modules::routes(modules));

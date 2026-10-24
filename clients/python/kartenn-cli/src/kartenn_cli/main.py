@@ -42,6 +42,7 @@ STATIC: dict[str, tuple[str, str, str]] = {
     "api": ("kartenn_cli.api", "api_command", "tools"),
     "capabilities": ("kartenn_cli.api", "capabilities_command", "tools"),
     "health": ("kartenn_cli.api", "health_command", "tools"),
+    "stats": ("kartenn_cli.api", "stats_command", "tools"),
     "stubs": ("kartenn_cli.api", "stubs_group", "tools"),
     "login": ("kartenn_cli.session", "login_command", "tools"),
     "logout": ("kartenn_cli.session", "logout_command", "tools"),

@@ -25,7 +25,13 @@ if TYPE_CHECKING:
     from kartenn._core.messages import Request, Response
     from kartenn_cli.runtime import Runtime
 
-__all__ = ["api_command", "capabilities_command", "health_command", "stubs_group"]
+__all__ = [
+    "api_command",
+    "capabilities_command",
+    "health_command",
+    "stats_command",
+    "stubs_group",
+]
 
 METHODS = ("GET", "HEAD", "QUERY", "POST", "PUT", "PATCH", "DELETE")
 OUTPUTS = ("json", "ndjson", "yaml", "table", "csv")
@@ -150,6 +156,14 @@ def api_command(  # noqa: PLR0913, PLR0917 - the parts of a request
 def capabilities_command(ctx: click.Context, output: str | None) -> None:
     found = _found(ctx)
     found.output(output=output).value(dict(found.client.call("capabilities")))
+
+
+@command(name="stats", help="tools.stats")
+@click.option("-o", "--output", type=click.Choice(OUTPUTS), metavar="FORMAT", help="opt.output")
+@click.pass_context
+def stats_command(ctx: click.Context, output: str | None) -> None:
+    found = _found(ctx)
+    found.output(output=output).value(found.client.stats())
 
 
 @command(name="health", help="tools.health")

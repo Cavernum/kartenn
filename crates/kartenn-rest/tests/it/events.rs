@@ -1580,3 +1580,43 @@ async fn a_client_that_no_longer_reads_loses_its_socket(pool: PgPool) {
     .await;
     assert!(closed.is_ok(), "the socket is closed");
 }
+
+/// Spec 024, REQ-024-16: `stats` carries nothing, comes at most once per interval to a
+/// subscriber who reads nothing, and a change held back goes out once the interval has
+/// passed; with nothing more, nothing more.
+#[kartenn_testing::pg_test]
+async fn stats_events_are_coalesced(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let every = Duration::from_secs(2);
+    let settings = EventSettings {
+        stats_every: every,
+        ..quick()
+    };
+    let i = instance(&pool, &ring, settings).await;
+    let nobody = person(&pool, &[], ("global", None)).await;
+    let app = app(&pool, &ring, &i.hub, nobody);
+    let (response, mut client) = open(&app, "/v1/events?kinds=stats", None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(client.next(WAIT).await.unwrap().event, "ready");
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let first = client.next_of("stats", WAIT).await.expect("a stats event");
+    let sent = tokio::time::Instant::now();
+    assert_eq!(first.data, "{}");
+    apply(&pool, writer, vec![prefix_in(d, "10.0.0.0/8")]).await;
+    apply(&pool, writer, vec![prefix_in(d, "10.1.0.0/16")]).await;
+    let second = client
+        .next_of("stats", every + WAIT)
+        .await
+        .expect("the change held back");
+    assert_eq!(second.data, "{}");
+    assert!(
+        sent.elapsed() + Duration::from_millis(300) >= every,
+        "{:?} after the first",
+        sent.elapsed()
+    );
+    assert!(
+        client.next_of("stats", every + every / 2).await.is_none(),
+        "nothing changed since"
+    );
+}

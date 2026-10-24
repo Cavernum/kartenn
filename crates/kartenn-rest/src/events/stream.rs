@@ -9,7 +9,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use axum::body::Bytes;
-use kartenn_service::events::{Frame, Kind, ResetReason, comment, ready_data, reset_data};
+use kartenn_service::events::{
+    Frame, Kind, ResetReason, STATS_DATA, comment, ready_data, reset_data,
+};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant as TokioInstant;
 use uuid::Uuid;
@@ -174,14 +176,30 @@ impl Body {
     }
 
     fn write(&mut self, message: Message) {
-        let Message::Event {
-            kind,
-            data,
-            objects,
-            seq,
-            floor,
-            time,
-        } = message;
+        let (kind, data, objects, seq, floor, time) = match message {
+            Message::Event {
+                kind,
+                data,
+                objects,
+                seq,
+                floor,
+                time,
+            } => (kind, data, objects, seq, floor, time),
+            // Outside the outbox: no cursor, the position stays (spec 024, REQ-024-16).
+            Message::Signal { kind } => {
+                self.queue.push_back(
+                    Frame {
+                        event: Some(kind.as_str()),
+                        id: None,
+                        data: Some(STATS_DATA),
+                        retry: None,
+                    }
+                    .encode(),
+                );
+                self.tally.delivered += 1;
+                return;
+            }
+        };
         self.position = Position {
             floor,
             last: self.position.last.max(seq),

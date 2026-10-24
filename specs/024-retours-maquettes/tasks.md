@@ -148,12 +148,67 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     - Client : `submit` lit le brouillon pour son `If-Match` ; CLI : création,
       modification, ajout, simulation et reprise restent à `kartenn api` (exclues de la
       couverture), la collection `drafts` passe en commande nommée.
-- [ ] 7. `GET /v1/stats`, port `StatsContributor` des modules, cache par empreinte des
+- [x] 7. `GET /v1/stats`, port `StatsContributor` des modules, cache par empreinte des
   droits, SSE `stats` regroupé, scénario de banc — REQ-024-14, 15, 16 — verify : tests
   de filtrage par les droits ; `bench-core` scénario `stats` p95 ≤ 200 ms (lancé par
   l'agent principal)
   - où : `crates/kartenn-rest/src/stats.rs` ; `crates/kartenn-service/src/reads.rs`
     (prédicats de lecture) ; `crates/kartenn-bench`
+  - Résultat : `kartenn_rest::stats` (`compute`, route), `kartenn_service::module::
+    StatsContributor` (`Module::stats`), `list::count`/`module_counts`,
+    `anomalies::open_count`, `changesets::applied_by_day`/`pending_of`,
+    `outbox::revision` ; SSE `Kind::Stats` (`Hub::signal_stats`) ; tests
+    `each_counter_follows_the_rights_of_the_caller`, `the_etag_and_the_cache_follow_the_outbox`,
+    `stats_events_are_coalesced` (REST), `stats_count_the_vlans_the_caller_reads` (VLAN) ;
+    `stats_budgets` dans `bench-core` (petite échelle validée, mesure complète à faire) ;
+    `client.stats()`, `kartenn stats`.
+
+### Choix tranchés (tâche 7)
+
+- Port : `StatsContributor::contribute(ModuleRead, StatsScope)` dans
+  `kartenn-service::module`, rendu par `Module::stats()` ; chaque module l'implémente sous
+  sa fonctionnalité `rest` (`src/stats.rs`). `StatsScope` porte l'argument JSON de
+  `kartenn_scopes`, `reads(type)` et l'identité de l'appelant ; `Contribution` porte ses
+  compteurs et, au besoin, le compte d'un de ses types en remplacement de celui du noyau.
+- Clés de `objects` : sortes qualifiées (`core.prefix`, `vlan.vlan`). Noyau : table
+  courante et prédicat des pages (`list::count`) ; types des modules : `module_object` et
+  le prédicat générique (`list::module_counts`) ; une sorte lisible sans objet vaut 0,
+  une sorte lue nulle part est absente. Visibilité globale sans confinement : `count(*)`
+  sans prédicat. Les flux sont comptés par leur module (lecture par `flow.read` ou comme
+  demandeur, REQ-011-17).
+- Compteurs des modules : VLAN `reserved`, `deprecated` ; machines `physical`, `virtual`
+  (virtuelles et conteneurs) ; flux `noncompliant` (synthèse non conforme),
+  `waivers_expiring` (dérogation qui finit sous 30 jours) ; politique `rules_allow`,
+  `rules_deny`.
+- `changesets` : présent seulement sous `core.changeset.read` (lecture globale des
+  changesets) ; tous les changesets appliqués, ceux de kartenn compris ; `by_day` par
+  jour UTC, le plus ancien d'abord, aujourd'hui en dernier ; `applied_7d`/`applied_30d`
+  sont les sommes des 7 et 30 derniers jours calendaires (pas une fenêtre glissante).
+  Index partiel `changeset (applied_at) WHERE state = 'applied'` (migration 0065).
+- `pending.to_apply` = le nombre de `GET /v1/proposals` (`review::proposals_for`) ;
+  `pending.mine` = ses propres changesets en attente, comptés sans
+  `core.changeset.read` (ce sont les siens). `anomalies.open` toujours présent : la liste
+  des anomalies n'a pas de permission globale, seulement la lecture de leur objet.
+- Cache : deux caches du processus, 30 s, 1 024 entrées au plus — la partie qui ne
+  dépend que des droits par (SHA-256 du périmètre de lecture, lecture des changesets,
+  révision de l'outbox, base), `pending` et les compteurs des modules (le flux compte
+  ceux dont l'appelant est demandeur) par (sujet, groupes, clé des droits) ; révision =
+  `max(seq)` de l'outbox (un événement d'une transaction plus ancienne qui valide plus tard
+  attend l'expiration). Comptes lancés en parallèle sur le pool (≈ 10 connexions par
+  calcul à froid).
+- ETag fort : 128 premiers bits du SHA-256 du corps ; `Cache-Control` d'une lecture du
+  présent. Aucun `data.objects.read` : un compte ne divulgue aucun objet.
+- SSE `stats` : `Message::Signal`, sans `id:` (le curseur ne bouge pas), données `{}` (un
+  navigateur ne distribue pas un événement sans données), sélectionnable par `kinds` ;
+  dû à toute notice `changes` ou `changeset` d'un lot (pas `labels`), envoyé à toutes les
+  connexions (sans contenu, rien à filtrer), au plus un par `Settings::stats_every`
+  (30 s, non exposé dans `[events]`) ; une notice retenue part au premier passage du
+  lecteur après l'intervalle.
+- Client : `Client.stats()`/`AsyncClient.stats()` rendent le corps ; `stats` n'est pas une
+  ressource dérivée du catalogue ; `kartenn stats [-o FORMAT]` parmi les outils.
+- Banc : deux budgets dans `bench-core`, après VLAN et machines — un lecteur de tout
+  (`*` global) et le sujet de `bench-rbac` (50 groupes, 1 000 liaisons) —, 40 calculs à
+  froid chacun (`stats::compute`, sans cache).
 - [x] 8. `?simulate=true` sur toute route d'écriture, `x-kartenn.simulate`,
   `simulate.unsupported` ; xfail `--dry-run` de la CLI levé — REQ-024-17 — verify :
   test générique sur toutes les routes d'écriture de l'OpenAPI ; `k-py-e2e` sans xfail

@@ -37,6 +37,21 @@ pub(crate) async fn notify(conn: &mut PgConnection) -> Result<(), StoreError> {
     Ok(())
 }
 
+/// The revision of the outbox: the number of its last event, 0 when empty. A cache of
+/// what the outbox reports changes (spec 024, `GET /v1/stats`) keys on it; an event of a
+/// transaction still running when it is read may commit below it, so such a cache also
+/// expires.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn revision(pool: &PgPool) -> Result<i64, StoreError> {
+    sqlx::query_scalar("SELECT coalesce(max(seq), 0) FROM outbox")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| StoreError(e.to_string()))
+}
+
 /// An event to deliver, in CloudEvents 1.0 JSON form.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Event {

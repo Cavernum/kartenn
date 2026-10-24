@@ -47,7 +47,7 @@
   Outils:
     api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
          contrat.
-    capabilities, completion, config, health, login, logout, stubs, watch
+    capabilities, completion, config, health, login, logout, stats, stubs, watch
   
   '''
 # ---

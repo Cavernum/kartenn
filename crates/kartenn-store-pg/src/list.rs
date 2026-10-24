@@ -390,6 +390,85 @@ pub async fn objects(
         .collect())
 }
 
+/// The number of objects of `kind` valid at `valid_at`, as asserted now, that `scope`
+/// lets read (spec 024, REQ-024-14, 15): the predicate of the pages of [`objects`], left
+/// out when the scope reads every object of the kind.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn count(
+    pool: &PgPool,
+    kind: Kind,
+    valid_at: OffsetDateTime,
+    scope: &ReadScope,
+) -> sqlx::Result<i64> {
+    let shape = kind.shape();
+    let relation = current_rows(shape.table, shape.columns).map_err(|e| sql_err(&e))?;
+    let query = if scope.reads_all(kind.as_str()) {
+        sqlx::query_scalar(AssertSqlSafe(format!("SELECT count(*) FROM {relation} x")))
+            .bind(valid_at)
+            .bind(None::<OffsetDateTime>)
+    } else {
+        sqlx::query_scalar(AssertSqlSafe(format!(
+            "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
+             SELECT count(*) FROM {relation} x WHERE {}",
+            shape.readable(kind)
+        )))
+        .bind(valid_at)
+        .bind(None::<OffsetDateTime>)
+        .bind(scope.to_json())
+    };
+    query.fetch_one(pool).await
+}
+
+/// The number of objects of each of the types `kinds` of the modules valid at
+/// `valid_at`, as asserted now, that `scope` lets read (spec 024, REQ-024-14, 15), from
+/// their record in the core (`module_object`) and the predicate of the lists of the
+/// modules; a type `scope` reads nowhere is left out, a type without object counts zero.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn module_counts(
+    pool: &PgPool,
+    kinds: &[&str],
+    valid_at: OffsetDateTime,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<(String, i64)>> {
+    let read: Vec<&str> = kinds.iter().copied().filter(|k| scope.reads(k)).collect();
+    if read.is_empty() {
+        return Ok(Vec::new());
+    }
+    let everywhere: Vec<&str> = read
+        .iter()
+        .copied()
+        .filter(|k| scope.reads_all(k))
+        .collect();
+    let sql = format!(
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4))
+         SELECT x.kind, count(*) FROM module_object x
+          WHERE x.valid_period @> $1 AND x.kind = ANY($2)
+            AND (x.kind = ANY($3) OR {})
+          GROUP BY x.kind",
+        readable("x.id", "x.kind", "x.domain_id", "NULL::inet", "$1")
+    );
+    let found: Vec<(String, i64)> = sqlx::query_as(AssertSqlSafe(sql))
+        .bind(valid_at)
+        .bind(&read)
+        .bind(&everywhere)
+        .bind(scope.to_json())
+        .fetch_all(pool)
+        .await?;
+    Ok(read
+        .iter()
+        .map(|kind| {
+            let n = found.iter().find(|(k, _)| k == kind).map_or(0, |(_, n)| *n);
+            ((*kind).to_owned(), n)
+        })
+        .collect())
+}
+
 /// At most `limit` prefixes valid at `valid_at`, as asserted at `as_of` (now when
 /// `None`), after `after`, within what `scope` lets read.
 ///

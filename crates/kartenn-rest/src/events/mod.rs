@@ -128,7 +128,7 @@ struct StreamParams {
     domains: Option<String>,
     /// Objects watched, comma separated, 100 at most.
     objects: Option<String>,
-    /// Kinds of event among `changes`, `changeset`, `labels`, `draft`; `ready` and
+    /// Kinds of event among `changes`, `changeset`, `labels`, `draft`, `stats`; `ready` and
     /// `reset` always come.
     kinds: Option<String>,
     /// The cursor to resume after, when the header `Last-Event-ID` cannot be set (a new
@@ -211,6 +211,12 @@ pub(crate) struct EventDraft {
     deleted: Option<bool>,
 }
 
+/// The data of `stats`, empty: a counter of `GET /v1/stats` may have changed, read it
+/// again (spec 024, REQ-024-16). At most one per 30 s, without `id:` (the cursor stays).
+#[derive(utoipa::ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct EventStats {}
+
 /// The data of `reset`: invalidate everything (REQ-022-8, 18, 21).
 #[derive(utoipa::ToSchema)]
 #[allow(dead_code)]
@@ -257,6 +263,11 @@ pub(crate) fn event_schemas() -> Vec<(
             EventDraft::schema(),
         ),
         (
+            "stats",
+            EventStats::name().into_owned(),
+            EventStats::schema(),
+        ),
+        (
             "reset",
             EventReset::name().into_owned(),
             EventReset::schema(),
@@ -281,7 +292,7 @@ pub(crate) fn event_object_schema() -> utoipa::openapi::RefOr<utoipa::openapi::S
     ),
     responses(
         (status = 200, description = "The stream of events (`text/event-stream`, WHATWG HTML \
-            § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `reset` and resumption \
+            § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption \
             points; each `id:` an opaque cursor. The data of each kind is named by the \
             extension `x-kartenn-events`.", content_type = "text/event-stream", body = String),
         (status = 400, description = "A filter unknown or out of bounds (`events.filter.invalid`).", body = Problem, content_type = "application/problem+json"),

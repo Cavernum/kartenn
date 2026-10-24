@@ -3599,6 +3599,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/stats`: the counters of the home page (spec 024, REQ-024-14 to 16). */
+    get: operations["stats"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/verdicts": {
     parameters: {
       query?: never;
@@ -3970,6 +3987,14 @@ export interface components {
       /** @description Its acknowledgement. */
       acknowledgement: string;
     };
+    /** @description The open anomalies. */
+    AnomalyStats: {
+      /**
+       * Format: int64
+       * @description Open anomalies whose object the caller reads.
+       */
+      open: number;
+    };
     /** @description The members of an attachment. */
     AttachMembers: {
       /**
@@ -4295,6 +4320,21 @@ export interface components {
       valid: boolean;
       /** @description Every violation, errors and warnings. */
       violations: components["schemas"]["ViolationDto"][];
+    };
+    /** @description The changesets applied (Q-024-5: every changeset, whoever its author), by UTC day. */
+    ChangesetStats: {
+      /**
+       * Format: int64
+       * @description Applied over the last 30 days, today included.
+       */
+      applied_30d: number;
+      /**
+       * Format: int64
+       * @description Applied over the last 7 days, today included.
+       */
+      applied_7d: number;
+      /** @description Applied each of the last 30 days, the oldest first and today last. */
+      by_day: number[];
     };
     /** @description The body of a chunk. */
     Chunk: {
@@ -4723,6 +4763,11 @@ export interface components {
       /** @description `too_old`, `invalid_cursor`, `overflow`, `rights_changed`. */
       reason: string;
     };
+    /**
+     * @description The data of `stats`, empty: a counter of `GET /v1/stats` may have changed, read it
+     *     again (spec 024, REQ-024-16). At most one per 30 s, without `id:` (the cursor stays).
+     */
+    EventStats: Record<string, never>;
     /** @description The event stream `GET /v1/events` (spec 022, REQ-022-23). */
     EventsCapability: {
       /** @description Most objects an event names before it names types. */
@@ -6712,6 +6757,19 @@ export interface components {
       /** @description The objects its author lacks the application of. */
       objects: string[];
     };
+    /** @description The pending changesets of the caller. */
+    PendingStats: {
+      /**
+       * Format: int64
+       * @description Its own.
+       */
+      mine: number;
+      /**
+       * @description Those of others it may apply (`<resource>.apply` on everything they touch), those
+       *     of `GET /v1/proposals`.
+       */
+      to_apply: number;
+    };
     /** @description A period, in microseconds since the epoch: `[start, end)`, unbounded without `end`. */
     Period: {
       /**
@@ -7453,6 +7511,30 @@ export interface components {
       breakglass: boolean;
       /** @description Its end, RFC 3339. */
       expires_at?: string | null;
+    };
+    /** @description The body of `GET /v1/stats`. */
+    Stats: {
+      /** @description The open anomalies. */
+      anomalies: components["schemas"]["AnomalyStats"];
+      changesets?: components["schemas"]["ChangesetStats"] | null;
+      /**
+       * @description The counters of each module, under its name; a module that counts nothing the
+       *     caller reads is absent.
+       */
+      modules: {
+        [key: string]: {
+          [key: string]: number;
+        };
+      };
+      /**
+       * @description The objects the caller reads, by qualified kind (`core.prefix`, `vlan.vlan`); a
+       *     kind it reads nowhere is absent.
+       */
+      objects: {
+        [key: string]: number;
+      };
+      /** @description The pending changesets of the caller. */
+      pending: components["schemas"]["PendingStats"];
     };
     /** @description Who a binding serves, as served. */
     SubjectItem:
@@ -11725,7 +11807,7 @@ export interface operations {
         /** @description Objects watched, comma separated, 100 at most. */
         objects?: string;
         /**
-         * @description Kinds of event among `changes`, `changeset`, `labels`, `draft`; `ready` and
+         * @description Kinds of event among `changes`, `changeset`, `labels`, `draft`, `stats`; `ready` and
          *     `reset` always come.
          */
         kinds?: string;
@@ -11744,7 +11826,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
+      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -19943,6 +20025,42 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["Suggestion"];
         };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  stats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The counters, each filtered by the read rights of the caller; a kind it reads nowhere is absent, `changesets` without `core.changeset.read`. Kept up to 30 s; the event `stats` of `GET /v1/events` says when to read again. Its strong ETag is a digest of the body. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Stats"];
+        };
+      };
+      /** @description Unchanged since the `ETag` of `If-None-Match`. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description A problem (RFC 9457). */
       default: {

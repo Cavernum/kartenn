@@ -20,6 +20,8 @@ mod pg;
 pub mod read;
 #[cfg(feature = "rest")]
 pub mod rest;
+#[cfg(feature = "rest")]
+pub mod stats;
 
 pub use hosting::{Host, MachineKind};
 pub use mac::Mac;

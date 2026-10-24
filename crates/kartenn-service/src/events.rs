@@ -39,13 +39,25 @@ pub enum Kind {
     Labels,
     /// A draft of the subscriber changed (spec 024, REQ-024-6).
     Draft,
+    /// A counter of `GET /v1/stats` may have changed (spec 024, REQ-024-16): no content,
+    /// at most one per interval.
+    Stats,
     /// Invalidate everything.
     Reset,
 }
 
+/// The data of a `stats` event: none, but a browser dispatches no event without data.
+pub const STATS_DATA: &str = "{}";
+
 impl Kind {
     /// The kinds a subscriber may select with `kinds`; `ready` and `reset` always come.
-    pub const SELECTABLE: [Self; 4] = [Self::Changes, Self::Changeset, Self::Labels, Self::Draft];
+    pub const SELECTABLE: [Self; 5] = [
+        Self::Changes,
+        Self::Changeset,
+        Self::Labels,
+        Self::Draft,
+        Self::Stats,
+    ];
 
     /// Its name on the wire.
     #[must_use]
@@ -56,6 +68,7 @@ impl Kind {
             Self::Changeset => "changeset",
             Self::Labels => "labels",
             Self::Draft => "draft",
+            Self::Stats => "stats",
             Self::Reset => "reset",
         }
     }

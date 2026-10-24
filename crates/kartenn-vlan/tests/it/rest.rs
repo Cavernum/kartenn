@@ -610,3 +610,67 @@ async fn patch_needs_if_match(pool: PgPool) {
     let (status, _, _) = call(&app, "GET", &uri, None, &[]).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+/// Spec 024, REQ-024-14, 15: `GET /v1/stats` counts the VLANs and the counters of the
+/// module under the predicate of the list of the VLANs; without `vlan.read`, neither the
+/// type nor the module.
+#[kartenn_testing::pg_test]
+async fn stats_count_the_vlans_the_caller_reads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (owner, acme, other) = (
+        env.property("core.owner").await,
+        env.id("entity", "acme").await,
+        env.id("entity", "other").await,
+    );
+    let lab = env.id("addressing_domain", "lab").await;
+    env.applied(vec![
+        Operation::CreateDomain {
+            local: Some(1),
+            slug: "far".into(),
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(1),
+            kind: ObjectKind::Domain,
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(other.to_string())],
+        },
+    ])
+    .await;
+    let far = env.id("addressing_domain", "far").await;
+    env.seed_group(
+        "edge",
+        json!({"domain": {"id": lab}}),
+        (1, 4094),
+        &[(10, "active"), (11, "reserved"), (12, "deprecated")],
+    )
+    .await;
+    env.seed_group(
+        "core",
+        json!({"domain": {"id": far}}),
+        (1, 4094),
+        &[(20, "reserved"), (21, "reserved")],
+    )
+    .await;
+    let stats = async |identity| {
+        let (status, _, body) = call(&env.app(identity), "GET", "/v1/stats", None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        body
+    };
+    let all = stats(env.admin().await).await;
+    assert_eq!(all["objects"]["vlan.vlan"], 5, "{all}");
+    assert_eq!(all["objects"]["vlan.group"], 2);
+    assert_eq!(
+        all["modules"]["vlan"],
+        json!({"reserved": 3, "deprecated": 1})
+    );
+    let acme_only = stats(env.person(&["vlan.read"], Some(("entity", acme))).await).await;
+    assert_eq!(acme_only["objects"]["vlan.vlan"], 3, "{acme_only}");
+    assert!(acme_only["objects"].get("vlan.group").is_none());
+    assert_eq!(
+        acme_only["modules"]["vlan"],
+        json!({"reserved": 1, "deprecated": 1})
+    );
+    let blind = stats(env.person(&["core.prefix.read"], None).await).await;
+    assert!(blind["objects"].get("vlan.vlan").is_none(), "{blind}");
+    assert!(blind["modules"].get("vlan").is_none(), "{blind}");
+}

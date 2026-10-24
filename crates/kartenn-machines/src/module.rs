@@ -370,4 +370,14 @@ impl Module for Machines {
             None
         }
     }
+    fn stats(&self) -> Option<Arc<dyn kartenn_service::module::StatsContributor>> {
+        #[cfg(feature = "rest")]
+        {
+            Some(Arc::new(crate::stats::Stats))
+        }
+        #[cfg(not(feature = "rest"))]
+        {
+            None
+        }
+    }
 }

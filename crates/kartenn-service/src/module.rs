@@ -54,6 +54,8 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "rules",
     "service-accounts",
     "sites",
+    // The counters of the home page (spec 024, REQ-024-14).
+    "stats",
 ];
 
 /// A type of object of a module (ADR 0026, clause 4).
@@ -712,6 +714,55 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn default_policies(&self) -> &'static [DefaultPolicy] {
         &[]
     }
+    /// What it counts for the home page, `GET /v1/stats` (spec 024, REQ-024-14). None by
+    /// default: the core still counts the objects of its types.
+    fn stats(&self) -> Option<Arc<dyn StatsContributor>> {
+        None
+    }
+}
+
+/// The rights a module counts under (spec 024, REQ-024-15).
+pub struct StatsScope<'a> {
+    /// The caller, for what it reads as itself (the flows it requested).
+    pub identity: Option<Uuid>,
+    /// The argument of `kartenn_scopes` (migration 0033), the predicate of the lists;
+    /// `None` reads everything.
+    pub scope: Option<&'a serde_json::Value>,
+    /// Whether the caller reads some object of a qualified type: a counter of a type it
+    /// reads nowhere is left out.
+    pub reads: &'a (dyn Fn(&str) -> bool + Sync),
+}
+
+impl fmt::Debug for StatsScope<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StatsScope")
+            .field("identity", &self.identity)
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What a module counts (spec 024, REQ-024-14): each figure filtered by the read rights of
+/// the caller, with the predicate of its lists.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Contribution {
+    /// Objects of its types by qualified type, in place of the count the core makes from
+    /// their record (`module_object`): for a type its lists read beyond the predicate of
+    /// the core (the flows of their requester).
+    pub objects: Vec<(&'static str, u64)>,
+    /// Its own counters by name, `[a-z][a-z0-9_]*`, served under the name of the module.
+    pub counters: Vec<(&'static str, u64)>,
+}
+
+/// The port through which a module adds its counters to `GET /v1/stats` (spec 024,
+/// REQ-024-14), as it adds its sections to a differential.
+pub trait StatsContributor: Send + Sync + fmt::Debug {
+    /// Its counters at the dates of `read`, under the rights of `scope`.
+    fn contribute<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        scope: &'a StatsScope<'a>,
+    ) -> BoxFuture<'a, Result<Contribution, StoreError>>;
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).

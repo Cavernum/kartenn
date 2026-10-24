@@ -217,6 +217,13 @@ class Client:
         of `events()`, on disk between runs (revalidated under `If-None-Match`)."""
         return self.run(self._context.labels(lang))
 
+    def stats(self) -> dict[str, Any]:
+        """The counters of the home page, `GET /v1/stats` (spec 024): objects by kind,
+        changesets applied, pending ones, open anomalies, counters of the modules; each
+        filtered by the rights of the caller. The event `stats` of `events()` says when
+        they may have changed."""
+        return dict(self.call("stats"))
+
     def __getattr__(self, attribute: str) -> Resource:
         if attribute.startswith("_"):
             raise AttributeError(attribute)
@@ -428,6 +435,10 @@ class AsyncClient:
     async def labels(self, lang: str | None = None) -> Dictionary:
         """The dictionary of labels of `lang` (spec 018), as `Client.labels`."""
         return await self.run(self._context.labels(lang))
+
+    async def stats(self) -> dict[str, Any]:
+        """The counters of the home page (spec 024), as `Client.stats`."""
+        return dict(await self.call("stats"))
 
     def __getattr__(self, attribute: str) -> AsyncResource:
         if attribute.startswith("_"):
