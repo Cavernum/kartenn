@@ -52,7 +52,7 @@ impl Module for Kit {
 }
 
 /// A person holding `entries` on the global scope.
-async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
+pub(crate) async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
     )
@@ -96,6 +96,15 @@ async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
 }
 
 fn app(pool: &PgPool, identity: Uuid) -> Router {
+    app_with(
+        pool,
+        identity,
+        Arc::new(ModuleRegistry::new(vec![Arc::new(Kit) as Arc<dyn Module>]).unwrap()),
+    )
+}
+
+/// The router as the person `identity`, with the modules of `modules`.
+pub(crate) fn app_with(pool: &PgPool, identity: Uuid, modules: Arc<ModuleRegistry>) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
@@ -104,7 +113,7 @@ fn app(pool: &PgPool, identity: Uuid) -> Router {
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from([]),
-        modules: Arc::new(ModuleRegistry::new(vec![Arc::new(Kit) as Arc<dyn Module>]).unwrap()),
+        modules,
     };
     kartenn_rest::router(
         kartenn_rest::v1(api),
@@ -122,7 +131,7 @@ fn app(pool: &PgPool, identity: Uuid) -> Router {
 }
 
 /// A read of the dictionary: status, headers, body.
-async fn get(
+pub(crate) async fn get(
     app: &Router,
     uri: &str,
     headers: &[(header::HeaderName, &str)],

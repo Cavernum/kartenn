@@ -249,6 +249,25 @@ rules! {
         "Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence.";
 }
 
+rules! {
+    IMPORT_RULES;
+    IMPORT_MISSING_EXTERNAL_ID = "import.missing-external-id", Error, ["REQ-006-17"], "006/H18",
+        "Un élément d'import qui crée un objet porte l'identifiant externe de sa source.";
+    IMPORT_UNKNOWN_REFERENCE = "import.unknown-reference", Error, ["REQ-006-17"], "006/H18",
+        "Une référence locale d'un import désigne un élément du même import.";
+    IMPORT_ORDER = "import.order", Error, ["REQ-006-17"], "006/H18",
+        "Chaque nom local d'un import est défini une fois et ses références ne forment pas de cycle.";
+    IMPORT_INVALID = "import.invalid", Error, ["REQ-006-17", "REQ-006-19"], "006/H18",
+        "Les éléments d'un import se trient ; une autre erreur de tri le ramène en dépôt.";
+}
+
+/// The rules of the sort of an import (spec 006, H18): codes of the violations of its
+/// `error`, published before the grammar `<namespace>.<object>.<rule>` of the other
+/// rules, hence kept apart from [`all_rules`] (spec 018, REQ-018-23: served with them).
+pub fn import_rules() -> impl Iterator<Item = &'static Rule> {
+    IMPORT_RULES.iter().copied()
+}
+
 /// The rules the modules of the build added (spec 008, REQ-008-8).
 static MODULE_RULES: std::sync::RwLock<Vec<&'static Rule>> = std::sync::RwLock::new(Vec::new());
 
@@ -331,6 +350,16 @@ pub fn catalogue_markdown() -> String {
          |---|---|---|---|---|\n",
     );
     for r in all_rules() {
+        row(&mut out, r);
+    }
+    out.push_str(
+        "\n## Règles du tri d'un import\n\n\
+         Codes des violations de l'`error` d'un import (006/H18), d'une forme antérieure à\n\
+         celle des identifiants ci-dessus ; servis avec eux par `GET /v1/rules` (018).\n\n\
+         | Identifiant | Sévérité | Règle | Exigences | Source |\n\
+         |---|---|---|---|---|\n",
+    );
+    for r in import_rules() {
         row(&mut out, r);
     }
     out

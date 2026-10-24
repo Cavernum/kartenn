@@ -393,6 +393,15 @@ pub fn schemas_of<T: ToSchema>(schemas: &mut Vec<(String, RefOr<Schema>)>) {
 /// (`#[utoipa::path]` names one path), and for the routes of the modules.
 pub struct Op(OperationBuilder);
 
+/// The description of the prefix `q` of a suggestion on `of` (spec 018, REQ-018-23).
+#[must_use]
+pub fn suggestion_text(of: &str) -> String {
+    format!(
+        "Prefix of {of}, ignoring case, 100 characters at most: a suggestion, 20 a page by \
+         default; only the objects the caller may read."
+    )
+}
+
 impl std::fmt::Debug for Op {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Op").finish_non_exhaustive()
@@ -433,6 +442,12 @@ impl Op {
                     .build(),
             ),
         )
+    }
+
+    /// The prefix `q` of a suggestion on `of` (spec 018, REQ-018-23; Q-018-8).
+    #[must_use]
+    pub fn suggestion(self, of: &str) -> Self {
+        self.query("q", &suggestion_text(of))
     }
 
     /// A parameter of the query string.

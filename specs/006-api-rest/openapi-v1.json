@@ -4443,6 +4443,47 @@
         ],
         "type": "object"
       },
+      "Listing_RuleItem": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "A rule of the build.",
+              "properties": {
+                "id": {
+                  "description": "Its identifier, stable.",
+                  "type": "string"
+                },
+                "module": {
+                  "description": "The module that declares it; `core` for the core.",
+                  "type": "string"
+                },
+                "severity": {
+                  "description": "`error` (refuses a changeset) or `warning` (records an anomaly).",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "severity",
+                "module"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_TreeNode": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -8900,6 +8941,29 @@
         ],
         "description": "The body that defines a role."
       },
+      "RuleItem": {
+        "description": "A rule of the build.",
+        "properties": {
+          "id": {
+            "description": "Its identifier, stable.",
+            "type": "string"
+          },
+          "module": {
+            "description": "The module that declares it; `core` for the core.",
+            "type": "string"
+          },
+          "severity": {
+            "description": "`error` (refuses a changeset) or `warning` (records an anomaly).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "module"
+        ],
+        "type": "object"
+      },
       "Scope": {
         "additionalProperties": false,
         "description": "The scope of a binding as served and received: `{kind, id}`, no `id` when global.",
@@ -10523,6 +10587,15 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/AddressUsage"
+            }
+          },
+          {
+            "description": "Prefix of the address, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -13353,6 +13426,15 @@
             }
           },
           {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Valid time, RFC 3339 with its offset; now by default.",
             "in": "query",
             "name": "valid_at",
@@ -14100,6 +14182,15 @@
             "description": "Slug equal to (repeated: one of).",
             "in": "query",
             "name": "slug",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
             "required": false,
             "schema": {
               "type": "string"
@@ -14866,6 +14957,15 @@
             },
             "x-kartenn": {
               "collection": "/v1/entities"
+            }
+          },
+          {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -19096,6 +19196,15 @@
             }
           },
           {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Valid time, RFC 3339 with its offset; now by default.",
             "in": "query",
             "name": "valid_at",
@@ -20336,6 +20445,15 @@
             "description": "Starting with.",
             "in": "query",
             "name": "name_prefix",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
             "required": false,
             "schema": {
               "type": "string"
@@ -24922,6 +25040,15 @@
             }
           },
           {
+            "description": "Prefix of the prefix, in CIDR notation, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "The property `{key}` equal to the value (repeated: one of).",
             "in": "query",
             "name": "prop.{key}",
@@ -27954,6 +28081,48 @@
         ]
       }
     },
+    "/v1/rules": {
+      "get": {
+        "operationId": "list_rules",
+        "parameters": [
+          {
+            "description": "Prefix of the identifier, ignoring case, 100 characters at most.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_RuleItem"
+                }
+              }
+            },
+            "description": "The rules of the build, in one page."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/rules`: every rule of the build, the core's in catalogue order, then those\nof the sort of an import and of each module; `q` keeps those whose identifier starts\nwith it, ignoring case. One page: the catalogue is short.",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/v1/service-accounts": {
       "get": {
         "operationId": "list_service_accounts",
@@ -28971,6 +29140,15 @@
             }
           },
           {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Valid time, RFC 3339 with its offset; now by default.",
             "in": "query",
             "name": "valid_at",
@@ -29791,6 +29969,15 @@
             "description": "The entity, site or domain the group is anchored on.",
             "in": "query",
             "name": "anchor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
             "required": false,
             "schema": {
               "type": "string"
@@ -30631,6 +30818,15 @@
             "description": "`active`, `reserved` or `deprecated`.",
             "in": "query",
             "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name or of the VID, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
             "required": false,
             "schema": {
               "type": "string"

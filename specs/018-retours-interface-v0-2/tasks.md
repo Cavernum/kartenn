@@ -350,7 +350,7 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   hors tâche : `events::a_client_that_no_longer_reads_loses_its_socket` échoue sur cette
   machine chargée, sans lien avec la tâche (tampons TCP).
 
-- [ ] 15. `q` sur les collections citables (entités, sites, domaines, machines,
+- [x] 15. `q` sur les collections citables (entités, sites, domaines, machines,
   interfaces, clusters, `vlan-groups`, VLAN, préfixes, adresses) sous RBAC, index
   manquants ; `GET /v1/rules` — REQ-018-23 — verify :
   `a_suggestion_never_shows_an_unreadable_object`, `the_rule_catalogue_is_served` ;
@@ -360,6 +360,23 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-core/src/rules.rs` (`catalogue`, l. 290-320) ;
   `crates/kartenn-rest/src/openapi.rs`
   dépend de : 14
+  fait : `q` comparé en `LIKE` (motif échappé, minuscules) au slug (entités, sites,
+  domaines, clusters, `vlan-groups`), à `text(prefix)`, à `host(address)`, au nom
+  (machines, déjà en minuscules ; interfaces par `lower(name)`), au nom ou au VID des
+  VLAN ; sous le prédicat de lecture existant de chaque liste ; 20 par défaut
+  (`kit::suggestion`, `Page::suggesting`), gardé par le curseur. Refusé (400) sur les
+  plages (citées par identifiant) et avec un filtre `prop.…` (lu par identifiant).
+  Contrat : `Op::suggestion` déclare `q` sur chaque liste citable (H20). `GET /v1/rules`
+  (`kartenn-rest/src/rules.rs`, étiquette `operations`, `rules` ajouté à
+  `CORE_COLLECTIONS`) : `{id, severity, module}` du noyau (`module` = `core`), des
+  imports puis des modules du build, une page, `q` sur l'identifiant. Les codes du tri
+  d'un import (`import.*`, 006/H18) n'étaient pas des règles du catalogue : groupe
+  `IMPORT_RULES` de `kartenn-core` hors de `all_rules` (leur forme précède la grammaire
+  à trois segments), section ajoutée à `regles-noyau.md`, libellés FR/EN dans l'espace
+  `rule` du dictionnaire. Index : reportés à la mesure de la tâche 16 (« à mesurer »).
+  CLI : `--domain <TAB>` et les autres références passent par `q` au-delà d'une page,
+  repli sur la première page pour une liste sans `q` au contrat (services) ; la
+  ressource `rules` apparaît dans l'arbre de la CLI.
 
 - [ ] 16. Banc des suggestions : préfixe sur le jeu complet, p95 < 50 ms par route —
   REQ-018-23 — verify : `bench-core` dans les budgets

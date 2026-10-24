@@ -140,6 +140,49 @@ def test_a_long_closed_list_is_asked_by_prefix(served: FakeServer) -> None:
     assert served.seen[-1].url.params.get("q") == "d"
 
 
+def test_slugs_of_a_long_list_are_asked_by_prefix(served: FakeServer) -> None:
+    """A list of references longer than a page is asked again with `q` (spec 018,
+    REQ-018-23)."""
+
+    def by_prefix(request: httpx2.Request) -> httpx2.Response:
+        prefix = request.url.params.get("q", "")
+        items = [d for d in DOMAINS if str(d["slug"]).startswith(prefix)]
+        return httpx2.Response(200, json={"items": items, "links": {"next": "/v1/more"}})
+
+    served.route("GET", "/v1/domains", by_prefix)
+    assert bash_values(complete_in("bash", "kartenn prefixes list --domain la")) == ["labo"]
+    assert served.seen[-1].url.params.get("q") == "la"
+
+
+def test_a_list_without_suggestions_gives_its_first_page() -> None:
+    """A list whose contract declares no `q` (a module's): its first page, unfiltered."""
+    from kartenn import ClientError  # noqa: PLC0415
+
+    class Page:
+        items = ({"slug": "ssh"}, {"slug": "web"})
+        next = None
+
+    class Listing:
+        def __init__(self, filters: dict[str, object]) -> None:
+            if "q" in filters:
+                raise ClientError("client.unknown-filter", "no q")
+
+        def first_page(self) -> Page:
+            return Page()
+
+    class Resource:
+        def list(self, **filters: object) -> Listing:
+            return Listing(filters)
+
+    class Client:
+        def resource(self, name: str) -> Resource:
+            assert name == "services"
+            return Resource()
+
+    fetch = complete._references("services")  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    assert fetch(Client(), "w") == ([("ssh", ""), ("web", "")], True)  # type: ignore[arg-type]
+
+
 def test_a_mute_server_leaves_the_local_proposals_within_a_second(
     served: FakeServer,
 ) -> None:

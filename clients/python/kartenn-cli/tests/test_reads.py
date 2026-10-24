@@ -178,13 +178,13 @@ def test_an_unknown_filter_is_refused_without_a_request(keyed: FakeServer) -> No
     assert result.exit_code == 2
     assert result.stderr == (
         "erreur [client.unknown-filter] Filtre inconnu : --colour. Filtres : --domain, "
-        "--value, --within, --nature, --prop CLÉ[:OP]=VALEUR.\n"
+        "--value, --within, --nature, --q, --prop CLÉ[:OP]=VALEUR.\n"
     )
     # A list that does not filter by property offers no --prop.
     result = kartenn("entities", "list", "--prop", "a.b=1")
     assert result.exit_code == 2
     assert result.stderr == (
-        "erreur [client.unknown-filter] Filtre inconnu : --prop. Filtres : --slug, --parent.\n"
+        "erreur [client.unknown-filter] Filtre inconnu : --prop. Filtres : --slug, --parent, --q.\n"
     )
     assert keyed.seen == []
     bad = kartenn("prefixes", "list", "--prop", "nokey=1")

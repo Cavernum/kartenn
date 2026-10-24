@@ -389,16 +389,19 @@ async fn start(
 /// in the chunks read by increasing number).
 #[must_use]
 pub fn sort_error(error: &ImportError) -> Value {
+    use kartenn_core::rules::{
+        IMPORT_INVALID, IMPORT_MISSING_EXTERNAL_ID, IMPORT_ORDER, IMPORT_UNKNOWN_REFERENCE,
+    };
     let (rule, element) = match error {
-        ImportError::MissingExternalId(element) => ("import.missing-external-id", Some(*element)),
+        ImportError::MissingExternalId(element) => (&IMPORT_MISSING_EXTERNAL_ID, Some(*element)),
         ImportError::UnknownReference { element, .. } => {
-            ("import.unknown-reference", Some(*element))
+            (&IMPORT_UNKNOWN_REFERENCE, Some(*element))
         }
-        ImportError::Order => ("import.order", None),
-        _ => ("import.invalid", None),
+        ImportError::Order => (&IMPORT_ORDER, None),
+        _ => (&IMPORT_INVALID, None),
     };
     let mut violation = json!({
-        "rule": rule,
+        "rule": rule.id,
         "severity": "error",
         "detail": error.to_string(),
         "subjects": [],

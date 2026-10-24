@@ -210,6 +210,7 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
       "value",
       "within",
       "nature",
+      "q",
       "prop.{key}",
       "prop.{key}:between",
       "prop.{key}:exists",
@@ -221,7 +222,7 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
     const exists = lists["/v1/addresses"]?.find((f) => f.name === "prop.{key}:exists");
     expect(exists?.type).toBe("boolean");
     expect(exists?.template?.key.collection).toBe("/v1/property-declarations");
-    expect(names("/v1/entities")).toEqual(["slug", "parent"]);
+    expect(names("/v1/entities")).toEqual(["slug", "parent", "q"]);
   });
 
   it("a contract changed without regeneration fails the comparison", async () => {

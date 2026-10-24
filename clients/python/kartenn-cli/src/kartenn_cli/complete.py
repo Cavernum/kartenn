@@ -137,8 +137,8 @@ def prefixed_values(
 ) -> Values:
     """Values starting with `incomplete`, asked to the server by prefix (`q`, spec 018,
     REQ-018-22, 23): `fetch(client, prefix)` gives a page of suggestions and whether it
-    holds them all. A whole list read without prefix is kept under `name` and filtered
-    here; a partial one, under `name?q=<prefix>`. Nothing past the deadline."""
+    is the whole list, unfiltered. A whole list is kept under `name` and filtered here;
+    the suggestions of a prefix, under `name?q=<prefix>`. Nothing past the deadline."""
     found = _within_deadline(ctx)
     if found is None:
         return []
@@ -157,8 +157,8 @@ def prefixed_values(
     answer = cast("tuple[Values, bool] | None", run(ask))
     if answer is None:
         return []
-    values, complete = answer
-    cache.set(name if complete and not incomplete else asked, values)
+    values, entire = answer
+    cache.set(name if entire else asked, values)
     return values
 
 
@@ -194,16 +194,32 @@ def reference_of(name: str, catalog: Catalog, module: str | None = None) -> str 
     return next((c for c in candidates if catalog.has_resource(c)), None)
 
 
-def _references(collection: str) -> Callable[[Client], Values]:
-    def fetch(client: Client) -> Values:
-        page = client.resource(collection).list(page_size=200).first_page()
+def _references(collection: str) -> Callable[[Client, str], tuple[Values, bool]]:
+    def fetch(client: Client, prefix: str) -> tuple[Values, bool]:
+        from kartenn import ClientError  # noqa: PLC0415 - the library, once a server is asked
+
+        resource = client.resource(collection)
+        filtered = bool(prefix)
+        try:
+            listing = (
+                resource.list(page_size=SUGGESTIONS, q=prefix)
+                if prefix
+                else resource.list(page_size=SUGGESTIONS)
+            )
+            page = listing.first_page()
+        except ClientError as error:
+            if error.code != "client.unknown-filter":
+                raise
+            # A list that the contract does not suggest by prefix (H20): its first page.
+            page = resource.list(page_size=SUGGESTIONS).first_page()
+            filtered = False
         values: Values = []
         for raw in page.items:
             item = dict(raw)
             key = item.get("slug") or item.get("key")
             if isinstance(key, str) and _shown(item):
                 values.append((key, _label(item)))
-        return values
+        return values, not filtered and page.next is None
 
     return fetch
 
@@ -217,7 +233,7 @@ def reference_completer(
         ctx: click.Context, param: click.Parameter, incomplete: str
     ) -> list[CompletionItem]:
         del param
-        values = server_values(ctx, f"ref:{collection}", _references(collection))
+        values = prefixed_values(ctx, f"ref:{collection}", incomplete, _references(collection))
         return _matching(values, incomplete)
 
     return complete
@@ -250,7 +266,7 @@ def _closed_values(key: str) -> Callable[[Client, str], tuple[Values, bool]]:
             value = item.get("key")
             if isinstance(value, str) and _shown(item):
                 values.append((value, _label(item)))
-        return values, page.next is None
+        return values, not prefix and page.next is None
 
     return fetch
 

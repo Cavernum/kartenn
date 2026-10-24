@@ -96,7 +96,7 @@ def test_conventions_of_the_reference_contract() -> None:
     assert catalog.resource("graph").names == ("edges",)
     assert catalog.resource("roles").verb("set") is not None
     listing = catalog.operation("list_prefixes")
-    assert [p.name for p in listing.filters] == ["domain", "value", "within", "nature"]
+    assert [p.name for p in listing.filters] == ["domain", "value", "within", "nature", "q"]
     assert listing.takes_properties
     assert not catalog.operation("list_entities").takes_properties
     nature = listing.param("nature")

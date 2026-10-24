@@ -607,8 +607,8 @@ async fn list_clusters(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     const NAME: &str = "clusters";
-    let page = Page::from_query(&query, &api.ring, NAME)?;
-    let wanted = filters(&page, &["slug"])?;
+    let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
+    let wanted = filters(&page, &["slug", "q"])?;
     let after = after::<(String, Uuid)>(&page)?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let sql = format!(
@@ -617,6 +617,7 @@ async fn list_clusters(
            FROM {} x
           WHERE ($4::text IS NULL OR x.slug = $4)
             AND ($5::text IS NULL OR (x.slug, x.id) > ($5, $6::uuid))
+            AND ($8::text IS NULL OR x.slug LIKE $8)
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $7",
@@ -631,6 +632,7 @@ async fn list_clusters(
         .bind(after.as_ref().map(|(slug, _)| slug.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
+        .bind(prefix.as_deref())
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -660,6 +662,8 @@ async fn list_clusters(
 struct MachineFilter<'a> {
     name: Option<&'a str>,
     name_prefix: Option<&'a str>,
+    /// The `LIKE` pattern of the prefix `q` of a suggestion (spec 018, REQ-018-23).
+    suggestion: Option<&'a str>,
     kind: Option<&'a str>,
     /// Hosted by this machine or this cluster.
     host: Option<Uuid>,
@@ -732,6 +736,7 @@ async fn machines_page(
             AND ($10::uuid IS NULL OR x.id IN ({sited}))
             AND ($11::text IS NULL OR (x.name, x.id) > ($11, $12::uuid))
             AND ($13::uuid IS NULL OR {network})
+            AND ($15::text IS NULL OR x.name LIKE $15)
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.name, x.id
           LIMIT $14",
@@ -753,6 +758,7 @@ async fn machines_page(
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(filter.network)
         .bind(i64::from(page.size) + 1)
+        .bind(filter.suggestion)
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -780,10 +786,11 @@ async fn list_machines(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     const NAME: &str = "machines";
-    let page = Page::from_query(&query, &api.ring, NAME)?;
+    let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
     let wanted = filters(
         &page,
         &[
+            "q",
             "name",
             "name_prefix",
             "kind",
@@ -804,6 +811,7 @@ async fn list_machines(
     let filter = MachineFilter {
         name: wanted.get("name").copied(),
         name_prefix: wanted.get("name_prefix").copied(),
+        suggestion: prefix.as_deref(),
         kind: wanted.get("kind").copied(),
         host: optional_uuid(&wanted, "host")?,
         cluster: optional_uuid(&wanted, "cluster")?,
@@ -865,8 +873,8 @@ async fn list_interfaces(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     const NAME: &str = "interfaces";
-    let page = Page::from_query(&query, &api.ring, NAME)?;
-    let wanted = filters(&page, &["machine", "name", "mac", "address", "vlan"])?;
+    let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
+    let wanted = filters(&page, &["machine", "name", "mac", "address", "vlan", "q"])?;
     let machine = optional_uuid(&wanted, "machine")?;
     let address = optional_uuid(&wanted, "address")?;
     let vlan = optional_uuid(&wanted, "vlan")?;
@@ -892,6 +900,7 @@ async fn list_interfaces(
             AND ($8::uuid IS NULL OR x.access_vlan_id = $8 OR x.native_vlan_id = $8
                  OR $8 = ANY(x.tagged_vlan_ids))
             AND ($9::uuid IS NULL OR (x.machine_id, x.name, x.id) > ($9, $10::text, $11::uuid))
+            AND ($13::text IS NULL OR lower(x.name) LIKE $13)
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.machine_id, x.name, x.id
           LIMIT $12",
@@ -912,6 +921,7 @@ async fn list_interfaces(
         .bind(after.as_ref().map(|a| a.1.as_str()))
         .bind(after.as_ref().map(|a| a.2))
         .bind(i64::from(page.size) + 1)
+        .bind(prefix.as_deref())
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -1266,7 +1276,11 @@ fn collection_routes(
         &format!("The {name} the caller may read."),
     );
     for (filter, description) in filters {
-        list_op = list_op.query(filter, description);
+        list_op = if *filter == "q" {
+            list_op.suggestion(description)
+        } else {
+            list_op.query(filter, description)
+        };
     }
     let list_op = list_op
         .params::<DatesParams>()
@@ -1475,7 +1489,7 @@ pub fn routes() -> ModuleRouter {
         "cluster",
         ("Cluster", "Cluster"),
         ("ClusterCreation", "ClusterPatch"),
-        &[("slug", "Equal to.")],
+        &[("slug", "Equal to."), ("q", "the slug")],
         &CLUSTER_WRITES,
         (kit::collection(list_clusters), get(show_cluster)),
     );
@@ -1488,6 +1502,7 @@ pub fn routes() -> ModuleRouter {
         &[
             ("name", "Equal to."),
             ("name_prefix", "Starting with."),
+            ("q", "the name"),
             ("kind", "`physical`, `virtual`, `container` or `appliance`."),
             ("host", "Hosted by this machine or this cluster."),
             ("cluster", "Hosted by or member of this cluster."),
@@ -1510,6 +1525,7 @@ pub fn routes() -> ModuleRouter {
             ("mac", "This EUI-48, any usual notation."),
             ("address", "Holding this address at the date."),
             ("vlan", "Carrying this VLAN, access, native or tagged."),
+            ("q", "the name"),
         ],
         &INTERFACE_WRITES,
         (kit::collection(list_interfaces), get(show_interface)),

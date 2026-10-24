@@ -226,7 +226,7 @@
   Outils:
     api  Appeler n'importe quelle opération de l'API (QUERY compris) ; « kartenn api spec » : le
          contrat.
-    log-filters, capabilities, completion, config, health, login, logout, stubs, watch
+    log-filters, rules, capabilities, completion, config, health, login, logout, stubs, watch
   
   '''
 # ---

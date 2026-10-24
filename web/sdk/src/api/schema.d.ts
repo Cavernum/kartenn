@@ -3148,6 +3148,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/rules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/rules`: every rule of the build, the core's in catalogue order, then those
+     *     of the sort of an import and of each module; `q` keeps those whose identifier starts
+     *     with it, ignoring case. One page: the catalogue is short.
+     */
+    get: operations["list_rules"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/service-accounts": {
     parameters: {
       query?: never;
@@ -5390,6 +5411,20 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_RuleItem: {
+      /** @description The elements of the page. */
+      items: {
+        /** @description Its identifier, stable. */
+        id: string;
+        /** @description The module that declares it; `core` for the core. */
+        module: string;
+        /** @description `error` (refuses a changeset) or `warning` (records an anomaly). */
+        severity: string;
+      }[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_TreeNode: {
       /** @description The elements of the page. */
       items: (
@@ -7001,6 +7036,15 @@ export interface components {
     };
     /** @description The body that defines a role. */
     RoleWrite: components["schemas"]["Reserved"] & components["schemas"]["RoleMembers"];
+    /** @description A rule of the build. */
+    RuleItem: {
+      /** @description Its identifier, stable. */
+      id: string;
+      /** @description The module that declares it; `core` for the core. */
+      module: string;
+      /** @description `error` (refuses a changeset) or `warning` (records an anomaly). */
+      severity: string;
+    };
     /** @description The scope of a binding as served and received: `{kind, id}`, no `id` when global. */
     Scope: {
       /**
@@ -7722,6 +7766,8 @@ export interface operations {
         within?: string;
         /** @description The usage (repeated: one of). */
         usage?: components["schemas"]["AddressUsage"];
+        /** @description Prefix of the address, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description The property `{key}` equal to the value (repeated: one of). */
         "prop.{key}"?: string;
         /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
@@ -9347,6 +9393,8 @@ export interface operations {
       query?: {
         /** @description Equal to. */
         slug?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -9762,6 +9810,8 @@ export interface operations {
       query?: {
         /** @description Slug equal to (repeated: one of). */
         slug?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -10179,6 +10229,8 @@ export interface operations {
         slug?: string;
         /** @description Slug of the parent entity (repeated: one of). */
         parent?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -12536,6 +12588,8 @@ export interface operations {
         address?: string;
         /** @description Carrying this VLAN, access, native or tagged. */
         vlan?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -13268,6 +13322,8 @@ export interface operations {
         name?: string;
         /** @description Starting with. */
         name_prefix?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description `physical`, `virtual`, `container` or `appliance`. */
         kind?: string;
         /** @description Hosted by this machine or this cluster. */
@@ -15794,6 +15850,8 @@ export interface operations {
         within?: string;
         /** @description The nature (repeated: one of). */
         nature?: components["schemas"]["Nature"];
+        /** @description Prefix of the prefix, in CIDR notation, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description The property `{key}` equal to the value (repeated: one of). */
         "prop.{key}"?: string;
         /** @description The property `{key}` within `low..high`, one bound may be open (`60..`, `..3600`): integers, dates, texts. */
@@ -17445,6 +17503,38 @@ export interface operations {
       };
     };
   };
+  list_rules: {
+    parameters: {
+      query?: {
+        /** @description Prefix of the identifier, ignoring case, 100 characters at most. */
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The rules of the build, in one page. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_RuleItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_service_accounts: {
     parameters: {
       query?: {
@@ -18031,6 +18121,8 @@ export interface operations {
         slug?: string;
         /** @description Slug of the parent site (repeated: one of). */
         parent?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -18455,6 +18547,8 @@ export interface operations {
         slug?: string;
         /** @description The entity, site or domain the group is anchored on. */
         anchor?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -18913,6 +19007,8 @@ export interface operations {
         name_prefix?: string;
         /** @description `active`, `reserved` or `deprecated`. */
         status?: string;
+        /** @description Prefix of the name or of the VID, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */

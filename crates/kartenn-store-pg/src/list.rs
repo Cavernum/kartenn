@@ -193,6 +193,9 @@ pub struct Criteria<'a> {
     pub within: &'a [String],
     /// The nature of a prefix, the usage of a range or of an address: one of them.
     pub usages: &'a [String],
+    /// A prefix, lower-cased, of the slug, or of the value of a prefix or of an address
+    /// (spec 018, REQ-018-23): a suggestion, compared ignoring case.
+    pub prefix: Option<&'a str>,
 }
 
 /// The `LIKE` pattern of the texts starting with `prefix` (spec 018, Q-018-8): its
@@ -271,6 +274,13 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
     } else {
         "false"
     };
+    // Slugs are lower case; the text of a CIDR or of an address too (RFC 5952 §4.3).
+    let prefix_filter = match kind {
+        Kind::Entity | Kind::Site | Kind::Domain => "x.slug LIKE $14",
+        Kind::Prefix => "text(x.prefix) LIKE $14",
+        Kind::Address => "host(x.address) LIKE $14",
+        Kind::Range => "false",
+    };
     Ok(format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT {key}, to_jsonb(x), {link} FROM {relation} x {join}
@@ -281,6 +291,7 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
            AND (cardinality($11::uuid[]) = 0 OR x.id = ANY($11))
            AND (cardinality($12::cidr[]) = 0 OR {within_filter})
            AND (cardinality($13::text[]) = 0 OR {usage_filter})
+           AND ($14::text IS NULL OR {prefix_filter})
            AND ($3::jsonb IS NULL OR {visible})
          ORDER BY {order}
          LIMIT $7"
@@ -334,6 +345,7 @@ pub async fn objects(
         .bind(criteria.ids)
         .bind(criteria.within)
         .bind(criteria.usages)
+        .bind(criteria.prefix.map(like_prefix))
         .fetch_all(pool)
         .await?;
     Ok(rows

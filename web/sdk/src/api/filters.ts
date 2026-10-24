@@ -21,6 +21,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "value", type: "string" },
     { name: "within", type: "string" },
     { name: "usage", type: "string", enum: ["host", "gateway", "vip", "anycast", "reserved"] },
+    { name: "q", type: "string" },
     {
       name: "prop.{key}",
       type: "string",
@@ -85,15 +86,22 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "property", type: "string" },
     { name: "section", type: "string" },
   ],
-  "/v1/clusters": [{ name: "slug", type: "string" }],
+  "/v1/clusters": [
+    { name: "slug", type: "string" },
+    { name: "q", type: "string" },
+  ],
   "/v1/clusters/{id}/history": [],
   "/v1/clusters/{id}/machines": [],
-  "/v1/domains": [{ name: "slug", type: "string" }],
+  "/v1/domains": [
+    { name: "slug", type: "string" },
+    { name: "q", type: "string" },
+  ],
   "/v1/domains/{id}/history": [],
   "/v1/domains/{id}/roots": [],
   "/v1/entities": [
     { name: "slug", type: "string" },
     { name: "parent", type: "string", collection: "/v1/entities" },
+    { name: "q", type: "string" },
   ],
   "/v1/entities/{id}/history": [],
   "/v1/environments": [{ name: "key", type: "string" }],
@@ -144,6 +152,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "mac", type: "string" },
     { name: "address", type: "string" },
     { name: "vlan", type: "string" },
+    { name: "q", type: "string" },
   ],
   "/v1/interfaces/{id}/flows": [],
   "/v1/interfaces/{id}/history": [],
@@ -151,6 +160,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/machines": [
     { name: "name", type: "string" },
     { name: "name_prefix", type: "string" },
+    { name: "q", type: "string" },
     { name: "kind", type: "string" },
     { name: "host", type: "string" },
     { name: "cluster", type: "string" },
@@ -188,6 +198,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "value", type: "string" },
     { name: "within", type: "string" },
     { name: "nature", type: "string", enum: ["container", "network"] },
+    { name: "q", type: "string" },
     {
       name: "prop.{key}",
       type: "string",
@@ -284,11 +295,13 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/sites": [
     { name: "slug", type: "string" },
     { name: "parent", type: "string", collection: "/v1/sites" },
+    { name: "q", type: "string" },
   ],
   "/v1/sites/{id}/history": [],
   "/v1/vlan-groups": [
     { name: "slug", type: "string" },
     { name: "anchor", type: "string" },
+    { name: "q", type: "string" },
   ],
   "/v1/vlan-groups/{id}/history": [],
   "/v1/vlans": [
@@ -297,6 +310,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "name", type: "string" },
     { name: "name_prefix", type: "string" },
     { name: "status", type: "string" },
+    { name: "q", type: "string" },
   ],
   "/v1/vlans/{id}/history": [],
   "/v1/vlans/{id}/prefixes": [],

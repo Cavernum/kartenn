@@ -70,3 +70,15 @@ Sévérités fixées par la spécification (002/A4).
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |
 | `core.label.invalid` | erreur | Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut. | REQ-018-9 | 018/R7, R9, RFC 5646 §2.1 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |
+
+## Règles du tri d'un import
+
+Codes des violations de l'`error` d'un import (006/H18), d'une forme antérieure à
+celle des identifiants ci-dessus ; servis avec eux par `GET /v1/rules` (018).
+
+| Identifiant | Sévérité | Règle | Exigences | Source |
+|---|---|---|---|---|
+| `import.missing-external-id` | erreur | Un élément d'import qui crée un objet porte l'identifiant externe de sa source. | REQ-006-17 | 006/H18 |
+| `import.unknown-reference` | erreur | Une référence locale d'un import désigne un élément du même import. | REQ-006-17 | 006/H18 |
+| `import.order` | erreur | Chaque nom local d'un import est défini une fois et ses références ne forment pas de cycle. | REQ-006-17 | 006/H18 |
+| `import.invalid` | erreur | Les éléments d'un import se trient ; une autre erreur de tri le ramène en dépôt. | REQ-006-17, REQ-006-19 | 006/H18 |
