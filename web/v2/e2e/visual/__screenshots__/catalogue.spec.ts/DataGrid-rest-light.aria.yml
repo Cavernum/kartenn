@@ -1,7 +1,7 @@
 - main:
   - region "DataGrid":
     - heading "DataGrid" [level=1]
-    - paragraph: "Motif : Grid (maison)"
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
     - figure "rest — Tri sur le préfixe, colonnes filtrables, focus sur la première cellule":
       - grid "Préfixes du domaine":
         - rowgroup:

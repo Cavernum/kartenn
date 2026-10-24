@@ -1,7 +1,7 @@
 - main:
   - region "DataGrid":
     - heading "DataGrid" [level=1]
-    - paragraph: "Motif : Grid (maison)"
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
     - figure "rest — Tri sur le préfixe, colonnes filtrables, focus sur la première cellule":
       - grid "Préfixes du domaine":
         - rowgroup:
@@ -151,6 +151,90 @@
             - gridcell "Production"
             - gridcell /\d+ %/
             - gridcell "Équipe réseau"
+          - row /\(en brouillon\) \d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\(en brouillon\) \d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\(en revue\) \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau/:
+            - gridcell /\(en revue\) \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: row-states
+      - text: ""
+    - 'figure "loading — Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Chargement":
+            - gridcell "Chargement"
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+      - code: loading
+      - text: ""
+    - figure "filtered — Filtre posé sur le préfixe ; Alt+Bas sur un en-tête filtrable demande son filtre":
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe (filtrée) Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe (filtrée)"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
           - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
             - gridcell /\d+\.\d+\.2\.0\/\d+/
             - gridcell "Postes du siège"
@@ -175,7 +259,199 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-      - code: row-states
+      - code: filtered
+      - text: ""
+    - 'figure "sticky — Trente lignes dans un cadre : l''en-tête reste collé, aligné sur les cellules"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production 0 % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+            - gridcell "0 %"
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.8\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.2\.8\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège Développement 3 % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Développement"
+            - gridcell "3 %"
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Recette 6 % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Recette"
+            - gridcell "6 %"
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+      - code: sticky
       - text: ""
     - figure "editing — Cellule en édition (éditeur en place)":
       - grid "Préfixes du domaine":

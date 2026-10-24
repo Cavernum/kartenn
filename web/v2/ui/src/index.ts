@@ -44,6 +44,7 @@ export { default as SidebarNav } from "./components/SidebarNav/SidebarNav.vue";
 export type { SidebarEntry, SidebarGroup } from "./components/SidebarNav/sidebar.ts";
 export { default as DatePill } from "./components/DatePill/DatePill.vue";
 export { default as DraftCounter } from "./components/DraftCounter/DraftCounter.vue";
+export type { DraftSummary } from "./components/DraftCounter/draft.ts";
 export { default as TimeBand } from "./components/TimeBand/TimeBand.vue";
 export { default as Tabs } from "./components/Tabs/Tabs.vue";
 export type { TabItem } from "./components/Tabs/tabs.ts";
@@ -52,10 +53,20 @@ export type { MenuDivider, MenuEntry, MenuItem } from "./components/Menu/menu.ts
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";
+export { default as SidePanel } from "./components/SidePanel/SidePanel.vue";
+export { default as CommitForm } from "./components/CommitForm/CommitForm.vue";
+export { default as SplitButton } from "./components/SplitButton/SplitButton.vue";
+export type { SplitAction } from "./components/SplitButton/split.ts";
+export { default as Toolbar } from "./components/Toolbar/Toolbar.vue";
+export { foldActions } from "./components/Toolbar/toolbar.ts";
+export type { ToolbarAction } from "./components/Toolbar/toolbar.ts";
+export { default as Tooltip } from "./components/Tooltip/Tooltip.vue";
+export { useTooltip } from "./components/Tooltip/tooltip.ts";
+export type { TooltipControl } from "./components/Tooltip/tooltip.ts";
 export { default as CommandPalette } from "./components/CommandPalette/CommandPalette.vue";
 export type { PaletteGroup, PaletteItem } from "./components/CommandPalette/palette.ts";
 export { default as DataGrid } from "./components/DataGrid/DataGrid.vue";
-export { columnsTemplate } from "./components/DataGrid/grid.ts";
+export { columnsTemplate, nextSort } from "./components/DataGrid/grid.ts";
 export type {
   CellRef,
   CellState,
@@ -63,6 +74,10 @@ export type {
   GridSort,
   RowState,
 } from "./components/DataGrid/grid.ts";
+export { default as MatrixGrid } from "./components/MatrixGrid/MatrixGrid.vue";
+export type { MatrixAxis, MatrixCell, MatrixCellState } from "./components/MatrixGrid/matrix.ts";
+export { moveInGrid } from "./components/internal/gridKeys.ts";
+export type { GridPosition } from "./components/internal/gridKeys.ts";
 export { default as TreeGrid } from "./components/TreeGrid/TreeGrid.vue";
 export { flatten, misplaced } from "./components/TreeGrid/tree.ts";
 export type {

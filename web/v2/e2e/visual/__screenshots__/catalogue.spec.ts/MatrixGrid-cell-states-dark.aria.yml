@@ -1,0 +1,52 @@
+- main:
+  - region "MatrixGrid":
+    - heading "MatrixGrid" [level=1]
+    - paragraph: "Motif : Grid (données) ; en-têtes de lignes et de colonnes figés"
+    - figure "cell-states — Cellules en brouillon et en revue (icône et mot caché)":
+      - grid "Matrice de politique":
+        - rowgroup:
+          - row "Source → destination Serveurs Postes du siège Supervision Sauvegardes Invités":
+            - columnheader "Source → destination"
+            - columnheader "Serveurs"
+            - columnheader "Postes du siège"
+            - columnheader "Supervision"
+            - columnheader "Sauvegardes"
+            - columnheader "Invités"
+        - rowgroup:
+          - row "Serveurs Autorisé Autorisé Autorisé Autorisé Autorisé":
+            - rowheader "Serveurs"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+          - row "Postes du siège Refusé Autorisé Autorisé Autorisé (en brouillon) Autorisé":
+            - rowheader "Postes du siège"
+            - gridcell "Refusé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé (en brouillon)"
+            - gridcell "Autorisé"
+          - row "Supervision Refusé Refusé Autorisé Autorisé Autorisé":
+            - rowheader "Supervision"
+            - gridcell "Refusé"
+            - gridcell "Refusé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+          - row "Sauvegardes Refusé Refusé Autorisé Autorisé Autorisé":
+            - rowheader "Sauvegardes"
+            - gridcell "Refusé"
+            - gridcell "Refusé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+            - gridcell "Autorisé"
+          - row "Invités Refusé (en revue) Refusé Autorisé Refusé Autorisé":
+            - rowheader "Invités"
+            - gridcell "Refusé (en revue)"
+            - gridcell "Refusé"
+            - gridcell "Autorisé"
+            - gridcell "Refusé"
+            - gridcell "Autorisé"
+      - code: cell-states
+      - text: ""

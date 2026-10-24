@@ -1,0 +1,12 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - figure "prefilled — Motif prérempli (« Appliquer »), modifiable":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Maintenance du référentiel
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: prefilled
+      - text: ""

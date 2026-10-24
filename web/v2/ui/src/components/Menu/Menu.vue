@@ -5,8 +5,10 @@
 <script setup lang="ts">
 // A menu button and its menu (APG Menu Button, Menu; design « Inventaire », line 11):
 // Reka's DropdownMenu. Entries carry their icon and their shortcut at the end (`Kbd`,
-// `aria-keyshortcuts`); a disabled entry stays listed, with its reason. The trigger is a
-// `Button`, or an `IconButton` when `iconOnly`.
+// `aria-keyshortcuts`). A disabled entry stays listed and reachable by the arrows
+// (`aria-disabled`; choosing it does nothing): its reason, or « Il faut <permission> »,
+// is its description and a tooltip beside it while it has the focus (024/M14). The
+// trigger is a `Button`, or an `IconButton` when `iconOnly`.
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "reka-ui";
+import { shallowRef, useId, type Directive } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import type { IconName } from "../../icons/index.ts";
 import Button from "../Button/Button.vue";
@@ -23,8 +26,11 @@ import type { ButtonVariant } from "../Button/button.ts";
 import { ariaKeyshortcuts } from "../Button/shortcut.ts";
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import BlockedReason from "../internal/BlockedReason.vue";
 import Kbd from "../Kbd/Kbd.vue";
 import type { ControlSize } from "../layout.ts";
+import Tooltip from "../Tooltip/Tooltip.vue";
+import { useTooltip } from "../Tooltip/tooltip.ts";
 import type { MenuEntry, MenuItem } from "./menu.ts";
 
 const props = withDefaults(
@@ -42,8 +48,41 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ select: [id: string] }>();
 const portal = injectPortalTarget();
+const base = useId();
 
 const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind === "item";
+const isBlocked = (entry: MenuEntry) => !!(entry.disabled || entry.forbidden);
+const hasReason = (entry: MenuEntry) => isBlocked(entry) && !!(entry.forbidden || entry.reason);
+const reasonId = (entry: MenuEntry) => `${base}-${entry.id}-why`;
+
+/** One tooltip for the menu: the reason of the disabled entry that has the focus. */
+const tip = useTooltip();
+const shown = shallowRef<MenuEntry | null>(null);
+function onFocus(entry: MenuEntry, event: FocusEvent): void {
+  if (!hasReason(entry)) return;
+  shown.value = entry;
+  tip.show(event.currentTarget as HTMLElement);
+}
+
+/**
+ * `aria-disabled` on a disabled entry: Reka writes the attribute from its own `disabled`
+ * prop, which would also take the entry out of the arrows' reach; the directive sets it
+ * on the element after Reka's render.
+ */
+function ariaDisabled(el: HTMLElement, { value }: { value: boolean }): void {
+  if (value) el.setAttribute("aria-disabled", "true");
+  else el.removeAttribute("aria-disabled");
+}
+const vAriaDisabled: Directive<HTMLElement, boolean> = {
+  mounted: ariaDisabled,
+  updated: ariaDisabled,
+};
+
+function onSelect(entry: MenuEntry, event: Event): void {
+  // A disabled entry keeps the menu open and runs nothing.
+  if (isBlocked(entry)) event.preventDefault();
+  else emit("select", entry.id);
+}
 </script>
 
 <template>
@@ -69,22 +108,33 @@ const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind =
           </DropdownMenuLabel>
           <DropdownMenuItem
             v-else-if="isEntry(item)"
+            v-aria-disabled="isBlocked(item)"
             class="k-menu__item"
-            :disabled="item.disabled ?? false"
             :data-danger="item.danger ? 'true' : undefined"
+            :data-blocked="isBlocked(item) ? 'true' : undefined"
+            :aria-describedby="hasReason(item) ? reasonId(item) : undefined"
             :aria-keyshortcuts="item.shortcut ? ariaKeyshortcuts(item.shortcut) : undefined"
-            @select="emit('select', item.id)"
+            @select="(event: Event) => onSelect(item, event)"
+            @focus="(event: FocusEvent) => onFocus(item, event)"
+            @blur="tip.hide()"
           >
             <Icon v-if="item.icon" :name="item.icon" class="k-menu__icon" />
-            <span class="k-menu__text">
-              <span>{{ item.label }}</span>
-              <span v-if="item.disabled && item.reason" class="k-menu__reason">{{
-                item.reason
-              }}</span>
-            </span>
+            <span class="k-menu__text">{{ item.label }}</span>
+            <!-- The description only: hidden from the name, read through aria-describedby. -->
+            <span
+              v-if="hasReason(item)"
+              :id="reasonId(item)"
+              class="k-visually-hidden"
+              aria-hidden="true"
+              ><BlockedReason :forbidden="item.forbidden" :reason="item.reason"
+            /></span>
+            <Icon v-if="item.forbidden" name="lock" class="k-menu__icon" />
             <Kbd v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
           </DropdownMenuItem>
         </template>
+        <Tooltip :control="tip" side="inline-end" decorative>
+          <BlockedReason v-if="shown" :forbidden="shown.forbidden" :reason="shown.reason" />
+        </Tooltip>
       </DropdownMenuContent>
     </DropdownMenuPortal>
   </DropdownMenuRoot>
@@ -130,8 +180,10 @@ const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind =
     color: var(--k-state-ko-fg);
   }
 
-  .k-menu__item[data-disabled] {
+  /* Disabled, still reachable: muted, its reason in its tooltip. */
+  .k-menu__item[data-blocked] {
     color: var(--k-text-muted);
+    cursor: not-allowed;
   }
 
   .k-menu__icon {
@@ -143,14 +195,8 @@ const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind =
   }
 
   .k-menu__text {
-    display: grid;
     flex: 1;
     padding-block: var(--k-space-1);
-  }
-
-  .k-menu__reason {
-    font-size: var(--k-text-sm);
-    line-height: var(--k-text-sm-line);
   }
 
   .k-menu__label {

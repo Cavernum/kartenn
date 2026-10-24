@@ -1,0 +1,12 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - figure "described — Résumé et description":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Bascule des adresses de la salle B
+      - text: Description (facultative)
+      - textbox "Description (facultative)": Les passerelles changent de plage ; les VIP suivent.
+      - status
+      - code: described
+      - text: ""

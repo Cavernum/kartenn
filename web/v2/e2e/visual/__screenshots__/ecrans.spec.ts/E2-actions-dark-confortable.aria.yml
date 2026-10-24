@@ -156,7 +156,7 @@
   - menuitem "Modifier"
   - menuitem "Copier l'identifiant"
   - menuitem "Lire à une autre date…"
-  - menuitem "Changer de domaine… Le domaine est immuable" [disabled]
+  - menuitem "Changer de domaine…" [disabled]
   - separator
   - text: Plugins
   - menuitem "Vérifier la conformité"

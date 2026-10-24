@@ -12,9 +12,12 @@ export interface MenuEntry {
   icon?: IconName;
   /** The shortcut shown at the end, as `KeyboardEvent.key` names the keys. */
   shortcut?: string[];
+  /** Disabled: it stays in the menu and focusable (`aria-disabled`), with its reason. */
   disabled?: boolean;
-  /** Why the entry is disabled, shown under its label. */
+  /** Why the entry is disabled: its tooltip and its description. */
   reason?: string;
+  /** The permission the user lacks: disabled, « Il faut <permission> » (024/M14). */
+  forbidden?: string;
   danger?: boolean;
 }
 

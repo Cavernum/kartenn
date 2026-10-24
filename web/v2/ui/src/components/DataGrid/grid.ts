@@ -31,6 +31,18 @@ export interface GridSort {
   direction: "ascending" | "descending";
 }
 
+/**
+ * The sort after a click (or Enter) on the header of `column`: ascending first, then the
+ * other way at each new activation.
+ */
+export function nextSort(sort: GridSort | undefined, column: string): GridSort {
+  return {
+    column,
+    direction:
+      sort?.column === column && sort.direction === "ascending" ? "descending" : "ascending",
+  };
+}
+
 /** The position of a cell: the key of its row, the id of its column. */
 export interface CellRef {
   row: string;

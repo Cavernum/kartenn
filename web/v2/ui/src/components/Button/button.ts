@@ -18,7 +18,17 @@ export interface ButtonBaseProps {
   loading?: boolean;
   /** A toggle button (`aria-pressed`), when set. */
   pressed?: boolean | undefined;
+  /**
+   * The permission the user lacks (024/M14): the action stays visible and focusable,
+   * `aria-disabled`, and its tooltip says « Il faut <permission> ».
+   */
+  forbidden?: string | undefined;
+  /** Refused for another reason (a policy): the same, with this sentence as tooltip. */
+  reason?: string | undefined;
 }
+
+/** Whether an action is refused with its reason (`forbidden` or `reason`). */
+export const isBlocked = (props: ButtonBaseProps): boolean => !!(props.forbidden || props.reason);
 
 export interface ButtonProps extends ButtonBaseProps {
   /** A leading icon, decorative: the label names the button. */

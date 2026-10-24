@@ -86,8 +86,10 @@ const states = computed(() => {
     margin: 0;
   }
 
+  /* An elastic track: a wide table scrolls in its place, never the page. */
   .k-cat-state[data-wide] {
     flex-basis: 100%;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: stretch;
   }
 

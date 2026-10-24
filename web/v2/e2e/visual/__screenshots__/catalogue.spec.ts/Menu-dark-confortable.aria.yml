@@ -10,7 +10,7 @@
       - button "Actions sur le préfixe"
       - code: icon-only
       - text: ""
-    - 'figure "open — Ouvert : raccourci à droite, entrée désactivée avec motif, entrée destructive"':
+    - 'figure "open — Ouvert : raccourci à droite, entrées désactivées (motif, permission) focalisables, entrée destructive"':
       - link "Voir l'état open seul":
         - /url: /_ui/c/Menu?mode=dark&densite=confortable&etat=open
       - code: open

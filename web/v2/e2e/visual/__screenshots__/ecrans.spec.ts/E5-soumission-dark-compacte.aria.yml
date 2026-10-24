@@ -87,39 +87,42 @@
           - gridcell "Réservée"
           - gridcell "Service Pilote"
           - gridcell "site-ouest"
-- complementary "Brouillon":
-  - heading "Brouillon" [level=2]
-  - button "Fermer"
-  - paragraph: 3 opérations, non soumises.
-  - list:
-    - listitem:
-      - code: /\d+\.\d+\.\d+\.\d+/
-      - text: "Usage :"
-      - deletion: Hôte
-      - text: →
-      - insertion: VIP
-      - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
-    - listitem:
-      - code: /\d+\.\d+\.\d+\.\d+/
-      - text: "Propriétaire :"
-      - deletion: Atelier Nord
-      - text: →
-      - insertion: Atelier Sud
-      - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
-    - listitem:
-      - code: /\d+\.\d+\.\d+\.\d+/
-      - text: Créer l'adresse (Hôte, Service Pilote)
-      - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
-  - region "Simulation":
-    - heading "Simulation" [level=3]
-    - status:
-      - paragraph: Simulation valide · 0 violation
-  - text: Motif (obligatoire)
-  - textbox "Motif (obligatoire)": Bascule des VIP de la salle B
-  - paragraph: Reporté dans l'historique de chaque objet.
-  - term: Effet au
-  - definition: présent
-  - term: Revue
-  - definition: non requise
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Panneau droit":
+    - tab "Détail"
+    - tab "Brouillon 3" [selected]
+  - tabpanel "Brouillon 3":
+    - list:
+      - listitem:
+        - code: /\d+\.\d+\.\d+\.\d+/
+        - text: "Usage :"
+        - deletion: Hôte
+        - text: →
+        - insertion: VIP
+        - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
+      - listitem:
+        - code: /\d+\.\d+\.\d+\.\d+/
+        - text: "Propriétaire :"
+        - deletion: Atelier Nord
+        - text: →
+        - insertion: Atelier Sud
+        - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
+      - listitem:
+        - code: /\d+\.\d+\.\d+\.\d+/
+        - text: Créer l'adresse (Hôte, Service Pilote)
+        - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
+    - region "Simulation":
+      - heading "Simulation" [level=3]
+      - status:
+        - paragraph: Simulation valide · 0 violation
+    - text: Motif (obligatoire)
+    - textbox "Motif (obligatoire)": Bascule des VIP de la salle B
+    - paragraph: Reporté dans l'historique de chaque objet.
+    - term: Effet au
+    - definition: présent
+    - term: Revue
+    - definition: non requise
+  - button "Fermer le panneau"
   - button "Tout abandonner"
   - button "Soumettre"
