@@ -15954,6 +15954,16 @@
             },
             "description": "Modified since."
           },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`If-Match` is missing."
+          },
           "default": {
             "content": {
               "application/problem+json": {
@@ -16193,6 +16203,16 @@
             },
             "description": "Beyond 10 000 operations (`draft-limit`)."
           },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`If-Match` is missing."
+          },
           "default": {
             "content": {
               "application/problem+json": {
@@ -16421,6 +16441,16 @@
             },
             "description": "Refused (violations, motive missing): the draft stays."
           },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`If-Match` is `*`, which names no version."
+          },
           "default": {
             "content": {
               "application/problem+json": {
@@ -16515,6 +16545,16 @@
               }
             },
             "description": "The caller keeps 50 drafts already (`draft-limit`)."
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`If-Match` is missing."
           },
           "default": {
             "content": {

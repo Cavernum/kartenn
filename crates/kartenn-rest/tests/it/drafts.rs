@@ -653,3 +653,42 @@ async fn an_administrator_reads_deletes_and_takes_over_audited(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
 }
+
+#[kartenn_testing::pg_test]
+async fn every_route_under_if_match_requires_it(pool: PgPool) {
+    let (_, mine) = as_person(&pool, EDITOR).await;
+    let (_, admin_app) = as_person(&pool, &["core.draft.admin"]).await;
+    let id = created(&mine, json!({"title": "Lab"})).await;
+    let uri = format!("/v1/drafts/{id}");
+
+    // REQ-024-3: without If-Match, 428 before anything else, the draft untouched.
+    let (status, _) = call(&mine, "PATCH", &uri, None, Some(json!({"title": "X"}))).await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+    let (status, _) = call(
+        &mine,
+        "POST",
+        &format!("{uri}/operations"),
+        None,
+        Some(json!({"operations": [domain("lab")]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+    let (status, _) = call(&mine, "DELETE", &uri, None, None).await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+    let (status, _) = call(&admin_app, "POST", &format!("{uri}/takeover"), None, None).await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+
+    // The submission takes If-Match optionally: `*` names no version, 428 too.
+    let mut star = request("POST", &format!("{uri}/submission"), None, None);
+    star.headers_mut()
+        .insert(header::IF_MATCH, header::HeaderValue::from_static("*"));
+    assert_eq!(
+        send(&mine, star).await.status(),
+        StatusCode::PRECONDITION_REQUIRED
+    );
+
+    let (status, draft) = call(&mine, "GET", &uri, None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(draft["version"], 1);
+    assert_eq!(draft["title"], "Lab");
+}
