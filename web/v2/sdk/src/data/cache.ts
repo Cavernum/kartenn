@@ -41,7 +41,8 @@ export interface Entry<T = unknown> {
 }
 
 /** The families of freshness (design « Clés et fraîcheur »). */
-export type Family = "object" | "list" | "children" | "session" | "labels" | "simulation";
+export type Family =
+  "object" | "list" | "children" | "session" | "labels" | "simulation" | "drafts" | "stats";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -54,6 +55,8 @@ export const FRESHNESS: Readonly<Record<Family, { staleTime: number; gcTime: num
   session: { staleTime: 5 * MINUTE, gcTime: Infinity },
   labels: { staleTime: Infinity, gcTime: Infinity },
   simulation: { staleTime: 0, gcTime: MINUTE },
+  drafts: { staleTime: 30 * SECOND, gcTime: 10 * MINUTE },
+  stats: { staleTime: 30 * SECOND, gcTime: 10 * MINUTE },
 };
 
 /** The past as recorded never changes (ADR 0005): never stale, kept 30 min. */

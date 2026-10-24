@@ -115,6 +115,38 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - amendé par la 024 (2026-10-24) : les brouillons passent au serveur ; `sdk.drafts`,
     `sdk.stats` et la fin du stockage IndexedDB sont décrits au design § « Écritures » et
     se font avec la tâche 14 ; `write.quick` envoie `?apply=own`.
+  - fait le 2026-10-24 (partie SDK de la 024) : `web/v2/sdk/src/data/drafts.ts`, singleton
+    `drafts` de `src/instance.ts`, API `sdk.drafts` et `sdk.stats`. Lectures : liste et
+    brouillon par chemin (`keys.list('/v1/drafts')`, `keys.list('/v1/drafts/{id}', …,
+    {id})`), familles `drafts` et `stats` (30 s, 10 min) ; `stats.query()` lit
+    `GET /v1/stats`. Écritures : `create`, `update`, `addOperations`, `remove` sous
+    `If-Match` pris de l'entrée du cache (lue d'abord s'il n'y en a pas), réponse remise
+    dans le cache avec son `ETag`, liste invalidée ; 412 sur un ajout → relecture puis un
+    seul nouvel essai, sinon issue `conflict` avec la relecture ; 404 → le brouillon quitte
+    l'onglet. `simulate(brouillon, période)` : requête `['simulate', 'draft', id, version,
+    empreinte]` dont la fonction attend 400 ms sous le signal d'annulation — la version
+    suivante (autre clé) abandonne l'attente de la précédente, d'où le débrayage sans
+    minuterie du shell. `submit(id, { applyOwn, period, idempotencyKey })` :
+    `?apply=own` si demandé, `If-Match` si l'`ETag` est connu, 409 retenté cinq fois ;
+    201 et 202 → brouillon oublié (le serveur l'a supprimé), 422 → il reste. Brouillon
+    actif : identifiant sous `kartenn.draft.active` en `sessionStorage` (`active`,
+    `setActive`, `onActive`), rien sans `sessionStorage`. `draft.add` (API des plugins)
+    ajoute au brouillon actif, en crée un s'il n'y en a pas ou s'il a disparu (404) ;
+    `draft.operations`, `remove`, `subscribe` et `draftHost.set` retirés (pas de
+    compatibilité avant le gel) ; il n'y avait pas de stockage IndexedDB dans `web/v2`.
+    Événements : `draft` et `stats` ajoutés au flux (identité `draft:<id>:<version>`,
+    `stats` sans identité) ; `draft` → brouillon relu si sa version diffère, liste relue ;
+    `deleted` → brouillon oublié et signal `onGone({ id, active })` ; `stats` → `/v1/stats`
+    invalidé. `write.quick` envoie `?apply=own` ; l'issue `proposed` porte `reason`
+    (`changeset.apply_own.missing`, `changeset.approval.self`). Choix notés : une issue
+    `saved` (le brouillon et son `ETag`) et `removed` pour les écritures de brouillon ;
+    titre d'un brouillon créé par `draft.add` = minute de création, remplaçable par le
+    shell (`setDraftTitle` de `@kartenn/sdk/host`) ; un brouillon que l'onglet supprime
+    ou soumet lui-même ne lève pas `onGone` (son événement `deleted` est attendu) ; le
+    brouillon actif est remis à zéro par le SDK quand il disparaît, le shell n'a qu'à
+    quitter la vue sur `active: true`. `changesets.simulate` et `changesets.submit`
+    (changeset sans brouillon) restent. Vitest : `test/drafts.test.ts`, ajouts à
+    `test/write.test.ts`, `test/events.test.ts`, `test/plugins.test.ts`.
 - [ ] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
   doublons, reconnexion avec attente croissante et `last_event_id`), un flux par
   navigateur (`navigator.locks` + `BroadcastChannel`, repli par onglet), repli sans flux

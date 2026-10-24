@@ -11,7 +11,7 @@
 
 import type { KartennEvent, StreamState } from "./events/stream.ts";
 import { createPrefetch } from "./data/prefetch.ts";
-import { labels, queryClient, stream, writes } from "./instance.ts";
+import { drafts as store, labels, queryClient, stream, writes } from "./instance.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
 export const SDK_VERSION = "1.0.0";
@@ -69,13 +69,56 @@ export type { QueryClient } from "@tanstack/query-core";
 export { mergePatch } from "./data/write.ts";
 export { lookup } from "./data/labels.ts";
 export type { Dictionary } from "./data/labels.ts";
-export type { QuickWrite, Submission, WriteOutcome } from "./data/write.ts";
+export type {
+  PendingReason,
+  Proposed,
+  QuickWrite,
+  Refusal,
+  Simulated,
+  Submission,
+  WriteOutcome,
+} from "./data/write.ts";
+export { SIMULATION_WAIT } from "./data/drafts.ts";
+export type {
+  Draft,
+  DraftChange,
+  DraftCreation,
+  DraftList,
+  DraftOutcome,
+  DraftPeriod,
+  DraftSubmitOutcome,
+  Gone,
+  SubmitOptions,
+} from "./data/drafts.ts";
 
 /**
  * The client of the API, the cache shared by the shell and every plugin (ADR 0037), and
  * its reads: keys, query functions, freshness (REQ-021-21).
  */
 export { api, queryClient, reads } from "./instance.ts";
+
+/**
+ * The drafts of the caller on the server (spec 024 § A): their queries, their writes
+ * under `If-Match`, the simulation waited 400 ms, the submission (`applyOwn`), and the
+ * active draft of the tab.
+ */
+export const drafts = {
+  list: store.list,
+  get: store.get,
+  create: store.create,
+  update: store.update,
+  addOperations: store.addOperations,
+  remove: store.remove,
+  simulate: store.simulate,
+  submit: store.submit,
+  active: store.active,
+  setActive: store.setActive,
+  onActive: store.onActive,
+  onGone: store.onGone,
+};
+
+/** The counters of the home page (`GET /v1/stats`), a query read again on `stats`. */
+export { stats } from "./instance.ts";
 
 /** The quick edit of an object, optimistic at the present (REQ-021-16, 24; D-7). */
 export const write = { quick: writes.quick };

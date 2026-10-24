@@ -8,7 +8,7 @@
  */
 
 import { hooks } from "./hooks.ts";
-import { stream } from "./instance.ts";
+import { drafts, stream } from "./instance.ts";
 
 export { startData } from "./instance.ts";
 
@@ -25,6 +25,11 @@ export type { PluginManifest } from "./extensions.ts";
 export { addCatalog, setTranslator } from "./i18n.ts";
 export { draftHost } from "./draft.ts";
 export { compare, parseVersion, satisfies } from "./semver.ts";
+
+/** The title of the drafts a plugin's `draft.add` creates, in the shell's language. */
+export function setDraftTitle(title: (() => string) | null): void {
+  drafts.setTitle(title);
+}
 
 /** What a 401 of the client does before it throws: the shell offers to log in again. */
 export function onUnauthorized(handler: (() => void | Promise<void>) | null): void {

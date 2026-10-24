@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // What each event does to the cache (022 « Contrat consommé par les clients », amended by
-// the 021; 018 for `labels`).
+// the 021; 018 for `labels`; 024 for `draft` and `stats`).
 
 import type { Changed, Invalidation } from "../data/invalidate.ts";
 import type { KartennEvent } from "./stream.ts";
@@ -12,13 +12,15 @@ export interface ApplyDeps {
   invalidation: Invalidation;
   /** The label dictionary: a new revision (spec 018). */
   labels: { changed(revision: string): unknown };
+  /** The drafts of the caller: one changed, or left (spec 024 § A). */
+  drafts: { changed(data: Record<string, unknown>): unknown };
 }
 
 function list(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-export async function applyEvent(event: KartennEvent, { invalidation, labels }: ApplyDeps) {
+export async function applyEvent(event: KartennEvent, { invalidation, labels, drafts }: ApplyDeps) {
   const data = event.data;
   switch (event.kind) {
     // What was read before `ready` may be stale; `reset` replays nothing (022).
@@ -52,6 +54,13 @@ export async function applyEvent(event: KartennEvent, { invalidation, labels }: 
     }
     case "labels":
       if (typeof data["revision"] === "string") await labels.changed(data["revision"]);
+      return;
+    case "draft":
+      await drafts.changed(data);
+      return;
+    // A counter may have changed: `GET /v1/stats` is read again (024 § C).
+    case "stats":
+      await invalidation.path("/v1/stats");
       return;
   }
 }

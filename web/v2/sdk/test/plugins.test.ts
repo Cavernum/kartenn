@@ -151,19 +151,52 @@ describe("sandbox (REQ-007-16)", () => {
 });
 
 describe("draft", () => {
-  it("adds and removes operations, and tells the shell", () => {
+  it("adds to the active draft of the tab, created when there is none, and tells the shell", async () => {
+    const D = "00000000-0000-4000-8000-0000000000a1";
+    const body = (count: number, version: number) => ({
+      id: D,
+      href: `/v1/drafts/${D}`,
+      author: D,
+      title: "t",
+      operation_count: count,
+      version,
+      created_at: "2026-10-24T00:00:00Z",
+      updated_at: "2026-10-24T00:00:00Z",
+      reason: {},
+      operations: Array.from({ length: count }, () => ({ op: "close" })),
+    });
+    const reply = (count: number, version: number, status = 200) =>
+      new Response(JSON.stringify(body(count, version)), {
+        status,
+        headers: { "Content-Type": "application/json", ETag: `"${version}"` },
+      });
+    const seen: { method: string; ifMatch: string | null }[] = [];
+    host.setFetch(
+      fakeFetch({
+        "POST /v1/drafts": () => reply(1, 1, 201),
+        "POST /v1/drafts/{id}/operations": ({ headers }) => {
+          seen.push({ method: "add", ifMatch: headers.get("If-Match") });
+          return reply(2, 2);
+        },
+        "GET /v1/drafts": () => ({ items: [] }),
+      }),
+    );
+    sessionStorage.clear();
     const opened = vi.fn();
     host.draftHost.onAdd(opened);
-    const seen: number[] = [];
-    const stop = sdk.draft.subscribe((ops) => seen.push(ops.length));
-    sdk.draft.add({ op: "close" } as never);
-    sdk.draft.add({ op: "close" } as never);
-    sdk.draft.remove(0);
-    stop();
-    expect(seen).toEqual([1, 2, 1]);
-    expect(opened).toHaveBeenCalledTimes(2);
-    expect(() => sdk.draft.remove(5)).toThrow(RangeError);
-    host.draftHost.set([]);
-    host.draftHost.onAdd(null);
+    try {
+      expect(sdk.draft.active()).toBeNull();
+      const first = await sdk.draft.add({ op: "close" } as never);
+      expect(first.kind).toBe("saved");
+      expect(sdk.draft.active()).toBe(D);
+      const second = await sdk.draft.add({ op: "close" } as never);
+      expect(second).toMatchObject({ kind: "saved", draft: { operation_count: 2 } });
+      expect(seen).toEqual([{ method: "add", ifMatch: '"1"' }]);
+      expect(opened).toHaveBeenCalledTimes(2);
+    } finally {
+      host.draftHost.onAdd(null);
+      host.setFetch(null);
+      sessionStorage.clear();
+    }
   });
 });
