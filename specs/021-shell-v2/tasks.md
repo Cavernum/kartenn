@@ -150,6 +150,12 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `web/shell/src/router.ts` ; `web/shell/src/plugins/loader.ts` (`modulepreload`)
     ; `web/shell/src/data/recent.ts`
   - dépend de : 2
+  - en cours : partie SDK faite le 2026-10-24 — `web/v2/sdk/src/data/prefetch.ts` :
+    `prefetch.intent(cible, requêtes)` (survol tenu 60 ms, focus immédiat, sortie avant le
+    délai sans lecture), `prefetch.guard(requêtes)` (≤ 100 ms, `ready` ou `timeout`),
+    `prefetch.prefetch` (lectures et listes). Vitest : `test/prefetch.test.ts`. Reste au
+    shell : `KLink`, `meta.queries` des routes et garde `beforeResolve`, page suivante à
+    l'approche de la fin, enfants survolés, `modulepreload` des plugins, parcours et banc.
 - [ ] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
   avec empreinte) ; manifeste `ui`, `framework`, `space`, `go` validés côté serveur et
   publiés dans `ui_plugins` (ajout additif) ; plages vérifiées au chargement ; adaptateur

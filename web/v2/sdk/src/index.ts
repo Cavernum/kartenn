@@ -10,7 +10,8 @@
  */
 
 import type { KartennEvent, StreamState } from "./events/stream.ts";
-import { labels, stream, writes } from "./instance.ts";
+import { createPrefetch } from "./data/prefetch.ts";
+import { labels, queryClient, stream, writes } from "./instance.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
 export const SDK_VERSION = "1.0.0";
@@ -108,3 +109,8 @@ export const events = {
   },
 };
 export type { EventKind, KartennEvent, StreamState } from "./events/stream.ts";
+
+/** Prefetch on intent and the guard of navigation (REQ-021-22). */
+export const prefetch = createPrefetch({ queryClient });
+export { GUARD_WAIT, INTENT_DELAY } from "./data/prefetch.ts";
+export type { Prefetchable } from "./data/prefetch.ts";
