@@ -104,6 +104,23 @@ events! {
     CHANGESET_REVALIDATION_FAILED = "changeset.state.stale", Warn, Normal, ["rules"], ["REQ-012-8"],
         "API Activity 6003 / Update", "configuration",
         "Un changeset en attente n'a pas passé sa revalidation au moment d'être validé.";
+    // Drafts (spec 024, REQ-024-6, 7a): their creation, submission and deletion, not their
+    // modifications; every action of an administrator on the draft of someone else.
+    DRAFT_CREATED = "draft.state.created", Info, Normal, ["operations"], ["REQ-024-6"],
+        "API Activity 6003 / Create", "configuration",
+        "Un brouillon a été créé.";
+    DRAFT_SUBMITTED = "draft.state.submitted", Info, Normal, ["state"], ["REQ-024-5", "REQ-024-6"],
+        "API Activity 6003 / Update", "configuration",
+        "Un brouillon a été soumis : le changeset créé (en attente ou appliqué) le remplace.";
+    DRAFT_DELETED = "draft.state.deleted", Info, Normal, ["cause", "author"], ["REQ-024-6", "REQ-024-7", "REQ-024-7a"],
+        "API Activity 6003 / Delete", "configuration",
+        "Un brouillon a été supprimé : par son auteur, par un administrateur (`author`, l'auteur d'origine) ou par la rétention (90 jours d'inactivité).";
+    DRAFT_ADMIN_READ = "draft.admin.read", Info, High, ["author", "count"], ["REQ-024-7a"],
+        "API Activity 6003 / Read", "database",
+        "Un administrateur a listé ou lu les brouillons d'une autre identité (`author`).";
+    DRAFT_TAKEN_OVER = "draft.admin.taken_over", Info, High, ["author"], ["REQ-024-7a"],
+        "API Activity 6003 / Update", "configuration",
+        "Un administrateur s'est attribué le brouillon d'une autre identité (`author`, l'auteur d'origine).";
     // Anomalies.
     ANOMALY_ACKNOWLEDGED = "anomaly.state.acknowledged", Info, Normal, ["rule", "object"], ["REQ-002-36"],
         "API Activity 6003 / Update", "configuration",
@@ -361,6 +378,8 @@ mod tests {
             &APPROVAL_POLICY_CHANGED,
             &SENSITIVE_READ,
             &AUDIT_READ,
+            &DRAFT_ADMIN_READ,
+            &DRAFT_TAKEN_OVER,
         ] {
             assert_eq!(e.criticality, Criticality::High, "{}", e.name);
         }

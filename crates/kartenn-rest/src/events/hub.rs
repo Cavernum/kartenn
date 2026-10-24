@@ -378,6 +378,8 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 /// What a subject may see of a batch.
 struct SubjectSight<'a> {
+    /// The subscriber: a draft reaches its author alone (spec 024, REQ-024-6).
+    identity: Uuid,
     everywhere: &'a HashSet<String>,
     kinds: &'a HashMap<Uuid, String>,
     visible: HashSet<Uuid>,
@@ -395,6 +397,10 @@ impl Sight for SubjectSight<'_> {
 
     fn follows(&self, changeset: Uuid) -> bool {
         self.follows.contains(&changeset)
+    }
+
+    fn is(&self, id: Uuid) -> bool {
+        self.identity == id
     }
 }
 
@@ -897,6 +903,7 @@ impl Hub {
             )
         });
         let sight = SubjectSight {
+            identity: conn.subject.identity,
             everywhere: &scope.everywhere,
             kinds: &kinds,
             visible,
@@ -935,6 +942,7 @@ impl Hub {
                             (
                                 k,
                                 SubjectSight {
+                                    identity: k.identity,
                                     everywhere: &scope.everywhere,
                                     kinds: &kinds,
                                     visible: visible.clone(),

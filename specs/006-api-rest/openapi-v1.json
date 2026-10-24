@@ -814,6 +814,14 @@
             },
             "type": "array"
           },
+          "draft": {
+            "description": "The draft it was submitted from (spec 024, REQ-024-5); absent otherwise.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "expires_at": {
             "description": "The end of the wait for a decision, RFC 3339.",
             "type": [
@@ -1790,6 +1798,239 @@
         },
         "type": "object"
       },
+      "Draft": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DraftSummary",
+            "description": "What the list shows."
+          },
+          {
+            "properties": {
+              "operations": {
+                "description": "Its operations, `Operation`s of the contract, in order.",
+                "items": {
+                  "$ref": "#/components/schemas/Operation"
+                },
+                "type": "array"
+              },
+              "reason": {
+                "$ref": "#/components/schemas/DraftReason",
+                "description": "The motive it submits."
+              }
+            },
+            "required": [
+              "reason",
+              "operations"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "A draft, whole."
+      },
+      "DraftChange": {
+        "additionalProperties": false,
+        "description": "The body of a modification: each member given replaces its own.",
+        "properties": {
+          "operations": {
+            "description": "Operations that replace its own.",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DraftReason",
+                "description": "The motive it will submit."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "1 to 200 characters.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DraftCreation": {
+        "additionalProperties": false,
+        "description": "The body of a creation.",
+        "properties": {
+          "operations": {
+            "description": "Its first operations.",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DraftReason",
+                "description": "The motive it will submit."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "1 to 200 characters.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "DraftList": {
+        "description": "The drafts of an identity: at most 50, no page.",
+        "properties": {
+          "items": {
+            "description": "The most recently modified first.",
+            "items": {
+              "$ref": "#/components/schemas/DraftSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "DraftOperations": {
+        "additionalProperties": false,
+        "description": "The body of an addition.",
+        "properties": {
+          "operations": {
+            "description": "Operations added after its own, in order.",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "type": "object"
+      },
+      "DraftReason": {
+        "additionalProperties": false,
+        "description": "What a draft submits as its motive (M9): a summary, and a description.",
+        "properties": {
+          "description": {
+            "description": "The rest of the motive.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "description": "The first line of the motive.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DraftSubmission": {
+        "additionalProperties": false,
+        "description": "The body of a simulation or a submission: the period of the changeset.",
+        "properties": {
+          "valid_from": {
+            "description": "The start of the period of the changeset, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the changeset, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DraftSummary": {
+        "description": "A draft as listed: without its operations.",
+        "properties": {
+          "author": {
+            "description": "Its author.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "Creation, RFC 3339.",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "When the retention deletes it, RFC 3339: announced from 7 days before, after 83\ndays without modification (REQ-024-7); absent until then.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "operation_count": {
+            "description": "The number of its operations.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Title.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last modification, RFC 3339.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version, its entity tag.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "href",
+          "author",
+          "title",
+          "operation_count",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "EnumValueItem": {
         "description": "A value of a closed list: its key and its period (spec 018, REQ-018-22); its labels\ncome from the dictionary `GET /v1/labels` (space `value`).",
         "properties": {
@@ -1899,6 +2140,35 @@
         "required": [
           "changeset",
           "state"
+        ],
+        "type": "object"
+      },
+      "EventDraft": {
+        "description": "The data of `draft`: a draft of the subscriber changed (spec 024, REQ-024-6); its\nauthor alone receives it, never its content.",
+        "properties": {
+          "deleted": {
+            "description": "`true`: deleted, submitted or taken over by someone else.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "The draft.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "description": "Its new version; absent when it is deleted.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -15421,6 +15691,719 @@
         ]
       }
     },
+    "/v1/drafts": {
+      "get": {
+        "operationId": "list_drafts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftList"
+                }
+              }
+            },
+            "description": "The drafts of the caller, the most recently modified first."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/drafts`: the drafts of the caller, without their operations.",
+        "tags": [
+          "changesets"
+        ]
+      },
+      "post": {
+        "operationId": "create_draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "Created; `ETag` its version, `Location` its URL."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Beyond 50 drafts or 10 000 operations (`draft-limit`), or a title out of bounds."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/drafts`: a new draft of the caller, audited (REQ-024-6); 50 at most.",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      }
+    },
+    "/v1/drafts/{id}": {
+      "delete": {
+        "operationId": "delete_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the draft read.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Modified since."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`DELETE /v1/drafts/{id}`: by its author, or by an administrator; under `If-Match`,\naudited with its author (REQ-024-6, 7a).",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      },
+      "get": {
+        "operationId": "get_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "The draft; `ETag` its version."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/drafts/{id}`: the draft whole, to its author; to an administrator, audited\nwith its author (REQ-024-7a).",
+        "tags": [
+          "changesets"
+        ]
+      },
+      "patch": {
+        "operationId": "update_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the draft read.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "Modified; `ETag` its new version."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Modified since (another tab, another device)."
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`If-Match` is missing."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under\n`If-Match` (REQ-024-3); not audited (REQ-024-6).",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      }
+    },
+    "/v1/drafts/{id}/operations": {
+      "post": {
+        "operationId": "add_draft_operations",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the draft read.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftOperations"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "Added; `ETag` its new version."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Modified since."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Beyond 10 000 operations (`draft-limit`)."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/drafts/{id}/operations`: operations added after its own, under `If-Match`.",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      }
+    },
+    "/v1/drafts/{id}/simulation": {
+      "post": {
+        "operationId": "simulate_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DraftSubmission"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "description": "The period of the changeset; none by default."
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated: violations, differential, sections."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/drafts/{id}/simulation`: as `POST /v1/changesets?simulate=true`, under the\nrights of its author now (REQ-024-4): nothing is written.",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      }
+    },
+    "/v1/drafts/{id}/submission": {
+      "post": {
+        "operationId": "submit_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the draft read: when given, a draft modified since is not submitted (412).",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Makes the submission idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DraftSubmission"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "description": "The period of the changeset; none by default."
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Applied by its author (`apply=own`); the draft is deleted."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Submitted, pending its application; the draft is deleted."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's."
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Modified since the ETag of `If-Match`."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Refused (violations, motive missing): the draft stays."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/drafts/{id}/submission[?apply=own]`: the changeset of the draft, by the\nordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending\n(202) or applied by its author (201), it names the draft, which is deleted with it;\nrefused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried\nonce the draft is gone, the first answer comes again.",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      }
+    },
+    "/v1/drafts/{id}/takeover": {
+      "post": {
+        "operationId": "take_over_draft",
+        "parameters": [
+          {
+            "description": "The draft.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the draft read.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "The draft, now the caller's; `ETag` its new version."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Absent, or someone else's without `core.draft.admin`."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The draft is the caller's already."
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Modified since."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The caller keeps 50 drafts already (`draft-limit`)."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/drafts/{id}/takeover`: the draft of someone else becomes the caller's, under\n`core.draft.admin` and `If-Match`; it leaves the drafts of its former author. Audited\nwith its former author (REQ-024-7a).",
+        "tags": [
+          "changesets"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
+      }
+    },
     "/v1/entities": {
       "get": {
         "operationId": "list_entities",
@@ -16601,7 +17584,7 @@
             }
           },
           {
-            "description": "Kinds of event among `changes`, `changeset`, `labels`; `ready` and `reset` always\ncome.",
+            "description": "Kinds of event among `changes`, `changeset`, `labels`, `draft`; `ready` and\n`reset` always come.",
             "in": "query",
             "name": "kinds",
             "required": false,
@@ -16640,7 +17623,7 @@
                 }
               }
             },
-            "description": "The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`."
+            "description": "The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`."
           },
           "400": {
             "content": {
@@ -16713,6 +17696,9 @@
           },
           "changeset": {
             "$ref": "#/components/schemas/EventChangeset"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/EventDraft"
           },
           "labels": {
             "$ref": "#/components/schemas/EventLabels"
@@ -18927,6 +19913,59 @@
         "x-kartenn": {
           "simulate": true
         }
+      }
+    },
+    "/v1/identities/{id}/drafts": {
+      "get": {
+        "operationId": "list_identity_drafts",
+        "parameters": [
+          {
+            "description": "The identity.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftList"
+                }
+              }
+            },
+            "description": "Its drafts, the most recently modified first."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Someone else's without `core.draft.admin`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/identities/{id}/drafts`: the drafts of an identity, under `core.draft.admin`\nfor someone else's, the listing audited with that identity (REQ-024-7a).",
+        "tags": [
+          "changesets"
+        ]
       }
     },
     "/v1/identities/{id}/pseudonymisation": {

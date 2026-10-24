@@ -11,12 +11,13 @@ use kartenn_service::authz::Subject;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-/// The four periodic tasks of the migration.
-const SEEDED: [&str; 4] = [
+/// The periodic tasks of the migrations.
+const SEEDED: [&str; 5] = [
     "expire-pending",
     "reevaluate-expected",
     "public-drift",
     "idempotency-purge",
+    "draft-retention",
 ];
 
 /// Counts the runs by task, each taking a little time.

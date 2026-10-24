@@ -23,6 +23,8 @@ pub const DEFAULT_BOUND: usize = 1_000;
 const CHANGESET_PREFIX: &str = "org.kartenn.changeset.";
 /// The event of a change of the labels (spec 018, REQ-018-18).
 const LABELS_CHANGED: &str = "org.kartenn.labels.changed";
+/// The event of a draft (spec 024, REQ-024-6), which only its author receives.
+const DRAFT_CHANGED: &str = "org.kartenn.draft.changed";
 
 /// The kind of an event, its `event:` field (REQ-022-3, amended by REQ-018-18).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -35,13 +37,15 @@ pub enum Kind {
     Changeset,
     /// The revision of the labels changed (spec 018).
     Labels,
+    /// A draft of the subscriber changed (spec 024, REQ-024-6).
+    Draft,
     /// Invalidate everything.
     Reset,
 }
 
 impl Kind {
     /// The kinds a subscriber may select with `kinds`; `ready` and `reset` always come.
-    pub const SELECTABLE: [Self; 3] = [Self::Changes, Self::Changeset, Self::Labels];
+    pub const SELECTABLE: [Self; 4] = [Self::Changes, Self::Changeset, Self::Labels, Self::Draft];
 
     /// Its name on the wire.
     #[must_use]
@@ -51,6 +55,7 @@ impl Kind {
             Self::Changes => "changes",
             Self::Changeset => "changeset",
             Self::Labels => "labels",
+            Self::Draft => "draft",
             Self::Reset => "reset",
         }
     }
@@ -134,6 +139,15 @@ pub enum Body {
     Labels {
         /// The new revision.
         revision: String,
+    },
+    /// A draft changed (spec 024, REQ-024-6): its author alone receives it.
+    Draft {
+        /// The draft.
+        draft: Uuid,
+        /// Its author.
+        author: Uuid,
+        /// Its new version; `None`: deleted (or taken over by someone else).
+        version: Option<i64>,
     },
 }
 
@@ -222,6 +236,20 @@ pub fn translate(row: OutboxRow<'_>, kind_of: &dyn Fn(Uuid) -> Option<String>) -
             .map(|revision| notice(Body::Labels { revision }))
             .into_iter()
             .collect();
+    }
+    if kind == DRAFT_CHANGED {
+        let (Some(draft), Some(author)) = (
+            data.get("draft").and_then(uuid_of),
+            data.get("author").and_then(uuid_of),
+        ) else {
+            return Vec::new();
+        };
+        let version = data.get("version").and_then(Value::as_i64);
+        return vec![notice(Body::Draft {
+            draft,
+            author,
+            version,
+        })];
     }
     if let Some(state) = kind.strip_prefix(CHANGESET_PREFIX) {
         let changeset = row
@@ -487,6 +515,9 @@ pub trait Sight {
     fn sees(&self, id: Uuid) -> bool;
     /// Whether the changeset `id` is theirs or theirs to validate.
     fn follows(&self, changeset: Uuid) -> bool;
+    /// Whether the subscriber is the identity `id` (the author of a draft, spec 024,
+    /// REQ-024-6).
+    fn is(&self, id: Uuid) -> bool;
 }
 
 /// `notice` as one connection receives it, after its `filters` and what it may see;
@@ -510,6 +541,19 @@ pub fn render(
         } => (filters.selects(Kind::Changeset) && sight.follows(*changeset)).then(|| Rendered {
             kind: Kind::Changeset,
             data: json!({ "changeset": changeset, "state": state }).to_string(),
+            objects: Vec::new(),
+        }),
+        Body::Draft {
+            draft,
+            author,
+            version,
+        } => (filters.selects(Kind::Draft) && sight.is(*author)).then(|| Rendered {
+            kind: Kind::Draft,
+            data: match version {
+                Some(version) => json!({ "id": draft, "version": version }),
+                None => json!({ "id": draft, "deleted": true }),
+            }
+            .to_string(),
             objects: Vec::new(),
         }),
         Body::Changes(changes) => {
@@ -770,6 +814,9 @@ mod tests {
         fn follows(&self, _: Uuid) -> bool {
             true
         }
+        fn is(&self, _: Uuid) -> bool {
+            false
+        }
     }
 
     struct Only(Vec<Uuid>);
@@ -778,6 +825,9 @@ mod tests {
             self.0.contains(&id)
         }
         fn follows(&self, id: Uuid) -> bool {
+            self.0.contains(&id)
+        }
+        fn is(&self, id: Uuid) -> bool {
             self.0.contains(&id)
         }
     }
@@ -938,6 +988,37 @@ mod tests {
         let rendered = render(&notices[0], &Filters::default(), &Only(vec![]), 10).unwrap();
         assert_eq!(rendered.kind, Kind::Labels);
         assert_eq!(rendered.data, r#"{"revision":"18-9f"}"#);
+    }
+
+    #[test]
+    fn a_draft_reaches_its_author_alone() {
+        // Spec 024, REQ-024-6: identifier and version, never its content.
+        let (draft, author) = (id(900), id(901));
+        let changed = json!({"type": "org.kartenn.draft.changed",
+                             "data": {"draft": draft, "author": author, "version": 3}});
+        let notices = translate(row(&changed, &[], &[]), &kinds);
+        let rendered = render(&notices[0], &Filters::default(), &Only(vec![author]), 10).unwrap();
+        assert_eq!(rendered.kind, Kind::Draft);
+        assert_eq!(
+            rendered.data,
+            json!({"id": draft, "version": 3}).to_string()
+        );
+        // Someone else, even who sees everything, receives nothing.
+        assert!(render(&notices[0], &Filters::default(), &All, 10).is_none());
+        assert!(render(&notices[0], &Filters::default(), &Only(vec![draft]), 10).is_none());
+        let deleted = json!({"type": "org.kartenn.draft.changed",
+                             "data": {"draft": draft, "author": author, "deleted": true}});
+        let notices = translate(row(&deleted, &[], &[]), &kinds);
+        let rendered = render(&notices[0], &Filters::default(), &Only(vec![author]), 10).unwrap();
+        assert_eq!(
+            rendered.data,
+            json!({"id": draft, "deleted": true}).to_string()
+        );
+        let others = Filters {
+            kinds: Some(BTreeSet::from([Kind::Changes])),
+            ..Filters::default()
+        };
+        assert!(render(&notices[0], &others, &Only(vec![author]), 10).is_none());
     }
 
     #[test]

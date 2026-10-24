@@ -54,6 +54,8 @@ pub struct ChangesetRead {
     pub validator: Option<Uuid>,
     /// The requester a service account wrote it for (REQ-016-12).
     pub on_behalf_of: Option<Uuid>,
+    /// The draft it was submitted from (spec 024, REQ-024-5).
+    pub draft: Option<Uuid>,
     /// Start of its period.
     pub valid_from: OffsetDateTime,
     /// End of its period; `None`: infinity.
@@ -118,6 +120,7 @@ struct Row {
     submitted_at: OffsetDateTime,
     validator_id: Option<Uuid>,
     on_behalf_of: Option<Uuid>,
+    draft_id: Option<Uuid>,
     valid_from: OffsetDateTime,
     valid_to: Option<OffsetDateTime>,
     applied_at: Option<OffsetDateTime>,
@@ -137,7 +140,7 @@ struct Row {
 /// Database or decoding errors.
 pub async fn find(pool: &PgPool, id: Uuid) -> Result<Option<ChangesetRead>, StoreError> {
     let row: Option<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT {SUMMARY}, validator_id, on_behalf_of, lower(default_period) AS valid_from,
+        "SELECT {SUMMARY}, validator_id, on_behalf_of, draft_id, lower(default_period) AS valid_from,
                 upper(default_period) AS valid_to, applied_at, expires_at, policy_id,
                 rejection, violations, anomalies, diff_summary, cascaded
          FROM changeset WHERE id = $1"
@@ -162,6 +165,7 @@ pub async fn find(pool: &PgPool, id: Uuid) -> Result<Option<ChangesetRead>, Stor
         )),
         validator: row.validator_id,
         on_behalf_of: row.on_behalf_of,
+        draft: row.draft_id,
         valid_from: row.valid_from,
         valid_to: row.valid_to,
         applied_at: row.applied_at,

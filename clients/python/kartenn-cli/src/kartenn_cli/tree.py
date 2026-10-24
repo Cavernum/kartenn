@@ -38,8 +38,8 @@ __all__ = [
     "module_unavailable",
 ]
 
-# Collections reached by named commands only (`changeset`, `import`).
-NAMED_RESOURCES = frozenset({"changesets", "imports", "proposals"})
+# Collections reached by named commands only (`changeset`, `drafts`, `import`).
+NAMED_RESOURCES = frozenset({"changesets", "drafts", "imports", "proposals"})
 # The names of the first level that are not the collection's own.
 TOP_ALIASES = {"audit-events": "audit"}
 # Modules a server may lack: their commands answer `client.module-unavailable`, not

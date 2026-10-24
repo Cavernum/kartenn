@@ -38,6 +38,7 @@
   
   Écritures:
     changeset  Composer, simuler, appliquer, instruire des changesets.
+    drafts     Lister, lire, soumettre, supprimer ses brouillons gardés par le serveur.
     import     Importer un fichier par morceaux, avec reprise.
   
   Droits et audit:

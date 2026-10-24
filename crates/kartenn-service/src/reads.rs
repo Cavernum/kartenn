@@ -31,6 +31,13 @@ pub const CHANGESET_READ_PERMISSION: &str = "core.changeset.read";
 /// The object that stands for the journal of the changesets in authorisations.
 pub const CHANGESETS: Uuid = Uuid::from_u128(3);
 
+/// The permission to list, read, delete and take over the drafts of someone else (spec
+/// 024, REQ-024-7a), on [`DRAFTS`]; global only.
+pub const DRAFT_ADMIN_PERMISSION: &str = "core.draft.admin";
+
+/// The object that stands for the drafts of every identity in authorisations.
+pub const DRAFTS: Uuid = Uuid::from_u128(4);
+
 /// Permission to read the administration of the rights (006/REQ-006-4; design « Droits »):
 /// roles, bindings, attachments, service accounts and identities, on
 /// [`crate::rbac::RBAC_OBJECT`]; global only.
@@ -354,6 +361,28 @@ pub async fn rbac_readable<A: Authorizer, J: AuditJournal>(
         context,
         RBAC_READ_PERMISSION,
         ("rbac", crate::rbac::RBAC_OBJECT),
+    )
+    .await
+}
+
+/// Whether the actor of `context` may administer the drafts of someone else
+/// ([`DRAFT_ADMIN_PERMISSION`], spec 024, REQ-024-7a); a refusal is audited
+/// (`authz.access.denied`).
+///
+/// # Errors
+///
+/// As [`changesets_readable`].
+pub async fn drafts_administrable<A: Authorizer, J: AuditJournal>(
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+) -> Result<(), RequestError> {
+    globally(
+        authorizer,
+        journal,
+        context,
+        DRAFT_ADMIN_PERMISSION,
+        ("draft", DRAFTS),
     )
     .await
 }

@@ -89,18 +89,65 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P1 — Serveur (en parallèle, après P0)
 
-- [ ] 5. Table `draft`, routes, 404 d'un autre, If-Match, limites, rétention annoncée,
+- [x] 5. Table `draft`, routes, 404 d'un autre, If-Match, limites, rétention annoncée,
   reprise par `core.draft.admin` (lecture, suppression, attribution, toutes auditées) —
   REQ-024-1, 2, 3, 7, 7a — verify : tests d'intégration par route ; audit d'une lecture
   par l'administrateur
-  - où : `crates/kartenn-store-pg/migrations/0062_drafts.sql` ;
-    `crates/kartenn-rest/src/drafts.rs` (modèle : `changesets.rs`) ; job dans
-    `crates/kartenn-server` (jobs) ; design « A »
-- [ ] 6. Simulation et soumission d'un brouillon (`?apply=own`), audit, SSE `draft`
+  - où : `crates/kartenn-store-pg/migrations/0064_drafts.sql` ;
+    `crates/kartenn-store-pg/src/drafts.rs` ; `crates/kartenn-rest/src/drafts.rs`
+    (modèle : `changesets.rs`) ; job `draft-retention` dans `crates/kartenn-server/src/jobs.rs` ;
+    design « A »
+  - Résultat : `crates/kartenn-rest/tests/it/drafts.rs` (cycle sous If-Match, 404 d'un
+    autre, compte de service, limites, rétention annoncée puis appliquée, administrateur :
+    liste, lecture, suppression, reprise auditées) ; `k-check` vert.
+- [x] 6. Simulation et soumission d'un brouillon (`?apply=own`), audit, SSE `draft`
   filtré par auteur — REQ-024-4, 5, 6 — verify : brouillon gardé en 422, supprimé en
   201/202 ; flux d'un autre sans l'événement
   - où : `drafts.rs` ; distributeur de la 022 (`crates/kartenn-rest/src/events/hub.rs`,
-    `stream.rs` : contrôle des droits à la remise)
+    `stream.rs` : contrôle des droits à la remise) ; `crates/kartenn-store-pg/src/write.rs`
+    (journal du changeset) ; `kartenn_service::events` (`Body::Draft`, `Sight::is`)
+  - Résultat : `a_submission_replaces_the_draft_or_leaves_it`,
+    `a_draft_submitted_pending_is_deleted_too` (REST), `a_draft_event_reaches_its_author_alone`
+    (flux), `a_draft_reaches_its_author_alone` (rendu) ; client `kn.drafts`, CLI
+    `kartenn drafts list|show|submit|delete` ; `k-py-check` vert.
+  - Choix tranchés (5, 6) :
+    - Migration 0064 (0062, 0063 prises) ; `changeset.draft_id` sans référence (le
+      brouillon disparaît), exposé `draft` dans la vue d'un changeset ; tâche
+      `draft-retention` quotidienne.
+    - Compte de service : 403 sur toute route `/v1/drafts…` (message explicite), plutôt
+      que 404 : il n'a jamais de brouillon, rien à cacher.
+    - Brouillon d'un autre sans `core.draft.admin` : 404 sans audit de refus ;
+      `GET /v1/identities/{id}/drafts` d'un autre sans elle : 403 audité
+      (`authz.access.denied`), le sien permis. Permission globale vérifiée sur l'objet
+      sentinelle `reads::DRAFTS` (`Uuid::from_u128(4)`).
+    - Reprise : `If-Match` exigé, 409 si le brouillon est déjà à l'appelant, 422
+      `draft-limit` si l'appelant en garde 50 ; l'ancien auteur reçoit `{id, deleted}`.
+    - Audit : `draft.state.created` (`operations`), `draft.state.submitted` (`state`, dans
+      la transaction du changeset), `draft.state.deleted` (`cause` `author` | `admin` |
+      `expired`, `author`), `draft.admin.read` (`author`, `count` : liste et lecture),
+      `draft.admin.taken_over` (`author`) ; criticité haute pour les deux derniers.
+    - Problème nouveau `draft-limit` (422) : 51ᵉ brouillon, plus de 10 000 opérations.
+      Titre de 1 à 200 caractères (422 `invalid-member`) ; opération invalide → 400 avec
+      `pointer`.
+    - `expires_at` présent seulement à partir du 83ᵉ jour sans modification (absent
+      avant).
+    - Motif : `reason {summary, description}` → `summary`, puis une ligne vide et la
+      description ; la simulation prend le titre à défaut de résumé ; la soumission sans
+      résumé répond 422 `motive-required`, le brouillon reste.
+    - Soumission : corps facultatif `{valid_from, valid_to}` ; `If-Match` facultatif (412
+      si le brouillon a changé) ; `?simulate=true` vaut simulation. Le brouillon est
+      supprimé dans la transaction du changeset (`RequestContext::draft` →
+      `Journal::draft`), à la version lue seulement : modifié entre-temps, il reste.
+      Rejouée avec la même `Idempotency-Key` une fois le brouillon parti, la soumission
+      rend la première réponse (`idempotency_key` × `changeset.draft_id`).
+    - Événement : ligne d'outbox `org.kartenn.draft.changed` sans changeset
+      (`{draft, author, version}` ou `deleted`), sorte `draft` sélectionnable par `kinds`,
+      remise si l'identité du flux est l'auteur (`Sight::is`). Un relais CloudEvents futur
+      devra l'écarter (aucun en production).
+    - Liste sans pagination (50 au plus) : `{items}`, compte `operation_count`.
+    - Client : `submit` lit le brouillon pour son `If-Match` ; CLI : création,
+      modification, ajout, simulation et reprise restent à `kartenn api` (exclues de la
+      couverture), la collection `drafts` passe en commande nommée.
 - [ ] 7. `GET /v1/stats`, port `StatsContributor` des modules, cache par empreinte des
   droits, SSE `stats` regroupé, scénario de banc — REQ-024-14, 15, 16 — verify : tests
   de filtrage par les droits ; `bench-core` scénario `stats` p95 ≤ 200 ms (lancé par

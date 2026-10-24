@@ -14,6 +14,7 @@ pub mod csrf;
 pub mod cursor;
 mod cycle;
 pub mod dated;
+mod drafts;
 pub mod error;
 pub mod events;
 pub mod filter;
@@ -78,6 +79,7 @@ pub fn api_with(
         .merge(tree::routes())
         .merge(anomalies::routes())
         .merge(changesets::routes())
+        .merge(drafts::routes())
         .merge(properties::routes())
         .merge(rights::routes())
         .merge(imports::routes())

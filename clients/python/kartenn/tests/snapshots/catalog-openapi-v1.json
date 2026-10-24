@@ -98,6 +98,20 @@
    "object:update:modify_domain"
   ]
  },
+ "drafts": {
+  "module": "changesets",
+  "verbs": [
+   "collection:create:create_draft",
+   "collection:list:list_drafts",
+   "object:close:delete_draft",
+   "object:get:get_draft",
+   "object:operations:add_draft_operations",
+   "object:simulation:simulate_draft",
+   "object:submission:submit_draft",
+   "object:takeover:take_over_draft",
+   "object:update:update_draft"
+  ]
+ },
  "entities": {
   "module": "core",
   "verbs": [
@@ -171,6 +185,7 @@
   "module": "rights",
   "verbs": [
    "collection:list:list_identities",
+   "object:drafts:list_identity_drafts",
    "object:get:show_identity",
    "object:pseudonymisation:pseudonymise_identity",
    "object:update:set_identity_state"

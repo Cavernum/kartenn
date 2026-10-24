@@ -525,6 +525,74 @@ async fn a_subscriber_receives_only_what_it_may_read_and_asked_for(pool: PgPool)
     );
 }
 
+/// Spec 024, REQ-024-6: the event of a draft reaches the streams of its author alone,
+/// identifier and version only; even who reads everything receives nothing of it.
+#[kartenn_testing::pg_test]
+async fn a_draft_event_reaches_its_author_alone(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let author = person(&pool, &[], ("global", None)).await;
+    let other = person(&pool, &READ_ALL, ("global", None)).await;
+    let mine = app(&pool, &ring, &i.hub, author);
+    let theirs = app(&pool, &ring, &i.hub, other);
+    let (_, mut own) = open(&mine, "/v1/events", None).await;
+    let (_, mut foreign) = open(&theirs, "/v1/events", None).await;
+    assert_eq!(own.next(WAIT).await.unwrap().event, "ready");
+    assert_eq!(foreign.next(WAIT).await.unwrap().event, "ready");
+    let write = |method: &str, uri: &str, version: Option<i64>, body: Option<Value>| {
+        let mut r = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::AUTHORIZATION, "Bearer t");
+        if let Some(v) = version {
+            r = r.header(header::IF_MATCH, format!("\"{v}\""));
+        }
+        match body {
+            Some(b) => r
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(b.to_string()))
+                .unwrap(),
+            None => r.body(Body::empty()).unwrap(),
+        }
+    };
+    let created = mine
+        .clone()
+        .oneshot(write(
+            "POST",
+            "/v1/drafts",
+            None,
+            Some(json!({"title": "Private"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let bytes = created.into_body().collect().await.unwrap().to_bytes();
+    let id = serde_json::from_slice::<Value>(&bytes).unwrap()["id"].clone();
+    let e = own.next_of("draft", WAIT).await.expect("a draft event");
+    assert_eq!(data(&e), json!({"id": id, "version": 1}));
+    let deleted = mine
+        .clone()
+        .oneshot(write(
+            "DELETE",
+            &format!("/v1/drafts/{}", id.as_str().unwrap()),
+            Some(1),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(deleted.status(), StatusCode::NO_CONTENT);
+    let e = own.next_of("draft", WAIT).await.expect("its deletion");
+    assert_eq!(data(&e), json!({"id": id, "deleted": true}));
+    assert!(
+        foreign
+            .drain(Duration::from_millis(800))
+            .await
+            .iter()
+            .all(|e| e.event != "draft"),
+        "nothing of a draft of someone else"
+    );
+}
+
 /// REQ-022-7, 8, 27: a cut during three changesets, resumed on another instance with the
 /// last cursor: the three come, in order; a cursor altered or of another identity starts
 /// over (`reset`), never an error.
