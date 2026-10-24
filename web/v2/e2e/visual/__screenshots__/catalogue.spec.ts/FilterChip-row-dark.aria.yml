@@ -1,0 +1,13 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - figure "row — Une rangée de filtres":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button "Responsable contient (en brouillon)"
+      - button "Retirer le filtre Responsable contient"
+      - code: row
+      - text: ""

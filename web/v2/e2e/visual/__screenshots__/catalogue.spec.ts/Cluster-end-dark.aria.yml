@@ -1,0 +1,8 @@
+- main:
+  - region "Cluster":
+    - heading "Cluster" [level=1]
+    - paragraph: "Motif : — (mise en page en rangée)"
+    - figure "end — Alignés à la fin":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4
+      - code: end
+      - text: ""

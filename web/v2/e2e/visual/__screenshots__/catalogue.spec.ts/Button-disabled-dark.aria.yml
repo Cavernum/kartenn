@@ -1,0 +1,8 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "disabled — Désactivé":
+      - button "Appliquer" [disabled]
+      - code: disabled
+      - text: ""

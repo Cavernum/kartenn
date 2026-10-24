@@ -101,6 +101,15 @@ et 4,41:1 ; 4,62 et 4,64:1 après).
 | `--k-band-bg` | `#fff4dc` | `#3a2c0c` | bande « hors présent » |
 | `--k-band-fg` | `#6b4400` | `#f2cf8a` | texte de la bande |
 
+Interaction (tâche 10, 2026-10-24), tirés des précédents par `color-mix` dans le fichier
+des jetons, donc justes dans les deux modes : `--k-hover` (texte 6 % sur `surface`,
+survol d'un contrôle neutre ou d'une ligne), `--k-active` (11 %, appui, bouton enfoncé),
+`--k-accent-hover` et `--k-danger-hover` (l'accent ou `ko` mêlé de 14 % de texte),
+`--k-danger` (= `state-ko-fg`) et `--k-danger-fg` (= `accent-fg`) ; `--k-scrim` (voile
+d'un dialogue modal, `rgb(16 24 40 / .36)` en clair, `rgb(0 0 0 / .56)` en sombre). Le
+test des contrastes couvre `text` sur `hover` et `active`, `accent-fg` sur
+`accent-hover`, `danger-fg` sur `danger` et `danger-hover`.
+
 Contrastes calculés le 2026-10-23 (à recalculer par le test) : `text`/`surface` 17,6 et
 14,3 ; `text-muted`/`accent-soft` 4,64 et 5,02 ; `accent`/`surface` 6,67 et 5,52 ;
 `border-control`/`surface` 3,5 et 3,4 ; `band-fg`/`band-bg` 7,8 et 9,1 ;
@@ -203,7 +212,19 @@ zone cliquable de 24 px par son étiquette ou sa cellule.
 `cubic-bezier(.2, 0, 0, 1)` ; `--k-ease-exit` `cubic-bezier(.4, 0, 1, 1)`. Sous
 `prefers-reduced-motion: reduce`, toutes les durées valent 0 ms sauf `--k-duration-fade`
 (80 ms, opacité seule). Aucune animation en boucle hors indicateur de chargement, lui-même
-remplacé par un squelette statique sous mouvement réduit.
+remplacé par un squelette statique sous mouvement réduit. `--k-duration-spin` (900 ms,
+0 sous mouvement réduit) et `--k-ease-linear` font tourner cet indicateur (tâche 10).
+
+### Tailles (tâches 10 à 12, 2026-10-24)
+
+Largeurs du cadre et des couches, pour qu'aucun écran n'en écrive : `--k-size-sidebar`
+208 px et `-sidebar-collapsed` 48 px, `--k-size-status-bar` 40 px (spec 021, « Cadre ») ;
+`--k-size-panel-sm` / `-md` / `-lg` 240 / 320 / 420 px (côté d'un `Split`, tiroir,
+popover) ; `--k-size-dialog-sm` / `-md` / `-lg` 400 / 560 / 720 px ; `--k-size-menu-min`
+180 px ; `--k-size-tooltip-max` 280 px ; `--k-size-field` 240 px ; colonnes de grille
+`--k-size-col-xs` / `-sm` / `-md` / `-lg` 56 / 96 / 160 / 240 px, `fill` valant
+`minmax(md, 1fr)`. Un test vérifie que toute propriété lue par une feuille existe (jeton
+public, alias local déclaré, ou valeur posée par CSSOM).
 
 ## Architecture CSS (REQ-020-12 à 14)
 

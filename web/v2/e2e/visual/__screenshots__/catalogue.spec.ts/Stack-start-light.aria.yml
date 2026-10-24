@@ -1,0 +1,8 @@
+- main:
+  - region "Stack":
+    - heading "Stack" [level=1]
+    - paragraph: "Motif : — (mise en page verticale)"
+    - figure "start — Alignés au début":
+      - text: Bloc 1 Bloc 2 Bloc 3
+      - code: start
+      - text: ""

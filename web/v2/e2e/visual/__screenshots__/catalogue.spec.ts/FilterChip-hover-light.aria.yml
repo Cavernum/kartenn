@@ -1,0 +1,9 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - figure "hover — Survol":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - code: hover
+      - text: ""

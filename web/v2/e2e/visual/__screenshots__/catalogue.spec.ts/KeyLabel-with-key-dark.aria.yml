@@ -1,0 +1,9 @@
+- main:
+  - region "KeyLabel":
+    - heading "KeyLabel" [level=1]
+    - paragraph: "Motif : — (libellé, à défaut la clé)"
+    - figure "with-key — Libellé et clé côte à côte":
+      - text: Centre de données sud
+      - code: dc-sud
+      - code: with-key
+      - text: ""

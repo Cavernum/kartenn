@@ -1,0 +1,8 @@
+- main:
+  - region "Stack":
+    - heading "Stack" [level=1]
+    - paragraph: "Motif : — (mise en page verticale)"
+    - figure "gap-2 — Écart 8 px (défaut)":
+      - text: Bloc 1 Bloc 2 Bloc 3
+      - code: gap-2
+      - text: ""

@@ -1,0 +1,9 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "ok — Succès":
+      - status:
+        - paragraph: Le changeset est appliqué.
+      - code: ok
+      - text: ""

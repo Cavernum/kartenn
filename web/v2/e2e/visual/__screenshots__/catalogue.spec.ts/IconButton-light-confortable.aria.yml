@@ -1,0 +1,44 @@
+- main:
+  - region "IconButton":
+    - heading "IconButton" [level=1]
+    - paragraph: "Motif : Button (nom accessible obligatoire)"
+    - figure "ghost — Discret (barres d'outils, lignes)":
+      - button "Actions"
+      - code: ghost
+      - text: ""
+    - figure "secondary — Secondaire":
+      - button "Recharger"
+      - code: secondary
+      - text: ""
+    - figure "primary — Principal":
+      - button "Créer"
+      - code: primary
+      - text: ""
+    - figure "hover — Survol":
+      - button "Modifier"
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - button "Modifier"
+      - code: focus
+      - text: ""
+    - figure "pressed — Bascule enfoncée":
+      - button "Barre latérale" [pressed]
+      - code: pressed
+      - text: ""
+    - figure "loading — En cours":
+      - button "Recharger" [disabled]
+      - code: loading
+      - text: ""
+    - figure "disabled — Désactivé":
+      - button "Supprimer" [disabled]
+      - code: disabled
+      - text: ""
+    - figure /small — Petit \(\d+ px en compacte\)/:
+      - button "Fermer"
+      - code: small
+      - text: ""
+    - figure /large — Grand \(\d+ px en compacte\)/:
+      - button "Fermer"
+      - code: large
+      - text: ""

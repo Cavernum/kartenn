@@ -1,0 +1,8 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "shortcut — Raccourci affiché (aria-keyshortcuts)":
+      - button "Appliquer"
+      - code: shortcut
+      - text: ""

@@ -1,3 +1,4 @@
+import { setLocale } from "@kartenn/ui";
 import type { LocationQuery } from "vue-router";
 
 /** The switches of the catalogue, read from the query (design « Catalogue »). */
@@ -31,4 +32,5 @@ export function applySwitches(root: HTMLElement, switches: Switches): void {
   if (switches.densite === "confortable") root.dataset.density = "comfortable";
   else delete root.dataset.density;
   root.lang = switches.langue;
+  setLocale(switches.langue);
 }

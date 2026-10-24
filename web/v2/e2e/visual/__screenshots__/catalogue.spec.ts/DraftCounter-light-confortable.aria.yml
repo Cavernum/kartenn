@@ -1,0 +1,20 @@
+- main:
+  - region "DraftCounter":
+    - heading "DraftCounter" [level=1]
+    - paragraph: "Motif : Button (aria-expanded du panneau)"
+    - figure "pending — Opérations en brouillon":
+      - button /Brouillon \( \d+ \)/
+      - code: pending
+      - text: ""
+    - figure "empty — Compteur à 0":
+      - button "Brouillon ( 0 )"
+      - code: empty
+      - text: ""
+    - figure "expanded — Panneau ouvert":
+      - button "Brouillon ( 3 )" [expanded]
+      - code: expanded
+      - text: ""
+    - figure "focus — Focus visible":
+      - button "Brouillon ( 3 )"
+      - code: focus
+      - text: ""

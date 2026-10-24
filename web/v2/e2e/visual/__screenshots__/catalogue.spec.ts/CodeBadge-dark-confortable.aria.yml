@@ -1,0 +1,39 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - figure "code — Code de problème":
+      - button "Copier urn:kartenn:problem:conflict":
+        - text: ""
+        - code: urn:kartenn:problem:conflict
+      - status
+      - code: code
+      - text: ""
+    - figure "labelled — Identifiant de requête, nommé":
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: labelled
+      - text: ""
+    - figure "hover — Survol":
+      - button "Copier prefix.overlaps-sibling":
+        - text: ""
+        - code: prefix.overlaps-sibling
+      - status
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - button "Copier prefix.overlaps-sibling":
+        - text: ""
+        - code: prefix.overlaps-sibling
+      - status
+      - code: focus
+      - text: ""
+    - figure "copied — Copié (annoncé)":
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: copied
+      - text: ""

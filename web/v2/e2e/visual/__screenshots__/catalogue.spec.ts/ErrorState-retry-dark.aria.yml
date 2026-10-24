@@ -1,0 +1,17 @@
+- main:
+  - region "ErrorState":
+    - heading "ErrorState" [level=1]
+    - paragraph: "Motif : role=alert, codes copiables"
+    - figure "retry — Phrase, code, identifiant de requête, Réessayer":
+      - alert: Le service ne répond pas.
+      - button "Copier urn:kartenn:problem:unavailable":
+        - text: ""
+        - code: urn:kartenn:problem:unavailable
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - button "Réessayer"
+      - code: retry
+      - text: ""

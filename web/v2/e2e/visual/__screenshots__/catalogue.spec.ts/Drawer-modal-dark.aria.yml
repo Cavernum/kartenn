@@ -1,0 +1,10 @@
+- main:
+  - dialog "Brouillon":
+    - heading "Brouillon" [level=2]
+    - button "Fermer"
+    - paragraph: 3 opérations, non soumises.
+    - paragraph: /Brouillon \d+\.\d+\.2\.0\/\d+/
+    - paragraph: /Brouillon \d+\.\d+\.2\.0\/\d+/
+    - paragraph: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+    - button "Abandonner"
+    - button "Soumettre"

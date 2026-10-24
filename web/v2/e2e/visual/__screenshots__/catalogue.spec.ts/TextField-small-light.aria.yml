@@ -1,0 +1,9 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - figure /small — Petit \(\d+ px en compacte\), étiquette cachée/:
+      - text: Filtrer
+      - textbox "Filtrer"
+      - code: small
+      - text: ""

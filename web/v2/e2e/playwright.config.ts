@@ -40,6 +40,8 @@ export default defineConfig({
         deviceScaleFactor: 1,
         colorScheme: "light",
         reducedMotion: "reduce",
+        // CodeBadge and KeyLabel copy to the clipboard (REQ-020-22).
+        permissions: ["clipboard-read", "clipboard-write"],
       },
     },
   ],

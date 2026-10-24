@@ -1,0 +1,15 @@
+- main:
+  - region "Tabs":
+    - heading "Tabs" [level=1]
+    - paragraph: "Motif : Tabs (activation manuelle)"
+    - figure "second — Un autre onglet actif, avec compteur":
+      - tablist "Fiche du préfixe":
+        - tab "Attributs"
+        - tab /Adresses \d+/ [selected]
+        - tab "Historique"
+        - tab "VLAN (en chargement)"
+        - tab "Flux (en erreur)"
+      - tabpanel /Adresses \d+/:
+        - paragraph: Panneau « Adresses ».
+      - code: second
+      - text: ""

@@ -1,0 +1,28 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "alignment — Bouton, champ, bouton-icône et pastilles côte à côte, par taille":
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche sm
+      - textbox "Recherche sm":
+        - /placeholder: Préfixe
+      - button "Actions sm"
+      - text: Production Conforme
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche md
+      - textbox "Recherche md":
+        - /placeholder: Préfixe
+      - button "Actions md"
+      - text: Production Conforme
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche lg
+      - textbox "Recherche lg":
+        - /placeholder: Préfixe
+      - button "Actions lg"
+      - text: Production Conforme
+      - code: alignment
+      - text: ""

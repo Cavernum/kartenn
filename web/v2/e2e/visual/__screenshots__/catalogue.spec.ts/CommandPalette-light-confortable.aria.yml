@@ -1,0 +1,19 @@
+- main:
+  - region "CommandPalette":
+    - heading "CommandPalette" [level=1]
+    - paragraph: "Motif : Combobox dans un Dialog modal"
+    - 'figure "open — Ouverte : commandes, navigation, objets récents"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/CommandPalette?mode=light&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - figure "empty — Aucune entrée":
+      - link "Voir l'état empty seul":
+        - /url: /_ui/c/CommandPalette?mode=light&densite=confortable&etat=empty
+      - code: empty
+      - text: ""
+    - figure "loading — Chargement des objets":
+      - link "Voir l'état loading seul":
+        - /url: /_ui/c/CommandPalette?mode=light&densite=confortable&etat=loading
+      - code: loading
+      - text: ""

@@ -1,0 +1,79 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "variants — Les quatre variantes, au repos":
+      - button "primary"
+      - button "secondary"
+      - button "ghost"
+      - button "danger"
+      - code: variants
+      - text: ""
+    - figure "primary — Principal":
+      - button "Appliquer"
+      - code: primary
+      - text: ""
+    - figure "secondary-icon — Secondaire avec icône":
+      - button "Ajouter un préfixe"
+      - code: secondary-icon
+      - text: ""
+    - figure "hover — Survol":
+      - button "Appliquer"
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - button "Annuler"
+      - code: focus
+      - text: ""
+    - figure "pressed — Bouton bascule enfoncé (aria-pressed)":
+      - button "Filtres" [pressed]
+      - code: pressed
+      - text: ""
+    - figure "shortcut — Raccourci affiché (aria-keyshortcuts)":
+      - button "Appliquer"
+      - code: shortcut
+      - text: ""
+    - 'figure "loading — En cours : focalisable, aria-busy"':
+      - button "Appliquer" [disabled]
+      - code: loading
+      - text: ""
+    - figure "disabled — Désactivé":
+      - button "Appliquer" [disabled]
+      - code: disabled
+      - text: ""
+    - figure "danger — Destructif":
+      - button "Supprimer"
+      - code: danger
+      - text: ""
+    - figure /small — Petit \(\d+ px\)/:
+      - button "Modifier"
+      - code: small
+      - text: ""
+    - figure /large — Grand \(\d+ px\)/:
+      - button "Modifier"
+      - code: large
+      - text: ""
+    - figure "alignment — Bouton, champ, bouton-icône et pastilles côte à côte, par taille":
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche sm
+      - textbox "Recherche sm":
+        - /placeholder: Préfixe
+      - button "Actions sm"
+      - text: Production Conforme
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche md
+      - textbox "Recherche md":
+        - /placeholder: Préfixe
+      - button "Actions md"
+      - text: Production Conforme
+      - button "Appliquer"
+      - button "Ajouter"
+      - text: Recherche lg
+      - textbox "Recherche lg":
+        - /placeholder: Préfixe
+      - button "Actions lg"
+      - text: Production Conforme
+      - code: alignment
+      - text: ""

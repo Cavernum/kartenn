@@ -1,0 +1,38 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "ko — Violations sous un formulaire, avec leurs codes":
+      - alert:
+        - paragraph: Le changeset est refusé.
+        - list:
+          - listitem:
+            - text: Le préfixe chevauche un voisin.
+            - button "Copier prefix.overlaps-sibling":
+              - text: ""
+              - code: prefix.overlaps-sibling
+            - status
+          - listitem:
+            - text: Le responsable est inconnu.
+            - button "Copier core.owner.unknown":
+              - text: ""
+              - code: core.owner.unknown
+            - status
+      - code: ko
+      - text: ""
+    - figure "warn — Avertissement":
+      - status:
+        - paragraph: Trois adresses sont hors du préfixe.
+        - text: Elles restent visibles dans la liste des anomalies.
+      - code: warn
+      - text: ""
+    - figure "ok — Succès":
+      - status:
+        - paragraph: Le changeset est appliqué.
+      - code: ok
+      - text: ""
+    - figure "info — Information":
+      - status:
+        - paragraph: "Lecture au passé : la modification est désactivée."
+      - code: info
+      - text: ""

@@ -1,0 +1,9 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - figure "draft — Brouillon de filtre (valeur à choisir)":
+      - button "Responsable contient (en brouillon)"
+      - button "Retirer le filtre Responsable contient"
+      - code: draft
+      - text: ""

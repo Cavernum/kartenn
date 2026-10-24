@@ -1,0 +1,11 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - figure "code — Code de problème":
+      - button "Copier urn:kartenn:problem:conflict":
+        - text: ""
+        - code: urn:kartenn:problem:conflict
+      - status
+      - code: code
+      - text: ""

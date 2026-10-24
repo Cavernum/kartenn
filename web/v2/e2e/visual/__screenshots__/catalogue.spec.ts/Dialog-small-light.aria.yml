@@ -1,0 +1,11 @@
+- main:
+  - dialog "Renommer":
+    - heading "Renommer" [level=2]
+    - button "Fermer"
+    - text: Préfixe (obligatoire)
+    - textbox "Préfixe (obligatoire)": /\d+\.\d+\.\d+\.\d+\/\d+/
+    - text: Nom
+    - textbox "Nom"
+    - paragraph: Visible dans les listes.
+    - button "Annuler"
+    - button "Créer"

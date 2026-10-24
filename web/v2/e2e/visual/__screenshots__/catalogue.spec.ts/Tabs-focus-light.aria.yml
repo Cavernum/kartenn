@@ -1,0 +1,15 @@
+- main:
+  - region "Tabs":
+    - heading "Tabs" [level=1]
+    - paragraph: "Motif : Tabs (activation manuelle)"
+    - figure "focus — Focus visible sur l'onglet actif":
+      - tablist "Fiche du préfixe":
+        - tab "Attributs" [selected]
+        - tab /Adresses \d+/
+        - tab "Historique"
+        - tab "VLAN (en chargement)"
+        - tab "Flux (en erreur)"
+      - tabpanel "Attributs":
+        - paragraph: Panneau « Attributs ».
+      - code: focus
+      - text: ""

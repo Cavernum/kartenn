@@ -71,27 +71,27 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | Composant | Motif APG ou rôle | Statut |
 |---|---|---|
 | `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens (`meaningful` + `label`, vérifié au typage) | ◐ |
-| `Stack`, `Cluster`, `Grid`, `Split` | mise en page | ☐ |
-| `Button`, `IconButton` | Button | ☐ |
-| `TextField`, `FormField` | champ natif étiqueté | ☐ |
+| `Stack`, `Cluster`, `Grid`, `Split` | mise en page ; écart par `gap` (échelle), `Split` dans l'ordre de lecture | ◐ |
+| `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` | ◐ |
+| `TextField`, `FormField` | champ natif étiqueté ; erreur puis aide par `aria-describedby` | ◐ (`TextField`) |
 | `Select`, `Combobox` | Listbox ; Combobox | ☐ |
-| `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ☐ |
+| `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ◐ (`FilterChip`) |
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
 | `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
-| `Tabs` | Tabs (activation manuelle) | ☐ |
-| `Menu`, `MenuButton` | Menu Button, Menu | ☐ |
-| `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog | ☐ |
+| `Tabs` | Tabs (activation manuelle) | ◐ |
+| `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée avec son motif | ◐ |
+| `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; tiroir non modal = `aside` | ◐ |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
 | `Tooltip`, `Popover` | Tooltip ; Dialog non modal | ☐ |
-| `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ☐ |
-| `CommandPalette` | Combobox dans un Dialog modal | ☐ |
-| `DataGrid` | Grid (maison) | ☐ |
-| `TreeGrid`, `Tree` | Treegrid ; Tree View | ☐ |
-| `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier) ; — | ☐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` ; `alert` ; `status` | ☐ |
-| `DatePill`, `DraftCounter`, `TimeBand` | Button ; `status` | ☐ |
-| `Kbd`, `ShortcutHint` | — | ☐ |
-| `DiffList` | liste groupée, Disclosure | ☐ |
+| `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
+| `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
+| `DataGrid` | Grid (maison) ; gabarit `--k-grid-columns` commun à l'en-tête et aux lignes | ◐ |
+| `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` | ◐ (`TreeGrid`) |
+| `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` ; `alert` ; `status` | ◐ |
+| `DatePill`, `DraftCounter`, `TimeBand` | Button ; `status` | ◐ |
+| `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
+| `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
 
 Écrans de référence : les maquettes validées du catalogue (`/_ui/ecrans/E1` à `E10`,
 design § « Maquettes ») ; un écran de la 021 se compare à sa maquette, jamais à
@@ -140,5 +140,12 @@ boutons primaires multiples dans une même zone.
   seulement, relues dans le diff avant commit.
 - Rendu : catalogue `/_ui` (`?mode=light|dark`, `?densite=compacte|confortable`,
   `?langue=fr|en`) ; MCP `playwright`, `browser_snapshot` d'abord.
+- Catalogue : un état = `{ name, description, props }` dans `<Nom>.catalogue.ts`, plus
+  `slot` (texte), `demo` (composition), `interaction` (`hover`, `focus`, `press` joués
+  avant la capture), `wide` (pleine largeur), `isolated` (couche modale : montrée seule,
+  par `?etat=`, et vérifiée par axe sur sa page). Les couches flottantes vont dans
+  `providePortalTarget` (le catalogue les garde dans `main`) ; les liens passent par
+  `provideLink` (le routeur du shell). Captures : un état par mode, plus la page entière
+  en densité confortable.
 - Relectures : sous-agents `ui-reviewer` (maquette, brief, doublons) et `a11y-auditor`
   (motif APG, WCAG 2.2 AA) à la fin de chaque composant, maquette ou écran.

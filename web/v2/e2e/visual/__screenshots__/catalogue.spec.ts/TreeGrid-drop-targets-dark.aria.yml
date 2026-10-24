@@ -1,0 +1,56 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "drop-targets — Glisser : cible acceptée, cible refusée avec motif et code"':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Bases \d+\.\d+\.2\.0\/\d+ \(cible refusée\) Production \d+ %/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+ \(cible refusée\)/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+              - text: ""
+              - status:
+                - text: Un préfixe ne peut contenir un préfixe plus large.
+                - button "Copier prefix.parent-narrower":
+                  - text: ""
+                  - code: prefix.parent-narrower
+                - status
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ \(cible acceptée\) Production \d+ %/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+ \(cible acceptée\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 %/ [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+      - code: drop-targets
+      - text: ""

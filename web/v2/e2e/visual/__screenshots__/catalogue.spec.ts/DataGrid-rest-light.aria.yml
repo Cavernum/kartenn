@@ -1,0 +1,46 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison)"
+    - figure "rest — Tri sur le préfixe, colonnes filtrables, focus sur la première cellule":
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: rest
+      - text: ""

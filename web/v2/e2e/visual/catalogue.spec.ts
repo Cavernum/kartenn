@@ -1,9 +1,19 @@
+import { readdirSync } from "node:fs";
+import type { Page } from "@playwright/test";
 import { expectAccessible, open, snap, test } from "../fixtures/index.ts";
 
 // Captures of the catalogue (spec 020, task 9; REQ-020-26, 27, 28): each page and each
-// declared state of each component, in both modes; the tokens in both densities too.
+// declared state of each component, in both modes; each component page and the tokens in
+// the comfortable density too.
 
 const MODES = ["light", "dark"] as const;
+
+/**
+ * An open modal layer of Reka hides the rest of the page with `aria-hidden` and traps the
+ * focus inside it: the controls left behind are unreachable, which `aria-hidden-focus`
+ * cannot see (it does not know of the trap). The rule is left out on those states only.
+ */
+const MODAL = ["aria-hidden-focus"];
 
 for (const mode of MODES) {
   test.describe(`mode ${mode}`, () => {
@@ -28,28 +38,69 @@ for (const mode of MODES) {
       await expectAccessible(page);
       await snap(page, `icones-${mode}`);
     });
+  });
+}
 
-    test("components, state by state", async ({ page }) => {
-      await open(page, `/_ui?mode=${mode}`);
-      const components = await page
-        .getByRole("heading", { name: "Composants" })
-        .locator("xpath=following-sibling::ul[1]//a")
-        .allTextContents();
-      test.expect(components.length).toBeGreaterThan(0);
-      for (const component of components) {
+/** The components that declare their states (`<Nom>.catalogue.ts`), as the index lists them. */
+const components = readdirSync(new URL("../../ui/src/components", import.meta.url), {
+  withFileTypes: true,
+})
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .filter((name) =>
+    readdirSync(new URL(`../../ui/src/components/${name}`, import.meta.url)).includes(
+      `${name}.catalogue.ts`,
+    ),
+  )
+  .sort();
+
+/** Performs the interaction a state declares (hover, keyboard focus, press) before its capture. */
+async function interact(page: Page): Promise<void> {
+  const figure = page.locator("[data-state-name]").first();
+  const interaction = await figure.getAttribute("data-interaction");
+  if (!interaction) return;
+  const selector =
+    (await figure.getAttribute("data-target")) ??
+    "button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
+  const target = figure.locator(".k-cat-state__render").locator(selector).first();
+  if (interaction === "hover") await target.hover();
+  if (interaction === "focus") await target.focus();
+  if (interaction === "press") {
+    await target.click();
+    await page.mouse.move(0, 0);
+  }
+}
+
+for (const component of components) {
+  test.describe(component, () => {
+    // One capture per state and mode (design « Régression visuelle »); the page of all states
+    // once more in the comfortable density.
+    test.describe.configure({ timeout: 180_000 });
+    for (const mode of MODES) {
+      test(`${mode}, state by state`, async ({ page }) => {
         await open(page, `/_ui/c/${component}?mode=${mode}`);
+        await page.locator("[data-state-name]").first().waitFor();
         const states = await page
           .locator("[data-state-name]")
           .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-state-name")!));
         test.expect(states.length, component).toBeGreaterThan(0);
         await expectAccessible(page);
         for (const state of states) {
-          await test.step(`${component} ${state}`, async () => {
+          await test.step(state, async () => {
             await open(page, `/_ui/c/${component}?mode=${mode}&etat=${state}`);
+            await interact(page);
+            // A state shown alone (an open layer) is checked by axe on its own page.
+            if (await page.locator("[data-isolated]").count()) await expectAccessible(page, MODAL);
             await snap(page, `${component}-${state}-${mode}`);
           });
         }
-      }
-    });
+      });
+
+      test(`${mode}, comfortable density`, async ({ page }) => {
+        await open(page, `/_ui/c/${component}?mode=${mode}&densite=confortable`);
+        await expectAccessible(page);
+        await snap(page, `${component}-${mode}-confortable`);
+      });
+    }
   });
 }

@@ -1,0 +1,16 @@
+- main:
+  - menu "Actions":
+    - text: Préfixe
+    - menuitem "Modifier"
+    - menuitem "Copier l'identifiant"
+    - menuitem "Historique"
+    - menuitem "Déplacer vers… Parent déduit de l'inclusion" [disabled]
+    - separator
+    - menuitem "Supprimer"
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - 'figure "open — Ouvert : raccourci à droite, entrée désactivée avec motif, entrée destructive"':
+      - button "Actions" [expanded]
+      - code: open
+      - text: ""

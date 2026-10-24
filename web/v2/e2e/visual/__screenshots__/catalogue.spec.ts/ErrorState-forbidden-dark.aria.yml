@@ -1,0 +1,16 @@
+- main:
+  - region "ErrorState":
+    - heading "ErrorState" [level=1]
+    - paragraph: "Motif : role=alert, codes copiables"
+    - figure "forbidden — Sans nouvelle tentative possible":
+      - alert: Vous n'avez pas le droit de lire ce domaine.
+      - button "Copier urn:kartenn:problem:forbidden":
+        - text: ""
+        - code: urn:kartenn:problem:forbidden
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: forbidden
+      - text: ""

@@ -1,0 +1,16 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : — (pastille et libellé)"
+    - figure "labelled — Pastille et libellé":
+      - text: Production
+      - code: labelled
+      - text: ""
+    - 'figure "key-only — Sans libellé : la clé en chasse fixe"':
+      - code: form
+      - code: key-only
+      - text: ""
+    - figure "palette — Les six teintes":
+      - text: Environnement 1 Environnement 2 Environnement 3 Environnement 4 Environnement 5 Environnement 6
+      - code: palette
+      - text: ""

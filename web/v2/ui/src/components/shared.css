@@ -1,0 +1,71 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* Rules shared by several components. Gaps and alignments of the layouts Stack, Cluster
+ * and Grid (design « Inventaire », line 1): a step of the spacing scale, never a value of
+ * a screen. */
+@layer components {
+  [data-k-gap="0"] {
+    --k-layout-gap: var(--k-space-0);
+  }
+
+  [data-k-gap="1"] {
+    --k-layout-gap: var(--k-space-1);
+  }
+
+  [data-k-gap="2"] {
+    --k-layout-gap: var(--k-space-2);
+  }
+
+  [data-k-gap="3"] {
+    --k-layout-gap: var(--k-space-3);
+  }
+
+  [data-k-gap="4"] {
+    --k-layout-gap: var(--k-space-4);
+  }
+
+  [data-k-gap="6"] {
+    --k-layout-gap: var(--k-space-6);
+  }
+
+  [data-k-gap="8"] {
+    --k-layout-gap: var(--k-space-8);
+  }
+
+  [data-k-align="start"] {
+    align-items: start;
+  }
+
+  [data-k-align="center"] {
+    align-items: center;
+  }
+
+  [data-k-align="end"] {
+    align-items: end;
+  }
+
+  [data-k-align="stretch"] {
+    align-items: stretch;
+  }
+
+  [data-k-align="baseline"] {
+    align-items: baseline;
+  }
+
+  /* The loading indicator of a control (Button, IconButton, TextField…): the only looping
+   * animation of the library (REQ-020-11), still under reduced motion (duration 0). */
+  .k-spinner {
+    animation-name: k-spin;
+    animation-duration: var(--k-duration-spin);
+    animation-timing-function: var(--k-ease-linear);
+    animation-iteration-count: infinite;
+  }
+
+  @keyframes k-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+}

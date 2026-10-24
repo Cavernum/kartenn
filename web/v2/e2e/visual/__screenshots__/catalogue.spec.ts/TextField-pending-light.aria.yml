@@ -1,0 +1,9 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - figure "pending — En attente (vérification en cours)":
+      - text: Préfixe
+      - textbox "Préfixe": /\d+\.\d+\.\d+\.\d+\/\d+/
+      - code: pending
+      - text: ""

@@ -1,0 +1,8 @@
+- main:
+  - region "IconButton":
+    - heading "IconButton" [level=1]
+    - paragraph: "Motif : Button (nom accessible obligatoire)"
+    - figure "pressed — Bascule enfoncée":
+      - button "Barre latérale" [pressed]
+      - code: pressed
+      - text: ""

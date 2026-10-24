@@ -1,0 +1,9 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "info — Information":
+      - status:
+        - paragraph: "Lecture au passé : la modification est désactivée."
+      - code: info
+      - text: ""

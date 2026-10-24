@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The frame of the catalogue: its sections and the switches of mode, density and language,
 // kept in the query (design « Catalogue »).
+import { providePortalTarget } from "@kartenn/ui";
 import { computed, watchEffect } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { applySwitches, readSwitches, type Switches } from "./switches.ts";
@@ -10,6 +11,8 @@ const router = useRouter();
 const switches = computed(() => readSwitches(route.query));
 
 watchEffect(() => applySwitches(document.documentElement, switches.value));
+// Floating layers stay inside <main>, where the snapshots of the accessibility tree look.
+providePortalTarget("#k-cat-layers");
 
 function set<K extends keyof Switches>(key: K, event: Event): void {
   const value = (event.target as HTMLSelectElement).value;
@@ -61,6 +64,7 @@ const sections = [
       </div>
     </header>
     <main class="k-cat__main">
+      <div id="k-cat-layers" class="k-cat__layers"></div>
       <RouterView />
     </main>
   </div>
@@ -110,6 +114,11 @@ const sections = [
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-md);
+  }
+
+  /* Floating layers are fixed: their container takes no place in the grid. */
+  .k-cat__layers {
+    display: contents;
   }
 
   .k-cat__main {

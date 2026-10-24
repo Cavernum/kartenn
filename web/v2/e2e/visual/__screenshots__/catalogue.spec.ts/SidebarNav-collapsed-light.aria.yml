@@ -1,0 +1,44 @@
+- main:
+  - region "SidebarNav":
+    - heading "SidebarNav" [level=1]
+    - paragraph: "Motif : Disclosure dans un repère navigation"
+    - figure "collapsed — Repliée en icônes (noms gardés pour les technologies d'assistance)":
+      - navigation "Navigation principale":
+        - button "Rechercher"
+        - list "Référentiel":
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - list "Changesets":
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - list "Réseau":
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - list "Administration":
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale"
+      - code: collapsed
+      - text: ""

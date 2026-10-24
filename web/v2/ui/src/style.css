@@ -9,4 +9,5 @@
 @import "./tokens/tokens.css";
 @import "./tokens/fonts.css";
 @import "./styles/base.css";
+@import "./components/shared.css";
 @import "./styles/utilities.css";

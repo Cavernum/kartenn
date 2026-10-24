@@ -1,0 +1,32 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "all — Les six états côte à côte":
+      - text: Conforme À vérifier En échec En revue Planifié Brouillon
+      - code: all
+      - text: ""
+    - figure "ok — État ok":
+      - text: Conforme
+      - code: ok
+      - text: ""
+    - figure "warn — État warn":
+      - text: À vérifier
+      - code: warn
+      - text: ""
+    - figure "ko — État ko":
+      - text: En échec
+      - code: ko
+      - text: ""
+    - figure "review — État review":
+      - text: En revue
+      - code: review
+      - text: ""
+    - figure "info — État info":
+      - text: Planifié
+      - code: info
+      - text: ""
+    - figure "neutral — État neutral":
+      - text: Brouillon
+      - code: neutral
+      - text: ""

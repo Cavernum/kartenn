@@ -1,0 +1,9 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - figure "readonly — Lecture seule":
+      - text: Identifiant
+      - textbox "Identifiant": 01JD4K7Q9V2M8X3N5P6R7S8T9W
+      - code: readonly
+      - text: ""

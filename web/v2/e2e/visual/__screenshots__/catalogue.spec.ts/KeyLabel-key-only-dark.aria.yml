@@ -1,0 +1,8 @@
+- main:
+  - region "KeyLabel":
+    - heading "KeyLabel" [level=1]
+    - paragraph: "Motif : — (libellé, à défaut la clé)"
+    - 'figure "key-only — Sans libellé : la clé en chasse fixe"':
+      - code: bureaux
+      - code: key-only
+      - text: ""

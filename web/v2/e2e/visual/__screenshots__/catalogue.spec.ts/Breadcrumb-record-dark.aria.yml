@@ -1,0 +1,19 @@
+- main:
+  - region "Breadcrumb":
+    - heading "Breadcrumb" [level=1]
+    - paragraph: "Motif : Breadcrumb (aria-current=page)"
+    - figure "record — Fiche d'un préfixe, la clé en chasse fixe":
+      - navigation "Fil d'Ariane":
+        - list:
+          - listitem:
+            - link "Référentiel":
+              - /url: /
+          - listitem:
+            - link "Centre de données nord":
+              - /url: /domains/dc-nord
+          - listitem:
+            - link /\d+\.\d+\.2\.0\/\d+/:
+              - /url: /prefixes/1
+          - listitem: /\d+\.\d+\.2\.0\/\d+/
+      - code: record
+      - text: ""

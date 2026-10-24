@@ -1,0 +1,11 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - figure "focus — Focus visible":
+      - button "Copier prefix.overlaps-sibling":
+        - text: ""
+        - code: prefix.overlaps-sibling
+      - status
+      - code: focus
+      - text: ""

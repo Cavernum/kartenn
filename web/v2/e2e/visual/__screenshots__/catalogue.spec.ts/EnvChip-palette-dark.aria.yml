@@ -1,0 +1,8 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : — (pastille et libellé)"
+    - figure "palette — Les six teintes":
+      - text: Environnement 1 Environnement 2 Environnement 3 Environnement 4 Environnement 5 Environnement 6
+      - code: palette
+      - text: ""
