@@ -405,7 +405,9 @@ in {
   env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   # Not FONTCONFIG_FILE itself: the shell would impose it on every program started from it.
-  env.KARTENN_PLAYWRIGHT_FONTCONFIG = "${playwrightFonts}";
+  # Not under KARTENN_ either: the server reads every KARTENN_* variable as configuration
+  # and refuses an unknown key.
+  env.PLAYWRIGHT_KARTENN_FONTCONFIG = "${playwrightFonts}";
 
   # Vite dev server, driven through the devenv MCP server (start_process,
   # get_process_logs) rather than a foreground `pnpm dev`. Vite relays /v1 and /plugins

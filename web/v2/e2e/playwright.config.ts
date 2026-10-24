@@ -38,9 +38,9 @@ function previewPort(): number {
  * are host settings. No capture without it.
  */
 function fontconfig(): string {
-  const file = process.env.KARTENN_PLAYWRIGHT_FONTCONFIG;
+  const file = process.env.PLAYWRIGHT_KARTENN_FONTCONFIG;
   if (!file)
-    throw new Error("KARTENN_PLAYWRIGHT_FONTCONFIG unset: run the captures in devenv shell");
+    throw new Error("PLAYWRIGHT_KARTENN_FONTCONFIG unset: run the captures in devenv shell");
   return file;
 }
 
