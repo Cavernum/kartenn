@@ -175,6 +175,12 @@ aucun en parallèle sur `@kartenn/ui` (020).
     par défaut). Constat : passé tel quel, le client du cœur n'est jamais observé par
     vue-query (ses composables ne s'abonnent que si le client porte la ref
     `isRestoring`) ; l'adaptateur la pose, test `shell/test/data.test.ts` en garde.
+    Remplacé le 2026-10-24 (ADR 0037 amendée) par un adaptateur propre sur les
+    observateurs de `@tanstack/query-core` : `installData` (fourniture du client),
+    `useQueryClient`, `useQuery`, `useInfiniteQuery`, `useMutation` (désabonnement à la
+    fin de la portée) ; `@tanstack/vue-query`, `vue-demi`, `match-sorter-utils` et
+    `remove-accents` retirés ; tests d'abonnement et de fin de portée dans
+    `shell/test/data.test.ts`.
     Pas encore branché dans `main.ts` (le cadre, tâche 9, appellera `installData` et
     `startData`). Reste : déplacement dans `@kartenn/ui`, import map, manifeste, `commands`,
     `shortcuts`.

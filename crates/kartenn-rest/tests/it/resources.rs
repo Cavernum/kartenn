@@ -647,6 +647,51 @@ async fn renaming_the_parent_changes_the_etag_of_the_child(pool: PgPool) {
     assert_eq!(unchanged.status(), StatusCode::NOT_MODIFIED);
 }
 
+/// The body of an object states its own version as `version` (REQ-006-14, 006/H19): the
+/// first part of its `ETag`, the changeset of its last write, the same in the page of
+/// its collection; a `PATCH` does not write it.
+#[kartenn_testing::pg_test]
+async fn the_body_states_the_own_version(pool: PgPool) {
+    let app = admin(&pool).await;
+    let (_, prefix) = lab(&app).await;
+    let (etag, before) = read(&app, &prefix).await;
+    let own = etag.trim_matches('"').split_once('.').unwrap().0.to_owned();
+    assert_eq!(before["version"], own.as_str());
+    let body = json!({"motive": "m", "anycast": true});
+    let written = send(&app, patch(&prefix, Some(&etag), MERGE_PATCH, &body)).await;
+    assert_eq!(written.status(), StatusCode::OK);
+    let changeset = json_of(written).await["changeset"]["id"].clone();
+    let (etag, after) = read(&app, &prefix).await;
+    assert_eq!(after["version"], changeset);
+    assert!(etag.starts_with(&format!("\"{}.", changeset.as_str().unwrap())));
+    let page = json_of(
+        send(
+            &app,
+            Request::get("/v1/prefixes").body(Body::empty()).unwrap(),
+        )
+        .await,
+    )
+    .await;
+    let item = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| prefix.ends_with(item["id"].as_str().unwrap()))
+        .unwrap();
+    assert_eq!(item["version"], changeset);
+    let refused = send(
+        &app,
+        patch(
+            &prefix,
+            Some(&etag),
+            MERGE_PATCH,
+            &json!({"motive": "m", "version": changeset}),
+        ),
+    )
+    .await;
+    assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 /// `If-Match` compares the version of the object only (REQ-006-14, 006/H19): a parent
 /// renamed since the read refuses no write, the bare version is accepted, and a version
 /// no longer current still answers 412.

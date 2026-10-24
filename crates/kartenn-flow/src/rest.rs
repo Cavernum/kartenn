@@ -626,7 +626,9 @@ where
     let ids: Vec<Uuid> = rows.iter().filter_map(|r| r.id).collect();
     let seen = visible(api, &scope, principal, moment.valid_at, &ids).await?;
     let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
-    let mut items = Vec::with_capacity(rows.len());
+    // A flow under review shows the state proposed, not its own version: only the flows
+    // in force carry `version` (006/H19).
+    let mut items: Vec<(FlowDto, bool)> = Vec::with_capacity(rows.len());
     let (mut ids, mut changesets) = (Vec::new(), Vec::new());
     for row in rows {
         match (row.id, &row.review) {
@@ -634,12 +636,12 @@ where
                 if let Some(&reduced) = reviews.get(&(review.changeset, review.ordinal)) {
                     changesets.push(review.changeset);
                     ids.extend(id);
-                    items.push(flow_dto(row, reduced));
+                    items.push((flow_dto(row, reduced), false));
                 }
             }
             (Some(id), None) if seen.contains(&id) => {
                 ids.push(id);
-                items.push(flow_dto(row, false));
+                items.push((flow_dto(row, false), true));
             }
             _ => {}
         }
@@ -658,6 +660,18 @@ where
         }),
     )
     .await?;
+    let in_force: Vec<&FlowDto> = items.iter().filter(|i| i.1).map(|i| &i.0).collect();
+    let mut versioned = kit::versioned(api, &moment, &in_force).await?.into_iter();
+    let items: Vec<Value> = items
+        .iter()
+        .map(|(flow, in_force)| {
+            if *in_force {
+                versioned.next().expect("one item per flow in force")
+            } else {
+                serde_json::to_value(flow).expect("JSON values serialise")
+            }
+        })
+        .collect();
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 

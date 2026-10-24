@@ -1082,6 +1082,7 @@ async fn list(
         .into_iter()
         .map(|row| represent(kind, &row.fields, row.link.as_deref()))
         .collect::<Result<Vec<_>, _>>()?;
+    let items = crate::kit::versioned(&api, &moment, &items).await?;
     let criteria = json!({
         "collection": name,
         "filters": page.filters,

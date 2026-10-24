@@ -651,6 +651,7 @@ async fn list_clusters(
     )
     .await?;
     let items: Vec<ClusterDto> = rows.into_iter().map(cluster_dto).collect();
+    let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
@@ -765,6 +766,7 @@ async fn machines_page(
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
     kit::record_read(api, context, MACHINE, &ids, criteria(path, page, &moment)).await?;
     let items: Vec<MachineDto> = rows.into_iter().map(machine_dto).collect();
+    let items = kit::versioned(api, &moment, &items).await?;
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 
@@ -935,6 +937,7 @@ async fn list_interfaces(
     )
     .await?;
     let items: Vec<InterfaceDto> = rows.into_iter().map(interface_dto).collect();
+    let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

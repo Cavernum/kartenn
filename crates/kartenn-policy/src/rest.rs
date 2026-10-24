@@ -532,6 +532,7 @@ async fn list(
     )
     .await?;
     let items: Vec<Value> = rows.into_iter().map(|r| object_of(r.2)).collect();
+    let items = kit::versioned(api, &moment, &items).await?;
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 

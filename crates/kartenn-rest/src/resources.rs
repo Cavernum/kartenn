@@ -512,10 +512,10 @@ fn token(key: &str) -> String {
 /// The members of a kind the service does not change.
 fn read_only(kind: Kind) -> &'static [&'static str] {
     match kind {
-        Kind::Domain | Kind::Entity | Kind::Site => &["id", "links"],
-        Kind::Prefix => &["id", "links", "public"],
-        Kind::Range => &["id", "links", "public", "first", "last"],
-        Kind::Address => &["id", "links", "public", "value"],
+        Kind::Domain | Kind::Entity | Kind::Site => &["id", "links", "version"],
+        Kind::Prefix => &["id", "links", "version", "public"],
+        Kind::Range => &["id", "links", "version", "public", "first", "last"],
+        Kind::Address => &["id", "links", "version", "public", "value"],
     }
 }
 

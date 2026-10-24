@@ -3752,6 +3752,11 @@ export interface components {
       usage: components["schemas"]["AddressUsage"];
       /** @description Canonical address (REQ-002-6). */
       value: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body that creates an address. */
     AddressCreation: components["schemas"]["Reserved"] & components["schemas"]["NewAddress"];
@@ -4144,6 +4149,11 @@ export interface components {
       site?: components["schemas"]["MachinesObjectRef"] | null;
       /** @description Slug, unique among the living clusters. */
       slug: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body of the creation of a cluster. */
     ClusterCreation: {
@@ -4326,6 +4336,11 @@ export interface components {
       links: components["schemas"]["ObjectLinks"];
       /** @description Slug. */
       slug: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body that creates an addressing domain. */
     DomainCreation: components["schemas"]["Reserved"] & components["schemas"]["NewDomain"];
@@ -4516,6 +4531,11 @@ export interface components {
       valid_from: string;
       /** @description The end of its period, if any. */
       valid_to?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
       /** @description Whether a waiver covers the date. */
       waived: boolean;
     };
@@ -4859,6 +4879,11 @@ export interface components {
       machine: components["schemas"]["MachinesObjectRef"];
       /** @description Its name, unique on its machine. */
       name: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
       /** @description Its 802.1Q mode. */
       vlan: components["schemas"]["InterfaceVlan"];
     };
@@ -5469,6 +5494,11 @@ export interface components {
       name: string;
       owner?: components["schemas"]["MachinesObjectRef"] | null;
       site?: components["schemas"]["MachinesObjectRef"] | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description An address attached to an interface (REQ-009-16). */
     MachineAddress: {
@@ -5504,6 +5534,11 @@ export interface components {
       name: string;
       owner?: components["schemas"]["MachinesObjectRef"] | null;
       site?: components["schemas"]["MachinesObjectRef"] | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description An address on the card of a machine. */
     MachineCardAddress: {
@@ -5786,6 +5821,11 @@ export interface components {
       parent?: components["schemas"]["Summary"] | null;
       /** @description Slug. */
       slug: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body that creates an entity or a site. */
     NodeCreation: components["schemas"]["Reserved"] & components["schemas"]["NewNode"];
@@ -6508,6 +6548,11 @@ export interface components {
       valid_from?: string | null;
       /** @description End of validity, absent when open. */
       valid_to?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     } & {
       [key: string]: unknown;
     };
@@ -6655,6 +6700,11 @@ export interface components {
       public: boolean;
       /** @description Canonical CIDR (REQ-002-6). */
       value: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body that creates a prefix. */
     PrefixCreation: components["schemas"]["Reserved"] & components["schemas"]["NewPrefix"];
@@ -6796,6 +6846,11 @@ export interface components {
       public: boolean;
       /** @description Usage. */
       usage: components["schemas"]["RangeUsage"];
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
     };
     /** @description The body that creates a range. */
     RangeCreation: components["schemas"]["Reserved"] & components["schemas"]["NewRange"];
@@ -7346,6 +7401,11 @@ export interface components {
       /** @description `active`, `reserved` or `deprecated`. */
       status: string;
       /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+      /**
        * Format: int32
        * @description VID, 1 to 4094, unique in the group.
        */
@@ -7393,6 +7453,11 @@ export interface components {
       id: string;
       /** @description Slug, unique among the living groups. */
       slug: string;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
       /**
        * Format: int32
        * @description Last VID of its range.

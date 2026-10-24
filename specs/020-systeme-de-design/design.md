@@ -398,7 +398,9 @@ l'utilisateur sur captures, en clair et en sombre ; la validation est consignée
   `playwright-driver`), viewport 1280 × 800, `deviceScaleFactor: 1`, `colorScheme` et
   `reducedMotion: 'reduce'` fixés par projet, `page.clock.setFixedTime` à une date fixe,
   locale `fr-FR` et fuseau `Europe/Paris` fixes ; serveur `vite preview` d'un build de test
-  sur `127.0.0.1:4173`.
+  sur `127.0.0.1`, au port `KARTENN_PREVIEW_PORT` ou, à défaut, un port libre choisi au
+  lancement (le même pour le serveur et la `baseURL` ; plusieurs worktrees en parallèle) ;
+  `4173` reste le port d'un `vite preview` lancé à la main.
 - `expect(page).toHaveScreenshot({ animations: 'disabled', caret: 'hide',
   maxDiffPixelRatio: 0.001 })` par état et par maquette, en clair et en sombre ;
   références sous `web/v2/e2e/visual/__screenshots__/`, versionnées.

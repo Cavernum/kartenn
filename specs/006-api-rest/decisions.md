@@ -25,6 +25,8 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - H19 ETag d'un objet : `"<version>.<empreinte du corps>"` ; `If-Match` ne compare que la version.
 - H20 filtres déclarés au contrat : chaque filtre servi est un `parameter` ; `prop.{key}`
   et ses opérateurs en gabarit décrit par `x-kartenn` (021/X41).
+- H21 version dans le corps : tout objet lu (par identifiant ou dans la page de sa
+  collection) porte sa version en `version`, la part propre de son ETag.
 
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
@@ -470,6 +472,32 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   convention implicite des clients (ce qui manquait).
 - Décidé par : Claude (forme du contrat déléguée par la tâche 021-28, 2026-10-23) ;
   `within`, `nature`, `usage` : REQ-006-9, déjà validée.
+
+## H21 — La version d'un objet dans son corps (précise H19 et REQ-006-14 ; 022, 021)
+- Constat (2026-10-24) : le contrat client de la 022, amendé par la 021 (A3), compare la
+  `version` lue dans le corps d'un objet à la révision d'un événement (`changeset`) pour
+  ne pas relire un objet déjà à jour. Aucun corps d'objet ne la portait : la version
+  n'était que la part propre de l'ETag (H19), opaque pour le client, qui relisait donc
+  tout objet nommé par un événement (relecture conditionnelle, 304 au mieux). Aucun
+  membre existant ne la portait sous un autre nom (`vid` est le numéro d'un VLAN,
+  `changeset` d'une version d'historique est une autre notion).
+- Décision : **tout objet servi porte `version`**, l'UUID du dernier changeset qui l'a
+  écrit, lui ou ses propriétés (design « Version d'un objet ») : la même valeur que la
+  part propre de son ETag et qu'`expected` (REQ-004-11). Le kit l'ajoute :
+  `respond_object` l'insère dans le corps de toute lecture par identifiant (noyau et
+  modules, avant l'empreinte de l'ETag) ; `kit::versioned` dans les objets d'une page de
+  la collection, en une requête par page (`read::versions`) ; l'assemblage du contrat
+  déclare le membre (`string`, `uuid`, `readOnly`) sur le schéma de la lecture par
+  identifiant et sur celui des éléments de la page, pour tout type d'objet du noyau et
+  des modules. Un `PATCH` du noyau qui le porte → 422 (membre en lecture seule, comme
+  `id`) ; un module le refuse comme membre inconnu (400).
+- Non obligatoire au schéma : un même schéma montre aussi l'objet ailleurs, sans
+  version (version d'historique, origine d'une valeur héritée dans une explication, flux
+  en revue dont la page montre l'état proposé). Le client compare quand le membre est
+  là, relit sinon.
+- Additif (H12) : un membre de plus dans des corps ouverts ; aucun alias.
+- Décidé par : orchestrateur de la session (suite de la 022/021, 2026-10-24) ; forme
+  (non obligatoire, pages incluses, refus en écriture) : Claude, peu coûteuse à défaire.
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,

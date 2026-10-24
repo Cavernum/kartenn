@@ -552,7 +552,8 @@ in {
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
       tests=$(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')
       # Captures of the catalogue where the workspace has them (web/v2, spec 020, REQ-020-26):
-      # the Playwright project `visual` against `vite preview` (127.0.0.1:4173).
+      # the Playwright project `visual` against `vite preview` on 127.0.0.1, at
+      # KARTENN_PREVIEW_PORT or a port free at start (worktrees side by side).
       if [ -d e2e/visual ]; then
         pnpm -C e2e exec playwright test --project visual --reporter=line >"$log/visual" 2>&1 ||
           ko visual "$log/visual" '^ *[0-9]+\) |Error:|pixels|^ *at .*:[0-9]+:[0-9]+' "k-web-shots --update, puis relire les images"

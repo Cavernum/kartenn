@@ -57,7 +57,8 @@ Décisions D7 (amendée), D8, D10, D11 ; ADR 0005, 0018, 0022 ; 007/W8 à W10, W
    - *repli sans flux* : revalidation au retour sur l'onglet, à la reconnexion et au
      retour du bfcache.
    La comparaison « révision connue = révision de l'événement » se fait sur la `version`
-   lue dans le corps de l'objet, jamais sur l'ETag (composite depuis 006/H19).
+   lue dans le corps de l'objet (servie depuis 006/H21), jamais sur l'ETag (composite
+   depuis 006/H19) ; un corps sans `version` est relu en `If-None-Match`.
 6. **Optimisme au présent seulement** (D-7) : une modification rapide au présent met à
    jour le cache avant la réponse, annule les lectures en cours de la clé et revient en
    arrière sur erreur. Une réponse **202** (revue requise) remplace l'état optimiste par
@@ -70,9 +71,19 @@ Décisions D7 (amendée), D8, D10, D11 ; ADR 0005, 0018, 0022 ; 007/W8 à W10, W
 
 ## Résolution de D-1 : Vue 3 (2026-10-23)
 
-- **Adaptateur** : `@tanstack/vue-query`, branché sur le `QueryClient` du SDK
-  (`VueQueryPlugin` avec `queryClient` fourni) ; il vit dans `@kartenn/ui`, jamais dans
-  `@kartenn/sdk`, qui reste sans framework (REQ-007-12).
+- **Adaptateur** : un adaptateur propre, petit, sur les observateurs de
+  `@tanstack/query-core` (`QueryObserver`, `InfiniteQueryObserver`, `MutationObserver`)
+  et le `QueryClient` du SDK : `installData(app)` le fournit, `useQuery`,
+  `useInfiniteQuery`, `useMutation` observent tant que leur portée d'effets vit et se
+  désabonnent à sa fin (`onScopeDispose`), résultats en réactivité superficielle. Il vit
+  dans `@kartenn/ui`, jamais dans `@kartenn/sdk`, qui reste sans framework
+  (REQ-007-12). *Amendé le 2026-10-24* : la première rédaction prenait
+  `@tanstack/vue-query` ; ses composables ne s'abonnent que si le client porte une ref
+  `isRestoring`, propre à sa sous-classe de `QueryClient`, que l'adaptateur devait
+  simuler sur le client du SDK (couplage à un détail interne d'une version épinglée), et
+  il tirait `vue-demi` et deux autres dépendances. Les trois composables dont le shell a
+  besoin tiennent en une centaine de lignes. Choix interne, peu coûteux à défaire
+  (décidé par l'orchestrateur de la session).
 - **Routeur** : vue-router ; chaque route déclare `meta.queries(params, time)` ; une garde
   `beforeResolve` lance les préchargements et attend au plus 100 ms.
 - **Données volumineuses** : les objets lus pour un arbre ou une grille ne sont pas rendus

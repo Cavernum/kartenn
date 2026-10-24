@@ -8,10 +8,12 @@ import { expect, open, test } from "../fixtures/index.ts";
 test("the catalogue raises no CSP violation and loads nothing from elsewhere", async ({
   page,
   violations,
+  baseURL,
 }) => {
+  const origin = `${new URL(baseURL!).origin}/`;
   const foreign: string[] = [];
   page.on("request", (request) => {
-    if (!request.url().startsWith("http://127.0.0.1:4173/")) foreign.push(request.url());
+    if (!request.url().startsWith(origin)) foreign.push(request.url());
   });
   const fonts: string[] = [];
   page.on("response", (response) => {

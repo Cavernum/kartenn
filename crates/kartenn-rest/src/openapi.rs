@@ -15,6 +15,7 @@ use utoipa::openapi::path::{
     HttpMethod, Operation, OperationBuilder, ParameterBuilder, ParameterIn, PathItem, PathsBuilder,
 };
 use utoipa::openapi::request_body::RequestBodyBuilder;
+use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, SchemaFormat, Type};
 use utoipa::openapi::security::{
     ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityRequirement, SecurityScheme,
 };
@@ -128,6 +129,7 @@ pub(crate) fn assemble(mut v1: OpenApi, modules: &ModuleRegistry) -> OpenApi {
         .merge_from(crate::health::routes().into_openapi());
     finish(&mut document);
     module_kinds(&mut document, modules);
+    object_versions(&mut document, modules);
     events(&mut document);
     document
 }
@@ -159,6 +161,79 @@ fn events(document: &mut OpenApi) {
             crate::events::EVENTS_EXTENSION.to_owned(),
             Value::Object(by_kind),
         );
+    }
+}
+
+/// Declares the member `version` (006/H19) on the schemas of the objects of every type,
+/// the core's and the modules': the schema the read by identifier answers and the one of
+/// the items of the page of the collection. `version` is not required: an object shown
+/// elsewhere (a version of its history, the origin of an inherited value) has none.
+fn object_versions(document: &mut OpenApi, modules: &ModuleRegistry) {
+    let collections = kartenn_store_pg::list::Kind::ALL
+        .into_iter()
+        .map(crate::objects::collection)
+        .chain(modules.object_types().map(|ty| ty.collection));
+    let schema_of = |document: &OpenApi, path: &str| -> Option<String> {
+        let get = document.paths.paths.get(path)?.get.as_ref()?;
+        let RefOr::T(response) = get.responses.responses.get("200")? else {
+            return None;
+        };
+        let RefOr::T(content) = response.content.get("application/json")? else {
+            return None;
+        };
+        let RefOr::Ref(reference) = content.schema.as_ref()? else {
+            return None;
+        };
+        reference
+            .ref_location
+            .strip_prefix("#/components/schemas/")
+            .map(str::to_owned)
+    };
+    let mut names = std::collections::BTreeSet::new();
+    for collection in collections {
+        names.extend(schema_of(document, &format!("/v1/{collection}/{{id}}")));
+        let listing = schema_of(document, &format!("/v1/{collection}"));
+        let item = listing.and_then(|listing| {
+            let components = document.components.as_ref()?;
+            let RefOr::T(Schema::Object(page)) = components.schemas.get(&listing)? else {
+                return None;
+            };
+            let RefOr::T(Schema::Array(items)) = page.properties.get("items")? else {
+                return None;
+            };
+            let utoipa::openapi::schema::ArrayItems::RefOrSchema(item) = &items.items else {
+                return None;
+            };
+            let RefOr::Ref(reference) = item.as_ref() else {
+                return None;
+            };
+            reference
+                .ref_location
+                .strip_prefix("#/components/schemas/")
+                .map(str::to_owned)
+        });
+        names.extend(item);
+    }
+    let Some(components) = document.components.as_mut() else {
+        return;
+    };
+    for name in names {
+        if let Some(RefOr::T(Schema::Object(object))) = components.schemas.get_mut(&name) {
+            object.properties.insert(
+                crate::dated::VERSION.to_owned(),
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .format(Some(SchemaFormat::KnownFormat(KnownFormat::Uuid)))
+                    .read_only(true)
+                    .description(Some(
+                        "The version of the object: the changeset that last wrote it or its \
+                         properties, the version `If-Match` names (the first part of its \
+                         `ETag`), compared with the `changeset` of an event. Stated by the \
+                         read by identifier and the pages of its collection.",
+                    ))
+                    .into(),
+            );
+        }
     }
 }
 

@@ -212,8 +212,10 @@ embarquées), de sorte que l'ETag change dès que le corps change (RFC 9110 §8.
 exiger `If-Match` sur `PATCH` et `DELETE` et n'y comparer que la version : l'étiquette
 entière ou la version seule sont acceptées ; absent → 428 avec un problème qui explique
 comment resoumettre, version périmée → 412. Dans `POST /v1/changesets`, `expected`
-(la version) reste facultatif, par opération. [H8, H19, RFC 9110 §8.8.1, §8.8.3,
-§13.1.1, RFC 6585 §3, 004/REQ-004-11]
+(la version) reste facultatif, par opération. Le corps d'un objet, lu par identifiant
+ou dans la page de sa collection, doit porter sa version dans le membre `version`
+(lecture seule), la même que la part propre de son ETag. [H8, H19, H21, RFC 9110 §8.8.1,
+§8.8.3, §13.1.1, RFC 6585 §3, 004/REQ-004-11]
 
 Acceptation :
 - Deux clients lisent le même objet, le premier le modifie ; le `PATCH` du second avec
