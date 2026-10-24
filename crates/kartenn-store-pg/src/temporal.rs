@@ -113,6 +113,21 @@ pub fn snapshot(table: &str, columns: &[&str]) -> Result<String, TemporalError> 
     ))
 }
 
+/// [`snapshot`] for the current assertions (`$2` null): the rows of `table` valid at `$1`,
+/// from the current table alone, so that its indexes order a page.
+///
+/// # Errors
+///
+/// [`TemporalError::Identifier`] for an invalid table or column name.
+pub fn current_rows(table: &str, columns: &[&str]) -> Result<String, TemporalError> {
+    let table = identifier(table)?;
+    let cols = column_list(columns)?;
+    Ok(format!(
+        "(SELECT {cols} FROM {table} \
+          WHERE valid_period @> $1::timestamptz AND $2::timestamptz IS NULL)"
+    ))
+}
+
 /// Every version of the object `$1` of `table`, on both axes, with the changeset that
 /// produced it: `columns`, `valid_period`, `sys_start`, `sys_end` (null when current),
 /// `changeset_id`, ordered by application then system time (REQ-004-18).

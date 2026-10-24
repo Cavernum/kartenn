@@ -279,6 +279,21 @@ fn dated(table: &str, columns: &str) -> String {
     )
 }
 
+/// The relation of a list: [`dated`], or for the current assertions (`$2` null) the
+/// current table alone, whose index then serves the order of a page: the union with the
+/// history, even emptied by `$2`, makes the planner sort every row kept (spec 018, task
+/// 018-16).
+fn listed(table: &str, columns: &str, current: bool) -> String {
+    if current {
+        format!(
+            "(SELECT {columns} FROM {table}
+               WHERE valid_period @> $1::timestamptz AND $2::timestamptz IS NULL)"
+        )
+    } else {
+        dated(table, columns)
+    }
+}
+
 /// The condition that the row `x` of `kind` is readable at `$1` under the scope `s`: its
 /// domain is that of its record in the core.
 fn visible(kind: &str) -> String {
@@ -422,10 +437,12 @@ async fn list_groups(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $8",
-        dated("vlan.vlan_group", GROUP_COLUMNS),
+        listed("vlan.vlan_group", GROUP_COLUMNS, moment.as_of.is_none()),
         visible(crate::module::GROUP),
     );
     let mut rows: Vec<GroupRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())
@@ -509,10 +526,12 @@ async fn list_vlans(
           WHERE ($3::jsonb IS NULL OR {})
           ORDER BY x.group_id, x.vid, x.id
           LIMIT $13",
-        dated("vlan.vlan", VLAN_COLUMNS),
+        listed("vlan.vlan", VLAN_COLUMNS, moment.as_of.is_none()),
         visible(crate::module::VLAN),
     );
     let mut rows: Vec<VlanRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())

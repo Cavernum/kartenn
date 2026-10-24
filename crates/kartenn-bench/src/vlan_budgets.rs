@@ -102,6 +102,15 @@ pub(crate) async fn sync(
 
 /// A reader of `entries`, everywhere.
 pub(crate) async fn reader(pool: &PgPool, entries: &[&str]) -> anyhow::Result<Uuid> {
+    reader_on(pool, entries, None).await
+}
+
+/// A reader of `entries` on the entity `scope`, everywhere without one.
+pub(crate) async fn reader_on(
+    pool: &PgPool,
+    entries: &[&str],
+    scope: Option<Uuid>,
+) -> anyhow::Result<Uuid> {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench-module') RETURNING id",
     )
@@ -129,11 +138,13 @@ pub(crate) async fn reader(pool: &PgPool, entries: &[&str]) -> anyhow::Result<Uu
     sqlx::query(
         "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
                               valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
+         VALUES (gen_random_uuid(), 'identity', $1, $2, $3, $4,
                  tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
     )
     .bind(identity)
     .bind(role)
+    .bind(if scope.is_some() { "entity" } else { "global" })
+    .bind(scope)
     .execute(pool)
     .await?;
     Ok(identity)

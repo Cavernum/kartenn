@@ -378,10 +378,29 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   repli sur la première page pour une liste sans `q` au contrat (services) ; la
   ressource `rules` apparaît dans l'arbre de la CLI.
 
-- [ ] 16. Banc des suggestions : préfixe sur le jeu complet, p95 < 50 ms par route —
+- [x] 16. Banc des suggestions : préfixe sur le jeu complet, p95 < 50 ms par route —
   REQ-018-23 — verify : `bench-core` dans les budgets
   où : `crates/kartenn-bench/src/{core_budgets.rs,machine_budgets.rs,http.rs}`
   dépend de : 15
+  fait : `machine_budgets::suggestions` (dans `bench-core`, après les modules, à travers
+  le routeur avec le noyau, `vlan` et `machines`) : par route, 200 préfixes de 1 à 6
+  caractères de clés existantes ; entités, sites, domaines, préfixes, adresses,
+  machines, interfaces, clusters, groupes de VLAN, VLAN, valeurs d'une liste fermée,
+  règles, puis les machines lues par le lecteur d'un seul propriétaire. Mesures et
+  correctifs : (1) l'union avec l'historique, même vidée par `$2`, interdit au
+  planificateur l'ordre d'un index : une liste courante (`as_of` absent) lit la table
+  courante seule (`temporal::current_rows`, `listed` des modules ; le noyau passe
+  désormais `moment.as_of` et non `Some(moment.as_of())`) ; (2) `q` est planifié avec sa
+  valeur (instruction non nommée, `persistent(false)`), sans quoi `LIKE $n` n'atteint
+  aucun index ; (3) préfixes et adresses suggérés dans l'ordre de leur texte puis du
+  domaine (index `C` de la migration 0062) : dans l'ordre de la liste, un préfixe rare
+  parcourait tous les domaines (39 ms pour « 3 ») ; (4) index `interface_keyset`,
+  `interface_name_pattern` (machines 0004) et `vlan_group_keyset` (vlan 0002).
+  `bench-core` réduit (2026-10-24 ; 1,1·10⁵ adresses, 1,1·10⁴ machines, 3,3·10⁴
+  interfaces, 2 200 groupes, 11 000 VLAN) : p95 entités 5,6 ms, sites 5,2, domaines
+  4,5, préfixes 6,5, adresses 6,4, machines 8,5, interfaces 3,8, clusters 7,4, groupes
+  4,8, VLAN 7,9, valeurs 1,5, règles 0,02, machines d'un propriétaire 22,6 ; tous les
+  autres budgets tenus. La pleine échelle reste à passer.
 
 ## Clôture
 

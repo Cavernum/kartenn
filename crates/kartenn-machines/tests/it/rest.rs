@@ -717,6 +717,14 @@ async fn a_suggestion_never_shows_an_unreadable_object(pool: PgPool) {
     let next = first["links"]["next"].as_str().unwrap();
     let (_, _, second) = call(&everyone, "GET", next, None, &[]).await;
     assert_eq!(ids(&second, "name"), ["webx"], "the cursor keeps q");
+    // Addresses suggested in the order of their text, page after page.
+    let uri = "/v1/addresses?q=10.0.0.3&page_size=1";
+    let (_, _, first) = call(&everyone, "GET", uri, None, &[]).await;
+    assert_eq!(ids(&first, "value"), ["10.0.0.31"]);
+    let next = first["links"]["next"].as_str().unwrap();
+    let (_, _, second) = call(&everyone, "GET", next, None, &[]).await;
+    assert_eq!(ids(&second, "value"), ["10.0.0.32"], "{second}");
+    assert!(second["links"]["next"].is_null(), "{second}");
     let (status, _, _) = call(&reader, "GET", "/v1/ranges?q=10", None, &[]).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "a range is no reference");
     let uri = "/v1/prefixes?q=10&domain=lab&prop.core.site:exists=true";

@@ -1061,7 +1061,9 @@ async fn list(
                 prefix: wanted.prefix.as_deref(),
             },
             moment.valid_at,
-            Some(moment.as_of()),
+            // The current assertions read the current table, in the order of its index;
+            // the next page holds the instant of this one (`Page::next`).
+            moment.as_of,
             after.as_ref(),
             i64::from(page.size) + 1,
             &scope,

@@ -408,6 +408,21 @@ fn dated(table: &str, columns: &str) -> String {
     )
 }
 
+/// The relation of a list: [`dated`], or for the current assertions (`$2` null) the
+/// current table alone, whose index then serves the order of a page: the union with the
+/// history, even emptied by `$2`, makes the planner sort every row kept (spec 018, task
+/// 018-16).
+fn listed(table: &str, columns: &str, current: bool) -> String {
+    if current {
+        format!(
+            "(SELECT {columns} FROM {table}
+               WHERE valid_period @> $1::timestamptz AND $2::timestamptz IS NULL)"
+        )
+    } else {
+        dated(table, columns)
+    }
+}
+
 /// [`dated`] restricted by `condition` in each branch: correlated in a `LATERAL` join, it
 /// keeps the read on the indexes of `condition` even in a generic plan, where a join on
 /// the whole relation would scan every row valid at `$1`.
@@ -621,10 +636,12 @@ async fn list_clusters(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $7",
-        dated("machines.cluster", CLUSTER_COLUMNS),
+        listed("machines.cluster", CLUSTER_COLUMNS, moment.as_of.is_none()),
         visible("x", CLUSTER),
     );
     let mut rows: Vec<ClusterRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())
@@ -740,10 +757,12 @@ async fn machines_page(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.name, x.id
           LIMIT $14",
-        dated("machines.machine", MACHINE_COLUMNS),
+        listed("machines.machine", MACHINE_COLUMNS, moment.as_of.is_none()),
         visible("x", MACHINE),
     );
     let mut rows: Vec<MachineRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(filter.suggestion.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())
@@ -904,11 +923,17 @@ async fn list_interfaces(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.machine_id, x.name, x.id
           LIMIT $12",
-        dated("machines.interface", INTERFACE_COLUMNS),
+        listed(
+            "machines.interface",
+            INTERFACE_COLUMNS,
+            moment.as_of.is_none()
+        ),
         dated("machines.attachment", "interface_id, address_id"),
         visible("x", INTERFACE),
     );
     let mut rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())

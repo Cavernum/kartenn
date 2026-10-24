@@ -171,6 +171,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "attachment",
         sql: include_str!("../migrations/0003_attachment.sql"),
     },
+    ModuleMigration {
+        version: 4,
+        name: "interface_suggestions",
+        sql: include_str!("../migrations/0004_interface_suggestions.sql"),
+    },
 ];
 
 macro_rules! permissions {

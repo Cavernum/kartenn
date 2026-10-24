@@ -9,7 +9,7 @@ use sqlx::types::time::OffsetDateTime;
 use sqlx::{AssertSqlSafe, PgPool};
 
 use crate::rbac::{ReadScope, readable};
-use crate::temporal::{TemporalError, history_of, snapshot};
+use crate::temporal::{TemporalError, current_rows, history_of, snapshot};
 
 /// A kind of object of the core.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -223,9 +223,29 @@ fn link_relation(table: &str) -> Result<String, TemporalError> {
     snapshot(table, &["id", "slug"])
 }
 
-fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
+/// The text of the value of a prefix or of an address that a suggestion compares, in the
+/// collation `C` of its index (migration 0062): `LIKE 'q%'` reads a range of it.
+const fn suggested_text(kind: Kind) -> Option<&'static str> {
+    match kind {
+        Kind::Prefix => Some("text(x.prefix) COLLATE \"C\""),
+        Kind::Address => Some("host(x.address) COLLATE \"C\""),
+        Kind::Entity | Kind::Site | Kind::Domain | Kind::Range => None,
+    }
+}
+
+/// The query of a page of `kind`; `current` (no `as_of`) reads the current table alone,
+/// whose keyset index then serves the order: the union with the history, even emptied by
+/// `$2`, makes the planner sort every row kept (spec 018, task 018-16). A page of
+/// `suggestions` of prefixes or addresses goes in the order of their text, then of their
+/// domain: their text follows their domain, and the order of the list would walk every
+/// domain before those of a rare prefix.
+fn objects_sql(kind: Kind, current: bool, suggestions: bool) -> Result<String, TemporalError> {
     let shape = kind.shape();
-    let relation = snapshot(shape.table, shape.columns)?;
+    let relation = if current {
+        current_rows(shape.table, shape.columns)?
+    } else {
+        snapshot(shape.table, shape.columns)?
+    };
     let visible = shape.readable(kind);
     let (key, after, order, value_filter) = match shape.value {
         Some((column, cast)) => {
@@ -235,12 +255,21 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
                 format!("x.{column}")
             };
             let filter_cast = if kind == Kind::Range { "inet" } else { cast };
-            (
-                format!("x.domain_id, x.{column}::text, x.id"),
-                format!("(x.domain_id, x.{column}, x.id) > ($4, $5::{cast}, $6)"),
-                format!("x.domain_id, x.{column}, x.id"),
-                format!("{first} = ANY($10::{filter_cast}[])"),
-            )
+            let value_filter = format!("{first} = ANY($10::{filter_cast}[])");
+            match suggested_text(kind).filter(|_| suggestions) {
+                Some(text) => (
+                    format!("x.domain_id, {text}, x.id"),
+                    format!("({text}, x.domain_id, x.id) > ($5::text COLLATE \"C\", $4, $6)"),
+                    format!("{text}, x.domain_id, x.id"),
+                    value_filter,
+                ),
+                None => (
+                    format!("x.domain_id, x.{column}::text, x.id"),
+                    format!("(x.domain_id, x.{column}, x.id) > ($4, $5::{cast}, $6)"),
+                    format!("x.domain_id, x.{column}, x.id"),
+                    value_filter,
+                ),
+            }
         }
         None => (
             "NULL::uuid, x.slug, x.id".to_owned(),
@@ -275,11 +304,10 @@ fn objects_sql(kind: Kind) -> Result<String, TemporalError> {
         "false"
     };
     // Slugs are lower case; the text of a CIDR or of an address too (RFC 5952 §4.3).
-    let prefix_filter = match kind {
-        Kind::Entity | Kind::Site | Kind::Domain => "x.slug LIKE $14",
-        Kind::Prefix => "text(x.prefix) LIKE $14",
-        Kind::Address => "host(x.address) LIKE $14",
-        Kind::Range => "false",
+    let prefix_filter = match (kind, suggested_text(kind)) {
+        (Kind::Entity | Kind::Site | Kind::Domain, _) => "x.slug LIKE $14".to_owned(),
+        (_, Some(text)) => format!("{text} LIKE $14"),
+        (_, None) => "false".to_owned(),
     };
     Ok(format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
@@ -330,8 +358,12 @@ pub async fn objects(
     limit: i64,
     scope: &ReadScope,
 ) -> sqlx::Result<Vec<Row>> {
-    let sql = objects_sql(kind).map_err(|e| sql_err(&e))?;
+    let sql =
+        objects_sql(kind, as_of.is_none(), criteria.prefix.is_some()).map_err(|e| sql_err(&e))?;
+    // A prefix is planned with its value (an unnamed statement): only then does `LIKE`
+    // reach the pattern index, or choose the keyset index for a short prefix.
     let rows: Vec<ListRow> = sqlx::query_as(AssertSqlSafe(sql))
+        .persistent(criteria.prefix.is_none())
         .bind(valid_at)
         .bind(as_of)
         .bind(scope.to_json())
