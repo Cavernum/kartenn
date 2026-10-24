@@ -102,6 +102,8 @@ class Operation:
     body_required: bool = False
     response: dict[str, Any] | None = None
     command: str | None = None
+    # A write that submits a changeset takes `simulate=true` (`x-kartenn.simulate`, spec 024).
+    simulate: bool = False
 
     def param(self, name: str) -> Param | None:
         return next((p for p in self.params if p.name == name), None)

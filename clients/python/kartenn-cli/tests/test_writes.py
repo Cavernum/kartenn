@@ -199,7 +199,8 @@ def test_a_stale_version_is_a_conflict(served: FakeServer, snapshot: SnapshotAss
 def test_dry_run_simulates_the_same_changeset(
     served: FakeServer, snapshot: SnapshotAssertion
 ) -> None:
-    served.route("POST", "/v1/changesets", httpx2.Response(200, json=SIMULATED))
+    # Spec 024, REQ-024-17: the same write, with `?simulate=true`.
+    served.route("POST", "/v1/prefixes", httpx2.Response(200, json=SIMULATED))
     result = kartenn(
         "prefixes", "create", "--domain", DOMAIN, "--value", "203.0.113.0/26",
         "--nature", "network", "--motive", "lot 3", "--dry-run", "-o", "table",
@@ -215,20 +216,18 @@ def test_dry_run_simulates_the_same_changeset(
     )  # fmt: skip
     assert isinstance(json.loads(as_json.stdout), dict)
     assert as_json.stderr.startswith("Simulation — rien n'est écrit")
-    assert body(sent)["operations"] == [
-        {
-            "op": "create_prefix",
-            "domain": {"id": DOMAIN},
-            "value": "203.0.113.0/26",
-            "nature": "network",
-        }
-    ]
+    assert body(sent) == {
+        "domain": {"id": DOMAIN},
+        "value": "203.0.113.0/26",
+        "nature": "network",
+        "motive": "lot 3",
+    }
 
 
 def test_dry_run_refused_ends_with_8(served: FakeServer) -> None:
     served.route(
         "POST",
-        "/v1/changesets",
+        "/v1/prefixes",
         problem(
             422,
             "changeset-refused",
@@ -256,15 +255,20 @@ def test_dry_run_refused_ends_with_8(served: FakeServer) -> None:
         valid=False,
         violations=[{"rule": "r", "severity": "error", "detail": "d", "subjects": []}],
     )
-    served.route("POST", "/v1/changesets", httpx2.Response(200, json=invalid))
+    served.route("DELETE", "/v1/prefixes/{id}", httpx2.Response(200, json=invalid))
     blocked = kartenn("prefixes", "close", PREFIX, "--motive", "m", "--dry-run", "-o", "json")
     assert blocked.exit_code == 8
-    assert body(served.seen[-1])["operations"] == [
-        {"op": "close", "kind": "prefix", "id": {"id": PREFIX}}
-    ]
+    sent = served.seen[-1]
+    assert (sent.method, sent.url.path, sent.url.params["simulate"]) == (
+        "DELETE",
+        f"/v1/prefixes/{PREFIX}",
+        "true",
+    )
+    assert sent.headers["If-Match"] == '"v1"'
+    assert body(sent) == {"motive": "m"}
 
 
-def test_a_write_without_changeset_operation_cannot_be_simulated(served: FakeServer) -> None:
+def test_a_write_without_changeset_cannot_be_simulated(served: FakeServer) -> None:
     result = kartenn("anomalies", "acknowledge", PREFIX, "--motive", "vu", "--dry-run")
     assert result.exit_code == 2
     assert "client.dry-run-unavailable" in result.stderr

@@ -330,7 +330,8 @@ fn the_kit_describes_the_collection_of_a_module() {
     );
     assert_eq!(
         item["post"][CLIENT_EXTENSION],
-        serde_json::json!({"command": "make"})
+        // Spec 024, REQ-024-17: a write without a changeset pending does not simulate.
+        serde_json::json!({"command": "make", "simulate": false})
     );
     assert!(item["get"].get(CLIENT_EXTENSION).is_none());
     // The extension is an addition: the contract without it breaks nothing.

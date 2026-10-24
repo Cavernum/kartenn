@@ -71,11 +71,13 @@ pub enum ProblemKind {
     Exhausted,
     /// A query of compliance beyond its bounds (spec 010, design « API »).
     PolicyQueryTooLarge,
+    /// `?simulate=true` on a write that submits no changeset (spec 024, REQ-024-17).
+    SimulateUnsupported,
 }
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -103,6 +105,7 @@ impl ProblemKind {
         Self::Internal,
         Self::Exhausted,
         Self::PolicyQueryTooLarge,
+        Self::SimulateUnsupported,
     ];
 
     /// The last segment of the `type`.
@@ -136,6 +139,7 @@ impl ProblemKind {
             Self::Internal => "internal",
             Self::Exhausted => "exhausted",
             Self::PolicyQueryTooLarge => "policy-query-too-large",
+            Self::SimulateUnsupported => "simulate-unsupported",
         }
     }
 
@@ -143,7 +147,9 @@ impl ProblemKind {
     #[must_use]
     pub const fn status(self) -> StatusCode {
         match self {
-            Self::BadRequest | Self::InvalidCursor => StatusCode::BAD_REQUEST,
+            Self::BadRequest | Self::InvalidCursor | Self::SimulateUnsupported => {
+                StatusCode::BAD_REQUEST
+            }
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::CrossSiteRequest => StatusCode::FORBIDDEN,
             Self::NotFound | Self::Exhausted => StatusCode::NOT_FOUND,
@@ -202,6 +208,7 @@ impl ProblemKind {
             Self::Internal => "Erreur interne",
             Self::Exhausted => "Plus rien de libre",
             Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue",
+            Self::SimulateUnsupported => "Cette écriture ne se simule pas",
         };
         kartenn_core::labels::Compiled::new(fr, self.title())
     }
@@ -237,6 +244,7 @@ impl ProblemKind {
             Self::Internal => "Internal error",
             Self::Exhausted => "Nothing is free",
             Self::PolicyQueryTooLarge => "The query of compliance is too large",
+            Self::SimulateUnsupported => "This write cannot be simulated",
         }
     }
 }
