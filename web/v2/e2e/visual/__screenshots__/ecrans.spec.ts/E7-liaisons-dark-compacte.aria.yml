@@ -1,0 +1,102 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Liaisons":
+        - /url: /admin/bindings
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem: Liaisons
+  - button "Présent"
+  - button "Brouillon ( 0 )"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Liaisons" [level=1]
+  - region "Liaisons 4":
+    - heading "Liaisons 4" [level=2]
+    - button "Créer"
+    - grid "Liaisons":
+      - rowgroup:
+        - row "Sujet Rôle Portée Du Au":
+          - columnheader "Sujet"
+          - columnheader "Rôle"
+          - columnheader "Portée"
+          - columnheader "Du"
+          - columnheader "Au"
+      - rowgroup:
+        - row /Camille Martin · personne Administrateur Globale \d+-\d+-\d+ —/:
+          - gridcell "Camille Martin · personne"
+          - gridcell "Administrateur"
+          - gridcell "Globale"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "—"
+        - 'row /Lou Bernard · personne Éditeur Entité : Atelier Nord \d+-\d+-\d+ —/':
+          - gridcell "Lou Bernard · personne"
+          - gridcell "Éditeur"
+          - 'gridcell "Entité : Atelier Nord"'
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "—"
+        - 'row /Équipe supervision · groupe Lecteur réseau Site : site-ouest \d+-\d+-\d+ \d+-\d+-\d+/':
+          - gridcell "Équipe supervision · groupe"
+          - gridcell "Lecteur réseau"
+          - 'gridcell "Site : site-ouest"'
+          - gridcell /\d+-\d+-\d+/
+          - gridcell /\d+-\d+-\d+/
+        - 'row /sync-ipam · compte de service import-ipam Domaine : dc-nord \d+-\d+-\d+ —/':
+          - gridcell "sync-ipam · compte de service"
+          - gridcell "import-ipam":
+            - code: import-ipam
+          - 'gridcell "Domaine : dc-nord"'
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "—"
+  - heading "Nouvelle liaison" [level=2]
+  - text: Sujet
+  - textbox "Sujet": Équipe supervision
+  - paragraph:
+    - text: "À venir :"
+    - code: Select
+    - text: /\(tâche \d+\)/
+  - text: Rôle
+  - textbox "Rôle": admin
+  - paragraph:
+    - text: "À venir :"
+    - code: Select
+    - text: /\(tâche \d+\)/
+  - text: Portée
+  - textbox "Portée": Globale
+  - text: Du
+  - textbox "Du": /\d+-\d+-\d+/
+  - alert:
+    - paragraph: Liaison refusée
+    - list:
+      - listitem:
+        - text: Vous ne pouvez accorder un rôle plus large que les vôtres.
+        - button "Copier core.binding.escalation":
+          - text: ""
+          - code: core.binding.escalation
+        - status
+  - text: La liaison prend effet à la date « Du ».
+  - button "Annuler"
+  - button "Créer la liaison"

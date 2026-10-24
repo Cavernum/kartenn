@@ -1,0 +1,137 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "Centre de données nord":
+          - /url: /domains/dc-nord
+      - listitem:
+        - link "Préfixes":
+          - /url: /prefixes
+      - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
+  - button "Présent"
+  - button "Brouillon ( 2 )"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/ [level=2]
+    - button "Modifier"
+    - button "Actions"
+    - tablist "Sections de la fiche":
+      - tab "Propriétés 5"
+      - tab /Contenu \d+/
+      - tab "Historique 4" [selected]
+      - tab "Anomalies 1"
+      - tab "VLAN"
+      - tab "Machines 6"
+      - tab "Flux (en chargement)"
+    - tabpanel "Historique 4":
+      - grid /Versions de \d+\.\d+\.\d+\.\d+\/\d+/:
+        - rowgroup:
+          - row "Version, changeset Valide Connue du Motif":
+            - columnheader "Version, changeset"
+            - columnheader "Valide"
+            - columnheader "Connue du"
+            - columnheader "Motif"
+        - rowgroup:
+          - row /v4 01JD4K8B2C \d+-\d+-\d+ → \d+-\d+-\d+ Bascule des VIP salle B/:
+            - gridcell "v4 01JD4K8B2C":
+              - text: ""
+              - link "01JD4K8B2C":
+                - /url: /changesets/01JD4K8B2C
+            - gridcell /\d+-\d+-\d+ →/
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Bascule des VIP salle B"
+          - row /v3 01JC9Q2H7R \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Rattachement au site ouest/:
+            - gridcell "v3 01JC9Q2H7R":
+              - text: ""
+              - link "01JC9Q2H7R":
+                - /url: /changesets/01JC9Q2H7R
+            - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Rattachement au site ouest"
+          - row /v2 01JB1T5W3E \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Correction rétroactive du propriétaire/:
+            - gridcell "v2 01JB1T5W3E":
+              - text: ""
+              - link "01JB1T5W3E":
+                - /url: /changesets/01JB1T5W3E
+            - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Correction rétroactive du propriétaire"
+          - row /v1 01JA0N8D4F \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Import initial/:
+            - gridcell "v1 01JA0N8D4F":
+              - text: ""
+              - link "01JA0N8D4F":
+                - /url: /changesets/01JA0N8D4F
+            - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Import initial"
+    - heading "Attributs" [level=2]
+    - term: Domaine
+    - definition: Centre de données nord
+    - term: Nature
+    - definition: Réseau
+    - term: Point à point
+    - definition: non
+    - term: Anycast
+    - definition: non
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JD4K7Q9V2M8X3N5P6R7S8T9W":
+        - text: ""
+        - code: 01JD4K7Q9V2M8X3N5P6R7S8T9W
+      - status
+    - heading /Occupation \d+ %/ [level=2]
+    - term: Utilisées
+    - definition: /\d+ sur \d+/
+    - term: Plages
+    - definition: /1 \(\d+ adresses\)/
+    - term: Prochain libre
+    - definition: /\d+\.\d+\.\d+\.\d+/
+    - button /Réserver \d+\.\d+\.\d+\.\d+/
+    - heading "VLAN porté plugin VLAN" [level=2]
+    - term: VID
+    - definition: /\d+/
+    - term: Nom
+    - definition: supervision
+    - term: Groupe
+    - definition: campus-ouest

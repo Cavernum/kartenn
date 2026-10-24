@@ -309,18 +309,46 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
     `DraftCounter` au lecteur d'écran, alerte de `InlineAlert` qui contient les codes.
     À arbitrer (maquettes, tâche 15) : rayon plein de `DatePill`, barre latérale sombre
     en mode clair, motif d'une entrée de menu désactivée sur deux lignes.
-- [ ] 13. Maquettes E1 à E5 (référentiel, fiche d'un préfixe, liste d'adresses, changeset
+- [x] 13. Maquettes E1 à E5 (référentiel, fiche d'un préfixe, liste d'adresses, changeset
   et revue, brouillon) en clair et en sombre — REQ-020-25 — verify : captures de
   référence ; revue `ui-reviewer` contre le brief, écarts listés ; poids de la
   bibliothèque mesuré (Q-020-9)
   - où : design § « Maquettes » ; `web/v2/shell/src/_ui/ecrans/` ; écrans actuels
     `web/shell/src/views/`, `record/`, `changesets/`, `draft/` (contenu, pas le style)
   - dépend de : 12
-- [ ] 14. Maquettes E6 à E10 (lecture au passé, administration, palette et aide, états,
+  - fait (avec la 14) : `/_ui/ecrans/<E1…E10>?vue=<id>` (`ecrans/registry.ts` : dix
+    maquettes, 25 vues), hors du cadre du catalogue (pleine page, mêmes commutateurs dans
+    l'adresse) ; page de revue `/_ui/revue` (chaque vue en clair, sombre, compacte,
+    confortable ; planche des icônes ; composants à venir ; points à trancher), liens à
+    l'index ; captures, instantané ARIA, axe et CSP par vue, mode et densité
+    (`e2e/visual/ecrans.spec.ts`, 100 captures). Pièces locales aux maquettes, à trancher
+    à la tâche 15 : cadre du shell (`EcranCadre`), panneau (`EcranPanneau`), liste
+    d'attributs (`EcranAttributs`), repère « À venir » (`AVenir`, en tirets, nomme le
+    composant P4 remplacé : `FilterPicker`, `PeriodPicker`, `Select`, `Checkbox`,
+    `Popover`, `Toast`, `FormField`, `ShortcutHint`). Correctif de bibliothèque : `Tabs`
+    borne la largeur de son panneau (une grille large le débordait). Poids (build en
+    bibliothèque, `vue` et `reka-ui` externes) : JS 18,6 Ko gzip (`index` 14,8 +
+    icônes 3,8), CSS 7,8 Ko gzip hors polices — sous B29 (90 et 20 Ko). Revues
+    `ui-reviewer` et `a11y-auditor` faites ; corrigés : titre de page h1 (caché) et
+    panneaux en h2, seul le panneau principal en région ; un bouton plein par zone (E4) ;
+    un seul repère d'état par ligne ; motif visible près des boutons désactivés (E5) ;
+    simulation en cours dite en mots ; noms distincts (« Lire au présent », « Retirer
+    l'opération « Usage » sur … ») ; grilles sans débordement (E2, E10). Restent pour P4
+    (composants) : bulle d'erreur de cellule qui couvre les lignes voisines et tronque le
+    code (`DataGrid`) ; bouton désactivé non focalisable, donc motif inatteignable au
+    clavier (`Button`, tâche 16) ; régions `status` sur du contenu statique
+    (`InlineAlert`, `TimeBand`) et une région vide par `CodeBadge` ; grilles en lecture
+    seule en rôle `grid` plutôt que `table` ; saisie initiale de la palette non montrée
+    (`CommandPalette`) ; `aria-haspopup=dialog` de `DatePill`.
+- [x] 14. Maquettes E6 à E10 (lecture au passé, administration, palette et aide, états,
   hôte de plugin et matrice de la 017) — REQ-020-25 — verify : idem 13
   - où : design § « Maquettes » ; `web/shell/src/admin/`, `time/` ; spec 017, design
     « Plugin `policy` » (matrice) ; `web/plugins/vlan/src/index.ts` (contenu de la vue)
   - dépend de : 13
+  - fait : avec la 13 (même page de revue, mêmes captures). Choix de Claude : matrice de
+    politique en `DataGrid` (une ligne par environnement source, verdict en
+    `StatusBadge`), chronologie des versions en `DataGrid`, sélecteur de période en
+    repère « À venir » sous la barre d'état ; points listés sur `/_ui/revue` pour la 15.
 - [ ] 15. Validation des maquettes par l'utilisateur, sur captures en clair et en sombre ;
   validation et écarts acceptés consignés dans `decisions.md` (§ « Validations des
   maquettes ») ; écarts reportés dans ce design et dans celui de la 021 ; captures figées

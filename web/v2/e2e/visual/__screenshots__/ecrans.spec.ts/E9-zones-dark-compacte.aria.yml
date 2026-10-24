@@ -1,0 +1,67 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem: Bureaux
+  - button "Présent"
+  - button "Brouillon ( 2 )"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Domaine Bureaux" [level=1]
+  - heading "Préfixes Bureaux" [level=2]
+  - paragraph: Aucun préfixe racine
+  - paragraph: Le domaine « bureaux » n'a aucun préfixe au présent. Créez-en un ou lancez un import.
+  - button "Créer un préfixe"
+  - region "Adresses":
+    - heading "Adresses" [level=2]
+    - status: Chargement
+  - heading "Anomalies ouvertes" [level=2]
+  - alert: Les anomalies n'ont pas pu être lues.
+  - paragraph: /Le service a répondu \d+\. Le reste de l'écran reste utilisable\./
+  - button "Copier urn:kartenn:problem:unavailable":
+    - text: ""
+    - code: urn:kartenn:problem:unavailable
+  - status
+  - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+    - text: ""
+    - code: req_7f3a9c2e5b1d4068
+  - status
+  - button "Réessayer"

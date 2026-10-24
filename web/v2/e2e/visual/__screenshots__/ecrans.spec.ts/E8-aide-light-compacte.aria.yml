@@ -1,0 +1,70 @@
+- dialog "Raccourcis clavier":
+  - banner:
+    - heading "Raccourcis clavier" [level=2]
+    - button "Fermer"
+  - paragraph: "Lus au registre des raccourcis : ceux du shell, puis ceux des plugins chargés."
+  - text: g puis p
+  - paragraph:
+    - text: "À venir :"
+    - code: ShortcutHint
+    - text: /\(tâche \d+\)/
+  - grid "Raccourcis":
+    - rowgroup:
+      - row "Touches Action Portée":
+        - columnheader "Touches"
+        - columnheader "Action"
+        - columnheader "Portée"
+    - rowgroup:
+      - row "Ctrl K Palette de commandes Partout":
+        - gridcell "Ctrl K"
+        - gridcell "Palette de commandes"
+        - gridcell "Partout"
+      - row "/ Filtrer la vue Hors champ":
+        - gridcell /
+        - gridcell "Filtrer la vue"
+        - gridcell "Hors champ"
+      - row "? Cette aide Hors champ":
+        - gridcell "?"
+        - gridcell "Cette aide"
+        - gridcell "Hors champ"
+      - row "g puis p Aller aux préfixes Hors champ":
+        - gridcell "g puis p"
+        - gridcell "Aller aux préfixes"
+        - gridcell "Hors champ"
+      - row "g puis a Aller aux adresses Hors champ":
+        - gridcell "g puis a"
+        - gridcell "Aller aux adresses"
+        - gridcell "Hors champ"
+      - row "g puis c Aller aux changesets Hors champ":
+        - gridcell "g puis c"
+        - gridcell "Aller aux changesets"
+        - gridcell "Hors champ"
+      - row "g puis b Ouvrir le brouillon Hors champ":
+        - gridcell "g puis b"
+        - gridcell "Ouvrir le brouillon"
+        - gridcell "Hors champ"
+      - row "g puis v Aller aux VLAN (plugin) Hors champ":
+        - gridcell "g puis v"
+        - gridcell "Aller aux VLAN (plugin)"
+        - gridcell "Hors champ"
+      - row "c Créer dans la collection Présent, droit":
+        - gridcell "c"
+        - gridcell "Créer dans la collection"
+        - gridcell "Présent, droit"
+      - row "e Modifier l'objet ou la cellule Présent, droit":
+        - gridcell "e"
+        - gridcell "Modifier l'objet ou la cellule"
+        - gridcell "Présent, droit"
+      - row "Ctrl Entrée Appliquer maintenant (motif) Éditeur":
+        - gridcell "Ctrl Entrée"
+        - gridcell "Appliquer maintenant (motif)"
+        - gridcell "Éditeur"
+      - row "Échap Fermer, annuler l'édition Partout":
+        - gridcell "Échap"
+        - gridcell "Fermer, annuler l'édition"
+        - gridcell "Partout"
+      - row "[ Replier la barre latérale Hors champ":
+        - gridcell "["
+        - gridcell "Replier la barre latérale"
+        - gridcell "Hors champ"
+  - paragraph: Les raccourcis à une touche se désactivent dans le menu du compte ; Ctrl+K, Ctrl+Entrée et Échap restent.
