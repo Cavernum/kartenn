@@ -338,5 +338,17 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P4 — Clôture
 
-- [ ] 13. Synchronisation `docs/spec/` (API : brouillons, statistiques, simulation ;
+- [x] 13. Synchronisation `docs/spec/` (API : brouillons, statistiques, simulation ;
   permissions ; invariants), index `specs/README.md` — verify : `spec-keeper`
+  - Résultat : `interfaces.md` (lignes Écriture — motifs de repli `reason` —,
+    Simulation, Cycle, Erreurs, Brouillons, Statistiques servies d'instantanés ; SSE
+    `draft` et `stats` ; client et CLI), `invariants.md` (INV-61, 77 amendés ; INV-78 à
+    82 ; budget INV-83), `data.md` (`draft`, `changeset.draft_id`, 0063 à 0065),
+    `architecture.md` (brouillons du shell v2) ; `permissions.md`, `regles-noyau.md` et
+    `evenements-audit.md` déjà à jour (tâches 1, 4, 6) ; `spec-keeper` : aucune
+    contradiction, deux précisions reportées (`sections` de la simulation, `stats` remis
+    aux connexions qui le sélectionnent). Restent hors `docs/spec/` : REQ-024-2, 7, 16, 17,
+    le design § D et « Erreurs et cas limites » (`draft.limit`,
+    `simulate.unsupported`, 403 `changeset.approval.self`) décrivent encore l'avant des
+    choix tranchés ; le contrat ne déclare pas 428 sur `DELETE`, `…/operations` et
+    `…/takeover` des brouillons.
