@@ -271,7 +271,7 @@ def test_dry_run_refused_ends_with_8(served: FakeServer) -> None:
 def test_a_write_without_changeset_cannot_be_simulated(served: FakeServer) -> None:
     result = kartenn("anomalies", "acknowledge", PREFIX, "--motive", "vu", "--dry-run")
     assert result.exit_code == 2
-    assert "client.dry-run-unavailable" in result.stderr
+    assert "client.simulate-unsupported" in result.stderr
     served.route(
         "POST", "/v1/anomalies/{id}/acknowledgement", httpx2.Response(200, json={"ok": True})
     )

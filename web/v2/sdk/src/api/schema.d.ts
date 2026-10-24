@@ -10857,6 +10857,15 @@ export interface operations {
           "application/problem+json": components["schemas"]["Problem"];
         };
       };
+      /** @description `If-Match` is missing. */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
       /** @description A problem (RFC 9457). */
       default: {
         headers: {
@@ -10982,6 +10991,15 @@ export interface operations {
       };
       /** @description Beyond 10 000 operations (`draft-limit`). */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description `If-Match` is missing. */
+      428: {
         headers: {
           [name: string]: unknown;
         };
@@ -11127,6 +11145,15 @@ export interface operations {
           "application/problem+json": components["schemas"]["Problem"];
         };
       };
+      /** @description `If-Match` is `*`, which names no version. */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
       /** @description A problem (RFC 9457). */
       default: {
         headers: {
@@ -11191,6 +11218,15 @@ export interface operations {
       };
       /** @description The caller keeps 50 drafts already (`draft-limit`). */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description `If-Match` is missing. */
+      428: {
         headers: {
           [name: string]: unknown;
         };

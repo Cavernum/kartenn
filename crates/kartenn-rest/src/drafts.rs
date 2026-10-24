@@ -476,6 +476,7 @@ struct OperationsBody {
         (status = 404, description = "Absent, or someone else's.", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Modified since.", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "Beyond 10 000 operations (`draft-limit`).", body = Problem, content_type = "application/problem+json"),
+        (status = 428, description = "`If-Match` is missing.", body = Problem, content_type = "application/problem+json"),
     )
 )]
 async fn add(
@@ -513,6 +514,7 @@ async fn add(
         (status = 204, description = "Deleted."),
         (status = 404, description = "Absent, or someone else's.", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Modified since.", body = Problem, content_type = "application/problem+json"),
+        (status = 428, description = "`If-Match` is missing.", body = Problem, content_type = "application/problem+json"),
     )
 )]
 async fn remove(
@@ -648,6 +650,7 @@ async fn simulation(
         (status = 404, description = "Absent, or someone else's.", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Modified since the ETag of `If-Match`.", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "Refused (violations, motive missing): the draft stays.", body = Problem, content_type = "application/problem+json"),
+        (status = 428, description = "`If-Match` is `*`, which names no version.", body = Problem, content_type = "application/problem+json"),
     )
 )]
 async fn submission(
@@ -704,6 +707,7 @@ async fn submission(
         (status = 409, description = "The draft is the caller's already.", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Modified since.", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "The caller keeps 50 drafts already (`draft-limit`).", body = Problem, content_type = "application/problem+json"),
+        (status = 428, description = "`If-Match` is missing.", body = Problem, content_type = "application/problem+json"),
     )
 )]
 async fn takeover(

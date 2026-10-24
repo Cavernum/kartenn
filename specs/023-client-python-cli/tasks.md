@@ -571,7 +571,8 @@ plus tard dans un flux régénère le verrou à son commit, après rebase.
     correspond à une écriture REST. `--dry-run` et `--into-changeset` traduisent donc
     `create_<x>` (membres tels quels), `update_<x>` si le schéma `Operation` le connaît,
     `close` d'un `kind` de `TargetKind`, et `<module>.<operationId>` pour un module ;
-    sinon `client.dry-run-unavailable`. Les membres REST et ceux des opérations
+    sinon `client.no-changeset-operation` (`--dry-run` sur une écriture que le contrat
+    déclare `x-kartenn.simulate: false` : `client.simulate-unsupported`). Les membres REST et ceux des opérations
     diffèrent parfois (`value` d'un préfixe contre `prefix` de `create_prefix`) : à
     trancher côté serveur (accepter `?simulate=true` sur toute écriture, ou décrire
     l'opération dans `x-kartenn`). Bibliothèque corrigée à part : une opération
