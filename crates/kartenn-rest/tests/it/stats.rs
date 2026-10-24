@@ -1,20 +1,22 @@
 //! `GET /v1/stats` through the router (spec 024, task 7; REQ-024-14 to 16): each counter
 //! under the read rights of the caller, a kind it reads nowhere absent, the changesets
 //! only to a reader of the changesets, its own pending changesets and those it may apply;
-//! the `ETag` and the cache kept by the revision of the outbox.
+//! the `ETag`, `computed_at` and the snapshots recomputed once the outbox moved (M18).
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
+use axum::{Extension, Router};
+use futures_util::future::join_all;
 use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::objects::Nature;
 use kartenn_rest::health::PgReadiness;
 use kartenn_rest::objects::Api;
 use kartenn_rest::quota::{Quotas, Rate, Rates};
+use kartenn_rest::stats::{Freshness, Snapshots};
 use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
@@ -26,6 +28,8 @@ use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::write::PgStore;
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -91,8 +95,8 @@ async fn person(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)
     }
 }
 
-fn app(pool: &PgPool, who: Principal) -> Router {
-    let api = Api {
+fn api(pool: &PgPool) -> Api {
+    Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
         bound: Duration::from_secs(60),
@@ -101,9 +105,26 @@ fn app(pool: &PgPool, who: Principal) -> Router {
         sources: kartenn_service::expected::Sources::none(),
         outputs: Arc::from([]),
         modules: Arc::default(),
-    };
+    }
+}
+
+/// The router as `who`, the snapshots those of the process.
+fn app(pool: &PgPool, who: Principal) -> Router {
+    router(kartenn_rest::v1(api(pool)), pool, who)
+}
+
+/// The router as `who`, with `snapshots`.
+fn app_with(pool: &PgPool, who: Principal, snapshots: &Arc<Snapshots>) -> Router {
+    router(
+        kartenn_rest::v1(api(pool)).layer(Extension(snapshots.clone())),
+        pool,
+        who,
+    )
+}
+
+fn router(v1: Router, pool: &PgPool, who: Principal) -> Router {
     kartenn_rest::router(
-        kartenn_rest::v1(api),
+        v1,
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
         Settings::default(),
         Arc::new(Quotas::new(Rates {
@@ -280,24 +301,181 @@ async fn each_counter_follows_the_rights_of_the_caller(pool: PgPool) {
     assert_eq!(none["pending"], json!({"to_apply": 0, "mine": 0}));
 }
 
-/// REQ-024-16: a strong `ETag` answers 304; a changeset moves the revision of the outbox,
-/// which the cache keys on: the next read counts it at once.
+/// Snapshots due after `refresh`, the rest as by default.
+fn snapshots(refresh: Duration) -> Arc<Snapshots> {
+    Snapshots::new(Freshness {
+        refresh,
+        ..Freshness::default()
+    })
+}
+
+/// Waits until `snapshots` counts `n` parts computed, and not one more.
+async fn computed(snapshots: &Snapshots, n: u64) {
+    for _ in 0..400 {
+        if snapshots.computations() >= n {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(snapshots.computations(), n);
+}
+
+fn computed_at(body: &Value) -> OffsetDateTime {
+    OffsetDateTime::parse(body["computed_at"].as_str().unwrap(), &Rfc3339).unwrap()
+}
+
+/// REQ-024-16, M18: a strong `ETag` answers 304; the first read computes, the next ones
+/// are served the snapshot without computing, even past a changeset while it is recent;
+/// once old enough, a read is served it once more and recomputes it behind, and the next
+/// one counts the change, its `computed_at` later.
 #[kartenn_testing::pg_test]
-async fn the_etag_and_the_cache_follow_the_outbox(pool: PgPool) {
+async fn the_etag_and_the_snapshot_follow_the_outbox(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let reader = person(&pool, &READ_ALL, ("global", None)).await;
-    let app = app(&pool, reader);
+    let refresh = Duration::from_millis(400);
+    let snapshots = snapshots(refresh);
+    let app = app_with(&pool, reader, &snapshots);
+    let before = OffsetDateTime::now_utc() - Duration::from_secs(5);
     let (status, tag, first) = stats(&app, None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(tag.starts_with('"'), "strong: {tag}");
+    assert_eq!(snapshots.computations(), 2, "its rights' part and its own");
+    assert!(computed_at(&first) >= before, "{first}");
+    assert_eq!(first["objects"]["core.prefix"], 0);
     let (status, again, body) = stats(&app, Some(&tag)).await;
     assert_eq!(status, StatusCode::NOT_MODIFIED);
     assert_eq!(again, tag);
     assert_eq!(body, Value::Null);
-    assert_eq!(first["objects"]["core.prefix"], 0);
+
     apply(&pool, vec![prefix_in(lab, "10.0.0.0/8")]).await;
+    let (status, same, _) = stats(&app, Some(&tag)).await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_MODIFIED,
+        "too recent to be recomputed"
+    );
+    assert_eq!(same, tag);
+    assert_eq!(snapshots.computations(), 2);
+
+    tokio::time::sleep(refresh).await;
+    let (status, _, _) = stats(&app, Some(&tag)).await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_MODIFIED,
+        "served, recomputed behind"
+    );
+    computed(&snapshots, 4).await;
     let (status, moved, after) = stats(&app, Some(&tag)).await;
     assert_eq!(status, StatusCode::OK);
     assert_ne!(moved, tag);
     assert_eq!(after["objects"]["core.prefix"], 1, "{after}");
+    assert!(computed_at(&after) > computed_at(&first), "{after}");
+    assert_eq!(snapshots.computations(), 4);
+}
+
+/// M18: an old snapshot is not recomputed while the outbox has not moved, by a read or by
+/// a sweep.
+#[kartenn_testing::pg_test]
+async fn nothing_changed_nothing_is_recomputed(pool: PgPool) {
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let refresh = Duration::from_millis(200);
+    let snapshots = snapshots(refresh);
+    let app = app_with(&pool, reader, &snapshots);
+    let (_, tag, _) = stats(&app, None).await;
+    tokio::time::sleep(refresh).await;
+    let (status, _, _) = stats(&app, Some(&tag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    snapshots.sweep(&api(&pool)).await.unwrap();
+    computed(&snapshots, 2).await;
+}
+
+/// M18: concurrent first reads compute a key once; concurrent reads and a sweep of a due
+/// key recompute it once.
+#[kartenn_testing::pg_test]
+async fn one_computation_per_key_at_a_time(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let refresh = Duration::from_millis(300);
+    let snapshots = snapshots(refresh);
+    let changed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = changed.clone();
+    snapshots.on_changed(move || {
+        counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    });
+    let app = app_with(&pool, reader, &snapshots);
+    let firsts = join_all((0..8).map(|_| stats(&app, None))).await;
+    assert!(
+        firsts
+            .iter()
+            .all(|(status, tag, _)| *status == StatusCode::OK && *tag == firsts[0].1)
+    );
+    assert_eq!(snapshots.computations(), 2);
+
+    apply(&pool, vec![prefix_in(lab, "10.0.0.0/8")]).await;
+    tokio::time::sleep(refresh).await;
+    let api = api(&pool);
+    let (_, swept) = tokio::join!(
+        join_all((0..8).map(|_| stats(&app, None))),
+        snapshots.sweep(&api)
+    );
+    swept.unwrap();
+    computed(&snapshots, 4).await;
+    assert_eq!(
+        changed.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "the part of the rights changed, not its own"
+    );
+    let (_, _, after) = stats(&app, None).await;
+    assert_eq!(after["objects"]["core.prefix"], 1, "{after}");
+}
+
+/// M18: a sweep recomputes the due keys read lately, not the others; a key unread for
+/// long is forgotten and its next read computes at once, as one pushed out by the bound
+/// on the keys.
+#[kartenn_testing::pg_test]
+async fn the_sweep_keeps_the_keys_read_lately(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let api = api(&pool);
+    let refresh = Duration::from_millis(200);
+    let lately = snapshots(refresh);
+    let idle = Snapshots::new(Freshness {
+        refresh,
+        active: Duration::from_millis(100),
+        ..Freshness::default()
+    });
+    stats(&app_with(&pool, reader.clone(), &lately), None).await;
+    stats(&app_with(&pool, reader.clone(), &idle), None).await;
+    apply(&pool, vec![prefix_in(lab, "10.0.0.0/8")]).await;
+    tokio::time::sleep(refresh).await;
+    lately.sweep(&api).await.unwrap();
+    idle.sweep(&api).await.unwrap();
+    assert_eq!(lately.computations(), 4, "recomputed by the sweep");
+    assert_eq!(idle.computations(), 2, "not read lately");
+    let (_, _, served) = stats(&app_with(&pool, reader.clone(), &lately), None).await;
+    assert_eq!(served["objects"]["core.prefix"], 1, "{served}");
+    assert_eq!(lately.computations(), 4);
+
+    let forgetting = Snapshots::new(Freshness {
+        forget: Duration::from_millis(100),
+        ..Freshness::default()
+    });
+    let app = app_with(&pool, reader.clone(), &forgetting);
+    stats(&app, None).await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    forgetting.sweep(&api).await.unwrap();
+    assert_eq!(forgetting.computations(), 2);
+    stats(&app, None).await;
+    assert_eq!(forgetting.computations(), 4, "forgotten, computed again");
+
+    let one = Snapshots::new(Freshness {
+        keys: 1,
+        ..Freshness::default()
+    });
+    let other = person(&pool, &["core.domain.read"], ("global", None)).await;
+    stats(&app_with(&pool, reader.clone(), &one), None).await;
+    stats(&app_with(&pool, other, &one), None).await;
+    stats(&app_with(&pool, reader, &one), None).await;
+    assert_eq!(one.computations(), 6, "the least recently read pushed out");
 }

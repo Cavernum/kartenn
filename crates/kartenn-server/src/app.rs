@@ -690,6 +690,8 @@ struct Api {
     /// The plugins of the shell, read again on `SIGHUP` and by `watcher` (spec 007).
     plugins: Option<Arc<kartenn_rest::web::Plugins>>,
     watcher: Option<JoinHandle<()>>,
+    /// The background recomputation of the statistics (spec 024, M18).
+    statistics: JoinHandle<()>,
     /// The event stream (spec 022): its hub, and its reader stopped by `reader_stop`.
     events: Option<(
         Arc<kartenn_rest::events::hub::Hub>,
@@ -793,7 +795,21 @@ impl Api {
         } else {
             None
         };
-        let mut v1 = kartenn_rest::v1_with(objects, crate::modules::routers());
+        // The snapshots of `GET /v1/stats` (spec 024, M18), recomputed in the background;
+        // a recomputation that changed a body sends the event `stats`.
+        let snapshots =
+            kartenn_rest::stats::Snapshots::new(kartenn_rest::stats::Freshness::default());
+        if let Some((hub, ..)) = &events {
+            let hub = Arc::downgrade(hub);
+            snapshots.on_changed(move || {
+                if let Some(hub) = hub.upgrade() {
+                    hub.stats_changed();
+                }
+            });
+        }
+        let statistics = tokio::spawn(snapshots.clone().run(objects.clone()));
+        let mut v1 = kartenn_rest::v1_with(objects, crate::modules::routers())
+            .layer(axum::Extension(snapshots));
         if let Some((hub, ..)) = &events {
             v1 = v1.layer(axum::Extension(hub.clone()));
         }
@@ -831,6 +847,7 @@ impl Api {
             authn,
             plugins,
             watcher,
+            statistics,
             events,
             #[cfg(unix)]
             hangup,
@@ -915,6 +932,7 @@ impl Api {
         if let Some(watcher) = &self.watcher {
             watcher.abort();
         }
+        self.statistics.abort();
         // The streams first: refused, then each writes its `retry:` and ends, so that the
         // drain does not wait on them (REQ-022-12).
         if let Some((hub, reader_stop, reader)) = &self.events {
