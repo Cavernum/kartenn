@@ -31,6 +31,19 @@ function previewPort(): number {
   return Number(free);
 }
 
+/**
+ * The fontconfig of Nix (devenv.nix, `playwrightFonts`). The headless shell otherwise reads
+ * the one of the host, and the glyphs of a capture taken on NixOS differ from the ones of
+ * the Ubuntu runner of the CI: antialiasing, hinting, subpixel order and fallback fonts
+ * are host settings. No capture without it.
+ */
+function fontconfig(): string {
+  const file = process.env.KARTENN_PLAYWRIGHT_FONTCONFIG;
+  if (!file)
+    throw new Error("KARTENN_PLAYWRIGHT_FONTCONFIG unset: run the captures in devenv shell");
+  return file;
+}
+
 export const PORT = previewPort();
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 
@@ -66,6 +79,11 @@ export default defineConfig({
         reducedMotion: "reduce",
         // CodeBadge and KeyLabel copy to the clipboard (REQ-020-22).
         permissions: ["clipboard-read", "clipboard-write"],
+        launchOptions: {
+          env: { ...process.env, FONTCONFIG_FILE: fontconfig() },
+          // The same rendering as the fontconfig file, for what Chromium decides itself.
+          args: ["--font-render-hinting=none", "--disable-lcd-text"],
+        },
       },
     },
   ],

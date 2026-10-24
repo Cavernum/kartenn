@@ -55,19 +55,19 @@
     - list:
       - listitem:
         - code: "--k-sidebar-bg"
-        - code: "#1c2433"
-      - listitem:
-        - code: "--k-sidebar-fg"
-        - code: "#a9b4c6"
-      - listitem:
-        - code: "--k-sidebar-active-bg"
-        - code: "#2a3547"
-      - listitem:
-        - code: "--k-sidebar-active-fg"
         - code: "#fff"
       - listitem:
+        - code: "--k-sidebar-fg"
+        - code: "#4b5668"
+      - listitem:
+        - code: "--k-sidebar-active-bg"
+        - code: "#e3edf9"
+      - listitem:
+        - code: "--k-sidebar-active-fg"
+        - code: "#16191f"
+      - listitem:
         - code: "--k-sidebar-active-icon"
-        - code: "#8cc0f5"
+        - code: "#0b5cad"
     - heading "Environnements" [level=2]
     - list:
       - listitem:
@@ -326,6 +326,10 @@
         - text: ":"
         - code: /\d+[hmsp]+/
       - listitem:
+        - code: "--k-duration-spin"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
         - code: "--k-ease-standard"
         - text: ":"
         - code: cubic-bezier(.2, 0, 0, 1)
@@ -333,3 +337,7 @@
         - code: "--k-ease-exit"
         - text: ":"
         - code: cubic-bezier(.4, 0, 1, 1)
+      - listitem:
+        - code: "--k-ease-linear"
+        - text: ":"
+        - code: linear
