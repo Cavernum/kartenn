@@ -113,6 +113,14 @@ RSS du banc 1,6 Go) :
 | Suggestion de l'inférence pour un objet | 6 ms | 50 ms |
 | Contrôle de l'inférence, changeset de 10⁴ objets (ajouté) | ≈ 0,3 s | 1 s |
 | Réévaluation complète de l'inférence | 218 s | 10 min |
+| Aperçu d'une règle d'inférence dans sa simulation, 30 001 nœuds (ajouté ; S36) | 1,54 s | 4 s |
+
+Repassé au banc complet le 2026-10-24 après l'aperçu S36 et le masquage des sections
+(ADR 0026, amendement 6) : tous les budgets tiennent. L'aperçu mesurait 5,7 s avant la
+correction de 010-22 (règles indexées par préfixe, lignée et valeurs déclarées lues en
+ensemble) ; la réévaluation complète passe de 218 s à 121 s, le rapport d'audit à 35 s.
+Le contrôle de l'inférence, mesuré par différence de deux médianes de 5 s, reste dans le
+bruit (0 à 0,7 s selon la charge) : la mesure, pas le code, est à revoir.
 
 Le contrôle de l'inférence se mesure par différence des médianes de trois changesets de
 10⁴ adresses avec et sans la source (5,5 s et 5,9 s au passage retenu) : l'écart est
