@@ -117,6 +117,29 @@ def test_property_keys_then_closed_values() -> None:
     ]
 
 
+def test_a_long_closed_list_is_asked_by_prefix(served: FakeServer) -> None:
+    """A list longer than a page is asked again with `q` for each prefix (spec 018,
+    REQ-018-22); a whole list, read once and filtered here."""
+
+    def by_prefix(request: httpx2.Request) -> httpx2.Response:
+        prefix = request.url.params.get("q", "")
+        items = [e for e in ENVIRONMENTS if str(e["key"]).startswith(prefix)]
+        return httpx2.Response(200, json={"items": items, "links": {"next": "/v1/more"}})
+
+    served.route("GET", "/v1/property-declarations/{key}/values", by_prefix)
+    line = "kartenn prefixes list --prop policy.environment=re"
+    assert bash_values(complete_in("bash", line)) == ["policy.environment=recette"]
+    asked = served.seen[-1].url.params
+    assert asked.get("q") == "re"
+    assert asked.get("page_size") == str(complete.SUGGESTIONS)
+    count = len(served.seen)
+    assert bash_values(complete_in("bash", line)) == ["policy.environment=recette"]
+    assert len(served.seen) == count, "kept by prefix"
+    line = "kartenn prefixes list --prop policy.environment=d"
+    assert bash_values(complete_in("bash", line)) == ["policy.environment=dev"]
+    assert served.seen[-1].url.params.get("q") == "d"
+
+
 def test_a_mute_server_leaves_the_local_proposals_within_a_second(
     served: FakeServer,
 ) -> None:

@@ -152,10 +152,20 @@ fn labels(pairs: &[(&str, &str)]) -> RawLabels {
 
 /// Submits `operations` as the system, from `start` (microseconds) on when given.
 async fn applied(pool: &PgPool, operations: Vec<Operation>, start: Option<i64>) {
+    applied_over(
+        pool,
+        operations,
+        start.map(|start| PeriodSpec { start, end: None }),
+    )
+    .await;
+}
+
+/// Submits `operations` as the system over `period` when given.
+async fn applied_over(pool: &PgPool, operations: Vec<Operation>, period: Option<PeriodSpec>) {
     let request = ChangesetRequest {
         author: kartenn_service::declarations::SYSTEM_AUTHOR,
         motive: "labels".into(),
-        period: start.map(|start| PeriodSpec { start, end: None }),
+        period,
         operations,
         simulate: false,
         idempotency_key: None,
@@ -451,4 +461,103 @@ async fn a_space_is_served_only_to_its_readers(pool: PgPool) {
     );
     assert!(read["spaces"]["role"].as_object().unwrap().len() >= 2);
     assert_ne!(plain_headers[header::ETAG], reader_headers[header::ETAG]);
+}
+
+/// REQ-018-22: `/values` serves the key and the period of each value valid at
+/// `valid_at`; `q` keeps those whose key or a label starts with it, ignoring case; a value
+/// closed before the date is absent; the cursor keeps `q`.
+#[kartenn_testing::pg_test]
+async fn values_are_suggested_by_prefix_at_a_date(pool: PgPool) {
+    let day = 86_400_000_000_i64;
+    let now: i64 = sqlx::query_scalar("SELECT (extract(epoch FROM now()) * 1000000)::bigint")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let property = stages(&pool, false, Some(now - 10 * day)).await;
+    applied(
+        &pool,
+        vec![Operation::AddEnumValue {
+            local: None,
+            property: Ref::Id(property),
+            key: "preprod".into(),
+            labels: labels(&[("fr", "Préproduction"), ("en", "Production staging")]),
+        }],
+        Some(now - 10 * day),
+    )
+    .await;
+    applied_over(
+        &pool,
+        vec![Operation::AddEnumValue {
+            local: None,
+            property: Ref::Id(property),
+            key: "proto".into(),
+            labels: labels(&[]),
+        }],
+        Some(PeriodSpec {
+            start: now - 10 * day,
+            end: Some(now - 5 * day),
+        }),
+    )
+    .await;
+    // A label written over a portion splits the versions, not the period of the value.
+    applied(
+        &pool,
+        vec![Operation::UpdateEnumValue {
+            property: Ref::Id(property),
+            key: "prod".into(),
+            labels: labels(&[("fr", "Production v2")]),
+        }],
+        Some(now - 3 * day),
+    )
+    .await;
+    let app = app(&pool, person(&pool, &[]).await);
+    let date = |micros: i64| {
+        time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(micros) * 1000)
+            .unwrap()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+    };
+    let path = "/v1/property-declarations/custom.stage/values";
+    let keys = |body: &Value| -> Vec<String> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["key"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let (status, _, today) = get(&app, &format!("{path}?q=PRO"), &[]).await;
+    assert_eq!(status, StatusCode::OK, "{today}");
+    assert_eq!(keys(&today), ["preprod", "prod"], "{today}");
+    let prod = &today["items"][1];
+    assert_eq!(prod["valid_from"], date(now - 10 * day), "{prod}");
+    assert!(prod["valid_to"].is_null(), "{prod}");
+    let at = date(now - 7 * day).replace('+', "%2B");
+    let (_, _, before) = get(&app, &format!("{path}?q=pro&valid_at={at}"), &[]).await;
+    assert_eq!(keys(&before), ["preprod", "prod", "proto"], "{before}");
+    assert_eq!(before["items"][2]["valid_to"], date(now - 5 * day));
+    let (_, _, all) = get(&app, path, &[]).await;
+    assert_eq!(keys(&all), ["preprod", "prod", "rec"], "{all}");
+    let (_, _, by_label) = get(&app, &format!("{path}?q=PR%C3%89"), &[]).await;
+    assert_eq!(
+        keys(&by_label),
+        ["preprod"],
+        "« Préproduction »: {by_label}"
+    );
+    let (_, _, wild) = get(&app, &format!("{path}?q=%25"), &[]).await;
+    assert_eq!(
+        keys(&wild),
+        Vec::<String>::new(),
+        "% is a character: {wild}"
+    );
+    let (_, _, first) = get(&app, &format!("{path}?q=pro&page_size=1"), &[]).await;
+    assert_eq!(keys(&first), ["preprod"]);
+    let next = first["links"]["next"].as_str().unwrap();
+    let (_, _, second) = get(&app, next, &[]).await;
+    assert_eq!(keys(&second), ["prod"], "the cursor keeps q: {second}");
+    assert!(second["links"]["next"].is_null(), "{second}");
+    for wrong in ["q=a&q=b", "q=", "name=prod"] {
+        let (status, _, body) = get(&app, &format!("{path}?{wrong}"), &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{wrong}: {body}");
+    }
 }

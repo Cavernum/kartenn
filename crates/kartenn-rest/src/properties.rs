@@ -277,22 +277,34 @@ async fn declarations(
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
-/// A value of a closed list.
+/// A value of a closed list: its key and its period (spec 018, REQ-018-22); its labels
+/// come from the dictionary `GET /v1/labels` (space `value`).
 #[derive(Debug, Serialize, ToSchema)]
 struct EnumValueItem {
     /// Its key.
     key: String,
+    /// Start of its validity (RFC 3339).
+    valid_from: Option<String>,
+    /// End of its validity, excluded (RFC 3339); `null` while it lasts.
+    valid_to: Option<String>,
 }
 
-/// `GET /v1/property-declarations/{key}/values`: the keys of a closed list, sorted; 404
-/// for a key not declared at the dates, 409 for a property of another type.
+/// `GET /v1/property-declarations/{key}/values`: the values of a closed list valid at
+/// `valid_at`, sorted by key, 20 by default; `q` keeps those whose key or a label starts
+/// with it, ignoring case (spec 018, REQ-018-22); 404 for a key not declared at the
+/// dates, 409 for a property of another type.
 #[utoipa::path(
     get,
     path = "/property-declarations/{key}/values",
     operation_id = "list_property_values",
     tag = "properties",
-    params(("key" = String, Path, description = "The property."), DatesParams, PageParams),
-    responses((status = 200, description = "The values of the closed list, sorted.", body = Listing<EnumValueItem>))
+    params(
+        ("key" = String, Path, description = "The property."),
+        ("q" = Option<String>, Query, description = "Prefix of the key or of a label, in any language, ignoring case; 100 characters at most."),
+        DatesParams,
+        PageParams,
+    ),
+    responses((status = 200, description = "The values of the closed list, sorted by key; 20 a page by default.", body = Listing<EnumValueItem>))
 )]
 async fn values(
     State(api): State<Api>,
@@ -301,8 +313,9 @@ async fn values(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let name = format!("property-declarations/{key}/values");
-    let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?;
-    page.unfiltered()?;
+    let page =
+        Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &name)?.suggesting();
+    let prefix = page.only_prefix()?;
     let after = after_key(&page)?;
     let moment = moment_of(&api, page.dates).await?;
     let as_of = Some(moment.as_of());
@@ -317,22 +330,30 @@ async fn values(
         )));
     }
     let size = usize::from(page.size);
-    let mut keys = property_read::enum_values(
+    let mut found = property_read::enum_values(
         &api.pool,
         declaration.id,
         moment.valid_at,
         as_of,
         after.as_deref(),
+        prefix.as_deref(),
         i64::from(page.size) + 1,
     )
     .await
     .map_err(|e| store(&e))?;
-    let next = (keys.len() > size).then(|| {
-        keys.truncate(size);
-        let cursor = page.next(&api.ring, &name, &moment, json!(keys[size - 1]));
+    let next = (found.len() > size).then(|| {
+        found.truncate(size);
+        let cursor = page.next(&api.ring, &name, &moment, json!(found[size - 1].key));
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let items: Vec<EnumValueItem> = keys.into_iter().map(|key| EnumValueItem { key }).collect();
+    let items: Vec<EnumValueItem> = found
+        .into_iter()
+        .map(|value| EnumValueItem {
+            key: value.key,
+            valid_from: value.valid_from.map(crate::cursor::rfc3339),
+            valid_to: value.valid_to.map(crate::cursor::rfc3339),
+        })
+        .collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

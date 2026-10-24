@@ -106,6 +106,36 @@ pub fn parse(
         .collect()
 }
 
+/// Most characters of a prefix `q`.
+const MAX_PREFIX: usize = 100;
+
+/// The prefix `q` of a suggestion (spec 018, REQ-018-22, 23; Q-018-8), taken out of
+/// `params` (those left by [`crate::cursor::Page`], which a cursor keeps): given once, not
+/// empty, 100 characters at most, lower-cased (the comparison ignores case).
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `q`.
+pub fn prefix(params: &mut Vec<(String, String)>) -> Result<Option<String>, Problem> {
+    let mut found = None;
+    let mut error = None;
+    params.retain(|(name, value)| {
+        if name != "q" {
+            return true;
+        }
+        if found.is_some() {
+            error = Some(bad("q is given more than once"));
+        } else if value.is_empty() {
+            error = Some(bad("q has an empty value"));
+        } else if value.chars().count() > MAX_PREFIX {
+            error = Some(bad(format!("q is longer than {MAX_PREFIX} characters")));
+        }
+        found = Some(value.to_lowercase());
+        false
+    });
+    error.map_or(Ok(found), Err)
+}
+
 fn condition(name: &str, op: &str, values: &[&str]) -> Result<Condition, Problem> {
     if values.iter().any(|v| v.is_empty()) {
         return Err(bad(format!("{name} has an empty value")));

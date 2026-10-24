@@ -195,6 +195,22 @@ pub struct Criteria<'a> {
     pub usages: &'a [String],
 }
 
+/// The `LIKE` pattern of the texts starting with `prefix` (spec 018, Q-018-8): its
+/// wildcards and escape character escaped (`\`, the default escape of `LIKE`), then `%`.
+/// The caller lower-cases both sides for a comparison that ignores case.
+#[must_use]
+pub fn like_prefix(prefix: &str) -> String {
+    let mut pattern = String::with_capacity(prefix.len() + 1);
+    for c in prefix.chars() {
+        if matches!(c, '\\' | '%' | '_') {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    pattern.push('%');
+    pattern
+}
+
 fn sql_err(e: &TemporalError) -> sqlx::Error {
     sqlx::Error::Protocol(e.to_string())
 }

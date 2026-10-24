@@ -2845,8 +2845,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * `GET /v1/property-declarations/{key}/values`: the keys of a closed list, sorted; 404
-     *     for a key not declared at the dates, 409 for a property of another type.
+     * `GET /v1/property-declarations/{key}/values`: the values of a closed list valid at
+     *     `valid_at`, sorted by key, 20 by default; `q` keeps those whose key or a label starts
+     *     with it, ignoring case (spec 018, REQ-018-22); 404 for a key not declared at the
+     *     dates, 409 for a property of another type.
      */
     get: operations["list_property_values"];
     put?: never;
@@ -4355,10 +4357,17 @@ export interface components {
       /** @description New slug. */
       slug?: string | null;
     };
-    /** @description A value of a closed list. */
+    /**
+     * @description A value of a closed list: its key and its period (spec 018, REQ-018-22); its labels
+     *     come from the dictionary `GET /v1/labels` (space `value`).
+     */
     EnumValueItem: {
       /** @description Its key. */
       key: string;
+      /** @description Start of its validity (RFC 3339). */
+      valid_from?: string | null;
+      /** @description End of its validity, excluded (RFC 3339); `null` while it lasts. */
+      valid_to?: string | null;
     };
     /** @description The data of `changes`: keys and revisions, never values (REQ-022-4, 5). */
     EventChanges: {
@@ -5175,6 +5184,10 @@ export interface components {
       items: {
         /** @description Its key. */
         key: string;
+        /** @description Start of its validity (RFC 3339). */
+        valid_from?: string | null;
+        /** @description End of its validity, excluded (RFC 3339); `null` while it lasts. */
+        valid_to?: string | null;
       }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
@@ -16394,6 +16407,8 @@ export interface operations {
   list_property_values: {
     parameters: {
       query?: {
+        /** @description Prefix of the key or of a label, in any language, ignoring case; 100 characters at most. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
@@ -16412,7 +16427,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The values of the closed list, sorted. */
+      /** @description The values of the closed list, sorted by key; 20 a page by default. */
       200: {
         headers: {
           [name: string]: unknown;

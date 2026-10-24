@@ -5,7 +5,8 @@
 - property keys come from the capabilities in the cache;
 - the slugs of references (`--domain`, `--entity`, `--service`…) and the values of
   closed lists (`--prop key=<TAB>`) are read on the server, kept 5 minutes in
-  `$XDG_CACHE_HOME/kartenn/complete/`, never a masked value;
+  `$XDG_CACHE_HOME/kartenn/complete/`, never a masked value; a list longer than a page
+  is asked by prefix (`q`, spec 018, REQ-018-22, 23);
 - a completion never waits more than a second: past it, only the local proposals stay.
   Nothing is ever written on the standard error.
 """
@@ -41,6 +42,8 @@ __all__ = [
 ]
 
 CACHE_SECONDS = 300.0
+# Proposals asked to the server at once: a whole short list, or the first by prefix.
+SUGGESTIONS = 100
 DEADLINE_SECONDS = 0.8
 SHELLS = ("bash", "zsh", "fish")
 Values = list[tuple[str, str]]
@@ -84,32 +87,78 @@ class ValueCache:
         write_private(self.path, json.dumps(data, separators=(",", ":")))
 
 
-def server_values(ctx: click.Context, name: str, fetch: Callable[[Client], Values]) -> Values:
-    """Values read on the server through `fetch`, from the cache when fresh; nothing past
-    the deadline or on any failure."""
+def _within_deadline(ctx: click.Context) -> tuple[ValueCache, Callable[..., Any]] | None:
+    """The cache of the profile's server and a runner of a read on it that gives up past
+    the deadline or on any failure (`None`); `None` without a profile."""
     from kartenn_cli.runtime import runtime  # noqa: PLC0415
 
     found = runtime(ctx)
     profile = found.profile_or_none()
     if profile is None:
+        return None
+
+    def run(fetch: Callable[[Client], Any]) -> Any:  # noqa: ANN401 - what fetch returns
+        result: dict[str, Any] = {}
+
+        def work() -> None:
+            with contextlib.suppress(Exception):  # a completion fails silently
+                result["value"] = fetch(found.client)
+
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        worker.join(DEADLINE_SECONDS)
+        return result.get("value")
+
+    return ValueCache(profile.url.rstrip("/")), run
+
+
+def server_values(ctx: click.Context, name: str, fetch: Callable[[Client], Values]) -> Values:
+    """Values read on the server through `fetch`, from the cache when fresh; nothing past
+    the deadline or on any failure."""
+    found = _within_deadline(ctx)
+    if found is None:
         return []
-    cache = ValueCache(profile.url.rstrip("/"))
+    cache, run = found
     kept = cache.get(name)
     if kept is not None:
         return kept
-    result: dict[str, Values] = {}
-
-    def work() -> None:
-        with contextlib.suppress(Exception):  # a completion fails silently
-            result["values"] = fetch(found.client)
-
-    worker = threading.Thread(target=work, daemon=True)
-    worker.start()
-    worker.join(DEADLINE_SECONDS)
-    values = result.get("values")
+    values = cast("Values | None", run(fetch))
     if values is None:
         return []
     cache.set(name, values)
+    return values
+
+
+def prefixed_values(
+    ctx: click.Context,
+    name: str,
+    incomplete: str,
+    fetch: Callable[[Client, str], tuple[Values, bool]],
+) -> Values:
+    """Values starting with `incomplete`, asked to the server by prefix (`q`, spec 018,
+    REQ-018-22, 23): `fetch(client, prefix)` gives a page of suggestions and whether it
+    holds them all. A whole list read without prefix is kept under `name` and filtered
+    here; a partial one, under `name?q=<prefix>`. Nothing past the deadline."""
+    found = _within_deadline(ctx)
+    if found is None:
+        return []
+    cache, run = found
+    whole = cache.get(name)
+    if whole is not None:
+        return whole
+    asked = f"{name}?q={incomplete}"
+    kept = cache.get(asked)
+    if kept is not None:
+        return kept
+
+    def ask(client: Client) -> tuple[Values, bool]:
+        return fetch(client, incomplete)
+
+    answer = cast("tuple[Values, bool] | None", run(ask))
+    if answer is None:
+        return []
+    values, complete = answer
+    cache.set(name if complete and not incomplete else asked, values)
     return values
 
 
@@ -188,9 +237,12 @@ def _property_keys(ctx: click.Context) -> list[str]:
     return sorted(k for k in keys if isinstance(k, str))
 
 
-def _closed_values(key: str) -> Callable[[Client], Values]:
-    def fetch(client: Client) -> Values:
-        listing = client.resource("property-declarations").pages_of("values", key)
+def _closed_values(key: str) -> Callable[[Client, str], tuple[Values, bool]]:
+    def fetch(client: Client, prefix: str) -> tuple[Values, bool]:
+        params: dict[str, object] = {"page_size": SUGGESTIONS}
+        if prefix:
+            params["q"] = prefix
+        listing = client.resource("property-declarations").pages_of("values", key, **params)
         page = listing.first_page()
         values: Values = []
         for raw in page.items:
@@ -198,7 +250,7 @@ def _closed_values(key: str) -> Callable[[Client], Values]:
             value = item.get("key")
             if isinstance(value, str) and _shown(item):
                 values.append((value, _label(item)))
-        return values
+        return values, page.next is None
 
     return fetch
 
@@ -212,7 +264,7 @@ def complete_prop(
     if not sep:
         return [CompletionItem(f"{key}=") for key in _property_keys(ctx) if key.startswith(left)]
     key = left.partition(":")[0]
-    values = server_values(ctx, f"prop:{key}", _closed_values(key))
+    values = prefixed_values(ctx, f"prop:{key}", value, _closed_values(key))
     return _matching(values, value, prefix=f"{left}=")
 
 

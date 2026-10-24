@@ -224,7 +224,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/prefixes/{id}/flows": [],
   "/v1/prefixes/{id}/history": [],
   "/v1/property-declarations": [],
-  "/v1/property-declarations/{key}/values": [],
+  "/v1/property-declarations/{key}/values": [{ name: "q", type: "string" }],
   "/v1/property-gaps": [
     { name: "property", type: "string" },
     { name: "domain", type: "string" },

@@ -330,12 +330,25 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux C — Suggestions
 
-- [ ] 14. `/values` : `{key, valid_from, valid_to}`, `valid_at`, `q` (clé et libellés,
+- [x] 14. `/values` : `{key, valid_from, valid_to}`, `valid_at`, `q` (clé et libellés,
   préfixe insensible à la casse), `cursor`, `page_size` (20) — REQ-018-22 — verify :
   `values_are_suggested_by_prefix_at_a_date`
   où : `crates/kartenn-rest/src/properties.rs` (`EnumValueItem`, route l. ~280-286) ;
   lecture des valeurs dans `crates/kartenn-store-pg/src/`
   dépend de : 6
+  fait : `property_read::enum_values` rend `EnumValueRead` ; la période d'une valeur
+  couvre ses versions connues à `as_of` (un libellé écrit sur une portion la découpe en
+  versions, pas en périodes). `q` : `filter::prefix` (une fois, non vide, 100 caractères
+  au plus, mis en minuscules), motif `LIKE` échappé (`list::like_prefix`), comparé à la
+  clé et à `lower()` de chaque libellé de `labels` ; gardé dans le curseur avec les
+  autres filtres. 20 par défaut : `Page::suggesting` (constante `SUGGESTION_SIZE`), qui
+  ne touche pas une taille donnée ni celle d'un curseur ; `Page::only_prefix` pour une
+  liste dont `q` est le seul filtre. Paramètre `q` déclaré au contrat ; `filters.ts` des
+  deux SDK régénérés. CLI : `complete.prefixed_values` (complétion des valeurs de liste
+  fermée) lit une page de 100 ; une liste entière se garde et se filtre localement, une
+  liste plus longue se redemande par `q` pour chaque préfixe (cache `nom?q=…`). Écart
+  hors tâche : `events::a_client_that_no_longer_reads_loses_its_socket` échoue sur cette
+  machine chargée, sans lien avec la tâche (tampons TCP).
 
 - [ ] 15. `q` sur les collections citables (entités, sites, domaines, machines,
   interfaces, clusters, `vlan-groups`, VLAN, préfixes, adresses) sous RBAC, index
