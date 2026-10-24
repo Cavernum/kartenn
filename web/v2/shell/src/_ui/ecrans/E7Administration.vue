@@ -1,28 +1,36 @@
 <script setup lang="ts">
 // E7 — Administration (design « Maquettes »; 021, « Catalogue des écrans », Administration;
-// spec 018 : permissions servies `module.action` avec leur libellé): roles and the
-// permissions of the chosen role, bindings with their scope and period, a new secret of a
-// service account shown once.
+// spec 018 : permissions servies `module.action` avec leur libellé; 024/M8, M13, M15):
+// roles, and the chosen role in the right panel (its permissions one per line, served name
+// and label; its bindings, which scroll in the panel); bindings with their scope and
+// period, a new one in the same right panel; a new secret of a service account shown once.
 import {
   Button,
   Cluster,
   CodeBadge,
-  Dialog,
   DataGrid,
-  Grid,
+  Dialog,
   InlineAlert,
   KeyLabel,
-  Split,
+  SidePanel,
   Stack,
   StatusBadge,
   TextField,
   type GridColumn,
+  type GridSort,
+  type ToolbarAction,
 } from "@kartenn/ui";
+import { ref } from "vue";
 import AVenir from "./AVenir.vue";
+import Barre from "./EcranBarre.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
 
 const props = defineProps<{ vue: string }>();
+const panelTabs = [
+  { value: "detail", label: "Détail" },
+  { value: "draft", label: "Brouillon", count: 0 },
+];
 
 interface Role extends Record<string, unknown> {
   key: string;
@@ -30,28 +38,63 @@ interface Role extends Record<string, unknown> {
   builtin: boolean;
   permissions: number;
   bindings: number;
+  about: string;
 }
+const role = (
+  key: string,
+  label: string | null,
+  builtin: boolean,
+  permissions: number,
+  bindings: number,
+  about: string,
+): Role => ({ key, label, builtin, permissions, bindings, about });
 const roles: Role[] = [
-  { key: "reader", label: "Lecteur", builtin: true, permissions: 14, bindings: 42 },
-  { key: "editor", label: "Éditeur", builtin: true, permissions: 31, bindings: 12 },
-  { key: "admin", label: "Administrateur", builtin: true, permissions: 61, bindings: 2 },
-  { key: "lecteur-reseau", label: "Lecteur réseau", builtin: false, permissions: 6, bindings: 5 },
-  { key: "instructeur-flux", label: "Instructeur", builtin: false, permissions: 3, bindings: 4 },
-  { key: "import-ipam", label: null, builtin: false, permissions: 8, bindings: 1 },
+  role("reader", "Lecteur", true, 14, 42, "Lecture de tout le référentiel"),
+  role("editor", "Éditeur", true, 31, 12, "Édition du référentiel, sans l'administration"),
+  role("admin", "Administrateur", true, 61, 2, "Tous les droits"),
+  role("lecteur-reseau", "Lecteur réseau", false, 8, 9, "Lecture du réseau et des machines"),
+  role("instructeur-flux", "Instructeur", false, 3, 4, "Instruction des demandes de flux"),
+  role("import-ipam", null, false, 8, 1, "Compte d'import"),
 ];
+// The key first and of fixed width, the description last: the right panel covers the end
+// of the table (024/M8), not its key columns.
 const roleColumns: GridColumn[] = [
-  { id: "key", label: "Rôle", width: "fill", sortable: true },
-  { id: "builtin", label: "Intégré", width: "sm" },
-  { id: "permissions", label: "Permissions", width: "sm", align: "end" },
-  { id: "bindings", label: "Liaisons", width: "sm", align: "end" },
+  { id: "key", label: "Rôle", width: "lg", sortable: true, filterable: true },
+  { id: "builtin", label: "Intégré", width: "sm", sortable: true, filterable: true },
+  { id: "permissions", label: "Permissions", width: "sm", align: "end", sortable: true },
+  { id: "bindings", label: "Liaisons", width: "sm", align: "end", sortable: true },
+  { id: "about", label: "Description", width: "fill", filterable: true },
 ];
+const createActions: ToolbarAction[] = [
+  { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"] },
+];
+const roleSort = ref<GridSort>({ column: "key", direction: "ascending" });
 const permissions = [
   { code: "core.prefix.read", label: "Lire les préfixes" },
   { code: "core.address.read", label: "Lire les adresses" },
+  { code: "core.range.read", label: "Lire les plages" },
+  { code: "core.site.read", label: "Lire les sites" },
   { code: "vlan.read", label: "Lire les VLAN" },
   { code: "vlan.group.read", label: "Lire les groupes de VLAN" },
   { code: "machines.read", label: "Lire les machines" },
   { code: "machines.interface.read", label: "Lire les interfaces" },
+];
+const roleBindings = [
+  { subject: "Équipe supervision", scope: "Site : site-ouest" },
+  { subject: "Équipe réseau", scope: "Globale" },
+  { subject: "Lou Bernard", scope: "Entité : Atelier Nord" },
+  { subject: "Sam Leroy", scope: "Site : site-est" },
+  { subject: "Équipe sauvegarde", scope: "Domaine : dc-nord" },
+  { subject: "Alex Morel", scope: "Site : site-ouest" },
+  { subject: "Équipe astreinte", scope: "Globale" },
+  { subject: "Noa Petit", scope: "Entité : Atelier Sud" },
+  { subject: "export-dns", scope: "Domaine : dc-nord" },
+];
+const roleActions: ToolbarAction[] = [
+  { id: "edit", label: "Modifier", icon: "pencil", shortcut: ["e"], priority: 3 },
+  { id: "add", label: "Ajouter une permission", icon: "plus", priority: 2 },
+  { id: "copy", label: "Dupliquer", icon: "copy", priority: 1 },
+  { id: "delete", label: "Supprimer…", icon: "trash", reason: "Le rôle a 9 liaisons." },
 ];
 
 interface Binding extends Record<string, unknown> {
@@ -107,12 +150,13 @@ const bindings: Binding[] = [
   },
 ];
 const bindingColumns: GridColumn[] = [
-  { id: "subject", label: "Sujet", width: "fill", sortable: true },
-  { id: "role", label: "Rôle", width: "md" },
-  { id: "scope", label: "Portée", width: "lg" },
-  { id: "from", label: "Du", width: "md", mono: true },
-  { id: "to", label: "Au", width: "md", mono: true },
+  { id: "subject", label: "Sujet", width: "lg", sortable: true, filterable: true },
+  { id: "role", label: "Rôle", width: "md", sortable: true, filterable: true },
+  { id: "scope", label: "Portée", width: "md", filterable: true },
+  { id: "from", label: "Du", width: "sm", mono: true, sortable: true },
+  { id: "to", label: "Au", width: "fill", mono: true, sortable: true },
 ];
+const bindingSort = ref<GridSort>({ column: "subject", direction: "ascending" });
 
 interface Account extends Record<string, unknown> {
   name: string;
@@ -126,10 +170,10 @@ const accounts: Account[] = [
   { name: "audit-annuel", state: "disabled", secrets: 0, lastUse: "2025-12-31 23:10" },
 ];
 const accountColumns: GridColumn[] = [
-  { id: "name", label: "Compte", width: "fill", mono: true },
-  { id: "state", label: "État", width: "md" },
-  { id: "secrets", label: "Secrets", width: "sm", align: "end" },
-  { id: "lastUse", label: "Dernier usage", width: "lg", mono: true },
+  { id: "name", label: "Compte", width: "fill", mono: true, sortable: true },
+  { id: "state", label: "État", width: "md", filterable: true },
+  { id: "secrets", label: "Secrets", width: "sm", align: "end", sortable: true },
+  { id: "lastUse", label: "Dernier usage", width: "lg", mono: true, sortable: true },
 ];
 const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
 </script>
@@ -156,19 +200,19 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
       ...(props.vue === 'roles' ? [{ label: 'lecteur-reseau', mono: true }] : []),
     ]"
   >
-    <Split v-if="props.vue === 'roles'" side="end" side-size="lg" gap="3">
+    <template v-if="props.vue === 'roles'">
       <Panneau title="Rôles" detail="6" main flush>
-        <template #actions>
-          <Button variant="primary" icon="plus" :shortcut="['c']">Créer</Button>
+        <template #toolbar>
+          <Barre label="Actions des rôles" :actions="createActions" align="start" />
         </template>
         <DataGrid
+          v-model:sort="roleSort"
           label="Rôles"
           :columns="roleColumns"
           :rows="roles"
           row-key="key"
           selectable
           :selected="['lecteur-reseau']"
-          :sort="{ column: 'key', direction: 'ascending' }"
         >
           <template #cell="{ row, column, value }">
             <KeyLabel v-if="column.id === 'key'" :value="row.key" :label="row.label" show-key />
@@ -179,36 +223,19 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           </template>
         </DataGrid>
       </Panneau>
-      <template #side>
-        <Panneau title="Lecteur réseau" detail="lecteur-reseau" mono>
-          <template #actions>
-            <Button icon="pencil" :shortcut="['e']">Modifier</Button>
-          </template>
-          <h3 class="k-ecran-subtitle">Permissions · 6</h3>
-          <Stack as="ul" gap="2" class="k-ecran-list">
-            <li v-for="permission in permissions" :key="permission.code">
-              <Stack gap="1">
-                <span>{{ permission.label }}</span>
-                <CodeBadge :code="permission.code" />
-              </Stack>
-            </li>
-          </Stack>
-          <Button variant="ghost" icon="plus">Ajouter une permission</Button>
-        </Panneau>
-      </template>
-    </Split>
+    </template>
 
     <template v-else-if="props.vue === 'liaisons'">
       <Panneau title="Liaisons" detail="4" main flush>
-        <template #actions>
-          <Button variant="primary" icon="plus" :shortcut="['c']">Créer</Button>
+        <template #toolbar>
+          <Barre label="Actions des liaisons" :actions="createActions" align="start" />
         </template>
         <DataGrid
+          v-model:sort="bindingSort"
           label="Liaisons"
           :columns="bindingColumns"
           :rows="bindings"
           row-key="id"
-          :sort="{ column: 'subject', direction: 'ascending' }"
         >
           <template #cell="{ row, column, value }">
             <template v-if="column.id === 'subject'"
@@ -218,35 +245,6 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             <template v-else>{{ value }}</template>
           </template>
         </DataGrid>
-      </Panneau>
-      <Panneau title="Nouvelle liaison">
-        <Grid :columns="4" gap="3" align="start">
-          <TextField label="Sujet" model-value="Équipe supervision" />
-          <AVenir component="Select" task="18">
-            <TextField label="Rôle" readonly mono model-value="admin" />
-          </AVenir>
-          <AVenir component="Select" task="18">
-            <TextField label="Portée" readonly model-value="Globale" />
-          </AVenir>
-          <TextField label="Du" mono model-value="2026-01-15" />
-        </Grid>
-        <InlineAlert
-          tone="ko"
-          title="Liaison refusée"
-          :items="[
-            {
-              message: 'Vous ne pouvez accorder un rôle plus large que les vôtres.',
-              code: 'core.binding.escalation',
-            },
-          ]"
-        />
-        <template #footer>
-          <span class="k-ecran-muted">La liaison prend effet à la date « Du ».</span>
-          <Cluster gap="2">
-            <Button variant="ghost">Annuler</Button>
-            <Button variant="primary" icon="check">Créer la liaison</Button>
-          </Cluster>
-        </template>
       </Panneau>
     </template>
 
@@ -288,5 +286,98 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
         </template>
       </Dialog>
     </template>
+
+    <template v-if="props.vue !== 'secret'" #drawer>
+      <SidePanel label="Panneau droit" :tabs="panelTabs" tab="detail">
+        <template #detail>
+          <Stack v-if="props.vue === 'roles'" gap="4">
+            <Stack gap="2">
+              <h2 class="k-ecran-subtitle">
+                Lecteur réseau <span class="k-mono k-ecran-muted">lecteur-reseau</span>
+              </h2>
+              <Barre label="Actions du rôle" :actions="roleActions" align="start" />
+            </Stack>
+            <section aria-labelledby="k-ecran-permissions">
+              <Stack gap="2">
+                <h3 id="k-ecran-permissions" class="k-ecran-subtitle">Permissions · 8</h3>
+                <ul class="k-ecran-list k-ecran-lignes">
+                  <li v-for="permission in permissions" :key="permission.code">
+                    <CodeBadge :code="permission.code" />
+                    <span>{{ permission.label }}</span>
+                  </li>
+                </ul>
+              </Stack>
+            </section>
+            <section aria-labelledby="k-ecran-liaisons">
+              <Stack gap="2">
+                <h3 id="k-ecran-liaisons" class="k-ecran-subtitle">Liaisons · 9</h3>
+                <ul class="k-ecran-list k-ecran-lignes">
+                  <li v-for="binding in roleBindings" :key="binding.subject">
+                    <span>{{ binding.subject }}</span>
+                    <span class="k-ecran-muted">{{ binding.scope }}</span>
+                  </li>
+                </ul>
+              </Stack>
+            </section>
+          </Stack>
+          <Stack v-else gap="3">
+            <h2 class="k-ecran-subtitle">Nouvelle liaison</h2>
+            <TextField label="Sujet" model-value="Équipe supervision" />
+            <AVenir component="Select" task="18">
+              <TextField label="Rôle" readonly mono model-value="admin" />
+            </AVenir>
+            <AVenir component="Select" task="18">
+              <TextField label="Portée" readonly model-value="Globale" />
+            </AVenir>
+            <TextField
+              label="Du"
+              mono
+              model-value="2026-01-15"
+              hint="La liaison prend effet à cette date."
+            />
+            <InlineAlert
+              tone="ko"
+              title="Liaison refusée"
+              :items="[
+                {
+                  message: 'Vous ne pouvez accorder un rôle plus large que les vôtres.',
+                  code: 'core.binding.escalation',
+                },
+              ]"
+            />
+          </Stack>
+        </template>
+        <template #draft>
+          <p class="k-ecran-muted">Le brouillon est vide.</p>
+        </template>
+        <template v-if="props.vue === 'liaisons'" #footer>
+          <Cluster gap="2" justify="end">
+            <Button variant="ghost">Annuler</Button>
+            <Button variant="primary" icon="check">Créer la liaison</Button>
+          </Cluster>
+        </template>
+      </SidePanel>
+    </template>
   </Cadre>
 </template>
+
+<style>
+@layer components {
+  /* One entry per line, in two aligned columns: a served name and its label, a subject and
+   * its scope. */
+  .k-ecran-lignes {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--k-space-1) var(--k-space-3);
+    align-items: center;
+  }
+
+  .k-ecran-lignes > li {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-block-size: var(--k-row-height);
+  }
+}
+</style>

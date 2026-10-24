@@ -1,16 +1,16 @@
-- dialog /\d+\.\d+\.\d+\.\d+ a changé entre-temps/:
+- dialog "L'objet a changé depuis votre lecture":
   - banner:
-    - heading /\d+\.\d+\.\d+\.\d+ a changé entre-temps/ [level=2]
+    - heading "L'objet a changé depuis votre lecture" [level=2]
     - button "Fermer"
-  - paragraph: "Quelqu'un l'a modifiée depuis votre lecture : rien n'a été écrit."
+  - paragraph: "/Quelqu'un a modifié \\d+\\.\\d+\\.\\d+\\.\\d+ après que vous l'avez lue : rien n'a été écrit, votre saisie est gardée\\./"
   - status:
-    - paragraph: Version lue v4, version actuelle v5
+    - paragraph: Vous avez lu la version v4, la version actuelle est la v5.
     - list:
       - listitem:
-        - text: Condition If-Match non remplie
-        - button "Copier precondition-failed":
+        - text: Relisez la valeur actuelle, puis réappliquez ou abandonnez votre saisie.
+        - button "Copier core.precondition.failed":
           - text: ""
-          - code: precondition-failed
+          - code: core.precondition.failed
         - status
   - term: Valeur actuelle
   - definition: Atelier Sud

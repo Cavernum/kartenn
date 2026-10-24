@@ -46,16 +46,48 @@
   - button "Compte de Camille Martin"
 - main:
   - heading "Domaine Bureaux" [level=1]
+  - region "Adresses chargement":
+    - heading "Adresses chargement" [level=2]
+    - grid "Adresses":
+      - rowgroup:
+        - row "Valeur Usage Propriétaire Site":
+          - columnheader "Valeur"
+          - columnheader "Usage"
+          - columnheader "Propriétaire"
+          - columnheader "Site"
+      - rowgroup:
+        - row "Chargement":
+          - gridcell "Chargement"
+          - gridcell
+          - gridcell
+          - gridcell
+        - row:
+          - gridcell
+          - gridcell
+          - gridcell
+          - gridcell
+        - row:
+          - gridcell
+          - gridcell
+          - gridcell
+          - gridcell
+        - row:
+          - gridcell
+          - gridcell
+          - gridcell
+          - gridcell
+        - row:
+          - gridcell
+          - gridcell
+          - gridcell
+          - gridcell
   - heading "Préfixes Bureaux" [level=2]
   - paragraph: Aucun préfixe racine
   - paragraph: Le domaine « bureaux » n'a aucun préfixe au présent. Créez-en un ou lancez un import.
   - button "Créer un préfixe"
-  - region "Adresses":
-    - heading "Adresses" [level=2]
-    - status: Chargement
   - heading "Anomalies ouvertes" [level=2]
-  - alert: Les anomalies n'ont pas pu être lues.
-  - paragraph: /Le service a répondu \d+\. Le reste de l'écran reste utilisable\./
+  - alert: "Les anomalies n'ont pas pu être lues : le service est momentanément indisponible."
+  - paragraph: Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces deux codes.
   - button "Copier urn:kartenn:problem:unavailable":
     - text: ""
     - code: urn:kartenn:problem:unavailable

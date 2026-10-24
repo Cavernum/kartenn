@@ -55,10 +55,10 @@
         - 'gridcell "Touches : e"'
         - gridcell "Modifier l'objet ou la cellule"
         - gridcell "Présent, droit"
-      - 'row "Touches : Ctrl Entrée Appliquer maintenant (motif) Éditeur"':
+      - 'row "Touches : Ctrl Entrée Action choisie du bouton scindé (Appliquer, Soumettre) Brouillon"':
         - 'gridcell "Touches : Ctrl Entrée"'
-        - gridcell "Appliquer maintenant (motif)"
-        - gridcell "Éditeur"
+        - gridcell "Action choisie du bouton scindé (Appliquer, Soumettre)"
+        - gridcell "Brouillon"
       - 'row "Touches : Échap Fermer, annuler l''édition Partout"':
         - 'gridcell "Touches : Échap"'
         - gridcell "Fermer, annuler l'édition"
@@ -67,4 +67,12 @@
         - 'gridcell "Touches : ["'
         - gridcell "Replier la barre latérale"
         - gridcell "Hors champ"
+      - 'row "Touches : ] Replier le panneau droit Hors champ"':
+        - 'gridcell "Touches : ]"'
+        - gridcell "Replier le panneau droit"
+        - gridcell "Hors champ"
+      - 'row "Touches : Alt ↓ Filtrer la colonne En-tête de table"':
+        - 'gridcell "Touches : Alt ↓"'
+        - gridcell "Filtrer la colonne"
+        - gridcell "En-tête de table"
   - paragraph: Les raccourcis à une touche se désactivent dans le menu du compte ; Ctrl+K, Ctrl+Entrée et Échap restent.

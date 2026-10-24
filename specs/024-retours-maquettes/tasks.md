@@ -387,6 +387,43 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
   1280, 1024, 768 px — REQ-024-21, 22, 24, 27, 28, 29 — verify : `k-web2-check`,
   revues `ui-reviewer` et `a11y-auditor`
   - où : `web/v2/shell/src/_ui/ecrans/` ; `registry.ts` ; `e2e/visual/ecrans.spec.ts`
+  - En cours (2026-10-25), E4 et E6 à E10 repris (le cadre, l'accueil, E1 à E3 et E5 vont
+    à part) ; références 1280 × 800 régénérées, autres largeurs après la fusion des deux
+    moitiés. Choix tranchés :
+    - Barre d'actions des maquettes `EcranBarre.vue` (aide de mise en page, hors
+      inventaire) : un état ou un contexte au début, puis un `Toolbar` qui prend le reste
+      de la ligne (`inline-size: 0`, sinon la piste `auto` du panneau grandit et rien ne se
+      replie) ; actions au début (`align="start"`) quand le panneau droit peut couvrir la
+      fin de la surface (E7, matrice de E10), à la fin sinon.
+    - E4 : encart « Approbation » retiré ; attributs du changeset en trois listes dans une
+      `Grid` `auto` au-dessus des onglets (plus de `Split`) ; nouvelle vue « droits »
+      (relecteur sans `vlan.apply` : Valider et Rejeter refusés par `forbidden`) ; vue
+      auteur : Valider refusé par `reason` (politique qui retient), notice
+      `changeset.approval.self` gardée ; Retirer refusé au relecteur par `reason`.
+    - E6 : sélecteur de période téléporté dans la couche `#k-ecran-layers`
+      (`Teleport defer`), `role="dialog"` non modal, fixé sous la barre d'état à la fin ;
+      le créneau `#picker` du cadre, qui pousse la page, n'est plus utilisé (la pastille
+      perd son `aria-controls` : à reprendre dans le cadre). Pas d'ombre (Stylelint la
+      réserve aux composants flottants) : bordure tiretée du `AVenir` et fond de surface.
+      Écritures refusées par `reason` dans un `Toolbar` ; encart d'avertissement retiré
+      (la bande le dit).
+    - E7 : le rôle choisi et la nouvelle liaison passent dans le `SidePanel` (onglets
+      Détail, Brouillon 0) ; permissions une par ligne (`CodeBadge` du nom servi puis
+      libellé, deux colonnes en `subgrid`) ; liaisons du rôle dans le panneau, qui défile ;
+      première colonne des tables de largeur fixe et colonne `fill` en dernier, pour que le
+      panneau couvre la fin de la table et non ses clés.
+    - E8 : contenu gardé ; accueil en `Grid` `auto` ; aide complétée de `]` et Alt+Bas,
+      Ctrl+Entrée décrit comme l'action du bouton scindé.
+    - E9 : table en chargement par `DataGrid loading` (squelettes animés dans les
+      cellules) ; zones empilées en pleine largeur (le `CodeBadge` d'un type de problème
+      long débordait d'une demi-colonne à 768 px, voir bibliothèque) ; 412 titré
+      « L'objet a changé depuis votre lecture », code `core.precondition.failed` (M16) à
+      côté ; 202 avec son motif `changeset.apply_own.missing` ; 503 garde le type servi
+      `urn:kartenn:problem:unavailable`.
+    - E10 : `MatrixGrid` sur cinq environnements (une cellule en brouillon, une en revue,
+      la cellule choisie active) ; détail de la cellule dans le `SidePanel` ; vue VLAN
+      sans `Split` : groupes au-dessus, VLAN du groupe dessous, `Renuméroter…` refusé par
+      `forbidden` (`vlan.edit`).
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
