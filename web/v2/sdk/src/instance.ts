@@ -10,6 +10,7 @@ import { createClient } from "./api/client.ts";
 import { context } from "./context.ts";
 import { createQueries, createQueryClient } from "./data/cache.ts";
 import { createInvalidation } from "./data/invalidate.ts";
+import { createLabels } from "./data/labels.ts";
 import { createWrites } from "./data/write.ts";
 import { hooks } from "./hooks.ts";
 
@@ -30,3 +31,6 @@ export const reads = createQueries({ client: api, queryClient });
 export const invalidation = createInvalidation(queryClient, reads);
 
 export const writes = createWrites({ client: api, queryClient, invalidation });
+
+/** The label dictionary of the language of the context (spec 018, REQ-021-19). */
+export const labels = createLabels({ queryClient, reads, locale: () => context.get().locale });

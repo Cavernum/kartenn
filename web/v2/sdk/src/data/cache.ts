@@ -282,6 +282,18 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       return pages<T, SubKey>(key, url, sub === "children" ? "children" : "list");
     },
 
+    /**
+     * A read by URL under a key of the caller, for a route outside the generated contract
+     * (`/v1/labels` of the 018 until the contract has it).
+     */
+    byUrl<T>(
+      key: readonly unknown[],
+      url: string,
+      family: Family,
+    ): ReadOptions<T, readonly unknown[]> {
+      return read<T, readonly unknown[]>(key, url, family);
+    },
+
     /** The next reads of these queries go without `If-None-Match` (`truncated`, 022). */
     unconditional(predicate: (query: Query) => boolean): void {
       for (const query of queryClient.getQueryCache().findAll({ predicate })) {

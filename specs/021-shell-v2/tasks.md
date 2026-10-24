@@ -280,6 +280,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/i18n/index.ts` (traduction des problèmes),
     `admin/WriteOutcome.vue`
   - dépend de : 11
+  - en cours : partie SDK faite le 2026-10-24 (avec la P1) — `web/v2/sdk/src/data/labels.ts`,
+    `label(space, key, lang?)`, `labelDictionary(lang)`, `lookup` (valeur d'une liste
+    fermée en `<propriété>/<valeur>`), catalogue imbriqué `labels.<space>.<key>`, puis la
+    clé ; `ApiProblem.code`. La route `GET /v1/labels` (018) n'étant pas encore au contrat
+    de `main`, lecture par URL (`reads.byUrl`) et Vitest sur un serveur simulé
+    (`test/labels.test.ts`). Reste : `KeyLabel`, rendu des erreurs, parcours.
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau et page du brouillon — REQ-021-6, 10, 11 —
   verify : parcours `changesets`, `draft` réécrits ; captures E4, E5

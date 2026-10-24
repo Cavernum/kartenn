@@ -9,7 +9,7 @@
  * it `external` at build time and share that instance.
  */
 
-import { writes } from "./instance.ts";
+import { labels, writes } from "./instance.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
 export const SDK_VERSION = "1.0.0";
@@ -65,6 +65,8 @@ export { filterModel, filterSearch, parseFilters } from "./data/filters.ts";
 export type { Declaration, FilterField, Rejected } from "./data/filters.ts";
 export type { QueryClient } from "@tanstack/query-core";
 export { mergePatch } from "./data/write.ts";
+export { lookup } from "./data/labels.ts";
+export type { Dictionary } from "./data/labels.ts";
 export type { QuickWrite, Submission, WriteOutcome } from "./data/write.ts";
 
 /**
@@ -78,3 +80,13 @@ export const write = { quick: writes.quick };
 
 /** The changeset of a draft: its simulation as a query, its submission (W10). */
 export const changesets = { simulate: writes.simulate, submit: writes.submit };
+
+/**
+ * The label of a key in a space (`kind`, `value`, `role`, `permission`, `state`…; a value
+ * of a closed list is `<property>/<value>`): the dictionary of the language, the catalogs,
+ * else the key (REQ-021-19).
+ */
+export const label = labels.label;
+
+/** The query of the label dictionary of a language, for a reactive adapter. */
+export const labelDictionary = labels.query;
