@@ -28,6 +28,10 @@
   rendu avec le MCP `playwright` (headless, limité à `127.0.0.1:5173`) : `browser_snapshot`
   (arbre d'accessibilité, compact) plutôt que `browser_take_screenshot`, sauf question
   visuelle.
+- **Interface** : suivre le skill `kartenn-ui` (`.claude/skills/kartenn-ui/SKILL.md`) ; le
+  nouveau shell vit sous `web/v2/` (`k-web2-check`, `k-web2-e2e`, captures
+  `k-web-shots [--update]` dans devenv) ; relectures par les sous-agents `ui-reviewer` et
+  `a11y-auditor`.
 - **Charge de la machine.** Plusieurs sessions et worktrees partagent une machine. Les
   commandes lourdes passent par le sémaphore `k-heavy` (2 créneaux, `nice`, cœurs
   partagés) : `k-check`, `k-web-check`, `k-web-e2e`, `db-prepare`, les bancs et le hook
