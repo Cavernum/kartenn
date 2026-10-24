@@ -75,7 +75,7 @@ notes, défaut : `upstream`).
 | `verify` | `contents: read` | `scripts/release.sh verify` : étiquette annotée, sujet `vX.Y.Z`, signature par une clé de `.github/release-keys`, commit sur `origin/main`, versions et section de `CHANGELOG.md` égale au message |
 | `ci` | `contents: read` | `ci.yml` entier sur le commit étiqueté, sans cache |
 | `build` | `contents: read` | `scripts/release.sh artefacts` : archive de l'image (`nix build .#oci`), archive des sources, `SHA256SUMS` |
-| `publish` | `contents: write`, `packages: write` ; environnement `release` | contrôle de `SHA256SUMS`, image vers `ghcr.io/<propriétaire>/<dépôt>:X.Y.Z`, release GitHub liée à l'étiquette (`--verify-tag`), notes = corps du message de l'étiquette + référence et empreinte de l'image |
+| `publish` | `contents: write`, `packages: write` ; environnement `release` | contrôle de `SHA256SUMS`, image vers `ghcr.io/<propriétaire>/<dépôt>:X.Y.Z`, et `latest` si c'est la plus haute version finale (ni pré-version, ni relance d'une étiquette plus ancienne), release GitHub liée à l'étiquette (`--verify-tag`), notes = corps du message de l'étiquette + référence et empreinte de l'image |
 
 La release GitHub a pour titre `vX.Y.Z` et pour notes le markdown du message de
 l'étiquette, sans la signature (rangée à part dans l'objet étiquette).
@@ -155,7 +155,7 @@ clé absente de ce répertoire : seule l'empreinte de la clé primaire est compa
 - **`ci` ou `build` échoue** : relancer les jobs échoués (« Re-run failed jobs ») si
   l'échec est passager ; sinon corriger et publier la version suivante.
 - **`publish` échoue après l'image** : relancer le job ; l'image est repoussée à la même
-  étiquette, la release est créée, ou complétée si elle existe déjà (artefacts
+  étiquette (et `latest` avec, si la version est toujours la plus haute), la release est créée, ou complétée si elle existe déjà (artefacts
   remplacés, notes inchangées).
 - **Release publiée fautive** : ne pas la modifier ; publier `X.Y.Z+1` et marquer la
   précédente dans ses notes.

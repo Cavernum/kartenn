@@ -131,6 +131,15 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | skopeo login --username "$ACTOR" --password-stdin ghcr.io
           archive=$(echo "$RUNNER_TEMP"/dist/kartenn-"$version"-oci-*.tar.gz)
           digest=$(bash scripts/release.sh push-image "$archive" "$image:$version")
+          # `latest` follows the highest final version only: a pre-release, or a rerun of an
+          # older tag, leaves it where it is. Copied by digest, the registry keeps one image.
+          highest=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -v -e - | head -n 1)
+          if [ "$TAG" = "$highest" ]; then
+            skopeo copy --quiet "docker://$image@$digest" "docker://$image:latest"
+            echo "latest -> $image:$version"
+          else
+            echo "latest unchanged: $TAG is not the highest final version ($highest)"
+          fi
           skopeo logout ghcr.io
           echo "image $image:$version@$digest"
           {
