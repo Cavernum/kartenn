@@ -57,6 +57,7 @@ const active = computed({
 @layer components {
   .k-tabs {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-3);
     min-inline-size: 0;
   }
