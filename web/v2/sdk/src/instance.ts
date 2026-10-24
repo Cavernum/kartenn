@@ -10,6 +10,7 @@ import { createClient } from "./api/client.ts";
 import { ApiProblem } from "./api/problem.ts";
 import { context } from "./context.ts";
 import { createQueries, createQueryClient, fallback } from "./data/cache.ts";
+import { createDrafts } from "./data/drafts.ts";
 import { createInvalidation } from "./data/invalidate.ts";
 import { createLabels } from "./data/labels.ts";
 import { createWrites } from "./data/write.ts";
@@ -41,6 +42,21 @@ export const invalidation = createInvalidation(queryClient, reads);
 
 export const writes = createWrites({ client: api, queryClient, invalidation });
 
+/** The drafts of the server (spec 024 § A); the active one of the tab in `sessionStorage`. */
+export const drafts = createDrafts({
+  client: api,
+  queryClient,
+  reads,
+  invalidation,
+  writes,
+  storage: () => (typeof sessionStorage === "undefined" ? null : sessionStorage),
+});
+
+/** The counters of the home page (`GET /v1/stats`, spec 024 § C), read again on `stats`. */
+export const stats = {
+  query: () => reads.read("/v1/stats", { family: "stats" }),
+};
+
 /** The label dictionary of the language of the context (spec 018, REQ-021-19). */
 export const labels = createLabels({ queryClient, reads, locale: () => context.get().locale });
 
@@ -68,7 +84,7 @@ export const stream = new EventStream({
       : null;
   },
   check,
-  apply: (event) => applyEvent(event, { invalidation, labels }),
+  apply: (event) => applyEvent(event, { invalidation, labels, drafts }),
 });
 
 // Without the stream, the cache revalidates on focus and reconnection (design « Repli »).

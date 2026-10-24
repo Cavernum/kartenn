@@ -10,8 +10,16 @@
 // `BroadcastChannel`, one stream per tab (Q-021-3).
 
 /** The kinds of event of the stream (022, `x-kartenn-events`). */
-export type EventKind = "ready" | "changes" | "changeset" | "labels" | "reset";
-export const KINDS: readonly EventKind[] = ["ready", "changes", "changeset", "labels", "reset"];
+export type EventKind = "ready" | "changes" | "changeset" | "labels" | "draft" | "stats" | "reset";
+export const KINDS: readonly EventKind[] = [
+  "ready",
+  "changes",
+  "changeset",
+  "labels",
+  "draft",
+  "stats",
+  "reset",
+];
 
 /** An event as the SDK hands it: its kind, its data, its cursor. */
 export interface KartennEvent {
@@ -88,8 +96,9 @@ const CLOSED = 2;
 
 /**
  * The identity of an event, to recognise an exact duplicate: the changeset (or the event
- * of a task) of `changes`, the changeset and its state, the revision of the labels.
- * `ready` and `reset` have none: they always apply.
+ * of a task) of `changes`, the changeset and its state, the revision of the labels, the
+ * draft and its version (or its deletion). `ready`, `stats` and `reset` have none: they
+ * always apply.
  */
 export function identity(event: KartennEvent): string | null {
   const data = event.data;
@@ -103,6 +112,10 @@ export function identity(event: KartennEvent): string | null {
       return `changeset:${text("changeset")}:${text("state")}`;
     case "labels":
       return `labels:${text("revision")}`;
+    case "draft": {
+      const version = data["deleted"] === true ? "deleted" : String(data["version"]);
+      return `draft:${text("id")}:${version}`;
+    }
     default:
       return null;
   }

@@ -192,6 +192,11 @@ describe("contract of the 022 (duplicates, closure)", () => {
     source.emit("changes", { changeset: "c1", domains: [] });
     expect(t.applied.at(-1)?.data["changeset"]).toBe("c1");
     expect(identity({ kind: "reset", data: {}, id: null })).toBeNull();
+    expect(identity({ kind: "stats", data: {}, id: null })).toBeNull();
+    expect(identity({ kind: "draft", data: { id: "d", version: 2 }, id: null })).toBe("draft:d:2");
+    expect(identity({ kind: "draft", data: { id: "d", deleted: true }, id: null })).toBe(
+      "draft:d:deleted",
+    );
   });
 
   it("a cut is the browser's; a closure (401) checks the session, then reopens later", async () => {
@@ -253,21 +258,25 @@ describe("events applied to the cache (022, amended by the 021)", () => {
       [`/v1/prefixes/${P2}`]: { id: P2, version: "c2" },
       [`/v1/domains/${D1}`]: { id: D1 },
       "/v1/proposals": { items: [], links: {} },
+      "/v1/stats": { objects: {}, computed_at: "2026-10-24T00:00:00Z" },
     };
     const cache = fakeCache((r) => json(bodies[r.url.split("?")[0]!] ?? {}));
     const invalidation = createInvalidation(cache.queryClient, cache.reads);
     const labels = { changed: vi.fn() };
+    const drafts = { changed: vi.fn() };
     const apply = (kind: KartennEvent["kind"], data: Record<string, unknown>) =>
-      applyEvent({ kind, data, id: null }, { invalidation, labels });
+      applyEvent({ kind, data, id: null }, { invalidation, labels, drafts });
     const p1 = cache.reads.object("core.prefix", P1, null);
     const p2 = cache.reads.object("core.prefix", P2, null);
     const past = cache.reads.object("core.prefix", P1, { asOf: "2026-01-01T00:00:00Z" });
     const proposals = cache.reads.list("/v1/proposals", {}, null);
+    const stats = cache.reads.read("/v1/stats", { family: "stats" });
+    await cache.queryClient.fetchQuery(stats);
     await Promise.all([p1, p2, past].map((o) => cache.queryClient.fetchQuery(o)));
     await cache.queryClient.fetchInfiniteQuery(proposals);
     const stale = (key: readonly unknown[]) =>
       cache.queryClient.getQueryState(key)?.isInvalidated ?? false;
-    return { ...cache, apply, labels, p1, p2, past, proposals, stale };
+    return { ...cache, apply, labels, drafts, p1, p2, past, proposals, stats, stale };
   }
 
   it("ready and reset invalidate everything but the past as recorded", async () => {
@@ -321,6 +330,16 @@ describe("events applied to the cache (022, amended by the 021)", () => {
     expect(s.stale(s.p1.queryKey)).toBe(false);
     await s.apply("labels", { revision: "r2" });
     expect(s.labels.changed).toHaveBeenCalledWith("r2");
+  });
+
+  it("stats: the counters read again; draft: handed to the drafts (024)", async () => {
+    const s = await setup();
+    await s.apply("draft", { id: P1, version: 3 });
+    expect(s.drafts.changed).toHaveBeenCalledWith({ id: P1, version: 3 });
+    expect(s.stale(s.stats.queryKey)).toBe(false);
+    await s.apply("stats", {});
+    expect(s.stale(s.stats.queryKey)).toBe(true);
+    expect(s.stale(s.p1.queryKey)).toBe(false);
   });
 });
 
