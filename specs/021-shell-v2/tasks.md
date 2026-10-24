@@ -191,7 +191,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `prefetch.prefetch` (lectures et listes). Vitest : `test/prefetch.test.ts`. Reste au
     shell : `KLink`, `meta.queries` des routes et garde `beforeResolve`, page suivante à
     l'approche de la fin, enfants survolés, `modulepreload` des plugins, parcours et banc.
-- [ ] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
+- [x] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
   avec empreinte) ; manifeste `ui`, `framework`, `space`, `go` validés côté serveur et
   publiés dans `ui_plugins` (ajout additif) ; plages vérifiées au chargement ; adaptateur
   du cache dans `@kartenn/ui` ; API `commands`, `shortcuts`, `label` — REQ-021-25, 26 —
@@ -217,8 +217,34 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `remove-accents` retirés ; tests d'abonnement et de fin de portée dans
     `shell/test/data.test.ts`.
     Pas encore branché dans `main.ts` (le cadre, tâche 9, appellera `installData` et
-    `startData`). Reste : déplacement dans `@kartenn/ui`, import map, manifeste, `commands`,
-    `shortcuts`.
+    `startData`).
+  - fait le 2026-10-25 : serveur — `Manifest` accepte `ui`, `framework` (mêmes formes que
+    `sdk`, `version_range` remplace `sdk_range`), `space` (liste fermée `UiSpace` :
+    `referential` … `admin`) et `go` sur une extension (vue seulement, `[a-z]`, unique dans
+    le plugin) ; publiés dans `ui_plugins` s'ils sont déclarés (absents sinon), contrat et
+    `schema.d.ts` (web/sdk, web/v2/sdk) régénérés, 007 (design, règles de validation) et
+    `docs/spec/interfaces.md` amendés ; tests : manifestes fautifs, publication,
+    `capabilities`, CSP identique hors empreinte d'une import map étendue avec feuille liée
+    (`tests/it/web.rs`). SDK — `commands.register`, `shortcuts.register` (une touche,
+    `scope: "view"`, refus d'une touche du shell réservée par `reserveKeys` ou déjà prise ;
+    chacun rend son retrait), registres lus par l'hôte (`commandRegistry`,
+    `shortcutRegistry`), `unmetRange(plages, versions)` dans l'hôte (`ui: ^3` sur `ui`
+    1.4.0 → `ui`, donc `incompatible`) ; `label` existait déjà. Build de `web/v2/shell`
+    (`sharedModules`) — `vue` (build *runtime*), `@kartenn/sdk` et `@kartenn/ui`
+    (`src/shared/ui.ts`, qui porte la feuille) en entrées à signature stricte : le shell et
+    les plugins chargent les mêmes instances ; l'import map écrite après l'écriture des
+    fichiers nomme les trois et donne l'empreinte de **tous** les modules du build
+    (`integrity`) ; la feuille `@kartenn/ui` émise à part, liée avec `integrity` ;
+    l'aperçu envoie la CSP du serveur avec l'empreinte de la carte (parcours `csp` du
+    catalogue vert) ; `shell/test/build.test.ts` vérifie carte, empreintes, feuille et
+    l'absence de `new Function`/`eval`. Choix notés : pas d'import map sous le serveur de
+    développement (aucun plugin n'y charge encore) ; Command et Shortcut typés ici
+    (`label` en fonction, lue à l'affichage, `permission` facultative).
+  - reste : déplacement de l'adaptateur (`web/v2/shell/src/data/query.ts`) dans
+    `@kartenn/ui` quand la 020 libère `web/v2/ui` ; appel de `unmetRange` par le chargeur
+    du nouveau shell (versions : `SDK_VERSION`, celle de `@kartenn/ui` — 0.1.0 à ce jour,
+    à passer en 1.x —, `version` de `vue`) et `handle.styles()` pour la feuille de
+    `@kartenn/ui` en racine d'ombre (REQ-021-27), avec la tâche 16.
 
 ## P1 bis — Côté serveur (avant les écrans)
 
@@ -380,7 +406,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
   signalée) — REQ-021-13, 14 — verify : parcours `plugins`, `session`, `example`
   - où : `web/shell/src/plugins/{ExtensionElement.vue,PluginView.vue,registry.ts}`,
-    `session/*`, `views/{AboutView,LoginView}.vue`
+    `session/*`, `views/{AboutView,LoginView}.vue` ; repris de la tâche 8 : le chargeur
+    écarte `incompatible` par `unmetRange` (`@kartenn/sdk/host`), `handle.styles()` lie la
+    feuille de `@kartenn/ui`
   - dépend de : 9
 
 ## P3 — Plugins (phase 5)
