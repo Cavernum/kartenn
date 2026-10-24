@@ -1,31 +1,48 @@
-//! Budget of `GET /v1/stats` (spec 024, REQ-024-16; task 024-7) on the dataset of
-//! `bench-core`, the VLAN and machines modules deployed: every counter computed with a
-//! cold cache, as `kartenn_rest::stats::compute` does on a miss, for a reader of
+//! Budgets of `GET /v1/stats` (spec 024, REQ-024-16, M18; tasks 024-7 and 7b) on the
+//! dataset of `bench-core`, the VLAN and machines modules deployed, for a reader of
 //! everything and for a person of 50 groups and 1 000 bindings (the subject of
-//! `bench-rbac`), whose counts go through the predicate of the read scope.
+//! `bench-rbac`), whose counts go through the predicate of the read scope: the route
+//! served from its snapshot, through the router, and the computation of a snapshot
+//! (`kartenn_rest::stats::compute`, what a recomputation in the background costs).
 
 use std::fmt::Write as _;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::anyhow;
+use anyhow::{Context, anyhow, bail};
+use axum::body::Body;
+use axum::http::{HeaderValue, Request, StatusCode, header};
+use axum::{Extension, Router};
+use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
+use kartenn_rest::health::PgReadiness;
 use kartenn_rest::objects::Api;
-use kartenn_service::audit::Instance;
-use kartenn_service::authz::Subject;
+use kartenn_rest::quota::{Quotas, Rate, Rates};
+use kartenn_rest::stats::{Freshness, Snapshots};
+use kartenn_rest::transport::Settings;
+use kartenn_service::audit::{AuditStatus, Instance};
+use kartenn_service::authn::{IdentityKind, Method, Principal};
 use kartenn_service::module::{Module, ModuleRegistry};
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
+use tower::ServiceExt;
 
 use crate::Dataset;
-use crate::props::{Budget, SINCE, p95, progress};
+use crate::props::{Budget, SINCE, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
+use crate::vlan_budgets::As;
 
-/// Draws per subject.
-const DRAWS: usize = 40;
+/// Computations per subject (each of seconds at the full scale).
+const COMPUTATIONS: usize = 20;
+/// Reads of the route per subject, served from the snapshot.
+const READS: usize = 200;
+/// Budget of the route served from a snapshot (REQ-024-16).
+const ROUTE: Duration = Duration::from_millis(200);
+/// Budget of a computation, in the background (REQ-024-16, Q-024-7).
+const COMPUTATION: Duration = Duration::from_secs(10);
 
 /// A person, its id.
 async fn person(pool: &PgPool, name: &str) -> anyhow::Result<Uuid> {
@@ -74,29 +91,128 @@ async fn everything(pool: &PgPool, person: Uuid) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The p95 of [`DRAWS`] cold computations of the statistics of `subject`, after a
-/// warm-up of the connections and statements; the last result, for the report.
-async fn measure(api: &Api, subject: &Subject) -> anyhow::Result<(Duration, String)> {
+/// p50, p95, p99 of samples.
+struct Spread {
+    p50: Duration,
+    p95: Duration,
+    p99: Duration,
+}
+
+impl Spread {
+    fn of(mut samples: Vec<Duration>) -> Self {
+        samples.sort();
+        let at = |q: usize| {
+            let i = (samples.len() * q).div_ceil(100).saturating_sub(1);
+            samples.get(i).copied().unwrap_or_default()
+        };
+        Self {
+            p50: at(50),
+            p95: at(95),
+            p99: at(99),
+        }
+    }
+}
+
+impl std::fmt::Display for Spread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "p50 {:?}, p95 {:?}, p99 {:?}",
+            self.p50, self.p95, self.p99
+        )
+    }
+}
+
+/// [`COMPUTATIONS`] computations of the statistics of `principal`, after a warm-up of
+/// the connections and statements; the objects counted by the last, for the report.
+async fn computations(api: &Api, principal: &Principal) -> anyhow::Result<(Spread, i64)> {
+    let subject = principal.subject();
     let compute = async || {
-        kartenn_rest::stats::compute(api, subject, OffsetDateTime::now_utc())
+        kartenn_rest::stats::compute(api, &subject, OffsetDateTime::now_utc())
             .await
             .map_err(|p| anyhow!("{p:?}"))
     };
-    for _ in 0..5 {
+    for _ in 0..2 {
         compute().await?;
     }
-    let mut samples = Vec::with_capacity(DRAWS);
+    let mut samples = Vec::with_capacity(COMPUTATIONS);
     let mut last = None;
-    for _ in 0..DRAWS {
+    for _ in 0..COMPUTATIONS {
         let t = Instant::now();
         last = Some(compute().await?);
         samples.push(t.elapsed());
     }
     let objects = last.map_or(0, |s| s.objects.values().sum::<i64>());
-    Ok((p95(samples), format!("{objects} objects counted")))
+    Ok((Spread::of(samples), objects))
 }
 
-/// Measures the budget of the statistics; the modules VLAN and machines are deployed
+/// The router as `principal`, with `snapshots`.
+fn app(api: Api, principal: Principal, snapshots: &Arc<Snapshots>) -> anyhow::Result<Router> {
+    let pool = api.pool.clone();
+    let unlimited = Rate::new(1_000_000, 1_000_000).context("non-zero literals")?;
+    Ok(kartenn_rest::router(
+        kartenn_rest::v1_with(
+            api,
+            vec![
+                kartenn_vlan::rest::routes(),
+                kartenn_machines::rest::routes(),
+            ],
+        )
+        .layer(Extension(snapshots.clone())),
+        Arc::new(PgReadiness::new(pool, AuditStatus::default())),
+        Settings::default(),
+        Arc::new(Quotas::new(Rates {
+            read: unlimited,
+            write: unlimited,
+            anonymous: unlimited,
+        })),
+        Arc::new(As(principal)),
+    ))
+}
+
+/// `GET /v1/stats`, timed to the last byte of the body, which must be a 200.
+async fn get(app: &Router) -> anyhow::Result<Duration> {
+    let request = Request::builder()
+        .uri("/v1/stats")
+        .header(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer bench"),
+        )
+        .body(Body::empty())?;
+    let t = Instant::now();
+    let response = app.clone().oneshot(request).await?;
+    let status = response.status();
+    let bytes = response.into_body().collect().await?.to_bytes();
+    let elapsed = t.elapsed();
+    if status != StatusCode::OK {
+        bail!(
+            "GET /v1/stats: {status} {}",
+            String::from_utf8_lossy(&bytes)
+        );
+    }
+    Ok(elapsed)
+}
+
+/// [`READS`] reads of the route as `principal`, served from the snapshot that its first
+/// read computed (not measured).
+async fn reads(api: &Api, principal: &Principal) -> anyhow::Result<Spread> {
+    let snapshots = Snapshots::new(Freshness::default());
+    let app = app(api.clone(), principal.clone(), &snapshots)?;
+    get(&app).await?;
+    let mut samples = Vec::with_capacity(READS);
+    for _ in 0..READS {
+        samples.push(get(&app).await?);
+    }
+    if snapshots.computations() != 2 {
+        bail!(
+            "GET /v1/stats computed {} parts instead of 2",
+            snapshots.computations()
+        );
+    }
+    Ok(Spread::of(samples))
+}
+
+/// Measures the budgets of the statistics; the modules VLAN and machines are deployed
 /// on `pool` by the budgets before it.
 ///
 /// # Errors
@@ -127,41 +243,69 @@ pub(crate) async fn run(
     everything(pool, reader).await?;
     let scoped = person(pool, "bench-stats-scoped").await?;
     bind(pool, data, scoped, seed).await?;
-    let (global, global_note) = measure(
-        &api,
-        &Subject {
-            id: reader,
-            issuer: None,
-            groups: Vec::new(),
-        },
-    )
-    .await?;
-    let (bound, bound_note) = measure(
-        &api,
-        &Subject {
-            id: scoped,
-            issuer: Some(ISSUER.into()),
-            groups: (0..GROUPS).map(|g| format!("g{g:02}")).collect(),
-        },
-    )
-    .await?;
-    writeln!(
-        report,
-        "INFO stats: reader of everything {global_note}, 1 000 bindings {bound_note}"
-    )?;
+    let subjects = [
+        (
+            "reader of everything",
+            Principal {
+                identity: reader,
+                kind: IdentityKind::Person,
+                issuer: None,
+                groups: Vec::new(),
+                method: Method::Bearer,
+            },
+        ),
+        (
+            "1 000 bindings",
+            Principal {
+                identity: scoped,
+                kind: IdentityKind::Person,
+                issuer: Some(ISSUER.into()),
+                groups: (0..GROUPS).map(|g| format!("g{g:02}")).collect(),
+                method: Method::Bearer,
+            },
+        ),
+    ];
+    let mut measured = Vec::new();
+    for (who, principal) in &subjects {
+        let (computed, objects) = computations(&api, principal).await?;
+        let served = reads(&api, principal).await?;
+        writeln!(
+            report,
+            "INFO stats, {who}: {objects} objects counted; route served {served}; \
+             computation {computed}"
+        )?;
+        measured.push((served, computed));
+    }
     progress(&format!("stats: {:?}", started.elapsed()));
+    let [
+        (global_served, global_computed),
+        (bound_served, bound_computed),
+    ] = <[(Spread, Spread); 2]>::try_from(measured)
+        .map_err(|_| anyhow!("two subjects measured"))?;
     Ok(vec![
         Budget {
-            name: "stats, reader of everything, cold cache, p95",
-            limit: Duration::from_millis(200),
-            measured: global,
-            note: format!("{DRAWS} computations, core and modules"),
+            name: "stats, reader of everything, route from the snapshot, p95",
+            limit: ROUTE,
+            measured: global_served.p95,
+            note: format!("{READS} reads"),
         },
         Budget {
-            name: "stats, 1 000 bindings, cold cache, p95",
-            limit: Duration::from_millis(200),
-            measured: bound,
-            note: format!("{DRAWS} computations, 50 groups"),
+            name: "stats, 1 000 bindings, route from the snapshot, p95",
+            limit: ROUTE,
+            measured: bound_served.p95,
+            note: format!("{READS} reads, 50 groups"),
+        },
+        Budget {
+            name: "stats, reader of everything, computation, p95",
+            limit: COMPUTATION,
+            measured: global_computed.p95,
+            note: format!("{COMPUTATIONS} computations, core and modules"),
+        },
+        Budget {
+            name: "stats, 1 000 bindings, computation, p95",
+            limit: COMPUTATION,
+            measured: bound_computed.p95,
+            note: format!("{COMPUTATIONS} computations, 50 groups"),
         },
     ])
 }
