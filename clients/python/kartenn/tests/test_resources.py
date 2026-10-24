@@ -17,6 +17,7 @@ from kartenn import (
     PreconditionFailed,
     Record,
     Refused,
+    Simulation,
     Unauthenticated,
     UnknownResource,
     between,
@@ -99,6 +100,36 @@ def test_close_without_motive_is_refused_locally(tmp_path: Path) -> None:
     sent = server.seen[-1]
     assert sent.headers["if-match"] == '"c1"'
     assert body(sent) == {"motive": "retrait", "valid_from": "2026-11-01T00:00:00Z"}
+
+
+def test_a_write_simulated_writes_nothing(tmp_path: Path) -> None:
+    """Spec 024, REQ-024-17: `simulate=True` sends the same write with `?simulate=true`
+    and answers its simulation; a write that submits no changeset is refused locally."""
+    server = FakeServer()
+    simulated: dict[str, Any] = {
+        "valid": False,
+        "violations": [{"rule": "core.prefix.overlap", "severity": "error", "detail": "x"}],
+        "diff": [],
+        "sample": [],
+        "cascaded": [],
+    }
+    server.route("POST", "/v1/prefixes", httpx2.Response(200, json=simulated))
+    server.route("DELETE", "/v1/prefixes/{id}", httpx2.Response(200, json=simulated))
+    with server.client(tmp_path) as kn:
+        created = kn.prefixes.create(value="198.51.100.0/24", motive="m", simulate=True)
+        closed = kn.prefixes.close(Record(PREFIX, etag='"c1"'), motive="m", simulate=True)
+        with pytest.raises(ClientError) as caught:
+            kn.call("acknowledge_anomaly", id=PREFIX["id"], body={"motive": "m"}, simulate=True)
+    assert isinstance(created, Simulation)
+    assert isinstance(closed, Simulation)
+    assert not created.valid
+    assert [v.rule for v in created.blocking] == ["core.prefix.overlap"]
+    writes = [r for r in server.seen if r.method != "GET"]
+    assert [(r.method, r.url.params["simulate"]) for r in writes] == [
+        ("POST", "true"),
+        ("DELETE", "true"),
+    ]
+    assert caught.value.code == "client.simulate-unsupported"
 
 
 def test_create_carries_an_idempotency_key_and_answers_pending(tmp_path: Path) -> None:

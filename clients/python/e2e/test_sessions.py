@@ -22,7 +22,6 @@ import urllib.request
 from typing import TYPE_CHECKING, Any
 
 import pexpect
-import pytest
 
 from conftest import LABO, PROD, STATE, Cli, Run, breakglass, normalized
 
@@ -434,13 +433,9 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     assert "✗ [vlan." in run.both, run.both
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="point ouvert de la 023 (tâche 18) : les membres REST d'une écriture du noyau "
-    "(`value` d'un préfixe) diffèrent de ceux de l'opération de changeset (`prefix` de "
-    "`create_prefix`) ; le contrat ne dit pas quelle opération correspond à une écriture",
-)
 def test_a_prefix_simulated_by_dry_run(cli: Cli) -> None:
+    """`--dry-run` sends the write itself with `?simulate=true` (spec 024, REQ-024-17):
+    the members of the REST write, not those of a changeset operation."""
     run = cli(
         "prefixes",
         "create",
@@ -454,6 +449,10 @@ def test_a_prefix_simulated_by_dry_run(cli: Cli) -> None:
         code=None,
     )
     assert run.code == 0, run.both
+    head = lines(run)[:2]
+    assert head[0] == "Simulation — rien n'est écrit", run.both
+    assert head[1].startswith("  Opérations  1   Violations  0"), run.both
+    assert "203.0.113.0/26" not in ids_by(cli, "prefixes", "list", key="value")
 
 
 # 10. Import a file, with a coded error and a resumption ---------------------------------

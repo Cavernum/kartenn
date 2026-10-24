@@ -19,7 +19,7 @@ from kartenn._core.dates import to_param
 from kartenn._core.messages import Headers, Request
 from kartenn._core.pages import Page, check_cursor, next_request, parse_page
 from kartenn._core.plans import checked
-from kartenn._core.problems import ClientError
+from kartenn._core.problems import ClientError, Violation, parse_violations
 from kartenn._core.requests import filters_from, idempotency_key, list_request
 from kartenn.catalog import CatalogCache, discover
 from kartenn.labels import Dictionary, LabelCache, fetch
@@ -42,7 +42,9 @@ __all__ = [
     "Pending",
     "Record",
     "Resource",
+    "Simulation",
     "outcome",
+    "simulation_of",
 ]
 
 _TEMPLATE = re.compile(r"\{([^}]+)\}")
@@ -50,6 +52,7 @@ _REL_CHANGESET = "urn:kartenn:rel:changeset"
 _JSON = "application/json"
 _MERGE_PATCH = "application/merge-patch+json"
 _APPLY = "apply"
+_SIMULATE = "simulate"
 
 
 class Record(dict[str, Any]):
@@ -110,6 +113,70 @@ class Pending:
             code = cast("dict[str, Any]", reason).get("code")
             return None if code is None else str(code)
         return None
+
+
+@dataclass(frozen=True)
+class Simulation:
+    """What applying would do (`?simulate=true`): nothing is written."""
+
+    valid: bool
+    violations: tuple[Violation, ...]
+    diff: tuple[Any, ...]
+    sample: tuple[Any, ...]
+    cascaded: tuple[Any, ...]
+    sections: tuple[Any, ...]
+    body: Record = field(default_factory=Record)
+
+    @property
+    def blocking(self) -> tuple[Violation, ...]:
+        return tuple(v for v in self.violations if v.blocking)
+
+
+def simulation_of(body: Record) -> Simulation:
+    """The simulation a write answers with `simulate=true` (200 `ChangesetSimulated`)."""
+
+    def items(name: str) -> tuple[Any, ...]:
+        value = body.get(name)
+        return tuple(cast("list[Any]", value)) if isinstance(value, list) else ()
+
+    return Simulation(
+        valid=bool(body.get("valid")),
+        violations=parse_violations(body.get("violations")),
+        diff=items("diff"),
+        sample=items("sample"),
+        cascaded=items("cascaded"),
+        sections=items("sections"),
+        body=body,
+    )
+
+
+def _simulated(operation: Operation, *, simulate: bool) -> dict[str, object]:
+    """The parameter that simulates a write (spec 024, REQ-024-17); refused locally when
+    the contract says it submits no changeset (`x-kartenn.simulate`)."""
+    if not simulate:
+        return {}
+    if not operation.simulate:
+        msg = f"{operation.operation_id} submits no changeset: it cannot be simulated"
+        raise ClientError("client.simulate-unsupported", msg)
+    return {_SIMULATE: True}
+
+
+def _simulation_asked(
+    operation: Operation, params: Mapping[str, object]
+) -> tuple[bool, dict[str, object]]:
+    """`simulate` among the parameters of a write, checked against the contract."""
+    rest = dict(params)
+    simulate = bool(rest.pop(_SIMULATE, False))
+    return simulate, {**rest, **_simulated(operation, simulate=simulate)}
+
+
+def _written(
+    response: Response, *, simulate: bool
+) -> Applied | Pending | Record | Simulation | None:
+    """The result of a write: its simulation when asked, its outcome otherwise."""
+    if not simulate:
+        return outcome(response)
+    return simulation_of(cast("Record", _body(checked(response))))
 
 
 def _changeset_link(response: Response) -> str | None:
@@ -341,14 +408,16 @@ class Context:
         valid_from: datetime | str | None,
         valid_to: datetime | str | None,
         key: str | None,
-    ) -> Plan[Applied | Pending | Record | None]:
+        simulate: bool = False,
+    ) -> Plan[Applied | Pending | Record | Simulation | None]:
         model = yield from self.model(name)
         operation = _verb_operation(self.shared.catalog, model, "create")
         content = _reserved(body, motive=motive, valid_from=valid_from, valid_to=valid_to)
-        request = self.request(operation, body=content, key=key)
+        params = _simulated(operation, simulate=simulate)
+        request = self.request(operation, params=params, body=content, key=key)
         if "Idempotency-Key" not in request.headers:
             request = request.with_header("Idempotency-Key", key or idempotency_key())
-        return outcome((yield request))
+        return _written((yield request), simulate=simulate)
 
     def update(  # noqa: PLR0913 - the reserved members of a write
         self,
@@ -359,16 +428,18 @@ class Context:
         motive: str | None,
         valid_from: datetime | str | None,
         etag: str | None,
-    ) -> Plan[Applied | Pending | Record | None]:
+        simulate: bool = False,
+    ) -> Plan[Applied | Pending | Record | Simulation | None]:
         model = yield from self.model(name)
         operation = _verb_operation(self.shared.catalog, model, "update")
         content = _reserved(changes, motive=motive, valid_from=valid_from, valid_to=None)
-        request = self.request(operation, ref=ref, body=content, etag=etag)
+        params = _simulated(operation, simulate=simulate)
+        request = self.request(operation, ref=ref, params=params, body=content, etag=etag)
         if operation.body_media is None:
             request = replace(request, headers=request.headers.set("Content-Type", _MERGE_PATCH))
-        return outcome((yield request))
+        return _written((yield request), simulate=simulate)
 
-    def close(
+    def close(  # noqa: PLR0913 - the reserved members of a write
         self,
         name: str,
         ref: object,
@@ -376,14 +447,17 @@ class Context:
         motive: str | None,
         valid_from: datetime | str | None,
         etag: str | None,
-    ) -> Plan[Applied | Pending | Record | None]:
+        simulate: bool = False,
+    ) -> Plan[Applied | Pending | Record | Simulation | None]:
         if not motive:
             msg = "closing an object needs a motive"
             raise ClientError("client.motive-required", msg)
         model = yield from self.model(name)
         operation = _verb_operation(self.shared.catalog, model, "close")
         content = _reserved({}, motive=motive, valid_from=valid_from, valid_to=None)
-        return outcome((yield self.request(operation, ref=ref, body=content, etag=etag)))
+        params = _simulated(operation, simulate=simulate)
+        request = self.request(operation, ref=ref, params=params, body=content, etag=etag)
+        return _written((yield request), simulate=simulate)
 
     def verb(  # noqa: PLR0913 - a verb takes what its operation takes
         self,
@@ -400,9 +474,9 @@ class Context:
         if operation.method in {"GET", "QUERY"} and body is None:
             answer = yield self.request(operation, ref=ref, params=params)
             return _body(checked(answer), self._as_of(params))
-        return outcome(
-            (yield self.request(operation, ref=ref, params=params, body=body, etag=etag))
-        )
+        simulate, params = _simulation_asked(operation, params)
+        answer = yield self.request(operation, ref=ref, params=params, body=body, etag=etag)
+        return _written(answer, simulate=simulate)
 
     def verb_page(
         self, name: str, verb: str, ref: object, params: Mapping[str, object]
@@ -425,13 +499,16 @@ class Context:
     ) -> Plan[Any]:
         catalog = yield from self.catalog()
         operation = catalog.operation(operation_id)
+        simulate = False
+        if operation.method not in {"GET", "QUERY"}:
+            simulate, params = _simulation_asked(operation, params)
         request = self.request(
             operation, params=params, body=body, etag=etag, key=key, headers=headers
         )
         answer = checked((yield request))
         if operation.method in {"GET", "QUERY"}:
             return _body(answer, self._as_of(params))
-        return outcome(answer)
+        return _written(answer, simulate=simulate)
 
     def _as_of(self, params: Mapping[str, object]) -> str | None:
         given = params.get("as_of")
@@ -564,7 +641,7 @@ class Resource:
     def get(self, ref: object, /, **params: object) -> Record:
         return cast("Record", self._run(self._context.get(self.name, ref, params)))
 
-    def create(
+    def create(  # noqa: PLR0913 - the reserved members of a write
         self,
         body: Mapping[str, object] | None = None,
         /,
@@ -573,8 +650,10 @@ class Resource:
         valid_from: datetime | str | None = None,
         valid_to: datetime | str | None = None,
         idempotency_key: str | None = None,
+        simulate: bool = False,
         **members: object,
-    ) -> Applied | Pending | Record | None:
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Create; `simulate=True` answers what applying would do, writing nothing."""
         content = {**(body or {}), **members}
         plan = self._context.create(
             self.name,
@@ -583,10 +662,11 @@ class Resource:
             valid_from=valid_from,
             valid_to=valid_to,
             key=idempotency_key,
+            simulate=simulate,
         )
-        return cast("Applied | Pending | Record | None", self._run(plan))
+        return cast("Applied | Pending | Record | Simulation | None", self._run(plan))
 
-    def update(
+    def update(  # noqa: PLR0913 - the reserved members of a write
         self,
         ref: object,
         changes: Mapping[str, object] | None = None,
@@ -595,13 +675,21 @@ class Resource:
         motive: str | None = None,
         valid_from: datetime | str | None = None,
         etag: str | None = None,
+        simulate: bool = False,
         **members: object,
-    ) -> Applied | Pending | Record | None:
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Update; `simulate=True` answers what applying would do, writing nothing."""
         content = {**(changes or {}), **members}
         plan = self._context.update(
-            self.name, ref, content, motive=motive, valid_from=valid_from, etag=etag
+            self.name,
+            ref,
+            content,
+            motive=motive,
+            valid_from=valid_from,
+            etag=etag,
+            simulate=simulate,
         )
-        return cast("Applied | Pending | Record | None", self._run(plan))
+        return cast("Applied | Pending | Record | Simulation | None", self._run(plan))
 
     def close(
         self,
@@ -611,9 +699,13 @@ class Resource:
         motive: str | None = None,
         valid_from: datetime | str | None = None,
         etag: str | None = None,
-    ) -> Applied | Pending | Record | None:
-        plan = self._context.close(self.name, ref, motive=motive, valid_from=valid_from, etag=etag)
-        return cast("Applied | Pending | Record | None", self._run(plan))
+        simulate: bool = False,
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Close; `simulate=True` answers what applying would do, writing nothing."""
+        plan = self._context.close(
+            self.name, ref, motive=motive, valid_from=valid_from, etag=etag, simulate=simulate
+        )
+        return cast("Applied | Pending | Record | Simulation | None", self._run(plan))
 
     def verb(
         self,
@@ -717,7 +809,7 @@ class AsyncResource:
     async def get(self, ref: object, /, **params: object) -> Record:
         return cast("Record", await self._run(self._context.get(self.name, ref, params)))
 
-    async def create(
+    async def create(  # noqa: PLR0913 - the reserved members of a write
         self,
         body: Mapping[str, object] | None = None,
         /,
@@ -726,8 +818,10 @@ class AsyncResource:
         valid_from: datetime | str | None = None,
         valid_to: datetime | str | None = None,
         idempotency_key: str | None = None,
+        simulate: bool = False,
         **members: object,
-    ) -> Applied | Pending | Record | None:
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Create; `simulate=True` answers what applying would do, writing nothing."""
         content = {**(body or {}), **members}
         plan = self._context.create(
             self.name,
@@ -736,10 +830,11 @@ class AsyncResource:
             valid_from=valid_from,
             valid_to=valid_to,
             key=idempotency_key,
+            simulate=simulate,
         )
-        return cast("Applied | Pending | Record | None", await self._run(plan))
+        return cast("Applied | Pending | Record | Simulation | None", await self._run(plan))
 
-    async def update(
+    async def update(  # noqa: PLR0913 - the reserved members of a write
         self,
         ref: object,
         changes: Mapping[str, object] | None = None,
@@ -748,13 +843,21 @@ class AsyncResource:
         motive: str | None = None,
         valid_from: datetime | str | None = None,
         etag: str | None = None,
+        simulate: bool = False,
         **members: object,
-    ) -> Applied | Pending | Record | None:
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Update; `simulate=True` answers what applying would do, writing nothing."""
         content = {**(changes or {}), **members}
         plan = self._context.update(
-            self.name, ref, content, motive=motive, valid_from=valid_from, etag=etag
+            self.name,
+            ref,
+            content,
+            motive=motive,
+            valid_from=valid_from,
+            etag=etag,
+            simulate=simulate,
         )
-        return cast("Applied | Pending | Record | None", await self._run(plan))
+        return cast("Applied | Pending | Record | Simulation | None", await self._run(plan))
 
     async def close(
         self,
@@ -764,9 +867,13 @@ class AsyncResource:
         motive: str | None = None,
         valid_from: datetime | str | None = None,
         etag: str | None = None,
-    ) -> Applied | Pending | Record | None:
-        plan = self._context.close(self.name, ref, motive=motive, valid_from=valid_from, etag=etag)
-        return cast("Applied | Pending | Record | None", await self._run(plan))
+        simulate: bool = False,
+    ) -> Applied | Pending | Record | Simulation | None:
+        """Close; `simulate=True` answers what applying would do, writing nothing."""
+        plan = self._context.close(
+            self.name, ref, motive=motive, valid_from=valid_from, etag=etag, simulate=simulate
+        )
+        return cast("Applied | Pending | Record | Simulation | None", await self._run(plan))
 
     async def verb(
         self,
