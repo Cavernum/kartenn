@@ -349,6 +349,7 @@ fn finish(document: &mut OpenApi) {
             apply_own(operation);
         }
     }
+    crate::simulation::declare(document);
 }
 
 /// A write that submits a changeset (it may answer 202) takes `apply=own` (spec 024,
@@ -808,7 +809,10 @@ where
 }
 
 /// Merges `members` into the extension `x-kartenn` of `extensions`.
-fn extend(extensions: &mut Option<utoipa::openapi::extensions::Extensions>, members: Value) {
+pub(crate) fn extend(
+    extensions: &mut Option<utoipa::openapi::extensions::Extensions>,
+    members: Value,
+) {
     let current = extensions
         .get_or_insert_default()
         .entry(CLIENT_EXTENSION.to_owned())

@@ -4,8 +4,9 @@
   `--set path=value`, or a document (`--from-file`, `-` for the standard input);
 - `update` sends a Merge Patch (RFC 7396) under the `If-Match` of a read; `close` needs a
   motive;
-- `--dry-run` simulates the same write as a changeset (`?simulate=true`): nothing is
-  written, the exit code is 8 when it would be refused;
+- `--dry-run` sends the same write with `?simulate=true` (spec 024, REQ-024-17): nothing
+  is written, the exit code is 8 when it would be refused; a write the contract does not
+  simulate (`x-kartenn.simulate`) is refused;
 - `--into-changeset` adds the write to the local changeset (`kartenn changeset new`);
 - a write held for a decision ends with 0, or 10 with `--require-applied`.
 """
@@ -24,9 +25,9 @@ from kartenn_cli.i18n import t
 from kartenn_cli.tree import VerbCommand, first_line
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
-    from kartenn import Applied, Pending
+    from kartenn import Applied, Pending, Simulation
     from kartenn.catalog import Catalog, Resource
     from kartenn_cli.runtime import Runtime
 
@@ -383,15 +384,28 @@ def simulate(  # noqa: PLR0913 - the members of a changeset
     output: str | None = None,
 ) -> None:
     """Simulate a changeset of these operations; exit 8 when it would be refused."""
-    from kartenn import Refused  # noqa: PLC0415
-    from kartenn_cli.render.changesets import render_simulation  # noqa: PLC0415
-
     builder = found.client.changeset(
         motive=motive, valid_from=valid_from, valid_to=valid_to, on_behalf_of=on_behalf_of
     )
     for operation in operations:
         builder.add(operation)
+    report_simulation(
+        found, builder.simulate, operations=len(operations), valid_from=valid_from, output=output
+    )
+
+
+def report_simulation(
+    found: Runtime,
+    run: Callable[[], Simulation],
+    *,
+    operations: int,
+    valid_from: str | None,
+    output: str | None,
+) -> None:
+    """Run a simulation and show it; exit 8 when applying would be refused."""
+    from kartenn import Refused  # noqa: PLC0415
     from kartenn_cli.render import format_moment  # noqa: PLC0415
+    from kartenn_cli.render.changesets import render_simulation  # noqa: PLC0415
 
     shown = format_moment(valid_from, found.zone)
     # On the standard error when a format is asked for: the output stays a document.
@@ -400,13 +414,13 @@ def simulate(  # noqa: PLR0913 - the members of a changeset
         err=(found.asked_output(output) or "table") != "table",
     )
     try:
-        simulation = builder.simulate()
+        simulation = run()
     except Refused as error:
         from kartenn_cli.render.problems import render_error  # noqa: PLC0415
 
         click.echo(render_error(error, color=found.error_color), err=True, nl=False)
         raise click.exceptions.Exit(DRY_RUN_REFUSED) from error
-    render_simulation(found, simulation, operations=len(operations), output=output)
+    render_simulation(found, simulation, operations=operations, output=output)
     if simulation.blocking:
         raise click.exceptions.Exit(DRY_RUN_REFUSED)
 
@@ -447,6 +461,10 @@ class _Write(VerbCommand):
     def motive_required(self) -> bool:
         return True
 
+    @property
+    def takes_motive(self) -> bool:
+        return True
+
     def invoke(self, ctx: click.Context) -> Any:  # noqa: ANN401
         from kartenn_cli.runtime import runtime  # noqa: PLC0415
 
@@ -456,7 +474,9 @@ class _Write(VerbCommand):
         valid_from = _date(found, ctx.params.get("valid_from"))
         identifier = self.identifier(ctx, found)
         members = self.body(ctx, found)
-        if ctx.params.get("dry_run") or ctx.params.get("into_changeset"):
+        if ctx.params.get("into_changeset"):
+            from kartenn_cli.changeset import add_operation  # noqa: PLC0415
+
             operation = changeset_operation(
                 self.catalog,
                 self.resource,
@@ -465,23 +485,14 @@ class _Write(VerbCommand):
                 members,
                 identifier,
             )
-            if ctx.params.get("into_changeset"):
-                from kartenn_cli.changeset import add_operation  # noqa: PLC0415
-
-                add_operation(operation, summary=self.summary(members))
-                return
-            simulate(
-                found,
-                [operation],
-                motive=motive or t("simulation.motive"),
-                valid_from=valid_from,
-                on_behalf_of=ctx.params.get("on_behalf_of"),
-                output=ctx.params.get("output"),
-            )
+            add_operation(operation, summary=self.summary(members))
             return
         content = {**members, "motive": motive} if motive else dict(members)
         if valid_from:
             content["valid_from"] = valid_from
+        if ctx.params.get("dry_run"):
+            self.dry_run(ctx, found, identifier, content, valid_from)
+            return
         result = self.send(found, identifier, content, _headers(ctx))
         render_outcome(
             found,
@@ -506,13 +517,47 @@ class _Write(VerbCommand):
         identifier: str | None,
         content: dict[str, Any],
         headers: dict[str, str] | None,
+        *,
+        simulate: bool = False,
     ) -> object:
         params = {} if identifier is None else {self.operation.path_params[0]: identifier}
         etag = None
         if self.operation.needs_if_match and identifier is not None:
             etag = found.client.resource(self.resource.name).get(identifier).etag
         return found.client.call(
-            self.operation.operation_id, body=content, etag=etag, headers=headers, **params
+            self.operation.operation_id,
+            body=content,
+            etag=etag,
+            headers=headers,
+            simulate=simulate,
+            **params,
+        )
+
+    def dry_run(
+        self,
+        ctx: click.Context,
+        found: Runtime,
+        identifier: str | None,
+        content: dict[str, Any],
+        valid_from: str | None,
+    ) -> None:
+        """The same write with `?simulate=true` (spec 024, REQ-024-17): nothing is
+        written; exit 8 when it would be refused. A write that submits no changeset is
+        refused (`client.dry-run-unavailable`)."""
+        if not self.operation.simulate:
+            raise CliError(
+                "client.dry-run-unavailable",
+                t("write.no_simulation", resource=self.resource.name, verb=self.verb),
+            )
+        sent = {"motive": t("simulation.motive"), **content} if self.takes_motive else content
+
+        def run() -> Simulation:
+            return cast(
+                "Simulation", self.send(found, identifier, sent, _headers(ctx), simulate=True)
+            )
+
+        report_simulation(
+            found, run, operations=1, valid_from=valid_from, output=ctx.params.get("output")
         )
 
 

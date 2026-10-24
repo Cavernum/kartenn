@@ -10,7 +10,7 @@ The derivation follows the conventions of REST every module keeps (ADR 0026, cla
 | `/v1/<coll>/{id}/<sub>` in another method | an action (`acknowledgement`, `waiver`…) |
 | `/v1/<coll>/{id}/properties/{key}/<x>` | `properties.explain`, `properties.suggest` |
 | `tags[0]` of the operation | its module |
-| `x-kartenn` (optional) | natural key and columns (path), name of a verb (operation) |
+| `x-kartenn` (optional) | natural key and columns (path), name of a verb, `simulate` (operation) |
 
 Nothing names a module or a resource: a module served tomorrow is derived the same way.
 """
@@ -107,12 +107,16 @@ def _operation(
     content = _as_dict(body.get("content"))
     media = next(iter(content), None)
     responses = _as_dict(raw.get("responses"))
-    statuses = [s for s in _SUCCESS if s in responses]
+    extension = _as_dict(raw.get("x-kartenn"))
+    simulate = extension.get("simulate") is True
+    # Beside a 201, the 200 of a write that simulates is its simulation (spec 024).
+    simulated = "200" if simulate and "201" in responses else None
+    statuses = [s for s in _SUCCESS if s in responses and s != simulated]
     success = _as_dict(responses[statuses[0]] if statuses else None)
     answer = _as_dict(success.get("content"))
     answer_schema = _as_dict(next(iter(answer.values()), None)).get("schema")
     tags = raw.get("tags")
-    command = _as_dict(raw.get("x-kartenn")).get("command")
+    command = extension.get("command")
     return Operation(
         operation_id=str(raw.get("operationId") or f"{method}:{path}"),
         method="QUERY" if method == "x-query" else method.upper(),
@@ -125,6 +129,7 @@ def _operation(
         body_required=bool(body.get("required", False)),
         response=_as_dict(answer_schema) if answer_schema is not None else None,
         command=command if isinstance(command, str) else None,
+        simulate=simulate,
     )
 
 

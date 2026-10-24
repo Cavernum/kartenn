@@ -33,6 +33,7 @@ pub mod request_id;
 pub mod resources;
 pub mod rights;
 mod rules;
+pub mod simulation;
 pub mod transport;
 pub mod tree;
 pub mod versions;
@@ -107,9 +108,14 @@ pub fn v1_with(api: objects::Api, routers: Vec<OpenApiRouter<objects::Api>>) -> 
     let (router, document) = api_with(&modules, routers)
         .with_state(api)
         .split_for_parts();
-    router.layer(Extension(openapi::Served::of(&openapi::assemble(
-        document, &modules,
-    ))))
+    let document = openapi::assemble(document, &modules);
+    // Spec 024, REQ-024-17: `?simulate=true` only where a changeset is submitted.
+    router
+        .route_layer(from_fn_with_state(
+            simulation::Simulable::of(&document),
+            simulation::gate,
+        ))
+        .layer(Extension(openapi::Served::of(&document)))
 }
 
 /// A panic answers a generic 500: its message goes to the log (`sys.panic`), never to the
@@ -156,7 +162,12 @@ pub fn router_with_web(
                 auth::routes()
                     .with_state(authenticator.clone())
                     .split_for_parts()
-                    .0,
+                    .0
+                    // The login routes submit no changeset (spec 024, REQ-024-17).
+                    .route_layer(from_fn_with_state(
+                        simulation::Simulable::default(),
+                        simulation::gate,
+                    )),
             ),
         )
         .merge(health::routes().with_state(readiness).split_for_parts().0);

@@ -10774,6 +10774,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -10787,6 +10796,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -10821,7 +10840,10 @@
         "summary": "Creates a address.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -10906,6 +10928,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -10923,11 +10954,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -10953,7 +10991,10 @@
         "summary": "Closes the address.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_address",
@@ -11044,6 +11085,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -11061,11 +11111,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -11091,7 +11148,10 @@
         "summary": "Modifies the address (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/addresses/{id}/flows": {
@@ -11565,6 +11625,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -11578,6 +11647,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -11612,7 +11691,10 @@
         "summary": "Creates in admissibility-conditions (policy.condition.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -11694,6 +11776,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -11701,11 +11792,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -11731,7 +11829,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_admissibility_conditions",
@@ -11822,6 +11923,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -11839,11 +11949,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -11869,7 +11986,10 @@
         "summary": "Modifies the object (policy.condition.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/admissibility-conditions/{id}/history": {
@@ -12288,7 +12408,10 @@
         "summary": "`POST /v1/anomalies/{id}/acknowledgement` with `{\"motive\": \"…\"}`: acknowledges the open\nanomaly for the current version of its object (REQ-002-36); 204. An anomaly closed,\nabsent or of an object the caller may not read → 404; without\n`core.anomaly.acknowledge` on its object → 403.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/audit-events": {
@@ -12472,7 +12595,10 @@
         "summary": "A break-glass login (REQ-006-25): a session of at most 1 h.",
         "tags": [
           "authentication"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/auth/callback": {
@@ -12630,7 +12756,10 @@
         "summary": "Ends the session, then on to the end-session endpoint of the issuer.",
         "tags": [
           "authentication"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/auth/native-clients": {
@@ -12743,6 +12872,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -12756,6 +12894,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -12790,7 +12938,10 @@
         "summary": "`POST /v1/bindings` `{subject, role, scope}`: 201 and `Location`.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/bindings/{id}": {
@@ -12814,6 +12965,15 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -12839,11 +12999,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Ended."
+            "description": "Ended. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -12869,7 +13036,10 @@
         "summary": "`DELETE /v1/bindings/{id}`: ends the binding.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_binding",
@@ -13141,7 +13311,10 @@
         "summary": "`POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,\noperations}`: pending (202), or applied by its author (201) when asked and allowed\n(spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication\n(layer 6) before the syntax, the syntax (400, 415) before the rules (422).",
         "tags": [
           "changesets"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/changesets/{id}": {
@@ -13327,7 +13500,10 @@
         "summary": "`POST /v1/changesets/{id}/rejection` with `{\"motive\": \"…\"}` (REQ-004-23, 43).",
         "tags": [
           "changesets"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/changesets/{id}/undo": {
@@ -13417,7 +13593,10 @@
         "summary": "`POST /v1/changesets/{id}/undo[?simulate=true]`: submits the inverse of an applied\nchangeset under the rights of the caller (REQ-004-34), answered as a submission with\n`undoes` and `unsupported`; 409 `undo-conflict` with the objects and rights written\nsince (REQ-004-35).",
         "tags": [
           "changesets"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/changesets/{id}/validation": {
@@ -13485,7 +13664,10 @@
         "summary": "`POST /v1/changesets/{id}/validation`: applies a pending changeset again on the current\nstate (REQ-004-21, 22, 42), with the operations of review its validator joins\n(REQ-016-11); 200, or 422 when it no longer holds or an operation joined is not one\nof review.",
         "tags": [
           "changesets"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/changesets/{id}/withdrawal": {
@@ -13537,7 +13719,10 @@
         "summary": "`POST /v1/changesets/{id}/withdrawal`: by its author only (REQ-004-23).",
         "tags": [
           "changesets"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/clusters": {
@@ -13648,6 +13833,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -13661,6 +13855,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -13695,7 +13899,10 @@
         "summary": "Creates a cluster.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -13778,6 +13985,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -13795,11 +14011,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -13825,7 +14048,10 @@
         "summary": "Closes the cluster.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_cluster",
@@ -13916,6 +14142,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -13933,11 +14168,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -13963,7 +14205,10 @@
         "summary": "Modifies the cluster (JSON Merge Patch).",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/clusters/{id}/history": {
@@ -14437,6 +14682,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -14450,6 +14704,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -14484,7 +14748,10 @@
         "summary": "Creates a domain.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -14565,6 +14832,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -14582,11 +14858,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -14612,7 +14895,10 @@
         "summary": "Closes the domain.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_domain",
@@ -14703,6 +14989,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -14720,11 +15015,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -14750,7 +15052,10 @@
         "summary": "Modifies the domain (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/domains/{id}/history": {
@@ -15236,6 +15541,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -15249,6 +15563,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -15283,7 +15607,10 @@
         "summary": "Creates a entity.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -15365,6 +15692,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -15382,11 +15718,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -15412,7 +15755,10 @@
         "summary": "Closes the entity.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_entity",
@@ -15503,6 +15849,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -15520,11 +15875,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -15550,7 +15912,10 @@
         "summary": "Modifies the entity (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/entities/{id}/history": {
@@ -15934,6 +16299,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -15947,6 +16321,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -15981,7 +16365,10 @@
         "summary": "Creates in environments (policy.environment.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -16064,6 +16451,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -16071,11 +16467,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -16101,7 +16504,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_environments",
@@ -16564,6 +16970,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -16577,6 +16992,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -16611,7 +17036,10 @@
         "summary": "Creates in flow-types (policy.flow_type.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -16693,6 +17121,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -16700,11 +17137,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -16730,7 +17174,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_flow_types",
@@ -16821,6 +17268,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -16838,11 +17294,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -16868,7 +17331,10 @@
         "summary": "Modifies the object (policy.flow_type.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/flow-types/{id}/history": {
@@ -17405,6 +17871,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -17418,6 +17893,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -17452,7 +17937,10 @@
         "summary": "Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`).",
         "tags": [
           "flow"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -17536,6 +18024,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -17543,11 +18040,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -17573,7 +18077,10 @@
         "summary": "Closes the flow.",
         "tags": [
           "flow"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_flow",
@@ -17664,6 +18171,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -17681,11 +18197,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -17711,7 +18234,10 @@
         "summary": "Modifies the flow (JSON Merge Patch); its identity does not change (REQ-011-4). An extension (a later end, or `end: null` on a dated flow) is triaged: applied when automatic, otherwise held for a review (F20).",
         "tags": [
           "flow"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/flows/{id}/evaluations": {
@@ -18088,6 +18614,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -18105,11 +18640,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Granted."
+            "description": "Granted. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -18135,7 +18677,10 @@
         "summary": "Grants a dated waiver to the flow (REQ-011-9), under `flow.waiver.grant`.",
         "tags": [
           "flow"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/graph/edges": {
@@ -18315,6 +18860,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -18332,11 +18886,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Changed."
+            "description": "Changed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -18362,7 +18923,10 @@
         "summary": "`PATCH /v1/identities/{id}` (JSON Merge Patch) `{disabled, revoke_sessions}`.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/identities/{id}/pseudonymisation": {
@@ -18415,7 +18979,10 @@
         "summary": "`POST /v1/identities/{id}/pseudonymisation` `{motive}`: pseudonymises the person at once;\n200 with the identity. Without `core.identity.pseudonymise` → 403 (before any lookup);\nno motive → 422; unknown → 404; not a person → 409; pseudonymised before → 200, nothing\ndone.",
         "tags": [
           "audit"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/imports": {
@@ -18507,7 +19074,10 @@
         "summary": "`POST /v1/imports {source}` → 201.",
         "tags": [
           "imports"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/imports/{id}": {
@@ -18593,7 +19163,10 @@
         "summary": "`POST /v1/imports/{id}/cancel` → 200: the batch in progress ends, the batches applied\nstay.",
         "tags": [
           "imports"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/imports/{id}/chunks/{n}": {
@@ -18666,7 +19239,10 @@
         "summary": "`PUT /v1/imports/{id}/chunks/{n} {elements}`: new → 201, identical → 200, different\n→ 409, too large → 413; the chunk weighs `⌈elements / 1 000⌉` on the quota.",
         "tags": [
           "imports"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/imports/{id}/resume": {
@@ -18718,7 +19294,10 @@
         "summary": "`POST /v1/imports/{id}/resume` → 202: a paused import is ready again.",
         "tags": [
           "imports"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/imports/{id}/start": {
@@ -18770,7 +19349,10 @@
         "summary": "`POST /v1/imports/{id}/start` → 202: `sorting`, its error cleared; its task sorts and\ncuts it in batches, then runs them (H18). The request never sorts.",
         "tags": [
           "imports"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/inference-rules": {
@@ -18899,6 +19481,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -18912,6 +19503,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -18946,7 +19547,10 @@
         "summary": "Creates in inference-rules (policy.inference_rule.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -19030,6 +19634,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -19037,11 +19650,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -19067,7 +19687,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_inference_rules",
@@ -19158,6 +19781,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -19175,11 +19807,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -19205,7 +19844,10 @@
         "summary": "Modifies the object (policy.inference_rule.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/inference-rules/{id}/history": {
@@ -19634,6 +20276,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -19647,6 +20298,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -19681,7 +20342,10 @@
         "summary": "Creates a interface.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -19767,6 +20431,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -19784,11 +20457,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -19814,7 +20494,10 @@
         "summary": "Closes the interface.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_interface",
@@ -19905,6 +20588,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -19922,11 +20614,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -19952,7 +20651,10 @@
         "summary": "Modifies the interface (JSON Merge Patch).",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/interfaces/{id}/attachments": {
@@ -19986,6 +20688,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -20003,11 +20714,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Attached."
+            "description": "Attached. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -20033,7 +20751,10 @@
         "summary": "Attaches an address to the interface (REQ-009-9); the address is only read.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/interfaces/{id}/attachments/{address}": {
@@ -20077,6 +20798,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -20094,11 +20824,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Detached."
+            "description": "Detached. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -20124,7 +20861,10 @@
         "summary": "Detaches the address from the interface.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/interfaces/{id}/flows": {
@@ -20521,6 +21261,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -20545,11 +21294,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Detached."
+            "description": "Detached. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -20575,7 +21331,10 @@
         "summary": "`DELETE /v1/issuer-attachments?issuer=…[&entity=…]`: detaches the issuer from the\nentity, or its global attachment without `entity`.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "list_issuer_attachments",
@@ -20651,6 +21410,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -20664,6 +21432,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -20698,7 +21476,10 @@
         "summary": "`POST /v1/issuer-attachments` `{issuer, entity}`: 201.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/labels": {
@@ -20832,7 +21613,10 @@
         "summary": "`PUT /v1/log-filters/{output}` `{filter, ttl}`: the filter of a configured output for\n`ttl` seconds (1 hour by default, 24 at most), after which every instance returns to the\nconfiguration; 200 `{output, filter, expires_at}`. An output not configured → 404; a\nfilter that does not parse or a duration out of bounds → 422 `invalid-override`.",
         "tags": [
           "operations"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/machines": {
@@ -21006,6 +21790,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -21019,6 +21812,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -21053,7 +21856,10 @@
         "summary": "Creates a machine.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -21136,6 +21942,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -21153,11 +21968,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -21183,7 +22005,10 @@
         "summary": "Closes the machine.",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_machine",
@@ -21274,6 +22099,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -21291,11 +22125,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -21321,7 +22162,10 @@
         "summary": "Modifies the machine (JSON Merge Patch).",
         "tags": [
           "machines"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/machines/{id}/addresses": {
@@ -21993,6 +22837,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -22006,6 +22859,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -22040,7 +22903,10 @@
         "summary": "Creates in policy-axes (policy.axis.designate).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -22123,6 +22989,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -22130,11 +23005,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -22160,7 +23042,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_policy_axes",
@@ -22251,6 +23136,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -22268,11 +23162,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -22298,7 +23199,10 @@
         "summary": "Modifies the object (policy.axis.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/policy-axes/{id}/history": {
@@ -22682,6 +23586,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -22695,6 +23608,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -22729,7 +23652,10 @@
         "summary": "Creates in policy-exempt-roles (policy.exempt_role.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -22810,6 +23736,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -22817,11 +23752,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -22847,7 +23789,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_policy_exempt_roles",
@@ -23300,6 +24245,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -23317,11 +24271,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Set."
+            "description": "Set. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -23347,7 +24308,10 @@
         "summary": "Sets a cell of the matrix (policy.matrix.set): allow, deny, conditional or none.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/policy-patterns": {
@@ -23449,6 +24413,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -23462,6 +24435,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -23496,7 +24479,10 @@
         "summary": "Creates in policy-patterns (policy.pattern.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -23578,6 +24564,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -23585,11 +24580,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -23615,7 +24617,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_policy_patterns",
@@ -23706,6 +24711,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -23723,11 +24737,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -23753,7 +24774,10 @@
         "summary": "Modifies the object (policy.pattern.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/policy-patterns/{id}/history": {
@@ -24176,7 +25200,8 @@
           "policy"
         ],
         "x-kartenn": {
-          "command": "report"
+          "command": "report",
+          "simulate": false
         }
       },
       "x-kartenn": {
@@ -24428,6 +25453,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -24441,6 +25475,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -24475,7 +25519,10 @@
         "summary": "Creates in policy-rules (policy.rule.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -24558,6 +25605,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -24565,11 +25621,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -24595,7 +25658,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_policy_rules",
@@ -24686,6 +25752,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -24703,11 +25778,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -24733,7 +25815,10 @@
         "summary": "Modifies the object (policy.rule.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/policy-rules/{id}/history": {
@@ -25117,6 +26202,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -25130,6 +26224,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -25164,7 +26268,10 @@
         "summary": "Creates in policy-values (policy.value.describe).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -25748,6 +26855,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -25761,6 +26877,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -25795,7 +26921,10 @@
         "summary": "Creates a prefix.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -25880,6 +27009,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -25897,11 +27035,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -25927,7 +27072,10 @@
         "summary": "Closes the prefix.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_prefix",
@@ -26018,6 +27166,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -26035,11 +27192,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -26065,7 +27229,10 @@
         "summary": "Modifies the prefix (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/prefixes/{id}/ancestors": {
@@ -27191,6 +28358,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -27204,6 +28380,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -27238,7 +28424,10 @@
         "summary": "Creates a range.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -27324,6 +28513,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -27341,11 +28539,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -27371,7 +28576,10 @@
         "summary": "Closes the range.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_range",
@@ -27462,6 +28670,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -27479,11 +28696,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -27509,7 +28733,10 @@
         "summary": "Modifies the range (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/ranges/{id}/history": {
@@ -27902,6 +29129,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -27915,6 +29151,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -27949,7 +29195,10 @@
         "summary": "Creates in risk-signals (policy.signal.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -28032,6 +29281,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -28039,11 +29297,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -28069,7 +29334,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_risk_signals",
@@ -28160,6 +29428,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -28177,11 +29454,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -28207,7 +29491,10 @@
         "summary": "Modifies the object (policy.signal.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/risk-signals/{id}/history": {
@@ -28566,6 +29853,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -28590,11 +29886,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -28620,7 +29923,10 @@
         "summary": "`DELETE /v1/roles/{key}`: closes the role and its bindings.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_role",
@@ -28682,6 +29988,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -28699,11 +30014,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Replaced."
+            "description": "Replaced. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "201": {
             "content": {
@@ -28739,7 +30061,10 @@
         "summary": "`PUT /v1/roles/{key}` `{labels, entries}`: defines or replaces the role; 201 when it is\ncreated.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/rules": {
@@ -28859,6 +30184,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -28872,6 +30206,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -28906,7 +30250,10 @@
         "summary": "`POST /v1/service-accounts` `{name, expires_at}`: 201, `Location`, and the first secret\nshown once.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/service-accounts/{id}": {
@@ -28986,6 +30333,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -29005,6 +30361,16 @@
           }
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -29039,7 +30405,10 @@
         "summary": "`POST /v1/service-accounts/{id}/secrets` `{expires_at}`: 201 and the secret shown once.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/service-accounts/{id}/secrets/{secret}": {
@@ -29074,6 +30443,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -29098,11 +30476,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Revoked."
+            "description": "Revoked. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -29128,7 +30513,10 @@
         "summary": "`DELETE /v1/service-accounts/{id}/secrets/{secret}`: revokes the secret.",
         "tags": [
           "rights"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/services": {
@@ -29239,6 +30627,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -29252,6 +30649,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -29286,7 +30693,10 @@
         "summary": "Creates in services (policy.service.create).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -29369,6 +30779,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -29376,11 +30795,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -29406,7 +30832,10 @@
         "summary": "Closes the object.",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_services",
@@ -29497,6 +30926,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -29514,11 +30952,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -29544,7 +30989,10 @@
         "summary": "Modifies the object (policy.service.update, JSON Merge Patch).",
         "tags": [
           "policy"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/services/{id}/history": {
@@ -29949,6 +31397,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -29962,6 +31419,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -29996,7 +31463,10 @@
         "summary": "Creates a site.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -30078,6 +31548,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -30095,11 +31574,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -30125,7 +31611,10 @@
         "summary": "Closes the site.",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_site",
@@ -30216,6 +31705,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -30233,11 +31731,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -30263,7 +31768,10 @@
         "summary": "Modifies the site (JSON Merge Patch).",
         "tags": [
           "core"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/sites/{id}/history": {
@@ -30811,6 +32319,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -30824,6 +32341,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -30858,7 +32385,10 @@
         "summary": "Creates a vlan_group.",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -30942,6 +32472,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -30959,11 +32498,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -30989,7 +32535,10 @@
         "summary": "Closes the vlan_group.",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_vlan_group",
@@ -31080,6 +32629,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -31097,11 +32655,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -31127,7 +32692,10 @@
         "summary": "Modifies the vlan_group (JSON Merge Patch).",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/vlan-groups/{id}/history": {
@@ -31687,6 +33255,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -31700,6 +33277,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
           "201": {
             "content": {
               "application/json": {
@@ -31734,7 +33321,10 @@
         "summary": "Creates a vlan.",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "x-kartenn": {
         "columns": [
@@ -31819,6 +33409,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -31836,11 +33435,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Closed."
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -31866,7 +33472,10 @@
         "summary": "Closes the vlan.",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       },
       "get": {
         "operationId": "show_vlan",
@@ -31957,6 +33566,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -31974,11 +33592,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChangesetApplied"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Modified."
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
           },
           "202": {
             "content": {
@@ -32004,7 +33629,10 @@
         "summary": "Modifies the vlan (JSON Merge Patch).",
         "tags": [
           "vlan"
-        ]
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/vlans/{id}/history": {

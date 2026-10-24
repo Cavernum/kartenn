@@ -209,7 +209,8 @@ class _Writer:
             elif verb.name == "close":
                 out.append(
                     "    def close(self, ref: object, /, *, motive: str | None = ..., "
-                    "valid_from: _Date = ..., etag: str | None = ...) -> _Outcome: ..."
+                    "valid_from: _Date = ..., etag: str | None = ..., simulate: bool = ...) "
+                    "-> _Outcome: ..."
                 )
             elif verb.name != "query":
                 method = _identifier(re.sub(r"[-.]", "_", verb.name))
@@ -236,11 +237,13 @@ class _Writer:
             return (
                 f"    def create(self, body: {body}, /, *, motive: str | None = ..., "
                 "valid_from: _Date = ..., valid_to: _Date = ..., "
-                f"idempotency_key: str | None = ..., {members}) -> _Outcome: ..."
+                f"idempotency_key: str | None = ..., simulate: bool = ..., {members}) "
+                "-> _Outcome: ..."
             )
         return (
             f"    def update(self, ref: object, changes: {body}, /, *, motive: str | None = ..., "
-            f"valid_from: _Date = ..., etag: str | None = ..., {members}) -> _Outcome: ..."
+            "valid_from: _Date = ..., etag: str | None = ..., simulate: bool = ..., "
+            f"{members}) -> _Outcome: ..."
         )
 
     def client(self, protocols: dict[str, str]) -> None:
@@ -269,7 +272,7 @@ def render(catalog: Catalog) -> str:
         "import datetime as _datetime\nimport typing as _t\n\n"
         "import kartenn as _k\nimport kartenn.resources as _r\n\n"
         "_Date: _t.TypeAlias = _datetime.datetime | str | None\n"
-        "_Outcome: _t.TypeAlias = _k.Applied | _k.Pending | _k.Record | None"
+        "_Outcome: _t.TypeAlias = _k.Applied | _k.Pending | _k.Record | _k.Simulation | None"
     )
     writer.components()
     protocols = {r.name: writer.protocol(r) for r in catalog.resources}

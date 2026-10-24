@@ -26,15 +26,24 @@ sections of modules included, as generic rows.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from kartenn._core.dates import to_param
 from kartenn._core.messages import Headers, Request
 from kartenn._core.plans import checked
-from kartenn._core.problems import ClientError, Violation, parse_violations
+from kartenn._core.problems import ClientError
 from kartenn._core.requests import idempotency_key
-from kartenn.resources import Applied, AsyncListing, Listing, Pending, Record, outcome, page
+from kartenn.resources import (
+    Applied,
+    AsyncListing,
+    Listing,
+    Pending,
+    Record,
+    Simulation,
+    outcome,
+    page,
+    simulation_of,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -55,23 +64,6 @@ __all__ = [
 ]
 
 ON_BEHALF_OF = "Kartenn-On-Behalf-Of"
-
-
-@dataclass(frozen=True)
-class Simulation:
-    """What applying would do (`?simulate=true`): nothing is written."""
-
-    valid: bool
-    violations: tuple[Violation, ...]
-    diff: tuple[Any, ...]
-    sample: tuple[Any, ...]
-    cascaded: tuple[Any, ...]
-    sections: tuple[Any, ...]
-    body: Record = field(default_factory=Record)
-
-    @property
-    def blocking(self) -> tuple[Violation, ...]:
-        return tuple(v for v in self.violations if v.blocking)
 
 
 def operation_kinds(catalog: Catalog) -> frozenset[str]:
@@ -100,22 +92,6 @@ def operation_kinds(catalog: Catalog) -> frozenset[str]:
 
     visit(catalog.schemas.get("Operation"), 0)
     return frozenset(found)
-
-
-def _simulation(body: Record) -> Simulation:
-    def items(name: str) -> tuple[Any, ...]:
-        value = body.get(name)
-        return tuple(cast("list[Any]", value)) if isinstance(value, list) else ()
-
-    return Simulation(
-        valid=bool(body.get("valid")),
-        violations=parse_violations(body.get("violations")),
-        diff=items("diff"),
-        sample=items("sample"),
-        cascaded=items("cascaded"),
-        sections=items("sections"),
-        body=body,
-    )
 
 
 class _Changeset:
@@ -206,7 +182,7 @@ class _Changeset:
     def simulate(self) -> Plan[Simulation]:
         catalog = yield from self._context.catalog()
         answer = checked((yield self._request(catalog, simulate=True)))
-        return _simulation(cast("Record", outcome(answer)))
+        return simulation_of(cast("Record", outcome(answer)))
 
     def submit(self, *, apply_own: bool = True) -> Plan[Applied | Pending]:
         """Submit (spec 024): applied when `apply_own` and its author holds `apply_own` on
