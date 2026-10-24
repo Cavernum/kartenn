@@ -1458,15 +1458,30 @@ async fn a_client_that_no_longer_reads_loses_its_socket(pool: PgPool) {
     );
     assert_eq!(i.hub.open_streams(), 1);
     // Large events (900 objects each, about 60 KiB) until the socket and the buffers of
-    // the server are full and the channel overflows; the client reads nothing meanwhile.
-    for n in 0..40u32 {
+    // the server are full, the channel overflows and the overflow outlasts its delay; the
+    // client reads nothing meanwhile. The send buffer of the server grows with the kernel
+    // autotuning (up to `net.ipv4.tcp_wmem`, several MiB), so no fixed count fills it on a
+    // fast machine: events keep coming, bounded by a total well beyond those buffers and a
+    // deadline, until the hub forgets the stream (each pass checks the overflow delay).
+    let deadline = std::time::Instant::now() + Duration::from_secs(120);
+    let mut written = 0u32;
+    while i.hub.open_streams() > 0 && written < 1_000 && std::time::Instant::now() < deadline {
+        let n = written;
         let operations = (0..900u32)
-            .map(|k| prefix_in(d, &format!("10.{n}.{}.{}/28", k / 16, (k % 16) * 16)))
+            .map(|k| {
+                prefix_in(
+                    d,
+                    &format!(
+                        "10.{}.{}.{}/28",
+                        n % 256,
+                        (n / 256) * 64 + k / 16,
+                        (k % 16) * 16
+                    ),
+                )
+            })
             .collect();
         apply(&pool, writer, operations).await;
-        if i.hub.open_streams() == 0 {
-            break;
-        }
+        written += 1;
     }
     let gone = tokio::time::timeout(Duration::from_secs(10), async {
         while i.hub.open_streams() > 0 {
@@ -1474,6 +1489,14 @@ async fn a_client_that_no_longer_reads_loses_its_socket(pool: PgPool) {
         }
     })
     .await;
+    assert!(
+        i.hub
+            .stats
+            .dropped
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 0,
+        "the channel overflowed after {written} events"
+    );
     assert!(gone.is_ok(), "forgotten by the ceilings");
     // Reading now drains what the kernel holds, then meets the end of the socket.
     let closed = tokio::time::timeout(Duration::from_secs(10), async {
