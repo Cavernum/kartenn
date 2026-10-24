@@ -44,7 +44,8 @@ modification ; routes `GET`/`POST /v1/drafts`, `GET`/`PATCH`/`DELETE /v1/drafts/
 #### REQ-024-2 — Seul l'auteur
 kartenn doit refuser toute lecture ou écriture d'un brouillon par une autre identité que
 son auteur (404, l'existence n'est pas révélée), sauf la reprise prévue par
-REQ-024-7a ; un compte de service n'a pas de brouillon. [M2]
+REQ-024-7a ; un compte de service n'a pas de brouillon (403 sur toute route
+`/v1/drafts…`). [M2]
 
 #### REQ-024-3 — Version
 kartenn doit exiger `If-Match` sur toute modification d'un brouillon et répondre 412
@@ -68,8 +69,9 @@ contenu) vers les seuls flux de l'auteur. [M3, 022]
 
 #### REQ-024-7 — Rétention et limites
 kartenn doit supprimer un brouillon inactif depuis 90 jours, garder au plus 50 brouillons
-par identité et 10 000 opérations par brouillon (422 au-delà), et annoncer la suppression
-7 jours avant (champ `expires_at`). [Q-024-2, 3]
+par identité et 10 000 opérations par brouillon (422 `draft-limit` au-delà), et annoncer
+la suppression 7 jours avant : le champ `expires_at` n'apparaît qu'à partir du 83ᵉ jour
+sans modification. [Q-024-2, 3]
 
 #### REQ-024-7a — Reprise par un administrateur
 kartenn doit permettre à qui détient la permission globale `core.draft.admin` de lister
@@ -91,8 +93,9 @@ permissions : `….edit` (créer et soumettre un changeset qui la touche), `….
 (appliquer ou rejeter le changeset d'un autre qui la touche), `….apply_own` (appliquer
 son propre changeset) ; `…write`, `…propose` et `core.changeset.approve` disparaissent,
 sans compatibilité ; les rôles existants sont migrés (`write` → `edit` + `apply_own`,
-`propose` → `edit`, `approve` → `apply`) par un changeset système. [M7, amende 005/K12,
-018/R2, Q-024-6]
+`propose` → `edit`, `approve` → `apply`) par un changeset système ; une permission d'une
+autre action (`core.role.admin`, `policy.rule.admin`, `flow.request`, `flow.review`) vaut
+les trois verbes pour ses objets. [M7, amende 005/K12, 018/R2, Q-024-6]
 
 #### REQ-024-10 — Soumission
 Quand l'auteur détient `….edit` sur tout ce que le changeset touche (objets et effets),
@@ -140,10 +143,12 @@ p95 ≤ 10 s. [M4, M18, D14]
 ### D. Simulation de toute écriture
 
 #### REQ-024-17 — `?simulate=true` partout
-Chaque route d'écriture de l'API (POST, PUT, PATCH, DELETE des ressources et actions)
-doit accepter `?simulate=true` et répondre 200
-`{valid, violations, diff, sample, cascaded}` sans rien écrire ni émettre d'événement ;
-la CLI s'en sert pour `--dry-run`. [M6, 023]
+Chaque route d'écriture de l'API dont l'effet est un changeset (sa réponse 202 est un
+changeset en attente) doit accepter `?simulate=true` et répondre 200
+`{valid, violations, diff, sample, cascaded, sections}` sans rien écrire ni émettre
+d'événement ; toute autre route d'écriture doit répondre 400 `simulate-unsupported` ;
+le contrat le dit par opération (`x-kartenn.simulate`) ; la CLI s'en sert pour
+`--dry-run`. [M6, 023]
 
 ### E. Interface (révision des specs 020 et 021)
 

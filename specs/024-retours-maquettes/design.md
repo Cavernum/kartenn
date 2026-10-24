@@ -147,8 +147,8 @@ Le kit des ressources (`crates/kartenn-rest/src/kit.rs`, `resources.rs`, `cycle.
 construit déjà un changeset par requête d'écriture ; `?simulate=true` le passe au
 pipeline en mode simulation (le chemin de `POST /v1/changesets?simulate=true`) et rend
 la même réponse 200. Les routes d'action (`…/validation`, `…/rejection`, imports…)
-simulent leur effet quand c'est un changeset (annulation, import) et répondent 400
-`simulate.unsupported` sinon (validation, rejet, secrets). `x-kartenn` annonce
+simulent leur effet quand c'est un changeset (annulation, comptes de service et leurs
+secrets) et répondent 400 `simulate-unsupported` sinon (validation, rejet, imports). `x-kartenn` annonce
 `simulate: true|false` par opération ; la CLI en tire `--dry-run`.
 
 ## E. Interface (REQ-024-18 à 29)
@@ -181,11 +181,11 @@ surface), vérification à quatre largeurs avant de rendre une maquette.
 |---|---|
 | Brouillon d'un autre | 404 |
 | Brouillon modifié dans un autre onglet | 412 ; le shell relit et rejoue la modification |
-| 51ᵉ brouillon, 10 001ᵉ opération | 422 `draft.limit` |
+| 51ᵉ brouillon, 10 001ᵉ opération | 422 `draft-limit` |
 | Soumission refusée (violations) | 422, le brouillon reste |
 | `?apply=own` sans `apply_own` ou sous politique | 202 en attente, motif |
-| L'auteur valide son changeset sans `apply_own` | 403 `changeset.approval.self` |
-| `?simulate=true` sur une action sans changeset | 400 `simulate.unsupported` |
+| L'auteur valide son changeset sans `apply_own` | 403 `changeset.apply_own.missing` |
+| `?simulate=true` sur une action sans changeset | 400 `simulate-unsupported` |
 | Statistiques d'une sorte illisible | sorte absente du corps |
 
 ## Risques

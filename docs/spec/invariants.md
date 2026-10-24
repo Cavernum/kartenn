@@ -107,7 +107,7 @@ lancée une fois, par l'orchestrateur, en fin de série.
 | INV-34 | Changeset unitaire validé et appliqué < 200 ms | Bancs `bench-core`, `bench-rbac`, `bench-http` |
 | INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc `bench-core` |
 | INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Bancs `bench-core` (import), `bench-http` (charge) |
-| INV-83 | `GET /v1/stats` servie de son instantané < 200 ms ; calcul d'un instantané, en arrière-plan, < 10 s (lecteur de tout et sujet à 1 000 liaisons, 50 groupes ; 024/REQ-024-16, M18) | Banc `bench-core` (`stats_budgets` : 200 lectures par le routeur, 20 calculs ; petite échelle validée, mesure complète à faire) |
+| INV-83 | `GET /v1/stats` servie de son instantané < 200 ms ; calcul d'un instantané, en arrière-plan, < 10 s (lecteur de tout et sujet à 1 000 liaisons, 50 groupes ; 024/REQ-024-16, M18) | Banc `bench-core` (`stats_budgets` : 200 lectures par le routeur, 20 calculs) ; banc complet tenu le 2026-10-24 : route p95 1,0 ms et 18,2 ms, calcul p95 1,32 s et 7,59 s |
 
 Les modules livrés tiennent INV-30, 31 et 34 sur le jeu de référence augmenté, mesurés
 par `bench-core` après les budgets du noyau : VLAN (008, REQ-008-25 : 2·10⁴ groupes,
