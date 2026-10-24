@@ -141,12 +141,13 @@ export const MOCKUPS: Mockup[] = [
     id: "E6",
     title: "Lecture au passé",
     shows:
-      "Bande ambre, pastille de date ouverte sur le sélecteur de période, écritures grisées avec motif, chronologie des versions.",
+      "Bande ambre, pastille de date et sélecteur de période ouvert en surimpression, écritures grisées avec motif, chronologie des versions.",
     views: [
       {
         id: "selecteur",
         label: "Sélecteur de date",
-        description: "Pastille de date ouverte sur le sélecteur (composant à venir).",
+        description:
+          "Pastille de date ouverte sur le sélecteur (composant à venir), en surimpression : la page ne bouge pas.",
       },
       {
         id: "chronologie",

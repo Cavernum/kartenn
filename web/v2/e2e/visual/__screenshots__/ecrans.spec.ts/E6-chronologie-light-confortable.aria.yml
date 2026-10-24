@@ -61,11 +61,13 @@
   - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+, lu au 3 novembre \d+/ [level=1]
   - region /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/:
     - heading /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/ [level=2]
-    - button "Modifier" [disabled]
-    - button "Actions"
-    - status:
-      - paragraph: "/Lecture au 3 novembre \\d+ : les écritures sont désactivées\\./"
-      - text: Les valeurs sont celles valides à cette date (version v3). Le brouillon peut recevoir des opérations datées ; l'édition en place reprend au présent.
+    - toolbar "Actions du préfixe":
+      - button "Lire au présent"
+      - button "Comparer avec le présent"
+      - button "Modifier" [disabled]
+      - button "Copier l'identifiant"
+      - button "Clore…" [disabled]
+    - paragraph: /Valeurs valides au 3 novembre \d+ \(version v3\)\. Les écritures reprennent au présent ; le brouillon peut recevoir des opérations datées\./
     - term: Propriétaire
     - definition: Atelier Nord
     - term: Site
