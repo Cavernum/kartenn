@@ -264,3 +264,45 @@ pub async fn summaries(pool: &PgPool, ids: &[Uuid]) -> Result<Vec<ChangesetSumma
     .map_err(store_err)?;
     Ok(rows.into_iter().map(summary).collect())
 }
+
+/// The number of changesets applied each day of the last `days` (UTC), the oldest first
+/// and today last (spec 024, REQ-024-14; Q-024-5: every changeset, whoever its author).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn applied_by_day(pool: &PgPool, days: u16) -> Result<Vec<i64>, StoreError> {
+    let rows: Vec<(i32, i64)> = sqlx::query_as(
+        "WITH start AS (
+             SELECT (date_trunc('day', now() AT TIME ZONE 'UTC')
+                     - make_interval(days => $1 - 1)) AT TIME ZONE 'UTC' AS at)
+         SELECT floor(extract(epoch FROM c.applied_at - start.at) / 86400)::int, count(*)
+           FROM changeset c, start
+          WHERE c.state = 'applied' AND c.applied_at >= start.at
+          GROUP BY 1",
+    )
+    .bind(i32::from(days))
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)?;
+    let mut by_day = vec![0; usize::from(days)];
+    for (day, n) in rows {
+        if let Some(slot) = usize::try_from(day).ok().and_then(|d| by_day.get_mut(d)) {
+            *slot = n;
+        }
+    }
+    Ok(by_day)
+}
+
+/// The number of pending changesets of `author` (spec 024, REQ-024-14).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn pending_of(pool: &PgPool, author: Uuid) -> Result<i64, StoreError> {
+    sqlx::query_scalar("SELECT count(*) FROM changeset WHERE state = 'pending' AND author_id = $1")
+        .bind(author)
+        .fetch_one(pool)
+        .await
+        .map_err(store_err)
+}

@@ -20,5 +20,7 @@ pub mod reevaluation;
 pub mod rest;
 pub mod rules;
 pub mod state;
+#[cfg(feature = "rest")]
+pub mod stats;
 
 pub use module::Flows;

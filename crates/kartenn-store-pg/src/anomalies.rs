@@ -103,6 +103,39 @@ fn last_changeset_sql() -> String {
         .join(" UNION ALL ")
 }
 
+/// The conditions that the anomaly `a` is open (REQ-002-36) and, when `$<scope>` is not
+/// null, that its object is readable under the scope `s` (REQ-006-23): those of the
+/// lists, and of the count of `GET /v1/stats`.
+fn open_and_readable(scope: &str) -> String {
+    let object_readable = readable("x.id", "x.kind", "x.domain_id", "x.value", "now()");
+    format!(
+        "a.closed_at IS NULL
+         AND (a.acknowledged_at IS NULL OR a.acked_changeset IS DISTINCT FROM ({} LIMIT 1))
+         AND ({scope}::jsonb IS NULL OR EXISTS (
+                 SELECT 1 FROM carrier_object x
+                 WHERE x.id = a.object_id AND x.valid_period @> now() AND {object_readable}))",
+        last_changeset_sql()
+    )
+}
+
+/// The number of open anomalies whose object `scope` lets read now (spec 024,
+/// REQ-024-14, 15): those [`open_within`] lists without filter.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn open_count(pool: &PgPool, scope: &ReadScope) -> sqlx::Result<i64> {
+    let sql = format!(
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($1))
+         SELECT count(*) FROM anomaly a WHERE {}",
+        open_and_readable("$1")
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(scope.to_json())
+        .fetch_one(pool)
+        .await
+}
+
 /// Which open anomalies to list (REQ-002-36); every field narrows the list.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AnomalyFilter<'a> {
@@ -164,7 +197,6 @@ pub async fn open_page(
     } else {
         "AND $6::timestamptz IS NULL AND $7::uuid IS NULL"
     };
-    let object_readable = readable("x.id", "x.kind", "x.domain_id", "x.value", "now()");
     let sql = format!(
         "WITH RECURSIVE s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
          sub(id, depth) AS (
@@ -178,7 +210,7 @@ pub async fn open_page(
                 (SELECT x.kind FROM carrier_object x
                  WHERE x.id = a.object_id AND x.valid_period @> now() LIMIT 1)
          FROM anomaly a
-         WHERE a.closed_at IS NULL AND ($1::text IS NULL OR a.rule_id = $1)
+         WHERE {} AND ($1::text IS NULL OR a.rule_id = $1)
            AND ($2::uuid IS NULL OR a.object_id = $2 OR EXISTS (
                    SELECT 1 FROM carrier_object x
                    WHERE x.id = a.object_id AND x.domain_id = $2 AND x.valid_period @> now()))
@@ -190,15 +222,11 @@ pub async fn open_page(
                    WHERE p.object_id = a.object_id AND p.valid_period @> now()
                      AND p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
                      AND v.v_uuid IN (SELECT id FROM sub)))
-           AND (a.acknowledged_at IS NULL OR a.acked_changeset IS DISTINCT FROM ({} LIMIT 1))
-           AND ($4::jsonb IS NULL OR EXISTS (
-                   SELECT 1 FROM carrier_object x
-                   WHERE x.id = a.object_id AND x.valid_period @> now() AND {object_readable}))
            AND ($5::text IS NULL OR left(a.message, length($5) + 1) = $5 || ':')
            {keyset}
          ORDER BY a.opened_at, a.id
          LIMIT $8::bigint",
-        last_changeset_sql()
+        open_and_readable("$4")
     );
     sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(filter.rule)

@@ -155,6 +155,16 @@ impl Module for Flows {
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         Some(Arc::new(Handler))
     }
+    fn stats(&self) -> Option<Arc<dyn kartenn_service::module::StatsContributor>> {
+        #[cfg(feature = "rest")]
+        {
+            Some(Arc::new(crate::stats::Stats))
+        }
+        #[cfg(not(feature = "rest"))]
+        {
+            None
+        }
+    }
     fn jobs(&self) -> &'static [JobSpec] {
         crate::expiry::JOBS
     }

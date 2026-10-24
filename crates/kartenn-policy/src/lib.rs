@@ -47,6 +47,8 @@ pub mod read;
 pub mod report;
 #[cfg(feature = "rest")]
 pub mod rest;
+#[cfg(feature = "rest")]
+pub mod stats;
 #[cfg(feature = "pg")]
 pub mod verdict;
 

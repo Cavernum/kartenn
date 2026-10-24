@@ -60,6 +60,8 @@ pub struct Settings {
     pub overflow_close: Duration,
     /// The public origin, compared to `Origin` for a cookie session (REQ-022-15).
     pub public_origin: Option<String>,
+    /// At most one `stats` event this often (spec 024, REQ-024-16).
+    pub stats_every: Duration,
 }
 
 impl Default for Settings {
@@ -81,6 +83,7 @@ impl Default for Settings {
             recheck: Duration::from_secs(10),
             overflow_close: Duration::from_secs(30),
             public_origin: None,
+            stats_every: Duration::from_secs(30),
         }
     }
 }
@@ -213,6 +216,19 @@ pub enum Message {
         /// When its changeset was applied, Unix microseconds (the lag).
         time: Option<i64>,
     },
+    /// An event outside the outbox, without content nor cursor: `stats` (spec 024,
+    /// REQ-024-16).
+    Signal {
+        /// Its kind.
+        kind: Kind,
+    },
+}
+
+/// When the last `stats` went out, and whether another is due (REQ-024-16).
+#[derive(Debug, Default)]
+struct StatsSignal {
+    sent: Option<Instant>,
+    due: bool,
 }
 
 /// Who holds a connection, as the dispatcher groups them.
@@ -370,6 +386,8 @@ pub struct Hub {
     pub stats: Stats,
     /// The audit journal, for `authn.session.closed` when a revocation ends a session.
     pub journal: std::sync::OnceLock<kartenn_store_pg::audit_journal::PgAuditJournal>,
+    /// The coalescing of the `stats` events.
+    counters: Mutex<StatsSignal>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -435,6 +453,7 @@ impl Hub {
             loaded: AtomicBool::new(false),
             stats: Stats::default(),
             journal: std::sync::OnceLock::new(),
+            counters: Mutex::default(),
         })
     }
 
@@ -854,7 +873,9 @@ impl Hub {
             .collect();
         let mut next: Option<i64> = None;
         for m in out.iter_mut().rev() {
-            let Message::Event { seq, floor: f, .. } = m;
+            let Message::Event { seq, floor: f, .. } = m else {
+                continue;
+            };
             if let Some(next) = next {
                 *f = (*f).min(next - 1);
             }
@@ -960,8 +981,34 @@ impl Hub {
                 }
             }
         }
+        let changed = notices
+            .iter()
+            .any(|n| matches!(n.body, Body::Changes(_) | Body::Changeset { .. }));
+        self.signal_stats(changed, &conns);
         self.floor.fetch_max(floor, Ordering::SeqCst);
         self.close_overflowed();
+    }
+
+    /// Hands `stats` to the connections that select it when a counter may have changed,
+    /// in this batch (`changed`) or in one held back, at most once per
+    /// [`Settings::stats_every`] (spec 024, REQ-024-16): the reader publishes at each pass,
+    /// so a held back one goes out at the first pass after the interval. Its data is
+    /// empty: whoever receives it reads `GET /v1/stats` again, under its own rights.
+    fn signal_stats(&self, changed: bool, conns: &[Arc<Conn>]) {
+        let mut signal = lock(&self.counters);
+        signal.due |= changed;
+        let early = signal
+            .sent
+            .is_some_and(|at| at.elapsed() < self.settings.stats_every);
+        if !signal.due || early {
+            return;
+        }
+        signal.due = false;
+        signal.sent = Some(Instant::now());
+        drop(signal);
+        for conn in conns.iter().filter(|c| c.filters.selects(Kind::Stats)) {
+            self.send(conn, Message::Signal { kind: Kind::Stats });
+        }
     }
 
     /// Hands `message` to `conn`, or marks it overflowed (REQ-022-21).

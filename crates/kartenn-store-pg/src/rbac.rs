@@ -195,6 +195,26 @@ impl ReadScope {
         self.0.as_ref()
     }
 
+    /// Whether some object of `kind` is readable (spec 024, REQ-024-15): a kind read
+    /// nowhere is left out of the statistics.
+    #[must_use]
+    pub fn reads(&self, kind: &str) -> bool {
+        self.0
+            .as_ref()
+            .is_none_or(|kinds| kinds.get(kind).is_some_and(|v| !v.is_empty()))
+    }
+
+    /// Whether every object of `kind` is readable, without confinement: a count needs no
+    /// predicate.
+    #[must_use]
+    pub fn reads_all(&self, kind: &str) -> bool {
+        self.0.as_ref().is_none_or(|kinds| {
+            kinds
+                .get(kind)
+                .is_some_and(|v| v.global && v.confinement.is_none())
+        })
+    }
+
     /// The scope as the JSON argument of `kartenn_scopes`; `None` for everything.
     #[must_use]
     pub fn to_json(&self) -> Option<serde_json::Value> {

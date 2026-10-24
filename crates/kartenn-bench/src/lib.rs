@@ -23,6 +23,7 @@ pub mod machine_budgets;
 pub mod policy_budgets;
 pub mod props;
 pub mod rbac;
+mod stats_budgets;
 pub mod telemetry;
 pub mod vlan_budgets;
 
