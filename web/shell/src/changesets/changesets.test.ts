@@ -30,12 +30,12 @@ describe("actions offered on a changeset (REQ-007-18)", () => {
 });
 
 describe("cells of the lists of changesets", () => {
-  const row = { author: "me", motive: "m", required: [{ permission: "core.address.write" }] };
+  const row = { author: "me", motive: "m", required: [{ permission: "core.address.edit" }] };
 
   it("names the caller and lists the missing permissions", () => {
     expect(changesetCell(row, "author", "me", "you")).toBe("you");
     expect(changesetCell(row, "author", "other", "you")).toBe("me");
-    expect(changesetCell(row, "required", "me", "you")).toBe("core.address.write");
+    expect(changesetCell(row, "required", "me", "you")).toBe("core.address.edit");
     expect(changesetCell(row, "absent", "me", "you")).toBe("—");
   });
 

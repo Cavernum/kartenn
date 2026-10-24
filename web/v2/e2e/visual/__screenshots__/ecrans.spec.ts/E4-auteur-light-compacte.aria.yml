@@ -133,18 +133,18 @@
       - status
     - heading "Approbation renumerotation" [level=2]
     - paragraph: "Droits requis pour valider :"
-    - text: Valider les changesets
-    - button "Copier core.changeset.approve":
+    - text: Appliquer les préfixes
+    - button "Copier core.prefix.apply":
       - text: ""
-      - code: core.changeset.approve
+      - code: core.prefix.apply
     - status
-    - text: Modifier les préfixes
-    - button "Copier core.prefix.write":
+    - text: Appliquer les VLAN
+    - button "Copier vlan.apply":
       - text: ""
-      - code: core.prefix.write
+      - code: vlan.apply
     - status
-    - text: Modifier les VLAN
-    - button "Copier vlan.write":
+    - text: Appliquer les propriétés
+    - button "Copier prop.*.apply":
       - text: ""
-      - code: vlan.write
+      - code: prop.*.apply
     - status

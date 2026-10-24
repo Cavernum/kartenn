@@ -78,7 +78,7 @@ describe("the answers of a write by resource (design « Écriture »)", () => {
           {
             rule: "core.object.forbidden",
             severity: "error",
-            detail: "1 object(s) need core.entity.write",
+            detail: "1 object(s) need core.entity.edit",
             pointer: "",
           },
         ],
@@ -87,7 +87,7 @@ describe("the answers of a write by resource (design « Écriture »)", () => {
     expect(outcome).toMatchObject({
       kind: "refused",
       type: "urn:kartenn:problem:forbidden",
-      detail: "1 object(s) need core.entity.write",
+      detail: "1 object(s) need core.entity.edit",
     });
   });
 

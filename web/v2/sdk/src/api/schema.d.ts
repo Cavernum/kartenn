@@ -507,8 +507,9 @@ export interface paths {
     get: operations["list_changesets"];
     put?: never;
     /**
-     * `POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,
-     *     operations}`. The problems come in the order of HTTP (REQ-006-22): the authentication
+     * `POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,
+     *     operations}`: pending (202), or applied by its author (201) when asked and allowed
+     *     (spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication
      *     (layer 6) before the syntax, the syntax (400, 415) before the rules (422).
      */
     post: operations["submit_changeset"];
@@ -4113,6 +4114,7 @@ export interface components {
        * @description The approval policy that holds it.
        */
       policy?: string | null;
+      reason?: components["schemas"]["PendingReason"] | null;
       secret?: components["schemas"]["SecretShown"] | null;
       /** @description `pending`. */
       state: string;
@@ -6444,6 +6446,15 @@ export interface components {
         } & {
           [key: string]: unknown;
         });
+    /** @description Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13). */
+    PendingReason: {
+      /** @description The code of the rule: `changeset.approval.self`. */
+      code: string;
+      /** @description What holds it. */
+      message: string;
+      /** @description The objects its author lacks the application of. */
+      objects: string[];
+    };
     /** @description A period, in microseconds since the epoch: `[start, end)`, unbounded without `end`. */
     Period: {
       /**
@@ -7811,7 +7822,10 @@ export interface operations {
   };
   create_address: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -7893,7 +7907,10 @@ export interface operations {
   };
   close_address: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -7941,7 +7958,10 @@ export interface operations {
   };
   modify_address: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -8228,7 +8248,10 @@ export interface operations {
   };
   create_admissibility_conditions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -8310,7 +8333,10 @@ export interface operations {
   };
   close_admissibility_conditions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -8354,7 +8380,10 @@ export interface operations {
   };
   modify_admissibility_conditions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -8893,7 +8922,10 @@ export interface operations {
   };
   bind: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
@@ -8970,7 +9002,10 @@ export interface operations {
   };
   unbind: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The binding. */
@@ -9094,6 +9129,8 @@ export interface operations {
       query?: {
         /** @description Validate and report without writing. */
         simulate?: boolean;
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it. */
+        apply?: string;
       };
       header?: {
         /** @description Makes the submission idempotent for 24 h. */
@@ -9117,7 +9154,7 @@ export interface operations {
           "application/json": components["schemas"]["ChangesetSimulated"];
         };
       };
-      /** @description Applied. */
+      /** @description Applied by its author (`apply=own`). */
       201: {
         headers: {
           [name: string]: unknown;
@@ -9126,7 +9163,7 @@ export interface operations {
           "application/json": components["schemas"]["ChangesetApplied"];
         };
       };
-      /** @description Held for a decision. */
+      /** @description Submitted, pending its application. */
       202: {
         headers: {
           [name: string]: unknown;
@@ -9263,6 +9300,8 @@ export interface operations {
       query?: {
         /** @description Validate the inverse without writing. */
         simulate?: boolean;
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
       };
       header: {
         /** @description Its state, as its ETag. */
@@ -9432,7 +9471,10 @@ export interface operations {
   };
   create_cluster: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -9514,7 +9556,10 @@ export interface operations {
   };
   close_cluster: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -9562,7 +9607,10 @@ export interface operations {
   };
   modify_cluster: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -9849,7 +9897,10 @@ export interface operations {
   };
   create_domain: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -9931,7 +9982,10 @@ export interface operations {
   };
   close_domain: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -9979,7 +10033,10 @@ export interface operations {
   };
   modify_domain: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -10268,7 +10325,10 @@ export interface operations {
   };
   create_entity: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -10350,7 +10410,10 @@ export interface operations {
   };
   close_entity: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -10398,7 +10461,10 @@ export interface operations {
   };
   modify_entity: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -10642,7 +10708,10 @@ export interface operations {
   };
   create_environments: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -10724,7 +10793,10 @@ export interface operations {
   };
   close_environments: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -10957,7 +11029,10 @@ export interface operations {
   };
   create_flow_types: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -11039,7 +11114,10 @@ export interface operations {
   };
   close_flow_types: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -11083,7 +11161,10 @@ export interface operations {
   };
   modify_flow_types: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -11361,7 +11442,10 @@ export interface operations {
   };
   request_flow: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -11443,7 +11527,10 @@ export interface operations {
   };
   close_flow: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -11487,7 +11574,10 @@ export interface operations {
   };
   modify_flow: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -11728,7 +11818,10 @@ export interface operations {
   };
   waive_flow: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -11878,7 +11971,10 @@ export interface operations {
   };
   set_identity_state: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The identity. */
@@ -12137,7 +12233,10 @@ export interface operations {
   };
   resume_import: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The import. */
@@ -12169,7 +12268,10 @@ export interface operations {
   };
   start_import: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The import. */
@@ -12247,7 +12349,10 @@ export interface operations {
   };
   create_inference_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -12329,7 +12434,10 @@ export interface operations {
   };
   close_inference_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -12373,7 +12481,10 @@ export interface operations {
   };
   modify_inference_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -12627,7 +12738,10 @@ export interface operations {
   };
   create_interface: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -12709,7 +12823,10 @@ export interface operations {
   };
   close_interface: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -12757,7 +12874,10 @@ export interface operations {
   };
   modify_interface: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -12805,7 +12925,10 @@ export interface operations {
   };
   attach_address: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -12853,7 +12976,10 @@ export interface operations {
   };
   detach_address: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -13134,7 +13260,10 @@ export interface operations {
   };
   attach_issuer: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
@@ -13184,6 +13313,8 @@ export interface operations {
         issuer: string;
         /** @description The entity; absent: the global attachment. */
         entity?: string;
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
       };
       header?: never;
       path?: never;
@@ -13373,7 +13504,10 @@ export interface operations {
   };
   create_machine: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -13455,7 +13589,10 @@ export interface operations {
   };
   close_machine: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -13503,7 +13640,10 @@ export interface operations {
   };
   modify_machine: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -13931,7 +14071,10 @@ export interface operations {
   };
   create_policy_axes: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -14013,7 +14156,10 @@ export interface operations {
   };
   close_policy_axes: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -14057,7 +14203,10 @@ export interface operations {
   };
   modify_policy_axes: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -14301,7 +14450,10 @@ export interface operations {
   };
   create_policy_exempt_roles: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -14383,7 +14535,10 @@ export interface operations {
   };
   close_policy_exempt_roles: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -14619,7 +14774,10 @@ export interface operations {
   };
   set_policy_matrix_cell: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the matrix of the flow type, read at present. */
         "If-Match": string;
@@ -14711,7 +14869,10 @@ export interface operations {
   };
   create_policy_patterns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -14793,7 +14954,10 @@ export interface operations {
   };
   close_policy_patterns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -14837,7 +15001,10 @@ export interface operations {
   };
   modify_policy_patterns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -15083,7 +15250,10 @@ export interface operations {
   };
   request_policy_report: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -15233,7 +15403,10 @@ export interface operations {
   };
   create_policy_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -15315,7 +15488,10 @@ export interface operations {
   };
   close_policy_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -15359,7 +15535,10 @@ export interface operations {
   };
   modify_policy_rules: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -15603,7 +15782,10 @@ export interface operations {
   };
   create_policy_values: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -15895,7 +16077,10 @@ export interface operations {
   };
   create_prefix: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -15977,7 +16162,10 @@ export interface operations {
   };
   close_prefix: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -16025,7 +16213,10 @@ export interface operations {
   };
   modify_prefix: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -16633,7 +16824,10 @@ export interface operations {
   };
   create_range: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -16715,7 +16909,10 @@ export interface operations {
   };
   close_range: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -16763,7 +16960,10 @@ export interface operations {
   };
   modify_range: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -17009,7 +17209,10 @@ export interface operations {
   };
   create_risk_signals: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -17091,7 +17294,10 @@ export interface operations {
   };
   close_risk_signals: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -17135,7 +17341,10 @@ export interface operations {
   };
   modify_risk_signals: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -17405,7 +17614,10 @@ export interface operations {
   };
   set_role: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The role. */
@@ -17459,7 +17671,10 @@ export interface operations {
   };
   close_role: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The role. */
@@ -17571,7 +17786,10 @@ export interface operations {
   };
   create_service_account: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
@@ -17648,7 +17866,10 @@ export interface operations {
   };
   add_service_secret: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
@@ -17696,7 +17917,10 @@ export interface operations {
   };
   revoke_service_secret: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: never;
       path: {
         /** @description The service account. */
@@ -17786,7 +18010,10 @@ export interface operations {
   };
   create_services: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -17868,7 +18095,10 @@ export interface operations {
   };
   close_services: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -17912,7 +18142,10 @@ export interface operations {
   };
   modify_services: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -18160,7 +18393,10 @@ export interface operations {
   };
   create_site: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -18242,7 +18478,10 @@ export interface operations {
   };
   close_site: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -18290,7 +18529,10 @@ export interface operations {
   };
   modify_site: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -18586,7 +18828,10 @@ export interface operations {
   };
   create_vlan_group: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -18668,7 +18913,10 @@ export interface operations {
   };
   close_vlan_group: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -18716,7 +18964,10 @@ export interface operations {
   };
   modify_vlan_group: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -19046,7 +19297,10 @@ export interface operations {
   };
   create_vlan: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
@@ -19128,7 +19382,10 @@ export interface operations {
   };
   close_vlan: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
@@ -19176,7 +19433,10 @@ export interface operations {
   };
   modify_vlan: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;

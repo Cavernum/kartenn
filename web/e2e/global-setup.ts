@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "./fixtures/env.ts";
-import { bulkAddresses, CONTRIBUTOR, DATA, GROUPS, widePrefixes } from "./fixtures/data.ts";
+import {
+  appliedByAuthor,
+  bulkAddresses,
+  CONTRIBUTOR,
+  DATA,
+  GROUPS,
+  widePrefixes,
+} from "./fixtures/data.ts";
 import { totp } from "./fixtures/totp.ts";
 
 /**
@@ -154,7 +161,7 @@ async function expectOk(
   body: object,
   ...statuses: number[]
 ): Promise<APIResponse> {
-  const response = await api.fetch(path, { method, data: body });
+  const response = await api.fetch(appliedByAuthor(method, path), { method, data: body });
   const expected = statuses.length > 0 ? statuses : [200, 201];
   if (!expected.includes(response.status())) {
     throw new Error(`${method} ${path}: ${response.status()} ${await response.text()}`);

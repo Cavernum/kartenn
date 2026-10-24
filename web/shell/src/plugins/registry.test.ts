@@ -19,7 +19,7 @@ const notes: UiPlugin = {
       element: "notes-reserve",
       object_types: ["prefix"],
       label: "action",
-      permission: "core.address.write",
+      permission: "core.address.edit",
     },
   ],
 };
@@ -34,7 +34,7 @@ describe("extensions of the loaded plugins (REQ-007-13)", () => {
 
   it("are hidden without their permission", () => {
     expect(extensionsOf(loaded, "action", NO_RIGHTS, "prefix")).toEqual([]);
-    const writer = new Rights(["core.*.write"]);
+    const writer = new Rights(["core.*.edit"]);
     expect(extensionsOf(loaded, "action", writer, "prefix").map((e) => e.id)).toEqual(["reserve"]);
   });
 

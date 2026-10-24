@@ -3,7 +3,7 @@
 
 /**
  * Whether the role entry `entry` covers `permission`: `*` covers everything, a `*` segment
- * covers one segment (`prop.*.write` covers `prop.core.owner.write`, whatever the dots of
+ * covers one segment (`prop.*.edit` covers `prop.core.owner.edit`, whatever the dots of
  * the key), an entry without `*` covers itself only.
  */
 export function covers(entry: string, permission: string): boolean {

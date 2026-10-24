@@ -93,10 +93,7 @@ const canEdit = computed(
   () =>
     writes.value.quickEdit &&
     item.value !== null &&
-    session.value.rights.hasAny([
-      `core.${object.value.type}.write`,
-      `core.${object.value.type}.propose`,
-    ]),
+    session.value.rights.has(`core.${object.value.type}.edit`),
 );
 
 async function done(_location: string | null, changeset: string | null): Promise<void> {

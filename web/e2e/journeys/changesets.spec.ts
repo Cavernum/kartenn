@@ -11,7 +11,7 @@ async function submit(
   body: object,
 ): Promise<{ status: number; body: { changeset: { id: string }; kind?: string } }> {
   return page.evaluate(async (payload) => {
-    const response = await fetch("/v1/changesets", {
+    const response = await fetch("/v1/changesets?apply=own", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -73,7 +73,7 @@ test("a proposal of Bob, validated by Alice, then undone, each step in the list"
     await alice.goto("/proposals");
     const proposals = alice.getByRole("table", { name: "Propositions à valider" });
     await expect(proposals.getByRole("row").filter({ hasText: motive })).toContainText(
-      "core.address.write",
+      "core.address.edit",
     );
     await expectAccessible(alice);
     await proposals.getByRole("link", { name: motive }).click();

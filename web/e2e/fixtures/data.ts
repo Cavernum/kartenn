@@ -1,12 +1,22 @@
 /**
- * A role of the journeys, defined by global-setup.ts: proposing changes of addresses and
- * reading the changesets (a proposal of Bob validated by Alice, REQ-007-18).
+ * A role of the journeys, defined by global-setup.ts: editing addresses without applying
+ * them (spec 024) and reading the changesets (a proposal of Bob validated by Alice,
+ * REQ-007-18).
  */
 export const CONTRIBUTOR = {
   key: "contributor",
   label: "Contributeur",
-  entries: ["core.address.propose", "core.prefix.propose", "core.changeset.read"],
+  entries: ["core.address.edit", "core.prefix.edit", "core.changeset.read"],
 };
+
+/**
+ * The path of a write of the journeys: applied by its author when allowed (`apply=own`,
+ * spec 024, REQ-024-13), pending otherwise.
+ */
+export function appliedByAuthor(method: string, path: string): string {
+  if (["GET", "HEAD"].includes(method.toUpperCase()) || /[?&]apply=/.test(path)) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}apply=own`;
+}
 
 /** Roles bound to the groups of users.toml, on the whole organisation. */
 export const GROUPS: Record<string, readonly string[]> = {

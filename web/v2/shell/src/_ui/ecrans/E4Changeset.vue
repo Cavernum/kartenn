@@ -183,16 +183,16 @@ const more: MenuItem[] = [
               <p>Droits requis pour valider :</p>
               <Stack gap="2">
                 <Stack gap="1">
-                  <span>Valider les changesets</span>
-                  <CodeBadge code="core.changeset.approve" />
+                  <span>Appliquer les préfixes</span>
+                  <CodeBadge code="core.prefix.apply" />
                 </Stack>
                 <Stack gap="1">
-                  <span>Modifier les préfixes</span>
-                  <CodeBadge code="core.prefix.write" />
+                  <span>Appliquer les VLAN</span>
+                  <CodeBadge code="vlan.apply" />
                 </Stack>
                 <Stack gap="1">
-                  <span>Modifier les VLAN</span>
-                  <CodeBadge code="vlan.write" />
+                  <span>Appliquer les propriétés</span>
+                  <CodeBadge code="prop.*.apply" />
                 </Stack>
               </Stack>
             </Panneau>

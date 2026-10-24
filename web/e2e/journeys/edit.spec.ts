@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, expectAccessible, test } from "../fixtures/index.ts";
-import { DATA } from "../fixtures/data.ts";
+import { appliedByAuthor, DATA } from "../fixtures/data.ts";
 
 // Quick edit (spec 007, task 19; REQ-007-25, 20): creation, modification and closure by
 // the route of the resource, a motive and the If-Match of the read; 412, 202, 422 and
@@ -23,7 +23,7 @@ async function call(
       const text = await response.text();
       return { status: response.status, body: text ? JSON.parse(text) : null };
     },
-    { method, path, body },
+    { method, path: appliedByAuthor(method, path), body },
   );
 }
 

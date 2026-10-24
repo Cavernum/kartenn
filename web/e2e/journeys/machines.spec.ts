@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { DATA } from "../fixtures/data.ts";
+import { appliedByAuthor, DATA } from "../fixtures/data.ts";
 import { expect, expectAccessible, test } from "../fixtures/index.ts";
 
 // The plugin of the machines and interfaces module (spec 009, REQ-009-20), built and
@@ -23,7 +23,7 @@ async function call(page: Page, method: string, path: string, body?: unknown): P
       if (!response.ok) throw new Error(`${method} ${path}: ${response.status}`);
       return response.status === 204 ? null : ((await response.json()) as unknown);
     },
-    { method, path, text },
+    { method, path: appliedByAuthor(method, path), text },
   );
 }
 

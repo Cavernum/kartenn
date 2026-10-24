@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, expectAccessible, loginIn, test } from "../fixtures/index.ts";
-import { DATA } from "../fixtures/data.ts";
+import { appliedByAuthor, DATA } from "../fixtures/data.ts";
 import { ISSUER } from "../fixtures/env.ts";
 
 // The draft (spec 007, task 20; REQ-007-26, 27): operations gathered in the browser,
@@ -24,7 +24,7 @@ async function call(
       const text = await response.text();
       return { status: response.status, body: text ? JSON.parse(text) : null };
     },
-    { method, path, body },
+    { method, path: appliedByAuthor(method, path), body },
   );
 }
 

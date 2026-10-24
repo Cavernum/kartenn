@@ -49,7 +49,7 @@
       "element": "machines-attach",
       "object_types": ["address"],
       "label": "action.label",
-      "permission": "machines.interface.write"
+      "permission": "machines.interface.edit"
     }
   ]
 }

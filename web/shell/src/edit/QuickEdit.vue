@@ -102,8 +102,10 @@ async function send(): Promise<void> {
   if (!ready.value) return;
   sending.value = true;
   outcome.value = null;
-  const url =
+  const target =
     props.mode === "create" ? `/v1/${props.collection}` : (props.href ?? `/v1/${props.collection}`);
+  // Spec 024 (REQ-024-13): applied at once by who holds apply_own, pending otherwise.
+  const url = `${target}${target.includes("?") ? "&" : "?"}apply=own`;
   const result = await submit({
     method: props.mode === "create" ? "POST" : props.mode === "modify" ? "PATCH" : "DELETE",
     url,

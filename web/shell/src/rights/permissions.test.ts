@@ -19,21 +19,21 @@ describe("patterns of role entries (REQ-007-20)", () => {
 
   it("an entry without `*` covers itself only", () => {
     expect(covers("core.prefix.read", "core.prefix.read")).toBe(true);
-    expect(covers("core.prefix.read", "core.prefix.write")).toBe(false);
+    expect(covers("core.prefix.read", "core.prefix.edit")).toBe(false);
     expect(covers("core.prefix", "core.prefix.read")).toBe(false);
   });
 
   it("`prop.*.<action>` covers the action on every key, dotted keys included", () => {
-    expect(covers("prop.*.write", "prop.core.owner.write")).toBe(true);
-    expect(covers("prop.*.write", "prop.policy.environment.write")).toBe(true);
-    expect(covers("prop.*.write", "prop.core.owner.read")).toBe(false);
-    expect(covers("prop.*.write", "prop.write")).toBe(false);
-    expect(covers("prop.*.write", "core.prefix.write")).toBe(false);
+    expect(covers("prop.*.edit", "prop.core.owner.edit")).toBe(true);
+    expect(covers("prop.*.edit", "prop.policy.environment.edit")).toBe(true);
+    expect(covers("prop.*.edit", "prop.core.owner.read")).toBe(false);
+    expect(covers("prop.*.edit", "prop.edit")).toBe(false);
+    expect(covers("prop.*.edit", "core.prefix.edit")).toBe(false);
   });
 
   it("the shipped roles open what they say", () => {
-    const editor = new Rights(["core.prefix.read", "core.prefix.write", "prop.*.write"]);
-    expect(editor.has("prop.core.site.write")).toBe(true);
+    const editor = new Rights(["core.prefix.read", "core.prefix.edit", "prop.*.edit"]);
+    expect(editor.has("prop.core.site.edit")).toBe(true);
     expect(editor.has("core.rbac.admin")).toBe(false);
   });
 });
@@ -70,7 +70,7 @@ describe("rights of a caller", () => {
   it("join global entries and those of the roles of scoped bindings", async () => {
     const fetcher = (async (url: string) =>
       url === "/v1/roles/editor"
-        ? Response.json({ entries: ["core.prefix.write"] })
+        ? Response.json({ entries: ["core.prefix.edit"] })
         : new Response(null, { status: 403 })) as typeof fetch;
     const rights = await rightsOf(
       me(
@@ -84,7 +84,7 @@ describe("rights of a caller", () => {
       fetcher,
     );
     expect(rights.has("core.prefix.read")).toBe(true);
-    expect(rights.has("core.prefix.write")).toBe(true);
+    expect(rights.has("core.prefix.edit")).toBe(true);
     expect(rights.has("core.rbac.read")).toBe(false);
   });
 });

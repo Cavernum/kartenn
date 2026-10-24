@@ -53,7 +53,7 @@ describe("context (REQ-007-14)", () => {
       user: { identity: "u1", name: "Ada", kind: "person", has: (p) => p === "core.prefix.read" },
     });
     expect(sdk.context.get().user.has("core.prefix.read")).toBe(true);
-    expect(sdk.context.get().user.has("core.address.write")).toBe(false);
+    expect(sdk.context.get().user.has("core.address.edit")).toBe(false);
   });
 });
 
