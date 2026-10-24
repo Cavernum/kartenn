@@ -99,7 +99,7 @@
   ]
  },
  "drafts": {
-  "module": "drafts",
+  "module": "changesets",
   "verbs": [
    "collection:create:create_draft",
    "collection:list:list_drafts",

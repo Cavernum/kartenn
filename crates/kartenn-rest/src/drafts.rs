@@ -287,7 +287,7 @@ fn reason(dto: ReasonDto) -> Value {
     get,
     path = "/drafts",
     operation_id = "list_drafts",
-    tag = "drafts",
+    tag = "changesets",
     responses(
         (status = 200, description = "The drafts of the caller, the most recently modified first.", body = ListDto),
     )
@@ -325,7 +325,7 @@ struct CreationBody {
     post,
     path = "/drafts",
     operation_id = "create_draft",
-    tag = "drafts",
+    tag = "changesets",
     request_body = CreationBody,
     responses(
         (status = 201, description = "Created; `ETag` its version, `Location` its URL.", body = DraftDto),
@@ -366,7 +366,7 @@ async fn create(
     get,
     path = "/drafts/{id}",
     operation_id = "get_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(("id" = Uuid, Path, description = "The draft.")),
     responses(
         (status = 200, description = "The draft; `ETag` its version.", body = DraftDto),
@@ -415,7 +415,7 @@ struct ChangeBody {
     patch,
     path = "/drafts/{id}",
     operation_id = "update_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = String, Header, description = "The ETag of the draft read."),
@@ -465,7 +465,7 @@ struct OperationsBody {
     post,
     path = "/drafts/{id}/operations",
     operation_id = "add_draft_operations",
-    tag = "drafts",
+    tag = "changesets",
     params(
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = String, Header, description = "The ETag of the draft read."),
@@ -504,7 +504,7 @@ async fn add(
     delete,
     path = "/drafts/{id}",
     operation_id = "delete_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = String, Header, description = "The ETag of the draft read."),
@@ -604,7 +604,7 @@ async fn request(
     post,
     path = "/drafts/{id}/simulation",
     operation_id = "simulate_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(("id" = Uuid, Path, description = "The draft.")),
     request_body(content = Option<SubmissionBody>, description = "The period of the changeset; none by default."),
     responses(
@@ -635,7 +635,7 @@ async fn simulation(
     post,
     path = "/drafts/{id}/submission",
     operation_id = "submit_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = Option<String>, Header, description = "The ETag of the draft read: when given, a draft modified since is not submitted (412)."),
@@ -693,7 +693,7 @@ async fn submission(
     post,
     path = "/drafts/{id}/takeover",
     operation_id = "take_over_draft",
-    tag = "drafts",
+    tag = "changesets",
     params(
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = String, Header, description = "The ETag of the draft read."),
@@ -745,7 +745,7 @@ async fn takeover(
     get,
     path = "/identities/{id}/drafts",
     operation_id = "list_identity_drafts",
-    tag = "drafts",
+    tag = "changesets",
     params(("id" = Uuid, Path, description = "The identity.")),
     responses(
         (status = 200, description = "Its drafts, the most recently modified first.", body = ListDto),

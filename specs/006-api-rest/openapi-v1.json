@@ -15413,7 +15413,7 @@
         },
         "summary": "`GET /v1/drafts`: the drafts of the caller, without their operations.",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       },
       "post": {
@@ -15462,7 +15462,7 @@
         },
         "summary": "`POST /v1/drafts`: a new draft of the caller, audited (REQ-024-6); 50 at most.",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -15527,7 +15527,7 @@
         },
         "summary": "`DELETE /v1/drafts/{id}`: by its author, or by an administrator; under `If-Match`,\naudited with its author (REQ-024-6, 7a).",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       },
       "get": {
@@ -15578,7 +15578,7 @@
         },
         "summary": "`GET /v1/drafts/{id}`: the draft whole, to its author; to an administrator, audited\nwith its author (REQ-024-7a).",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       },
       "patch": {
@@ -15668,7 +15668,7 @@
         },
         "summary": "`PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under\n`If-Match` (REQ-024-3); not audited (REQ-024-6).",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -15760,7 +15760,7 @@
         },
         "summary": "`POST /v1/drafts/{id}/operations`: operations added after its own, under `If-Match`.",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -15830,7 +15830,7 @@
         },
         "summary": "`POST /v1/drafts/{id}/simulation`: as `POST /v1/changesets?simulate=true`, under the\nrights of its author now (REQ-024-4): nothing is written.",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -15963,7 +15963,7 @@
         },
         "summary": "`POST /v1/drafts/{id}/submission[?apply=own]`: the changeset of the draft, by the\nordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending\n(202) or applied by its author (201), it names the draft, which is deleted with it;\nrefused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried\nonce the draft is gone, the first answer comes again.",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -16055,7 +16055,7 @@
         },
         "summary": "`POST /v1/drafts/{id}/takeover`: the draft of someone else becomes the caller's, under\n`core.draft.admin` and `If-Match`; it leaves the drafts of its former author. Audited\nwith its former author (REQ-024-7a).",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
@@ -19360,7 +19360,7 @@
         },
         "summary": "`GET /v1/identities/{id}/drafts`: the drafts of an identity, under `core.draft.admin`\nfor someone else's, the listing audited with that identity (REQ-024-7a).",
         "tags": [
-          "drafts"
+          "changesets"
         ]
       }
     },
