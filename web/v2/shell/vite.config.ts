@@ -54,7 +54,8 @@ export default defineConfig(({ mode }) => ({
   },
   preview: {
     host: "127.0.0.1",
-    port: 4173,
+    // The captures pass a free port (`--port`, e2e/playwright.config.ts); 4173 by hand.
+    port: Number(process.env.KARTENN_PREVIEW_PORT) || 4173,
     strictPort: true,
     // The policy kartenn-server sends (crates/kartenn-rest/src/web.rs, `csp`), so that the
     // journeys over the catalogue see the violations the shell would (REQ-020-14).

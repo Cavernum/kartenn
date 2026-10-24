@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
@@ -8,7 +9,30 @@ import { defineConfig, devices } from "@playwright/test";
 // are generated in devenv only (`k-web-shots --update`), without a platform suffix: one
 // platform, the one of Nix.
 const shell = fileURLToPath(new URL("../shell", import.meta.url));
-export const BASE_URL = "http://127.0.0.1:4173";
+
+/**
+ * The port of the preview: `KARTENN_PREVIEW_PORT`, else a port free when the run starts,
+ * so that worktrees run their captures side by side. The runner picks it once and leaves
+ * it in its environment, which its workers inherit and read back when they load this file.
+ */
+function previewPort(): number {
+  const given = Number(process.env.KARTENN_PREVIEW_PORT);
+  if (Number.isInteger(given) && given > 0 && given < 65536) return given;
+  const free = execFileSync(
+    process.execPath,
+    [
+      "-e",
+      "const s = require('node:net').createServer();" +
+        "s.listen(0, '127.0.0.1', () => { process.stdout.write(String(s.address().port)); s.close(); });",
+    ],
+    { encoding: "utf8" },
+  );
+  process.env.KARTENN_PREVIEW_PORT = free;
+  return Number(free);
+}
+
+export const PORT = previewPort();
+export const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "visual",
@@ -44,7 +68,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm run build:catalogue && pnpm exec vite preview --mode catalogue",
+    command: `pnpm run build:catalogue && pnpm exec vite preview --mode catalogue --port ${PORT}`,
     cwd: shell,
     url: `${BASE_URL}/_ui`,
     reuseExistingServer: false,
