@@ -74,11 +74,13 @@ pub enum ProblemKind {
     /// Beyond the drafts of an identity or the operations of a draft (spec 024,
     /// REQ-024-7).
     DraftLimit,
+    /// `?simulate=true` on a write that submits no changeset (spec 024, REQ-024-17).
+    SimulateUnsupported,
 }
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -107,6 +109,7 @@ impl ProblemKind {
         Self::Exhausted,
         Self::PolicyQueryTooLarge,
         Self::DraftLimit,
+        Self::SimulateUnsupported,
     ];
 
     /// The last segment of the `type`.
@@ -141,6 +144,7 @@ impl ProblemKind {
             Self::Exhausted => "exhausted",
             Self::PolicyQueryTooLarge => "policy-query-too-large",
             Self::DraftLimit => "draft-limit",
+            Self::SimulateUnsupported => "simulate-unsupported",
         }
     }
 
@@ -148,7 +152,9 @@ impl ProblemKind {
     #[must_use]
     pub const fn status(self) -> StatusCode {
         match self {
-            Self::BadRequest | Self::InvalidCursor => StatusCode::BAD_REQUEST,
+            Self::BadRequest | Self::InvalidCursor | Self::SimulateUnsupported => {
+                StatusCode::BAD_REQUEST
+            }
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::CrossSiteRequest => StatusCode::FORBIDDEN,
             Self::NotFound | Self::Exhausted => StatusCode::NOT_FOUND,
@@ -209,6 +215,7 @@ impl ProblemKind {
             Self::Exhausted => "Plus rien de libre",
             Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue",
             Self::DraftLimit => "Limite des brouillons atteinte",
+            Self::SimulateUnsupported => "Cette écriture ne se simule pas",
         };
         kartenn_core::labels::Compiled::new(fr, self.title())
     }
@@ -245,6 +252,7 @@ impl ProblemKind {
             Self::Exhausted => "Nothing is free",
             Self::PolicyQueryTooLarge => "The query of compliance is too large",
             Self::DraftLimit => "A limit of the drafts is reached",
+            Self::SimulateUnsupported => "This write cannot be simulated",
         }
     }
 }

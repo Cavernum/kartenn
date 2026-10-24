@@ -828,8 +828,8 @@ fn attachment_named(query: Option<&str>) -> Result<(String, Option<Uuid>), Probl
                 entity = Some(value.parse().map_err(|_| bad("entity must be a UUID"))?);
             }
             "issuer" | "entity" => return Err(bad(format!("{name} is given more than once"))),
-            // Read by the authentication (spec 024, REQ-024-13).
-            crate::changesets::APPLY => {}
+            // Read by the authentication (spec 024, REQ-024-13, 17).
+            crate::changesets::APPLY | crate::changesets::SIMULATE => {}
             other => return Err(bad(format!("unknown parameter {other}"))),
         }
     }

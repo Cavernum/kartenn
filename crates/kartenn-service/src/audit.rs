@@ -48,6 +48,9 @@ pub struct RequestContext {
     /// The draft the request submits (`POST /v1/drafts/{id}/submission`, spec 024,
     /// REQ-024-5): its changeset names it, and it is deleted with its creation.
     pub draft: Option<crate::port::DraftOrigin>,
+    /// The request asks to simulate the changeset it submits (`?simulate=true`, spec 024,
+    /// REQ-024-17): nothing is written, the answer is the simulation.
+    pub simulate: bool,
 }
 
 impl RequestContext {
@@ -82,6 +85,7 @@ impl RequestContext {
             on_behalf_of: None,
             apply_own: false,
             draft: None,
+            simulate: false,
         }
     }
 
@@ -96,6 +100,7 @@ impl RequestContext {
             on_behalf_of: None,
             apply_own: false,
             draft: None,
+            simulate: false,
         }
     }
 

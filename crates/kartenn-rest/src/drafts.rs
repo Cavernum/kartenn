@@ -11,7 +11,7 @@
 //! draft is deleted with its creation, kept on a refusal (422).
 
 use axum::body::Bytes;
-use axum::extract::{Path, RawQuery, State};
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
@@ -35,7 +35,7 @@ use uuid::Uuid;
 
 use crate::changesets::{
     Answer, ChangesetApplied, ChangesetPending, ChangesetSimulated, idempotency_key, period,
-    replayed, simulate, submit_answered,
+    replayed, submit_answered,
 };
 use crate::objects::{Api, audited, instant};
 use crate::operation::OperationDto;
@@ -655,12 +655,12 @@ async fn submission(
     Extension(principal): Extension<Principal>,
     Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
-    RawQuery(query): RawQuery,
     headers: HeaderMap,
     raw: Bytes,
 ) -> Result<Response, Problem> {
     person(&principal)?;
-    let simulated = simulate(query.as_deref())?;
+    // `?simulate=true`, read by the authentication as for every write (REQ-024-17).
+    let simulated = context.simulate;
     let draft = match drafts::find(&api.pool, id).await? {
         Some(draft) if draft.summary.author == principal.identity => draft,
         // Gone with the changeset of a first attempt: the same key answers it again.

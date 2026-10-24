@@ -89,15 +89,35 @@ pub(crate) fn simulate(query: Option<&str>) -> Result<bool, Problem> {
         if name == APPLY {
             continue;
         }
-        if name != "simulate" {
+        if name != SIMULATE {
             return Err(bad(format!("unknown parameter {name}")));
         }
-        let flag = match value.as_ref() {
-            "true" => true,
-            "false" => false,
-            _ => return Err(bad("simulate must be true or false")),
-        };
-        if simulate.replace(flag).is_some() {
+        if simulate.replace(flag(&value)?).is_some() {
+            return Err(bad("simulate is given more than once"));
+        }
+    }
+    Ok(simulate.unwrap_or(false))
+}
+
+/// The parameter of a write that simulates it (spec 024, REQ-024-17).
+pub const SIMULATE: &str = "simulate";
+
+fn flag(value: &str) -> Result<bool, Problem> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(bad("simulate must be true or false")),
+    }
+}
+
+/// Whether a write asks to be simulated (`simulate=true|false`, spec 024, REQ-024-17):
+/// `simulate` at most once, anything else → 400; the other parameters are its route's.
+/// Read once for every write by the authentication, into its [`RequestContext`]; a route
+/// that submits no changeset refuses it ([`crate::simulation::gate`]).
+pub(crate) fn simulate_asked(query: Option<&str>) -> Result<bool, Problem> {
+    let mut simulate = None;
+    for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
+        if name == SIMULATE && simulate.replace(flag(&value)?).is_some() {
             return Err(bad("simulate is given more than once"));
         }
     }
@@ -818,13 +838,25 @@ pub(crate) fn write_store(api: &Api) -> PgStore {
         .with_modules(api.modules.clone())
 }
 
-/// Submits `request` in `context` and answers its outcome as `answer` says.
+/// Submits `request` in `context` and answers its outcome as `answer` says; simulated when
+/// the request asks it (`?simulate=true`, spec 024, REQ-024-17): every write that submits
+/// a changeset comes here, so none writes when asked to simulate.
 pub(crate) async fn submit_answered(
     api: &Api,
     context: &RequestContext,
     request: &ChangesetRequest,
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
+    let simulated;
+    let request = if context.simulate && !request.simulate {
+        simulated = ChangesetRequest {
+            simulate: true,
+            ..request.clone()
+        };
+        &simulated
+    } else {
+        request
+    };
     let outcome = submit_in(
         &write_store(api),
         &api.authorizer(),
@@ -896,8 +928,18 @@ pub(crate) async fn answered(
             for section in &mut sections {
                 mask_rows(api, context, &mut section.rows).await?;
             }
+            let valid = !found.iter().any(Violation::is_error);
+            // Spec 024, M6: a simulation journals one read, never a write.
+            crate::kit::record_read(
+                api,
+                context,
+                "changeset",
+                &[],
+                serde_json::json!({ "simulate": true, "valid": valid }),
+            )
+            .await?;
             Json(ChangesetSimulated {
-                valid: !found.iter().any(Violation::is_error),
+                valid,
                 violations: violations(api, &found, answer.pointers).await?,
                 diff: diff.iter().map(DiffCountDto::from).collect(),
                 sample: sample.iter().map(DiffItemDto::from).collect(),
