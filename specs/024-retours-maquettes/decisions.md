@@ -1,6 +1,6 @@
 # 024 — Retours sur les maquettes : journal des décisions
 
-Statut : **brouillon du 2026-10-24**, à valider. Écrit à partir de la revue des maquettes
+Statut : **validée le 2026-10-24**. Écrit à partir de la revue des maquettes
 E1 à E10 par l'utilisateur (2026-10-24) et des arbitrages du même jour (prototype des
 panneaux `/_ui/panneaux`, questions posées en séance). Les questions ouvertes sont en fin
 de journal.

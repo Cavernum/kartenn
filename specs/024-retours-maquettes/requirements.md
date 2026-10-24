@@ -1,11 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-24
 ---
 
 # 024 — Retours sur les maquettes : exigences
 
-Statut : **brouillon du 2026-10-24**, à valider (questions Q-024-1 à 6).
+Statut : **validée le 2026-10-24** (Q-024-1 à 6 tranchées).
 
 ## Résumé
 

@@ -1,11 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-24
 ---
 
 # 024 — Retours sur les maquettes : conception
 
-Statut : **brouillon du 2026-10-24**, à valider avec les exigences.
+Statut : **validée le 2026-10-24**.
 
 ## Vue d'ensemble
 
