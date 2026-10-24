@@ -129,9 +129,12 @@ ouvertes lisibles ; chaque module y ajoute ses compteurs sous sa clé. [M4, Q-02
 kartenn ne doit compter que ce que l'appelant peut lire. [M4, D36]
 
 #### REQ-024-16 — Fraîcheur et budget
-`GET /v1/stats` doit porter un ETag ; kartenn doit émettre l'événement SSE `stats` au plus
-une fois toutes les 30 s quand un compteur a changé ; p95 ≤ 200 ms au banc complet. [M4,
-D14]
+`GET /v1/stats` doit porter un ETag et la date de son calcul (`computed_at`) ; kartenn
+doit servir le dernier calcul fait pour les droits de l'appelant et le refaire en
+arrière-plan quand un compteur a pu changer, au plus une fois toutes les 30 s ; kartenn
+doit émettre l'événement SSE `stats` au plus une fois toutes les 30 s quand un compteur a
+changé. Au banc complet : la route p95 ≤ 200 ms une fois le calcul fait, le calcul
+p95 ≤ 10 s. [M4, M18, D14]
 
 ### D. Simulation de toute écriture
 

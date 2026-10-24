@@ -209,6 +209,15 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 - Banc : deux budgets dans `bench-core`, après VLAN et machines — un lecteur de tout
   (`*` global) et le sujet de `bench-rbac` (50 groupes, 1 000 liaisons) —, 40 calculs à
   froid chacun (`stats::compute`, sans cache).
+- [ ] 7b. Statistiques servies d'un instantané recalculé en arrière-plan (M18) —
+  REQ-024-16 — verify : tests (instantané servi sans calcul, recalcul dû après une
+  notice et 30 s, un seul calcul par clé, clé oubliée, `computed_at`) ; `bench-core`
+  scénario `stats` : route p95 ≤ 200 ms, calcul p95 ≤ 10 s (lancé par l'agent principal)
+  - où : `crates/kartenn-rest/src/stats.rs` (les deux caches de 30 s deviennent des
+    instantanés) ; relais de l'outbox et `Hub::signal_stats`
+    (`crates/kartenn-rest/src/events/hub.rs`) ; design § C ; banc `stats_budgets`
+    (`crates/kartenn-bench`) : ajouter la mesure de la route servie et p50/p99 ;
+    test voisin `the_etag_and_the_cache_follow_the_outbox`
 - [x] 8. `?simulate=true` sur toute route d'écriture, `x-kartenn.simulate`,
   `simulate.unsupported` ; xfail `--dry-run` de la CLI levé — REQ-024-17 — verify :
   test générique sur toutes les routes d'écriture de l'OpenAPI ; `k-py-e2e` sans xfail

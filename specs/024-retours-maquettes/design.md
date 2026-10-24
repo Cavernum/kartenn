@@ -112,15 +112,33 @@ auteur), les états des changesets, la revalidation à l'application.
 
 Chaque compteur est une requête `count(*)` filtrée par le prédicat de lecture du
 périmètre déjà utilisé par les listes (`reads.rs`) ; les modules exposent un port
-`StatsContributor` (comme les sections de différentiel). Cache serveur par
-(empreinte des droits de l'appelant, révision de l'outbox) pendant 30 s : deux
-utilisateurs aux mêmes liaisons partagent le résultat. ETag = empreinte du corps.
-L'événement `stats` est émis par le relais de l'outbox, regroupé (au plus un toutes les
-30 s), sans contenu : le client relit.
+`StatsContributor` (comme les sections de différentiel). ETag = empreinte du corps.
 
-Budget : p95 ≤ 200 ms au banc complet (`bench-core`, nouveau scénario `stats`), cache
-froid ; au-delà, compteurs approchés pour les sortes de plus d'un million de lignes
-(question à rouvrir si le banc échoue, pas avant).
+Instantanés (M18, après le banc : 1,3 s et 7,9 s à froid). Le serveur garde, par clé de
+droits (les deux niveaux actuels : partie partagée par empreinte des droits, partie
+propre à l'appelant par sujet), le dernier corps calculé, sa date et la révision de
+l'outbox qu'il a vue :
+
+- la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
+  encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
+  en ligne et le garde ;
+- un recalcul est dû quand la révision de l'outbox a dépassé celle de l'instantané et
+  qu'il a au moins 30 s ; il tourne en arrière-plan, une seule fois par clé à la fois
+  (pas de calculs en double), au plus deux calculs simultanés sur le serveur pour ne pas
+  affamer le pool ;
+- seules les clés lues dans les 10 dernières minutes sont recalculées ; une clé non lue
+  depuis 24 h est oubliée ; 1 024 clés au plus (la moins récemment lue sort) ;
+- l'événement `stats` (sans contenu, au plus un toutes les 30 s) part quand un
+  recalcul a changé un corps, plus à chaque notice de l'outbox : le client relit et
+  trouve le nouveau corps.
+
+Les instantanés sont propres au processus ; plusieurs instances calculent chacune les
+leurs.
+
+Budgets au banc complet (`bench-core`, scénario `stats`) : la route servie d'un
+instantané p95 ≤ 200 ms ; le calcul, en arrière-plan, p95 ≤ 10 s (lecteur de tout et
+sujet à 1 000 liaisons). Le premier appel d'une clé n'a pas de budget propre : il coûte
+un calcul.
 
 ## D. Simulation de toute écriture (REQ-024-17)
 

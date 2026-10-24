@@ -37,6 +37,7 @@ Règle permanente de l'utilisateur : rien n'est gardé pour compatibilité avant
 - M15 stabilité de la mise en page : emplacements fixes, redimensionnement testé.
 - M16 messages d'erreur en langage courant, code à côté.
 - M17 évolution notée : recherche d'erreurs et spec de documentation (hors 024).
+- M18 statistiques servies d'un instantané recalculé en arrière-plan (après le banc).
 
 ## Décisions
 
@@ -192,9 +193,19 @@ lecture » plutôt que « Condition If-Match non remplie », code `core.precondi
 Coller une erreur dans la palette pour obtenir son explication et des ressources ;
 documentation et guides : une spec à part, plus tard.
 
+### M18 — Statistiques servies d'un instantané (2026-10-24, après le banc)
+Le banc complet mesure le calcul à froid de `GET /v1/stats` à 1,3 s (lecteur de tout) et
+7,9 s (1 000 liaisons, 50 groupes), loin des 200 ms. Le calcul passe en arrière-plan : la
+route sert le dernier instantané calculé pour le jeu de droits de l'appelant, daté
+(`computed_at`), et le serveur le recalcule quand l'outbox a bougé, au plus une fois
+toutes les 30 s. Les compteurs restent exacts, avec ce retard. Écartés : compteurs
+matérialisés (coût sur chaque écriture, liaisons qui se recouvrent) et estimations du
+planificateur (n'aident pas les droits restreints). Le budget de 200 ms porte sur la
+route, le calcul a le sien (Q-024-7).
+
 ## Questions
 
-Toutes tranchées le 2026-10-24.
+Toutes tranchées le 2026-10-24 (Q-024-7 après le banc complet).
 
 - **Q-024-1** Brouillon : ressource à part `/v1/drafts` ou état `draft` des changesets ?
   → **ressource à part** (M2).
@@ -212,3 +223,6 @@ Toutes tranchées le 2026-10-24.
   (choix peu coûteux, tranché sans question).
 - **Q-024-6** Permissions de propriété → **mêmes trois verbes** (`prop.<clé>.edit`,
   `prop.<clé>.apply`, `prop.<clé>.apply_own`).
+- **Q-024-7** `GET /v1/stats` dépasse son budget au banc complet (1,3 s et 7,9 s à froid)
+  → **instantané recalculé en arrière-plan** (M18), plutôt que des compteurs matérialisés
+  ou approchés.
