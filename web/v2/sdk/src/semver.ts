@@ -88,3 +88,32 @@ export function satisfies(version: string, range: string): boolean {
   // The upper bound excludes the prereleases of `high` too (`<high-0`).
   return compare(v, low) >= 0 && compare({ ...v, pre: [] }, high) < 0;
 }
+
+/** The ranges a plugin manifest declares (`ui_plugins`; spec 021, REQ-021-26). */
+export interface Ranges {
+  sdk: string;
+  /** Absent for a plugin that does not import `@kartenn/ui`. */
+  ui?: string | null;
+  /** Absent for a plugin without the shared framework. */
+  framework?: string | null;
+}
+
+/** The versions of the modules the shell shares through its import map (ADR 0038). */
+export interface SharedVersions {
+  sdk: string;
+  ui: string;
+  framework: string;
+}
+
+/**
+ * The first range of a plugin the shell does not satisfy, or `null`: such a plugin is set
+ * aside `incompatible` (REQ-007-9, REQ-021-26). A range the plugin does not declare is
+ * not checked.
+ */
+export function unmetRange(ranges: Ranges, versions: SharedVersions): keyof SharedVersions | null {
+  for (const name of ["sdk", "ui", "framework"] as const) {
+    const range = ranges[name];
+    if (range != null && !satisfies(versions[name], range)) return name;
+  }
+  return null;
+}

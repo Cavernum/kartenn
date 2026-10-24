@@ -10,6 +10,7 @@
  */
 
 import type { KartennEvent, StreamState } from "./events/stream.ts";
+import { commandRegistry, shortcutRegistry } from "./commands.ts";
 import { createPrefetch } from "./data/prefetch.ts";
 import { drafts as store, labels, queryClient, stream, writes } from "./instance.ts";
 
@@ -152,6 +153,17 @@ export const events = {
   },
 };
 export type { EventKind, KartennEvent, StreamState } from "./events/stream.ts";
+
+/** The commands a plugin adds to the palette (REQ-021-3); `register` returns the removal. */
+export const commands = { register: commandRegistry.register };
+
+/**
+ * The shortcuts of a plugin's view (REQ-021-7): one key each, refused if the shell or
+ * another plugin holds it; the view removes them when it leaves (`register` returns the
+ * removal).
+ */
+export const shortcuts = { register: shortcutRegistry.register };
+export type { Command, Shortcut } from "./commands.ts";
 
 /** Prefetch on intent and the guard of navigation (REQ-021-22). */
 export const prefetch = createPrefetch({ queryClient });
