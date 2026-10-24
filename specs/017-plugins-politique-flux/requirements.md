@@ -483,7 +483,7 @@ Chaque plugin doit apporter au plus une tuile en lecture seule à l'Accueil du s
 filtrées par les droits de la vue liée, relues par le flux d'événements. [021/X38]
 
 Acceptation :
-- Un demandeur sans `flow.flow.review` ne voit pas la ligne « à instruire » ; un
+- Un demandeur sans `flow.review` ne voit pas la ligne « à instruire » ; un
   utilisateur sans `policy.catalogue.read` ne voit pas la tuile `policy`.
 
 ## Traçabilité vers la 010 et la 011

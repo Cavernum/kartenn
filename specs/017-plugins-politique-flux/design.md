@@ -181,11 +181,11 @@ leur collection sert (`crates/kartenn-policy/src/rest.rs:COLLECTIONS`) :
 
 | Collection | Écriture | Permission |
 |---|---|---|
-| `/v1/services` (filtres `key`, `flow_type`) | création, modification (`label`, `flow_type`, `entries`), clôture | `policy.service.admin` |
-| `/v1/flow-types` | création, modification (`label`, `description`), clôture | `policy.flow_type.admin` |
+| `/v1/services` (filtres `key`, `flow_type`) | création, modification (`labels`, `flow_type`, `entries`), clôture | `policy.service.admin` |
+| `/v1/flow-types` | création, modification (`labels`, `description`), clôture | `policy.flow_type.admin` |
 | `/v1/environments` | création (`policy.environment.create`), description (`policy.value.describe` par `/v1/policy-values`), clôture (`policy.environment.close`) | `policy.environment.admin` |
 | `/v1/policy-axes` | désignation (`property`, `carrier`, `inference`), modification (`carrier`, `inference`), retrait | `policy.axis.admin` |
-| `/v1/policy-values` (filtre `axis`) | description (`label`, `description`, `transverse`, `rank`) ; ni création ni clôture : la liste des valeurs est celle de la propriété du noyau | `policy.axis.admin` |
+| `/v1/policy-values` (filtre `axis`) | description (`labels`, `description`, `transverse`, `rank`) ; ni création ni clôture : la liste des valeurs est celle de la propriété du noyau | `policy.axis.admin` |
 | `/v1/admissibility-conditions` | création, modification, clôture (texte pédagogique exigé) | `policy.rule.admin` |
 | `/v1/risk-signals` | création (`key`, `kind`, `params`, `weight`), modification, clôture | `policy.rule.admin` |
 | `/v1/policy-exempt-roles` | création (`role`), clôture | `policy.rule.admin` |
@@ -403,6 +403,27 @@ Décomptes relus par le flux d'événements, jamais par sondage ; chaque ligne m
   gardant la saisie », 422 → violations sur les champs, 404 → « absent ou non autorisé ».
 - Catalogues sous l'espace de noms du plugin ; codes de règles du serveur traduits par
   une table `rules.<id>` dans le catalogue, `detail` en repli.
+
+### Amendement — spec 018 (2026-10-24)
+
+La 018 (retours d'usage de la v0.2) change le serveur que ces plugins consomment
+(018/design, « Impact sur la 017 ») :
+
+- **Noms** : permissions à la forme de 018/R2 dans tout le vocabulaire, les manifestes
+  (017-2, 017-3), les tests et les parcours : `flow.read`, `flow.request`, `flow.review`,
+  `flow.write`, `flow.register`, dérogation `flow.waiver.grant` ; les journaux de
+  décision de la 017 gardent les noms d'alors.
+- **Libellés** : en-têtes de la matrice, règles, services, types de flux, environnements
+  affichés par le dictionnaire `GET /v1/labels` (cache du SDK de la 021), la clé lisible
+  à côté ; les formulaires du catalogue (REQ-017-10, 30) écrivent `labels` par langue,
+  jamais `label` ; `value.describe` écrit les libellés de la valeur de liste fermée du
+  noyau (018/Q-018-7).
+- **Codes** : règle décisive, clés d'objets, violations et non-conformités montrées avec
+  leur code (forme de la 021, 018/R11).
+- **Filtres** : liste des flux et des non-conformités par le constructeur de filtres de
+  la 021, qui s'appuie sur les routes de suggestion (`q`, `/values`, `GET /v1/rules`).
+- **Maquettes (017-1)** : mêmes éléments que celles de la 021 (code, libellé, cellule
+  éditable, constructeur de filtres).
 
 ## Erreurs et cas limites
 

@@ -32,5 +32,6 @@ mod resources;
 mod rights;
 mod sessions;
 mod socle;
+mod suggestions;
 mod transport;
 mod web;

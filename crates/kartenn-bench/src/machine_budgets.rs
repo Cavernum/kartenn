@@ -4,8 +4,11 @@
 //! dataset: reading a machine with its interfaces and addresses, a page filtered by owner,
 //! one filtered by site and the machines
 //! of a /24 through the router of the module, and the unitary changeset that creates a
-//! machine through the write pipeline. Then the import of the acceptance of REQ-009-19:
-//! 10⁴ machines with two interfaces and two new addresses each, by local names.
+//! machine through the write pipeline. Then the suggestions by prefix of every
+//! collection a reference names, of the core and of both modules, of the values of a
+//! closed list and of the rules (spec 018, REQ-018-23; task 018-16), and the import of
+//! the acceptance of REQ-009-19: 10⁴ machines with two interfaces and two new addresses
+//! each, by local names.
 //!
 //! Runs after the VLAN budgets, on the same database: the machines module depends on the
 //! VLAN module, whose schema, declarations and domain owners are already there.
@@ -31,7 +34,7 @@ use sqlx::types::Uuid;
 use crate::Dataset;
 use crate::core_budgets::unitary;
 use crate::props::{Budget, p95, progress};
-use crate::vlan_budgets::{app, get, import, reader, sync};
+use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
 
 /// Machines, clusters and interfaces per machine of the reference dataset (REQ-009-21);
 /// a smaller dataset keeps the reference ratio of a machine per ten of its addresses, as
@@ -434,6 +437,40 @@ pub(crate) async fn run(
     });
     progress(&format!("machines measures: {:?}", started.elapsed()));
 
+    // The suggestions by prefix of the core and of both modules (spec 018, REQ-018-23),
+    // as the reader of all, then the machines as the reader of one owner.
+    let all = reader(
+        pool,
+        &[
+            "core.entity.read",
+            "core.site.read",
+            "core.domain.read",
+            "core.prefix.read",
+            "core.address.read",
+            "machines.cluster.read",
+            "machines.read",
+            "machines.interface.read",
+            "vlan.group.read",
+            "vlan.read",
+        ],
+    )
+    .await?;
+    let registry = Arc::new(ModuleRegistry::new(vec![
+        Arc::new(kartenn_vlan::Vlan) as Arc<dyn Module>,
+        Arc::new(kartenn_machines::Machines),
+    ])?);
+    let routes = || {
+        vec![
+            kartenn_vlan::rest::routes(),
+            kartenn_machines::rest::routes(),
+        ]
+    };
+    let everyone = crate::vlan_budgets::app(pool, registry.clone(), routes(), all)?;
+    let owner = reader_on(pool, &["machines.read"], Some(entities[0])).await?;
+    let one_owner = crate::vlan_budgets::app(pool, registry, routes(), owner)?;
+    budgets.extend(suggestions(pool, &everyone, &one_owner, rng).await?);
+    progress(&format!("suggestions: {:?}", started.elapsed()));
+
     // The import of the acceptance of REQ-009-19, in a domain of its own.
     let imported = (machines * IMPORTED / MACHINES).max(1);
     let owner: Uuid =
@@ -504,5 +541,173 @@ pub(crate) async fn run(
         imported * 2
     )?;
     progress(&format!("machines import: {:?}", started.elapsed()));
+    Ok(budgets)
+}
+
+/// A suggestion route measured: its budget's name, its path, and the query of the keys
+/// whose prefixes are typed.
+struct Suggested {
+    name: &'static str,
+    path: String,
+    keys: String,
+    /// Read as the reader of one owner rather than of all.
+    scoped: bool,
+}
+
+/// Percent-encodes the characters of `text` a query value cannot carry as such.
+fn query_value(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '%' => "%25".to_owned(),
+            '/' => "%2F".to_owned(),
+            '+' => "%2B".to_owned(),
+            '&' => "%26".to_owned(),
+            ' ' => "%20".to_owned(),
+            c => c.to_string(),
+        })
+        .collect()
+}
+
+/// The routes of the suggestions and where their keys are.
+fn suggested(enumerated: &str) -> Vec<Suggested> {
+    let now = "valid_period @> now()";
+    let of = |name: &'static str, path: &str, keys: String| Suggested {
+        name,
+        path: format!("/v1/{path}"),
+        keys,
+        scoped: false,
+    };
+    let mut routes = vec![
+        of(
+            "suggest entities, p95",
+            "entities",
+            format!("SELECT slug FROM entity WHERE {now}"),
+        ),
+        of(
+            "suggest sites, p95",
+            "sites",
+            format!("SELECT slug FROM site WHERE {now}"),
+        ),
+        of(
+            "suggest domains, p95",
+            "domains",
+            format!("SELECT slug FROM addressing_domain WHERE {now}"),
+        ),
+        of(
+            "suggest prefixes, p95",
+            "prefixes",
+            format!("SELECT text(prefix) FROM prefix WHERE {now}"),
+        ),
+        of(
+            "suggest addresses, p95",
+            "addresses",
+            format!("SELECT host(address) FROM address WHERE {now}"),
+        ),
+        of(
+            "suggest machines, p95",
+            "machines",
+            format!("SELECT name FROM machines.machine WHERE {now}"),
+        ),
+        of(
+            "suggest interfaces, p95",
+            "interfaces",
+            format!("SELECT name FROM machines.interface WHERE {now}"),
+        ),
+        of(
+            "suggest clusters, p95",
+            "clusters",
+            format!("SELECT slug FROM machines.cluster WHERE {now}"),
+        ),
+        of(
+            "suggest VLAN groups, p95",
+            "vlan-groups",
+            format!("SELECT slug FROM vlan.vlan_group WHERE {now}"),
+        ),
+        of(
+            "suggest VLANs, p95",
+            "vlans",
+            format!("SELECT name FROM vlan.vlan WHERE {now}"),
+        ),
+        of(
+            "suggest values of a closed list, p95",
+            &format!("property-declarations/{enumerated}/values"),
+            format!(
+                "SELECT v.key FROM property_enum_value v
+                   JOIN property_declaration d ON d.id = v.property_id AND d.key = '{enumerated}'
+                  WHERE v.{now} AND d.{now}"
+            ),
+        ),
+        of(
+            "suggest rules, p95",
+            "rules",
+            "SELECT 'core.prefix.overlap'".to_owned(),
+        ),
+    ];
+    routes.push(Suggested {
+        scoped: true,
+        ..of(
+            "suggest machines as the reader of one owner, p95",
+            "machines",
+            format!("SELECT name FROM machines.machine WHERE {now}"),
+        )
+    });
+    routes
+}
+
+/// The suggestions by prefix (spec 018, REQ-018-23; Q-018-8): for each route a reference
+/// names, 200 prefixes of 1 to 6 characters of existing keys, as typed, answered by a page
+/// of 20 under 50 ms at the p95; the values of a closed list and the catalogue of the
+/// rules alike; the machines once more as the reader of one owner, whose rows the read
+/// predicate thins.
+async fn suggestions(
+    pool: &PgPool,
+    everyone: &axum::Router,
+    one_owner: &axum::Router,
+    rng: &mut ChaCha8Rng,
+) -> anyhow::Result<Vec<Budget>> {
+    let enumerated: String = sqlx::query_scalar(
+        "SELECT d.key FROM property_declaration d
+           JOIN property_enum_value v ON v.property_id = d.id AND v.valid_period @> now()
+          WHERE d.valid_period @> now()
+          GROUP BY d.key ORDER BY count(*) DESC, d.key LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await?;
+    let mut budgets = Vec::new();
+    for route in suggested(&enumerated) {
+        let app = if route.scoped { one_owner } else { everyone };
+        let keys: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "{} ORDER BY random() LIMIT 200",
+            route.keys
+        )))
+        .fetch_all(pool)
+        .await?;
+        if keys.is_empty() {
+            bail!("{}: no key to suggest", route.name);
+        }
+        let mut samples = Vec::with_capacity(200);
+        let mut rows = 0;
+        for i in 0..200 {
+            let key = &keys[i % keys.len()];
+            let length = rng.random_range(1..=key.chars().count().min(6));
+            let prefix: String = key.chars().take(length).collect();
+            let uri = format!("{}?q={}", route.path, query_value(&prefix));
+            let (elapsed, page) = get(app, &uri).await?;
+            rows += page["items"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        if rows == 0 {
+            bail!("{}: no suggestion", route.name);
+        }
+        budgets.push(Budget {
+            name: route.name,
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: format!(
+                "200 prefixes of 1 to 6 characters, {} suggestions a page on average",
+                rows / 200
+            ),
+        });
+    }
     Ok(budgets)
 }

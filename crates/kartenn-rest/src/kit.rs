@@ -33,6 +33,24 @@ pub use crate::problem::{Problem, ProblemKind};
 pub use crate::resources::MERGE_PATCH;
 use crate::resources::{WHOLE, entity_tag, invalid, members, reserved};
 
+/// The prefix `q` of a suggestion in the filters of `page` (spec 018, REQ-018-23), as a
+/// `LIKE` pattern on a lower-cased text, and the page sized for suggestions when there is
+/// one; `q` stays among the filters, which the cursor keeps.
+///
+/// # Errors
+///
+/// 400 `bad-request` for a malformed `q` (see [`crate::filter::prefix`]).
+pub fn suggestion(page: Page) -> Result<(Page, Option<String>), Problem> {
+    let mut filters = page.filters.clone();
+    match crate::filter::prefix(&mut filters)? {
+        Some(prefix) => Ok((
+            page.suggesting(),
+            Some(kartenn_store_pg::list::like_prefix(&prefix)),
+        )),
+        None => Ok((page, None)),
+    }
+}
+
 /// 400 `bad-request` with `detail`.
 pub fn bad(detail: impl Into<String>) -> Problem {
     crate::objects::bad(detail)

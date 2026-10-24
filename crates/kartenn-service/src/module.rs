@@ -48,6 +48,8 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "proposals",
     "ranges",
     "roles",
+    // The catalogue of the rules (spec 018, REQ-018-23).
+    "rules",
     "service-accounts",
     "sites",
 ];

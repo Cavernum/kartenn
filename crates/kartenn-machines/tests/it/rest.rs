@@ -601,6 +601,137 @@ async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     assert_eq!(names, ["app0", "app1", "app2", "app3", "app4"]);
 }
 
+/// REQ-018-23: `q` suggests by prefix, ignoring case, only the objects the caller may
+/// read, in the core and in the modules; the cursor keeps it.
+#[kartenn_testing::pg_test]
+async fn a_suggestion_never_shows_an_unreadable_object(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let other = env.entity("other").await;
+    for (name, owner) in [
+        ("web2", acme),
+        ("webx", other),
+        ("db1", acme),
+        ("web1", acme),
+    ] {
+        env.machine(name, owner).await;
+    }
+    env.address("10.0.0.31").await;
+    let owner: Uuid =
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    env.applied(vec![
+        Operation::CreateDomain {
+            local: Some(1),
+            slug: "lan".into(),
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(1),
+            kind: ObjectKind::Domain,
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(other.to_string())],
+        },
+        Operation::CreatePrefix {
+            local: None,
+            domain: Ref::Local(1),
+            prefix: "10.0.0.0/24".into(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        },
+        Operation::CreateAddress {
+            local: None,
+            domain: Ref::Local(1),
+            address: "10.0.0.32".into(),
+            usage: AddressUsage::Host,
+        },
+    ])
+    .await;
+    let entries = [
+        "machines.read",
+        "machines.interface.read",
+        "core.entity.read",
+        "core.domain.read",
+        "core.prefix.read",
+        "core.address.read",
+    ];
+    let reader = env.app(env.person(&entries, Some(acme)).await);
+    let everyone = env.app(env.person(&entries, None).await);
+    let found = |app: Router, uri: String, field: &'static str| async move {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        ids(&body, field)
+    };
+    let cases: [(&str, &str, &[&str], &[&str]); 5] = [
+        (
+            "machines?q=WEB",
+            "name",
+            &["web1", "web2"],
+            &["web1", "web2", "webx"],
+        ),
+        (
+            "addresses?q=10.0.0.3",
+            "value",
+            &["10.0.0.31"],
+            &["10.0.0.31", "10.0.0.32"],
+        ),
+        ("domains?q=L", "slug", &["lab"], &["lab", "lan"]),
+        ("entities?q=o", "slug", &[], &["other"]),
+        (
+            "prefixes?q=10.0.0",
+            "value",
+            &["10.0.0.0/24"],
+            &["10.0.0.0/24", "10.0.0.0/24"],
+        ),
+    ];
+    for (uri, field, read, all) in cases {
+        let uri = format!("/v1/{uri}");
+        assert_eq!(
+            found(reader.clone(), uri.clone(), field).await,
+            read,
+            "{uri}"
+        );
+        assert_eq!(
+            found(everyone.clone(), uri.clone(), field).await,
+            all,
+            "{uri}"
+        );
+    }
+    let (_, _, interfaces) = call(&reader, "GET", "/v1/interfaces?q=ETH", None, &[]).await;
+    assert_eq!(
+        ids(&interfaces, "name"),
+        ["eth0", "eth0", "eth0"],
+        "{interfaces}"
+    );
+    let (_, _, first) = call(
+        &everyone,
+        "GET",
+        "/v1/machines?q=web&page_size=2",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&first, "name"), ["web1", "web2"]);
+    let next = first["links"]["next"].as_str().unwrap();
+    let (_, _, second) = call(&everyone, "GET", next, None, &[]).await;
+    assert_eq!(ids(&second, "name"), ["webx"], "the cursor keeps q");
+    // Addresses suggested in the order of their text, page after page.
+    let uri = "/v1/addresses?q=10.0.0.3&page_size=1";
+    let (_, _, first) = call(&everyone, "GET", uri, None, &[]).await;
+    assert_eq!(ids(&first, "value"), ["10.0.0.31"]);
+    let next = first["links"]["next"].as_str().unwrap();
+    let (_, _, second) = call(&everyone, "GET", next, None, &[]).await;
+    assert_eq!(ids(&second, "value"), ["10.0.0.32"], "{second}");
+    assert!(second["links"]["next"].is_null(), "{second}");
+    let (status, _, _) = call(&reader, "GET", "/v1/ranges?q=10", None, &[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a range is no reference");
+    let uri = "/v1/prefixes?q=10&domain=lab&prop.core.site:exists=true";
+    let (status, _, _) = call(&reader, "GET", uri, None, &[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "by natural key only");
+}
+
 #[kartenn_testing::pg_test]
 async fn graph_edge_address_to_interface(pool: PgPool) {
     let env = Env::new(&pool).await;

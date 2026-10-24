@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-24
 ---
 
 # 018 — Retours d'usage de la v0.2 : conception
@@ -262,6 +262,16 @@ data: {"revision":"1843-9f3a"}
 - `GET /v1/rules` : `rules::catalogue()` (identifiant, sévérité, module) ; libellés par
   le dictionnaire (espace `rule`).
 - Banc : `bench-core`, suggestion par préfixe sur le jeu complet, p95 < 50 ms.
+- Livré (tâches 14 à 16) : `q` vaut une fois, 1 à 100 caractères, gardé par le curseur ;
+  20 éléments par page dès que `q` est donné (sauf `page_size`) ; refusé sur `ranges`
+  (citées par identifiant) et avec un filtre `prop.…` (lu par identifiant) ; machines
+  et interfaces comparées par leur nom en minuscules, VLAN par nom ou VID ; préfixes et
+  adresses suggérés dans l'ordre de leur texte puis du domaine (index en collation `C`,
+  migration 0062 : dans l'ordre de la liste, un préfixe rare parcourait chaque domaine) ;
+  une liste courante lit la table courante seule et `q` se planifie avec sa valeur.
+  `GET /v1/rules` : une page, `q` sur l'identifiant ; les codes du tri d'un import
+  (`import.*`, 006/H18) y figurent, groupe `IMPORT_RULES` hors de la grammaire à trois
+  segments des autres règles. CLI : complétion par `q` au-delà d'une page.
 
 ### Évolution différée : langage de requête (REQ-018-24)
 
@@ -295,7 +305,7 @@ La 017 n'est pas modifiée ici. Amendements à y porter :
 - **Maquettes (017-1)** : mêmes éléments que celles de la 021 (code, libellé, cellule
   éditable, constructeur de filtres).
 
-## Amendements d'autres specs (à porter par la tâche 16)
+## Amendements d'autres specs (portés par la tâche 17)
 
 | Spec | Amendement |
 |---|---|

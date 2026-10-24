@@ -73,6 +73,12 @@ Acceptation :
 - La valeur `preprod` ajoutée à `policy.environment` le 1er mars n'est pas proposée pour
   une affectation valide au 15 février.
 
+Amendé le 2026-10-24 (spec 018, REQ-018-7 à 9, 22) : une déclaration et une valeur de
+liste fermée portent leurs `labels` par langue (`core.label.invalid`) ; les libellés
+d'une valeur changent par `update_enum_value` sur une période, sa clé jamais ;
+`GET /v1/property-declarations/{key}/values` rend `{key, valid_from, valid_to}` des
+valeurs valides à `valid_at` et accepte `q` (préfixe de la clé ou d'un libellé).
+
 #### REQ-003-6 — Évolution compatible
 Si une modification de déclaration rendrait invalide une affectation existante ou
 changerait une valeur résolue sans affectation explicite, alors kartenn doit la refuser

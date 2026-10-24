@@ -195,25 +195,30 @@ def test_the_data_set_by_a_changeset(cli: Cli) -> None:
         {"op": "policy.environment.create", "key": key} for key in ("prod", "recette", "dev")
     ]
     operations += [
-        {"op": "policy.flow_type.create", "local": 10, "key": "admin", "label": "Administration"},
+        {
+            "op": "policy.flow_type.create",
+            "local": 10,
+            "key": "admin",
+            "labels": {"fr": "Administration"},
+        },
         {
             "op": "policy.service.create",
             "key": "ssh",
-            "label": "SSH",
+            "labels": {"fr": "SSH"},
             "flow_type": {"local": 10},
             "entries": [{"transport": "tcp", "ports": 22}],
         },
         {
             "op": "policy.service.create",
             "key": "https",
-            "label": "HTTPS",
+            "labels": {"fr": "HTTPS"},
             "flow_type": {"local": 10},
             "entries": [{"transport": "tcp", "ports": 443}],
         },
         {
             "op": "policy.rule.create",
             "key": "prod-vers-dev",
-            "label": "La production administre le développement",
+            "labels": {"fr": "La production administre le développement"},
             "effect": "allow",
             "flow_types": [{"local": 10}],
             "source": {"policy.environment": ["prod"]},

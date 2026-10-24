@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-24
 ---
 
 # 018 — Retours d'usage de la v0.2 : tâches
@@ -330,14 +330,27 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Flux C — Suggestions
 
-- [ ] 14. `/values` : `{key, valid_from, valid_to}`, `valid_at`, `q` (clé et libellés,
+- [x] 14. `/values` : `{key, valid_from, valid_to}`, `valid_at`, `q` (clé et libellés,
   préfixe insensible à la casse), `cursor`, `page_size` (20) — REQ-018-22 — verify :
   `values_are_suggested_by_prefix_at_a_date`
   où : `crates/kartenn-rest/src/properties.rs` (`EnumValueItem`, route l. ~280-286) ;
   lecture des valeurs dans `crates/kartenn-store-pg/src/`
   dépend de : 6
+  fait : `property_read::enum_values` rend `EnumValueRead` ; la période d'une valeur
+  couvre ses versions connues à `as_of` (un libellé écrit sur une portion la découpe en
+  versions, pas en périodes). `q` : `filter::prefix` (une fois, non vide, 100 caractères
+  au plus, mis en minuscules), motif `LIKE` échappé (`list::like_prefix`), comparé à la
+  clé et à `lower()` de chaque libellé de `labels` ; gardé dans le curseur avec les
+  autres filtres. 20 par défaut : `Page::suggesting` (constante `SUGGESTION_SIZE`), qui
+  ne touche pas une taille donnée ni celle d'un curseur ; `Page::only_prefix` pour une
+  liste dont `q` est le seul filtre. Paramètre `q` déclaré au contrat ; `filters.ts` des
+  deux SDK régénérés. CLI : `complete.prefixed_values` (complétion des valeurs de liste
+  fermée) lit une page de 100 ; une liste entière se garde et se filtre localement, une
+  liste plus longue se redemande par `q` pour chaque préfixe (cache `nom?q=…`). Écart
+  hors tâche : `events::a_client_that_no_longer_reads_loses_its_socket` échoue sur cette
+  machine chargée, sans lien avec la tâche (tampons TCP).
 
-- [ ] 15. `q` sur les collections citables (entités, sites, domaines, machines,
+- [x] 15. `q` sur les collections citables (entités, sites, domaines, machines,
   interfaces, clusters, `vlan-groups`, VLAN, préfixes, adresses) sous RBAC, index
   manquants ; `GET /v1/rules` — REQ-018-23 — verify :
   `a_suggestion_never_shows_an_unreadable_object`, `the_rule_catalogue_is_served` ;
@@ -347,17 +360,67 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
   `crates/kartenn-core/src/rules.rs` (`catalogue`, l. 290-320) ;
   `crates/kartenn-rest/src/openapi.rs`
   dépend de : 14
+  fait : `q` comparé en `LIKE` (motif échappé, minuscules) au slug (entités, sites,
+  domaines, clusters, `vlan-groups`), à `text(prefix)`, à `host(address)`, au nom
+  (machines, déjà en minuscules ; interfaces par `lower(name)`), au nom ou au VID des
+  VLAN ; sous le prédicat de lecture existant de chaque liste ; 20 par défaut
+  (`kit::suggestion`, `Page::suggesting`), gardé par le curseur. Refusé (400) sur les
+  plages (citées par identifiant) et avec un filtre `prop.…` (lu par identifiant).
+  Contrat : `Op::suggestion` déclare `q` sur chaque liste citable (H20). `GET /v1/rules`
+  (`kartenn-rest/src/rules.rs`, étiquette `operations`, `rules` ajouté à
+  `CORE_COLLECTIONS`) : `{id, severity, module}` du noyau (`module` = `core`), des
+  imports puis des modules du build, une page, `q` sur l'identifiant. Les codes du tri
+  d'un import (`import.*`, 006/H18) n'étaient pas des règles du catalogue : groupe
+  `IMPORT_RULES` de `kartenn-core` hors de `all_rules` (leur forme précède la grammaire
+  à trois segments), section ajoutée à `regles-noyau.md`, libellés FR/EN dans l'espace
+  `rule` du dictionnaire. Index : reportés à la mesure de la tâche 16 (« à mesurer »).
+  CLI : `--domain <TAB>` et les autres références passent par `q` au-delà d'une page,
+  repli sur la première page pour une liste sans `q` au contrat (services) ; la
+  ressource `rules` apparaît dans l'arbre de la CLI.
 
-- [ ] 16. Banc des suggestions : préfixe sur le jeu complet, p95 < 50 ms par route —
+- [x] 16. Banc des suggestions : préfixe sur le jeu complet, p95 < 50 ms par route —
   REQ-018-23 — verify : `bench-core` dans les budgets
   où : `crates/kartenn-bench/src/{core_budgets.rs,machine_budgets.rs,http.rs}`
   dépend de : 15
+  fait : `machine_budgets::suggestions` (dans `bench-core`, après les modules, à travers
+  le routeur avec le noyau, `vlan` et `machines`) : par route, 200 préfixes de 1 à 6
+  caractères de clés existantes ; entités, sites, domaines, préfixes, adresses,
+  machines, interfaces, clusters, groupes de VLAN, VLAN, valeurs d'une liste fermée,
+  règles, puis les machines lues par le lecteur d'un seul propriétaire. Mesures et
+  correctifs : (1) l'union avec l'historique, même vidée par `$2`, interdit au
+  planificateur l'ordre d'un index : une liste courante (`as_of` absent) lit la table
+  courante seule (`temporal::current_rows`, `listed` des modules ; le noyau passe
+  désormais `moment.as_of` et non `Some(moment.as_of())`) ; (2) `q` est planifié avec sa
+  valeur (instruction non nommée, `persistent(false)`), sans quoi `LIKE $n` n'atteint
+  aucun index ; (3) préfixes et adresses suggérés dans l'ordre de leur texte puis du
+  domaine (index `C` de la migration 0062) : dans l'ordre de la liste, un préfixe rare
+  parcourait tous les domaines (39 ms pour « 3 ») ; (4) index `interface_keyset`,
+  `interface_name_pattern` (machines 0004) et `vlan_group_keyset` (vlan 0002).
+  `bench-core` réduit (2026-10-24 ; 1,1·10⁵ adresses, 1,1·10⁴ machines, 3,3·10⁴
+  interfaces, 2 200 groupes, 11 000 VLAN) : p95 entités 5,6 ms, sites 5,2, domaines
+  4,5, préfixes 6,5, adresses 6,4, machines 8,5, interfaces 3,8, clusters 7,4, groupes
+  4,8, VLAN 7,9, valeurs 1,5, règles 0,02, machines d'un propriétaire 22,6 ; tous les
+  autres budgets tenus. La pleine échelle reste à passer.
 
 ## Clôture
 
-- [ ] 17. Synchronisation : `docs/spec/` (`data.md`, `interfaces.md`, `invariants.md`,
+- [x] 17. Synchronisation : `docs/spec/` (`data.md`, `interfaces.md`, `invariants.md`,
   `regles-noyau.md`, `evenements-audit.md`), amendements des specs 003, 006, 007 (W11),
   008, 009, 010, 012, 017, 022, 023 (design, « Amendements d'autres specs »),
   `specs/README.md` — REQ-018-6 — verify : `spec-keeper` sur la 018 sans écart
   où : design, « Amendements d'autres specs » et « Impact sur la 017 »
   dépend de : 4, 8, 10, 11, 12, 13, 16
+  fait : passe `spec-keeper` (2026-10-24) puis corrections : `interfaces.md` (lignes
+  « Libellés », « Suggestions », « Règles », `default_locale`, `labels` et
+  `update_enum_value` des opérations), `data.md` (colonnes `labels`, `label_revision`,
+  migrations 0060 à 0062, index des listes et des suggestions, renommage des rôles par
+  le job), `invariants.md` (INV-72 à 77, budgets du dictionnaire et des suggestions),
+  `regles-noyau.md` régénéré (`core.role.invalid` : « des libellés »). Amendements
+  écrits : 003 (REQ-003-5, P12), 006 (H22), 007 (W11), 010 (S2, S5, S29), 012 (L8), 017
+  (design, « Amendement — spec 018 », noms et `labels` des formulaires) ; 005, 008, 009,
+  011, 022, 023 et l'ADR 0010 l'étaient par leurs tâches. `evenements-audit.md`
+  inchangé : la 018 n'ajoute aucun événement d'audit (un changement de libellés est un
+  changeset, le renommage des rôles un changeset système), l'événement `labels` est une
+  sorte du flux SSE (022), non de l'audit. Écart noté : REQ-018-20 nomme `bench-core`,
+  la mesure vit dans `bench-http` (tâche 13). Les journaux de décision gardent les
+  anciens noms de permissions.

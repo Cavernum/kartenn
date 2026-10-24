@@ -150,6 +150,9 @@ administrateur (déclencheurs : volume, propriété, périmètre, auteur).
 - Rejeté : `INSERT` dans les migrations SQL du module (contourne changeset, audit et
   contrôle de compatibilité ; deux sources à garder alignées).
 - Décidé par : recommandation acceptée (2026-10-14)
+- Amendé le 2026-10-24 (018/R10, REQ-018-11) : les déclarations de module portent leurs
+  libellés FR/EN, synchronisés comme le reste ; un libellé qu'un administrateur a posé
+  depuis est gardé.
 
 ## P13 — Pas de ligne d'origine sans origine
 - Décision : `property_origin` ne contient une ligne que là où un objet a une origine

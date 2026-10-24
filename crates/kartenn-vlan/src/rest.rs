@@ -279,6 +279,21 @@ fn dated(table: &str, columns: &str) -> String {
     )
 }
 
+/// The relation of a list: [`dated`], or for the current assertions (`$2` null) the
+/// current table alone, whose index then serves the order of a page: the union with the
+/// history, even emptied by `$2`, makes the planner sort every row kept (spec 018, task
+/// 018-16).
+fn listed(table: &str, columns: &str, current: bool) -> String {
+    if current {
+        format!(
+            "(SELECT {columns} FROM {table}
+               WHERE valid_period @> $1::timestamptz AND $2::timestamptz IS NULL)"
+        )
+    } else {
+        dated(table, columns)
+    }
+}
+
 /// The condition that the row `x` of `kind` is readable at `$1` under the scope `s`: its
 /// domain is that of its record in the core.
 fn visible(kind: &str) -> String {
@@ -399,8 +414,8 @@ async fn list_groups(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     const NAME: &str = "vlan-groups";
-    let page = Page::from_query(&query, &api.ring, NAME)?;
-    let wanted = filters(&page, &["slug", "anchor"])?;
+    let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
+    let wanted = filters(&page, &["slug", "anchor", "q"])?;
     let anchor = wanted
         .get("anchor")
         .map(|a| uuid("anchor", a))
@@ -418,13 +433,16 @@ async fn list_groups(
           WHERE ($4::text IS NULL OR x.slug = $4)
             AND ($5::uuid IS NULL OR x.anchor_id = $5)
             AND ($6::text IS NULL OR (x.slug, x.id) > ($6, $7::uuid))
+            AND ($9::text IS NULL OR x.slug LIKE $9)
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $8",
-        dated("vlan.vlan_group", GROUP_COLUMNS),
+        listed("vlan.vlan_group", GROUP_COLUMNS, moment.as_of.is_none()),
         visible(crate::module::GROUP),
     );
     let mut rows: Vec<GroupRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())
@@ -433,6 +451,7 @@ async fn list_groups(
         .bind(after.as_ref().map(|(slug, _)| slug.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
+        .bind(prefix.as_deref())
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -467,8 +486,11 @@ async fn list_vlans(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     const NAME: &str = "vlans";
-    let page = Page::from_query(&query, &api.ring, NAME)?;
-    let wanted = filters(&page, &["group", "vid", "name", "name_prefix", "status"])?;
+    let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
+    let wanted = filters(
+        &page,
+        &["group", "vid", "name", "name_prefix", "status", "q"],
+    )?;
     let group = wanted.get("group").map(|g| uuid("group", g)).transpose()?;
     let range = wanted.get("vid").map(|v| vid_range(v)).transpose()?;
     if let Some(status) = wanted.get("status")
@@ -497,15 +519,19 @@ async fn list_vlans(
                     AND ($9::text IS NULL OR x.status = $9)
                     AND ($10::uuid IS NULL
                          OR (x.group_id, x.vid, x.id) > ($10, $11::smallint, $12::uuid))
+                    AND ($14::text IS NULL OR lower(x.name) LIKE $14
+                         OR x.vid::text LIKE $14)
                   ORDER BY x.group_id, x.vid, x.id
                   OFFSET 0) x
           WHERE ($3::jsonb IS NULL OR {})
           ORDER BY x.group_id, x.vid, x.id
           LIMIT $13",
-        dated("vlan.vlan", VLAN_COLUMNS),
+        listed("vlan.vlan", VLAN_COLUMNS, moment.as_of.is_none()),
         visible(crate::module::VLAN),
     );
     let mut rows: Vec<VlanRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        // A prefix `q` is planned with its value (an unnamed statement).
+        .persistent(prefix.is_none())
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(scope.to_json())
@@ -519,6 +545,7 @@ async fn list_vlans(
         .bind(after.map(|a| a.1))
         .bind(after.map(|a| a.2))
         .bind(i64::from(page.size) + 1)
+        .bind(prefix.as_deref())
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -912,7 +939,11 @@ fn collection_routes(
         &format!("The {name} the caller may read."),
     );
     for (filter, description) in filters {
-        list_op = list_op.query(filter, description);
+        list_op = if *filter == "q" {
+            list_op.suggestion(description)
+        } else {
+            list_op.query(filter, description)
+        };
     }
     let list_op = list_op
         .params::<DatesParams>()
@@ -1048,6 +1079,7 @@ pub fn routes() -> ModuleRouter {
                 "anchor",
                 "The entity, site or domain the group is anchored on.",
             ),
+            ("q", "the slug"),
         ],
         GROUP_MEMBERS,
         ("vlan.create_group", "vlan.update_group"),
@@ -1064,6 +1096,7 @@ pub fn routes() -> ModuleRouter {
             ("name", "Equal to."),
             ("name_prefix", "Starting with."),
             ("status", "`active`, `reserved` or `deprecated`."),
+            ("q", "the name or of the VID"),
         ],
         VLAN_MEMBERS,
         ("vlan.create_vlan", "vlan.update_vlan"),

@@ -256,6 +256,12 @@ fn declare_filters(mut list: crate::openapi::Op, kind: Kind) -> crate::openapi::
             ),
         };
     }
+    list = match kind {
+        Kind::Entity | Kind::Site | Kind::Domain => list.suggestion("the slug"),
+        Kind::Prefix => list.suggestion("the prefix, in CIDR notation"),
+        Kind::Address => list.suggestion("the address"),
+        Kind::Range => list,
+    };
     if kind.in_domain() {
         list = list.property_filters();
     }
@@ -814,11 +820,18 @@ struct Wanted {
     usages: Vec<String>,
     /// Conditions on properties, by key.
     properties: Vec<(String, Condition)>,
+    /// The prefix `q` of a suggestion, lower-cased (spec 018, REQ-018-23).
+    prefix: Option<String>,
 }
 
 fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
     let mut wanted = Wanted::default();
-    for found in filter::parse(params, filter_fields(kind), kind.in_domain())? {
+    let mut params = params.to_vec();
+    wanted.prefix = filter::prefix(&mut params)?;
+    if wanted.prefix.is_some() && !suggested(kind) {
+        return Err(bad("unknown parameter q"));
+    }
+    for found in filter::parse(&params, filter_fields(kind), kind.in_domain())? {
         let name = match found.field {
             Field::Core(name) => name,
             Field::Property(key) => {
@@ -862,7 +875,20 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
             }
         }
     }
+    if wanted.prefix.is_some()
+        && let Some((key, _)) = wanted.properties.first()
+    {
+        return Err(bad(format!(
+            "q does not go with prop.{key}: a suggestion is read by natural key"
+        )));
+    }
     Ok(wanted)
+}
+
+/// Whether the list of `kind` takes the prefix `q` of a suggestion: the kinds a
+/// reference names (spec 018, REQ-018-23); a range is named by its identifier.
+const fn suggested(kind: Kind) -> bool {
+    !matches!(kind, Kind::Range)
 }
 
 /// Checks the values of the condition `name` on a property of type `value_type` as the
@@ -991,6 +1017,7 @@ async fn filtered(
 /// `GET`/`QUERY /v1/<collection>`: a page of the objects of `kind` the caller may read,
 /// filtered by natural key, sorted by it; filtered by properties, sorted by identifier
 /// and read at the current system time, a next page included.
+#[allow(clippy::too_many_lines)] // its two reads, by natural key and by properties
 async fn list(
     kind: Kind,
     State(api): State<Api>,
@@ -1002,6 +1029,11 @@ async fn list(
     let name = collection(kind);
     let page = Page::from_query(&query, &api.ring, name)?;
     let wanted = wanted(kind, &page.filters)?;
+    let page = if wanted.prefix.is_some() {
+        page.suggesting()
+    } else {
+        page
+    };
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let scope = api
         .authorizer()
@@ -1026,9 +1058,12 @@ async fn list(
                 ids: &[],
                 within: &wanted.within,
                 usages: &wanted.usages,
+                prefix: wanted.prefix.as_deref(),
             },
             moment.valid_at,
-            Some(moment.as_of()),
+            // The current assertions read the current table, in the order of its index;
+            // the next page holds the instant of this one (`Page::next`).
+            moment.as_of,
             after.as_ref(),
             i64::from(page.size) + 1,
             &scope,

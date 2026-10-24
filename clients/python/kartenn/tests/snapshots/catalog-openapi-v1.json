@@ -419,6 +419,12 @@
    "object:set:set_role"
   ]
  },
+ "rules": {
+  "module": "operations",
+  "verbs": [
+   "collection:list:list_rules"
+  ]
+ },
  "service-accounts": {
   "module": "rights",
   "verbs": [

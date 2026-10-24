@@ -172,6 +172,11 @@ Q-ouv-1 close (SDK et clients générés en MPL-2.0), Q-ouv-6 tranchée pour l'i
 - Rejeté : i18n maison (pluriels et interpolation à réécrire) ; messages traduits par
   le serveur (`Accept-Language`, touche la 006, le shell a de toute façon ses textes).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-23 (018/R19, Q-018-4, ADR 0040) : les textes de l'interface restent
+  aux catalogues des clients ; les **codes et données** (valeurs, propriétés, rôles,
+  permissions, règles, problèmes, sortes, états) se traduisent par le dictionnaire
+  `GET /v1/labels`, négocié par langue, la clé en repli. Les corps de l'API restent
+  neutres en langue.
 
 ## W12 — Composants d'interface
 *Remplacée par la 020 (2026-10-23) : `@kartenn/ui`, Reka UI encadré (REQ-020-33).*

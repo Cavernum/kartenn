@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-24
 ---
 
 # 018 — Retours d'usage de la v0.2 : exigences

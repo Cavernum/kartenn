@@ -147,34 +147,79 @@ pub async fn declaration(
     Ok(row.map(decoded))
 }
 
-/// The keys of the closed list of `property` valid at `valid_at` as asserted at `as_of`,
-/// sorted, after `after`, at most `limit`.
+/// A value of a closed list as the suggestions serve it (spec 018, REQ-018-22).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumValueRead {
+    /// Key.
+    pub key: String,
+    /// Start of its validity: the earliest of its versions known at `as_of`.
+    pub valid_from: Option<OffsetDateTime>,
+    /// End of its validity, excluded; `None` while it lasts.
+    pub valid_to: Option<OffsetDateTime>,
+}
+
+/// The values of the closed list of `property` valid at `valid_at` as asserted at
+/// `as_of`, sorted by key, after `after`, at most `limit`; with `prefix` (lower-cased),
+/// those whose key or one of whose labels, in any language, starts with it, ignoring case.
+/// The period of a value spans its versions known at `as_of` (a label written over a
+/// portion splits it).
 ///
 /// # Errors
 ///
 /// Database errors.
+#[allow(clippy::too_many_arguments)] // a list, its dates, its page and its prefix
 pub async fn enum_values(
     pool: &PgPool,
     property: Uuid,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
     after: Option<&str>,
+    prefix: Option<&str>,
     limit: i64,
-) -> sqlx::Result<Vec<String>> {
-    let values =
-        snapshot("property_enum_value", &["property_id", "key"]).map_err(|e| sql_err(&e))?;
-    sqlx::query_scalar(AssertSqlSafe(format!(
-        "SELECT key FROM {values} v
-         WHERE property_id = public.kartenn_values_owner($3) AND ($4::text IS NULL OR key > $4)
-         ORDER BY key LIMIT $5"
-    )))
-    .bind(valid_at)
-    .bind(as_of)
-    .bind(property)
-    .bind(after)
-    .bind(limit)
-    .fetch_all(pool)
-    .await
+) -> sqlx::Result<Vec<EnumValueRead>> {
+    let values = snapshot(
+        "property_enum_value",
+        &["id", "property_id", "key", "labels"],
+    )
+    .map_err(|e| sql_err(&e))?;
+    let rows: Vec<(String, Option<OffsetDateTime>, Option<OffsetDateTime>)> =
+        sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT v.key, p.valid_from, p.valid_to
+             FROM (SELECT id, key FROM {values} v
+                   WHERE property_id = public.kartenn_values_owner($3)
+                     AND ($4::text IS NULL OR key > $4)
+                     AND ($6::text IS NULL OR key LIKE $6
+                          OR EXISTS (SELECT FROM jsonb_each_text(labels) l
+                                     WHERE lower(l.value) LIKE $6))
+                   ORDER BY key LIMIT $5) v
+             CROSS JOIN LATERAL (
+               SELECT min(lower(a.valid_period)) AS valid_from,
+                      CASE WHEN bool_or(upper_inf(a.valid_period)) THEN NULL
+                           ELSE max(upper(a.valid_period)) END AS valid_to
+               FROM (SELECT valid_period FROM property_enum_value
+                     WHERE id = v.id AND ($2::timestamptz IS NULL OR sys_start <= $2)
+                     UNION ALL
+                     SELECT valid_period FROM property_enum_value_history
+                     WHERE $2::timestamptz IS NOT NULL AND id = v.id
+                       AND tstzrange(sys_start, sys_end) @> $2) a) p
+             ORDER BY v.key"
+        )))
+        .bind(valid_at)
+        .bind(as_of)
+        .bind(property)
+        .bind(after)
+        .bind(limit)
+        .bind(prefix.map(crate::list::like_prefix))
+        .fetch_all(pool)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(key, valid_from, valid_to)| EnumValueRead {
+            key,
+            valid_from,
+            valid_to,
+        })
+        .collect())
 }
 
 /// The keys of the properties declared sensitive now.

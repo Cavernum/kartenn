@@ -105,6 +105,9 @@ Machines et interfaces (009, en cours). Note de référence :
 - Amendé le 2026-10-21 (Q5, ecarts N27) : les attributs de valeur (transverse, rang
   S30) valent pour toute valeur de tout axe, dans une table du module ; le noyau n'a pas
   à porter d'attribut par valeur.
+- Amendé le 2026-10-24 (spec 018, Q-018-7) : les libellés d'un environnement vivent
+  sur la valeur de liste fermée du noyau (`labels` de `property_enum_value`), écrits par
+  `policy.value.describe` ; `policy_value` ne garde que ses attributs propres.
 
 ## S3 — Porteurs
 - Décision : `policy.environment` est portée par les domaines, conteneurs, réseaux et
@@ -139,6 +142,10 @@ Machines et interfaces (009, en cours). Note de référence :
 - Rejeté : catalogue = registre IANA (un port n'a pas un seul type de flux, D29) ;
   ports seuls (ICMP, ESP, GRE impossibles à décrire).
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+- Amendé le 2026-10-24 (spec 018, R7, R9) : le `label` d'un service, d'un type de
+  flux, d'une règle et des autres objets de la politique devient `labels` par langue,
+  contrôlé par `core.label.invalid` ; la colonne `label` disparaît (migrations `policy`
+  0004, 0005).
 
 ## S6 — Garde-fous
 - Décision : un garde-fou a un sélecteur (un ensemble de services **ou** un type de
@@ -456,6 +463,9 @@ Machines et interfaces (009, en cours). Note de référence :
   référentiel).
 - Décidé par : l'utilisateur (pédagogie) ; stockage par langue : l'utilisateur
   (2026-10-21), sur la proposition de Claude
+- Amendé le 2026-10-24 (018/REQ-018-12) : la langue par défaut de l'instance se
+  configure (`[i18n] default_locale`, publiée par les capacités) ; les textes exigés
+  dans la langue par défaut le sont dans celle-ci.
 
 ## S30 — Conditions d'admissibilité et issue
 - Décision : une condition est un prédicat nommé d'un **genre** pris dans une liste

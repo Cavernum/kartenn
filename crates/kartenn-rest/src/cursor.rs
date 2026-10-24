@@ -25,6 +25,8 @@ use crate::problem::{Problem, ProblemKind};
 pub const DEFAULT_SIZE: u16 = 100;
 /// Most elements of a page.
 pub const MAX_SIZE: u16 = 1_000;
+/// Elements of a page of suggestions when the client does not say (spec 018, Q-018-8).
+pub const SUGGESTION_SIZE: u16 = 20;
 
 /// Format version of the content of a cursor.
 const VERSION: u8 = 1;
@@ -79,6 +81,8 @@ pub struct Page {
     /// The parameters left to the route (its filters), sorted by name.
     pub filters: Vec<(String, String)>,
     after: Option<Value>,
+    /// Whether the size comes from the client or from a cursor.
+    sized: bool,
 }
 
 impl Page {
@@ -118,6 +122,7 @@ impl Page {
                 dates,
                 filters: rest,
                 after: None,
+                sized: size.is_some(),
             });
         };
         if let Some((name, _)) = rest.first() {
@@ -139,7 +144,18 @@ impl Page {
             },
             filters: content.filters,
             after: Some(content.after),
+            sized: true,
         })
+    }
+
+    /// The page as a page of suggestions: [`SUGGESTION_SIZE`] elements unless the client
+    /// or the cursor says otherwise (spec 018, Q-018-8).
+    #[must_use]
+    pub const fn suggesting(mut self) -> Self {
+        if !self.sized {
+            self.size = SUGGESTION_SIZE;
+        }
+        self
     }
 
     /// For a list that takes no filter.
@@ -151,6 +167,22 @@ impl Page {
         match self.filters.first() {
             Some((name, _)) => Err(bad(format!("unknown parameter {name}"))),
             None => Ok(()),
+        }
+    }
+
+    /// For a list whose only filter is the prefix `q` of a suggestion (spec 018,
+    /// REQ-018-22): that prefix, lower-cased, kept in the cursor with the other filters.
+    ///
+    /// # Errors
+    ///
+    /// 400 `bad-request` for a malformed `q` (see [`crate::filter::prefix`]) or naming
+    /// another parameter.
+    pub fn only_prefix(&self) -> Result<Option<String>, Problem> {
+        let mut rest = self.filters.clone();
+        let prefix = crate::filter::prefix(&mut rest)?;
+        match rest.first() {
+            Some((name, _)) => Err(bad(format!("unknown parameter {name}"))),
+            None => Ok(prefix),
         }
     }
 

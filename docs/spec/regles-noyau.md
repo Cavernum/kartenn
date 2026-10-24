@@ -61,7 +61,7 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `core.approval_policy.trigger` | erreur | Un déclencheur de politique nomme une mesure déclarée par un module du build. | REQ-016-7 | 016/G3 |
 | `changeset.policy.forbidden` | erreur | Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques. | REQ-004-39, REQ-004-40 | 004/C6 |
-| `core.role.invalid` | erreur | Un rôle a une clé, un libellé et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides. | REQ-005-17, REQ-005-25 | 005/K12 |
+| `core.role.invalid` | erreur | Un rôle a une clé, des libellés et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides. | REQ-005-17, REQ-005-25 | 005/K12 |
 | `core.rbac.forbidden` | erreur | Administrer les rôles, les émetteurs, les comptes ou les liaisons exige la permission d'administration correspondante. | REQ-005-26 | 005/K7, K11 |
 | `core.binding.escalation` | erreur | On ne lie un rôle sur un périmètre que si l'on détient soi-même chacune de ses entrées sur ce périmètre. | REQ-005-26 | 005/K7 |
 | `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
@@ -70,3 +70,15 @@ Sévérités fixées par la spécification (002/A4).
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |
 | `core.label.invalid` | erreur | Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut. | REQ-018-9 | 018/R7, R9, RFC 5646 §2.1 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |
+
+## Règles du tri d'un import
+
+Codes des violations de l'`error` d'un import (006/H18), d'une forme antérieure à
+celle des identifiants ci-dessus ; servis avec eux par `GET /v1/rules` (018).
+
+| Identifiant | Sévérité | Règle | Exigences | Source |
+|---|---|---|---|---|
+| `import.missing-external-id` | erreur | Un élément d'import qui crée un objet porte l'identifiant externe de sa source. | REQ-006-17 | 006/H18 |
+| `import.unknown-reference` | erreur | Une référence locale d'un import désigne un élément du même import. | REQ-006-17 | 006/H18 |
+| `import.order` | erreur | Chaque nom local d'un import est défini une fois et ses références ne forment pas de cycle. | REQ-006-17 | 006/H18 |
+| `import.invalid` | erreur | Les éléments d'un import se trient ; une autre erreur de tri le ramène en dépôt. | REQ-006-17, REQ-006-19 | 006/H18 |

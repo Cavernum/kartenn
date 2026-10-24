@@ -101,11 +101,18 @@ static REFERENCES: &[Reference] = &[
     },
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "vlan",
-    sql: include_str!("../migrations/0001_vlan.sql"),
-}];
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "vlan",
+        sql: include_str!("../migrations/0001_vlan.sql"),
+    },
+    ModuleMigration {
+        version: 2,
+        name: "group_keyset",
+        sql: include_str!("../migrations/0002_group_keyset.sql"),
+    },
+];
 
 macro_rules! permissions {
     ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {

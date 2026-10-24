@@ -104,6 +104,9 @@ collecteur et console dans l'environnement de développement. Les autres décisi
 - Pourquoi : OpenTelemetry n'a pas encore de convention d'audit ; OCSF est la cible SIEM
   la plus répandue, mais elle évolue vite.
 - Décidé par : délégué (2026-10-17)
+- Amendé le 2026-10-24 (018/R6) : un événement d'audit garde les noms de permissions
+  de son époque ; le renommage de la 018 ne réécrit ni l'audit ni l'historique, le
+  dictionnaire libelle les anciens noms (« ancien nom de … »).
 
 ## L9 — OpenTelemetry
 - Décision : traces, métriques et logs techniques en OTLP ; variables `OTEL_*` standard

@@ -86,6 +86,22 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
 /// English summaries of the rules of the core, by identifier.
 pub static RULES_EN: &[(&str, &str)] = &[
     (
+        "import.missing-external-id",
+        "An import element that creates an object carries the external identifier of its source.",
+    ),
+    (
+        "import.unknown-reference",
+        "A local reference of an import names an element of the same import.",
+    ),
+    (
+        "import.order",
+        "Each local name of an import is defined once and its references form no cycle.",
+    ),
+    (
+        "import.invalid",
+        "The elements of an import sort; any other sort error takes it back to upload.",
+    ),
+    (
         "core.addr.syntax",
         "An address is written in the strict form of its family.",
     ),
@@ -300,7 +316,7 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ),
     (
         "core.role.invalid",
-        "A role has a key, a label and entries of the catalogue; an issuer and a group are not empty.",
+        "A role has a key, labels and entries of the catalogue; an issuer and a group are not empty.",
     ),
     (
         "core.rbac.forbidden",
@@ -475,6 +491,7 @@ pub fn core() -> Vec<CodeLabel> {
         )
     });
     let rules = crate::rules::all_rules()
+        .chain(crate::rules::import_rules())
         .map(|r| CodeLabel::new("rule", r.id, r.summary, english(RULES_EN, r.id)));
     permissions
         .chain(rules)
@@ -506,7 +523,13 @@ mod tests {
                     .map(|p| p.name)
                     .collect::<Vec<_>>(),
             ),
-            (RULES_EN, crate::rules::all_rules().map(|r| r.id).collect()),
+            (
+                RULES_EN,
+                crate::rules::all_rules()
+                    .chain(crate::rules::import_rules())
+                    .map(|r| r.id)
+                    .collect(),
+            ),
         ] {
             let stale: Vec<&str> = table
                 .iter()
