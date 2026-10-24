@@ -65,6 +65,7 @@ on_behalf_of = "Write on behalf of an identity (Kartenn-On-Behalf-Of)."
 dry_run = "Simulate the changeset: nothing is written (exit 8 if it would be refused)."
 into_changeset = "Add the write to the local changeset (kartenn changeset new)."
 require_applied = "Exit 10 when the write waits for an approval."
+submit_only = "Submit the changeset without applying it, even under apply_own: it waits for someone else."
 
 [config]
 help = "Profiles of the configuration (never a secret)."
@@ -150,6 +151,7 @@ no_operation = "“{resource} {verb}” has no known changeset operation: --dry-
 applied = "Changeset {id} applied."
 location = "Created: {location}"
 pending = "Write held ({kind}): changeset {id}."
+not_applied = "Not applied by its author ({code}): apply_own is lacking, or an approval policy holds it."
 follow = "  Follow: kartenn changeset show {id}"
 motive_required = "This write needs --motive (the server would answer motive-required)."
 motive = "Motive?"

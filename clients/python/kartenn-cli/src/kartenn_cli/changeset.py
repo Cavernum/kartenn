@@ -212,6 +212,7 @@ def simulate_local(ctx: click.Context, output: str | None) -> None:
 
 @changeset_group.command(name="apply", help="changeset.apply.help")
 @click.option("--require-applied", is_flag=True, help="opt.require_applied")
+@click.option("--submit-only", is_flag=True, help="opt.submit_only")
 @click.option(
     "-o",
     "--output",
@@ -220,12 +221,15 @@ def simulate_local(ctx: click.Context, output: str | None) -> None:
     help="opt.output",
 )
 @click.pass_context
-def apply(ctx: click.Context, output: str | None, *, require_applied: bool) -> None:
+def apply(
+    ctx: click.Context, output: str | None, *, require_applied: bool, submit_only: bool
+) -> None:
     from kartenn_cli.writes import render_outcome  # noqa: PLC0415
 
     found = _found(ctx)
     data = _read()
-    result = _builder(found, data).submit()
+    # Spec 024 (REQ-024-13): applied by its author who may, unless only submitted.
+    result = _builder(found, data).submit(apply_own=not submit_only)
     local_path().unlink(missing_ok=True)
     render_outcome(found, result, output=output, require_applied=require_applied)
 
