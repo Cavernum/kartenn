@@ -31,46 +31,48 @@
   - button "Compte de Camille Martin"
 - main:
   - heading "Groupe de VLAN campus-ouest" [level=1]
-  - heading "Groupes 3" [level=2]
+  - heading "Groupes de VLAN 3" [level=2]
   - grid "Groupes de VLAN":
     - rowgroup:
-      - row "Groupe VID Occ.":
+      - row "Groupe Ancre VID Occupation Libres":
         - columnheader "Groupe"
+        - columnheader "Ancre"
         - columnheader "VID"
-        - columnheader "Occ."
+        - columnheader "Occupation"
+        - columnheader "Libres"
     - rowgroup:
-      - row /campus-ouest \d+–\d+ \d+ %/ [selected]:
+      - row /campus-ouest site-ouest \d+–\d+ \d+ % \d+/ [selected]:
         - gridcell "campus-ouest"
+        - gridcell "site-ouest"
         - gridcell /\d+–\d+/
         - gridcell /\d+ %/
-      - row /campus-est \d+–\d+ \d+ %/:
+        - gridcell /\d+/
+      - row /campus-est site-est \d+–\d+ \d+ % \d+/:
         - gridcell "campus-est"
+        - gridcell "site-est"
         - gridcell /\d+–\d+/
         - gridcell /\d+ %/
-      - row /labo \d+–\d+ 6 %/:
+        - gridcell /\d+/
+      - row /labo dmz-labo \d+–\d+ 6 % \d+/:
         - gridcell "labo"
+        - gridcell "dmz-labo"
         - gridcell /\d+–\d+/
         - gridcell "6 %"
+        - gridcell /\d+/
   - region /campus-ouest VID \d+–\d+ · ancre site-ouest/:
     - heading /campus-ouest VID \d+–\d+ · ancre site-ouest/ [level=2]
-    - 'button /Prochain libre : \d+/'
-    - button "Créer"
-    - button "Statut ∈ Actif, Réservé, Déprécié"
-    - button "Retirer le filtre Statut ∈ Actif, Réservé, Déprécié"
-    - button /VID entre \d+\.\.\d+/
-    - button /Retirer le filtre VID entre \d+\.\.\d+/
-    - term: Utilisés
-    - definition: /\d+ sur \d+/
-    - term: Libres
-    - definition: /\d+ \(\d+–\d+, \d+–\d+\)/
-    - term: Réservés
-    - definition: "1"
+    - text: /\d+ sur \d+ utilisés · \d+ libres/
+    - toolbar "Actions du groupe":
+      - 'button /Prochain libre : \d+/'
+      - button "Créer"
+      - button "Exporter"
+      - button "Renuméroter…" [disabled]
     - grid "VLAN du groupe campus-ouest":
       - rowgroup:
-        - row "VID Nom Statut Réseaux Interfaces":
+        - row "VID Nom Statut (filtrée) Réseaux Interfaces":
           - columnheader "VID"
           - columnheader "Nom"
-          - columnheader "Statut"
+          - columnheader "Statut (filtrée)"
           - columnheader "Réseaux"
           - columnheader "Interfaces"
       - rowgroup:

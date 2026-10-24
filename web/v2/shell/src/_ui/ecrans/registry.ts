@@ -230,7 +230,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E10",
     title: "Hôte de plugin",
     shows:
-      "Vue pleine page d'un plugin (VLAN) et matrice de politique (spec 017) dans le cadre du shell.",
+      "Vue pleine page d'un plugin (VLAN) et matrice de politique (spec 017, MatrixGrid) dans le cadre du shell.",
     views: [
       {
         id: "vlan",
@@ -240,7 +240,8 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "matrice",
         label: "Matrice de politique",
-        description: "Matrice entre environnements, cellule choisie, effet simulé.",
+        description:
+          "Matrice entre environnements (en-têtes figés des deux côtés), cellule choisie dans le panneau droit, effet simulé.",
       },
     ],
   },

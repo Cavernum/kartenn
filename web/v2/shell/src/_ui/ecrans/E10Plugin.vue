@@ -1,30 +1,35 @@
 <script setup lang="ts">
-// E10 — Hôte de plugin (design « Maquettes »; 021, « Plugin VLAN », « Plugin Politique »):
-// a full-page view of a plugin in the frame of the shell (VLAN groups and the VLAN of the
-// chosen group), and the policy matrix of the 017 between environments, a chosen cell, the
-// simulated effect; its changes go to the draft of the shell.
+// E10 — Hôte de plugin (design « Maquettes »; 021, « Plugin VLAN », « Plugin Politique »;
+// 024/M8, M12): a full-page view of a plugin in the frame of the shell (VLAN groups, the VLAN
+// of the chosen group, the next free VID), and the policy matrix of the 017 between
+// environments in its two-way grid (MatrixGrid: row and column headers of the same make,
+// both sticky), the chosen cell in the right panel with its simulated effect; its changes
+// go to the draft of the shell.
 import {
   Button,
   CodeBadge,
-  Cluster,
   DataGrid,
-  EnvChip,
-  FilterChip,
   InlineAlert,
-  Split,
+  MatrixGrid,
+  SidePanel,
   Stack,
   StatusBadge,
   TextField,
-  type CellState,
   type GridColumn,
+  type GridSort,
+  type MatrixAxis,
+  type MatrixCell,
+  type MatrixCellState,
   type RowState,
   type State,
+  type ToolbarAction,
 } from "@kartenn/ui";
+import { ref } from "vue";
 import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
+import Barre from "./EcranBarre.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
-import { ENV, type EnvKey } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 
@@ -33,17 +38,21 @@ interface Group extends Record<string, unknown> {
   anchor: string;
   range: string;
   used: string;
+  free: string;
 }
 const groups: Group[] = [
-  { key: "campus-ouest", anchor: "site-ouest", range: "100–199", used: "87 %" },
-  { key: "campus-est", anchor: "site-est", range: "200–299", used: "41 %" },
-  { key: "labo", anchor: "dmz-labo", range: "900–999", used: "6 %" },
+  { key: "campus-ouest", anchor: "site-ouest", range: "100–199", used: "87 %", free: "12" },
+  { key: "campus-est", anchor: "site-est", range: "200–299", used: "41 %", free: "59" },
+  { key: "labo", anchor: "dmz-labo", range: "900–999", used: "6 %", free: "94" },
 ];
 const groupColumns: GridColumn[] = [
-  { id: "key", label: "Groupe", width: "fill", mono: true },
+  { id: "key", label: "Groupe", width: "fill", mono: true, sortable: true },
+  { id: "anchor", label: "Ancre", width: "md", mono: true, filterable: true },
   { id: "range", label: "VID", width: "sm", mono: true },
-  { id: "used", label: "Occ.", width: "xs", align: "end" },
+  { id: "used", label: "Occupation", width: "sm", align: "end", sortable: true },
+  { id: "free", label: "Libres", width: "sm", align: "end", sortable: true },
 ];
+const groupSort = ref<GridSort>({ column: "key", direction: "ascending" });
 
 interface Vlan extends Record<string, unknown> {
   vid: string;
@@ -63,44 +72,65 @@ const vlans: Vlan[] = [
 ];
 const vlanColumns: GridColumn[] = [
   { id: "vid", label: "VID", width: "sm", mono: true, sortable: true },
-  { id: "name", label: "Nom", width: "fill", mono: true },
+  { id: "name", label: "Nom", width: "fill", mono: true, sortable: true },
   { id: "state", label: "Statut", width: "md", filterable: true },
-  { id: "networks", label: "Réseaux", width: "md", mono: true },
-  { id: "interfaces", label: "Interfaces", width: "sm", align: "end" },
+  { id: "networks", label: "Réseaux", width: "md", mono: true, filterable: true },
+  { id: "interfaces", label: "Interfaces", width: "sm", align: "end", sortable: true },
 ];
+const vlanSort = ref<GridSort>({ column: "vid", direction: "ascending" });
 const VLAN_STATE: Record<Vlan["state"], { state: State; label: string }> = {
   active: { state: "ok", label: "Actif" },
   deprecated: { state: "warn", label: "Déprécié" },
   reserved: { state: "neutral", label: "Réservé" },
 };
+const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft" : undefined);
+const vlanActions: ToolbarAction[] = [
+  { id: "free", label: "Prochain libre : 105", icon: "search", priority: 2 },
+  { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
+  { id: "export", label: "Exporter", priority: 1 },
+  { id: "renumber", label: "Renuméroter…", icon: "pencil", forbidden: "vlan.edit" },
+];
 
 type Verdict = "allow" | "deny" | "conditional" | "default";
-interface MatrixRow extends Record<string, unknown> {
-  source: EnvKey;
-  prod: Verdict;
-  rece: Verdict;
-  deve: Verdict;
-}
-const matrix: MatrixRow[] = [
-  { source: "prod", prod: "allow", rece: "deny", deve: "deny" },
-  { source: "rece", prod: "conditional", rece: "allow", deve: "default" },
-  { source: "deve", prod: "deny", rece: "default", deve: "allow" },
+/** The environments, both axes of the matrix (source in rows, destination in columns). */
+const ENVS: MatrixAxis[] = [
+  { id: "prod", label: "Production" },
+  { id: "preprod", label: "Préproduction" },
+  { id: "rece", label: "Recette" },
+  { id: "inte", label: "Intégration" },
+  { id: "deve", label: "Développement" },
 ];
-const matrixColumns: GridColumn[] = [
-  { id: "source", label: "Source ↓ · destination →", width: "md" },
-  { id: "prod", label: "Production", width: "fill" },
-  { id: "rece", label: "Recette", width: "fill" },
-  { id: "deve", label: "Développement", width: "fill" },
-];
+const MATRIX: Record<string, Verdict[]> = {
+  prod: ["allow", "deny", "deny", "deny", "deny"],
+  preprod: ["conditional", "allow", "default", "deny", "deny"],
+  rece: ["conditional", "default", "allow", "allow", "default"],
+  inte: ["deny", "default", "allow", "allow", "allow"],
+  deve: ["deny", "deny", "default", "allow", "allow"],
+};
+const verdict = (row: MatrixAxis, column: MatrixAxis): Verdict =>
+  MATRIX[row.id]![ENVS.indexOf(column)]!;
 const VERDICT: Record<Verdict, { state: State; label: string }> = {
   allow: { state: "ok", label: "Autoriser" },
   deny: { state: "ko", label: "Interdire" },
   conditional: { state: "warn", label: "Sous motif" },
   default: { state: "neutral", label: "Refus par défaut" },
 };
-const matrixCell = (row: MatrixRow, column: GridColumn): CellState | undefined =>
-  row.source === "rece" && column.id === "prod" ? "draft" : undefined;
-const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft" : undefined);
+const cellState = (row: MatrixAxis, column: MatrixAxis): MatrixCellState | undefined =>
+  row.id === "rece" && column.id === "prod"
+    ? "draft"
+    : row.id === "preprod" && column.id === "prod"
+      ? "review"
+      : undefined;
+const active = ref<MatrixCell>({ row: "rece", column: "prod" });
+const matrixActions: ToolbarAction[] = [
+  { id: "hidden", label: "3 règles hors vue", icon: "external-link", priority: 2 },
+  { id: "simulate", label: "Simuler le brouillon", icon: "flow", priority: 1 },
+  { id: "export", label: "Exporter" },
+];
+const panelTabs = [
+  { value: "detail", label: "Détail" },
+  { value: "draft", label: "Brouillon", count: 3 },
+];
 </script>
 
 <template>
@@ -115,62 +145,46 @@ const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft
       { label: 'campus-ouest', mono: true },
     ]"
   >
-    <Split gap="3">
-      <template #side>
-        <Panneau title="Groupes" detail="3" flush>
-          <DataGrid
-            label="Groupes de VLAN"
-            :columns="groupColumns"
-            :rows="groups"
-            row-key="key"
-            selectable
-            :selected="['campus-ouest']"
-          />
-        </Panneau>
+    <Panneau title="Groupes de VLAN" detail="3" flush>
+      <DataGrid
+        v-model:sort="groupSort"
+        label="Groupes de VLAN"
+        :columns="groupColumns"
+        :rows="groups"
+        row-key="key"
+        selectable
+        :selected="['campus-ouest']"
+      />
+    </Panneau>
+    <Panneau title="campus-ouest" detail="VID 100–199 · ancre site-ouest" main flush>
+      <template #toolbar>
+        <Barre label="Actions du groupe" :actions="vlanActions">
+          <span class="k-num">87 sur 100 utilisés · 12 libres</span>
+        </Barre>
       </template>
-      <Panneau title="campus-ouest" detail="VID 100–199 · ancre site-ouest" main flush>
-        <template #actions>
-          <Button icon="search">Prochain libre : 105</Button>
-          <Button variant="primary" icon="plus" :shortcut="['c']">Créer</Button>
+      <DataGrid
+        v-model:sort="vlanSort"
+        label="VLAN du groupe campus-ouest"
+        :columns="vlanColumns"
+        :rows="vlans"
+        row-key="vid"
+        :row-state="vlanRow"
+        :filtered="['state']"
+      >
+        <template #cell="{ row, column, value }">
+          <StatusBadge
+            v-if="column.id === 'state'"
+            :state="VLAN_STATE[row.state].state"
+            :label="VLAN_STATE[row.state].label"
+          />
+          <template v-else>{{ value }}</template>
         </template>
-        <template #toolbar>
-          <Stack gap="2">
-            <Cluster gap="2">
-              <FilterChip property="Statut" operator="∈" value="Actif, Réservé, Déprécié" />
-              <FilterChip property="VID" operator="entre" value="100..149" mono />
-            </Cluster>
-            <Attributs
-              :items="[
-                { key: 'used', label: 'Utilisés', value: '87 sur 100' },
-                { key: 'free', label: 'Libres', value: '12 (105–110, 140–145)' },
-                { key: 'reserved', label: 'Réservés', value: '1' },
-              ]"
-            />
-          </Stack>
-        </template>
-        <DataGrid
-          label="VLAN du groupe campus-ouest"
-          :columns="vlanColumns"
-          :rows="vlans"
-          row-key="vid"
-          :sort="{ column: 'vid', direction: 'ascending' }"
-          :row-state="vlanRow"
-        >
-          <template #cell="{ row, column, value }">
-            <StatusBadge
-              v-if="column.id === 'state'"
-              :state="VLAN_STATE[row.state].state"
-              :label="VLAN_STATE[row.state].label"
-            />
-            <template v-else>{{ value }}</template>
-          </template>
-        </DataGrid>
-        <template #footer>
-          <span class="k-num">7 VLAN sur 87 · 1 en brouillon</span>
-          <span class="k-ecran-muted">Colonne « Interfaces » : plugin Machines</span>
-        </template>
-      </Panneau>
-    </Split>
+      </DataGrid>
+      <template #footer>
+        <span class="k-num">7 VLAN sur 87 · 1 en brouillon</span>
+        <span class="k-ecran-muted">Colonne « Interfaces » : plugin Machines</span>
+      </template>
+    </Panneau>
   </Cadre>
 
   <Cadre
@@ -185,65 +199,76 @@ const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft
       { label: 'applicatif', mono: true },
     ]"
   >
-    <Split side="end" gap="3">
-      <Panneau title="Matrice" detail="applicatif" main flush>
-        <template #actions>
-          <Button variant="ghost" icon="external-link">3 règles hors vue</Button>
-        </template>
-        <template #toolbar>
+    <Panneau title="Matrice" detail="applicatif" main flush>
+      <template #toolbar>
+        <Barre label="Actions de la matrice" :actions="matrixActions" align="start">
           <AVenir component="Select" task="18" inline>
             <Button size="sm" icon="flow">Type de flux : applicatif</Button>
           </AVenir>
-        </template>
-        <DataGrid
-          label="Matrice applicatif : source en ligne, destination en colonne"
-          :columns="matrixColumns"
-          :rows="matrix"
-          row-key="source"
-          :cell-state="matrixCell"
-          :active="{ row: 'rece', column: 'prod' }"
-        >
-          <template #cell="{ row, column }">
-            <EnvChip v-if="column.id === 'source'" v-bind="ENV[row.source]" />
-            <StatusBadge
-              v-else
-              :state="VERDICT[row[column.id as EnvKey]].state"
-              :label="VERDICT[row[column.id as EnvKey]].label"
-            />
-          </template>
-        </DataGrid>
-        <template #footer>
-          <span>Brouillon · 1 cellule</span>
-          <span class="k-num">1 s'ouvre sous réserve · 2 flux cassent · 0 guérit</span>
-        </template>
-      </Panneau>
-      <template #side>
-        <Panneau title="Recette → Production">
-          <Attributs
-            :items="[
-              { key: 'state', label: 'État' },
-              { key: 'patterns', label: 'Motifs' },
-            ]"
-          >
-            <template #state><StatusBadge state="warn" label="Sous motif" /></template>
-            <template #patterns><CodeBadge code="bastion-admin" /></template>
-          </Attributs>
-          <TextField label="Libellé" model-value="Accès recette vers production" />
-          <InlineAlert
-            tone="warn"
-            title="Effet simulé : 2 flux cassent"
-            :items="[
-              { message: 'rece-batch → prod-api (tcp/443)', code: 'flow.verdict.denied' },
-              { message: 'rece-ci → prod-registry (tcp/5000)', code: 'flow.verdict.denied' },
-            ]"
-          />
-          <template #footer>
-            <Button variant="primary" icon="draft" :shortcut="['Enter']"
-              >Ajouter au brouillon</Button
-            >
-          </template>
-        </Panneau>
+        </Barre>
       </template>
-    </Split>
+      <MatrixGrid
+        v-model:active="active"
+        label="Matrice applicatif : source en ligne, destination en colonne"
+        corner="Source → destination"
+        :rows="ENVS"
+        :columns="ENVS"
+        :cell-state="cellState"
+      >
+        <template #cell="{ row, column }">
+          <StatusBadge
+            :state="VERDICT[verdict(row, column)].state"
+            :label="VERDICT[verdict(row, column)].label"
+          />
+        </template>
+      </MatrixGrid>
+      <template #footer>
+        <span>Brouillon · 1 cellule · 1 en revue</span>
+        <span class="k-num">1 s'ouvre sous réserve · 2 flux cassent · 0 guérit</span>
+      </template>
+    </Panneau>
+    <template #drawer>
+      <SidePanel label="Panneau droit" :tabs="panelTabs" tab="detail">
+        <template #detail>
+          <Stack gap="3">
+            <h2 class="k-ecran-subtitle">Recette → Production</h2>
+            <Attributs
+              :items="[
+                { key: 'state', label: 'État' },
+                { key: 'patterns', label: 'Motifs' },
+              ]"
+            >
+              <template #state><StatusBadge state="warn" label="Sous motif" /></template>
+              <template #patterns><CodeBadge code="bastion-admin" /></template>
+            </Attributs>
+            <TextField label="Libellé" model-value="Accès recette vers production" />
+            <InlineAlert
+              tone="warn"
+              title="Effet simulé : 2 flux cassent"
+              :items="[
+                { message: 'rece-batch → prod-api (tcp/443)', code: 'flow.verdict.denied' },
+                { message: 'rece-ci → prod-registry (tcp/5000)', code: 'flow.verdict.denied' },
+              ]"
+            />
+          </Stack>
+        </template>
+        <template #draft>
+          <p class="k-ecran-muted">3 opérations, dont la cellule Recette → Production.</p>
+        </template>
+        <template #footer>
+          <Button variant="primary" icon="draft" :shortcut="['Enter']">Ajouter au brouillon</Button>
+        </template>
+      </SidePanel>
+    </template>
   </Cadre>
 </template>
+
+<style>
+@layer components {
+  /* The matrix in a flush panel: the panel draws the outer border, as for a DataGrid. */
+  .k-ecran-panel__body[data-flush] > .k-matrix {
+    border: 0;
+    border-radius: 0;
+  }
+}
+</style>
