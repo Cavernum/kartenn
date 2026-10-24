@@ -107,11 +107,47 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
   l'agent principal)
   - où : `crates/kartenn-rest/src/stats.rs` ; `crates/kartenn-service/src/reads.rs`
     (prédicats de lecture) ; `crates/kartenn-bench`
-- [ ] 8. `?simulate=true` sur toute route d'écriture, `x-kartenn.simulate`,
+- [x] 8. `?simulate=true` sur toute route d'écriture, `x-kartenn.simulate`,
   `simulate.unsupported` ; xfail `--dry-run` de la CLI levé — REQ-024-17 — verify :
   test générique sur toutes les routes d'écriture de l'OpenAPI ; `k-py-e2e` sans xfail
   - où : `crates/kartenn-rest/src/kit.rs`, `resources.rs`, `cycle.rs` ;
     `clients/python/kartenn-cli/` (dry-run) ; `clients/python/e2e/`
+  - Résultat : `RequestContext::simulate` lu par l'authentification, honoré par
+    `changesets::submit_answered` (point de passage de toute écriture à changeset) ;
+    `simulation::gate` refuse le reste avant le handler ; test générique
+    `simulated::every_write_simulates_or_says_it_cannot` (81 écritures simulées, 14
+    refusées, changesets, outbox et lectures inchangés) ; client `simulate=True`, CLI
+    `--dry-run` par la route elle-même ; `k-py-e2e` sans xfail.
+  - Choix tranchés :
+    - Une écriture simule si et seulement si son 202 est un changeset en attente
+      (`ChangesetPending`, `UndoPending`) : `x-kartenn.simulate` en est tiré dans
+      `openapi::finish`, et la porte (`route_layer`) en est tirée à son tour ; une route
+      ajoutée sans 202 de changeset (brouillons, tâches 5–6) refuse donc
+      `simulate=true` par défaut, sans rien écrire.
+    - Le code de la 024 `simulate.unsupported` est la classe de problème
+      `urn:kartenn:problem:simulate-unsupported` (400), à la forme des autres types,
+      libellée en français et en anglais dans l'espace `problem` (018).
+    - Imports (`create`, `chunks`, `start`, `resume`, `cancel`) : refusés ; un import ne
+      soumet pas de changeset dans la requête (tâche de fond par lots). Rapports de
+      politique, acquittement d'anomalie, pseudonymisation, filtres de journal,
+      connexion : refusés.
+    - Secrets de compte de service (ajout, révocation) et création de compte : ils
+      soumettent un changeset, ils simulent donc (aucun secret n'est montré par une
+      simulation) ; la liste « secrets » du design visait les routes sans changeset.
+    - OpenAPI : paramètre `simulate` et 200 `ChangesetSimulated` ajoutés aux écritures
+      qui simulent ; à côté d'un 200 « appliqué » (PATCH, DELETE), le schéma devient
+      `oneOf` des deux.
+    - Une simulation journalise une ligne de lecture (`data.objects.read`, cible
+      `changeset`, critères `{simulate, valid}`), `POST /v1/changesets?simulate=true`
+      compris : le chemin existant n'en écrivait aucune (M6).
+    - `simulate=false` est accepté partout (sans effet) ; une valeur autre que
+      `true`/`false` ou répétée → 400 `bad-request`.
+    - Client Python : `Simulation` passe dans `kartenn.resources` (réexportée par
+      `kartenn.changesets`) ; `simulate=True` sur `create`, `update`, `close`, `verb` et
+      `call`, refusé localement (`client.simulate-unsupported`) quand le contrat dit
+      non ; `Operation.simulate` lu de `x-kartenn`. CLI : `--dry-run` envoie l'écriture
+      elle-même (plus de traduction en opération de changeset), motif par défaut
+      « simulation » ; `--into-changeset` garde la traduction.
 
 ## P2 — Révision des specs de l'interface
 
