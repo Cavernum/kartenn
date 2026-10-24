@@ -7829,6 +7829,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -7843,6 +7845,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -7914,6 +7925,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -7931,13 +7944,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -7965,6 +7979,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -7982,13 +7998,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -8255,6 +8272,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -8269,6 +8288,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -8340,6 +8368,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -8353,13 +8383,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -8387,6 +8418,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -8404,13 +8437,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -8929,6 +8963,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -8943,6 +8979,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Bound. */
       201: {
         headers: {
@@ -9009,6 +9054,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path: {
@@ -9024,13 +9071,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Ended. */
+      /** @description Ended. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -9478,6 +9526,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -9492,6 +9542,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -9563,6 +9622,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -9580,13 +9641,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -9614,6 +9676,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -9631,13 +9695,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -9904,6 +9969,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -9918,6 +9985,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -9989,6 +10065,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -10006,13 +10084,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -10040,6 +10119,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -10057,13 +10138,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -10332,6 +10414,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -10346,6 +10430,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -10417,6 +10510,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -10434,13 +10529,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -10468,6 +10564,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -10485,13 +10583,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -10715,6 +10814,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -10729,6 +10830,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -10800,6 +10910,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -10813,13 +10925,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -11036,6 +11149,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -11050,6 +11165,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -11121,6 +11245,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -11134,13 +11260,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -11168,6 +11295,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -11185,13 +11314,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -11449,6 +11579,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -11463,6 +11595,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Applied. */
       201: {
         headers: {
@@ -11534,6 +11675,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -11547,13 +11690,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -11581,6 +11725,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -11598,13 +11744,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a review or a decision. */
@@ -11825,6 +11972,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -11842,13 +11991,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Granted. */
+      /** @description Granted. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -11978,6 +12128,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path: {
@@ -11992,13 +12144,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Changed. */
+      /** @description Changed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12356,6 +12509,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -12370,6 +12525,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -12441,6 +12605,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -12454,13 +12620,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12488,6 +12655,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -12505,13 +12674,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12745,6 +12915,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -12759,6 +12931,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -12830,6 +13011,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -12847,13 +13030,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12881,6 +13065,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -12898,13 +13084,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12932,6 +13119,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -12949,13 +13138,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Attached. */
+      /** @description Attached. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -12983,6 +13173,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -13002,13 +13194,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Detached. */
+      /** @description Detached. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -13267,6 +13460,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -13281,6 +13476,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Attached. */
       201: {
         headers: {
@@ -13319,6 +13523,8 @@ export interface operations {
         entity?: string;
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path?: never;
@@ -13331,13 +13537,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Detached. */
+      /** @description Detached. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -13511,6 +13718,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -13525,6 +13734,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -13596,6 +13814,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -13613,13 +13833,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -13647,6 +13868,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -13664,13 +13887,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -14078,6 +14302,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -14092,6 +14318,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -14163,6 +14398,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -14176,13 +14413,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -14210,6 +14448,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -14227,13 +14467,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -14457,6 +14698,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -14471,6 +14714,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -14542,6 +14794,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -14555,13 +14809,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -14781,6 +15036,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the matrix of the flow type, read at present. */
@@ -14802,13 +15059,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Set. */
+      /** @description Set. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -14876,6 +15134,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -14890,6 +15150,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -14961,6 +15230,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -14974,13 +15245,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -15008,6 +15280,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -15025,13 +15299,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -15410,6 +15685,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -15424,6 +15701,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -15495,6 +15781,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -15508,13 +15796,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -15542,6 +15831,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -15559,13 +15850,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -15789,6 +16081,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -15803,6 +16097,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -16084,6 +16387,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -16098,6 +16403,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -16169,6 +16483,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -16186,13 +16502,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -16220,6 +16537,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -16237,13 +16556,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -16831,6 +17151,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -16845,6 +17167,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -16916,6 +17247,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -16933,13 +17266,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -16967,6 +17301,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -16984,13 +17320,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -17216,6 +17553,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -17230,6 +17569,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -17301,6 +17649,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -17314,13 +17664,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -17348,6 +17699,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -17365,13 +17718,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -17621,6 +17975,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path: {
@@ -17635,13 +17991,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Replaced. */
+      /** @description Replaced. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Created. */
@@ -17678,6 +18035,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path: {
@@ -17693,13 +18052,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -17793,6 +18153,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -17807,6 +18169,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created, its secret in `secret`. */
       201: {
         headers: {
@@ -17873,6 +18244,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -17890,6 +18263,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Added, the secret in `secret`. */
       201: {
         headers: {
@@ -17924,6 +18306,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: never;
       path: {
@@ -17941,13 +18325,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Revoked. */
+      /** @description Revoked. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18017,6 +18402,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -18031,6 +18418,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -18102,6 +18498,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18115,13 +18513,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18149,6 +18548,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18166,13 +18567,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18400,6 +18802,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -18414,6 +18818,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -18485,6 +18898,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18502,13 +18917,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18536,6 +18952,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18553,13 +18971,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18835,6 +19254,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -18849,6 +19270,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -18920,6 +19350,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18937,13 +19369,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -18971,6 +19404,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -18988,13 +19423,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -19304,6 +19740,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header?: {
         /** @description Makes the write idempotent for 24 h. */
@@ -19318,6 +19756,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
       /** @description Created. */
       201: {
         headers: {
@@ -19389,6 +19836,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -19406,13 +19855,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Closed. */
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
@@ -19440,6 +19890,8 @@ export interface operations {
       query?: {
         /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
       };
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
@@ -19457,13 +19909,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Modified. */
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ChangesetApplied"];
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
         };
       };
       /** @description Held for a decision. */
