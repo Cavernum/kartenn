@@ -205,6 +205,18 @@ pub struct Journal<'a> {
     pub on_behalf_of: Option<Uuid>,
 }
 
+/// The violation that kept a changeset pending when its author asked to apply it (spec
+/// 024, REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct StoredReason {
+    /// The code of its rule.
+    pub code: String,
+    /// Its message.
+    pub message: String,
+    /// The objects concerned.
+    pub objects: Vec<Uuid>,
+}
+
 /// What a pending changeset waits for (004/design, § Approbation et propositions).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Pending {
@@ -219,11 +231,10 @@ pub struct Pending {
     /// A module requires its review (REQ-016-10): its author does not apply it.
     #[serde(default)]
     pub review: bool,
-    /// Why its author could not apply it when asking to (spec 024, REQ-024-13): the
-    /// message and the objects of its `changeset.approval.self`, answered again on a
-    /// replay.
+    /// Why its author could not apply it when asking to (spec 024, REQ-024-13), answered
+    /// again on a replay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<(String, Vec<Uuid>)>,
+    pub reason: Option<StoredReason>,
     /// The author's issuer and groups when submitting (005, REQ-005-22): an approval
     /// checks the author's rights again with them, the groups living in the token.
     #[serde(default)]

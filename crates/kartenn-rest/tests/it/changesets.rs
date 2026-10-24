@@ -274,7 +274,11 @@ async fn apply_own_applies_or_falls_back_to_pending(pool: PgPool) {
     let (status, body) = post(&editor, "/v1/changesets?apply=own", "10.2.0.0/24").await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
     assert_eq!(body["state"], "pending");
-    assert_eq!(body["reason"]["code"], "changeset.approval.self");
+    assert_eq!(body["reason"]["code"], "changeset.apply_own.missing");
+    // The permissions lacking are named, as by the other refusals of rights.
+    let message = body["reason"]["message"].as_str().unwrap();
+    assert!(message.contains("core.domain.apply_own"), "{message}");
+    assert!(!body["reason"]["objects"].as_array().unwrap().is_empty());
     let id: Uuid = body["changeset"]["id"].as_str().unwrap().parse().unwrap();
     let (state, audited): (String, Vec<String>) = (
         sqlx::query_scalar("SELECT state FROM changeset WHERE id = $1")

@@ -6448,9 +6448,13 @@ export interface components {
         });
     /** @description Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13). */
     PendingReason: {
-      /** @description The code of the rule: `changeset.approval.self`. */
+      /**
+       * @description The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`
+       *     on some object or effect) or `changeset.approval.self` (a policy holds it, or a
+       *     module requires its review).
+       */
       code: string;
-      /** @description What holds it. */
+      /** @description What holds it; for a lack, each permission lacking. */
       message: string;
       /** @description The objects its author lacks the application of. */
       objects: string[];

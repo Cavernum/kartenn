@@ -67,8 +67,11 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
   champ `validator` de la vue d'un changeset) ; aucun champ dédié n'est ajouté au
   contrat. La soumission d'un brouillon (`/v1/drafts/{id}/submission?apply=own`) vient
   avec les brouillons (tâche 6).
-- Motif unique de repli : `changeset.approval.self` (politique, revue de module, ou
-  `apply_own` absent), gardé dans `required_rights.reason` pour rejouer la 202.
+- Deux motifs de repli (arbitré le 2026-10-24) : `changeset.apply_own.missing` quand
+  l'auteur n'a pas `apply_own` sur un objet ou un effet (le message nomme chaque
+  permission manquante), `changeset.approval.self` quand une politique le retient ou
+  qu'un module exige sa revue ; gardés dans `required_rights.reason` pour rejouer la 202.
+  La validation par l'auteur sans `apply_own` répond 403 `changeset.apply_own.missing`.
 - À la validation, les droits d'édition de l'auteur sont revérifiés (comme pour une
   approbation), sauf sur les opérations de revue que joint le valideur.
 - Un module qui exige une revue (REQ-016-10) interdit l'auto-application, comme une

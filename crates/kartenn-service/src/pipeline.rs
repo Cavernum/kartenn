@@ -146,7 +146,7 @@ pub enum Outcome {
         /// Differential that applying it would produce.
         diff: Vec<DiffCount>,
         /// Why its author could not apply it, when asked to (`apply_own`, REQ-024-13):
-        /// `changeset.approval.self`.
+        /// `changeset.apply_own.missing`, or `changeset.approval.self` (policy, review).
         reason: Option<Violation>,
     },
     /// A pending changeset validated but refused on the current state (REQ-004-22).
@@ -2199,8 +2199,7 @@ async fn stages<S: Store, A: Authorizer>(
                     Vec::new(),
                 ))
             } else if !unapplied.is_empty() {
-                let denied: Vec<Uuid> = unapplied.iter().flat_map(|v| v.subjects.clone()).collect();
-                Some(self_refused("its author lacks apply_own", denied))
+                Some(apply_own_missing(&unapplied))
             } else {
                 None
             };
@@ -2217,9 +2216,11 @@ async fn stages<S: Store, A: Authorizer>(
                     author: Some(author.clone()),
                     on_behalf_of: context.on_behalf_of,
                     review,
-                    reason: reason
-                        .as_ref()
-                        .map(|v| (v.message.clone(), v.subjects.clone())),
+                    reason: reason.as_ref().map(|v| crate::port::StoredReason {
+                        code: v.rule.id.to_owned(),
+                        message: v.message.clone(),
+                        objects: v.subjects.clone(),
+                    }),
                 };
                 let kind = if policy.is_some() {
                     PendingKind::Approval
@@ -2258,7 +2259,7 @@ async fn stages<S: Store, A: Authorizer>(
             if !denied.is_empty() {
                 tx.rollback().await?;
                 let violation = if validator == author.id {
-                    self_refused("its author lacks apply_own", denied)
+                    apply_own_missing(&unapplied)
                 } else {
                     forbidden(validator, denied)
                 };
@@ -2391,8 +2392,19 @@ fn forbidden(validator: Uuid, denied: Vec<Uuid>) -> Violation {
     .with_subjects(denied)
 }
 
-/// Why the author of a changeset does not apply it (spec 024, REQ-024-11, 12):
-/// `changeset.approval.self`, with the objects it lacks `apply_own` on.
+/// The author lacks `apply_own` (spec 024, REQ-024-11, 13): `changeset.apply_own.missing`,
+/// naming each permission lacking, with the objects concerned.
+fn apply_own_missing(unapplied: &[Violation]) -> Violation {
+    let lacking: Vec<&str> = unapplied.iter().map(|v| v.message.as_str()).collect();
+    Violation::new(
+        &rules::APPLY_OWN_MISSING,
+        format!("its author lacks apply_own: {}", lacking.join("; ")),
+    )
+    .with_subjects(unapplied.iter().flat_map(|v| v.subjects.clone()))
+}
+
+/// Why the author of a changeset does not apply it (spec 024, REQ-024-12): a policy
+/// holds it or a module requires its review, `changeset.approval.self`.
 pub(crate) fn self_refused(why: &str, denied: Vec<Uuid>) -> Violation {
     Violation::new(
         &rules::APPROVAL_SELF,

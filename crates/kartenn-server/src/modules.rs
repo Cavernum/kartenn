@@ -259,6 +259,8 @@ mod tests {
             "docs/spec/permissions.md",
             "crates/kartenn-service/tests/it/rbac.rs",
             "crates/kartenn-server/src/modules.rs",
+            // The test of migration 0063, which rewrites old names.
+            "crates/kartenn-store-pg/tests/it/changesets.rs",
         ];
         let olds = retired_names();
         let mut found = Vec::new();

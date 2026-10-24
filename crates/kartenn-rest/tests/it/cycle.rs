@@ -189,6 +189,32 @@ async fn hold_everything(app: &Router) {
     assert_eq!(status, StatusCode::CREATED, "{body}");
 }
 
+/// Spec 024, REQ-024-12, 13: a policy holds the changeset of an author who asks to apply
+/// it, even under `*`: 202, pending, `changeset.approval.self`, and nothing written.
+#[kartenn_testing::pg_test]
+async fn a_policy_keeps_apply_own_pending(pool: PgPool) {
+    let app = app_as(&pool, person(&pool, &["*"]).await);
+    hold_everything(&app).await;
+    let response = send(
+        &app,
+        post(
+            "/v1/changesets?apply=own",
+            &json!({"motive": "m", "operations": [{"op": "create_domain", "slug": "lab"}]}),
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let body = json_of(response).await;
+    assert_eq!(body["state"], "pending", "{body}");
+    assert_eq!(body["kind"], "approval", "{body}");
+    assert_eq!(body["reason"]["code"], "changeset.approval.self", "{body}");
+    let domains: i64 = sqlx::query_scalar("SELECT count(*) FROM addressing_domain")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(domains, 0);
+}
+
 /// The identifier of the changeset a 202 holds.
 async fn held(response: Response) -> String {
     assert_eq!(response.status(), StatusCode::ACCEPTED);

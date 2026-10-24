@@ -125,12 +125,15 @@ pub async fn journaled(pool: &PgPool, id: Uuid) -> Result<Option<Journaled>, Sto
     found.extend(violations(&warnings)?);
     let reason = reason
         .filter(|r| !r.is_null())
-        .map(serde_json::from_value::<(String, Vec<Uuid>)>)
+        .map(serde_json::from_value::<kartenn_service::port::StoredReason>)
         .transpose()
         .map_err(store_err)?
-        .map(|(message, objects)| {
-            Violation::new(&rules::APPROVAL_SELF, message).with_subjects(objects)
-        });
+        .map(|r| {
+            let rule = rules::rule(&r.code)
+                .ok_or_else(|| store_err(format!("unknown rule {} in the journal", r.code)))?;
+            Ok::<_, StoreError>(Violation::new(rule, r.message).with_subjects(r.objects))
+        })
+        .transpose()?;
     Ok(Some(Journaled {
         state,
         kind,

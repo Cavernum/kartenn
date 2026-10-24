@@ -346,7 +346,11 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ),
     (
         "changeset.approval.self",
-        "The author applies their own changeset only under the apply_own permissions, when no approval policy holds it and no module requires its review; they never reject it.",
+        "The author does not apply their own changeset when an approval policy holds it or a module requires its review; they never reject it.",
+    ),
+    (
+        "changeset.apply_own.missing",
+        "The author applies their own changeset only if they hold apply_own on everything it touches, objects and effects.",
     ),
     (
         "changeset.approval.forbidden",

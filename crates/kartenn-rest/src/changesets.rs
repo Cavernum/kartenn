@@ -624,7 +624,7 @@ pub(crate) struct ChangesetPending {
     #[schema(value_type = Vec<DiffCountDto>)]
     diff: Value,
     /// Why its author did not apply it, when the write asked to (`apply=own`, spec 024,
-    /// REQ-024-13): `changeset.approval.self`.
+    /// REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
     #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<PendingReason>,
     /// The secret the changeset generated, shown once.
@@ -636,9 +636,11 @@ pub(crate) struct ChangesetPending {
 /// Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).
 #[derive(Debug, Serialize, ToSchema)]
 pub(crate) struct PendingReason {
-    /// The code of the rule: `changeset.approval.self`.
+    /// The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`
+    /// on some object or effect) or `changeset.approval.self` (a policy holds it, or a
+    /// module requires its review).
     code: String,
-    /// What holds it.
+    /// What holds it; for a lack, each permission lacking.
     message: String,
     /// The objects its author lacks the application of.
     objects: Vec<Uuid>,

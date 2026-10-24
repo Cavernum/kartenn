@@ -248,11 +248,12 @@ impl AuditJournal for MemoryJournal {
 
 /// Rules whose violation is a refusal of rights, audited as `authz.access.denied`.
 /// An operation joined to a validation that is not one of review (INV-61) is one too.
-const RIGHTS_RULES: [&str; 6] = [
+const RIGHTS_RULES: [&str; 7] = [
     rules::PROP_FORBIDDEN_EFFECT.id,
     rules::POLICY_FORBIDDEN.id,
     rules::APPROVAL_FORBIDDEN.id,
     rules::APPROVAL_SELF.id,
+    rules::APPLY_OWN_MISSING.id,
     rules::CHANGESET_NOT_AUTHOR.id,
     rules::REVIEW_OPERATION.id,
 ];

@@ -94,7 +94,8 @@ class Applied:
 class Pending:
     """A write held for a decision (202): the changeset to follow, `approval` or
     `proposal`, and, when the write asked to apply it (`apply=own`, spec 024), why its
-    author did not (`changeset.approval.self`)."""
+    author did not: `changeset.apply_own.missing` (a permission lacking) or
+    `changeset.approval.self` (a policy holds it, or a module requires its review)."""
 
     changeset: str | None
     kind: str | None

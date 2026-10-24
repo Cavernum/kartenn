@@ -55,7 +55,8 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.operation.conflict` | erreur | Une opération qui précise la version attendue d'un objet échoue si la version courante diffère. | REQ-004-11 | 004/design |
 | `changeset.state.not_pending` | erreur | Seul un changeset en attente peut être validé, rejeté ou retiré. | REQ-004-19, REQ-004-24 | 004/design |
 | `changeset.state.not_author` | erreur | Seul l'auteur retire son changeset en attente. | REQ-004-23 | 004/design |
-| `changeset.approval.self` | erreur | L'auteur n'applique son propre changeset que sous les permissions `apply_own`, quand aucune politique d'approbation ne le retient et qu'aucun module n'exige sa revue ; il ne le rejette pas. | REQ-024-11, REQ-024-12 | 024/M7 |
+| `changeset.approval.self` | erreur | L'auteur n'applique pas son propre changeset quand une politique d'approbation le retient ou qu'un module exige sa revue ; il ne le rejette pas. | REQ-024-11, REQ-024-12 | 024/M7 |
+| `changeset.apply_own.missing` | erreur | L'auteur n'applique son propre changeset que s'il détient `apply_own` sur tout ce qu'il touche, objets et effets. | REQ-024-11, REQ-024-13 | 024/M7 |
 | `changeset.approval.forbidden` | erreur | Qui applique ou rejette le changeset d'un autre détient la permission apply de tout ce qu'il touche. | REQ-024-11 | 024/M7 |
 | `core.review.operation` | erreur | Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition. | REQ-016-11 | 016/G12 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |

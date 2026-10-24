@@ -1007,7 +1007,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PendingReason",
-                "description": "Why its author did not apply it, when the write asked to (`apply=own`, spec 024,\nREQ-024-13): `changeset.approval.self`."
+                "description": "Why its author did not apply it, when the write asked to (`apply=own`, spec 024,\nREQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`."
               },
               {
                 "type": "null"
@@ -7407,11 +7407,11 @@
         "description": "Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).",
         "properties": {
           "code": {
-            "description": "The code of the rule: `changeset.approval.self`.",
+            "description": "The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`\non some object or effect) or `changeset.approval.self` (a policy holds it, or a\nmodule requires its review).",
             "type": "string"
           },
           "message": {
-            "description": "What holds it.",
+            "description": "What holds it; for a lack, each permission lacking.",
             "type": "string"
           },
           "objects": {

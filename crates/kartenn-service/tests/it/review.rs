@@ -490,7 +490,7 @@ async fn an_author_who_may_only_edit_proposes(pool: PgPool) {
     // REQ-024-11: not the author without apply_own, not without the apply right.
     assert_eq!(
         rule(f.validate(&rights, proposal, f.author).await),
-        "changeset.approval.self"
+        "changeset.apply_own.missing"
     );
     assert_eq!(
         rule(f.validate(&rights, proposal, outsider).await),
@@ -639,7 +639,7 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
     assert_eq!(reason, None);
     // REQ-024-13: asked to apply without apply_own → pending, with its reason.
     let (refused, reason) = pending(submit_with(editor.clone(), ids[1], true).await);
-    assert_eq!(reason, Some("changeset.approval.self"));
+    assert_eq!(reason, Some("changeset.apply_own.missing"));
     assert_eq!(f.state(refused).await, "pending");
     // REQ-024-13: under apply_own, applied in the same request, audited twice, its author
     // as its validator.
@@ -666,7 +666,7 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
     let applier = editor.clone().everywhere(f.author, apply);
     assert_eq!(
         rule(f.validate(&applier, held, f.author).await),
-        "changeset.approval.self"
+        "changeset.apply_own.missing"
     );
     assert!(matches!(
         f.validate(&maintainer, held, f.author).await.unwrap(),
