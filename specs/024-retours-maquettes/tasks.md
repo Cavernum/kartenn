@@ -189,27 +189,46 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
   `pending.mine` = ses propres changesets en attente, comptés sans
   `core.changeset.read` (ce sont les siens). `anomalies.open` toujours présent : la liste
   des anomalies n'a pas de permission globale, seulement la lecture de leur objet.
-- Cache : deux caches du processus, 30 s, 1 024 entrées au plus — la partie qui ne
-  dépend que des droits par (SHA-256 du périmètre de lecture, lecture des changesets,
-  révision de l'outbox, base), `pending` et les compteurs des modules (le flux compte
-  ceux dont l'appelant est demandeur) par (sujet, groupes, clé des droits) ; révision =
-  `max(seq)` de l'outbox (un événement d'une transaction plus ancienne qui valide plus tard
-  attend l'expiration). Comptes lancés en parallèle sur le pool (≈ 10 connexions par
-  calcul à froid).
+- Instantanés (tâche 7b, M18) : deux niveaux de `Snapshots` — la partie qui ne dépend
+  que des droits par (SHA-256 du périmètre de lecture, lecture des changesets, base),
+  `pending` et les compteurs des modules (le flux compte ceux dont l'appelant est
+  demandeur) par (sujet, groupes, clé des droits) ; chaque clé garde de quoi se
+  recalculer (périmètre, sujet). Révision = `max(seq)` de l'outbox, lue avant le calcul :
+  un changement validé pendant le calcul le rend dû de nouveau. Comptes lancés en
+  parallèle sur le pool (≈ 10 connexions par calcul).
+- Recalcul : déclenché par la lecture qui trouve l'instantané dû (elle le sert tel quel)
+  et par `Snapshots::run`, qui balaie toutes les 5 s (`Freshness::tick`) et ne lit la
+  révision que si une clé active a l'âge voulu. Dû aussi quand l'instantané date d'un
+  jour UTC antérieur, sans changement : `by_day` glisse à minuit. Deux recalculs à la
+  fois au plus (sémaphore) ; le calcul en ligne d'une clé neuve n'y passe pas (un
+  appelant attend), mais tourne dans une tâche à part : une requête abandonnée ne laisse
+  pas la clé occupée, et les premiers appels simultanés d'une clé attendent le même
+  calcul. Un échec garde l'instantané précédent (journalisé `stats.snapshot.failed`).
+- Pleine : on oublie d'abord les clés non lues depuis 24 h, puis la moins récemment lue
+  qui n'est pas en calcul ; le balayage oublie aussi. Réglages dans
+  `kartenn_rest::stats::Freshness` (non exposés dans la configuration), passés par une
+  `Extension<Arc<Snapshots>>` ; sans elle (tests, bancs anciens), un jeu du processus aux
+  réglages par défaut, recalculé seulement par les lectures.
+- `computed_at` : RFC 3339, date du plus ancien des deux niveaux ; recalculé à
+  l'identique, le corps change quand même de date, donc d'ETag (sans événement `stats`).
 - ETag fort : 128 premiers bits du SHA-256 du corps ; `Cache-Control` d'une lecture du
   présent. Aucun `data.objects.read` : un compte ne divulgue aucun objet.
 - SSE `stats` : `Message::Signal`, sans `id:` (le curseur ne bouge pas), données `{}` (un
   navigateur ne distribue pas un événement sans données), sélectionnable par `kinds` ;
-  dû à toute notice `changes` ou `changeset` d'un lot (pas `labels`), envoyé à toutes les
-  connexions (sans contenu, rien à filtrer), au plus un par `Settings::stats_every`
-  (30 s, non exposé dans `[events]`) ; une notice retenue part au premier passage du
-  lecteur après l'intervalle.
+  dû quand un recalcul a changé les compteurs d'un niveau (`Hub::stats_changed`, appelé
+  par `Snapshots::on_changed` ; depuis la tâche 7b, plus à chaque notice), envoyé à
+  toutes les connexions (sans contenu, rien à filtrer), au plus un par
+  `Settings::stats_every` (30 s, non exposé dans `[events]`) ; un signal retenu part au
+  premier passage du lecteur après l'intervalle.
 - Client : `Client.stats()`/`AsyncClient.stats()` rendent le corps ; `stats` n'est pas une
   ressource dérivée du catalogue ; `kartenn stats [-o FORMAT]` parmi les outils.
 - Banc : deux budgets dans `bench-core`, après VLAN et machines — un lecteur de tout
-  (`*` global) et le sujet de `bench-rbac` (50 groupes, 1 000 liaisons) —, 40 calculs à
-  froid chacun (`stats::compute`, sans cache).
-- [ ] 7b. Statistiques servies d'un instantané recalculé en arrière-plan (M18) —
+  (`*` global) et le sujet de `bench-rbac` (50 groupes, 1 000 liaisons) —, chacun mesuré
+  sur la route servie de son instantané (200 lectures par le routeur, après une première
+  qui calcule, budget 200 ms) et sur le calcul (`stats::compute`, 20 calculs après 2 de
+  mise en route, budget 10 s ; 20 et non 40 pour borner la durée du banc complet) ;
+  p50/p95/p99 dans le rapport.
+- [x] 7b. Statistiques servies d'un instantané recalculé en arrière-plan (M18) —
   REQ-024-16 — verify : tests (instantané servi sans calcul, recalcul dû après une
   notice et 30 s, un seul calcul par clé, clé oubliée, `computed_at`) ; `bench-core`
   scénario `stats` : route p95 ≤ 200 ms, calcul p95 ≤ 10 s (lancé par l'agent principal)
@@ -218,6 +237,15 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     (`crates/kartenn-rest/src/events/hub.rs`) ; design § C ; banc `stats_budgets`
     (`crates/kartenn-bench`) : ajouter la mesure de la route servie et p50/p99 ;
     test voisin `the_etag_and_the_cache_follow_the_outbox`
+  - Résultat : `kartenn_rest::stats::{Snapshots, Freshness}` (`Snapshots::run`,
+    `sweep`, `on_changed`, `computations`), `computed_at` dans `Stats` ;
+    `Hub::stats_changed` (l'événement `stats` ne suit plus les notices) ; câblage dans
+    `kartenn-server` (`app.rs`) ; tests `the_etag_and_the_snapshot_follow_the_outbox`,
+    `nothing_changed_nothing_is_recomputed`, `one_computation_per_key_at_a_time`,
+    `the_sweep_keeps_the_keys_read_lately` (REST), `stats_events_are_coalesced`,
+    `a_recomputation_that_changed_the_statistics_sends_stats` (SSE) ; `stats_budgets`
+    mesure la route servie (200 lectures) et le calcul (20), p50/p95/p99 (petite
+    échelle validée, mesure complète à faire).
 - [x] 8. `?simulate=true` sur toute route d'écriture, `x-kartenn.simulate`,
   `simulate.unsupported` ; xfail `--dry-run` de la CLI levé — REQ-024-17 — verify :
   test générique sur toutes les routes d'écriture de l'OpenAPI ; `k-py-e2e` sans xfail

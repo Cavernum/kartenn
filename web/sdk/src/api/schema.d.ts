@@ -7518,6 +7518,11 @@ export interface components {
       anomalies: components["schemas"]["AnomalyStats"];
       changesets?: components["schemas"]["ChangesetStats"] | null;
       /**
+       * @description When these counters were computed, RFC 3339: they lag the changes made since,
+       *     until the next recomputation.
+       */
+      computed_at: string;
+      /**
        * @description The counters of each module, under its name; a module that counts nothing the
        *     caller reads is absent.
        */
@@ -20046,7 +20051,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The counters, each filtered by the read rights of the caller; a kind it reads nowhere is absent, `changesets` without `core.changeset.read`. Kept up to 30 s; the event `stats` of `GET /v1/events` says when to read again. Its strong ETag is a digest of the body. */
+      /** @description The counters, each filtered by the read rights of the caller; a kind it reads nowhere is absent, `changesets` without `core.changeset.read`. Served from the last computation for the rights of the caller (`computed_at`), recomputed in the background at most every 30 s once something changed; the event `stats` of `GET /v1/events` says when a recomputation changed them. Its strong ETag is a digest of the body. */
       200: {
         headers: {
           [name: string]: unknown;

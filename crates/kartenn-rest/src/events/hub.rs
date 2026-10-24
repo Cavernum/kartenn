@@ -989,19 +989,24 @@ impl Hub {
                 }
             }
         }
-        let changed = notices
-            .iter()
-            .any(|n| matches!(n.body, Body::Changes(_) | Body::Changeset { .. }));
-        self.signal_stats(changed, &conns);
+        // A `stats` held back goes out at the first pass after the interval.
+        self.signal_stats(false, &conns);
         self.floor.fetch_max(floor, Ordering::SeqCst);
         self.close_overflowed();
     }
 
-    /// Hands `stats` to the connections that select it when a counter may have changed,
-    /// in this batch (`changed`) or in one held back, at most once per
-    /// [`Settings::stats_every`] (spec 024, REQ-024-16): the reader publishes at each pass,
-    /// so a held back one goes out at the first pass after the interval. Its data is
-    /// empty: whoever receives it reads `GET /v1/stats` again, under its own rights.
+    /// A recomputation of the statistics changed a body (spec 024, M18): `stats` goes out,
+    /// at once or once [`Settings::stats_every`] has passed since the last one.
+    pub fn stats_changed(&self) {
+        let conns: Vec<Arc<Conn>> = lock(&self.inner).conns.values().cloned().collect();
+        self.signal_stats(true, &conns);
+    }
+
+    /// Hands `stats` to the connections that select it when a counter changed, now
+    /// (`changed`) or in a change held back, at most once per [`Settings::stats_every`]
+    /// (spec 024, REQ-024-16): the reader publishes at each pass, so a held back one goes
+    /// out at the first pass after the interval. Its data is empty: whoever receives it
+    /// reads `GET /v1/stats` again, under its own rights.
     fn signal_stats(&self, changed: bool, conns: &[Arc<Conn>]) {
         let mut signal = lock(&self.counters);
         signal.due |= changed;

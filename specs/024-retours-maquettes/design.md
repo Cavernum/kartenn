@@ -122,10 +122,11 @@ l'outbox qu'il a vue :
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
   encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
   en ligne et le garde ;
-- un recalcul est dû quand la révision de l'outbox a dépassé celle de l'instantané et
-  qu'il a au moins 30 s ; il tourne en arrière-plan, une seule fois par clé à la fois
-  (pas de calculs en double), au plus deux calculs simultanés sur le serveur pour ne pas
-  affamer le pool ;
+- un recalcul est dû quand l'instantané a au moins 30 s et que la révision de l'outbox
+  a dépassé la sienne, ou qu'il date d'un jour UTC antérieur (`by_day` a glissé) ; il
+  tourne en arrière-plan, une seule fois par clé à la fois (pas de calculs en double),
+  au plus deux recalculs simultanés sur le serveur pour ne pas affamer le pool (le
+  calcul en ligne d'un premier appel n'attend pas ces deux places) ;
 - seules les clés lues dans les 10 dernières minutes sont recalculées ; une clé non lue
   depuis 24 h est oubliée ; 1 024 clés au plus (la moins récemment lue sort) ;
 - l'événement `stats` (sans contenu, au plus un toutes les 30 s) part quand un

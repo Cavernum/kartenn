@@ -9671,6 +9671,10 @@
               }
             ]
           },
+          "computed_at": {
+            "description": "When these counters were computed, RFC 3339: they lag the changes made since,\nuntil the next recomputation.",
+            "type": "string"
+          },
           "modules": {
             "additionalProperties": {
               "additionalProperties": {
@@ -9709,7 +9713,8 @@
           "objects",
           "pending",
           "anomalies",
-          "modules"
+          "modules",
+          "computed_at"
         ],
         "type": "object"
       },
@@ -33237,7 +33242,7 @@
                 }
               }
             },
-            "description": "The counters, each filtered by the read rights of the caller; a kind it reads nowhere is absent, `changesets` without `core.changeset.read`. Kept up to 30 s; the event `stats` of `GET /v1/events` says when to read again. Its strong ETag is a digest of the body."
+            "description": "The counters, each filtered by the read rights of the caller; a kind it reads nowhere is absent, `changesets` without `core.changeset.read`. Served from the last computation for the rights of the caller (`computed_at`), recomputed in the background at most every 30 s once something changed; the event `stats` of `GET /v1/events` says when a recomputation changed them. Its strong ETag is a digest of the body."
           },
           "304": {
             "description": "Unchanged since the `ETag` of `If-None-Match`."

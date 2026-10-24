@@ -19,6 +19,7 @@ use kartenn_rest::events::reader::Reader;
 use kartenn_rest::health::PgReadiness;
 use kartenn_rest::objects::Api;
 use kartenn_rest::quota::{Quotas, Rate, Rates};
+use kartenn_rest::stats::{Freshness, Snapshots};
 use kartenn_rest::transport::{ConnectionTls, Settings};
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
@@ -1581,8 +1582,9 @@ async fn a_client_that_no_longer_reads_loses_its_socket(pool: PgPool) {
     assert!(closed.is_ok(), "the socket is closed");
 }
 
-/// Spec 024, REQ-024-16: `stats` carries nothing, comes at most once per interval to a
-/// subscriber who reads nothing, and a change held back goes out once the interval has
+/// Spec 024, REQ-024-16, M18: `stats` carries nothing and comes when a recomputation
+/// changed the statistics, not at each changeset; at most once per interval to a
+/// subscriber who reads nothing, a change held back going out once the interval has
 /// passed; with nothing more, nothing more.
 #[kartenn_testing::pg_test]
 async fn stats_events_are_coalesced(pool: PgPool) {
@@ -1599,12 +1601,20 @@ async fn stats_events_are_coalesced(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(client.next(WAIT).await.unwrap().event, "ready");
     let writer = author(&pool).await;
-    let d = domain(&pool, writer, "prod").await;
+    domain(&pool, writer, "prod").await;
+    assert!(
+        client
+            .next_of("stats", Duration::from_secs(1))
+            .await
+            .is_none(),
+        "a changeset alone changed no snapshot"
+    );
+    i.hub.stats_changed();
     let first = client.next_of("stats", WAIT).await.expect("a stats event");
     let sent = tokio::time::Instant::now();
     assert_eq!(first.data, "{}");
-    apply(&pool, writer, vec![prefix_in(d, "10.0.0.0/8")]).await;
-    apply(&pool, writer, vec![prefix_in(d, "10.1.0.0/16")]).await;
+    i.hub.stats_changed();
+    i.hub.stats_changed();
     let second = client
         .next_of("stats", every + WAIT)
         .await
@@ -1619,4 +1629,52 @@ async fn stats_events_are_coalesced(pool: PgPool) {
         client.next_of("stats", every + every / 2).await.is_none(),
         "nothing changed since"
     );
+}
+
+/// Spec 024, M18: a background recomputation that changed the statistics of a reader
+/// sends `stats` to the subscribers.
+#[kartenn_testing::pg_test]
+async fn a_recomputation_that_changed_the_statistics_sends_stats(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let reader = person(&pool, &["core.domain.read"], ("global", None)).await;
+    let refresh = Duration::from_millis(200);
+    let snapshots = Snapshots::new(Freshness {
+        refresh,
+        ..Freshness::default()
+    });
+    let hub = Arc::downgrade(&i.hub);
+    snapshots.on_changed(move || {
+        if let Some(hub) = hub.upgrade() {
+            hub.stats_changed();
+        }
+    });
+    let app = app(&pool, &ring, &i.hub, reader).layer(axum::Extension(snapshots.clone()));
+    let (response, mut client) = open(&app, "/v1/events?kinds=stats", None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(client.next(WAIT).await.unwrap().event, "ready");
+    let read = || async {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/v1/stats")
+                    .header(header::AUTHORIZATION, "Bearer t")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice::<Value>(&bytes).unwrap()
+    };
+    assert_eq!(read().await["objects"]["core.domain"], 0);
+    let writer = author(&pool).await;
+    domain(&pool, writer, "prod").await;
+    tokio::time::sleep(refresh).await;
+    // Served the snapshot, the recomputation started.
+    assert_eq!(read().await["objects"]["core.domain"], 0);
+    let event = client.next_of("stats", WAIT).await.expect("a stats event");
+    assert_eq!(event.data, "{}");
+    assert_eq!(read().await["objects"]["core.domain"], 1);
 }
