@@ -14,6 +14,14 @@ besoins des specs 002 et 003 (différentiel, simulation, approbation, verrous pa
 - Rejeté : approbations multiples (modèle de politique plus lourd, évolution possible),
   auto-approbation (aucune valeur de sécurité).
 - Décidé par : recommandation acceptée
+- **Amendée par la 024 (M7, 2026-10-24)** : tout changeset soumis est en attente ; deux
+  chemins de droits par ressource remplacent `write`, `propose` et
+  `core.changeset.approve` : `….apply` (appliquer ou rejeter le changeset d'un autre) et
+  `….apply_own` (appliquer le sien, y compris dans la requête qui le soumet,
+  `?apply=own`). L'auto-application devient possible pour qui détient `apply_own` ; une
+  politique d'approbation qui retient un changeset l'interdit toujours à son auteur
+  (`changeset.approval.self`). Voir
+  [`024/decisions.md`](../024-retours-maquettes/decisions.md) M7.
 
 ## C2 — Écritures rétroactives libres
 - Décision : toute personne autorisée à écrire sur un périmètre peut viser une période
@@ -80,6 +88,8 @@ besoins des specs 002 et 003 (différentiel, simulation, approbation, verrous pa
 - Décidé par : l'utilisateur
 
 ## C7 — Droit de proposer (collaboration)
+- *Remplacée par la 024 (M7, 2026-10-24) : `….edit` soumet, toujours en attente ;
+  `….apply` valide le changeset d'un autre. La file des propositions demeure.*
 - Décision : chaque permission d'écriture `X.write` a un niveau inférieur `X.propose`.
   Une identité qui a `propose` mais pas `write` sur ce qu'un changeset modifie (objets
   visés et effets, 003) peut le soumettre : il devient une **proposition**, toujours mise

@@ -44,6 +44,8 @@ Décisions : [`decisions.md`](decisions.md) (R1–R25, Q-018-1 à 8) ; D10, D11,
 ### A. Noms de permissions
 
 #### REQ-018-1 — Règle de nommage
+*Note de la 024 (REQ-024-9, 2026-10-24) : `write` et `propose` sont devenus `edit`,
+`apply`, `apply_own` (`machines.write` → `machines.edit`) ; la règle de nommage tient.*
 kartenn doit nommer chaque permission `<module>.<ressource>.<action>`, sauf quand la
 ressource porte le nom du module, auquel cas elle doit s'écrire `<module>.<action>` ; les
 permissions de propriété restent `prop.<clé>.<action>`. [R2, R5, amende 005/K12]
@@ -74,6 +76,8 @@ Acceptation :
   l'entrée.
 
 #### REQ-018-4 — Migration des rôles personnalisés
+*Note de la 024 (REQ-024-9, 2026-10-24) : la même étape remplace aussi les verbes retirés
+par la 024 ; son motif est devenu `permission rename 024`.*
 Lors de la mise à jour d'une instance, le job de migration doit remplacer chaque ancien
 nom des rôles personnalisés par le nouveau dans un changeset de l'auteur `système`, de
 motif `permission rename 018`, idempotent et audité, sans toucher aux liaisons.

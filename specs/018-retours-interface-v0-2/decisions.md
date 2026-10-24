@@ -67,6 +67,9 @@ de l'API ; il n'y a pas encore d'utilisateurs.
   (`policy.service.admin`, `core.changeset.read`, `flow.waiver.grant`).
 - Amende : 005/K12.
 - Décidé par : l'utilisateur (2026-10-22)
+- Amendé par la 024 (M7, Q-024-6, 2026-10-24) : la règle de nommage tient ; les actions
+  `write` et `propose` (et `core.changeset.approve`) sont remplacées par `edit`, `apply`,
+  `apply_own` (`machines.write` → `machines.edit` + `machines.apply_own`).
 
 ## R3 — Table de correspondance
 - Décision : la correspondance ancien → nouveau nom est une table statique du code
@@ -76,6 +79,9 @@ de l'API ; il n'y a pas encore d'utilisateurs.
   n'ouvre **aucun alias** (Q-018-2). Table complète : [`design.md`](design.md),
   « Correspondance des permissions ».
 - Décidé par : Claude (choix interne)
+- Complété par la 024 (REQ-024-9, 2026-10-24) : `authz::retired` compose la table de la
+  018 avec le remplacement des verbes de la 024 ; la migration des rôles personnalisés
+  (motif `permission rename 024`) et le dictionnaire des anciens noms en dérivent.
 
 ## R4 — Les sortes d'objets ne changent pas
 - Décision : seules les permissions sont renommées ; les sortes (`vlan.vlan`,

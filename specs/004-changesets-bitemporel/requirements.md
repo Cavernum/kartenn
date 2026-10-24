@@ -171,6 +171,10 @@ stateDiagram-v2
 ```
 
 #### REQ-004-20 — Approbation selon une politique
+*Amendée par la 024 (REQ-024-10, 12, 2026-10-24) : sans politique, un changeset reste aussi
+en attente sauf s'il est soumis avec `?apply=own` par un auteur qui détient `apply_own` ;
+une politique qui le retient interdit cette auto-application. Dans l'exemple, le
+changeset de 3 adresses s'applique immédiatement quand son auteur le demande ainsi.*
 Là où un administrateur a configuré une politique d'approbation dont les déclencheurs
 correspondent au changeset, kartenn doit mettre le changeset en attente au lieu de
 l'appliquer (C6).
@@ -180,6 +184,9 @@ Acceptation :
   adresses passe en attente ; un changeset de 3 adresses s'applique immédiatement.
 
 #### REQ-004-39 — Aucune approbation par défaut
+*Amendée par la 024 (REQ-024-10, 13, 2026-10-24) : tout changeset soumis est en attente ;
+il s'applique dans la même requête quand son auteur le demande (`?apply=own`) et détient
+`apply_own` — aucune politique n'est requise pour cela.*
 kartenn doit appliquer immédiatement tout changeset autorisé tant qu'aucune politique
 d'approbation ne le vise ; aucune déclaration de module ne doit pouvoir imposer une
 approbation (C6).
@@ -196,23 +203,31 @@ service).
 
 #### REQ-004-41 — Proposition
 *Amendée par la 016 (REQ-016-10, 2026-10-21) : proposition forcée par un module qui exige une revue.*
+*Amendée par la 024 (REQ-024-9, 10, 2026-10-24) : `…write` et `…propose` disparaissent ;
+sous `….edit`, tout changeset soumis est en attente, sans `edit` il est refusé
+([024](../024-retours-maquettes/requirements.md#b-deux-chemins-de-droits)).*
 Si l'auteur n'a pas le droit d'écriture requis par une opération ou un effet
 (003/REQ-003-17, 18) mais détient le droit de proposer correspondant (`…propose`), alors
 kartenn doit enregistrer le changeset comme **proposition** en attente au lieu de le
 refuser (C7). Sans l'un ni l'autre, le changeset est refusé.
 
 Acceptation :
-- Un utilisateur avec `core.address.propose` sur son réseau propose de passer l'usage de
-  l'adresse de sa VM de « réservée » à « hôte » : la proposition est en attente ; sans
-  `propose`, le changeset est refusé.
+- Un utilisateur avec `core.address.edit` (avant la 024 : `core.address.propose`) sur son
+  réseau propose de passer l'usage de l'adresse de sa VM de « réservée » à « hôte » : la
+  proposition est en attente ; sans `edit`, le changeset est refusé.
 
 #### REQ-004-42 — Validation d'une proposition
 *Amendée par la 016 (REQ-016-11, 2026-10-21) : opérations de revue jointes par le valideur.*
+*Amendée par la 024 (REQ-024-11, 12, 2026-10-24) : le valideur détient `….apply` sur tout
+ce que le changeset touche, ou en est l'auteur et détient `….apply_own`, sauf quand une
+politique le retient ou qu'un module exige sa revue (`changeset.approval.self`).*
 kartenn doit n'accepter la validation d'une proposition que d'une identité qui détient le
 droit d'écriture sur tout ce que la proposition modifie (objets et effets) et qui n'en est
 pas l'auteur ; la proposition est revalidée à l'application (REQ-004-22).
 
 #### REQ-004-43 — File des propositions et notifications
+*Amendée par la 024 (REQ-024-11, 2026-10-24) : le mainteneur concerné détient l'application
+(`….apply`) de ce que la proposition requiert.*
 Quand une proposition est soumise, kartenn doit la rendre visible dans la file des
 propositions de chaque mainteneur concerné (identités qui détiennent le droit d'écriture
 requis sur son périmètre) et émettre un événement ; quand elle est appliquée, rejetée ou
@@ -223,6 +238,10 @@ Acceptation :
 - Le rejet porte un motif, restitué à l'auteur.
 
 #### REQ-004-21 — Approbateur
+*Amendée par la 024 (REQ-024-9, 11, 12, 2026-10-24 ; amende C1) : `core.changeset.approve`
+disparaît ; l'approbateur détient `….apply` sur tout ce que le changeset touche. L'auteur
+applique son propre changeset sous `….apply_own`, jamais quand une politique le retient
+([024/M7](../024-retours-maquettes/decisions.md#m7--deux-chemins-de-droits--édition-et-application)).*
 kartenn doit n'accepter l'approbation que d'une identité qui détient la permission
 d'approbation sur tout le périmètre du changeset et qui n'en est pas l'auteur (C1).
 

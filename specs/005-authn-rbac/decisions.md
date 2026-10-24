@@ -159,6 +159,15 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   sont refusés, sans alias ; le job de migration renomme ceux des rôles personnalisés
   (018/Q-018-3). Table : `docs/spec/permissions.md`, « Anciens noms ».
 - Décidé par (amendement) : l'utilisateur (spec 018)
+- Amendé le 2026-10-24 (024/M7, Q-024-6) : `write`, `propose` et `approve` disparaissent ;
+  chaque ressource, et chaque propriété (`prop.<clé>.…`), a `edit` (créer et soumettre un
+  changeset, toujours en attente), `apply` (appliquer ou rejeter le changeset d'un autre)
+  et `apply_own` (appliquer le sien). L'éditeur livré reçoit `edit` et `apply_own`,
+  l'approbateur `apply` (objets des modules compris) ; nouvelle permission globale
+  `core.draft.admin`. Le job de migration remplace les anciens verbes des rôles
+  personnalisés (`write` → `edit` + `apply_own`, `propose` → `edit`, `approve` → chaque
+  `apply`).
+- Décidé par (amendement) : l'utilisateur (spec 024)
 
 ## K13 — Objets sans propriétaire, rattachement global
 - Décision : le rattachement d'un émetteur peut être **global** (typiquement l'IdP
