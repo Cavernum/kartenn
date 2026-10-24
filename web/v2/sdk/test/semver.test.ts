@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { describe, expect, it } from "vitest";
-import { compare, parseVersion, satisfies } from "../src/semver.ts";
+import { compare, parseVersion, satisfies, unmetRange } from "../src/semver.ts";
 
 describe("sdk range of a manifest (W7)", () => {
   it.each([
@@ -58,5 +58,20 @@ describe("sdk range of a manifest (W7)", () => {
     for (let i = 1; i < order.length; i++) {
       expect(compare(order[i - 1]!, order[i]!)).toBeLessThan(0);
     }
+  });
+});
+
+describe("ranges of a plugin against the shared modules (REQ-021-26)", () => {
+  const shell = { sdk: "1.0.0", ui: "1.4.0", framework: "3.5.44" };
+
+  it("sets aside a plugin that wants `ui: ^3` on @kartenn/ui 1.x", () => {
+    expect(unmetRange({ sdk: "^1.0.0", ui: "^3" }, shell)).toBe("ui");
+  });
+
+  it("names the first range not met, and checks only those declared", () => {
+    expect(unmetRange({ sdk: "^2" }, shell)).toBe("sdk");
+    expect(unmetRange({ sdk: "^1", framework: "^4.0.0" }, shell)).toBe("framework");
+    expect(unmetRange({ sdk: "^1", ui: "^1.2", framework: "^3.5.0" }, shell)).toBeNull();
+    expect(unmetRange({ sdk: "^1", ui: null, framework: null }, shell)).toBeNull();
   });
 });

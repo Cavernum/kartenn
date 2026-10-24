@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
-import "@kartenn/ui/style.css";
+import "./shared/ui.ts";
 import App from "./App.vue";
 import { shellRoutes } from "./router.ts";
 

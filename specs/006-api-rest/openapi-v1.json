@@ -10046,6 +10046,13 @@
             "description": "The Custom Element, prefixed by the name of the plugin.",
             "type": "string"
           },
+          "go": {
+            "description": "The letter of navigation it proposes after `g` (a view, `[a-z]`); the shell refuses\na letter already taken (spec 021, design « API des plugins »).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "description": "Unique in the plugin.",
             "type": "string"
@@ -10129,6 +10136,13 @@
             },
             "type": "array"
           },
+          "framework": {
+            "description": "The range of versions of the shared framework (`vue`) it expects, when it imports\nit.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "integrity": {
             "additionalProperties": {
               "type": "string"
@@ -10147,6 +10161,24 @@
             "description": "The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`).",
             "type": "string"
           },
+          "space": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UiSpace",
+                "description": "The space of the sidebar its views go under (spec 021, REQ-021-2)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ui": {
+            "description": "The range of versions of `@kartenn/ui` it expects, when it imports it (ADR 0038;\nspec 021, REQ-021-26).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "version": {
             "description": "Its version.",
             "type": "string"
@@ -10163,6 +10195,19 @@
           "extensions"
         ],
         "type": "object"
+      },
+      "UiSpace": {
+        "description": "The spaces of the sidebar, in their order (spec 021, REQ-021-2): a closed list, extended\nby amendment.",
+        "enum": [
+          "referential",
+          "changes",
+          "network",
+          "hosts",
+          "policy",
+          "flows",
+          "admin"
+        ],
+        "type": "string"
       },
       "UndoApplied": {
         "allOf": [

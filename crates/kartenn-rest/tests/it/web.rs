@@ -101,6 +101,35 @@ fn digest(map: &str) -> String {
     )
 }
 
+/// Spec 021, REQ-021-26 (ADR 0038): the import map that also names `vue` and `@kartenn/ui`
+/// with their digests, and the sheet of `@kartenn/ui` linked with its own, change nothing
+/// of the policy but the hash of the map.
+#[tokio::test]
+async fn the_extended_import_map_changes_only_its_hash_in_the_policy() {
+    let extended = r#"{"imports":{"@kartenn/sdk":"/assets/sdk-1a2b.js","@kartenn/ui":"/assets/ui-4c5d.js","vue":"/assets/vue-6e7f.js"},"integrity":{"/assets/sdk-1a2b.js":"sha384-a","/assets/ui-4c5d.js":"sha384-b","/assets/vue-6e7f.js":"sha384-c"}}"#;
+    let root = shell();
+    let plain = header_of(
+        &send(&app(Some(&root)), "GET", "/").await,
+        &header::CONTENT_SECURITY_POLICY,
+    )
+    .to_owned();
+    std::fs::write(
+        root.join("index.html"),
+        index(extended).replace(
+            "</head>",
+            "<link rel=\"stylesheet\" href=\"/assets/ui-8a9b.css\" integrity=\"sha384-d\"></head>",
+        ),
+    )
+    .unwrap();
+    let csp = header_of(
+        &send(&app(Some(&root)), "GET", "/").await,
+        &header::CONTENT_SECURITY_POLICY,
+    )
+    .to_owned();
+    assert_eq!(csp, plain.replace(&digest(MAP), &digest(extended)));
+    assert_ne!(csp, plain);
+}
+
 #[tokio::test]
 async fn a_route_of_the_client_gets_index_html_with_the_headers_of_the_shell() {
     let root = shell();

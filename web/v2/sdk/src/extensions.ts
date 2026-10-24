@@ -20,6 +20,8 @@ export interface Extension {
   label?: string;
   nav?: string;
   permission?: string;
+  /** The letter of navigation after `g` a view proposes (spec 021). */
+  go?: string;
 }
 
 /** What the shell knows of a plugin before loading it. */

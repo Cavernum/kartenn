@@ -24,7 +24,7 @@ use crate::objects::{Api, store};
 use crate::problem::Problem;
 use crate::transport::Settings;
 use crate::web::Web;
-use crate::web::plugins::{Extension as UiExtension, Published};
+use crate::web::plugins::{Extension as UiExtension, Published, Space as UiSpace};
 
 /// The major versions of the API this build serves (REQ-006-33).
 pub const API_VERSIONS: [&str; 1] = ["v1"];
@@ -63,6 +63,17 @@ struct UiPlugin {
     version: String,
     /// The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`).
     sdk: String,
+    /// The range of versions of `@kartenn/ui` it expects, when it imports it (ADR 0038;
+    /// spec 021, REQ-021-26).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ui: Option<String>,
+    /// The range of versions of the shared framework (`vue`) it expects, when it imports
+    /// it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    framework: Option<String>,
+    /// The space of the sidebar its views go under (spec 021, REQ-021-2).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    space: Option<UiSpace>,
     /// The URL of its directory, `/plugins/<name>/<version>/`.
     base: String,
     /// The URL of its entry module.
@@ -82,6 +93,9 @@ impl From<Published> for UiPlugin {
             name: p.name,
             version: p.version,
             sdk: p.sdk,
+            ui: p.ui,
+            framework: p.framework,
+            space: p.space,
             base: p.base,
             entry: p.entry,
             integrity: p.integrity,

@@ -24,7 +24,10 @@ export { abandonPlugin, expectPlugin } from "./extensions.ts";
 export type { PluginManifest } from "./extensions.ts";
 export { addCatalog, setTranslator } from "./i18n.ts";
 export { draftHost } from "./draft.ts";
-export { compare, parseVersion, satisfies } from "./semver.ts";
+export { compare, parseVersion, satisfies, unmetRange } from "./semver.ts";
+export type { Ranges, SharedVersions } from "./semver.ts";
+export { commandRegistry, reserveKeys, shortcutRegistry } from "./commands.ts";
+export type { Registry } from "./commands.ts";
 
 /** The title of the drafts a plugin's `draft.add` creates, in the shell's language. */
 export function setDraftTitle(title: (() => string) | null): void {
