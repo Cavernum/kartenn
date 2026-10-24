@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # Architecture
@@ -55,7 +55,7 @@ flowchart LR
 | Autorisation (service et adaptateur) | Port `Authorizer` ; décisions et administration dans la couche service ; visibilités et prédicats SQL dans l'adaptateur PostgreSQL (`PgAuthorizer`, ADR 0021) | Identités, rôles, liaisons, rattachements, secrets |
 | Workers | Relais outbox (webhooks, invalidations), jobs longs (imports, rapports) ; répartis sans doublon | État des jobs |
 | Flux d'événements (022, ADR 0034) | Un lecteur partagé par instance suit l'outbox (`LISTEN`/`NOTIFY`, secours à 1 s, plancher en mémoire), traduit et range dans un anneau ; un répartiteur décide les droits par lot et remet à chaque connexion par un tampon borné ; point d'accès `GET /v1/events` | Aucune : vue volatile de l'outbox (anneau en mémoire) |
-| Shell Web | Navigation, vues du noyau, changesets et brouillon local, administration ; hôte des plugins UI ; client de l'API ; servi par kartenn-server sur la même origine que l'API (spec 007, ADR 0025) | Brouillon et préférences dans le navigateur (IndexedDB, `localStorage`), effacés à la déconnexion |
+| Shell Web | Navigation, vues du noyau, changesets et brouillon local, administration ; hôte des plugins UI ; client de l'API ; servi par kartenn-server sur la même origine que l'API (spec 007, ADR 0025) | Brouillon et préférences dans le navigateur (IndexedDB, `localStorage`), effacés à la déconnexion ; le shell v2 (021) garde ses brouillons sur le serveur (`/v1/drafts`, table `draft`, spec 024) |
 | Clients Python (`kartenn`, `kartenn-cli`) | Bibliothèque et CLI découvertes depuis le contrat servi : catalogue dérivé, commandes des modules sans nouvelle version du client ; OIDC natif, changesets, imports (spec 023, ADR 0035) | Catalogue en cache et configuration XDG, jetons au trousseau |
 | Connecteurs | Import / synchronisation depuis des sources externes via l'API | Correspondances d'identifiants (dans kartenn) |
 

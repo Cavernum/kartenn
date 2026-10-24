@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-18
+updated: 2026-10-24
 ---
 
 # Données
@@ -135,7 +135,19 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   `withdrawn`, `expired`, `failed_revalidation`), violations, avertissements, résumé du
   différentiel, droits manquants d'une proposition, valideur et motif de rejet. Le
   détail du différentiel est dans `changeset_diff` (clé de propriété, objet, avant,
-  après), ses opérations dans `changeset_operation`.
+  après), ses opérations dans `changeset_operation`. Depuis la 024 (0063), le valideur
+  peut être l'auteur (« appliqué par son auteur », `apply_own`) ; `required_rights`
+  garde aussi le motif d'une 202 de repli (`reason`) ; `draft_id` (0064, sans
+  référence) nomme le brouillon d'origine ; index partiel `changeset (applied_at)
+  WHERE state = 'applied'` (0065) pour les statistiques.
+- **Brouillons** (`draft`, migration 0064 ; spec 024, REQ-024-1 à 7a) : auteur
+  (`person`), titre (1 à 200 caractères), motif `{summary, description}`, opérations
+  (`jsonb`, tableau d'`Operation` vérifié par le désérialiseur du contrat à chaque
+  écriture), version (ETag), dates de création et de modification ; index
+  `(author_id, updated_at desc)` et `(updated_at)` pour la rétention (tâche
+  `draft-retention`, quotidienne, 90 jours). Pas d'historique bitemporel : un
+  brouillon n'est pas une donnée du référentiel ; ses changements passent par l'outbox
+  (`org.kartenn.draft.changed`, sans changeset), remis à son seul auteur.
 - Chaque version d'objet référence le changeset qui l'a produite (audit complet).
 - **Anomalies** (`anomaly`, migration 0007) : avertissement ouvert sur un objet, acquitté
   avec un motif, rouvert quand l'objet change, clos quand la règle ne se déclenche plus ;
