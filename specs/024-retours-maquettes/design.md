@@ -29,7 +29,7 @@ permissions que tout le reste teste), puis A, C, D en parallèle, puis E.
 
 ## A. Brouillons (REQ-024-1 à 8)
 
-Table `draft` (migration du cœur, `crates/kartenn-store-pg/migrations/0062_drafts.sql`) :
+Table `draft` (migration du cœur, `crates/kartenn-store-pg/migrations/0064_drafts.sql`) :
 `id uuid`, `author uuid` (identité), `title text`, `reason jsonb` (résumé, description),
 `operations jsonb` (tableau d'`Operation`, validé à l'écriture par le désérialiseur du
 contrat), `version bigint`, `created_at`, `updated_at` ; index `(author, updated_at desc)`.
