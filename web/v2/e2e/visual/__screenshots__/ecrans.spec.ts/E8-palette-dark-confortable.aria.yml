@@ -1,0 +1,23 @@
+- dialog "Palette de commandes":
+  - combobox "Palette de commandes" [expanded]
+  - listbox "Palette de commandes":
+    - group "Objets":
+      - text: ""
+      - option /Salle A \d+\.\d+\.2\.0\/\d+/:
+        - text: ""
+        - code: /\d+\.\d+\.2\.0\/\d+/
+      - option /Supervision \d+\.\d+\.\d+\.\d+\/\d+/:
+        - text: ""
+        - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+      - option /srv-app-\d+ \d+\.\d+\.\d+\.\d+/:
+        - text: ""
+        - code: /\d+\.\d+\.\d+\.\d+/
+    - group "Commandes":
+      - text: ""
+      - option /Créer un préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - option /Prochain libre dans \d+\.\d+\.2\.0\/\d+/
+      - option "Lire à une autre date…"
+    - group "Navigation":
+      - text: ""
+      - option "Préfixes"
+      - option "Adresses"

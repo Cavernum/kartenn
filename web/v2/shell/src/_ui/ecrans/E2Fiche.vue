@@ -1,0 +1,284 @@
+<script setup lang="ts">
+// E2 — Fiche d'un préfixe (design « Maquettes »; 021, « Catalogue des écrans », Fiche
+// d'objet et Historique): title and actions, tabs of the core then of the plugins,
+// resolved properties with the explanation of an inherited value, occupancy and next free,
+// history of bitemporal versions, menu of actions.
+import {
+  Button,
+  CodeBadge,
+  Cluster,
+  DataGrid,
+  EnvChip,
+  InlineAlert,
+  KeyLabel,
+  Menu,
+  Split,
+  Stack,
+  StatusBadge,
+  Tabs,
+  type GridColumn,
+  type MenuItem,
+  type TabItem,
+} from "@kartenn/ui";
+import { ref } from "vue";
+import AVenir from "./AVenir.vue";
+import Attributs from "./EcranAttributs.vue";
+import Cadre from "./EcranCadre.vue";
+import Panneau from "./EcranPanneau.vue";
+import { DOMAIN, ENV, ID } from "./donnees.ts";
+
+const props = defineProps<{ vue: string }>();
+const tab = ref(props.vue === "historique" ? "history" : "properties");
+
+const tabs: TabItem[] = [
+  { value: "properties", label: "Propriétés", count: 5 },
+  { value: "content", label: "Contenu", count: 12 },
+  { value: "history", label: "Historique", count: 4 },
+  { value: "anomalies", label: "Anomalies", count: 1 },
+  { value: "vlan", label: "VLAN", icon: "vlan" },
+  { value: "machines", label: "Machines", icon: "server", count: 6 },
+  { value: "flows", label: "Flux", icon: "flow", state: "loading" },
+];
+
+interface Property extends Record<string, unknown> {
+  key: string;
+  label: string;
+  value: string;
+  source: "inherited" | "direct" | "inferred" | "none" | "masked";
+  origin: string;
+}
+const properties: Property[] = [
+  {
+    key: "core.owner",
+    label: "Propriétaire",
+    value: "Atelier Nord",
+    source: "inherited",
+    origin: "de 192.0.2.0/24",
+  },
+  { key: "core.site", label: "Site", value: "site-ouest", source: "direct", origin: "" },
+  {
+    key: "policy.environment",
+    label: "Environnement",
+    value: "prod",
+    source: "inferred",
+    origin: "règle env-par-site",
+  },
+  { key: "dns.ttl", label: "TTL DNS", value: "", source: "none", origin: "" },
+  {
+    key: "core.contact",
+    label: "Contact",
+    value: "",
+    source: "masked",
+    origin: "droit de lecture manquant",
+  },
+];
+const propertyColumns: GridColumn[] = [
+  { id: "key", label: "Propriété", width: "fill" },
+  { id: "value", label: "Valeur", width: "md" },
+  { id: "source", label: "Source", width: "lg" },
+];
+const SOURCE: Record<Property["source"], string> = {
+  inherited: "Héritée",
+  direct: "Directe",
+  inferred: "Inférée",
+  none: "",
+  masked: "Masquée",
+};
+
+interface Version extends Record<string, unknown> {
+  version: string;
+  valid: string;
+  known: string;
+  changeset: string;
+  motive: string;
+  author: string;
+}
+const versions: Version[] = [
+  {
+    version: "v4",
+    valid: "2025-12-02 →",
+    known: "2025-12-02",
+    changeset: "01JD4K8B2C",
+    motive: "Bascule des VIP salle B",
+    author: "Camille Martin",
+  },
+  {
+    version: "v3",
+    valid: "2025-09-12 → 2025-12-02",
+    known: "2025-09-12",
+    changeset: "01JC9Q2H7R",
+    motive: "Rattachement au site ouest",
+    author: "Lou Bernard",
+  },
+  {
+    version: "v2",
+    valid: "2025-06-01 → 2025-09-12",
+    known: "2025-06-03",
+    changeset: "01JB1T5W3E",
+    motive: "Correction rétroactive du propriétaire",
+    author: "Lou Bernard",
+  },
+  {
+    version: "v1",
+    valid: "2025-03-17 → 2025-06-01",
+    known: "2025-03-17",
+    changeset: "01JA0N8D4F",
+    motive: "Import initial",
+    author: "import-ipam",
+  },
+];
+const versionColumns: GridColumn[] = [
+  { id: "version", label: "Version, changeset", width: "md", mono: true },
+  { id: "valid", label: "Valide", width: "lg", mono: true },
+  { id: "known", label: "Connue du", width: "md", mono: true },
+  { id: "motive", label: "Motif", width: "fill" },
+];
+
+const actions: MenuItem[] = [
+  { id: "edit", label: "Modifier", icon: "pencil", shortcut: ["e"] },
+  { id: "copy", label: "Copier l'identifiant", icon: "copy" },
+  { id: "date", label: "Lire à une autre date…", icon: "calendar" },
+  {
+    id: "domain",
+    label: "Changer de domaine…",
+    icon: "move",
+    disabled: true,
+    reason: "Le domaine est immuable",
+  },
+  { kind: "separator" },
+  { kind: "label", label: "Plugins" },
+  { id: "compliance", label: "Vérifier la conformité", icon: "clipboard-check" },
+  { id: "flow", label: "Demander un flux…", icon: "flow" },
+  { kind: "separator" },
+  { id: "close", label: "Clore…", icon: "trash", danger: true },
+];
+</script>
+
+<template>
+  <Cadre
+    title="Préfixe 192.0.2.64/26"
+    active="prefixes"
+    space="referential"
+    :crumbs="[
+      { label: 'Référentiel', to: '/' },
+      { label: DOMAIN.label, to: `/domains/${DOMAIN.key}` },
+      { label: 'Préfixes', to: '/prefixes' },
+      { label: '192.0.2.64/26', mono: true },
+    ]"
+  >
+    <Panneau title="192.0.2.64/26" detail="préfixe · réseau · Supervision" main>
+      <template #actions>
+        <Button icon="pencil" :shortcut="['e']">Modifier</Button>
+        <Menu
+          label="Actions"
+          icon="ellipsis"
+          align="end"
+          :items="actions"
+          :default-open="props.vue === 'actions'"
+        />
+      </template>
+      <Split side="end" side-size="sm" gap="3">
+        <Tabs v-model="tab" :tabs="tabs" label="Sections de la fiche">
+          <template #properties>
+            <Stack gap="3">
+              <DataGrid
+                label="Propriétés résolues de 192.0.2.64/26"
+                :columns="propertyColumns"
+                :rows="properties"
+                row-key="key"
+                :active="{ row: 'core.owner', column: 'source' }"
+              >
+                <template #cell="{ row, column }">
+                  <KeyLabel
+                    v-if="column.id === 'key'"
+                    :value="row.key"
+                    :label="row.label"
+                    show-key
+                  />
+                  <template v-else-if="column.id === 'value'">
+                    <EnvChip v-if="row.key === 'policy.environment'" v-bind="ENV.prod" />
+                    <span v-else-if="row.source === 'none'">—</span>
+                    <span v-else-if="row.source === 'masked'">••••••</span>
+                    <template v-else>{{ row.value }}</template>
+                  </template>
+                  <StatusBadge v-else-if="row.source === 'none'" state="warn" label="Sans valeur" />
+                  <template v-else
+                    >{{ SOURCE[row.source] }}
+                    <span v-if="row.origin" class="k-ecran-muted">{{ row.origin }}</span></template
+                  >
+                </template>
+              </DataGrid>
+              <AVenir component="Popover" task="21">
+                <InlineAlert tone="info" title="Propriétaire : valeur héritée">
+                  Héritée de <code>192.0.2.0/24</code> (Salle A), où elle est posée directement
+                  depuis la version v3 ; aucune règle ne la remplace ici. Posée par le changeset
+                  <CodeBadge :code="ID.changeset" />.
+                </InlineAlert>
+              </AVenir>
+              <InlineAlert tone="warn" title="Une propriété attendue manque">
+                <code>dns.ttl</code> est attendue sur les réseaux de production (règle
+                <code>prop.assignment.required</code>).
+              </InlineAlert>
+            </Stack>
+          </template>
+          <template #history>
+            <DataGrid
+              label="Versions de 192.0.2.64/26"
+              :columns="versionColumns"
+              :rows="versions"
+              row-key="version"
+              :sort="{ column: 'version', direction: 'descending' }"
+            >
+              <template #cell="{ row, column, value }">
+                <template v-if="column.id === 'version'"
+                  >{{ row.version }}
+                  <a :href="`/changesets/${row.changeset}`">{{ row.changeset }}</a></template
+                >
+                <template v-else>{{ value }}</template>
+              </template>
+            </DataGrid>
+          </template>
+        </Tabs>
+        <template #side>
+          <Stack gap="3">
+            <Panneau title="Attributs">
+              <Attributs
+                :items="[
+                  { key: 'domain', label: 'Domaine', value: DOMAIN.label },
+                  { key: 'nature', label: 'Nature' },
+                  { key: 'p2p', label: 'Point à point', value: 'non' },
+                  { key: 'anycast', label: 'Anycast', value: 'non' },
+                  { key: 'id', label: 'Identifiant' },
+                ]"
+              >
+                <template #nature><KeyLabel value="network" label="Réseau" /></template>
+                <template #id><CodeBadge :code="ID.prefix" /></template>
+              </Attributs>
+            </Panneau>
+            <Panneau title="Occupation" detail="45 %">
+              <Attributs
+                :items="[
+                  { key: 'used', label: 'Utilisées', value: '29 sur 62' },
+                  { key: 'ranges', label: 'Plages', value: '1 (25 adresses)' },
+                  { key: 'free', label: 'Prochain libre', value: '192.0.2.103', mono: true },
+                ]"
+              />
+              <Cluster gap="2">
+                <Button size="sm" icon="plus">Réserver 192.0.2.103</Button>
+              </Cluster>
+            </Panneau>
+            <Panneau title="VLAN porté" detail="plugin VLAN">
+              <Attributs
+                :items="[
+                  { key: 'vid', label: 'VID', value: '121', mono: true },
+                  { key: 'name', label: 'Nom', value: 'supervision' },
+                  { key: 'group', label: 'Groupe', value: 'campus-ouest', mono: true },
+                ]"
+              />
+            </Panneau>
+          </Stack>
+        </template>
+      </Split>
+    </Panneau>
+  </Cadre>
+</template>

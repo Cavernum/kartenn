@@ -1,0 +1,98 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Matrice":
+          - /url: /x/policy/matrix
+      - listitem: applicatif
+  - button "Présent"
+  - button "Brouillon ( 3 )"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Matrice de politique applicatif" [level=1]
+  - region "Matrice applicatif":
+    - heading "Matrice applicatif" [level=2]
+    - button "3 règles hors vue"
+    - 'button "Type de flux : applicatif"'
+    - paragraph:
+      - text: "À venir :"
+      - code: Select
+      - text: /\(tâche \d+\)/
+    - 'grid "Matrice applicatif : source en ligne, destination en colonne"':
+      - rowgroup:
+        - row "Source ↓ · destination → Production Recette Développement":
+          - columnheader "Source ↓ · destination →"
+          - columnheader "Production"
+          - columnheader "Recette"
+          - columnheader "Développement"
+      - rowgroup:
+        - row "Production Autoriser Interdire Interdire":
+          - gridcell "Production"
+          - gridcell "Autoriser"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Recette Sous motif (en brouillon) Autoriser Refus par défaut":
+          - gridcell "Recette"
+          - gridcell "Sous motif (en brouillon)"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+        - row "Développement Interdire Refus par défaut Autoriser":
+          - gridcell "Développement"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+    - text: Brouillon · 1 cellule 1 s'ouvre sous réserve · 2 flux cassent · 0 guérit
+  - heading "Recette → Production" [level=2]
+  - term: État
+  - definition: Sous motif
+  - term: Motifs
+  - definition:
+    - button "Copier bastion-admin":
+      - text: ""
+      - code: bastion-admin
+    - status
+  - text: Libellé
+  - textbox "Libellé": Accès recette vers production
+  - status:
+    - paragraph: "Effet simulé : 2 flux cassent"
+    - list:
+      - listitem:
+        - text: /rece-batch → prod-api \(tcp\/\d+\)/
+        - button "Copier flow.verdict.denied":
+          - text: ""
+          - code: flow.verdict.denied
+        - status
+      - listitem:
+        - text: /rece-ci → prod-registry \(tcp\/\d+\)/
+        - button "Copier flow.verdict.denied":
+          - text: ""
+          - code: flow.verdict.denied
+        - status
+  - button "Ajouter au brouillon"

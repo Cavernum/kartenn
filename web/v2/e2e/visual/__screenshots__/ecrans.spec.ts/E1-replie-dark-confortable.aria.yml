@@ -1,0 +1,216 @@
+- navigation "Navigation principale":
+  - button "Rechercher"
+  - list "Référentiel":
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - list "Changesets":
+    - listitem:
+      - link "Changesets":
+        - /url: /changesets
+    - listitem:
+      - link "À instruire 3":
+        - /url: /proposals
+    - listitem:
+      - link "Brouillon 2":
+        - /url: /draft
+  - list "Réseau":
+    - listitem:
+      - link "VLAN":
+        - /url: /x/vlan/vlans
+    - listitem:
+      - link "Groupes de VLAN":
+        - /url: /x/vlan/groups
+  - list "Machines":
+    - listitem:
+      - link "Machines":
+        - /url: /x/machines/machines
+    - listitem:
+      - link "Hébergement":
+        - /url: /x/machines/clusters
+    - listitem:
+      - link "Interfaces":
+        - /url: /x/machines/interfaces
+  - list "Politique":
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+  - list "Flux":
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - list "Administration":
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Liaisons":
+        - /url: /admin/bindings
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+  - button "Barre latérale"
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "Centre de données nord":
+          - /url: /domains/dc-nord
+      - listitem:
+        - link /\d+\.\d+\.2\.0\/\d+/:
+          - /url: /?node=p1
+      - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
+  - button "Présent"
+  - button "Brouillon ( 2 )"
+  - button "Compte de Camille Martin"
+- main:
+  - 'heading /Référentiel : \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]'
+  - heading "Préfixes Centre de données nord" [level=2]
+  - treegrid "Arbre des préfixes du domaine Centre de données nord":
+    - rowgroup:
+      - row "Préfixe Occupation":
+        - columnheader "Préfixe"
+        - columnheader "Occupation"
+    - rowgroup:
+      - row /Salle A \d+\.\d+\.2\.0\/\d+ \d+ %/ [expanded] [level=1]:
+        - gridcell /Salle A \d+\.\d+\.2\.0\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.2\.0\/\d+/
+        - gridcell /\d+ %/
+      - row /Serveurs \d+\.\d+\.2\.0\/\d+ \d+ %/ [level=2]:
+        - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.2\.0\/\d+/
+        - gridcell /\d+ %/
+      - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \d+ %/ [level=2] [selected]:
+        - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+        - gridcell /\d+ %/
+      - row /Réserve \d+\.\d+\.\d+\.\d+\/\d+ \d+ %/ [level=2]:
+        - gridcell /Réserve \d+\.\d+\.\d+\.\d+\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+        - gridcell /\d+ %/
+      - row /Salle B \d+\.\d+\.\d+\.\d+\/\d+ \d+ %/ [level=1]:
+        - gridcell /Salle B \d+\.\d+\.\d+\.\d+\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+        - gridcell /\d+ %/
+      - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ \d+ %/ [level=1]:
+        - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+        - gridcell /\d+ %/
+      - row /Cœur IPv6 \d+:db8::\/\d+ < 1 %/ [expanded] [level=1]:
+        - gridcell /Cœur IPv6 \d+:db8::\/\d+/:
+          - text: ""
+          - code: /\d+:db8::\/\d+/
+        - gridcell "< 1 %"
+      - row /Salle A \d+:db8:\d+::\/\d+ 3 %/ [level=2]:
+        - gridcell /Salle A \d+:db8:\d+::\/\d+/:
+          - text: ""
+          - code: /\d+:db8:\d+::\/\d+/
+        - gridcell "3 %"
+  - region /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/ [level=2]
+    - button "Prochain libre"
+    - button "Créer"
+    - button /Actions sur \d+\.\d+\.\d+\.\d+\/\d+/
+    - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
+    - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
+    - button "Environnement = Production"
+    - button "Retirer le filtre Environnement"
+    - button "Filtre"
+    - grid /Contenu de \d+\.\d+\.\d+\.\d+\/\d+, environnement Production/:
+      - rowgroup:
+        - row "Objet Usage Environnement Propriétaire":
+          - columnheader "Objet"
+          - columnheader "Usage"
+          - columnheader "Environnement"
+          - columnheader "Propriétaire"
+      - rowgroup:
+        - row /Adresse \d+\.\d+\.\d+\.\d+ Passerelle Production Atelier Nord/:
+          - gridcell /Adresse \d+\.\d+\.\d+\.\d+/:
+            - img "Adresse"
+            - text: ""
+          - gridcell "Passerelle"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+        - row /Plage \d+\.\d+\.\d+\.\d+–\d+\.\d+\.\d+\.\d+ DHCP Production Atelier Nord/:
+          - gridcell /Plage \d+\.\d+\.\d+\.\d+–\d+\.\d+\.\d+\.\d+/:
+            - img "Plage"
+            - text: ""
+          - gridcell "DHCP"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+        - row /\(en revue\) Adresse \d+\.\d+\.\d+\.\d+ VIP Production Service Pilote/:
+          - gridcell /\(en revue\) Adresse \d+\.\d+\.\d+\.\d+/:
+            - text: ""
+            - img "Adresse"
+            - text: ""
+          - gridcell "VIP"
+          - gridcell "Production"
+          - gridcell "Service Pilote"
+        - row /\(en brouillon\) Adresse \d+\.\d+\.\d+\.\d+ Hôte Production Service Pilote/:
+          - gridcell /\(en brouillon\) Adresse \d+\.\d+\.\d+\.\d+/:
+            - text: ""
+            - img "Adresse"
+            - text: ""
+          - gridcell "Hôte"
+          - gridcell "Production"
+          - gridcell "Service Pilote"
+        - row /Adresse \d+\.\d+\.\d+\.\d+ Hôte Production Service Pilote/:
+          - gridcell /Adresse \d+\.\d+\.\d+\.\d+/:
+            - img "Adresse"
+            - text: ""
+          - gridcell "Hôte"
+          - gridcell "Production"
+          - gridcell "Service Pilote"
+        - row /Adresse \d+\.\d+\.\d+\.\d+ Réservée Production Atelier Nord/:
+          - gridcell /Adresse \d+\.\d+\.\d+\.\d+/:
+            - img "Adresse"
+            - text: ""
+          - gridcell "Réservée"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+    - text: /6 objets sur \d+ · 1 en brouillon · 1 en revue Au présent/

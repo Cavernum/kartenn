@@ -1,0 +1,70 @@
+- dialog "Raccourcis clavier":
+  - banner:
+    - heading "Raccourcis clavier" [level=2]
+    - button "Fermer"
+  - paragraph: "Lus au registre des raccourcis : ceux du shell, puis ceux des plugins chargés."
+  - text: g puis p
+  - paragraph:
+    - text: "À venir :"
+    - code: ShortcutHint
+    - text: /\(tâche \d+\)/
+  - grid "Raccourcis":
+    - rowgroup:
+      - row "Touches Action Portée":
+        - columnheader "Touches"
+        - columnheader "Action"
+        - columnheader "Portée"
+    - rowgroup:
+      - 'row "Touches : Ctrl K Palette de commandes Partout"':
+        - 'gridcell "Touches : Ctrl K"'
+        - gridcell "Palette de commandes"
+        - gridcell "Partout"
+      - 'row "Touches : / Filtrer la vue Hors champ"':
+        - 'gridcell "Touches : /"'
+        - gridcell "Filtrer la vue"
+        - gridcell "Hors champ"
+      - 'row "Touches : ? Cette aide Hors champ"':
+        - 'gridcell "Touches : ?"'
+        - gridcell "Cette aide"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis p Aller aux préfixes Hors champ"':
+        - 'gridcell "Touches : g puis p"'
+        - gridcell "Aller aux préfixes"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis a Aller aux adresses Hors champ"':
+        - 'gridcell "Touches : g puis a"'
+        - gridcell "Aller aux adresses"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis c Aller aux changesets Hors champ"':
+        - 'gridcell "Touches : g puis c"'
+        - gridcell "Aller aux changesets"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis b Ouvrir le brouillon Hors champ"':
+        - 'gridcell "Touches : g puis b"'
+        - gridcell "Ouvrir le brouillon"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis v Aller aux VLAN (plugin) Hors champ"':
+        - 'gridcell "Touches : g puis v"'
+        - gridcell "Aller aux VLAN (plugin)"
+        - gridcell "Hors champ"
+      - 'row "Touches : c Créer dans la collection Présent, droit"':
+        - 'gridcell "Touches : c"'
+        - gridcell "Créer dans la collection"
+        - gridcell "Présent, droit"
+      - 'row "Touches : e Modifier l''objet ou la cellule Présent, droit"':
+        - 'gridcell "Touches : e"'
+        - gridcell "Modifier l'objet ou la cellule"
+        - gridcell "Présent, droit"
+      - 'row "Touches : Ctrl Entrée Appliquer maintenant (motif) Éditeur"':
+        - 'gridcell "Touches : Ctrl Entrée"'
+        - gridcell "Appliquer maintenant (motif)"
+        - gridcell "Éditeur"
+      - 'row "Touches : Échap Fermer, annuler l''édition Partout"':
+        - 'gridcell "Touches : Échap"'
+        - gridcell "Fermer, annuler l'édition"
+        - gridcell "Partout"
+      - 'row "Touches : [ Replier la barre latérale Hors champ"':
+        - 'gridcell "Touches : ["'
+        - gridcell "Replier la barre latérale"
+        - gridcell "Hors champ"
+  - paragraph: Les raccourcis à une touche se désactivent dans le menu du compte ; Ctrl+K, Ctrl+Entrée et Échap restent.

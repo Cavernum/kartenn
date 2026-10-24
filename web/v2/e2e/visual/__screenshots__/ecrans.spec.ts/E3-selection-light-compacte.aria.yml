@@ -1,0 +1,159 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem: Adresses
+  - button "Présent"
+  - button "Brouillon ( 2 )"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Adresses" [level=1]
+  - region /Adresses 1 \d+/:
+    - heading /Adresses 1 \d+/ [level=2]
+    - button "Colonnes"
+    - button "Créer"
+    - button "Domaine = Centre de données nord"
+    - button "Retirer le filtre Domaine = Centre de données nord"
+    - button /Inclus dans = \d+\.\d+\.2\.0\/\d+/
+    - button /Retirer le filtre Inclus dans = \d+\.\d+\.2\.0\/\d+/
+    - button "Usage ∈ Hôte, VIP"
+    - button "Retirer le filtre Usage ∈ Hôte, VIP"
+    - button "Propriétaire = Atelier Nord (en brouillon)"
+    - button "Retirer le filtre Propriétaire"
+    - button /Créée après = \d+-\d+-\d+/
+    - button "Retirer le filtre Créée après"
+    - text: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+    - button "Ajouter un filtre"
+    - paragraph:
+      - text: "À venir :"
+      - code: FilterPicker
+      - text: /\(tâche \d+\)/
+    - status: 3 adresses sélectionnées
+    - button "Action groupée" [expanded]
+    - button /Tout sélectionner \(1 \d+\)/
+    - paragraph:
+      - text: "À venir :"
+      - code: Checkbox
+      - text: /\(tâche \d+\)/
+    - button "Annuler la sélection"
+    - grid "Adresses, filtrées":
+      - rowgroup:
+        - row "Valeur Usage Environnement Propriétaire Site Machine VLAN":
+          - columnheader "Valeur"
+          - columnheader "Usage"
+          - columnheader "Environnement"
+          - columnheader "Propriétaire"
+          - columnheader "Site"
+          - columnheader "Machine"
+          - columnheader "VLAN"
+      - rowgroup:
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-ouest srv-app-\d+ \d+/ [selected]:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+          - gridcell "site-ouest"
+          - gridcell /srv-app-\d+/
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-ouest — \d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "VIP"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+          - gridcell "site-ouest"
+          - gridcell "—"
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/ [selected]:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Recette"
+          - gridcell "Atelier Nord"
+          - gridcell "site-ouest"
+          - gridcell /srv-rec-\d+/
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Recette"
+          - gridcell "Atelier Nord"
+          - gridcell "site-ouest"
+          - gridcell /srv-rec-\d+/
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Développement Atelier Nord site-est dev-web-\d+ \d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Développement"
+          - gridcell "Atelier Nord"
+          - gridcell "site-est"
+          - gridcell /dev-web-\d+/
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-est — \d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "VIP"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+          - gridcell "site-est"
+          - gridcell "—"
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/ [selected]:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+          - gridcell "site-est"
+          - gridcell /srv-app-\d+/
+          - gridcell /\d+/
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "Hôte"
+          - gridcell "Production"
+          - gridcell "Atelier Nord"
+          - gridcell "site-est"
+          - gridcell /srv-app-\d+/
+          - gridcell /\d+/
+    - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
+- menu "Action groupée":
+  - menuitem "Changer l'usage…"
+  - menuitem "Changer le propriétaire…"
+  - menuitem "Poser une propriété…"
+  - menuitem "Copier les valeurs"
+  - separator
+  - menuitem "Clore les 3 adresses…"
