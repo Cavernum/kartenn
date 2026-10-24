@@ -116,6 +116,9 @@ const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
     padding: var(--k-space-2);
     color: var(--k-sidebar-fg);
     background-color: var(--k-sidebar-bg);
+    /* Inside the width of the bar (border-box): the light bar meets the white surface. */
+    box-sizing: border-box;
+    border-inline-end: var(--k-border-width) solid var(--k-border);
   }
 
   .k-sidebar[data-state="collapsed"] {
@@ -168,7 +171,7 @@ const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
   }
 
   .k-sidebar__palette {
-    border: var(--k-border-width) solid var(--k-sidebar-active-bg);
+    border: var(--k-border-width) solid var(--k-border-strong);
   }
 
   .k-sidebar__group-toggle {
@@ -233,7 +236,7 @@ const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
   .k-sidebar__kbd .k-kbd__key {
     color: var(--k-sidebar-fg);
     background-color: var(--k-sidebar-bg);
-    border-color: var(--k-sidebar-active-bg);
+    border-color: var(--k-border-strong);
   }
 
   /* Collapsed: icons only; labels stay for assistive technologies. */

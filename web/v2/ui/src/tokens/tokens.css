@@ -19,11 +19,11 @@
     --k-bg: #f3f5f9;
     --k-surface: #ffffff;
     --k-surface-sunken: #f1f4f8;
-    --k-sidebar-bg: #1c2433;
-    --k-sidebar-fg: #a9b4c6;
-    --k-sidebar-active-bg: #2a3547;
-    --k-sidebar-active-fg: #ffffff;
-    --k-sidebar-active-icon: #8cc0f5;
+    --k-sidebar-bg: #ffffff;
+    --k-sidebar-fg: #4b5668;
+    --k-sidebar-active-bg: #e3edf9;
+    --k-sidebar-active-fg: #16191f;
+    --k-sidebar-active-icon: #0b5cad;
     --k-text: #16191f;
     --k-text-muted: #5d6a7e;
     --k-border: #e1e6ee;
