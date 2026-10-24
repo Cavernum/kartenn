@@ -204,23 +204,25 @@ export const MOCKUPS: Mockup[] = [
     id: "E9",
     title: "États",
     shows:
-      "Vide (phrase + action), chargement (squelettes), erreur (code + Request-Id), 412 avec saisie gardée, 202 « proposé, en revue ».",
+      "Vide (phrase + action), chargement (squelettes dans les cellules), erreur en langage courant (code + Request-Id), 412 avec saisie gardée, 202 « proposé, en revue » avec son motif.",
     views: [
       {
         id: "zones",
         label: "Vide, chargement, erreur",
-        description: "Trois zones de données, chacune dans un de ses états.",
+        description:
+          "Trois zones de données, chacune dans un de ses états ; squelettes animés dans les cellules de la table.",
       },
       {
         id: "conflit",
         label: "412, saisie gardée",
-        description: "L'objet a changé entre-temps : valeur actuelle et saisie gardée.",
+        description:
+          "« L'objet a changé depuis votre lecture » : valeur actuelle, code à côté, saisie gardée.",
         modal: true,
       },
       {
         id: "revue",
         label: "202, proposé en revue",
-        description: "Écriture reçue mais soumise à revue : cellule « en revue ».",
+        description: "Écriture reçue mais soumise à revue, avec son motif : cellule « en revue ».",
       },
     ],
   },
