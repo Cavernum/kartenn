@@ -126,6 +126,7 @@ const shortcutColumns: GridColumn[] = [
         <DataGrid label="Raccourcis" :columns="shortcutColumns" :rows="shortcuts" row-key="id">
           <template #cell="{ row, column, value }">
             <span v-if="column.id === 'keys'">
+              <span class="k-visually-hidden">Touches : </span>
               <template v-for="(step, i) in row.keys" :key="i"
                 ><template v-if="i > 0"> puis </template><Kbd :keys="step"
               /></template>
