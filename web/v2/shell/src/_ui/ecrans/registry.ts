@@ -164,12 +164,14 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "roles",
         label: "Rôles",
-        description: "Rôles et permissions du rôle choisi (code servi et libellé).",
+        description:
+          "Rôles ; le rôle choisi dans le panneau droit : permissions une par ligne (nom servi et libellé), liaisons qui défilent dans le panneau.",
       },
       {
         id: "liaisons",
         label: "Liaisons",
-        description: "Liaisons : sujet, rôle, portée, période.",
+        description:
+          "Liaisons (sujet, rôle, portée, période) ; nouvelle liaison refusée dans le panneau droit.",
       },
       {
         id: "secret",
