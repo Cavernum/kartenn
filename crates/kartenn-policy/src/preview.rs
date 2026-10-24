@@ -23,7 +23,7 @@ use sqlx::{PgConnection, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::infer::{chains, rules_in, tested};
-use crate::inference::{Criterion, Expectation, InferenceRule, Node, expected, mismatch};
+use crate::inference::{Criterion, Expectation, IndexedRules, InferenceRule, Node, mismatch};
 use crate::load::State;
 use crate::model::{AxisKey, AxisValue, Key};
 use crate::module::INFERENCE_RULE;
@@ -232,6 +232,12 @@ fn candidates_sql(at: OffsetDateTime, bounds: &[Bound], select: &str) -> QueryBu
 }
 
 /// The declared set each of `ids` resolves on `axis` at `at`, with its origin, in `state`.
+///
+/// The origins of the objects are read by `object_id = ANY($1)` (the btree by object),
+/// then the values once per distinct origin, behind an `OFFSET 0` fence; planned with
+/// its values at each call. Joined whole, the origins and the assignments of the whole
+/// referential were hashed or sorted (0.3 s for 3·10⁴ nodes at 1.7·10⁵ addresses,
+/// linear in the referential), and a generic plan scanned every assignment per origin.
 async fn declared(
     conn: &mut PgConnection,
     ids: &[Uuid],
@@ -239,36 +245,46 @@ async fn declared(
     at: OffsetDateTime,
     state: State,
 ) -> Result<BTreeMap<Uuid, (Option<Uuid>, Vec<String>)>, StoreError> {
-    let relation = |table: &str, columns: &str| match state {
-        State::After => format!("(SELECT {columns} FROM {table})"),
+    // The rows of `table` in `state` that satisfy `condition` (aliased `x`).
+    let relation = |table: &str, columns: &str, condition: &str| match state {
+        State::After => format!("SELECT {columns} FROM {table} x WHERE {condition}"),
         State::Before => format!(
-            "(SELECT {columns} FROM {table} WHERE sys_start < now()
-              UNION ALL
-              SELECT {columns} FROM {table}_history WHERE sys_start < now() AND sys_end >= now())"
+            "SELECT {columns} FROM {table} x WHERE {condition} AND x.sys_start < now()
+             UNION ALL
+             SELECT {columns} FROM {table}_history x WHERE {condition}
+                AND x.sys_start < now() AND x.sys_end >= now()"
         ),
     };
     let origins = relation(
         "property_origin",
-        "object_id, property_id, origin_object_id, valid_period",
+        "x.object_id, x.origin_object_id",
+        "x.object_id = ANY($1) AND x.property_id = (SELECT id FROM d)
+         AND x.valid_period @> $3",
     );
     let assignments = relation(
         "property_assignment",
-        "object_id, property_id, kind, v_uuid, v_uuids, valid_period",
+        "x.v_uuid, x.v_uuids",
+        "x.object_id = o.origin_object_id AND x.property_id = d.id AND x.kind = 'value'
+         AND x.valid_period @> $3",
     );
     let sql = format!(
-        "SELECT o.id, po.origin_object_id,
-                coalesce(array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL), '{{}}')
-           FROM unnest($1::uuid[]) AS o(id)
-           JOIN property_declaration d ON d.key = $2 AND d.valid_period @> $3
-           JOIN {origins} po ON po.object_id = o.id AND po.property_id = d.id
-                            AND po.valid_period @> $3
-           LEFT JOIN {assignments} a ON a.object_id = po.origin_object_id
-                            AND a.property_id = d.id AND a.kind = 'value'
-                            AND a.valid_period @> $3
-           LEFT JOIN property_enum_value e ON e.id = a.v_uuid OR e.id = ANY(a.v_uuids)
-          GROUP BY o.id, po.origin_object_id"
+        "WITH d AS (SELECT id FROM property_declaration WHERE key = $2 AND valid_period @> $3),
+         po AS MATERIALIZED ({origins}),
+         v AS (
+           SELECT o.origin_object_id,
+                  array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL) AS keys
+             FROM (SELECT DISTINCT origin_object_id FROM po) o
+            CROSS JOIN d
+             LEFT JOIN LATERAL ({assignments} OFFSET 0) a ON TRUE
+             LEFT JOIN LATERAL (
+               SELECT DISTINCT u FROM unnest(array_prepend(a.v_uuid, a.v_uuids)) u) u ON TRUE
+             LEFT JOIN property_enum_value e ON e.id = u.u
+            GROUP BY o.origin_object_id)
+         SELECT po.object_id, po.origin_object_id, coalesce(v.keys, '{{}}')
+           FROM po LEFT JOIN v ON v.origin_object_id = po.origin_object_id"
     );
     let rows: Vec<(Uuid, Option<Uuid>, Vec<String>)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .persistent(false)
         .bind(ids)
         .bind(axis.to_string())
         .bind(at)
@@ -437,16 +453,14 @@ impl Axis<'_> {
         let in_scope: Vec<Uuid> = scope.iter().map(|(id, _)| *id).collect();
         let before_declared = declared(conn, &in_scope, self.key, self.at, State::Before).await?;
         let after_declared = declared(conn, &in_scope, self.key, self.at, State::After).await?;
+        let (rules_before, rules_after) = (
+            IndexedRules::new(&self.before, self.key),
+            IndexedRules::new(&self.after, self.key),
+        );
         let mut changed: Vec<(Uuid, Side, Side)> = Vec::new();
         for (id, chain) in &scope {
-            let before = side(
-                &expected(&self.before, self.key, chain),
-                before_declared.get(id),
-            );
-            let after = side(
-                &expected(&self.after, self.key, chain),
-                after_declared.get(id),
-            );
+            let before = side(&rules_before.expected(chain), before_declared.get(id));
+            let after = side(&rules_after.expected(chain), after_declared.get(id));
             let same = before.expected == after.expected
                 && before.candidates == after.candidates
                 && before.deviates == after.deviates;
@@ -519,15 +533,13 @@ impl Axis<'_> {
         let chained = chains_of(conn, &found, &self.after, self.at).await?;
         let mut declared_after = declared(conn, &ids, self.key, self.at, State::After).await?;
         declared_after.extend(after_declared.iter().map(|(k, v)| (*k, v.clone())));
+        let rules_after = IndexedRules::new(&self.after, self.key);
         let mut deviating: BTreeSet<Uuid> = BTreeSet::new();
         for (view, chain) in found.iter().zip(&chained) {
             if chain.is_empty() {
                 continue;
             }
-            let after = side(
-                &expected(&self.after, self.key, chain),
-                declared_after.get(&view.id),
-            );
+            let after = side(&rules_after.expected(chain), declared_after.get(&view.id));
             if after.deviates
                 && let Some(origin) = after.origin
             {

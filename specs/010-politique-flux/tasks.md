@@ -619,4 +619,33 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     budget « preview of a rule of inference in its simulation, added » (1 s par 10⁴
     nœuds de la portée) ; échelle réduite le 2026-10-24 : 30 001 nœuds, 3,6 s ajoutées
     (limite 4 s, charge 2,3), tenu mais proche : environ 1,2 s par 10⁴ nœuds, à mesurer
-    sur le jeu complet.
+    sur le jeu complet. Jeu complet (2026-10-24) : **échec**, 5,7 s ajoutées pour 4 s.
+    Correctif (2026-10-24), mesuré en instrumentant l'aperçu au banc réduit (3,4 s dans
+    l'aperçu même) : (1) l'évaluation en mémoire, 2,6 s : chaque chaîne testait les
+    2 000 règles de l'axe, avant et après ; `inference::IndexedRules` indexe les règles
+    par les préfixes de leur critère `within`/`equals` (une telle règle ne touche un nœud
+    que si l'un de ses préfixes est le surréseau du préfixe du nœud à sa longueur) et ne
+    teste que celles trouvées sous les surréseaux des nœuds de la chaîne, plus les règles
+    sans critère de préfixe ; même réponse que `expected` (proptest
+    `the_indexed_rules_answer_as_every_rule`), employé aussi par la source
+    `policy.inference` ; (2) les valeurs déclarées avant et après, 0,38 s au banc réduit
+    et linéaires dans le référentiel (origines et affectations hachées entières, d'où
+    l'écart réduit → complet) : origines lues par `object_id = ANY` sur le btree par
+    objet, valeurs une fois par origine distincte derrière `OFFSET 0`, planifiées à
+    chaque appel (`persistent(false)` : le plan générique relisait toutes les
+    affectations par origine) ; (3) la lignée des propriétaires et sites
+    (`infer::lineage`, et `resolved` de même forme) sondait l'origine de chaque objet une
+    fois par affectation de la propriété (1,2·10⁶ sondes pour 3·10⁴ nœuds et 41
+    propriétaires, ≈ 1 s en psql) : cible de chaque objet matérialisée d'abord, puis son
+    affectation par clé derrière `OFFSET 0` (≈ 0,1 s en plan personnalisé comme
+    générique, 0,1 ms pour un objet) ; test `the_owners_of_many_nodes_are_read_with_their_lineage`.
+    Banc réduit après correctif : 0,93 s ajoutées (charge 2,8) et 0,89 s (charge 5,8),
+    1,35 s sous charge 6 ; réévaluation complète de l'inférence 29,8 s → 12,3 s.
+    Extrapolation au jeu complet : la portée est la même (30 001 nœuds aux deux
+    échelles) et plus aucune lecture ne parcourt le référentiel, d'où ≈ 1 à 1,5 s.
+    Contrôle de l'inférence (688 ms au complet, ≈ 0,3 s avant) : sans lien avec
+    l'aperçu ni le masquage (celui-ci est dans `kartenn-rest`, hors du chemin du banc) ;
+    instrumentée, la source n'évalue aucune des 10⁴ adresses du contrôle (elles héritent
+    la valeur de leur réseau, pas de défaut) et l'écart des médianes est du bruit :
+    au banc réduit, 1,18 s puis 0 s sans correctif, 0,15 s puis 0,99 s avec, selon la
+    charge (2 à 6).

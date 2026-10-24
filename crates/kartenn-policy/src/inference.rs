@@ -3,7 +3,7 @@
 //! rules and of a node with its ancestors: it proposes and checks, it never decides a
 //! verdict (D23).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 use kartenn_core::addr::{Family, Prefix};
@@ -396,9 +396,12 @@ fn refine(
 /// a remaining tie between different sets gives every candidate.
 #[must_use]
 pub fn expected(rules: &[InferenceRule], axis: &AxisKey, chain: &[Node]) -> Expectation {
+    among(rules.iter().filter(|r| &r.axis == axis), chain)
+}
+
+/// [`expected`] among `rules`, already those of the axis.
+fn among<'r>(rules: impl Iterator<Item = &'r InferenceRule>, chain: &[Node]) -> Expectation {
     let mut matched: Vec<(&InferenceRule, usize, Vec<String>)> = rules
-        .iter()
-        .filter(|r| &r.axis == axis)
         .filter_map(|r| r.deepest(chain, 0).map(|(d, o)| (r, d, o)))
         .collect();
     // Strongest first; the key orders equals for a stable explanation.
@@ -440,6 +443,79 @@ pub fn expected(rules: &[InferenceRule], axis: &AxisKey, chain: &[Node]) -> Expe
         Expectation::Single(candidates.remove(0))
     } else {
         Expectation::Multiple(candidates)
+    }
+}
+
+/// The rules of an axis indexed by the prefixes of their criteria `within` or `equals`,
+/// for [`expected`] over many chains (REQ-010-54, S36). Such a rule matches a node only
+/// when one of its prefixes is the supernet of the node's prefix at its own length: a
+/// chain tests the rules found under the supernets of its nodes, and the rules without
+/// such a criterion, instead of every rule of the axis. Same answer as [`expected`].
+#[derive(Debug)]
+pub struct IndexedRules<'a> {
+    /// The rules of the axis, in their order.
+    rules: Vec<&'a InferenceRule>,
+    /// The rules without a criterion on the prefix: tested on every chain.
+    free: Vec<usize>,
+    /// The rules under each prefix their first criterion on the prefix names.
+    by_prefix: HashMap<Prefix, Vec<usize>>,
+    /// The family and length of every prefix of `by_prefix`.
+    lengths: Vec<(Family, u8)>,
+}
+
+impl<'a> IndexedRules<'a> {
+    /// Indexes the rules of `axis` among `rules`.
+    #[must_use]
+    pub fn new(rules: &'a [InferenceRule], axis: &AxisKey) -> Self {
+        let rules: Vec<&InferenceRule> = rules.iter().filter(|r| &r.axis == axis).collect();
+        let mut free = Vec::new();
+        let mut by_prefix: HashMap<Prefix, Vec<usize>> = HashMap::new();
+        let mut lengths: Vec<(Family, u8)> = Vec::new();
+        for (n, rule) in rules.iter().enumerate() {
+            let bound = rule.criteria.iter().find_map(|c| match c {
+                Criterion::Within(ps) | Criterion::Equals(ps) => Some(ps),
+                _ => None,
+            });
+            let Some(prefixes) = bound else {
+                free.push(n);
+                continue;
+            };
+            for p in prefixes {
+                by_prefix.entry(*p).or_default().push(n);
+                let length = (p.family(), p.prefix_len());
+                if !lengths.contains(&length) {
+                    lengths.push(length);
+                }
+            }
+        }
+        Self {
+            rules,
+            free,
+            by_prefix,
+            lengths,
+        }
+    }
+
+    /// What the rules expect for the last node of `chain`, as [`expected`].
+    #[must_use]
+    pub fn expected(&self, chain: &[Node]) -> Expectation {
+        let mut picked = self.free.clone();
+        for prefix in chain.iter().filter_map(|node| node.prefix) {
+            for (family, length) in &self.lengths {
+                if *family != prefix.family() {
+                    continue;
+                }
+                if let Some(rules) = prefix
+                    .supernet(*length)
+                    .and_then(|s| self.by_prefix.get(&s))
+                {
+                    picked.extend(rules);
+                }
+            }
+        }
+        picked.sort_unstable();
+        picked.dedup();
+        among(picked.into_iter().map(|n| self.rules[n]), chain)
     }
 }
 
@@ -751,6 +827,55 @@ mod tests {
                     }
                 }
             }
+        }
+
+        // The index of the rules by their prefixes answers as the scan of every rule
+        // (S36, bench of the preview): rules within, equal to, or without a prefix, some
+        // with an exception, on a chain of nested prefixes.
+        #[test]
+        fn the_indexed_rules_answer_as_every_rule(
+            depth in 1usize..5,
+            raw in prop::collection::vec(
+                (0i32..3, 0u8..4, 8u8..33, 0usize..3, any::<u32>(), any::<bool>()), 0..12),
+            leaf in any::<u32>(),
+        ) {
+            let site = Uuid::now_v7();
+            let host = |len: u8, bits: u32| {
+                let mask = if len == 0 { 0 } else { u32::MAX << (32 - u32::from(len)) };
+                prefix(&format!("{}/{len}", std::net::Ipv4Addr::from(bits & mask)))
+            };
+            let mut chain = vec![node(NodeKind::Domain, None, None, site)];
+            chain.extend((0..depth).map(|i| {
+                let len = [8u8, 16, 24, 32][i.min(3)];
+                let mut n = node(NodeKind::Network, None, Some(&format!("n{i}")), site);
+                n.prefix = Some(host(len, leaf));
+                n
+            }));
+            let rules: Vec<InferenceRule> = raw
+                .iter()
+                .enumerate()
+                .map(|(i, (priority, how, len, v, bits, exception))| {
+                    // Near the leaf half of the time, for rules that match.
+                    let bits = if i % 2 == 0 { leaf } else { *bits };
+                    let p = host(*len, bits);
+                    let criteria = match how {
+                        0 => vec![Criterion::Within(vec![p])],
+                        1 => vec![Criterion::Equals(vec![p, host(8, leaf)])],
+                        2 => vec![Criterion::Kind(vec![NodeKind::Network]), Criterion::Within(vec![p])],
+                        _ => vec![Criterion::Name(vec![NameRegex::new(&format!("^n{}$", len % 4)).unwrap()])],
+                    };
+                    let mut r = rule(&format!("r{i}"), *priority, criteria, &[["a", "b", "c"][*v]]);
+                    if *exception {
+                        r.exceptions.push(rule(
+                            &format!("x{i}"), 0, vec![Criterion::Within(vec![host(24, leaf)])], &["z"]));
+                    }
+                    r
+                })
+                .collect();
+            prop_assert_eq!(
+                IndexedRules::new(&rules, &axis(ENV)).expected(&chain),
+                expected(&rules, &axis(ENV), &chain)
+            );
         }
     }
 }

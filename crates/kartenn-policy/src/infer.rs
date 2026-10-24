@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::handler::{invalid, plan};
 use crate::inference::{
-    Criterion, Expectation, InferenceRule, NameRegex, Node, NodeKind, PropertyTest, expected,
+    Criterion, Expectation, IndexedRules, InferenceRule, NameRegex, Node, NodeKind, PropertyTest,
 };
 use crate::load::State;
 use crate::model::{AxisKey, AxisValue, Key};
@@ -309,21 +309,27 @@ async fn resolved(
         return Ok(BTreeMap::new());
     }
     let rows: Vec<(Uuid, String, Vec<String>)> = sqlx::query_as(
-        "WITH t AS (SELECT coalesce($3::timestamptz, now()) AS at)
-         SELECT o.id, d.key,
-                coalesce(array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL), '{}')
-           FROM t, unnest($1::uuid[]) AS o(id), property_declaration d
-           CROSS JOIN LATERAL (
-             SELECT CASE WHEN d.inherit_tree IS NULL THEN o.id ELSE
+        "WITH t AS (SELECT coalesce($3::timestamptz, now()) AS at),
+         -- The target of each object and key first, once (see `lineage`).
+         g AS MATERIALIZED (
+           SELECT o.id AS object, d.id AS property, d.key,
+                  CASE WHEN d.inherit_tree IS NULL THEN o.id ELSE
                     (SELECT po.origin_object_id FROM property_origin po
                       WHERE po.object_id = o.id AND po.property_id = d.id
                         AND po.valid_period @> t.at)
-                    END AS target) g
-           JOIN property_assignment a ON a.object_id = g.target AND a.property_id = d.id
+                  END AS target
+             FROM t, unnest($1::uuid[]) AS o(id), property_declaration d
+            WHERE d.key = ANY($2) AND d.valid_period @> t.at)
+         SELECT g.object, g.key,
+                coalesce(array_agg(e.key ORDER BY e.key) FILTER (WHERE e.key IS NOT NULL), '{}')
+           FROM t, g
+           CROSS JOIN LATERAL (
+             SELECT a.v_uuid, a.v_uuids FROM property_assignment a
+              WHERE a.object_id = g.target AND a.property_id = g.property
+                AND a.valid_period @> t.at AND a.kind = 'value'
+             OFFSET 0) a
            LEFT JOIN property_enum_value e ON e.id = a.v_uuid OR e.id = ANY(a.v_uuids)
-          WHERE d.key = ANY($2) AND d.valid_period @> t.at AND a.valid_period @> t.at
-            AND a.kind = 'value'
-          GROUP BY o.id, d.key",
+          GROUP BY g.object, g.key",
     )
     .bind(objects)
     .bind(keys)
@@ -357,17 +363,26 @@ async fn lineage(
     }
     let sql = format!(
         "WITH RECURSIVE t AS (SELECT coalesce($3::timestamptz, now()) AS at),
-         start AS (
-           SELECT o.id AS object, a.v_uuid AS id
+         -- The target of each object first, once: joined with the assignments, the
+         -- planner probed the origin of every object once per assignment of the property
+         -- (1.2·10⁶ probes for 3·10⁴ objects and 41 owners, about 1 s).
+         g AS MATERIALIZED (
+           SELECT o.id AS object, d.id AS property,
+                  coalesce(
+                    (SELECT po.origin_object_id FROM property_origin po
+                      WHERE po.object_id = o.id AND po.property_id = d.id
+                        AND po.valid_period @> t.at), o.id) AS target
              FROM t, unnest($1::uuid[]) AS o(id), property_declaration d
-             CROSS JOIN LATERAL (
-               SELECT coalesce(
-                 (SELECT po.origin_object_id FROM property_origin po
-                   WHERE po.object_id = o.id AND po.property_id = d.id
-                     AND po.valid_period @> t.at), o.id) AS target) g
-             JOIN property_assignment a ON a.object_id = g.target AND a.property_id = d.id
-            WHERE d.key = $2 AND d.valid_period @> t.at AND a.valid_period @> t.at
-              AND a.kind = 'value' AND a.v_uuid IS NOT NULL),
+            WHERE d.key = $2 AND d.valid_period @> t.at),
+         -- Then its assignment by its key, behind an `OFFSET 0` fence: a generic plan
+         -- of the join read every assignment of the property, even for one object.
+         start AS (
+           SELECT g.object, a.v_uuid AS id
+             FROM t, g CROSS JOIN LATERAL (
+               SELECT a.v_uuid FROM property_assignment a
+                WHERE a.object_id = g.target AND a.property_id = g.property
+                  AND a.valid_period @> t.at AND a.kind = 'value' AND a.v_uuid IS NOT NULL
+               OFFSET 0) a),
          up(object, id, n) AS (
            SELECT object, id, 0 FROM start
            UNION ALL
@@ -688,6 +703,8 @@ impl ExpectedValueSource for InferenceSource {
                 return Ok(vec![Expected::None; objects.len()]);
             }
             let keys = tested(&rules);
+            // Each chain tests the rules its prefixes may match, not every rule (S36).
+            let indexed = IndexedRules::new(&rules, &axis);
             Ok(chains(conn, objects, &keys, at)
                 .await?
                 .into_iter()
@@ -695,7 +712,7 @@ impl ExpectedValueSource for InferenceSource {
                     if nodes.is_empty() {
                         Expected::None
                     } else {
-                        answer(&expected(&rules, &axis, &nodes))
+                        answer(&indexed.expected(&nodes))
                     }
                 })
                 .collect())

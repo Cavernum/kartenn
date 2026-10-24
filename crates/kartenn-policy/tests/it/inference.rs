@@ -220,3 +220,75 @@ async fn a_rule_of_inference_is_checked_on_the_final_state(pool: PgPool) {
         assert!(rules(&outcome).contains(&expected), "{outcome:?}");
     }
 }
+
+/// The owner of a node and its ancestors, inherited or its own (REQ-010-41, 54; the
+/// reads of the chains reshaped for the preview, S36): a rule on
+/// the parent entity reaches the nodes of the domain it owns, a stronger rule on a child
+/// entity the subtree that names it, and a node without any rule is left alone.
+#[kartenn_testing::pg_test]
+async fn the_owners_of_many_nodes_are_read_with_their_lineage(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    environments(&env).await;
+    let acme = env.id("entity", "acme").await;
+    env.applied(vec![Operation::CreateEntity {
+        local: Some(1),
+        slug: "beta".into(),
+        parent: Some(Ref::Id(acme)),
+    }])
+    .await;
+    let beta = env.id("entity", "beta").await;
+    applied(
+        &env,
+        vec![
+            rule("r-acme", "prod", 0, &json!([{ "entity": [acme] }])),
+            rule(
+                "r-beta",
+                "rec",
+                1,
+                &json!([{ "entity": [beta] }, { "kind": ["container"] }]),
+            ),
+        ],
+    )
+    .await;
+    let owner = env.property("core.owner").await;
+    env.applied(vec![
+        container(&env, "10.0.0.0/8"),
+        Operation::CreatePrefix {
+            local: Some(2),
+            domain: Ref::Id(env.domain),
+            prefix: "10.1.0.0/16".into(),
+            nature: Nature::Container,
+            point_to_point: false,
+            anycast: false,
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(2),
+            kind: kartenn_service::ObjectKind::Prefix,
+            property: Ref::Id(owner),
+            values: vec![kartenn_service::operations::RawInput::Text(
+                beta.to_string(),
+            )],
+        },
+        Operation::CreatePrefix {
+            local: Some(3),
+            domain: Ref::Id(env.domain),
+            prefix: "10.1.2.0/24".into(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        },
+    ])
+    .await;
+    let property = env.property("policy.environment").await;
+    let expected_of = async |prefix: &str| {
+        let node = prefix_id(&pool, prefix).await;
+        let suggested = suggest(&env.store, &sources(), property, node, None)
+            .await
+            .unwrap();
+        suggested.single().and_then(|s| s.detail.clone())
+    };
+    assert_eq!(expected_of("10.0.0.0/8").await.as_deref(), Some("r-acme"));
+    assert_eq!(expected_of("10.1.0.0/16").await.as_deref(), Some("r-beta"));
+    // The network below inherits beta: r-beta reached through its container.
+    assert_eq!(expected_of("10.1.2.0/24").await.as_deref(), Some("r-beta"));
+}
