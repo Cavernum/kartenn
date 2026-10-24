@@ -43,8 +43,8 @@ modification ; routes `GET`/`POST /v1/drafts`, `GET`/`PATCH`/`DELETE /v1/drafts/
 
 #### REQ-024-2 — Seul l'auteur
 kartenn doit refuser toute lecture ou écriture d'un brouillon par une autre identité que
-son auteur (404, l'existence n'est pas révélée), sauf la suppression prévue par
-REQ-024-7 ; un compte de service n'a pas de brouillon. [M2]
+son auteur (404, l'existence n'est pas révélée), sauf la reprise prévue par
+REQ-024-7a ; un compte de service n'a pas de brouillon. [M2]
 
 #### REQ-024-3 — Version
 kartenn doit exiger `If-Match` sur toute modification d'un brouillon et répondre 412
@@ -68,9 +68,14 @@ contenu) vers les seuls flux de l'auteur. [M3, 022]
 
 #### REQ-024-7 — Rétention et limites
 kartenn doit supprimer un brouillon inactif depuis 90 jours, garder au plus 50 brouillons
-par identité et 10 000 opérations par brouillon (422 au-delà), et permettre à qui détient
-`core.rbac.admin` (globale) de supprimer, sans les lire, les brouillons d'une identité
-(audité). [Q-024-2, 3, 4]
+par identité et 10 000 opérations par brouillon (422 au-delà), et annoncer la suppression
+7 jours avant (champ `expires_at`). [Q-024-2, 3]
+
+#### REQ-024-7a — Reprise par un administrateur
+kartenn doit permettre à qui détient la permission globale `core.draft.admin` de lister
+les brouillons d'une autre identité, de les lire, de les supprimer et de se les
+attribuer (le brouillon change d'auteur et sort de la liste de l'ancien) ; chacune de
+ces actions, lecture comprise, doit être auditée avec l'identité d'origine. [Q-024-4]
 
 #### REQ-024-8 — Brouillon du shell
 Le shell doit garder son brouillon sur le serveur (REQ-024-1) au lieu d'IndexedDB ; le

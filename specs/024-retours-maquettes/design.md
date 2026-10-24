@@ -47,7 +47,11 @@ Routes (`crates/kartenn-rest/src/drafts.rs`, à l'image de `changesets.rs`) :
 | `DELETE /v1/drafts/{id}` | supprime, `If-Match` |
 | `POST /v1/drafts/{id}/simulation` | comme `POST /v1/changesets?simulate=true` |
 | `POST /v1/drafts/{id}/submission[?apply=own]` | crée le changeset (REQ-024-5, 13) |
-| `DELETE /v1/identities/{id}/drafts` | sous `core.rbac.admin` global (REQ-024-7) |
+| `GET /v1/identities/{id}/drafts` | sous `core.draft.admin` global, audité (REQ-024-7a) |
+| `POST /v1/drafts/{id}/takeover` | sous `core.draft.admin` : l'appelant devient l'auteur, audité |
+
+Sous `core.draft.admin`, `GET` et `DELETE /v1/drafts/{id}` acceptent aussi le brouillon
+d'un autre (audités, avec l'auteur d'origine) ; sans elle, 404.
 
 Un brouillon d'un autre répond 404. La rétention (90 jours) est un job du planificateur
 existant (`kartenn-server`, jobs), quotidien. Événement SSE `draft` : `{id, version}` ou
@@ -64,7 +68,8 @@ brouillon disparaît (pas de migration, rien à garder avant le gel).
 Catalogue (`docs/spec/permissions.md`, catalogues des modules) : pour chaque
 `X.write`/`X.propose`, trois permissions `X.edit`, `X.apply`, `X.apply_own` ;
 `core.changeset.approve` disparaît. Le nommage de la 018 tient (`vlan.edit`,
-`core.prefix.apply_own`, `prop.<clé>.edit` si Q-024-6 l'accepte).
+`core.prefix.apply_own`, `prop.<clé>.edit`, Q-024-6) ; nouvelle permission globale
+`core.draft.admin` (Q-024-4).
 
 Pipeline (`crates/kartenn-service/src/pipeline.rs`, `rights.rs`, `review.rs`) :
 

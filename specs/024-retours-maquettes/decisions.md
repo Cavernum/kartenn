@@ -194,16 +194,21 @@ documentation et guides : une spec à part, plus tard.
 
 ## Questions
 
-- **Q-024-1** Brouillon : ressource à part `/v1/drafts` (M2, recommandé) ou état `draft`
-  des changesets (formulation de la question du 2026-10-24) ?
-- **Q-024-2** Rétention d'un brouillon inactif : 90 jours, puis suppression annoncée 7
-  jours avant dans l'interface (recommandé) ; ou sans limite ?
-- **Q-024-3** Nombre de brouillons par identité : 50 au plus, 10 000 opérations par
-  brouillon (recommandé) ?
-- **Q-024-4** Un administrateur peut-il lister ou supprimer les brouillons d'un autre (par
-  exemple au départ d'une personne) ? Recommandé : suppression seulement, sous
-  `core.rbac.admin` (globale), auditée, contenu jamais lu.
-- **Q-024-5** Statistiques : les compteurs « changements récents » comptent-ils tous les
-  changesets lisibles (recommandé) ou ceux de l'appelant ?
-- **Q-024-6** Permissions de propriété (`prop.<clé>.write`, `prop.<clé>.propose`) :
-  mêmes trois verbes (`prop.<clé>.edit`, `apply`, `apply_own`), recommandé ?
+Toutes tranchées le 2026-10-24.
+
+- **Q-024-1** Brouillon : ressource à part `/v1/drafts` ou état `draft` des changesets ?
+  → **ressource à part** (M2).
+- **Q-024-2** Rétention d'un brouillon inactif → **90 jours**, suppression annoncée 7
+  jours avant dans l'interface.
+- **Q-024-3** Limites → **50 brouillons** par identité, **10 000 opérations** par
+  brouillon.
+- **Q-024-4** Un administrateur et les brouillons d'un autre (départ d'une personne) →
+  **lire et reprendre** : permission globale nouvelle `core.draft.admin` pour lister,
+  lire, supprimer et s'attribuer les brouillons d'une autre identité, chaque action
+  auditée, lecture comprise (REQ-024-7a). Un brouillon n'est donc privé que vis-à-vis des
+  autres utilisateurs, pas de cet administrateur ; l'interface le dit à la création du
+  premier brouillon.
+- **Q-024-5** Compteurs « changements récents » → **tous les changesets lisibles**
+  (choix peu coûteux, tranché sans question).
+- **Q-024-6** Permissions de propriété → **mêmes trois verbes** (`prop.<clé>.edit`,
+  `prop.<clé>.apply`, `prop.<clé>.apply_own`).

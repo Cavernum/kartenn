@@ -36,8 +36,10 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P1 — Serveur (en parallèle, après P0)
 
-- [ ] 5. Table `draft`, routes, 404 d'un autre, If-Match, limites, rétention, suppression
-  par l'administrateur — REQ-024-1, 2, 3, 7 — verify : tests d'intégration par route
+- [ ] 5. Table `draft`, routes, 404 d'un autre, If-Match, limites, rétention annoncée,
+  reprise par `core.draft.admin` (lecture, suppression, attribution, toutes auditées) —
+  REQ-024-1, 2, 3, 7, 7a — verify : tests d'intégration par route ; audit d'une lecture
+  par l'administrateur
   - où : `crates/kartenn-store-pg/migrations/0062_drafts.sql` ;
     `crates/kartenn-rest/src/drafts.rs` (modèle : `changesets.rs`) ; job dans
     `crates/kartenn-server` (jobs) ; design « A »
