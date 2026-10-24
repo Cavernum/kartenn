@@ -760,7 +760,11 @@ async fn refused(
 
 /// The first response to the key, rebuilt from the journal of its changeset
 /// (design « Idempotence »): 202 for a changeset held for a decision, even decided since.
-async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Response, Problem> {
+pub(crate) async fn replayed(
+    api: &Api,
+    changeset: Uuid,
+    answer: &Answer<'_>,
+) -> Result<Response, Problem> {
     let answer = &Answer {
         shown: None,
         ..*answer

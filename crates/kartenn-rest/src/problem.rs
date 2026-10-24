@@ -71,11 +71,14 @@ pub enum ProblemKind {
     Exhausted,
     /// A query of compliance beyond its bounds (spec 010, design « API »).
     PolicyQueryTooLarge,
+    /// Beyond the drafts of an identity or the operations of a draft (spec 024,
+    /// REQ-024-7).
+    DraftLimit,
 }
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -103,6 +106,7 @@ impl ProblemKind {
         Self::Internal,
         Self::Exhausted,
         Self::PolicyQueryTooLarge,
+        Self::DraftLimit,
     ];
 
     /// The last segment of the `type`.
@@ -136,6 +140,7 @@ impl ProblemKind {
             Self::Internal => "internal",
             Self::Exhausted => "exhausted",
             Self::PolicyQueryTooLarge => "policy-query-too-large",
+            Self::DraftLimit => "draft-limit",
         }
     }
 
@@ -162,7 +167,8 @@ impl ProblemKind {
             | Self::InvalidMember
             | Self::InvalidOverride
             | Self::InvalidImport
-            | Self::PolicyQueryTooLarge => StatusCode::UNPROCESSABLE_ENTITY,
+            | Self::PolicyQueryTooLarge
+            | Self::DraftLimit => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -202,6 +208,7 @@ impl ProblemKind {
             Self::Internal => "Erreur interne",
             Self::Exhausted => "Plus rien de libre",
             Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue",
+            Self::DraftLimit => "Limite des brouillons atteinte",
         };
         kartenn_core::labels::Compiled::new(fr, self.title())
     }
@@ -237,6 +244,7 @@ impl ProblemKind {
             Self::Internal => "Internal error",
             Self::Exhausted => "Nothing is free",
             Self::PolicyQueryTooLarge => "The query of compliance is too large",
+            Self::DraftLimit => "A limit of the drafts is reached",
         }
     }
 }

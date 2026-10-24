@@ -427,6 +427,128 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "operations": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "draft.state.created"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "state": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "draft.state.submitted"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "author": {},
+            "cause": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "draft.state.deleted"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "author": {},
+            "count": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "draft.admin.read"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "author": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "draft.admin.taken_over"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
             "object": {},
             "on_behalf_of": {
               "format": "uuid",

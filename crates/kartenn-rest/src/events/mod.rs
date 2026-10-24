@@ -128,8 +128,8 @@ struct StreamParams {
     domains: Option<String>,
     /// Objects watched, comma separated, 100 at most.
     objects: Option<String>,
-    /// Kinds of event among `changes`, `changeset`, `labels`; `ready` and `reset` always
-    /// come.
+    /// Kinds of event among `changes`, `changeset`, `labels`, `draft`; `ready` and
+    /// `reset` always come.
     kinds: Option<String>,
     /// The cursor to resume after, when the header `Last-Event-ID` cannot be set (a new
     /// `EventSource`).
@@ -198,6 +198,19 @@ pub(crate) struct EventLabels {
     revision: String,
 }
 
+/// The data of `draft`: a draft of the subscriber changed (spec 024, REQ-024-6); its
+/// author alone receives it, never its content.
+#[derive(utoipa::ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct EventDraft {
+    /// The draft.
+    id: uuid::Uuid,
+    /// Its new version; absent when it is deleted.
+    version: Option<i64>,
+    /// `true`: deleted, submitted or taken over by someone else.
+    deleted: Option<bool>,
+}
+
 /// The data of `reset`: invalidate everything (REQ-022-8, 18, 21).
 #[derive(utoipa::ToSchema)]
 #[allow(dead_code)]
@@ -239,6 +252,11 @@ pub(crate) fn event_schemas() -> Vec<(
             EventLabels::schema(),
         ),
         (
+            "draft",
+            EventDraft::name().into_owned(),
+            EventDraft::schema(),
+        ),
+        (
             "reset",
             EventReset::name().into_owned(),
             EventReset::schema(),
@@ -263,7 +281,7 @@ pub(crate) fn event_object_schema() -> utoipa::openapi::RefOr<utoipa::openapi::S
     ),
     responses(
         (status = 200, description = "The stream of events (`text/event-stream`, WHATWG HTML \
-            § 9.2): `ready`, then `changes`, `changeset`, `labels`, `reset` and resumption \
+            § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `reset` and resumption \
             points; each `id:` an opaque cursor. The data of each kind is named by the \
             extension `x-kartenn-events`.", content_type = "text/event-stream", body = String),
         (status = 400, description = "A filter unknown or out of bounds (`events.filter.invalid`).", body = Problem, content_type = "application/problem+json"),

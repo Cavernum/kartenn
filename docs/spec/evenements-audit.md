@@ -24,6 +24,11 @@ criticité fixe la durée de conservation (L22). Les correspondances OCSF (1.9) 
 | `changeset.state.rejected` | INFO | normal | Un valideur a rejeté un changeset en attente. | — | REQ-012-8 | API Activity 6003 / Update | `configuration` |
 | `changeset.state.expired` | INFO | normal | Un changeset en attente a expiré. | — | REQ-012-8 | API Activity 6003 / Update | `configuration` |
 | `changeset.state.stale` | WARN | normal | Un changeset en attente n'a pas passé sa revalidation au moment d'être validé. | `rules` | REQ-012-8 | API Activity 6003 / Update | `configuration` |
+| `draft.state.created` | INFO | normal | Un brouillon a été créé. | `operations` | REQ-024-6 | API Activity 6003 / Create | `configuration` |
+| `draft.state.submitted` | INFO | normal | Un brouillon a été soumis : le changeset créé (en attente ou appliqué) le remplace. | `state` | REQ-024-5, REQ-024-6 | API Activity 6003 / Update | `configuration` |
+| `draft.state.deleted` | INFO | normal | Un brouillon a été supprimé : par son auteur, par un administrateur (`author`, l'auteur d'origine) ou par la rétention (90 jours d'inactivité). | `cause`, `author` | REQ-024-6, REQ-024-7, REQ-024-7a | API Activity 6003 / Delete | `configuration` |
+| `draft.admin.read` | INFO | high | Un administrateur a listé ou lu les brouillons d'une autre identité (`author`). | `author`, `count` | REQ-024-7a | API Activity 6003 / Read | `database` |
+| `draft.admin.taken_over` | INFO | high | Un administrateur s'est attribué le brouillon d'une autre identité (`author`, l'auteur d'origine). | `author` | REQ-024-7a | API Activity 6003 / Update | `configuration` |
 | `anomaly.state.acknowledged` | INFO | normal | Une anomalie a été acquittée avec un motif, pour la version courante de son objet. | `rule`, `object` | REQ-002-36 | API Activity 6003 / Update | `configuration` |
 | `rbac.role.changed` | INFO | high | Un rôle ou ses permissions ont changé. | `role` | REQ-012-8 | Entity Management 3004 / Update | `iam` |
 | `rbac.binding.changed` | INFO | high | Une liaison sujet × rôle × périmètre a été créée ou retirée. | `role`, `scope` | REQ-012-8 | Entity Management 3004 / Update | `iam` |

@@ -31,6 +31,8 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "capabilities",
     "changesets",
     "domains",
+    // The drafts kept by the server (spec 024).
+    "drafts",
     "entities",
     // The event stream (spec 022).
     "events",
@@ -1187,6 +1189,7 @@ pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<boo
                 cascaded: &[],
                 audit: &[],
                 on_behalf_of: None,
+                draft: None,
             };
             tx.journal_applied(&journal).await
         }

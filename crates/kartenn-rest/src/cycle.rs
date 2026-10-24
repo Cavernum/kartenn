@@ -419,6 +419,9 @@ pub(crate) struct ChangesetDto {
     /// REQ-016-12); absent otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     on_behalf_of: Option<Uuid>,
+    /// The draft it was submitted from (spec 024, REQ-024-5); absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    draft: Option<Uuid>,
     /// Why.
     motive: String,
     /// The start of its period, RFC 3339.
@@ -471,6 +474,7 @@ async fn represent(
         author: s.author,
         validator: found.validator,
         on_behalf_of: found.on_behalf_of,
+        draft: found.draft,
         motive: s.motive.clone(),
         valid_from: time(found.valid_from),
         valid_to: found.valid_to.map(time),

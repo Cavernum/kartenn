@@ -203,6 +203,19 @@ pub struct Journal<'a> {
     pub audit: &'a [kartenn_core::audit::AuditEvent],
     /// The requester a service account wrote for (REQ-016-12), an identity `requester`.
     pub on_behalf_of: Option<Uuid>,
+    /// The draft the changeset is submitted from (spec 024, REQ-024-5): recorded on the
+    /// changeset, and deleted with its creation (pending or applied) when still at this
+    /// version.
+    pub draft: Option<DraftOrigin>,
+}
+
+/// The draft a submission comes from, at the version read (spec 024, REQ-024-5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DraftOrigin {
+    /// The draft.
+    pub id: Uuid,
+    /// Its version when read for the submission: a draft modified since stays.
+    pub version: i64,
 }
 
 /// The violation that kept a changeset pending when its author asked to apply it (spec

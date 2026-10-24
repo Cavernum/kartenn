@@ -79,6 +79,14 @@ impl Runner for Tasks {
                     .map_err(|e| anyhow::anyhow!(e.0))?;
                 tracing::info!(name: "job.idempotency_purge", purged, "expired idempotency keys purged");
             }
+            "draft-retention" => {
+                // Spec 024, REQ-024-7: the drafts inactive for 90 days.
+                let deleted =
+                    kartenn_store_pg::drafts::expire(self.store.pool(), self.store.instance())
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e.0))?;
+                tracing::info!(name: "job.draft_retention", deleted, "inactive drafts deleted");
+            }
             other => {
                 if let Some(import) = kartenn_store_pg::imports::job_import(other) {
                     self.import(import).await?;

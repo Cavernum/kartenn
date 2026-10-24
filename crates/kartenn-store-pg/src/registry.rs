@@ -159,6 +159,7 @@ pub async fn rewrite_public(
             cascaded: &[],
             audit: &[],
             on_behalf_of: None,
+            draft: None,
         })
         .await?;
         tx.commit().await?;

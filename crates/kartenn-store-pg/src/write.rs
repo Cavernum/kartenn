@@ -820,11 +820,11 @@ async fn write_journal(
     sqlx::query(
         "INSERT INTO changeset (id, author_id, motive, state, kind, default_period, retroactive, applied_at,
                                 violations, anomalies, diff_summary, validator_id, expires_at, policy_id,
-                                required_rights, request, cascaded, on_behalf_of)
+                                required_rights, request, cascaded, on_behalf_of, draft_id)
          VALUES ($1, $2, $3, $4, $10, tstzrange(coalesce($5::timestamptz, now()), $6::timestamptz),
                  coalesce($16::timestamptz < now(), false), CASE WHEN $4 = 'applied' THEN now() END, $7, $8, $9,
                  $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14, $17,
-                 $19)
+                 $19, $20)
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
              anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary,
@@ -863,9 +863,17 @@ async fn write_journal(
     .bind(cascaded_json(journal.cascaded))
     .bind(serde_json::to_value(journal.request).map_err(store_err)?)
     .bind(journal.on_behalf_of)
+    .bind(journal.draft.map(|d| d.id))
     .execute(&mut **tx)
     .await
     .map_err(store_err)?;
+    // Spec 024, REQ-024-5: the draft gives way to its changeset, pending or applied; one
+    // modified since its submission was read stays.
+    if let Some(draft) = journal.draft
+        && matches!(journal.state, "pending" | "applied")
+    {
+        crate::drafts::submitted(tx, draft).await?;
+    }
     crate::pending::journal_event(
         tx,
         journal.id,

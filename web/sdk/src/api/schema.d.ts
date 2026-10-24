@@ -883,6 +883,133 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/drafts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/drafts`: the drafts of the caller, without their operations. */
+    get: operations["list_drafts"];
+    put?: never;
+    /** `POST /v1/drafts`: a new draft of the caller, audited (REQ-024-6); 50 at most. */
+    post: operations["create_draft"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/drafts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/drafts/{id}`: the draft whole, to its author; to an administrator, audited
+     *     with its author (REQ-024-7a).
+     */
+    get: operations["get_draft"];
+    put?: never;
+    post?: never;
+    /**
+     * `DELETE /v1/drafts/{id}`: by its author, or by an administrator; under `If-Match`,
+     *     audited with its author (REQ-024-6, 7a).
+     */
+    delete: operations["delete_draft"];
+    options?: never;
+    head?: never;
+    /**
+     * `PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under
+     *     `If-Match` (REQ-024-3); not audited (REQ-024-6).
+     */
+    patch: operations["update_draft"];
+    trace?: never;
+  };
+  "/v1/drafts/{id}/operations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** `POST /v1/drafts/{id}/operations`: operations added after its own, under `If-Match`. */
+    post: operations["add_draft_operations"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/drafts/{id}/simulation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * `POST /v1/drafts/{id}/simulation`: as `POST /v1/changesets?simulate=true`, under the
+     *     rights of its author now (REQ-024-4): nothing is written.
+     */
+    post: operations["simulate_draft"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/drafts/{id}/submission": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * `POST /v1/drafts/{id}/submission[?apply=own]`: the changeset of the draft, by the
+     *     ordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending
+     *     (202) or applied by its author (201), it names the draft, which is deleted with it;
+     *     refused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried
+     *     once the draft is gone, the first answer comes again.
+     */
+    post: operations["submit_draft"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/drafts/{id}/takeover": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * `POST /v1/drafts/{id}/takeover`: the draft of someone else becomes the caller's, under
+     *     `core.draft.admin` and `If-Match`; it leaves the drafts of its former author. Audited
+     *     with its former author (REQ-024-7a).
+     */
+    post: operations["take_over_draft"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/entities": {
     parameters: {
       query?: never;
@@ -1356,6 +1483,26 @@ export interface paths {
     head?: never;
     /** `PATCH /v1/identities/{id}` (JSON Merge Patch) `{disabled, revoke_sessions}`. */
     patch: operations["set_identity_state"];
+    trace?: never;
+  };
+  "/v1/identities/{id}/drafts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * `GET /v1/identities/{id}/drafts`: the drafts of an identity, under `core.draft.admin`
+     *     for someone else's, the listing audited with that identity (REQ-024-7a).
+     */
+    get: operations["list_identity_drafts"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/v1/identities/{id}/pseudonymisation": {
@@ -4026,6 +4173,11 @@ export interface components {
       cascaded: components["schemas"]["Cascaded"][];
       /** @description The counted differential. */
       diff: components["schemas"]["DiffCountDto"][];
+      /**
+       * Format: uuid
+       * @description The draft it was submitted from (spec 024, REQ-024-5); absent otherwise.
+       */
+      draft?: string | null;
       /** @description The end of the wait for a decision, RFC 3339. */
       expires_at?: string | null;
       /**
@@ -4380,6 +4532,89 @@ export interface components {
       /** @description New slug. */
       slug?: string | null;
     };
+    /** @description A draft, whole. */
+    Draft: components["schemas"]["DraftSummary"] & {
+      /** @description Its operations, `Operation`s of the contract, in order. */
+      operations: components["schemas"]["Operation"][];
+      /** @description The motive it submits. */
+      reason: components["schemas"]["DraftReason"];
+    };
+    /** @description The body of a modification: each member given replaces its own. */
+    DraftChange: {
+      /** @description Operations that replace its own. */
+      operations?: components["schemas"]["Operation"][] | null;
+      reason?: components["schemas"]["DraftReason"] | null;
+      /** @description 1 to 200 characters. */
+      title?: string | null;
+    };
+    /** @description The body of a creation. */
+    DraftCreation: {
+      /** @description Its first operations. */
+      operations?: components["schemas"]["Operation"][] | null;
+      reason?: components["schemas"]["DraftReason"] | null;
+      /** @description 1 to 200 characters. */
+      title: string;
+    };
+    /** @description The drafts of an identity: at most 50, no page. */
+    DraftList: {
+      /** @description The most recently modified first. */
+      items: components["schemas"]["DraftSummary"][];
+    };
+    /** @description The body of an addition. */
+    DraftOperations: {
+      /** @description Operations added after its own, in order. */
+      operations: components["schemas"]["Operation"][];
+    };
+    /** @description What a draft submits as its motive (M9): a summary, and a description. */
+    DraftReason: {
+      /** @description The rest of the motive. */
+      description?: string | null;
+      /** @description The first line of the motive. */
+      summary?: string | null;
+    };
+    /** @description The body of a simulation or a submission: the period of the changeset. */
+    DraftSubmission: {
+      /** @description The start of the period of the changeset, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the changeset, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
+    /** @description A draft as listed: without its operations. */
+    DraftSummary: {
+      /**
+       * Format: uuid
+       * @description Its author.
+       */
+      author: string;
+      /** @description Creation, RFC 3339. */
+      created_at: string;
+      /**
+       * @description When the retention deletes it, RFC 3339: announced from 7 days before, after 83
+       *     days without modification (REQ-024-7); absent until then.
+       */
+      expires_at?: string | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /**
+       * Format: int64
+       * @description The number of its operations.
+       */
+      operation_count: number;
+      /** @description Title. */
+      title: string;
+      /** @description Last modification, RFC 3339. */
+      updated_at: string;
+      /**
+       * Format: int64
+       * @description Version, its entity tag.
+       */
+      version: number;
+    };
     /**
      * @description A value of a closed list: its key and its period (spec 018, REQ-018-22); its labels
      *     come from the dictionary `GET /v1/labels` (space `value`).
@@ -4422,6 +4657,24 @@ export interface components {
       changeset: string;
       /** @description `pending`, `applied`, `rejected`, `withdrawn`, `expired`, `failed_revalidation`. */
       state: string;
+    };
+    /**
+     * @description The data of `draft`: a draft of the subscriber changed (spec 024, REQ-024-6); its
+     *     author alone receives it, never its content.
+     */
+    EventDraft: {
+      /** @description `true`: deleted, submitted or taken over by someone else. */
+      deleted?: boolean | null;
+      /**
+       * Format: uuid
+       * @description The draft.
+       */
+      id: string;
+      /**
+       * Format: int64
+       * @description Its new version; absent when it is deleted.
+       */
+      version?: number | null;
     };
     /** @description The bounds of the filters of the event stream. */
     EventFilters: {
@@ -10283,6 +10536,499 @@ export interface operations {
       };
     };
   };
+  list_drafts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The drafts of the caller, the most recently modified first. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DraftList"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_draft: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftCreation"];
+      };
+    };
+    responses: {
+      /** @description Created; `ETag` its version, `Location` its URL. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Draft"];
+        };
+      };
+      /** @description Beyond 50 drafts or 10 000 operations (`draft-limit`), or a title out of bounds. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  get_draft: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The draft; `ETag` its version. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Draft"];
+        };
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  delete_draft: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The ETag of the draft read. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Modified since. */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  update_draft: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The ETag of the draft read. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftChange"];
+      };
+    };
+    responses: {
+      /** @description Modified; `ETag` its new version. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Draft"];
+        };
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Modified since (another tab, another device). */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description `If-Match` is missing. */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  add_draft_operations: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The ETag of the draft read. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftOperations"];
+      };
+    };
+    responses: {
+      /** @description Added; `ETag` its new version. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Draft"];
+        };
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Modified since. */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Beyond 10 000 operations (`draft-limit`). */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  simulate_draft: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description The period of the changeset; none by default. */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["DraftSubmission"] | null;
+      };
+    };
+    responses: {
+      /** @description Simulated: violations, differential, sections. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  submit_draft: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+      };
+      header?: {
+        /** @description The ETag of the draft read: when given, a draft modified since is not submitted (412). */
+        "If-Match"?: string | null;
+        /** @description Makes the submission idempotent for 24 h. */
+        "Idempotency-Key"?: string | null;
+      };
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description The period of the changeset; none by default. */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["DraftSubmission"] | null;
+      };
+    };
+    responses: {
+      /** @description Applied by its author (`apply=own`); the draft is deleted. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Submitted, pending its application; the draft is deleted. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description Absent, or someone else's. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Modified since the ETag of `If-Match`. */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Refused (violations, motive missing): the draft stays. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  take_over_draft: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The ETag of the draft read. */
+        "If-Match": string;
+      };
+      path: {
+        /** @description The draft. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The draft, now the caller's; `ETag` its new version. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Draft"];
+        };
+      };
+      /** @description Absent, or someone else's without `core.draft.admin`. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description The draft is the caller's already. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Modified since. */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description The caller keeps 50 drafts already (`draft-limit`). */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_entities: {
     parameters: {
       query?: {
@@ -10855,8 +11601,8 @@ export interface operations {
         /** @description Objects watched, comma separated, 100 at most. */
         objects?: string;
         /**
-         * @description Kinds of event among `changes`, `changeset`, `labels`; `ready` and `reset` always
-         *     come.
+         * @description Kinds of event among `changes`, `changeset`, `labels`, `draft`; `ready` and
+         *     `reset` always come.
          */
         kinds?: string;
         /**
@@ -10874,7 +11620,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
+      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
       200: {
         headers: {
           [name: string]: unknown;
@@ -12008,6 +12754,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_identity_drafts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The identity. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Its drafts, the most recently modified first. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DraftList"];
+        };
+      };
+      /** @description Someone else's without `core.draft.admin`. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
         };
       };
       /** @description A problem (RFC 9457). */

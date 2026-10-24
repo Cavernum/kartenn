@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use kartenn_core::audit::{
     APPROVAL_POLICY_CHANGED, AUTHZ_DENIED, CHANGESET_APPLIED, CHANGESET_REFUSED,
     CHANGESET_REVALIDATION_FAILED, CHANGESET_SUBMITTED_PENDING, DECLARATION_CHANGED,
+    DRAFT_SUBMITTED,
 };
 pub use kartenn_core::audit::{
     Actor, AuditError, AuditEvent, Correlation, EventKind, Outcome, Source,
@@ -44,6 +45,9 @@ pub struct RequestContext {
     /// (`?apply=own`, spec 024, REQ-024-13): a write sets
     /// [`crate::ChangesetRequest::apply_own`] from it.
     pub apply_own: bool,
+    /// The draft the request submits (`POST /v1/drafts/{id}/submission`, spec 024,
+    /// REQ-024-5): its changeset names it, and it is deleted with its creation.
+    pub draft: Option<crate::port::DraftOrigin>,
 }
 
 impl RequestContext {
@@ -77,6 +81,7 @@ impl RequestContext {
             groups: Vec::new(),
             on_behalf_of: None,
             apply_own: false,
+            draft: None,
         }
     }
 
@@ -90,6 +95,7 @@ impl RequestContext {
             groups: Vec::new(),
             on_behalf_of: None,
             apply_own: false,
+            draft: None,
         }
     }
 
@@ -338,6 +344,17 @@ pub(crate) fn changeset_events(
             .detail(detail.0, detail.1)
             .map_err(|e| audit_err(&e))?,
     ];
+    // Spec 024, REQ-024-6: the draft submitted, once its changeset is created.
+    if let Some(draft) = journal.draft
+        && matches!(journal.state, "pending" | "applied")
+    {
+        events.push(
+            event(&DRAFT_SUBMITTED, Outcome::Success)?
+                .target("draft", [draft.id])
+                .detail("state", journal.state)
+                .map_err(|e| audit_err(&e))?,
+        );
+    }
     for v in journal.violations {
         events.extend(denial(context, v, Some(journal.id))?);
     }

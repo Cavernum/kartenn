@@ -294,7 +294,7 @@ les a exclus (événements sortants).
   `FOR UPDATE SKIP LOCKED`, bail de 30 s renouvelé toutes les 10 s, scrutation toutes
   les 5 s ; tâches `expire-pending` (1 min), `reevaluate-expected` (5 min),
   `public-drift` (au démarrage d'une version, puis chaque jour), `idempotency-purge`
-  (1 h), et une tâche `import:<id>` par import démarré (tri, puis lots). Minuteries locales à chaque
+  (1 h), `draft-retention` (1 j, brouillons inactifs depuis 90 jours, spec 024), et une tâche `import:<id>` par import démarré (tri, puis lots). Minuteries locales à chaque
   instance : purge des caches d'état et des limiteurs, rechargement des JWKS (5 min).
 - Base de données (spec 015, REQ-015-4) : section `[database] url_file`, un fichier qui
   contient l'URL `postgres://…`, lu au démarrage ; l'URL est alors absente de la ligne de
