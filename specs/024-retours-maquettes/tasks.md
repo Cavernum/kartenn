@@ -290,13 +290,35 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P2 — Révision des specs de l'interface
 
-- [ ] 9. Report de REQ-024-18 à 28 dans les designs et exigences des specs 020 et 021
+- [x] 9. Report de REQ-024-18 à 28 dans les designs et exigences des specs 020 et 021
   (cadre, inventaire des composants, régression visuelle, écrans) ; SDK : brouillons
   serveur, statistiques ; section « Structure avant style » du skill `kartenn-ui` —
   verify : `spec-keeper` sur 020 et 021
   - où : `specs/020-systeme-de-design/design.md` (« Inventaire », « Architecture CSS »,
     « Régression visuelle ») ; `specs/021-shell-v2/design.md` (« Cadre », « Écrans ») ;
     `.claude/skills/kartenn-ui/SKILL.md`
+  - Résultat : 021 — REQ-021-1, 6 (panneau droit, pied du brouillon), 9 (accueil,
+    Topographie), 11 (brouillons du serveur), 13, 14, 15, 20, 25 révisées, REQ-021-36
+    (panneau d'édition par sorte) et 37 (droits au survol) ajoutées ; design « Cadre »,
+    « Routes », « Raccourcis », « Écrans », catalogue, « Édition en place », fraîcheur,
+    flux, « Écritures » (`sdk.drafts`, `sdk.stats`), erreurs. 020 — REQ-020-3, 23, 26
+    révisées, REQ-020-34 à 37 ajoutées ; design « Structure avant style », inventaire
+    30 à 34 (`SidePanel`, `CommitForm`, `SplitButton`, `Toolbar`, `MatrixGrid`), `Drawer`
+    modal seulement, maquette E0, captures à quatre largeurs. Skill : section « Structure
+    avant style », inventaire, raccourcis. `spec-keeper` : couverture complète ; écarts
+    corrigés (`?apply=own` sur toute écriture reporté dans REQ-024-13 comme livré par la
+    tâche 3, verbes `edit` dans 021, notes d'amendement sur les tâches faites).
+  - Choix tranchés (9) :
+    - Raccourcis : `g o` Topographie, `]` panneau droit ; `g b` mène à `/drafts`.
+    - À 768 px : barre latérale repliée, le panneau couvre la surface ; défilement
+      horizontal contrôlé de 1024 à 1920 px (768 seulement capturé).
+    - État du panneau (ouvert, onglet, largeur) en `localStorage` `kartenn.panel`.
+    - « Appliquer » par défaut si `/v1/me` donne `apply_own` sur tous les objets du
+      brouillon et que la simulation ne signale aucune politique qui retient.
+    - Thème clair vérifié par la luminance relative des fonds du cadre (≥ 0,7).
+    - `Drawer` reste pour un dialogue latéral modal ; le non-modal devient `SidePanel`.
+    - `EditPanel` est un composite du shell (schéma de la sorte), pas un composant de
+      `@kartenn/ui`.
 
 ## P3 — Maquettes révisées
 

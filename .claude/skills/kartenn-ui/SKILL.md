@@ -54,6 +54,26 @@ non servi avant la bascule) ; `web/` ne reçoit que des correctifs.
 - Mouvement : durées `--k-duration-*` et courbes `--k-ease-*` seulement (nulles sous
   mouvement réduit) ; aucune animation en boucle hors indicateur de chargement.
 
+### Structure avant style (spec 020 § « Structure avant style », 024/M12, M15)
+
+La géométrie se règle avant la couleur : une maquette qui déborde ou se décale à une
+largeur est fausse, même belle à 1280 px.
+- **Pistes élastiques** : `minmax(0, 1fr)`, jamais `1fr` nu ; tout enfant de grille ou de
+  flex qui porte un contenu long a `min-inline-size: 0`.
+- **Contenu long** : il défile dans son emplacement (`overflow: auto`), jamais la page ;
+  aucune page ne défile horizontalement de 1024 à 1920 px.
+- **Tables** : en-tête et lignes dans une seule grille (`grid-template-columns` sur la
+  grille, lignes en `subgrid`), en-tête collant dans le même conteneur de défilement ;
+  jamais deux grilles qui « devraient » avoir les mêmes colonnes.
+- **Surimpressions** : menus, sélecteurs, infobulles dans la couche `layers` du cadre
+  (`providePortalTarget`) ; la surface en `isolation: isolate`, pour qu'un en-tête collant
+  ne passe pas au-dessus du panneau droit ni d'un menu.
+- **Barres d'outils** : `Toolbar` replie dans « … », jamais de retour à la ligne.
+- **Quatre largeurs** : avant de rendre une maquette ou un écran, le voir à 1440, 1280,
+  1024 et 768 px, en clair et en sombre ; la capture le prouve.
+- **Droits** : une action interdite reste visible, `aria-disabled`, infobulle « Il faut
+  `<permission>` » ; jamais d'encart permanent des droits.
+
 ## 3. CSP (ADR 0025, REQ-020-14)
 
 - Aucun attribut `style` en chaîne (`style="…"`, `:style="'…'"`, gabarit), aucun `<style>`
@@ -80,28 +100,33 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
 | `Tabs` | Tabs (activation manuelle) | ◐ |
 | `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée avec son motif | ◐ |
-| `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; tiroir non modal = `aside` | ◐ |
+| `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface, redimensionnable (Window Splitter) | ☐ |
+| `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ☐ |
+| `Toolbar` | Toolbar ; actions repliées dans « … » | ☐ |
+| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés | ☐ |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
 | `Tooltip`, `Popover` | Tooltip ; Dialog non modal | ☐ |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
-| `DataGrid` | Grid (maison) ; gabarit `--k-grid-columns` commun à l'en-tête et aux lignes | ◐ |
+| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri et filtre de colonne | ◐ |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
 | `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` ; `alert` ; `status` | ◐ |
-| `DatePill`, `DraftCounter`, `TimeBand` | Button ; `status` | ◐ |
+| `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`) ; `status` | ◐ |
 | `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
 
-Écrans de référence : les maquettes validées du catalogue (`/_ui/ecrans/E1` à `E10`,
-design § « Maquettes ») ; un écran de la 021 se compare à sa maquette, jamais à
+Écrans de référence : les maquettes validées du catalogue (`/_ui/ecrans/E0` à `E10`,
+design § « Maquettes », reprises par la 024) ; un écran de la 021 se compare à sa maquette, jamais à
 l'ancien shell.
 
 ## 5. Raccourcis réservés (spec 021, § « Raccourcis »)
 
 Ctrl+K (palette, partout) ; `/` (filtre de la vue) ; `?` (aide) ; `g` + lettre
-(navigation : `d p r a e s c i b x h`, et `v m t q f` des plugins) ; `c` (créer) ; `e`
-(modifier) ; Ctrl+Entrée (appliquer) ; Échap (fermer, annuler) ; `[` (barre latérale) ;
+(navigation : `d p r a e s c i b x h o`, et `v m t q f` des plugins) ; `c` (créer) ; `e`
+(modifier) ; Ctrl+Entrée (appliquer ; action du bouton scindé) ; Échap (fermer,
+annuler) ; `[` (barre latérale) ; `]` (panneau droit) ;
 Alt+Flèche bas sur un en-tête de grille (filtre de colonne, convention maison, dite dans
 l'aide). Un composant qui consomme les caractères (recherche à la saisie de l'arbre)
 porte `data-k-typeahead`. Les raccourcis à une touche se désactivent (WCAG 2.1.4) ; ils

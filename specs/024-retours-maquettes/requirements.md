@@ -111,7 +111,8 @@ refuser son application par son auteur (`changeset.approval.self`), même sous
 `….apply_own`. [M7]
 
 #### REQ-024-13 — Soumettre et appliquer en une requête
-`?apply=own` sur `POST /v1/changesets` et sur `POST /v1/drafts/{id}/submission` doit
+`?apply=own` sur toute route d'écriture qui crée un changeset (`POST /v1/changesets`,
+`POST /v1/drafts/{id}/submission`, écritures directes d'un objet) doit
 soumettre puis appliquer le changeset dans une seule transaction, avec deux événements
 d'audit (soumission, application) ; quand l'application est refusée (droit absent,
 politique), la réponse doit être 202 (changeset en attente) avec le motif, jamais un

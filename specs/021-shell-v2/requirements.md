@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # 021 — Shell v2 : exigences
@@ -68,11 +68,13 @@ validées avant tout écran ; la 017 (Politique, Flux) vient après, sur ce socl
 
 #### REQ-021-1 — Cadre
 Le shell doit présenter : une barre latérale à gauche, une barre d'état en haut (fil
-d'Ariane, pastille de date, « Brouillon (n) », menu de l'utilisateur), et une surface de
-travail en panneaux ; les repères ARIA `navigation`, `banner`, `main` et un lien
+d'Ariane, pastille de date, « Brouillon (n) », menu de l'utilisateur), une surface de
+travail et un panneau à droite (REQ-021-6) ; la barre latérale et le panneau se replient,
+et le cadre fixe leurs emplacements : un contenu long défile dans le sien sans le
+déformer (024/REQ-024-26) ; les repères ARIA `navigation`, `banner`, `main` et un lien
 d'évitement vers le contenu. `index.html` doit contenir le squelette statique de ce cadre
 (feuille en fichier, aucune règle en ligne), remplacé sans décalage par l'application.
-[X1, maquette E1, REQ-020-23]
+[X1, maquette E1, REQ-020-23, 024/REQ-024-19, 26]
 
 Acceptation :
 - CLS ≤ 0,05 du premier rendu à l'écran utile ; aucun écran blanc pendant le chargement.
@@ -103,7 +105,7 @@ absente. [X3, REQ-007-20]
 
 Acceptation :
 - Ctrl+K, « 10.1. », Entrée → la fiche du préfixe ou de l'adresse correspondante.
-- Une commande « Créer un groupe de VLAN » est absente sans `vlan.group.write`.
+- Une commande « Créer un groupe de VLAN » est absente sans `vlan.group.edit`.
 
 #### REQ-021-4 — Fil d'Ariane
 Chaque écran doit montrer son fil d'Ariane (espace, collection, objet et ses ancêtres
@@ -130,14 +132,27 @@ Acceptation :
   brouillon » est actif et préremplit `valid_from`.
 - « Revenir au présent » retire `valid_at` et `as_of` de l'URL.
 
-#### REQ-021-6 — Brouillon dans la barre d'état
-« Brouillon (n) » doit compter les opérations du brouillon de l'onglet et ouvrir un
-panneau latéral non modal : opérations, simulation continue (différentiel, violations avec
-leurs codes, cascades), motif, dates d'effet, soumission. [X6, REQ-007-26, 27]
+#### REQ-021-6 — Panneau à droite et brouillon
+Le détail de la sélection et le brouillon doivent partager un panneau à droite, non modal,
+en surimpression de la surface (la table garde sa largeur), à onglets « Détail » et
+« Brouillon n ». « Brouillon (n) » dans la barre d'état doit compter les opérations du
+brouillon actif, rester visible et faire bascule : il ouvre le panneau sur l'onglet
+Brouillon, ou le ferme s'il y est déjà. L'onglet Brouillon montre les opérations et la
+simulation continue (différentiel, violations avec leurs codes, cascades) ; son pied
+porte le résultat de la simulation, le motif en deux champs (résumé, description
+facultative) et un bouton scindé : action par défaut selon les droits et la simulation
+(« Appliquer » pour qui détient `apply_own` quand aucune politique ne retient le
+changeset, « Soumettre en revue » sinon), chevron pour « Appliquer », « Soumettre en
+revue », « Enregistrer le brouillon » ; une action impossible reste visible, grisée, avec
+son motif ; Ctrl+Entrée lance l'action choisie ; « Appliquer » préremplit un motif
+générique modifiable. [X6, 024/REQ-024-19, 20, M8, M9]
 
 Acceptation :
 - Ajouter une opération depuis une table met à jour le compteur sans recharger la vue ;
-  le panneau se ferme par Échap et rend le focus.
+  le compteur ouvre puis referme le panneau ; Échap le ferme et rend le focus.
+- Avec `apply_own` et sans politique qui retient : l'action par défaut est « Appliquer »
+  et le changeset sort appliqué ; sans `apply_own` : « Appliquer » grisé, la permission
+  manquante nommée, l'action par défaut est « Soumettre en revue ».
 
 ### B. Raccourcis
 
@@ -168,13 +183,15 @@ Acceptation :
 ### C. Écrans
 
 #### REQ-021-9 — Référentiel
-Le shell doit offrir les écrans du référentiel : domaines, arbre des préfixes (arbre en
-grille : préfixe, occupation, colonnes de plugins), plages, adresses, entités, sites ;
+Le shell doit offrir les écrans du référentiel : un **accueil** en tableau de bord de
+tuiles (tuiles du cœur et `widget` des plugins) nourri par `GET /v1/stats` ; la vue
+**Topographie** : arbre des préfixes (arbre en grille : préfixe, occupation, colonnes de
+plugins) et contenu du nœud choisi, avec un ajout direct sur un nœud ; domaines, plages, adresses, entités, sites ;
 fiche d'objet (attributs, propriétés résolues et leur explication, occupation et prochain
 libre d'un préfixe, historique, anomalies, onglets et panneaux de plugins, menu
 d'actions) ; anomalies et leur acquittement ; propriétés (déclarations, valeurs, écarts).
 Chaque vue de données a ses trois états (chargement, vide, erreur). [X9, REQ-007-17,
-REQ-020-23, maquettes E1 à E3]
+REQ-020-23, maquettes E1 à E3, 024/REQ-024-22]
 
 #### REQ-021-10 — Changesets et revues
 Le shell doit montrer la liste filtrée des changesets, le différentiel groupé par objet
@@ -185,10 +202,18 @@ et « Instruction » (plugin Flux) ; sur une ligne d'« À instruire » issue d'
 flux, l'action du plugin « Instruire dans Flux » remplace « Valider », qui n'ajouterait pas
 l'opération de revue du module. [X10, X37, REQ-007-18, maquette E4]
 
-#### REQ-021-11 — Brouillon
-Le brouillon garde les règles de la 007 (IndexedDB par identité et onglet, simulation
-continue, clé d'idempotence, effacement à la déconnexion) ; il est montré dans le panneau
-latéral (REQ-021-6) et en page `/draft`. [X11, REQ-007-26, 27, maquette E5]
+#### REQ-021-11 — Brouillons
+Les brouillons sont gardés par le serveur (`/v1/drafts`, spec 024) et visibles de leur
+seul auteur ; le brouillon actif d'un onglet est son identifiant. Le shell doit lister
+les brouillons de l'utilisateur (menu du compteur et page `/drafts`), en reprendre un, en
+créer un autre et en supprimer un, annoncer la suppression d'un brouillon inactif
+(`expires_at`) et suivre l'événement `draft` du flux. La simulation reste continue
+(débrayée), la soumission garde sa clé d'idempotence. [X11, 024/REQ-024-1 à 8, 21,
+maquette E5]
+
+Acceptation :
+- Un brouillon commencé dans un onglet se reprend depuis un autre navigateur de la même
+  identité ; un 412 à l'écriture relit le brouillon et rejoue l'ajout.
 
 #### REQ-021-12 — Administration
 Le shell doit offrir l'administration de la 007 (rôles, liaisons, émetteurs, comptes de
@@ -199,8 +224,8 @@ REQ-007-19, maquette E7]
 
 #### REQ-021-13 — Hôte des plugins
 Le shell doit accueillir les cinq emplacements de la 007 (vue, onglet, panneau, colonne,
-action) dans le nouveau cadre, et un sixième, **`widget`** : une tuile en lecture seule de
-l'Accueil (panneau droit de `/` sans nœud choisi), au plus une par plugin, montrée selon
+action) dans le nouveau cadre, et un sixième, **`widget`** : une tuile en lecture seule du
+tableau de bord de l'accueil (REQ-021-9), au plus une par plugin, montrée selon
 la permission de la vue liée ; une action peut viser le type `changeset` ; un onglet ou
 une colonne peut viser un type d'objet de module (par exemple Interfaces sur un VLAN, Flux
 sur une machine ou une interface) ; une erreur d'un plugin reste confinée à son emplacement
@@ -209,7 +234,8 @@ avec leur motif. [X13, REQ-007-9, 13, maquette E10]
 
 #### REQ-021-14 — Session
 La connexion, la reconnexion sur 401 (retour à la même URL et au même contexte), la
-déconnexion (effacement du brouillon et des préférences sensibles) suivent REQ-007-28 ;
+déconnexion (effacement des préférences sensibles ; les brouillons restent au serveur,
+024) suivent REQ-007-28 ;
 l'approche de l'échéance de session est signalée avant qu'elle n'arrive (le flux SSE ne
 compte pas comme activité, 022/A6). [X14, REQ-007-28, Q-022-11]
 
@@ -217,17 +243,20 @@ compte pas comme activité, 022/A6). [X14, REQ-007-28, Q-022-11]
 
 #### REQ-021-15 — Édition en place
 Les tables et l'arbre doivent permettre l'édition en place d'une cellule quand
-l'utilisateur détient le droit d'écriture du type et de l'attribut (`/v1/me`) et que la
+l'utilisateur détient `X.edit` du type et `prop.<clé>.edit` de la propriété (`/v1/me`,
+verbes de la 024) et que la
 vue est au présent ; par défaut, une édition ajoute une **opération au brouillon** et
 marque la cellule « en brouillon » ; « Appliquer maintenant » (Ctrl+Entrée) passe par la
-modification rapide (REQ-021-16), motif demandé en ligne. Le brouillon s'applique **en
+modification rapide (REQ-021-16, écriture avec `?apply=own`), motif demandé en ligne et
+prérempli d'un motif générique. Le brouillon s'applique **en
 lot, avec un seul motif**. Une cellule non éditable ne doit pas offrir l'éditeur et dit
 pourquoi. [X15, retour du 2026-10-22, REQ-020-19, REQ-007-25 amendée]
 
 Acceptation :
 - Lecteur : aucune cellule éditable ; auteur : édition d'un nom de préfixe au clavier
   seul → compteur du brouillon à 1, cellule marquée.
-- Ctrl+Entrée avec motif → 200 : valeur appliquée ; 202 : cellule « en revue ».
+- Ctrl+Entrée avec motif → 200 : valeur appliquée ; 202 : cellule « en revue », avec le
+  motif de la réponse (`changeset.apply_own.missing`, `changeset.approval.self`).
 
 #### REQ-021-16 — Modification rapide, optimisme et réponses
 Une modification rapide au présent doit mettre l'affichage à jour avant la réponse
@@ -243,6 +272,25 @@ Acceptation :
   et retrouve sa saisie.
 - Politique d'approbation active : la ligne passe « en revue » sans jamais afficher
   « appliqué ».
+
+#### REQ-021-36 — Un panneau d'édition par sorte
+Ajouter ou modifier un objet d'une sorte (adresse, préfixe, plage…) doit ouvrir le même
+panneau d'édition, construit sur le schéma de la sorte, qu'on vienne de l'arbre, d'une
+table, de la palette ou d'un menu ; le menu « Créer » reste pour un ajout dans plusieurs
+réseaux. [024/REQ-024-24, M10, M13]
+
+Acceptation :
+- Ajouter une adresse depuis un nœud de la Topographie et depuis la liste des adresses
+  ouvre le même panneau, aux mêmes champs.
+
+#### REQ-021-37 — Droits manquants au survol
+Une action que les droits interdisent doit rester visible, grisée, et nommer au survol et
+au focus la permission manquante (nom servi, spec 018) ; aucun encart permanent des droits
+nécessaires. La notice `changeset.approval.self` reste. [024/REQ-024-25, M14]
+
+Acceptation :
+- Sans `core.prefix.apply_own`, « Appliquer » est grisé et son infobulle, atteinte au
+  clavier, dit « Il faut `core.prefix.apply_own` ».
 
 #### REQ-021-17 — Arbres à parent déduit
 Dans l'arbre des préfixes, et dans tout arbre dont le parent découle des données
@@ -337,9 +385,11 @@ Acceptation :
   l'affiche sans recharger (événement `labels`) ; aucune lecture d'objet n'est relancée.
 
 #### REQ-021-20 — Codes visibles
-Toute erreur affichée (avis, encart, dialogue, cellule) doit montrer le code du problème
-et de chaque violation, et l'identifiant de la requête, copiables (REQ-020-22) ; le
-message lisible reste la traduction du `type` (REQ-007-29). [X20, retour du 2026-10-22]
+Toute erreur affichée (avis, encart, dialogue, cellule) doit dire en langage courant ce
+qui s'est passé (« L'objet a changé depuis votre lecture », pas « Condition If-Match non
+remplie ») et montrer à côté le code du problème et de chaque violation, et
+l'identifiant de la requête, copiables (REQ-020-22) ; la phrase est la traduction du
+`type` (REQ-007-29). [X20, retour du 2026-10-22, 024/REQ-024-28]
 
 ### F. Données
 
@@ -391,9 +441,11 @@ ADR 0037]
 #### REQ-021-25 — SDK 1.0
 Le nouveau SDK doit être publié en version 1.0 et offrir, en plus de ce qu'offre la 0.1 (007) : le `QueryClient`
 partagé, les fabriques de clés, l'abonnement aux événements, des aides d'écriture
-(modification rapide avec optimisme et rendu des réponses, ajout au brouillon), la
-déclaration de commandes, de raccourcis et d'entrées de barre latérale ; il reste sans
-dépendance à un framework. [X25, REQ-007-12, ADR 0037]
+(modification rapide avec optimisme et rendu des réponses), les brouillons du serveur
+(liste, lecture, ajout d'opérations avec If-Match et nouvel essai après relecture,
+simulation, soumission), les statistiques de l'accueil (`GET /v1/stats`, relues sur
+l'événement `stats`), la déclaration de commandes, de raccourcis et d'entrées de barre latérale ; il reste sans
+dépendance à un framework. [X25, REQ-007-12, ADR 0037, 024/REQ-024-21, 22]
 
 Acceptation :
 - Un plugin sans framework lit par le `QueryClient` et reçoit les invalidations.
@@ -489,7 +541,7 @@ Acceptation :
 - Les plugins Politique et Flux : la 017, sur ce socle.
 - Le langage de requête écrit : Q-020-10.
 - Le stockage et le versionnement des libellés par langue : la 018.
-- Le rendu serveur, une application mobile, le hors-ligne (au-delà du brouillon local).
+- Le rendu serveur, une application mobile, le hors-ligne.
 - Une couche de compatibilité avec le SDK 0.1 (Q-021-14 : aucune ; le SDK repart à 1.0).
 
 ## Questions

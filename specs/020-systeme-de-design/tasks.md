@@ -203,6 +203,8 @@ emploient.
   `k-web-shots [--update]` sous `k-heavy`, refusée hors de devenv ; `k-web-check` lance
   `visual` — REQ-020-14, 26, 27 — verify : un jeton modifié fait échouer la capture de
   `/_ui/jetons` ; `k-web-shots` hors devenv → refus
+  - amendé par la 024 (2026-10-24) : maquettes et écrans capturés aussi à 1440, 1024 et
+    768 px (REQ-020-26) ; repris par la tâche 11 de la 024.
   - où : `web/e2e/playwright.config.ts`, `web/e2e/budgets.config.ts` (forme d'un projet
     séparé) ; `web/e2e/fixtures/index.ts` (`expectAccessible`) ; `devenv.nix`
     `scripts.k-web-e2e` (vers la ligne 533, forme de la commande)
@@ -390,7 +392,8 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   et Tabs (activation manuelle) ; raccourcis affichés dans le menu
   - où : design § « Inventaire »
   - dépend de : 16
-- [ ] 22. `Dialog`, `AlertDialog`, `Drawer` (modal et non modal), `Toast` — verify :
+- [ ] 22. `Dialog`, `AlertDialog`, `Drawer` (modal), `Toast` — le panneau non modal est
+  `SidePanel` (024, tâche 10) — verify :
   focus piégé et rendu ; Échap ; toast d'erreur persistant, pause au survol (2.2.1)
   - où : `web/shell/src/draft/DraftDrawer.vue`, `admin/SecretDialog.vue` (usages actuels)
   - dépend de : 21

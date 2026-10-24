@@ -112,6 +112,9 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `changesets.submit` (clé d'idempotence fournie, 409 retenté cinq fois, objets nommés et
     toutes les listes invalidés) ; le stockage IndexedDB du brouillon reste au shell
     (tâche 14). `draft.add` inchangé. Vitest : `test/write.test.ts`.
+  - amendé par la 024 (2026-10-24) : les brouillons passent au serveur ; `sdk.drafts`,
+    `sdk.stats` et la fin du stockage IndexedDB sont décrits au design § « Écritures » et
+    se font avec la tâche 14 ; `write.quick` envoie `?apply=own`.
 - [ ] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
   doublons, reconnexion avec attente croissante et `last_event_id`), un flux par
   navigateur (`navigator.locks` + `BroadcastChannel`, repli par onglet), repli sans flux
@@ -277,18 +280,21 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/app/SearchBox.vue`, `views/SearchView.vue` (recherche actuelle) ;
     design § « Raccourcis » ; maquette E8
   - dépend de : 9
-- [ ] 11. Référentiel (dépend aussi de 28 et 29) : arbre des préfixes (`TreeGrid`, colonnes de plugins), listes
+- [ ] 11. Référentiel (dépend aussi de 28 et 29) : accueil en tableau de bord
+  (`GET /v1/stats`, tuiles `widget`), Topographie (arbre des préfixes en `TreeGrid`,
+  colonnes de plugins, « + » sur un nœud ; 024), listes
   (`DataGrid`, filtres typés tirés du contrat : `filters.ts` généré comme `dated.ts`),
   fiche en panneaux, anomalies, propriétés — REQ-021-9, 18 — verify : parcours `records`,
-  `tree` réécrits ; lien filtré copié rouvert à l'identique ; captures E1 à E3
+  `tree` réécrits ; lien filtré copié rouvert à l'identique ; captures E0 à E3
   - où : `web/shell/src/views/{HomeView,ListView,ObjectView,AnomaliesView,PropertiesView}.vue`,
     `record/*.vue`, `tree/model.ts`, `data/collections.ts` ; `web/sdk/scripts/gen.mjs`
     (génération de `dated.ts`, à étendre)
   - dépend de : 10 ; 020-19, 020-25, 020-26
 - [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
-  contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` avec motif en ligne, rendu
-  de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`) — REQ-021-15,
-  16 — verify : parcours `edit` réécrit : lecteur sans éditeur ; brouillon à 1 ; 202 →
+  contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?apply=own`) avec motif
+  en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
+  par le panneau d'édition de la sorte (`EditPanel`, 024) ; droits manquants au survol —
+  REQ-021-15, 16, 36, 37 — verify : parcours `edit` réécrit : lecteur sans éditeur ; brouillon à 1 ; 202 →
   « en revue » ; deux onglets → 412 sans perte
   - où : `web/shell/src/edit/{QuickEdit.vue,fields.ts,submit.ts}`, `rights/index.ts`,
     `views/NewView.vue`
@@ -325,9 +331,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     de `main`, lecture par URL (`reads.byUrl`) et Vitest sur un serveur simulé
     (`test/labels.test.ts`). Reste : `KeyLabel`, rendu des erreurs, parcours.
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
-  « À instruire » et compteur, panneau et page du brouillon — REQ-021-6, 10, 11 —
-  verify : parcours `changesets`, `draft` réécrits ; captures E4, E5
+  « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
+  serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours
+  `changesets`, `draft` réécrits ; captures E4, E5
   - où : `web/shell/src/changesets/*`, `draft/{DraftDrawer.vue,store.ts,index.ts}`
+    (le stockage IndexedDB disparaît) ; design 021 « Cadre » (panneau droit, pied du
+    brouillon) ; `web/v2/sdk/src/draft.ts`
   - dépend de : 12
 - [ ] 15. Administration : rôles, liaisons, émetteurs, comptes de service et secret,
   identités, audit et export, imports ; permissions en nom servi et libellé —

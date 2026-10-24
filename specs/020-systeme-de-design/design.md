@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # 020 — Système de design : conception
@@ -267,6 +267,29 @@ web/ui/src/
   (`csp.spec.ts`) écoute `securitypolicyviolation` pendant la visite de tout le
   catalogue.
 
+### Structure avant style (REQ-020-34, 36 ; 024/M12, M15)
+
+- **Emplacements** : le cadre et les composants de mise en page posent les emplacements
+  en grille ; toute piste élastique est `minmax(0, 1fr)` et tout enfant de grille ou de
+  flex qui porte un contenu long a `min-inline-size: 0` ; le contenu long défile dans son
+  emplacement (`overflow: auto`), jamais la page.
+- **Tables** : en-tête et lignes dans **une seule** grille CSS : `grid-template-columns`
+  sur la grille, chaque ligne (en-tête comprise) en `grid-column: 1 / -1` et
+  `grid-template-columns: subgrid` ; en-tête collant (`position: sticky`) dans le même
+  conteneur de défilement. La barre de défilement et les colonnes `fill` décalent donc
+  l'en-tête et les lignes ensemble. Virtualisation : les lignes rendues gardent la
+  grille, l'espace hors fenêtre est un remplissage de hauteur fixe.
+- **Surimpressions** : menus, sélecteurs, infobulles et popovers sortent dans la couche
+  des surimpressions (`providePortalTarget`, élément `layers` du cadre) ; la surface est
+  un contexte d'empilement isolé (`isolation: isolate`) : un en-tête collant ne passe
+  jamais au-dessus d'une surimpression ni du panneau droit.
+- **Barres d'outils** : `Toolbar` mesure ses actions (`ResizeObserver`) et replie celles
+  qui ne tiennent plus dans « … », de la fin vers le début (ordre de priorité déclaré) ;
+  jamais de retour à la ligne.
+- **Contrôle** : le parcours `layout.spec.ts` mesure `scrollWidth ≤ clientWidth` du
+  document sur chaque maquette à 1024, 1280, 1440 et 1920 px, et l'égalité des bords gauches
+  en-tête/cellule de chaque table (REQ-020-34).
+
 ## Icônes (REQ-020-15)
 
 - `lucide` (ISC), version épinglée ; importées une à une depuis `@kartenn/ui/icons`, qui
@@ -291,7 +314,7 @@ sont listés.
 | # | Composant | Motif APG ou rôle | États propres | Notes |
 |---|---|---|---|---|
 | 1 | `Stack`, `Cluster`, `Grid`, `Split` | — (mise en page) | — | suppriment le CSS d'écran ; espacement par jeton |
-| 2 | `Button` | Button | chargement, variantes `primary`, `secondary`, `ghost`, `danger` | raccourci affiché par `Kbd` en option |
+| 2 | `Button` | Button | chargement, variantes `primary`, `secondary`, `ghost`, `danger` ; interdit avec motif | raccourci affiché par `Kbd` en option ; interdit par les droits : `aria-disabled="true"` (reste focalisable), infobulle « Il faut `<permission>` » au survol et au focus (024/M14) |
 | 3 | `IconButton` | Button | idem | nom accessible obligatoire, infobulle automatique |
 | 4 | `TextField`, `FormField` | — (champ natif étiqueté) | lecture seule, invalide, en attente | étiquette, aide, erreur liée (`aria-describedby`) ; variante chasse fixe |
 | 5 | `Select`, `Combobox` | Listbox ; Combobox (`aria-autocomplete="list"`) | ouvert, vide, chargement des suggestions | suggestions tirées de l'API par le cache ; débrayage 150 ms |
@@ -300,25 +323,30 @@ sont listés.
 | 8 | `Checkbox` | Checkbox (deux et trois états) | mixte | sélection de lignes |
 | 9 | `Switch` | Switch | — | réglages binaires seulement |
 | 10 | `Tabs` | Tabs (activation manuelle) | onglet de plugin en chargement, en erreur | onglets de fiche, onglets de plugins |
-| 11 | `Menu`, `MenuButton` | Menu Button, Menu | entrée désactivée avec motif | raccourcis affichés à droite |
+| 11 | `Menu`, `MenuButton` | Menu Button, Menu | entrée désactivée avec motif | raccourcis affichés à droite ; le motif d'une entrée désactivée (permission manquante, politique) est son infobulle et sa description (`aria-describedby`) |
 | 12 | `Dialog`, `AlertDialog` | Dialog (Modal), Alert Dialog | — | focus piégé et rendu ; confirmation destructive |
-| 13 | `Drawer` | Dialog (modal) ou région `complementary` (non modal) | ouvert, replié | panneau du brouillon, panneau latéral d'une fiche |
+| 13 | `Drawer` | Dialog (modal) | ouvert | dialogue latéral modal (formulaire long) ; le panneau droit du cadre est `SidePanel` (#30) |
 | 14 | `Toast` | `role="status"` ou `alert` | succès, erreur persistante | pause au survol et au focus (WCAG 2.2.1) ; les erreurs restent jusqu'à fermeture |
 | 15 | `Tooltip` | Tooltip | — | jamais seul porteur d'une information nécessaire ; WCAG 1.4.13 |
 | 16 | `Popover` | Dialog non modal | — | aperçu d'un objet, détail d'un code |
 | 17 | `Breadcrumb` | Breadcrumb | élément courant | `aria-current="page"` |
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
-| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente | virtualisée ; tri `aria-sort` ; colonnes redimensionnables au clavier ; colonne de plugin (W5) |
+| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) |
 | 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
 | 24 | `StatusBadge` | — | les six états | couleur + icône + libellé |
-| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `ErrorState` montre code et `Request-Id` (`CodeBadge`) |
+| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` animé d'un reflet (`--k-duration-*`, immobile sous mouvement réduit) ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
 | 26 | `InlineAlert` | `role="status"` ou `alert` | quatre états | violations sous un formulaire |
-| 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button ; `role="status"` | hors présent ; compteur à 0 | barre d'état de la 021 |
+| 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |
+| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) |
+| 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
+| 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
+| 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) |
+| 34 | `MatrixGrid` | Grid (données) | cellule active, cellule en brouillon, en revue | en-têtes de lignes et de colonnes de même composant, figés dans les deux sens ; virtualisée dans les deux sens au-delà de 50 × 50 (REQ-020-35) |
 
 Contrat d'édition en place (`DataGrid`, `TreeGrid`, REQ-020-19), indépendant du métier :
 - l'hôte fournit pour chaque cellule `editable: boolean` (droits, présent, `as_of`), un
@@ -376,26 +404,31 @@ interface TreeMoveProps<N> {
 ## Maquettes (REQ-020-25)
 
 Construites avec les composants en version visuelle (tâches P2), puis validées par
-l'utilisateur sur captures, en clair et en sombre ; la validation est consignée dans
+l'utilisateur sur captures, en clair et en sombre, aux quatre largeurs ; la revue du
+2026-10-24 (spec 024) les fait reprendre et revalider (E0 ajoutée) ; la validation est consignée dans
 [`decisions.md`](decisions.md) (§ « Validations des maquettes »).
 
 | # | Maquette | Ce qu'elle doit montrer |
 |---|---|---|
-| E1 | Référentiel | barre latérale, barre d'état, arbre des préfixes, table filtrée par environnement avec une ligne en brouillon et une en revue (écran de la direction) |
+| E0 | Accueil | tableau de bord : tuiles du cœur (`GET /v1/stats`) et `widget` de deux plugins, une tuile en chargement (024) |
+| E1 | Topographie | barre latérale, barre d'état, arbre des préfixes avec « + » sur un nœud, table filtrée par environnement avec une ligne en brouillon et une en revue, panneau droit sur l'onglet Détail (écran de la direction, révisé par la 024) |
 | E2 | Fiche d'un préfixe | titre, attributs, propriétés résolues et leur explication, occupation, historique, onglets de plugins, menu d'actions |
 | E3 | Liste d'adresses | filtres typés (pastilles), édition en place d'une cellule, cellule invalide avec code, sélection multiple et action groupée |
-| E4 | Changeset et revue | différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits, état « en revue » |
-| E5 | Brouillon | panneau latéral ouvert sur une liste, opérations, simulation en cours puis avec violations codées, soumission avec motif |
-| E6 | Lecture au passé | bande ambre, pastille de date ouverte sur le sélecteur de période, écritures grisées avec motif, chronologie des versions |
+| E4 | Changeset et revue | différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits (une action interdite grisée, permission en infobulle, sans encart des droits), état « en revue » |
+| E5 | Brouillon | panneau droit sur l'onglet Brouillon au-dessus d'une liste, opérations, simulation en cours puis avec violations codées, `CommitForm` et `SplitButton` ouvert ; page `/drafts` |
+| E6 | Lecture au passé | bande ambre, pastille de date et sélecteur de période ouvert en surimpression, écritures grisées avec motif, chronologie des versions |
 | E7 | Administration | rôles et liaisons, permissions `module.action` (spec 018), secret affiché une fois |
 | E8 | Palette et aide | palette Ctrl+K (commandes, navigation, objets), aide `?` des raccourcis |
 | E9 | États | vide (phrase + action), chargement (squelettes), erreur (code + `Request-Id`), 412 avec saisie gardée, 202 « proposé, en revue » |
-| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017) dans le cadre du shell |
+| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017, `MatrixGrid`) dans le cadre du shell |
 
 ## Régression visuelle (REQ-020-26, 27)
 
-- Projet Playwright `visual` dans `web/e2e/` : Chromium seul (navigateur Nix,
-  `playwright-driver`), viewport 1280 × 800, `deviceScaleFactor: 1`, `colorScheme` et
+- Projet Playwright `visual` dans `web/v2/e2e/` : Chromium seul (navigateur Nix,
+  `playwright-driver`), polices résolues par une configuration fontconfig épinglée par
+  Nix (`PLAYWRIGHT_KARTENN_FONTCONFIG`, même rendu sur toute machine), viewport 1280 × 800
+  pour les états du catalogue ; maquettes et écrans à 1440, 1280, 1024 et 768 px
+  (hauteur 900, 024/REQ-024-27), `deviceScaleFactor: 1`, `colorScheme` et
   `reducedMotion: 'reduce'` fixés par projet, `page.clock.setFixedTime` à une date fixe,
   locale `fr-FR` et fuseau `Europe/Paris` fixes ; serveur `vite preview` d'un build de test
   sur `127.0.0.1`, au port `KARTENN_PREVIEW_PORT` ou, à défaut, un port libre choisi au

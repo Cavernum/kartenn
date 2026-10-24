@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # 020 — Système de design : exigences
@@ -86,11 +86,14 @@ Acceptation :
 #### REQ-020-3 — Thème
 Le système doit suivre le thème clair ou sombre du système d'exploitation, et accepter un
 choix forcé par l'utilisateur (`data-theme="light"` ou `"dark"` sur la racine), gardé
-localement. [B4]
+localement. Le thème clair doit être clair sur toutes les surfaces : barre latérale,
+barres, panneaux, menus. [B4, 024/REQ-024-18]
 
 Acceptation :
 - `prefers-color-scheme: dark` sans choix → mode sombre ; choix « clair » → mode clair
   quel que soit le système.
+- En mode clair, la couleur de fond calculée de la barre latérale, de la barre d'état, du
+  panneau droit et d'un menu ouvert a une luminance relative ≥ 0,7 (test de rendu).
 
 ### B. Jetons
 
@@ -340,12 +343,47 @@ Acceptation :
 
 #### REQ-020-23 — États des vues de données
 Le système doit offrir, pour toute zone de données, un état de **chargement** en squelette
-de taille fixe (aucun décalage à l'arrivée des données), un état **vide** (une phrase et
+de taille fixe (aucun décalage à l'arrivée des données), animé d'un reflet (sans
+animation sous mouvement réduit), jusque dans les cellules d'une table, un état **vide** (une phrase et
 une action quand elle existe) et un état d'**erreur** (phrase, code, identifiant de
 requête, action « Réessayer »). [B23, brief tour 3]
 
 Acceptation :
 - CLS mesuré à 0 entre squelette et données sur la grille et l'arbre du catalogue.
+
+#### REQ-020-34 — Tables alignées, triées, filtrées
+Toute table doit aligner son en-tête sur ses colonnes **par construction** (une seule
+définition de colonnes pour l'en-tête et les lignes), quels que soient la barre de
+défilement, les colonnes élastiques et la largeur ; elle doit se trier sur ses colonnes
+(`aria-sort`) et se filtrer sur ses colonnes (filtres typés, REQ-020-20). [024/REQ-024-23,
+M12]
+
+Acceptation :
+- Capture de la grille du catalogue à 1440, 1280, 1024 et 768 px, avec et sans barre de
+  défilement verticale : bord gauche de chaque cellule d'en-tête égal à celui de la
+  cellule de sa colonne (test de géométrie, écart 0 px).
+
+#### REQ-020-35 — Table à double entrée
+Une table à double entrée (matrice de politique, permissions par rôle) doit avoir son
+composant : en-têtes de colonnes et de lignes de même nature, figés au défilement dans les
+deux sens, navigation au clavier du motif APG Grid. [024/REQ-024-23, M12]
+
+#### REQ-020-36 — Stabilité de la mise en page
+Un contenu long doit défiler dans son emplacement sans le déformer ; menus, sélecteurs
+(période compris) et infobulles s'ouvrent en surimpression ; une barre d'outils trop
+étroite replie ses actions dans un menu « … » au lieu de passer à la ligne ; aucune page
+ne défile horizontalement de 1024 à 1920 px. [024/REQ-024-26, M15]
+
+Acceptation :
+- Parcours qui mesure `scrollWidth ≤ clientWidth` du document sur chaque maquette à 1024,
+  1280, 1440 et 1920 px.
+- Une barre d'outils réduite à 320 px garde une seule ligne et offre « … ».
+
+#### REQ-020-37 — Soumission et action scindée
+Le système doit offrir un formulaire de motif façon commit (résumé sur une ligne,
+description facultative) et un bouton scindé (action par défaut, chevron qui ouvre les
+autres actions, entrées désactivées avec motif) ; Ctrl+Entrée dans le formulaire lance
+l'action choisie. [024/REQ-024-20, M9]
 
 ### F. Catalogue et maquettes
 
@@ -374,10 +412,11 @@ Acceptation :
 
 #### REQ-020-26 — Captures bloquantes
 Chaque état du catalogue et chaque maquette doivent avoir une capture de référence,
-comparée à chaque exécution de la vérification web ; un écart au-delà du seuil doit faire
-échouer la vérification. Les captures se font sur **Chromium seul**, références générées
-**dans devenv** (navigateur et polices fournis par Nix), viewport et facteur d'échelle
-fixes, animations coupées, horloge figée. [B26, D-9]
+comparée à chaque exécution de la vérification web ; chaque maquette et chaque écran sont
+capturés à 1440, 1280, 1024 et 768 px de large, en clair et en sombre ; un écart au-delà
+du seuil doit faire échouer la vérification. Les captures se font sur **Chromium seul**,
+références générées **dans devenv** (navigateur et polices fournis par Nix), viewport et
+facteur d'échelle fixes, animations coupées, horloge figée. [B26, D-9, 024/REQ-024-27]
 
 Acceptation :
 - Un jeton de couleur modifié fait échouer les captures concernées ; la régénération passe

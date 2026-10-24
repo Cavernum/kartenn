@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # 021 — Shell v2 : conception
@@ -66,17 +66,22 @@ sont gardées, amendées ou remplacées ainsi.
 
 ## Cadre (REQ-021-1 à 6)
 
+Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dépôt, le
+2026-10-24).
+
 ```
 ┌──────────┬──────────────────────────────────────────────────────────────┐
 │ marque   │ fil d'Ariane            pastille de date  Brouillon (n)  ☺ │  barre d'état (40 px)
 │ Ctrl+K   ├──────────────────────────────────────────────────────────────┤
 │ Espace A │ bande ambre « Lecture au … — Revenir au présent »  (hors présent)
-│  entrée  ├────────────────────┬─────────────────────────────────────────┤
-│  entrée  │ panneau (arbre)    │ panneau (table, fiche)                  │  surface de travail
-│ Espace B │                    │                                         │  (fond --k-bg, panneaux --k-surface)
-│  …       │                    │                                         │
-│ replier  │                    │                       [panneau brouillon]│
-└──────────┴────────────────────┴─────────────────────────────────────────┘
+│  entrée  ├──────────────────────────────────┬───────────────────────────┤
+│  entrée  │ surface (une vue : tableau de    │ Détail │ Brouillon 3      │  panneau droit
+│ Espace B │ bord, table, fiche, arbre)       │ opérations, simulation   │  420 px, en
+│  …       │                                  │ ───────────────────────  │  surimpression
+│          │                                  │ résumé ___________       │  non modale
+│          │                                  │ description ______       │
+│ replier  │                                  │ [Appliquer      |▾]      │
+└──────────┴──────────────────────────────────┴───────────────────────────┘
 ```
 
 - Barre latérale : 208 px, repliée 48 px ; fond `--k-sidebar-bg` ; espaces en
@@ -90,15 +95,39 @@ sont gardées, amendées ou remplacées ainsi.
   `admin` (Administration, en dernier). Un espace sans entrée visible est masqué.
   Libellés dans les catalogues du shell.
 - **Badges** : « À instruire » (`/v1/proposals`), « Instruction » (demandes de flux en
-  attente), « Brouillon » (opérations locales), « Anomalies » et « Inférence »
+  attente), « Brouillon » (opérations du brouillon actif), « Anomalies » et « Inférence »
   (`/v1/anomalies` par règle) ; relus par le flux d'événements, jamais par sondage.
 - Barre d'état : `Breadcrumb`, `DatePill`, `DraftCounter`, menu de l'utilisateur
   (langue, thème, densité, raccourcis à une touche, à propos, déconnexion).
 - Bande : `TimeBand` sous la barre d'état, pleine largeur, `--k-band-bg` ; la barre et la
   bande sont collantes, et la surface défile dessous avec `scroll-padding-top` égal à leur
   hauteur (2.4.11).
-- Panneau du brouillon : `Drawer` non modal, 420 px, à droite, poussant la surface
-  (jamais au-dessus d'une cellule en édition).
+- **Panneau droit** (`SidePanel`, 020) : région `complementary` non modale, 420 px par
+  défaut, redimensionnable (poignée au clavier), en surimpression de la surface : la vue
+  garde sa largeur, le panneau couvre sa droite. La surface est un contexte d'empilement
+  isolé (`isolation: isolate`) : ses en-têtes collants ne passent jamais au-dessus du
+  panneau. Onglets « Détail » (la sélection courante) et « Brouillon n » ; ouvrir le
+  brouillon le met devant. Replié, il disparaît sans laisser de bande ; son état (ouvert,
+  onglet, largeur) est gardé en `localStorage` (`kartenn.panel`). Jamais au-dessus d'une
+  cellule en édition : la grille fait défiler la cellule active hors de la zone couverte.
+- **Compteur du brouillon** (`DraftCounter`) : toujours visible, bascule du panneau
+  (`aria-expanded`, `aria-controls`) ; s'il est déjà ouvert sur l'onglet Brouillon, il le
+  ferme. Son menu (chevron) liste les brouillons de l'utilisateur (REQ-021-11).
+- **Pied de l'onglet Brouillon** : résultat de la simulation en une ligne ; `CommitForm`
+  (résumé sur une ligne, description facultative) ; `SplitButton`. Action par défaut :
+  « Appliquer » (`POST /v1/drafts/{id}/submission?apply=own`) si `/v1/me` donne
+  `apply_own` sur tous les objets du brouillon et que la simulation ne signale aucune
+  politique qui retient ; « Soumettre en revue » sinon. Le chevron offre aussi
+  « Enregistrer le brouillon » (le motif est gardé dans le brouillon). Une entrée
+  impossible reste dans le menu, désactivée, avec son motif en infobulle (permission
+  manquante, politique). « Appliquer » préremplit le résumé (« Maintenance du
+  référentiel », libellé du catalogue du shell) ; Ctrl+Entrée dans le formulaire lance
+  l'action choisie. Un 202 de `?apply=own` (droit retiré entre-temps, politique) laisse
+  le changeset en revue et montre le motif de la réponse.
+- **Emplacements fixes** (024/M15) : barre latérale, barre d'état, surface et panneau sont
+  posés par la grille du cadre ; chaque emplacement défile en interne
+  (`min-inline-size: 0`, `overflow: auto`) ; aucune page ne défile horizontalement de 1024
+  à 1920 px ; à 768 px, la barre latérale passe repliée et le panneau couvre la surface.
 - `index.html` : squelette statique (barre latérale, barre d'état, deux panneaux vides en
   squelette) stylé par une feuille critique en fichier ; l'application monte dans la même
   géométrie.
@@ -109,11 +138,12 @@ Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
 
 | Route | Écran | Remarque |
 |---|---|---|
-| `/` | Référentiel : arbre du domaine et table du nœud choisi | maquette E1 |
+| `/` | Accueil : tableau de bord de tuiles (`GET /v1/stats`, `widget` des plugins) | 024, maquette de l'accueil |
+| `/topology`, `/topology?node=<id>` | Topographie : arbre du domaine et contenu du nœud choisi | maquette E1 |
 | `/:collection` | liste avec filtres typés | E3 |
 | `/:collection/:id` | fiche | E2 |
 | `/changesets`, `/changesets/:id`, `/proposals` | changesets, différentiel, à instruire | E4 |
-| `/draft` | brouillon en page | E5 ; aussi en panneau partout |
+| `/drafts`, `/drafts/:id` | brouillons de l'utilisateur ; un brouillon en page | E5 ; le brouillon actif aussi en panneau partout |
 | `/admin/*` | administration | E7 |
 | `/x/<plugin>/<id>/*` | vue de plugin | E10 |
 | `/help/shortcuts` | aide des raccourcis (aussi `?`) | E8 |
@@ -130,15 +160,17 @@ Chaque route déclare `meta.queries(params, time)` (requêtes à précharger) et
 | `/` | focus du filtre ou de la recherche de la vue | hors champ |
 | `?` | aide des raccourcis | hors champ |
 | `g` `d` / `p` / `r` / `a` / `e` / `s` | domaines, préfixes, plages, adresses, entités, sites | hors champ |
-| `g` `c` / `i` / `b` | changesets, à instruire, brouillon | hors champ |
+| `g` `c` / `i` / `b` | changesets, à instruire, brouillons (`/drafts`) | hors champ |
 | `g` `x` | administration | hors champ |
-| `g` `h` | accueil (référentiel) | hors champ |
+| `g` `h` | accueil (tableau de bord) | hors champ |
+| `g` `o` | Topographie | hors champ |
 | `g` `v` / `m` / `t` / `q` / `f` | VLAN, machines, matrice, conformité, flux (lettres déclarées aux manifestes des plugins, refusées si prises) | hors champ |
 | `c` | créer dans la collection courante | hors champ, droit d'écriture, présent |
 | `e` | modifier l'objet courant ou la cellule active | idem |
-| Ctrl+Entrée | appliquer maintenant (édition en place) | dans l'éditeur |
+| Ctrl+Entrée | appliquer maintenant (édition en place) ; action choisie du bouton scindé | dans l'éditeur ; dans le pied du brouillon |
 | Échap | fermer la couche, annuler l'édition | partout |
 | `[` | replier ou déplier la barre latérale | hors champ |
+| `]` | ouvrir ou fermer le panneau droit | hors champ |
 
 - Un seul écouteur `keydown` sur `document` (phase de bouillonnement) : ignore
   `event.defaultPrevented`, `event.isComposing`, une cible éditable (`input`, `textarea`,
@@ -159,16 +191,29 @@ Les écrans assemblent des composants de `@kartenn/ui` et n'écrivent pas de CSS
 primitives de mise en page. Chaque zone de données est une frontière d'erreur (une erreur
 ne vide pas l'écran) avec ses trois états.
 
-- **Référentiel** : `TreeGrid` des préfixes (colonnes : préfixe, occupation, colonnes de
-  plugins), enfants paginés ; `DataGrid` des collections ; fiche en panneaux (attributs
+- **Accueil** : tableau de bord de tuiles sur `Grid` ; tuiles du cœur (objets par sorte,
+  changements récents sur 7 et 30 jours avec l'histogramme par jour, à appliquer, les
+  miens en attente, anomalies ouvertes) puis `widget` des plugins ; une tuile a ses trois
+  états ; les compteurs viennent de `GET /v1/stats` (`computed_at` en pied : « il y a
+  2 min »), relus sur l'événement `stats`.
+- **Topographie** : `TreeGrid` des préfixes (colonnes : préfixe, occupation, colonnes de
+  plugins), enfants paginés, « + » sur un nœud qui ouvre le panneau d'édition de la sorte
+  avec le nœud pour parent ; contenu du nœud choisi à côté.
+- **Référentiel** : `DataGrid` des collections ; fiche en panneaux (attributs
   éditables en place, propriétés résolues avec `Popover` d'explication, occupation et
   prochain libre, historique en liste de versions, anomalies) ; onglets de plugins.
 - **Changesets** : `DataGrid` filtrée ; fiche : `DiffList`, anomalies, actions de revue
   selon les droits (`MenuButton`), état par `StatusBadge` ; « À instruire » avec compteur
   dans la barre latérale.
-- **Brouillon** : `Drawer` et page ; liste des opérations (retirer, modifier), simulation
-  débrayée (500 ms, existant), violations par opération avec `CodeBadge`, motif, dates
-  d'effet, soumission (clé d'idempotence existante).
+- **Brouillons** : onglet du panneau droit et page `/drafts/:id` ; liste des opérations
+  (retirer, modifier), simulation débrayée (400 ms, 024 § A ; `POST /v1/drafts/{id}/simulation`),
+  violations par opération avec `CodeBadge`, motif, dates d'effet, soumission (clé
+  d'idempotence). Page `/drafts` : `DataGrid` des brouillons (titre, opérations, dernière
+  modification, suppression annoncée `expires_at`), reprendre, nouveau, supprimer.
+- **Panneau d'édition par sorte** (REQ-021-36) : `EditPanel` dans l'onglet Détail, champs
+  tirés du schéma de création ou de `PATCH` de la sorte (contrat), mêmes champs d'où qu'on
+  vienne (arbre, table, palette, menu) ; ajoute au brouillon, ou applique par le bouton
+  scindé.
 - **Administration** : écrans de la 007 sur `DataGrid`, `Dialog`, `FormField` ; permission
   en `CodeBadge` (nom servi) et libellé.
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
@@ -178,14 +223,15 @@ ne vide pas l'écran) avec ses trois états.
 
 Inventaire validé sur la planche des squelettes (données fictives, plages de
 documentation). Légende de l'édition : *place* = en place, vers le brouillon (Ctrl+Entrée
-applique) ; *form* = panneau latéral ou dialogue ; *menu* = action « ⋯ » à cibles valides ;
+applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`EditPanel`), ou dialogue ; *menu* = action « ⋯ » à cibles valides ;
 *glisser* = arbre à parent déclaré ; *lecture*.
 
 ### Cœur
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| Accueil et référentiel | `/`, `/?node=<id>` | arbre des préfixes d'un domaine, table du nœud choisi ; sans nœud, tuiles `widget` | place (usage, nature, propriétés) ; valeur par le brouillon, arbre relu | `core.prefix.duplicate`, `core.prefix.unaligned`, `core.address.outside_network`, `core.range.overlap` |
+| Accueil | `/` | tableau de bord : compteurs de `GET /v1/stats`, tuiles `widget` | lecture | — |
+| Topographie | `/topology`, `/topology?node=<id>` | arbre des préfixes d'un domaine, contenu du nœud choisi, « + » sur un nœud | place (usage, nature, propriétés) ; valeur par le brouillon, arbre relu | `core.prefix.duplicate`, `core.prefix.unaligned`, `core.address.outside_network`, `core.range.overlap` |
 | Listes des collections | `/domains`, `/prefixes`, `/ranges`, `/addresses`, `/entities`, `/sites` | `DataGrid` par collection, filtres = paramètres de l'API (`domain`, `value`, `within`, `first`, `nature`, `usage`, `slug`, `parent`, `prop.<clé>`, `:between`, `:exists`) | place ; création en form ; parent d'entité ou de site par menu | `core.slug.duplicate`, `core.anchor.cycle`, `core.domain.immutable`, `prop.assignment.invalid_value` |
 | Fiche d'objet | `/:collection/:id` | attributs, propriétés résolues et leur explication, occupation, contenu, historique, anomalies, relations, onglets de plugins | place, form | `prop.assignment.required`, `core.anchor.in_use`, `precondition-failed` |
 | Historique | `/:collection/:id?tab=history` | versions bitemporelles, comparaison de deux versions, lien au changeset | lecture | `changeset.operation.no_version` |
@@ -194,7 +240,7 @@ applique) ; *form* = panneau latéral ou dialogue ; *menu* = action « ⋯ » à
 | Propriétés déclarées | `/property-declarations` | catalogue des propriétés | form (administration) | `prop.declaration.invalid` |
 | Changesets et différentiel | `/changesets`, `/changesets/:id` | différentiel, opérations, violations, sections des modules, actions de revue ; actions de plugins sur le type `changeset` | menu | `changeset.approval.self`, `core.review.operation` |
 | À instruire | `/proposals` | propositions que l'utilisateur peut valider ; « Instruire dans Flux » sur les demandes de flux | menu | `motive-required`, `changeset-refused` |
-| Brouillon | panneau, `/draft` | opérations, simulation, soumission en lot avec un motif | form | codes de la simulation |
+| Brouillons | panneau, `/drafts`, `/drafts/:id` | opérations, simulation, soumission en lot avec un motif, liste et reprise des brouillons | form | codes de la simulation, `draft-limit`, `changeset.apply_own.missing` |
 | Imports | `/imports`, `/imports/:id` | lot par morceaux, tri, lancement, rapport | form | `invalid-import` |
 | Administration | `/admin/identities`, `roles`, `bindings`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits, périmètres, journal d'audit ; permissions servies avec libellé | form | `core.binding.escalation`, `audit.chain.broken` |
 
@@ -254,10 +300,10 @@ sequenceDiagram
   alt par défaut
     H->>D: draft.add(opération)
     H-->>G: état « en brouillon »
-  else Ctrl+Entrée (appliquer maintenant), motif saisi
+  else Ctrl+Entrée (appliquer maintenant), motif saisi ou générique
     H->>Q: setQueryData(clé, valeur) [présent seulement]
     H-->>G: état « en attente »
-    H->>S: PATCH If-Match (motif)
+    H->>S: PATCH ?apply=own, If-Match (motif)
     alt 200
       S-->>H: objet, ETag
       H->>Q: setQueryData + invalidations (X24)
@@ -275,9 +321,11 @@ sequenceDiagram
   end
 ```
 
-- Éditabilité d'une cellule : `rights.can(<permission d'écriture du type ou de la
-  propriété>)` (`/v1/me`, REQ-007-20) **et** contexte au présent **et** attribut
-  modifiable au contrat (schéma du `PATCH`) ; sinon pas d'éditeur, infobulle du motif.
+- Éditabilité d'une cellule : `rights.can(<X.edit du type ou prop.<clé>.edit>)`
+  (`/v1/me`, REQ-007-20, verbes de la 024) **et** contexte au présent **et** attribut
+  modifiable au contrat (schéma du `PATCH`) ; sinon pas d'éditeur, infobulle qui nomme
+  la permission manquante (REQ-021-37). Ctrl+Entrée n'est offert qu'avec `X.apply_own` ;
+  sans lui, l'édition va au brouillon et l'infobulle de Ctrl+Entrée nomme la permission.
 - Opération du brouillon : format `Operation` du contrat (W10, inchangé) ; l'objet garde
   sa version lue comme `expected`.
 - Validation locale par les types du contrat ; la validation métier reste la simulation
@@ -363,6 +411,8 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 | capacités, `/v1/me`, déclarations | 5 min | session | flux (`changeset` d'administration), focus |
 | dictionnaire des libellés (`/v1/labels`) | `Infinity` par révision | session | événement `labels` |
 | simulation du brouillon | 0 | 1 min | à chaque changement (débrayé) |
+| brouillons (liste, brouillon) | 30 s | 10 min | `If-None-Match`, événement `draft` |
+| statistiques (`/v1/stats`) | 30 s | 10 min | `If-None-Match`, événement `stats` |
 
 - Chaque entrée garde `{ data, etag }` ; la fonction de requête envoie `If-None-Match` et,
   sur 304, rend la donnée gardée.
@@ -412,22 +462,31 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   les premières lectures ; `ready` → `invalidateQueries()` une fois ; `changes` → objets
   nommés (version différente), listes de leurs types, dépendants ; `truncated` → toutes
   les requêtes des types et domaines nommés ; `changeset` → le changeset et
-  `/v1/proposals` ; `labels` → le dictionnaire de la langue ; `reset` → tout.
+  `/v1/proposals` ; `labels` → le dictionnaire de la langue ; `draft` → le brouillon nommé
+  et la liste des brouillons (un brouillon supprimé ou repris par un administrateur
+  quitte l'onglet avec un avis) ; `stats` → `GET /v1/stats` ; `reset` → tout.
 - **Reconnexion** : coupure réseau reprise par le navigateur (`Last-Event-ID`) ; statut
   non 200 (401, 429, 503) → `CLOSED` : le SDK vérifie la session, puis rouvre avec attente
   croissante plafonnée et aléatoire (022).
 - **Doublons** : identités d'événement déjà vues ignorées (fenêtre de 1 000), révisions
   comparées à l'égalité (022, REQ-022-27).
 - **Repli** : sans flux, `refetchOnWindowFocus`, `refetchOnReconnect`, et revalidation au
-  `pageshow` persistant (bfcache) ; la base IndexedDB du brouillon se ferme sur `pagehide`.
+  `pageshow` persistant (bfcache).
 
 ### Écritures (REQ-021-16, 24)
 
 - `sdk.write.quick({ key, patch, motive, ifMatch })` : annule les lectures de la clé,
-  applique l'optimisme si présent, envoie, puis rend `applied`, `proposed` (202),
+  applique l'optimisme si présent, envoie avec `?apply=own` (024), puis rend `applied`, `proposed` (202),
   `conflict` (412, avec la relecture), `invalid` (422, violations), `forbidden`.
 - Après `applied` : invalidation des objets de la réponse, de leurs collections et
   dépendants ; le flux, s'il arrive ensuite, trouve des versions égales et ne relit rien.
+- `sdk.drafts` (024 § A) : `list`, `get`, `create`, `update`, `addOperations`, `remove`,
+  `simulate` (débrayée, 400 ms), `submit({ applyOwn })` ; écritures avec `If-Match`, et
+  sur 412 relecture puis nouvel essai de l'ajout ; le brouillon actif d'un onglet est son
+  identifiant en `sessionStorage` ; le stockage IndexedDB disparaît. `draft.add` (API des
+  plugins) ajoute au brouillon actif, en crée un s'il n'y en a pas.
+- `sdk.stats` : `GET /v1/stats` en requête du `QueryClient`, invalidée par l'événement
+  `stats`.
 
 ## API des plugins (REQ-021-25 à 27)
 
@@ -567,6 +626,14 @@ tri et filtre de 130 à 260 ms).
 
 ## Erreurs et cas limites
 
+- **Message d'une erreur** (REQ-021-20, 024/M16) : une phrase courante par type de
+  problème, tirée des libellés de la 018 (« L'objet a changé depuis votre lecture »), le
+  code à côté en `CodeBadge` ; jamais le titre technique seul.
+- **Brouillon supprimé, expiré ou repris** pendant que l'onglet l'a pour brouillon actif
+  (événement `draft` `deleted`, ou 404) : l'onglet le quitte, avis avec le motif ;
+  l'éditeur en cours garde sa saisie, proposée dans un nouveau brouillon.
+- **Plafond de brouillons** (`draft-limit`) : avis qui renvoie à `/drafts` pour en
+  supprimer.
 - **Flux refusé (401)** pendant une session valide ailleurs : le SDK relit `/v1/me` ;
   session expirée → dialogue de reconnexion (007) ; brouillon intact.
 - **Plafond de flux par identité atteint (429)** : repli sur la revalidation au focus,
