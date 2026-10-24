@@ -122,6 +122,21 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : 022 design § « Contrat consommé par les clients », § « Doublons » ;
     `web/shell/src/draft/tab.ts` (`BroadcastChannel` existant) ; `web/sdk/src/context.ts`
   - dépend de : 3 ; 022-9, 022-10 (point d'accès servi)
+  - en cours : SDK fait le 2026-10-24 — `web/v2/sdk/src/events/stream.ts` (`EventStream` :
+    verrou `kartenn-events`, relais `BroadcastChannel`, repli par onglet, curseur repris en
+    `last_event_id`, coupure laissée au navigateur, fermeture → `GET /v1/capabilities`
+    puis réouverture à attente doublée plafonnée à 60 s et tirée au hasard, rien sur 401
+    avant `restartEvents()`, doublons par identité sur une fenêtre de 1 000) et
+    `events/apply.ts` (contrat de la 022 amendé) ; `startData()` de `@kartenn/sdk/host`
+    (montage du cache, ouverture, flux rendu sur `pagehide` persistant, tout revalidé sur
+    `pageshow` persistant) ; `refetchOnWindowFocus` et `refetchOnReconnect` actifs
+    seulement sans flux ouvert ; API `events.subscribe`, `state`, `onState`. Choix
+    notés : chaque `ready` invalide tout (pas seulement le premier) ; identité d'un
+    `changeset` = changeset et état ; l'onglet détenteur relaie aussi l'état du flux.
+    Vitest (`test/events.test.ts`) : `EventSource` simulé, élection entre trois contextes
+    simulés, reprise par un autre onglet, doublons, 401 puis réouverture, attente
+    croissante, effets sur le cache, cycle bfcache. Reste : parcours à deux navigateurs et
+    à trois onglets, après la configuration serveur de la tâche 25 et un premier écran.
 - [x] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
   invalidation des vues qui montrent l'objet, relecture en `If-None-Match` sans `version`
   — verify : paragraphe amendé, marqué « *amendé par la 021* »

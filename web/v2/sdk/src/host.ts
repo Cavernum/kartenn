@@ -8,6 +8,14 @@
  */
 
 import { hooks } from "./hooks.ts";
+import { stream } from "./instance.ts";
+
+export { startData } from "./instance.ts";
+
+/** Opens the event stream again after a new login (a 401 left it closed). */
+export function restartEvents(): void {
+  stream.restart();
+}
 
 export { SDK_VERSION } from "./index.ts";
 export { resetContext, setContext } from "./context.ts";

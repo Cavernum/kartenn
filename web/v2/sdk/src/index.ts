@@ -9,7 +9,8 @@
  * it `external` at build time and share that instance.
  */
 
-import { labels, writes } from "./instance.ts";
+import type { KartennEvent, StreamState } from "./events/stream.ts";
+import { labels, stream, writes } from "./instance.ts";
 
 /** Version of the SDK, checked against the `sdk` range of each plugin manifest. */
 export const SDK_VERSION = "1.0.0";
@@ -90,3 +91,20 @@ export const label = labels.label;
 
 /** The query of the label dictionary of a language, for a reactive adapter. */
 export const labelDictionary = labels.query;
+
+/**
+ * The events of the stream shared by the tabs of the browser (REQ-021-23), once applied to
+ * the cache: a plugin listens to them, it needs not invalidate anything itself.
+ */
+export const events = {
+  subscribe(listener: (event: KartennEvent) => void): () => void {
+    return stream.subscribe(listener);
+  },
+  state(): StreamState {
+    return stream.state();
+  },
+  onState(listener: (state: StreamState) => void): () => void {
+    return stream.onState(listener);
+  },
+};
+export type { EventKind, KartennEvent, StreamState } from "./events/stream.ts";
