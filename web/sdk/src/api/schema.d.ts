@@ -7680,6 +7680,11 @@ export interface components {
     UiExtension: {
       /** @description The Custom Element, prefixed by the name of the plugin. */
       element: string;
+      /**
+       * @description The letter of navigation it proposes after `g` (a view, `[a-z]`); the shell refuses
+       *     a letter already taken (spec 021, design « API des plugins »).
+       */
+      go?: string | null;
       /** @description Unique in the plugin. */
       id: string;
       /** @description The key of its label in the catalogues. */
@@ -7714,6 +7719,11 @@ export interface components {
       /** @description The points of extension it fills. */
       extensions: components["schemas"]["UiExtension"][];
       /**
+       * @description The range of versions of the shared framework (`vue`) it expects, when it imports
+       *     it.
+       */
+      framework?: string | null;
+      /**
        * @description The SRI digest (`sha384-…`) of each module, style sheet and catalogue, by path
        *     relative to `base`.
        */
@@ -7724,9 +7734,21 @@ export interface components {
       name: string;
       /** @description The range of versions of the SDK it expects (`^1.0`, `~1.2`, `1.2.3`). */
       sdk: string;
+      space?: components["schemas"]["UiSpace"] | null;
+      /**
+       * @description The range of versions of `@kartenn/ui` it expects, when it imports it (ADR 0038;
+       *     spec 021, REQ-021-26).
+       */
+      ui?: string | null;
       /** @description Its version. */
       version: string;
     };
+    /**
+     * @description The spaces of the sidebar, in their order (spec 021, REQ-021-2): a closed list, extended
+     *     by amendment.
+     * @enum {string}
+     */
+    UiSpace: "referential" | "changes" | "network" | "hosts" | "policy" | "flows" | "admin";
     /** @description The inverse of a changeset applied, and what the undo adds. */
     UndoApplied: components["schemas"]["ChangesetApplied"] & components["schemas"]["UndoMembers"];
     /** @description What an undo adds to the answer of its inverse. */

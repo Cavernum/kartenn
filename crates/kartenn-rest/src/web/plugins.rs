@@ -38,6 +38,28 @@ pub enum Point {
     Action,
 }
 
+/// The spaces of the sidebar, in their order (spec 021, REQ-021-2): a closed list, extended
+/// by amendment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+#[schema(as = UiSpace)]
+pub enum Space {
+    /// The referential: domains, prefixes, ranges, addresses, entities, sites.
+    Referential,
+    /// Changesets, reviews, drafts, imports.
+    Changes,
+    /// The network: VLAN and their groups.
+    Network,
+    /// The hosts.
+    Hosts,
+    /// The flow policy.
+    Policy,
+    /// The flows.
+    Flows,
+    /// The administration, last.
+    Admin,
+}
+
 /// A point of extension a plugin fills.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -61,6 +83,10 @@ pub struct Extension {
     /// The permission without which the shell hides it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission: Option<String>,
+    /// The letter of navigation it proposes after `g` (a view, `[a-z]`); the shell refuses
+    /// a letter already taken (spec 021, design « API des plugins »).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub go: Option<String>,
 }
 
 /// `manifest.json` of a version.
@@ -69,6 +95,12 @@ struct Manifest {
     name: String,
     version: String,
     sdk: String,
+    #[serde(default)]
+    ui: Option<String>,
+    #[serde(default)]
+    framework: Option<String>,
+    #[serde(default)]
+    space: Option<Space>,
     entry: String,
     #[serde(default)]
     module: Option<String>,
@@ -86,6 +118,12 @@ pub struct Published {
     pub version: String,
     /// The range of the SDK it expects.
     pub sdk: String,
+    /// The range of `@kartenn/ui` it expects, if it imports it (ADR 0038).
+    pub ui: Option<String>,
+    /// The range of the shared framework (`vue`) it expects, if it imports it.
+    pub framework: Option<String>,
+    /// The space of the sidebar its views go under.
+    pub space: Option<Space>,
     /// The URL of its directory, `/plugins/<name>/<version>/`.
     pub base: String,
     /// The URL of its entry module.
@@ -289,6 +327,9 @@ impl Plugins {
                 name: name.to_owned(),
                 version: version.to_owned(),
                 sdk: manifest.sdk,
+                ui: manifest.ui,
+                framework: manifest.framework,
+                space: manifest.space,
                 entry: format!("{base}{}", manifest.entry),
                 base,
                 integrity,
@@ -397,11 +438,16 @@ fn check(
             manifest.version
         ));
     }
-    if !sdk_range(&manifest.sdk) {
-        return Err(format!(
-            "sdk {}: ^x[.y[.z]], ~x.y[.z] or x.y.z",
-            manifest.sdk
-        ));
+    for (field, value) in [
+        ("sdk", Some(&manifest.sdk)),
+        ("ui", manifest.ui.as_ref()),
+        ("framework", manifest.framework.as_ref()),
+    ] {
+        if let Some(value) = value
+            && !version_range(value)
+        {
+            return Err(format!("{field} {value}: ^x[.y[.z]], ~x.y[.z] or x.y.z"));
+        }
     }
     if !has_extension(&manifest.entry, "js") || !files.contains(manifest.entry.as_str()) {
         return Err(format!("entry {}: no such module", manifest.entry));
@@ -423,9 +469,24 @@ fn check(
         catalogs.push((language, catalog));
     }
     let mut ids = BTreeSet::new();
+    let mut letters = BTreeSet::new();
     for extension in &manifest.extensions {
         if !ids.insert(extension.id.as_str()) {
             return Err(format!("extension {}: id used twice", extension.id));
+        }
+        if let Some(go) = &extension.go {
+            if extension.point != Point::View {
+                return Err(format!(
+                    "extension {}: go on a {:?}",
+                    extension.id, extension.point
+                ));
+            }
+            if go.len() != 1 || !go.chars().all(|c| c.is_ascii_lowercase()) {
+                return Err(format!("extension {}: go {go}: [a-z]", extension.id));
+            }
+            if !letters.insert(go.as_str()) {
+                return Err(format!("extension {}: go {go} used twice", extension.id));
+            }
         }
         if !element_name(&extension.element, name) {
             return Err(format!(
@@ -485,8 +546,9 @@ fn element_name(element: &str, plugin: &str) -> bool {
         && !RESERVED.contains(&element)
 }
 
-/// `^x[.y[.z]]`, `~x.y[.z]` or `x.y.z` (design « Règles de validation »).
-fn sdk_range(range: &str) -> bool {
+/// `^x[.y[.z]]`, `~x.y[.z]` or `x.y.z` (design « Règles de validation »): the ranges `sdk`,
+/// `ui` and `framework` of a manifest.
+fn version_range(range: &str) -> bool {
     let numbers = |text: &str, min: usize| {
         let parts: Vec<&str> = text.split('.').collect();
         (min..=3).contains(&parts.len())
@@ -519,14 +581,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ranges_of_the_sdk() {
+    fn ranges_of_versions() {
         for good in ["^1", "^1.2", "^1.2.3", "~1.2", "~1.2.3", "1.2.3", "^0.10"] {
-            assert!(sdk_range(good), "{good}");
+            assert!(version_range(good), "{good}");
         }
         for bad in [
             "", "^", "1", "1.2", "~1", ">=1.0", "^01.2", "^1.x", "^1.2.3.4", "*",
         ] {
-            assert!(!sdk_range(bad), "{bad}");
+            assert!(!version_range(bad), "{bad}");
         }
     }
 

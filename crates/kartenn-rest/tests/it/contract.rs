@@ -417,10 +417,12 @@ async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
     std::fs::create_dir_all(version.join("i18n")).unwrap();
     let manifest = serde_json::json!({
         "name": "example", "version": "1.1.0", "sdk": "^1.0", "entry": "index.js",
+        "ui": "^1.0.0", "framework": "^3.5.0", "space": "referential",
         "catalogs": { "en": "i18n/en.json", "fr": "i18n/fr.json" },
         "extensions": [{ "point": "tab", "id": "notes", "element": "example-notes",
                          "object_types": ["prefix"], "label": "tab.notes",
-                         "permission": "core.prefix.read" }]
+                         "permission": "core.prefix.read" },
+                       { "point": "view", "id": "all", "element": "example-all", "go": "n" }]
     });
     std::fs::write(version.join("manifest.json"), manifest.to_string()).unwrap();
     std::fs::write(version.join("index.js"), "export {};").unwrap();
@@ -451,6 +453,9 @@ async fn the_capabilities_publish_the_plugins_of_the_directory(pool: PgPool) {
     assert_eq!(plugin["name"], "example");
     assert_eq!(plugin["version"], "1.1.0");
     assert_eq!(plugin["sdk"], "^1.0");
+    assert_eq!(plugin["ui"], "^1.0.0");
+    assert_eq!(plugin["framework"], "^3.5.0");
+    assert_eq!(plugin["space"], "referential");
     assert_eq!(plugin["base"], "/plugins/example/1.1.0/");
     assert_eq!(plugin["entry"], "/plugins/example/1.1.0/index.js");
     for file in ["index.js", "manifest.json", "i18n/en.json", "i18n/fr.json"] {

@@ -185,6 +185,11 @@ Règles de validation (REQ-007-5) :
 - Fichiers : réguliers, sans lien symbolique, au plus 1 000 et 20 Mio par version.
 - `module` : `null` ou le nom d'un module ; un plugin dont le module manque aux capacités
   n'est pas publié (REQ-007-11).
+- *Amendé par la 021 (REQ-021-26, ADR 0038)* : `ui` et `framework` facultatifs, mêmes
+  formes que `sdk` ; `space` facultatif ∈ {`referential`, `changes`, `network`, `hosts`,
+  `policy`, `flows`, `admin`} ; `go` facultatif sur une extension `view` seulement, une
+  lettre `[a-z]`, unique dans le plugin (le shell refuse une lettre déjà prise). Tous
+  publiés tels quels dans `ui_plugins`, absents s'ils ne sont pas déclarés.
 
 Registre : `Plugins` (dans `kartenn-rest::web`) garde un `ArcSwap<Snapshot>` : versions
 valides par nom, fichiers `(nom, version, chemin) → (chemin disque, SRI, type)`. La

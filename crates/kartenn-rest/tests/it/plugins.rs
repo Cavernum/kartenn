@@ -254,6 +254,26 @@ fn each_faulty_manifest_is_rejected_and_the_others_published() {
             Box::new(|m| m["extensions"][2]["id"] = json!("notes")),
         ),
         ("module", Box::new(|m| m["module"] = json!("vlan"))),
+        ("ui", Box::new(|m| m["ui"] = json!("1.x"))),
+        ("framework", Box::new(|m| m["framework"] = json!(">=3.5"))),
+        ("space", Box::new(|m| m["space"] = json!("elsewhere"))),
+        (
+            "go on a tab",
+            Box::new(|m| m["extensions"][1]["go"] = json!("n")),
+        ),
+        (
+            "go of two letters",
+            Box::new(|m| m["extensions"][0]["go"] = json!("vl")),
+        ),
+        (
+            "go twice",
+            Box::new(|m| {
+                m["extensions"][0]["go"] = json!("v");
+                m["extensions"].as_array_mut().unwrap().push(
+                    json!({ "point": "view", "id": "other", "element": "x-other", "go": "v" }),
+                );
+            }),
+        ),
     ];
     for (i, (_, fault)) in faults.iter().enumerate() {
         let name = format!("faulty{i}");
@@ -269,6 +289,29 @@ fn each_faulty_manifest_is_rejected_and_the_others_published() {
         "{:?}",
         faults.iter().map(|(n, _)| *n).collect::<Vec<_>>()
     );
+}
+
+/// Spec 021, REQ-021-26: the ranges `ui` and `framework`, the space and the letter of a
+/// view are published as declared; a plugin without them is published without them.
+#[test]
+fn ranges_space_and_letter_are_published() {
+    let root = dir();
+    let mut m = manifest("vlan", "1.0.0");
+    m["ui"] = json!("^1.0.0");
+    m["framework"] = json!("^3.5.0");
+    m["space"] = json!("network");
+    m["extensions"][0]["go"] = json!("v");
+    deposit(&root, &m);
+    deposit(&root, &manifest("example", "1.0.0"));
+    let plugins = Plugins::open(&root, modules()).unwrap();
+    let published = plugins.published();
+    let vlan = published.iter().find(|p| p.name == "vlan").unwrap();
+    assert_eq!(vlan.ui.as_deref(), Some("^1.0.0"));
+    assert_eq!(vlan.framework.as_deref(), Some("^3.5.0"));
+    assert_eq!(serde_json::to_value(vlan.space).unwrap(), json!("network"));
+    assert_eq!(vlan.extensions[0].go.as_deref(), Some("v"));
+    let example = published.iter().find(|p| p.name == "example").unwrap();
+    assert!(example.ui.is_none() && example.framework.is_none() && example.space.is_none());
 }
 
 #[test]
