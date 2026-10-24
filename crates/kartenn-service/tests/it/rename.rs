@@ -16,6 +16,7 @@ async fn run(pool: &PgPool, author: Uuid, operations: Vec<Operation>) -> Outcome
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     submit(
         &PgStore::new(pool.clone()),

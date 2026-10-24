@@ -8,7 +8,7 @@
 //! `automatic` asks for a review (`flow.review`), so the changeset becomes a proposal
 //! whatever the rights of its author. Its validator joins `approve_review` (end of the
 //! flow) and, for a denied flow, `waive`. `register` is the direct write of maintenance
-//! (`flow.write`, reading both endpoints): it is never triaged, and refused unless
+//! (`flow.edit`, reading both endpoints): it is never triaged, and refused unless
 //! compliant, reviewed or waived (REQ-011-8).
 
 use kartenn_core::period::{Instant, Period};

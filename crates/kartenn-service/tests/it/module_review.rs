@@ -33,6 +33,27 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
+    }
+}
+
+/// An author who edits things and applies their own changesets (spec 024).
+fn editor(author: Uuid) -> Grants {
+    Grants::new()
+        .everywhere(author, "dummy.thing.edit")
+        .everywhere(author, "dummy.thing.apply_own")
+}
+
+/// The author's edit, still held when validated, and what `validator` holds: the
+/// application of the things and, when `review`, their review (spec 024, REQ-024-11).
+fn applier(author: Uuid, validator: Uuid, review: bool) -> Grants {
+    let grants = Grants::new()
+        .everywhere(author, "dummy.thing.edit")
+        .everywhere(validator, "dummy.thing.apply");
+    if review {
+        grants.everywhere(validator, "dummy.thing.review")
+    } else {
+        grants
     }
 }
 
@@ -40,7 +61,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
 /// asks for a review (`review-…`, see the module of test).
 async fn forced(pool: &PgPool, store: &PgStore) -> (Uuid, Uuid) {
     let author = person(pool).await;
-    let writer = Grants::new().everywhere(author, "dummy.thing.write");
+    let writer = editor(author);
     let outcome = submit(
         store,
         &writer,
@@ -147,7 +168,7 @@ async fn a_reviewed_operation_makes_a_proposal_despite_write(pool: PgPool) {
     );
     // A thing that asks for no review is written directly.
     let author = person(&pool).await;
-    let writer = Grants::new().everywhere(author, "dummy.thing.write");
+    let writer = editor(author);
     let direct = submit(
         &store,
         &writer,
@@ -165,20 +186,16 @@ async fn validation_needs_the_review_permission(pool: PgPool) {
     let store = dummy::store(&pool).await;
     let (author, id) = forced(&pool, &store).await;
     let validator = person(&pool).await;
-    // The write permission alone: refused, the proposal stays pending.
-    let writer = Grants::new().everywhere(validator, "dummy.thing.write");
+    // The apply permission alone: refused, the proposal stays pending.
+    let writer = applier(author, validator, false);
     let refused = validate(&store, &writer, id, validator, Vec::new()).await;
     assert_eq!(rule(&refused), rules::APPROVAL_FORBIDDEN.id);
-    // The author, even with the review permission: refused.
-    let author_reviews = Grants::new()
-        .everywhere(author, "dummy.thing.write")
-        .everywhere(author, "dummy.thing.review");
+    // The author, even with apply_own and the review permission: refused.
+    let author_reviews = editor(author).everywhere(author, "dummy.thing.review");
     let own = validate(&store, &author_reviews, id, author, Vec::new()).await;
     assert_eq!(rule(&own), rules::APPROVAL_SELF.id);
-    // Write and review: applied.
-    let reviewer = Grants::new()
-        .everywhere(validator, "dummy.thing.write")
-        .everywhere(validator, "dummy.thing.review");
+    // Apply and review: applied.
+    let reviewer = applier(author, validator, true);
     let applied = validate(&store, &reviewer, id, validator, Vec::new()).await;
     assert!(
         matches!(applied, Ok(Outcome::Applied { .. })),
@@ -191,11 +208,9 @@ async fn validation_needs_the_review_permission(pool: PgPool) {
 #[kartenn_testing::pg_test]
 async fn review_operations_apply_with_the_proposal(pool: PgPool) {
     let store = dummy::store(&pool).await;
-    let (_, id) = forced(&pool, &store).await;
+    let (author, id) = forced(&pool, &store).await;
     let validator = person(&pool).await;
-    let reviewer = Grants::new()
-        .everywhere(validator, "dummy.thing.write")
-        .everywhere(validator, "dummy.thing.review");
+    let reviewer = applier(author, validator, true);
     // An operation that is not one of review: refused, nothing written, still pending.
     let foreign = validate(
         &store,
@@ -249,9 +264,9 @@ async fn review_operations_apply_with_the_proposal(pool: PgPool) {
 #[kartenn_testing::pg_test]
 async fn without_the_review_permission_joined_operations_are_refused_too(pool: PgPool) {
     let store = dummy::store(&pool).await;
-    let (_, id) = forced(&pool, &store).await;
+    let (author, id) = forced(&pool, &store).await;
     let validator = person(&pool).await;
-    let writer = Grants::new().everywhere(validator, "dummy.thing.write");
+    let writer = applier(author, validator, false);
     let refused = validate(
         &store,
         &writer,
@@ -298,7 +313,7 @@ async fn review_operations_join_a_proposal_only(pool: PgPool) {
     .unwrap();
     assert!(matches!(policy, Outcome::Applied { .. }), "{policy:?}");
     let author = person(&pool).await;
-    let writer = Grants::new().everywhere(author, "dummy.thing.write");
+    let writer = editor(author);
     let held = submit(
         &store,
         &writer,
@@ -346,12 +361,10 @@ async fn review_operations_join_a_proposal_only(pool: PgPool) {
 #[kartenn_testing::pg_test]
 async fn a_validation_for_a_requester_names_it_in_its_events(pool: PgPool) {
     let store = dummy::store(&pool).await;
-    let (_, id) = forced(&pool, &store).await;
+    let (author, id) = forced(&pool, &store).await;
     let validator = person(&pool).await;
     let requester = person(&pool).await;
-    let reviewer = Grants::new()
-        .everywhere(validator, "dummy.thing.write")
-        .everywhere(validator, "dummy.thing.review");
+    let reviewer = applier(author, validator, true);
     let mut context = RequestContext::person(validator);
     context.on_behalf_of = Some(requester);
     let applied = validate_as(&store, &reviewer, id, validator, &context, Vec::new()).await;

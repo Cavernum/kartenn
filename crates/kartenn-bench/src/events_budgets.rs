@@ -146,6 +146,7 @@ async fn apply(store: &PgStore, author: Uuid, operation: Operation) -> anyhow::R
         operations: vec![operation],
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     match submit(store, &Unrestricted, &request, MAX_OPERATIONS).await? {
         Outcome::Applied { changeset, .. } => Ok(changeset),

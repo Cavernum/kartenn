@@ -124,7 +124,11 @@ test("an action is absent without its permission", async ({ page, login }) => {
   const prefix = await idOf(page, "prefixes", "10.1.0.0/24");
   await page.goto(`/prefixes/${prefix}`);
   await expect(page.getByRole("tab", { name: "Notes" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Actions" })).toHaveCount(0);
+  // Bob edits addresses (spec 024): the example's draft action is his, not « Réserver »,
+  // which asks apply_own.
+  await page.getByRole("button", { name: "Actions" }).click();
+  await expect(page.getByRole("menuitem").first()).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Réserver" })).toHaveCount(0);
 });
 
 test("an action opens in a dialog that its element closes", async ({ page, login }) => {

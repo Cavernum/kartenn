@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use kartenn_core::addr::{Addr, AddrError, Prefix};
+use kartenn_core::authz::Verb;
 use kartenn_core::family::ALL;
 use kartenn_core::labels::Labels;
 use kartenn_core::objects::{self, Address, IpRange, PrefixObject, RangeUsage, Slug};
@@ -133,8 +134,8 @@ pub enum Outcome {
         /// Its state.
         state: String,
     },
-    /// Held for a decision, as a proposal or by an approval policy (REQ-004-20, 41);
-    /// nothing written but the journal.
+    /// Held for a decision, as a proposal or by an approval policy (REQ-004-20; spec 024,
+    /// REQ-024-10); nothing written but the journal.
     Pending {
         /// Changeset identifier.
         changeset: Uuid,
@@ -144,6 +145,9 @@ pub enum Outcome {
         policy: Option<Uuid>,
         /// Differential that applying it would produce.
         diff: Vec<DiffCount>,
+        /// Why its author could not apply it, when asked to (`apply_own`, REQ-024-13):
+        /// `changeset.apply_own.missing`, or `changeset.approval.self` (policy, review).
+        reason: Option<Violation>,
     },
     /// A pending changeset validated but refused on the current state (REQ-004-22).
     FailedRevalidation {
@@ -1716,6 +1720,9 @@ pub(crate) enum Mode {
         kind: PendingKind,
         /// The requester it was submitted for (REQ-016-12), for its modules.
         requester: Option<Uuid>,
+        /// How many of its operations its author wrote: those after are the operations
+        /// of review its validator joins (REQ-016-11), checked under the validator only.
+        authored: usize,
     },
 }
 
@@ -1982,38 +1989,76 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => tx.approval_policies().await?,
         Mode::Validation { .. } => Vec::new(),
     };
-    let validator = context
+    let validator_subject = context
         .subject()
         .unwrap_or_else(|| crate::authz::Subject::from(req.author));
-    let (subject, may_propose) = match mode {
-        Mode::Submission => (author, true),
-        Mode::Validation {
-            kind: PendingKind::Proposal,
-            ..
-        } => (&validator, false),
-        Mode::Validation {
-            kind: PendingKind::Approval,
-            ..
-        } => (author, false),
+    // Spec 024, M7: the author edits (checked again when validated, REQ-004-22); whoever
+    // applies the changeset applies it, its author under `apply_own`.
+    let edit = crate::rights::Check {
+        subject: author,
+        verb: Verb::Edit,
     };
+    let application = match mode {
+        Mode::Submission if req.apply_own && !req.simulate => Some(crate::rights::Check {
+            subject: author,
+            verb: Verb::ApplyOwn,
+        }),
+        Mode::Submission => None,
+        Mode::Validation { validator: id, .. } => Some(crate::rights::Check {
+            subject: &validator_subject,
+            verb: if id == author.id {
+                Verb::ApplyOwn
+            } else {
+                Verb::Apply
+            },
+        }),
+    };
+    // What the author wrote: the operations of review a validator joins are checked under
+    // the validator alone (REQ-016-11).
+    let authored: std::borrow::Cow<'_, [Planned]> = match mode {
+        Mode::Validation { authored: n, .. } if origins.iter().any(|o| *o >= n) => planned
+            .iter()
+            .zip(&origins)
+            .filter(|(_, o)| **o < n)
+            .map(|(p, _)| p.clone())
+            .collect::<Vec<_>>()
+            .into(),
+        _ => planned.as_slice().into(),
+    };
+    let mut required = crate::rights::Required::new();
+    // The lacks of the one who applies: the changeset stays pending.
+    let mut unapplied = Vec::new();
     // REQ-005-22: the objects the changeset closes or changes, before its writes.
-    let missing_before = match crate::rights::check_objects(
-        &mut tx,
-        authorizer,
-        subject,
-        &planned,
-        crate::rights::Phase::Before,
-        may_propose,
-        &mut violations,
-    )
-    .await
-    {
-        Ok(missing) => missing,
-        Err(e) => {
-            tx.rollback().await?;
-            return Err(e.into());
+    let before = async {
+        crate::rights::check_objects(
+            &mut tx,
+            authorizer,
+            edit,
+            &authored,
+            crate::rights::Phase::Before,
+            Some(&mut required),
+            &mut violations,
+        )
+        .await?;
+        if let Some(application) = application {
+            crate::rights::check_objects(
+                &mut tx,
+                authorizer,
+                application,
+                &planned,
+                crate::rights::Phase::Before,
+                None,
+                &mut unapplied,
+            )
+            .await?;
         }
-    };
+        Ok::<(), StoreError>(())
+    }
+    .await;
+    if let Err(e) = before {
+        tx.rollback().await?;
+        return Err(e.into());
+    }
     let former = match apply(
         &mut tx,
         modules,
@@ -2051,15 +2096,18 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
     }
-    // Rights: the author's when submitting (a lack covered by `…propose` makes a
-    // proposal); a proposal's validator's when validating it; the author's again for an
-    // approval, whose validator needs the approval permission below.
+    // Rights (spec 024, M7): the author's edit, then the application of whoever applies.
     let props = properties(
         &mut tx,
         authorizer,
         sources,
-        subject,
-        may_propose,
+        Rights {
+            edit,
+            authored: &authored,
+            application,
+            required: &mut required,
+            unapplied: &mut unapplied,
+        },
         &planned,
         window,
         changeset,
@@ -2069,21 +2117,10 @@ async fn stages<S: Store, A: Authorizer>(
     let Checked {
         diff,
         expected: checked,
-        mut missing,
     } = match props {
         Ok(Some(found)) => found,
         Ok(None) => {
             tx.rollback().await?;
-            // A validator without the rights leaves the proposal pending.
-            if let Mode::Validation {
-                validator,
-                kind: PendingKind::Proposal,
-                ..
-            } = mode
-                && let Some(denied) = only_rights(&violations)
-            {
-                return Err(RequestError::Review(forbidden(validator, denied)));
-            }
             return refuse(store, req, changeset, violations, mode, context).await;
         }
         Err(e) => {
@@ -2091,7 +2128,6 @@ async fn stages<S: Store, A: Authorizer>(
             return Err(e.into());
         }
     };
-    missing.extend(missing_before);
     // REQ-008-26: the sections of the modules, then their rules on the final state.
     let touched = crate::sections::touched(&planned);
     let sections =
@@ -2135,44 +2171,68 @@ async fn stages<S: Store, A: Authorizer>(
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
-    match mode {
+    // REQ-016-10: an operation the module requires a review of is reviewed by another than
+    // its author, who needs the permission the module names.
+    let reviewed = reviews(&planned);
+    let kind = match mode {
         Mode::Submission => {
-            // REQ-016-10: an operation the module requires a review of makes a proposal,
-            // even for an author who may write it; its validator needs the permission.
-            missing.extend(reviews(&planned));
-            let kind = if missing.is_empty() {
-                crate::review::holding_policy(
-                    &mut tx,
-                    &policies,
-                    req,
-                    author,
-                    &planned,
-                    &diff,
-                    &domains,
-                    &module_findings.measures,
-                )
-                .await?
-                .map(|policy| (PendingKind::Approval, Some(policy)))
+            // Spec 024, REQ-024-10, 12, 13: always pending, unless its author asks to apply
+            // it and may: under `apply_own`, held by no policy, reviewed by no module.
+            let policy = crate::review::holding_policy(
+                &mut tx,
+                &policies,
+                req,
+                author,
+                &planned,
+                &diff,
+                &domains,
+                &module_findings.measures,
+            )
+            .await?;
+            let reason = if !req.apply_own {
+                None
+            } else if policy.is_some() {
+                Some(self_refused("an approval policy holds it", Vec::new()))
+            } else if !reviewed.is_empty() {
+                Some(self_refused(
+                    "a module requires its review by someone else",
+                    Vec::new(),
+                ))
+            } else if !unapplied.is_empty() {
+                Some(apply_own_missing(&unapplied))
             } else {
-                Some((PendingKind::Proposal, None))
+                None
             };
-            if let Some((kind, policy)) = kind {
+            if !req.apply_own || reason.is_some() {
                 let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
                 perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
                 tx.rollback().await?;
+                let review = !reviewed.is_empty();
+                required.extend(reviewed);
                 let pending = Pending {
                     policy,
                     perimeter: perimeter.into_iter().collect(),
-                    required: missing,
+                    required,
                     author: Some(author.clone()),
                     on_behalf_of: context.on_behalf_of,
+                    review,
+                    reason: reason.as_ref().map(|v| crate::port::StoredReason {
+                        code: v.rule.id.to_owned(),
+                        message: v.message.clone(),
+                        objects: v.subjects.clone(),
+                    }),
+                };
+                let kind = if policy.is_some() {
+                    PendingKind::Approval
+                } else {
+                    PendingKind::Proposal
                 };
                 return hold(
                     store,
                     context,
                     req,
                     changeset,
-                    kind,
+                    (kind, reason),
                     &pending,
                     &violations,
                     &domains,
@@ -2180,61 +2240,75 @@ async fn stages<S: Store, A: Authorizer>(
                 )
                 .await;
             }
+            PendingKind::Proposal
         }
-        Mode::Validation {
-            validator,
-            kind: PendingKind::Approval,
-            ..
-        } => {
-            let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
-            perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
-            let perimeter: Vec<Uuid> = perimeter.into_iter().collect();
-            let denied = authorizer
-                .authorize_in(
-                    &mut tx,
-                    &context.subject().unwrap_or_else(|| validator.into()),
-                    APPROVE_PERMISSION,
-                    &perimeter,
-                )
-                .await?;
-            if !denied.is_empty() {
-                tx.rollback().await?;
-                let error = RequestError::Review(forbidden(validator, denied));
-                return Err(crate::review::audited(store, context, error, changeset).await);
-            }
-        }
-        // REQ-016-11: the review permission the module names, on objects that now exist
-        // in the transaction; the validator's write permissions were checked above.
-        Mode::Validation {
-            validator,
-            kind: PendingKind::Proposal,
-            ..
-        } => {
-            for (permission, objects) in reviews(&planned) {
-                let denied = authorizer
-                    .authorize_in(&mut tx, subject, &permission, &objects)
-                    .await?;
-                if !denied.is_empty() {
-                    tx.rollback().await?;
-                    let error = RequestError::Review(forbidden(validator, denied));
-                    return Err(crate::review::audited(store, context, error, changeset).await);
-                }
-            }
-        }
-    }
-    let mut reevaluated = reevaluated(&planned, &checked);
-    reevaluated.extend(module_findings.reevaluated);
-    let (kind, validator) = match mode {
-        Mode::Submission => ("direct", None),
         Mode::Validation {
             validator, kind, ..
-        } => (kind.as_str(), Some(validator)),
+        } => {
+            // REQ-024-11: the application of the validator on everything the changeset
+            // touches; REQ-016-11: the review permission the module names, on objects that
+            // now exist in the transaction.
+            let mut denied: Vec<Uuid> = unapplied.iter().flat_map(|v| v.subjects.clone()).collect();
+            for (permission, objects) in &reviewed {
+                denied.extend(
+                    authorizer
+                        .authorize_in(&mut tx, &validator_subject, permission, objects)
+                        .await?,
+                );
+            }
+            if !denied.is_empty() {
+                tx.rollback().await?;
+                let violation = if validator == author.id {
+                    apply_own_missing(&unapplied)
+                } else {
+                    forbidden(validator, denied)
+                };
+                let error = RequestError::Review(violation);
+                return Err(crate::review::audited(store, context, error, changeset).await);
+            }
+            kind
+        }
     };
+    let mut reevaluated = reevaluated(&planned, &checked);
+    reevaluated.extend(module_findings.reevaluated);
+    // Spec 024, REQ-024-13: applied by its author in the request that submits it, it is
+    // journaled `direct`, its author as its validator, its submission audited before its
+    // application.
+    let (validator, submitted) = match mode {
+        Mode::Submission => (author.id, true),
+        Mode::Validation { validator, .. } => (validator, false),
+    };
+    let validator = Some(validator);
+    let mut events = Vec::new();
+    if submitted {
+        let journal = Journal {
+            id: changeset,
+            request: req,
+            state: "pending",
+            kind: kind.as_str(),
+            validator: None,
+            pending: None,
+            violations: &[],
+            domains: &domains,
+            keys: &[],
+            objects: &[],
+            reevaluated: &[],
+            diff: &diff,
+            cascaded: &[],
+            audit: &[],
+            on_behalf_of: context.on_behalf_of,
+        };
+        events.extend(
+            crate::audit::changeset_events(context, &journal, &[])?
+                .into_iter()
+                .take(1),
+        );
+    }
     let journal = Journal {
         id: changeset,
         request: req,
         state: "applied",
-        kind,
+        kind: if submitted { "direct" } else { kind.as_str() },
         validator,
         pending: None,
         violations: &violations,
@@ -2247,7 +2321,7 @@ async fn stages<S: Store, A: Authorizer>(
         audit: &[],
         on_behalf_of: context.on_behalf_of,
     };
-    let events = crate::audit::changeset_events(context, &journal, &planned)?;
+    events.extend(crate::audit::changeset_events(context, &journal, &planned)?);
     let journal = Journal {
         audit: &events,
         ..journal
@@ -2262,17 +2336,13 @@ async fn stages<S: Store, A: Authorizer>(
     })
 }
 
-/// Permission to approve a changeset held by a policy, over its whole perimeter
-/// (REQ-004-21).
-pub const APPROVE_PERMISSION: &str = "core.changeset.approve";
-
 /// The kind of a pending changeset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PendingKind {
     /// Held by an approval policy (REQ-004-20).
     Approval,
-    /// Proposed by an author who may only propose (REQ-004-41).
+    /// Submitted, waiting for its application (spec 024, REQ-024-10).
     Proposal,
 }
 
@@ -2289,7 +2359,7 @@ impl PendingKind {
 
 /// The review permissions the modules require on the objects of `planned` (REQ-016-10),
 /// with the objects each covers.
-fn reviews(planned: &[Planned]) -> crate::rights::Missing {
+fn reviews(planned: &[Planned]) -> crate::rights::Required {
     let mut by: std::collections::BTreeMap<String, Vec<Uuid>> = std::collections::BTreeMap::new();
     for p in planned {
         if let Planned::Module { handler, plan, .. } = p
@@ -2322,28 +2392,36 @@ fn forbidden(validator: Uuid, denied: Vec<Uuid>) -> Violation {
     .with_subjects(denied)
 }
 
-/// The objects refused when every error is a lack of right; `None` otherwise.
-fn only_rights(violations: &[Violation]) -> Option<Vec<Uuid>> {
-    let errors: Vec<&Violation> = violations
-        .iter()
-        .filter(|v| v.rule.severity == Severity::Error)
-        .collect();
-    errors
-        .iter()
-        .all(|v| {
-            v.rule.id == rules::PROP_FORBIDDEN_EFFECT.id || v.rule.id == rules::OBJECT_FORBIDDEN.id
-        })
-        .then(|| errors.iter().flat_map(|v| v.subjects.clone()).collect())
+/// The author lacks `apply_own` (spec 024, REQ-024-11, 13): `changeset.apply_own.missing`,
+/// naming each permission lacking, with the objects concerned.
+fn apply_own_missing(unapplied: &[Violation]) -> Violation {
+    let lacking: Vec<&str> = unapplied.iter().map(|v| v.message.as_str()).collect();
+    Violation::new(
+        &rules::APPLY_OWN_MISSING,
+        format!("its author lacks apply_own: {}", lacking.join("; ")),
+    )
+    .with_subjects(unapplied.iter().flat_map(|v| v.subjects.clone()))
 }
 
-/// Journals a pending changeset after the rollback of its writes, with its event.
+/// Why the author of a changeset does not apply it (spec 024, REQ-024-12): a policy
+/// holds it or a module requires its review, `changeset.approval.self`.
+pub(crate) fn self_refused(why: &str, denied: Vec<Uuid>) -> Violation {
+    Violation::new(
+        &rules::APPROVAL_SELF,
+        format!("its author does not apply this changeset: {why}"),
+    )
+    .with_subjects(denied)
+}
+
+/// Journals a pending changeset after the rollback of its writes, with its event; the
+/// reason its author could not apply it, if asked, comes back with it.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 async fn hold<S: Store>(
     store: &S,
     context: &RequestContext,
     req: &ChangesetRequest,
     changeset: Uuid,
-    kind: PendingKind,
+    (kind, reason): (PendingKind, Option<Violation>),
     pending: &Pending,
     violations: &[Violation],
     domains: &[Uuid],
@@ -2377,18 +2455,30 @@ async fn hold<S: Store>(
         kind,
         policy: pending.policy,
         diff,
+        reason,
     })
 }
 
 /// Entries of the differential detail returned by a simulation (003/design).
 const SIMULATION_SAMPLE: i64 = 100;
 
-/// What the properties stage found: the differential, the objects whose expected values
-/// were checked, and the write permissions lacking but proposable.
+/// What the properties stage found: the differential and the objects whose expected values
+/// were checked.
 struct Checked {
     diff: Vec<DiffCount>,
     expected: Vec<Uuid>,
-    missing: crate::rights::Missing,
+}
+
+/// The rights the properties stage checks (spec 024, M7): the author's edit, whose
+/// permissions it adds to `required`, and the application of whoever applies, whose lacks
+/// go to `unapplied`.
+struct Rights<'a, 'r> {
+    edit: crate::rights::Check<'a>,
+    /// The operations the author wrote, its edit is checked on.
+    authored: &'r [Planned],
+    application: Option<crate::rights::Check<'a>>,
+    required: &'r mut crate::rights::Required,
+    unapplied: &'r mut Vec<Violation>,
 }
 
 /// Properties after the writes (spec 003): origins, obligations, differential, then the
@@ -2399,8 +2489,7 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     sources: &Sources,
-    subject: &crate::authz::Subject,
-    may_propose: bool,
+    rights: Rights<'_, '_>,
     planned: &[Planned],
     period: Option<Period>,
     changeset: Uuid,
@@ -2438,25 +2527,37 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
     let touched = crate::resolution::touched(&all, refreshed);
     let diff = crate::resolution::diff(tx, &all, &maintained, period).await?;
     // Default values are not the author's choice: only their effects need rights.
-    let missing = crate::rights::check(
+    crate::rights::check(
         tx,
         authorizer,
-        subject,
-        planned,
+        rights.edit,
+        rights.authored,
         &diff,
         period,
-        may_propose,
+        Some(rights.required),
         violations,
     )
     .await?;
     if has_errors(violations) {
         return Ok(None);
     }
+    if let Some(application) = rights.application {
+        crate::rights::check(
+            tx,
+            authorizer,
+            application,
+            planned,
+            &diff,
+            period,
+            None,
+            rights.unapplied,
+        )
+        .await?;
+    }
     let checked = crate::expected::check(tx, sources, &touched, period, violations).await?;
     Ok(Some(Checked {
         diff,
         expected: checked,
-        missing,
     }))
 }
 
@@ -2588,6 +2689,7 @@ mod tests {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         }
     }
 

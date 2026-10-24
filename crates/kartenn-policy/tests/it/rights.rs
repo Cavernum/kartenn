@@ -50,17 +50,17 @@ async fn the_catalogue_is_that_of_s15(pool: PgPool) {
         "policy.catalogue.read"
     );
     assert_eq!(
-        kartenn_core::authz::type_write_permission("policy.condition"),
+        kartenn_core::authz::type_edit_permission("policy.condition"),
         "policy.rule.admin"
     );
     assert_eq!(
-        kartenn_core::authz::type_write_permission("policy.value"),
+        kartenn_core::authz::type_edit_permission("policy.value"),
         "policy.axis.admin"
     );
     // A type without declared permissions keeps the convention.
     assert_eq!(
-        kartenn_core::authz::type_write_permission("vlan.vlan"),
-        "vlan.write"
+        kartenn_core::authz::type_edit_permission("vlan.vlan"),
+        "vlan.edit"
     );
 }
 

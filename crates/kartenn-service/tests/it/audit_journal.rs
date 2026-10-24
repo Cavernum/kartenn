@@ -28,7 +28,7 @@ async fn an_event_is_recorded_with_its_context(pool: PgPool) {
         .event(&AUTHZ_DENIED, Outcome::Denied)
         .unwrap()
         .target("prefix", [object])
-        .detail("permission", "prop.custom.env.write")
+        .detail("permission", "prop.custom.env.edit")
         .unwrap();
     journal.record(&event).await.unwrap();
     let row: (
@@ -55,7 +55,7 @@ async fn an_event_is_recorded_with_its_context(pool: PgPool) {
     assert_eq!(row.4, "192.0.2.7");
     assert_eq!(row.5, vec![object]);
     assert_eq!((row.6.as_str(), row.7.as_str()), ("req-42", "1.2.3"));
-    assert_eq!(row.8["permission"], "prop.custom.env.write");
+    assert_eq!(row.8["permission"], "prop.custom.env.edit");
 }
 
 #[kartenn_testing::pg_test]

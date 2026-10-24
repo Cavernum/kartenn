@@ -31,6 +31,7 @@ async fn an_address_inherits_a_value_it_cannot_carry(pool: PgPool) {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let store = store.clone();
         async move {

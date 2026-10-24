@@ -205,7 +205,10 @@ fn client(mut request: Request<Body>) -> Request<Body> {
 }
 
 async fn send(app: &Router, request: Request<Body>) -> Response {
-    app.clone().oneshot(request).await.unwrap()
+    app.clone()
+        .oneshot(crate::common::applied(request))
+        .await
+        .unwrap()
 }
 
 async fn json_of(response: Response) -> Value {

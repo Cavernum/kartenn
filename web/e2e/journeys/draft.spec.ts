@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, expectAccessible, loginIn, test } from "../fixtures/index.ts";
-import { DATA } from "../fixtures/data.ts";
+import { appliedByAuthor, DATA } from "../fixtures/data.ts";
 import { ISSUER } from "../fixtures/env.ts";
 
 // The draft (spec 007, task 20; REQ-007-26, 27): operations gathered in the browser,
@@ -24,7 +24,7 @@ async function call(
       const text = await response.text();
       return { status: response.status, body: text ? JSON.parse(text) : null };
     },
-    { method, path, body },
+    { method, path: appliedByAuthor(method, path), body },
   );
 }
 
@@ -166,7 +166,7 @@ test("an answer lost at the submission, then « Réessayer »: one changeset", a
   await expect(draft.getByText(/Simulation valide/)).toBeVisible();
   // The server applies the changeset, the answer never reaches the page.
   let lost = 0;
-  await page.route("**/v1/changesets", async (route) => {
+  await page.route("**/v1/changesets?apply=own", async (route) => {
     if (route.request().method() !== "POST" || lost > 0) return route.fallback();
     lost += 1;
     await route.fetch();
@@ -174,7 +174,7 @@ test("an answer lost at the submission, then « Réessayer »: one changeset", a
   });
   await draft.getByRole("button", { name: "Soumettre le brouillon" }).click();
   await expect(draft.getByText(/Réseau indisponible/)).toBeVisible();
-  await page.unroute("**/v1/changesets");
+  await page.unroute("**/v1/changesets?apply=own");
   await draft.getByRole("button", { name: "Réessayer" }).click();
   await expect(draft.getByText("Changeset appliqué.")).toBeVisible();
   expect(lost).toBe(1);

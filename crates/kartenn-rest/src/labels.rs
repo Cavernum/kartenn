@@ -73,15 +73,22 @@ impl CodeCatalogue {
             let compiled = kind.labels();
             CodeLabel::new("problem", kind.slug(), compiled.fr, compiled.en)
         }));
-        let former: Vec<CodeLabel> = kartenn_core::authz::RENAMED_PERMISSIONS
+        // Spec 024, REQ-024-9: a retired name is labelled after the first name replacing it.
+        let catalogue: Vec<&kartenn_core::authz::Permission> = kartenn_core::authz::PERMISSIONS
             .iter()
+            .copied()
+            .chain(registry.permissions())
+            .collect();
+        let former: Vec<CodeLabel> = kartenn_core::authz::retired_names(&catalogue)
+            .into_iter()
             .filter_map(|(old, new)| {
                 let current = labels
                     .iter()
-                    .find(|l| l.space == "permission" && l.key == *new)?;
+                    .find(|l| l.space == "permission" && new.first() == Some(&l.key))?;
+                let new = new.join(", ");
                 Some(CodeLabel {
                     space: "permission",
-                    key: (*old).to_owned(),
+                    key: old,
                     fr: format!("{} (ancien nom de {new})", current.fr),
                     en: format!("{} (former name of {new})", current.en),
                 })

@@ -7,11 +7,31 @@ use kartenn_core::code_labels::English;
 pub(crate) static ENGLISH: English = English {
     permissions: &[
         ("vlan.group.read", "Read the VLAN groups."),
-        ("vlan.group.write", "Create, change or close a VLAN group."),
-        ("vlan.group.propose", "Propose a change of a VLAN group."),
+        (
+            "vlan.group.edit",
+            "Create, change or close a VLAN group in a changeset and submit it.",
+        ),
+        (
+            "vlan.group.apply",
+            "Apply or reject the changeset of someone else that touches a VLAN group.",
+        ),
+        (
+            "vlan.group.apply_own",
+            "Apply one's own changeset that touches a VLAN group.",
+        ),
         ("vlan.read", "Read the VLANs."),
-        ("vlan.write", "Create, change or close a VLAN."),
-        ("vlan.propose", "Propose a change of a VLAN."),
+        (
+            "vlan.edit",
+            "Create, change or close a VLAN in a changeset and submit it.",
+        ),
+        (
+            "vlan.apply",
+            "Apply or reject the changeset of someone else that touches a VLAN.",
+        ),
+        (
+            "vlan.apply_own",
+            "Apply one's own changeset that touches a VLAN.",
+        ),
     ],
     rules: &[
         ("vlan.vid.invalid", "A VID is an integer from 1 to 4094."),

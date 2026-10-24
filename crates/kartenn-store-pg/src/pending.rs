@@ -42,6 +42,8 @@ fn decode(
                 required: Vec::new(),
                 author: None,
                 on_behalf_of: None,
+                review: false,
+                reason: None,
             }),
     })
 }

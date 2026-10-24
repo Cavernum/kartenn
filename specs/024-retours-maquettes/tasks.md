@@ -11,28 +11,81 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P0 — Deux chemins de droits
 
-- [ ] 1. Catalogue `edit`/`apply`/`apply_own`, migration des rôles par changeset système,
+- [x] 1. Catalogue `edit`/`apply`/`apply_own`, migration des rôles par changeset système,
   `write`, `propose` et `core.changeset.approve` retirés — REQ-024-9 — verify :
   `k-check` ; aucune occurrence des anciens noms hors migrations et audit (test du type
   018/REQ-018-6)
   - où : `docs/spec/permissions.md` ; catalogues des modules (`crates/kartenn-*/src/`,
     `registry.rs`) ; migration `crates/kartenn-store-pg/migrations/0063_permission_verbs.sql`
     sur le modèle de `0058_permission_names.sql` ; test voisin : celui de 018-1 à 4
-- [ ] 2. Soumission toujours en attente sous `edit` ; validation par `apply` (autre) ou
+  - Résultat : `authz::retired`/`retired_names` composent la 018 et la 024, rôles
+    migrés par `rbac::rename_permissions` (`custom_roles_take_the_verbs_of_spec_024_once`),
+    `no_old_permission_name_is_left` étendu à tous les anciens noms ; `k-check` vert.
+- [x] 2. Soumission toujours en attente sous `edit` ; validation par `apply` (autre) ou
   `apply_own` (auteur) ; politique qui retient → `changeset.approval.self` —
   REQ-024-10, 11, 12 — verify : matrice auteur/autre × apply/apply_own × politique
   - où : `crates/kartenn-service/src/pipeline.rs`, `rights.rs`,
     `review.rs::validate_pending_with` ; design « B »
-- [ ] 3. `?apply=own` sur `POST /v1/changesets` (une transaction, deux audits, 202 en
+  - Résultat : `rights::Check { subject, verb }` (`authz::verb_permission`), droits de
+    l'auteur revérifiés puis application du valideur ; matrice
+    `the_application_follows_the_author_and_the_policies` (service `review.rs`).
+- [x] 3. `?apply=own` sur `POST /v1/changesets` (une transaction, deux audits, 202 en
   repli) ; imports et annulation suivent la règle ; aides de test — REQ-024-13 — verify :
   test de repli 202, audit des deux événements
   - où : `crates/kartenn-rest/src/changesets.rs` ; `crates/kartenn-service/src/import.rs`,
     `undo.rs` ; aides de `crates/kartenn-testing`
-- [ ] 4. Amendements de texte : 004 (C1, REQ-004-21, 41, 42 renvoient à la 024), 005,
+  - Résultat : `ChangesetRequest::apply_own`, lu de la requête par l'authentification ;
+    202 avec `reason` (rejoué à l'identique) ; `apply_own_applies_or_falls_back_to_pending`
+    (REST) ; aides `kartenn_testing::applied_by_author`, `common::applied`.
+- [x] 4. Amendements de texte : 004 (C1, REQ-004-21, 41, 42 renvoient à la 024), 005,
   018, `docs/spec/` (règles, permissions) ; client Python et CLI (noms, `apply=own`) —
   verify : `k-py-check`, `spec-keeper` sur la 004
   - où : `specs/004-changesets-bitemporel/requirements.md` § D ;
     `clients/python/kartenn/`, `clients/python/kartenn-cli/`
+  - Résultat : 004 (C1, C7, REQ-004-21, 39, 41, 42, 43), 005 (K12, REQ-005-16, 22), 018
+    (R2, R3, REQ-018-1, 4), `docs/spec/` (interfaces, permissions, règles, événements) ;
+    client : `submit(apply_own=…)`, `Pending.reason`, CLI `changeset apply --submit-only` ;
+    `k-py-check`, `k-py-e2e` verts.
+
+### Choix tranchés (P0)
+
+- Une permission d'une autre action que `edit` (`core.role.admin`, `policy.rule.admin`,
+  `flow.request`, `flow.review`) vaut édition, application et application de ses propres
+  changesets (`authz::verb_permission`) : la 024 ne lui donne pas de verbes.
+- `flow.write` (sans `propose`) devient aussi `flow.edit`, `flow.apply`, `flow.apply_own`.
+- `core.changeset.approve` migre vers chaque `….apply` du catalogue du build et
+  `prop.*.apply` (les propriétés sensibles demandent leur permission propre) ; le rôle
+  `approver` livré reçoit les `apply` des objets du noyau et des modules,
+  `editor` `edit` + `apply_own` du noyau et `prop.*`.
+- `?apply=own` est lu pour toute écriture (pas seulement `POST /v1/changesets`) par
+  l'authentification, porté par `RequestContext::apply_own` puis
+  `ChangesetRequest::apply_own` ; l'OpenAPI le déclare sur toute opération qui répond 202.
+- Changeset appliqué dans la requête qui le soumet : `kind = direct`, `validator_id` =
+  l'auteur (« appliqué par son auteur ») ; audits `changeset.state.pending` puis
+  `changeset.state.applied`. La contrainte `validator_id <> author_id` tombe (0063).
+- La marque « appliqué par son auteur » de l'historique est `validator_id = author_id` (le
+  champ `validator` de la vue d'un changeset) ; aucun champ dédié n'est ajouté au
+  contrat. La soumission d'un brouillon (`/v1/drafts/{id}/submission?apply=own`) vient
+  avec les brouillons (tâche 6).
+- Deux motifs de repli (arbitré le 2026-10-24) : `changeset.apply_own.missing` quand
+  l'auteur n'a pas `apply_own` sur un objet ou un effet (le message nomme chaque
+  permission manquante), `changeset.approval.self` quand une politique le retient ou
+  qu'un module exige sa revue ; gardés dans `required_rights.reason` pour rejouer la 202.
+  La validation par l'auteur sans `apply_own` répond 403 `changeset.apply_own.missing`.
+- À la validation, les droits d'édition de l'auteur sont revérifiés (comme pour une
+  approbation), sauf sur les opérations de revue que joint le valideur.
+- Un module qui exige une revue (REQ-016-10) interdit l'auto-application, comme une
+  politique.
+- `GET /v1/proposals` ne liste pas les changesets de l'appelant ; un changeset en attente
+  sans exigences enregistrées (journalisé avant la 024, retenu par une politique) n'est
+  rejetable par personne, il se valide (droits recalculés) ou expire.
+- Clients : le SDK web, le client Python et la CLI demandent `apply=own` sur toute
+  écriture par défaut (M9) ; `submit(apply_own=False)` / `--submit-only` soumettent seuls.
+- Migration du schéma numérotée 0063 ; la table des brouillons (tâche 5) prendra 0064.
+- Motif du changeset de migration des rôles : `permission rename 024` (018 et 024).
+- Maquette E4 : droits requis `core.prefix.apply`, `vlan.apply`, `prop.*.apply` ; seuls
+  les instantanés d'accessibilité (`.aria.yml`) sont mis à jour, les images restent à
+  reprendre (`k-web-shots --update`) une fois les polices de Playwright corrigées.
 
 ## P1 — Serveur (en parallèle, après P0)
 

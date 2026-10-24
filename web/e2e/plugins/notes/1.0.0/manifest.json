@@ -29,7 +29,7 @@
       "element": "notes-reserve",
       "object_types": ["prefix"],
       "label": "action.reserve",
-      "permission": "core.address.write"
+      "permission": "core.address.apply_own"
     }
   ]
 }

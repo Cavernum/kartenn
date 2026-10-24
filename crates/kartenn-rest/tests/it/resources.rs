@@ -103,7 +103,10 @@ async fn admin(pool: &PgPool) -> Router {
 }
 
 async fn send(app: &Router, request: Request<Body>) -> Response {
-    app.clone().oneshot(common::bearer(request)).await.unwrap()
+    app.clone()
+        .oneshot(common::bearer(common::applied(request)))
+        .await
+        .unwrap()
 }
 
 async fn json_of(response: Response) -> Value {

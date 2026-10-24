@@ -126,7 +126,7 @@ mod tests {
                 ProblemKind::Conflict,
             ),
             (
-                RequestError::Forbidden("prefix.write".into()),
+                RequestError::Forbidden("prefix.edit".into()),
                 ProblemKind::Forbidden,
             ),
             (

@@ -68,6 +68,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -252,6 +253,7 @@ async fn consulting_the_audit_needs_its_permission_and_is_audited(pool: PgPool) 
     assert_eq!(
         names,
         [
+            "changeset.state.pending",
             "changeset.state.applied",
             "authz.access.denied",
             "audit.events.read"

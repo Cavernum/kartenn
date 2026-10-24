@@ -8,7 +8,7 @@ use kartenn_service::authz::{Authorizer, Grants, Subject, Unrestricted};
 use kartenn_service::declarations::{ModuleDeclarations, SYSTEM_AUTHOR, sync_modules};
 use kartenn_service::expected::Sources;
 use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
-use kartenn_service::pipeline::{APPROVE_PERMISSION, MAX_OPERATIONS, PendingKind};
+use kartenn_service::pipeline::{MAX_OPERATIONS, PendingKind};
 use kartenn_service::review::{expire_pending, proposals_for, reject, validate_pending, withdraw};
 use kartenn_service::{
     ChangesetRequest, ObjectKind, Operation, Outcome, Ref, RequestError, submit, submit_in,
@@ -281,9 +281,9 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
         .unwrap();
     f.applied(vec![f.assign(one, ObjectKind::Address, "prod")])
         .await;
-    // REQ-004-21: never the author, and the approval permission on the whole perimeter;
-    // the author's own rights are checked again.
-    let author_rights = Grants::new().everywhere(f.author, "prop.custom.environment.write");
+    // REQ-024-11, 12: never the author, even holding everything, and the application of
+    // everything it touches; the author's own rights are checked again.
+    let author_rights = Grants::new().everywhere(f.author, "prop.custom.environment.edit");
     assert_eq!(
         rule(f.validate(&Unrestricted, big, f.author).await),
         "changeset.approval.self"
@@ -293,7 +293,7 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
         "changeset.approval.forbidden"
     );
     assert_eq!(f.state(big).await, "pending");
-    let approver = author_rights.everywhere(f.approver, APPROVE_PERMISSION);
+    let approver = author_rights.everywhere(f.approver, "prop.custom.environment.apply");
     match f.validate(&approver, big, f.approver).await.unwrap() {
         Outcome::Applied { changeset, .. } => assert_eq!(changeset, big),
         other => panic!("{other:?}"),
@@ -331,7 +331,9 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
         enabled: true,
     }])
     .await;
-    let approver = Grants::new().everywhere(f.approver, APPROVE_PERMISSION);
+    let approver = Grants::new()
+        .everywhere(f.approver, "core.prefix.apply")
+        .everywhere(f.approver, "core.address.apply");
     let container = || Operation::CreatePrefix {
         local: None,
         domain: Ref::Id(f.domain),
@@ -441,7 +443,7 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
 }
 
 #[kartenn_testing::pg_test]
-async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
+async fn an_author_who_may_only_edit_proposes(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let maintainer = person(&pool, "maintainer").await;
     let outsider = person(&pool, "outsider").await;
@@ -449,9 +451,9 @@ async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    let write = "prop.custom.environment.write";
-    let propose = "prop.custom.environment.propose";
-    // REQ-004-41: neither write nor propose → refused.
+    let apply = "prop.custom.environment.apply";
+    let edit = "prop.custom.environment.edit";
+    // REQ-024-10: without edit → refused.
     match f
         .submit_as(
             &Grants::new(),
@@ -465,8 +467,8 @@ async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
         other => panic!("{other:?}"),
     }
     let rights = Grants::new()
-        .on(f.author, propose, [vm])
-        .on(maintainer, write, [vm]);
+        .on(f.author, edit, [vm])
+        .on(maintainer, apply, [vm]);
     let (proposal, kind) = f
         .pending(&rights, vec![f.assign(vm, ObjectKind::Address, "dev")])
         .await;
@@ -485,10 +487,10 @@ async fn an_author_who_may_only_propose_proposes(pool: PgPool) {
     );
     assert!(queue(outsider).await.unwrap().is_empty());
     assert!(queue(f.author).await.unwrap().is_empty());
-    // REQ-004-42: not the author, not without the write right.
+    // REQ-024-11: not the author without apply_own, not without the apply right.
     assert_eq!(
         rule(f.validate(&rights, proposal, f.author).await),
-        "changeset.approval.self"
+        "changeset.apply_own.missing"
     );
     assert_eq!(
         rule(f.validate(&rights, proposal, outsider).await),
@@ -527,6 +529,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     }
 }
 
@@ -544,9 +547,9 @@ async fn an_approval_checks_the_author_with_the_groups_it_had(pool: PgPool) {
         .group(
             "https://idp.example.invalid",
             "netops",
-            "prop.custom.environment.write",
+            "prop.custom.environment.edit",
         )
-        .everywhere(f.approver, APPROVE_PERMISSION);
+        .everywhere(f.approver, "prop.custom.environment.apply");
     let author = Subject {
         id: f.author,
         issuer: Some("https://idp.example.invalid".into()),
@@ -586,4 +589,126 @@ async fn an_approval_checks_the_author_with_the_groups_it_had(pool: PgPool) {
         Outcome::Applied { changeset, .. } => assert_eq!(changeset, big),
         other => panic!("{other:?}"),
     }
+}
+
+/// Spec 024, REQ-024-10 to 13: the matrix of the application, author or someone else ×
+/// `apply` or `apply_own` × a policy holding the changeset or not.
+#[kartenn_testing::pg_test]
+async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let other = person(&pool, "other").await;
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM address ORDER BY address LIMIT 8")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    let edit = "prop.custom.environment.edit";
+    let apply = "prop.custom.environment.apply";
+    let own = "prop.custom.environment.apply_own";
+    let submit_with = |rights: Grants, object: Uuid, apply_own: bool| {
+        let f = &f;
+        async move {
+            let mut request = request(f.author, vec![f.assign(object, ObjectKind::Address, "dev")]);
+            request.apply_own = apply_own;
+            submit(&f.store, &rights, &request, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }
+    };
+    let audited = |changeset: Uuid| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, String>(
+                "SELECT name FROM audit.event WHERE changeset_id = $1 ORDER BY seq",
+            )
+            .bind(changeset)
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let pending = |outcome: Outcome| match outcome {
+        Outcome::Pending {
+            changeset, reason, ..
+        } => (changeset, reason.map(|r| r.rule.id)),
+        other => panic!("expected pending, got {other:?}"),
+    };
+
+    // REQ-024-10: submitted under edit, pending; nothing applies on its own.
+    let editor = Grants::new().everywhere(f.author, edit);
+    let (held, reason) = pending(submit_with(editor.clone(), ids[0], false).await);
+    assert_eq!(reason, None);
+    // REQ-024-13: asked to apply without apply_own → pending, with its reason.
+    let (refused, reason) = pending(submit_with(editor.clone(), ids[1], true).await);
+    assert_eq!(reason, Some("changeset.apply_own.missing"));
+    assert_eq!(f.state(refused).await, "pending");
+    // REQ-024-13: under apply_own, applied in the same request, audited twice, its author
+    // as its validator.
+    let maintainer = editor.clone().everywhere(f.author, own);
+    let Outcome::Applied {
+        changeset: direct, ..
+    } = submit_with(maintainer.clone(), ids[2], true).await
+    else {
+        panic!("applied by its author");
+    };
+    assert_eq!(
+        audited(direct).await,
+        ["changeset.state.pending", "changeset.state.applied"]
+    );
+    let (kind, validator): (String, Option<Uuid>) =
+        sqlx::query_as("SELECT kind, validator_id FROM changeset WHERE id = $1")
+            .bind(direct)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((kind.as_str(), validator), ("direct", Some(f.author)));
+
+    // REQ-024-11: its author validates it later under apply_own, not under apply alone.
+    let applier = editor.clone().everywhere(f.author, apply);
+    assert_eq!(
+        rule(f.validate(&applier, held, f.author).await),
+        "changeset.apply_own.missing"
+    );
+    assert!(matches!(
+        f.validate(&maintainer, held, f.author).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
+    // Someone else under apply, not under apply_own.
+    let (theirs, _) = pending(submit_with(editor.clone(), ids[3], false).await);
+    let other_own = editor.clone().everywhere(other, own);
+    assert_eq!(
+        rule(f.validate(&other_own, theirs, other).await),
+        "changeset.approval.forbidden"
+    );
+    let other_apply = editor.clone().everywhere(other, apply);
+    assert!(matches!(
+        f.validate(&other_apply, theirs, other).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
+
+    // REQ-024-12: a policy that holds it wins over apply_own.
+    f.applied(vec![Operation::SetApprovalPolicy {
+        name: "author".into(),
+        min_operations: Some(1),
+        min_diff_objects: None,
+        property_keys: Vec::new(),
+        domains: Vec::new(),
+        authors: vec![f.author],
+        scopes: Vec::new(),
+        author_roles: Vec::new(),
+        author_groups: Vec::new(),
+        bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
+        enabled: true,
+    }])
+    .await;
+    let (approval, reason) = pending(submit_with(maintainer.clone(), ids[4], true).await);
+    assert_eq!(reason, Some("changeset.approval.self"));
+    assert_eq!(
+        rule(f.validate(&maintainer, approval, f.author).await),
+        "changeset.approval.self"
+    );
+    assert!(matches!(
+        f.validate(&other_apply, approval, other).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
 }

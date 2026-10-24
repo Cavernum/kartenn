@@ -205,11 +205,18 @@ pub(crate) fn plan(
                 }
             })?;
             if let Some(bad) = entries.iter().find(|e| !valid_role_entry(e)) {
-                // An old name is refused, its new one named (spec 018, REQ-018-3).
-                let renamed = kartenn_core::authz::RENAMED_PERMISSIONS
-                    .iter()
-                    .find(|(old, _)| old == bad)
-                    .map_or_else(String::new, |(_, new)| format!(" (renamed '{new}')"));
+                // An old name is refused, its new ones named (spec 018, REQ-018-3; spec
+                // 024, REQ-024-9).
+                let catalogue: Vec<&kartenn_core::authz::Permission> =
+                    kartenn_core::authz::PERMISSIONS
+                        .iter()
+                        .copied()
+                        .chain(kartenn_core::authz::module_permissions())
+                        .collect();
+                let renamed = kartenn_core::authz::retired(bad, &catalogue)
+                    .map_or_else(String::new, |new| {
+                        format!(" (replaced by '{}')", new.join("', '"))
+                    });
                 return Err(invalid(format!(
                     "'{bad}' is not a permission of the catalogue{renamed}"
                 )));
@@ -282,12 +289,15 @@ fn builtin(key: &str) -> bool {
 /// Checks the rights of `subject` on the administration operations of the changeset
 /// (REQ-005-26): the administration permissions on the global scope; a binding needs
 /// `core.rbac.admin` on its scope and every entry of its role there (no escalation); a
-/// delivered role changes only by the synchronisation of the core.
+/// delivered role changes only by the synchronisation of the core. Each administration
+/// permission asked is added to `required` when given: whoever applies the changeset
+/// needs it too (spec 024, REQ-024-11).
 pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     subject: &Subject,
     planned: &[Planned],
+    mut required: Option<&mut crate::rights::Required>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
     let forbidden = |permission: &str| {
@@ -322,6 +332,9 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
                 None => continue,
             },
         };
+        if let Some(required) = required.as_deref_mut() {
+            required.push((permission.to_owned(), vec![scope]));
+        }
         if !authorizer
             .authorize_in(tx, subject, permission, &[scope])
             .await?
@@ -441,13 +454,15 @@ pub struct StoredRole {
 }
 
 /// The motive of the changeset that renames the permissions of the custom roles.
-pub const RENAME_MOTIVE: &str = "permission rename 018";
+pub const RENAME_MOTIVE: &str = "permission rename 024";
 
-/// Renames the old permissions of the custom roles (spec 018, REQ-018-4, 5; Q-018-3): one
-/// system changeset setting each role not delivered with kartenn that holds an old name of
-/// [`kartenn_core::authz::RENAMED_PERMISSIONS`], with the new name in its place (once,
-/// when the role holds both). The bindings, the history and the audit are untouched; a
-/// second run finds nothing and submits nothing. Called by the migration job.
+/// Replaces the old permissions of the custom roles (spec 018, REQ-018-4, 5; Q-018-3;
+/// spec 024, REQ-024-9): one system changeset setting each role not delivered with
+/// kartenn that holds a retired name ([`kartenn_core::authz::retired_names`] of the
+/// catalogue of the build), with the names replacing it in its place (once, when the role
+/// holds several): `write` → `edit` + `apply_own`, `propose` → `edit`,
+/// the retired approval → every `apply`. The bindings, the history and the audit are
+/// untouched; a second run finds nothing and submits nothing. Called by the migration job.
 ///
 /// # Errors
 ///
@@ -456,8 +471,13 @@ pub async fn rename_permissions<S: crate::port::Store>(
     store: &S,
     max_operations: usize,
 ) -> Result<Option<crate::Outcome>, crate::RequestError> {
-    use kartenn_core::authz::RENAMED_PERMISSIONS;
-    let olds: Vec<&str> = RENAMED_PERMISSIONS.iter().map(|(old, _)| *old).collect();
+    let catalogue: Vec<&kartenn_core::authz::Permission> = kartenn_core::authz::PERMISSIONS
+        .iter()
+        .copied()
+        .chain(store.modules().permissions())
+        .collect();
+    let retired = kartenn_core::authz::retired_names(&catalogue);
+    let olds: Vec<&str> = retired.iter().map(|(old, _)| old.as_str()).collect();
     let mut tx = store.begin().await?;
     let roles = tx.custom_roles_citing(&olds).await?;
     tx.rollback().await?;
@@ -467,11 +487,8 @@ pub async fn rename_permissions<S: crate::port::Store>(
             let mut entries: Vec<String> = role
                 .entries
                 .into_iter()
-                .map(|e| {
-                    RENAMED_PERMISSIONS
-                        .iter()
-                        .find(|(old, _)| *old == e)
-                        .map_or(e, |(_, new)| (*new).to_owned())
+                .flat_map(|e| {
+                    kartenn_core::authz::retired(&e, &catalogue).unwrap_or_else(|| vec![e])
                 })
                 .collect();
             entries.sort();
@@ -493,6 +510,7 @@ pub async fn rename_permissions<S: crate::port::Store>(
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     crate::submit(store, &crate::authz::Unrestricted, &request, max_operations)
         .await
@@ -544,6 +562,7 @@ pub async fn sync_roles<S: crate::port::Store>(
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     crate::submit(store, &crate::authz::Unrestricted, &request, max_operations)
         .await

@@ -140,6 +140,7 @@ pub async fn rewrite_public(
             operations: Vec::new(),
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let objects: Vec<Uuid> = chunk.iter().map(|d| d.id).collect();
         tx.journal_applied(&Journal {

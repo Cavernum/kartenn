@@ -52,16 +52,12 @@ impl PropertyKey {
         &self.namespace
     }
 
-    /// Permission required to assign the property (REQ-003-17): `prop.<key>.write`.
+    /// Permission required to assign the property in a changeset (REQ-003-17; spec 024,
+    /// Q-024-6): `prop.<key>.edit`; its applications are `prop.<key>.apply` and
+    /// `prop.<key>.apply_own` ([`crate::authz::verb_permission`]).
     #[must_use]
-    pub fn write_permission(&self) -> String {
-        format!("prop.{self}.write")
-    }
-
-    /// Permission to propose an assignment (004/C7): `prop.<key>.propose`.
-    #[must_use]
-    pub fn propose_permission(&self) -> String {
-        format!("prop.{self}.propose")
+    pub fn edit_permission(&self) -> String {
+        format!("prop.{self}.edit")
     }
 }
 
@@ -673,8 +669,8 @@ mod tests {
             assert!(PropertyKey::parse(bad).is_err(), "{bad}");
         }
         assert_eq!(
-            key("policy.environment").write_permission(),
-            "prop.policy.environment.write"
+            key("policy.environment").edit_permission(),
+            "prop.policy.environment.edit"
         );
     }
 

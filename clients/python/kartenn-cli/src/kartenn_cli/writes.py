@@ -356,6 +356,9 @@ def _applied(found: Runtime, result: Applied) -> None:
 
 def _pending(result: Pending) -> None:
     click.echo(t("write.pending", id=result.changeset or "—", kind=result.kind or "—"))
+    # Spec 024 (REQ-024-13): asked to apply it, its author could not.
+    if result.reason is not None:
+        click.echo(t("write.not_applied", code=result.reason))
     click.echo(t("write.follow", id=result.changeset or "—"))
 
 

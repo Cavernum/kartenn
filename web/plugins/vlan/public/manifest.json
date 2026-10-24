@@ -42,7 +42,7 @@
       "element": "vlan-create",
       "object_types": ["prefix"],
       "label": "action.label",
-      "permission": "vlan.write"
+      "permission": "vlan.edit"
     }
   ]
 }

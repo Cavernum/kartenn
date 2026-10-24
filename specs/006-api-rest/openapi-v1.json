@@ -1003,6 +1003,17 @@
               "null"
             ]
           },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PendingReason",
+                "description": "Why its author did not apply it, when the write asked to (`apply=own`, spec 024,\nREQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "secret": {
             "oneOf": [
               {
@@ -7392,6 +7403,33 @@
           }
         ]
       },
+      "PendingReason": {
+        "description": "Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).",
+        "properties": {
+          "code": {
+            "description": "The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`\non some object or effect) or `changeset.approval.self` (a policy holds it, or a\nmodule requires its review).",
+            "type": "string"
+          },
+          "message": {
+            "description": "What holds it; for a lack, each permission lacking.",
+            "type": "string"
+          },
+          "objects": {
+            "description": "The objects its author lacks the application of.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "objects"
+        ],
+        "type": "object"
+      },
       "Period": {
         "description": "A period, in microseconds since the epoch: `[start, end)`, unbounded without `end`.",
         "properties": {
@@ -10727,6 +10765,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -10847,6 +10894,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -10976,6 +11032,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -11491,6 +11556,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -11611,6 +11685,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11727,6 +11810,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -12642,6 +12734,15 @@
                 "null"
               ]
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -12703,6 +12804,15 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -12955,6 +13065,15 @@
             }
           },
           {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it.",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Makes the submission idempotent for 24 h.",
             "in": "header",
             "name": "Idempotency-Key",
@@ -12996,7 +13115,7 @@
                 }
               }
             },
-            "description": "Applied."
+            "description": "Applied by its author (`apply=own`)."
           },
           "202": {
             "content": {
@@ -13006,7 +13125,7 @@
                 }
               }
             },
-            "description": "Held for a decision."
+            "description": "Submitted, pending its application."
           },
           "default": {
             "content": {
@@ -13019,7 +13138,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,\noperations}`. The problems come in the order of HTTP (REQ-006-22): the authentication\n(layer 6) before the syntax, the syntax (400, 415) before the rules (422).",
+        "summary": "`POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,\noperations}`: pending (202), or applied by its author (201) when asked and allowed\n(spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication\n(layer 6) before the syntax, the syntax (400, 415) before the rules (422).",
         "tags": [
           "changesets"
         ]
@@ -13241,6 +13360,15 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -13511,6 +13639,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -13629,6 +13766,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -13758,6 +13904,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -14273,6 +14428,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -14389,6 +14553,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -14518,6 +14691,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15045,6 +15227,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -15162,6 +15353,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15291,6 +15491,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15716,6 +15925,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -15834,6 +16052,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -16328,6 +16555,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -16448,6 +16684,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -16564,6 +16809,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -17142,6 +17396,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -17264,6 +17527,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -17380,6 +17652,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -17798,6 +18079,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -18014,6 +18304,15 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -18383,6 +18682,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18424,6 +18732,15 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -18573,6 +18890,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -18695,6 +19021,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18811,6 +19146,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -19281,6 +19625,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -19402,6 +19755,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -19534,6 +19896,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -19603,6 +19974,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -19685,6 +20065,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -20123,6 +20512,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -20243,6 +20641,15 @@
                 "string",
                 "null"
               ]
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -20590,6 +20997,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -20708,6 +21124,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -20837,6 +21262,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -21550,6 +21984,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -21671,6 +22114,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -21787,6 +22239,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -22212,6 +22673,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -22328,6 +22798,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -22812,6 +23291,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -22952,6 +23440,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -23072,6 +23569,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -23188,6 +23694,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -23613,6 +24128,17 @@
       },
       "post": {
         "operationId": "request_policy_report",
+        "parameters": [
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -23893,6 +24419,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -24014,6 +24549,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -24130,6 +24674,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -24551,6 +25104,15 @@
             "description": "Makes the write idempotent for 24 h.",
             "in": "header",
             "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
             "required": false,
             "schema": {
               "type": "string"
@@ -25177,6 +25739,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -25297,6 +25868,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -25426,6 +26006,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -26593,6 +27182,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -26714,6 +27312,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -26843,6 +27450,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -27277,6 +27893,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -27398,6 +28023,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -27514,6 +28148,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -27914,6 +28557,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -28018,6 +28670,15 @@
             "in": "path",
             "name": "key",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -28189,6 +28850,15 @@
                 "null"
               ]
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -28307,6 +28977,15 @@
                 "null"
               ]
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -28384,6 +29063,15 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -28542,6 +29230,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -28663,6 +29360,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -28779,6 +29485,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -29225,6 +29940,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -29342,6 +30066,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -29471,6 +30204,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -30060,6 +30802,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -30179,6 +30930,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -30308,6 +31068,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -30909,6 +31678,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -31029,6 +31807,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -31158,6 +31945,15 @@
             "in": "header",
             "name": "If-Match",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
             "schema": {
               "type": "string"
             }

@@ -217,10 +217,12 @@ rules! {
         "Seul un changeset en attente peut être validé, rejeté ou retiré.";
     CHANGESET_NOT_AUTHOR = "changeset.state.not_author", Error, ["REQ-004-23"], "004/design",
         "Seul l'auteur retire son changeset en attente.";
-    APPROVAL_SELF = "changeset.approval.self", Error, ["REQ-004-21", "REQ-004-42"], "004/C1",
-        "L'auteur ne valide ni ne rejette son propre changeset.";
-    APPROVAL_FORBIDDEN = "changeset.approval.forbidden", Error, ["REQ-004-21", "REQ-004-42"], "004/C1, C7",
-        "Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition.";
+    APPROVAL_SELF = "changeset.approval.self", Error, ["REQ-024-11", "REQ-024-12"], "024/M7",
+        "L'auteur n'applique pas son propre changeset quand une politique d'approbation le retient ou qu'un module exige sa revue ; il ne le rejette pas.";
+    APPLY_OWN_MISSING = "changeset.apply_own.missing", Error, ["REQ-024-11", "REQ-024-13"], "024/M7",
+        "L'auteur n'applique son propre changeset que s'il détient `apply_own` sur tout ce qu'il touche, objets et effets.";
+    APPROVAL_FORBIDDEN = "changeset.approval.forbidden", Error, ["REQ-024-11"], "024/M7",
+        "Qui applique ou rejette le changeset d'un autre détient la permission apply de tout ce qu'il touche.";
     REVIEW_OPERATION = "core.review.operation", Error, ["REQ-016-11"], "016/G12",
         "Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition.";
     POLICY_INVALID = "changeset.policy.invalid", Error, ["REQ-004-40"], "004/C6",
@@ -242,7 +244,7 @@ rules! {
     RBAC_REQUESTER = "core.binding.requester", Error, ["REQ-016-12"], "016/G10",
         "Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
-        "Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition).";
+        "Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet.";
     LABEL_INVALID = "core.label.invalid", Error, ["REQ-018-9"], "018/R7, R9, RFC 5646 §2.1",
         "Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut.";
     OBJECT_DEPENDENTS = "core.object.dependents", Error, ["REQ-008-10"], "D33, ADR 0026",

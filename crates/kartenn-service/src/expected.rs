@@ -596,6 +596,7 @@ pub async fn reevaluate_outdated<S: Store>(
                 operations: Vec::new(),
                 simulate: false,
                 idempotency_key: None,
+                apply_own: true,
             };
             let reevaluated: Vec<(Uuid, &'static str)> = checked
                 .iter()

@@ -139,6 +139,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -278,11 +279,14 @@ impl Env {
         self.person(
             &[
                 "machines.cluster.read",
-                "machines.cluster.write",
+                "machines.cluster.edit",
+                "machines.cluster.apply_own",
                 "machines.read",
-                "machines.write",
+                "machines.edit",
+                "machines.apply_own",
                 "machines.interface.read",
-                "machines.interface.write",
+                "machines.interface.edit",
+                "machines.interface.apply_own",
                 "core.address.read",
                 "core.prefix.read",
                 "vlan.read",
@@ -348,6 +352,7 @@ async fn call(
     body: Option<(&str, Value)>,
     headers: &[(&str, String)],
 ) -> (StatusCode, axum::http::HeaderMap, Value) {
+    let uri = kartenn_testing::applied_by_author(method, uri);
     let mut request = Request::builder().method(method).uri(uri).header(
         header::AUTHORIZATION,
         HeaderValue::from_static("Bearer test"),

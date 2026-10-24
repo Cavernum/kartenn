@@ -923,6 +923,11 @@ pub async fn layer(
         Ok(requester) => context.on_behalf_of = requester,
         Err(refusal) => return refusal.into_response(),
     }
+    // Spec 024, REQ-024-13: a write applies its changeset when asked and allowed.
+    match crate::changesets::apply_own(request.uri().query()) {
+        Ok(apply) => context.apply_own = apply && !method.is_safe(),
+        Err(problem) => return problem.into_response(),
+    }
     request.extensions_mut().insert(context);
     request.extensions_mut().insert(principal);
     if let Some(session) = session {

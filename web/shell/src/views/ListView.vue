@@ -37,10 +37,7 @@ const filters = computed(() => FILTERS[collection.value]);
 const writes = useWrites();
 const canCreate = computed(() => {
   const type = TYPES[collection.value];
-  return (
-    writes.value.quickEdit &&
-    session.value.rights.hasAny([`core.${type}.write`, `core.${type}.propose`])
-  );
+  return writes.value.quickEdit && session.value.rights.has(`core.${type}.edit`);
 });
 const draft = reactive<Record<string, string>>({});
 

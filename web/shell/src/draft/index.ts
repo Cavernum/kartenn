@@ -287,7 +287,8 @@ export class DraftController {
     this.state.submission = { status: "sending" };
     for (let attempt = 0; ; attempt += 1) {
       const response = await this.deps
-        .fetcher("/v1/changesets", {
+        // Spec 024 (REQ-024-13): applied at once by who holds apply_own, pending otherwise.
+        .fetcher("/v1/changesets?apply=own", {
           method: "POST",
           headers: {
             Accept: "application/json",

@@ -42,24 +42,29 @@ macro_rules! permissions {
 
 permissions! {
     ENTITY_READ = "core.entity.read", false, "Lire les entités.";
-    ENTITY_WRITE = "core.entity.write", false, "Créer, modifier ou clore une entité.";
-    ENTITY_PROPOSE = "core.entity.propose", false, "Proposer un changement d'entité.";
+    ENTITY_EDIT = "core.entity.edit", false, "Créer, modifier ou clore une entité dans un changeset et le soumettre.";
+    ENTITY_APPLY = "core.entity.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une entité.";
+    ENTITY_APPLY_OWN = "core.entity.apply_own", false, "Appliquer son propre changeset qui touche une entité.";
     SITE_READ = "core.site.read", false, "Lire les sites.";
-    SITE_WRITE = "core.site.write", false, "Créer, modifier ou clore un site.";
-    SITE_PROPOSE = "core.site.propose", false, "Proposer un changement de site.";
+    SITE_EDIT = "core.site.edit", false, "Créer, modifier ou clore un site dans un changeset et le soumettre.";
+    SITE_APPLY = "core.site.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un site.";
+    SITE_APPLY_OWN = "core.site.apply_own", false, "Appliquer son propre changeset qui touche un site.";
     DOMAIN_READ = "core.domain.read", false, "Lire les domaines d'adressage.";
-    DOMAIN_WRITE = "core.domain.write", false, "Créer, modifier ou clore un domaine d'adressage.";
-    DOMAIN_PROPOSE = "core.domain.propose", false, "Proposer un changement de domaine d'adressage.";
+    DOMAIN_EDIT = "core.domain.edit", false, "Créer, modifier ou clore un domaine d'adressage dans un changeset et le soumettre.";
+    DOMAIN_APPLY = "core.domain.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un domaine d'adressage.";
+    DOMAIN_APPLY_OWN = "core.domain.apply_own", false, "Appliquer son propre changeset qui touche un domaine d'adressage.";
     PREFIX_READ = "core.prefix.read", false, "Lire les préfixes.";
-    PREFIX_WRITE = "core.prefix.write", false, "Créer, modifier ou clore un préfixe.";
-    PREFIX_PROPOSE = "core.prefix.propose", false, "Proposer un changement de préfixe.";
+    PREFIX_EDIT = "core.prefix.edit", false, "Créer, modifier ou clore un préfixe dans un changeset et le soumettre.";
+    PREFIX_APPLY = "core.prefix.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un préfixe.";
+    PREFIX_APPLY_OWN = "core.prefix.apply_own", false, "Appliquer son propre changeset qui touche un préfixe.";
     RANGE_READ = "core.range.read", false, "Lire les plages.";
-    RANGE_WRITE = "core.range.write", false, "Créer, modifier ou clore une plage.";
-    RANGE_PROPOSE = "core.range.propose", false, "Proposer un changement de plage.";
+    RANGE_EDIT = "core.range.edit", false, "Créer, modifier ou clore une plage dans un changeset et le soumettre.";
+    RANGE_APPLY = "core.range.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une plage.";
+    RANGE_APPLY_OWN = "core.range.apply_own", false, "Appliquer son propre changeset qui touche une plage.";
     ADDRESS_READ = "core.address.read", false, "Lire les adresses.";
-    ADDRESS_WRITE = "core.address.write", false, "Créer, modifier ou clore une adresse.";
-    ADDRESS_PROPOSE = "core.address.propose", false, "Proposer un changement d'adresse.";
-    CHANGESET_APPROVE = "core.changeset.approve", false, "Valider un changeset en attente qui touche le périmètre.";
+    ADDRESS_EDIT = "core.address.edit", false, "Créer, modifier ou clore une adresse dans un changeset et le soumettre.";
+    ADDRESS_APPLY = "core.address.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une adresse.";
+    ADDRESS_APPLY_OWN = "core.address.apply_own", false, "Appliquer son propre changeset qui touche une adresse.";
     CHANGESET_READ = "core.changeset.read", true, "Lire les changesets, leurs opérations et leur différentiel.";
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
@@ -73,15 +78,101 @@ permissions! {
     IDENTITY_PSEUDONYMISE = "core.identity.pseudonymise", true, "Pseudonymiser sans délai les données d'identité d'une personne.";
     IDENTITY_ACT_ON_BEHALF = "core.identity.act_on_behalf", true, "Pour un compte de service : écrire pour le compte d'un demandeur nommé par l'en-tête Kartenn-On-Behalf-Of, sous ses propres droits.";
     OBSERVABILITY_ADMIN = "core.observability.admin", true, "Changer à chaud le filtre d'une sortie technique.";
+    DRAFT_ADMIN = "core.draft.admin", true, "Lire, supprimer ou attribuer à un autre le brouillon d'une personne.";
 }
 
-/// Actions of a property permission.
-pub const PROPERTY_ACTIONS: [&str; 3] = ["read", "write", "propose"];
+/// Actions of a property permission (spec 024, Q-024-6).
+pub const PROPERTY_ACTIONS: [&str; 4] = ["read", "edit", "apply", "apply_own"];
+
+/// What a subject does with a changeset (spec 024, M7): edit it (create and submit it),
+/// apply someone else's, or apply its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verb {
+    /// Create and submit a changeset; it is pending.
+    Edit,
+    /// Apply or reject a pending changeset of someone else.
+    Apply,
+    /// Apply one's own pending changeset.
+    ApplyOwn,
+}
+
+/// The permission of `verb` that matches the edit permission `edit` (spec 024, M7):
+/// `<resource>.apply` or `<resource>.apply_own` for `<resource>.edit`. A permission of
+/// another action (`core.role.admin`, `flow.request`) has no apply of its own: it is its
+/// own edit, apply and apply of one's own changesets.
+#[must_use]
+pub fn verb_permission(edit: &str, verb: Verb) -> String {
+    match (edit.strip_suffix(".edit"), verb) {
+        (Some(resource), Verb::Apply) => format!("{resource}.apply"),
+        (Some(resource), Verb::ApplyOwn) => format!("{resource}.apply_own"),
+        _ => edit.to_owned(),
+    }
+}
+
+/// The permission retired by spec 024 (REQ-024-9) that grants `approve`: the validation of
+/// any pending changeset of the scope.
+pub const RETIRED_APPROVE: &str = "core.changeset.approve";
+
+/// The permissions that replace the retired entry `entry` (spec 024, REQ-024-9), or `None`
+/// for an entry that is not retired: `<r>.write` → `<r>.edit`, `<r>.apply_own`;
+/// `<r>.propose` → `<r>.edit`; [`RETIRED_APPROVE`] → every `<r>.apply` of `catalogue` and
+/// `prop.*.apply`. A name renamed by spec 018 is renamed first. `<r>` is a resource of
+/// `catalogue` (one with an edit permission) or a property, `prop.<key>` or `prop.*`.
+#[must_use]
+pub fn retired(entry: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
+    let renamed = RENAMED_PERMISSIONS
+        .iter()
+        .find(|(old, _)| *old == entry)
+        .map(|(_, new)| *new);
+    let name = renamed.unwrap_or(entry);
+    if name == RETIRED_APPROVE {
+        let mut applies: Vec<String> = catalogue
+            .iter()
+            .filter(|p| p.name.rsplit('.').next() == Some("apply"))
+            .map(|p| p.name.to_owned())
+            .collect();
+        applies.push("prop.*.apply".into());
+        return Some(applies);
+    }
+    let (resource, action) = name.rsplit_once('.')?;
+    let known = resource.starts_with("prop.")
+        || catalogue
+            .iter()
+            .any(|p| p.name.strip_suffix(".edit") == Some(resource));
+    match action {
+        "write" if known => Some(vec![
+            format!("{resource}.edit"),
+            format!("{resource}.apply_own"),
+        ]),
+        "propose" if known => Some(vec![format!("{resource}.edit")]),
+        _ => renamed.map(|new| vec![new.to_owned()]),
+    }
+}
+
+/// The retired names of `catalogue` and what replaces each (spec 024, REQ-024-9; spec 018,
+/// R3): `<r>.write` and `<r>.propose` of each resource with an edit permission, the names
+/// renamed by spec 018, `prop.*.write`, `prop.*.propose` and [`RETIRED_APPROVE`]. The
+/// labels of the history and of the audit journal name them (018/R6).
+#[must_use]
+pub fn retired_names(catalogue: &[&Permission]) -> Vec<(String, Vec<String>)> {
+    let mut olds: Vec<String> = catalogue
+        .iter()
+        .filter_map(|p| p.name.strip_suffix(".edit"))
+        .chain(std::iter::once("prop.*"))
+        .flat_map(|r| [format!("{r}.write"), format!("{r}.propose")])
+        .collect();
+    olds.extend(RENAMED_PERMISSIONS.iter().map(|(old, _)| (*old).to_owned()));
+    olds.push(RETIRED_APPROVE.to_owned());
+    olds.into_iter()
+        .filter_map(|old| retired(&old, catalogue).map(|new| (old, new)))
+        .collect()
+}
 
 /// The permissions renamed by spec 018 (R2, R3), `(old, new)`: the only source for the
 /// migration of the custom roles (Q-018-3) and for the labels of the old names that the
 /// audit journal and the history keep (R6). It opens **no alias** (Q-018-2): an old name
-/// is refused in a role and never granted.
+/// is refused in a role and never granted. The names in `write` and `propose` it gives
+/// were retired since by spec 024 ([`retired`] composes both).
 pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
     ("vlan.vlan.read", "vlan.read"),
     ("vlan.vlan.write", "vlan.write"),
@@ -123,6 +214,11 @@ pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
             problems.push(format!("`{name}`: not `<module>[.<resource>].<action>`"));
             continue;
         }
+        if matches!(segments.last(), Some(&("write" | "propose"))) {
+            problems.push(format!(
+                "`{name}`: a retired action, `edit`, `apply` and `apply_own` replace it"
+            ));
+        }
         if let [module, resource, _] = segments[..] {
             if resource == module {
                 problems.push(format!("`{name}`: the resource repeats the module"));
@@ -159,8 +255,8 @@ pub fn module_permissions() -> Vec<&'static Permission> {
         .clone()
 }
 
-/// The permissions an object type of a module is read and written under, when they are not
-/// `<type>.read` and `<type>.write` (ADR 0026, clause 5): several types may share one
+/// The permissions an object type of a module is read and edited under, when they are not
+/// `<type>.read` and `<type>.edit` (ADR 0026, clause 5): several types may share one
 /// permission (the policy module, spec 010/S15).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypePermissions {
@@ -168,8 +264,9 @@ pub struct TypePermissions {
     pub kind: &'static str,
     /// Its read permission.
     pub read: &'static str,
-    /// Its write permission; its proposal is the same name ending in `.propose`, if any.
-    pub write: &'static str,
+    /// Its edit permission; its applications end in `.apply` and `.apply_own` when it ends
+    /// in `.edit` ([`verb_permission`]).
+    pub edit: &'static str,
 }
 
 /// The type permissions the modules of the build declared.
@@ -215,13 +312,14 @@ pub fn type_read_permission(kind: &str) -> String {
     )
 }
 
-/// The write permission of the object type `kind` of a module: its declared one, else
-/// `<kind>.write`, or `<module>.write` for a type named after its module (spec 018, R4).
+/// The edit permission of the object type `kind` of a module: its declared one, else
+/// `<kind>.edit`, or `<module>.edit` for a type named after its module (spec 018, R4;
+/// spec 024, REQ-024-9).
 #[must_use]
-pub fn type_write_permission(kind: &str) -> String {
+pub fn type_edit_permission(kind: &str) -> String {
     type_permissions(kind).map_or_else(
-        || default_type_permission(kind, "write"),
-        |t| t.write.to_owned(),
+        || default_type_permission(kind, "edit"),
+        |t| t.edit.to_owned(),
     )
 }
 
@@ -237,11 +335,15 @@ pub fn permission(name: &str) -> Option<&'static Permission> {
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
 /// `prop.*.<action>`, or `*`. The key of a property permission is checked against the
-/// declarations by the service (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] is
-/// refused, with no alias (spec 018, REQ-018-3, Q-018-2).
+/// declarations by the service (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] or
+/// a retired verb ([`retired`]) is refused, with no alias (spec 018, REQ-018-3, Q-018-2;
+/// spec 024, REQ-024-9).
 #[must_use]
 pub fn valid_role_entry(entry: &str) -> bool {
-    if RENAMED_PERMISSIONS.iter().any(|(old, _)| *old == entry) {
+    if RENAMED_PERMISSIONS.iter().any(|(old, _)| *old == entry)
+        || entry == RETIRED_APPROVE
+        || matches!(entry.rsplit('.').next(), Some("write" | "propose"))
+    {
         return false;
     }
     if entry == "*" || permission(entry).is_some() {
@@ -298,8 +400,9 @@ pub static READER: BuiltinRole = BuiltinRole {
     entries: &READS,
 };
 
-/// Editor: the reader's reads, the writes of the objects and of the non-sensitive
-/// properties.
+/// Editor: the reader's reads, the edition of the objects and of the non-sensitive
+/// properties, and the application of its own changesets (spec 024, REQ-024-9: what
+/// `write` gave).
 pub static EDITOR: BuiltinRole = BuiltinRole {
     key: "editor",
     labels: crate::labels::Compiled::new("Éditeur", "Editor"),
@@ -310,17 +413,25 @@ pub static EDITOR: BuiltinRole = BuiltinRole {
         "core.prefix.read",
         "core.range.read",
         "core.address.read",
-        "core.entity.write",
-        "core.site.write",
-        "core.domain.write",
-        "core.prefix.write",
-        "core.range.write",
-        "core.address.write",
-        "prop.*.write",
+        "core.entity.edit",
+        "core.site.edit",
+        "core.domain.edit",
+        "core.prefix.edit",
+        "core.range.edit",
+        "core.address.edit",
+        "prop.*.edit",
+        "core.entity.apply_own",
+        "core.site.apply_own",
+        "core.domain.apply_own",
+        "core.prefix.apply_own",
+        "core.range.apply_own",
+        "core.address.apply_own",
+        "prop.*.apply_own",
     ],
 };
 
-/// Approver: the reader's reads and the validation of pending changesets.
+/// Approver: the reader's reads and the application of the pending changesets of others
+/// (spec 024, REQ-024-9: what `core.changeset.approve` gave).
 pub static APPROVER: BuiltinRole = BuiltinRole {
     key: "approver",
     labels: crate::labels::Compiled::new("Approbateur", "Approver"),
@@ -331,7 +442,13 @@ pub static APPROVER: BuiltinRole = BuiltinRole {
         "core.prefix.read",
         "core.range.read",
         "core.address.read",
-        "core.changeset.approve",
+        "core.entity.apply",
+        "core.site.apply",
+        "core.domain.apply",
+        "core.prefix.apply",
+        "core.range.apply",
+        "core.address.apply",
+        "prop.*.apply",
     ],
 };
 
@@ -347,17 +464,21 @@ pub static BUILTIN_ROLES: &[&BuiltinRole] = &[&READER, &EDITOR, &APPROVER, &ADMI
 
 impl BuiltinRole {
     /// Its entries in a build with the permissions `modules`: the delivered roles that
-    /// read read the objects of the modules too (spec 008, REQ-008-8); `*` needs nothing.
+    /// read read the objects of the modules too (spec 008, REQ-008-8), and those that
+    /// apply the changesets of others apply them on the objects of the modules too, as
+    /// `core.changeset.approve` did (spec 024, REQ-024-9); `*` needs nothing.
     #[must_use]
     pub fn entries_with(&self, modules: &[&'static Permission]) -> Vec<&'static str> {
         let mut entries: Vec<&'static str> = self.entries.to_vec();
-        if entries.contains(&"core.entity.read") {
-            entries.extend(
-                modules
-                    .iter()
-                    .filter(|p| p.name.rsplit('.').next() == Some("read") && !p.global_only)
-                    .map(|p| p.name),
-            );
+        for (marker, action) in [("core.entity.read", "read"), ("core.entity.apply", "apply")] {
+            if self.entries.contains(&marker) {
+                entries.extend(
+                    modules
+                        .iter()
+                        .filter(|p| p.name.rsplit('.').next() == Some(action) && !p.global_only)
+                        .map(|p| p.name),
+                );
+            }
         }
         entries
     }
@@ -376,9 +497,14 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
         "<!-- Généré par kartenn-core (authz::catalogue_markdown) : ne pas modifier à la main. -->\n\n\
          # Catalogue des permissions\n\n\
          Permissions du noyau (spec 005, REQ-005-16). S'y ajoutent, par propriété déclarée,\n\
-         `prop.<clé>.write` et `prop.<clé>.propose`, et `prop.<clé>.read` pour une propriété\n\
-         sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété non sensible) et\n\
-         `*` (tout). « Global » : ne s'accorde que sur le périmètre global.\n\n\
+         `prop.<clé>.edit`, `prop.<clé>.apply` et `prop.<clé>.apply_own`, et `prop.<clé>.read`\n\
+         pour une propriété sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété\n\
+         non sensible) et `*` (tout). « Global » : ne s'accorde que sur le périmètre global.\n\n\
+         Toute modification passe par un changeset (spec 024, M7) : `edit` le crée et le\n\
+         soumet, en attente ; `apply` applique ou rejette le changeset d'un autre ;\n\
+         `apply_own` applique le sien, sauf quand une politique d'approbation le retient.\n\
+         Une permission d'une autre action (`core.role.admin`, `flow.request`) vaut\n\
+         édition et application.\n\n\
          | Permission | Global | Description |\n\
          |---|---|---|\n",
     );
@@ -403,12 +529,23 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
     }
     out.push_str(
         "\n## Anciens noms\n\n\
-         Renommées par la spec 018 (R2, R3). Un ancien nom est refusé dans un rôle\n\
-         (`core.role.invalid`) ; il ne reste que dans l'historique et le journal d'audit.\n\n\
-         | Ancien nom | Nouveau nom |\n|---|---|\n",
+         Renommées par la spec 018 (R2, R3) ou remplacées par la spec 024 (REQ-024-9). Un\n\
+         ancien nom est refusé dans un rôle (`core.role.invalid`) ; il ne reste que dans\n\
+         l'historique et le journal d'audit.\n\n\
+         | Ancien nom | Nouveaux noms |\n|---|---|\n",
     );
-    for (old, new) in RENAMED_PERMISSIONS {
-        let _ = writeln!(out, "| `{old}` | `{new}` |");
+    let catalogue: Vec<&Permission> = PERMISSIONS
+        .iter()
+        .copied()
+        .chain(modules.iter().copied())
+        .collect();
+    for (old, new) in retired_names(&catalogue) {
+        let new = new
+            .iter()
+            .map(|n| format!("`{n}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let _ = writeln!(out, "| `{old}` | {new} |");
     }
     out
 }
@@ -477,8 +614,79 @@ mod tests {
     #[test]
     fn a_module_kind_reads_under_the_short_permission() {
         assert_eq!(type_read_permission("vlan.vlan"), "vlan.read");
-        assert_eq!(type_write_permission("flow.flow"), "flow.write");
+        assert_eq!(type_edit_permission("flow.flow"), "flow.edit");
         assert_eq!(type_read_permission("vlan.group"), "vlan.group.read");
+    }
+
+    /// REQ-024-9: each edit permission has its two applications; another action is its
+    /// own application.
+    #[test]
+    fn an_edit_permission_has_two_applications() {
+        assert_eq!(
+            verb_permission("core.prefix.edit", Verb::Apply),
+            "core.prefix.apply"
+        );
+        assert_eq!(
+            verb_permission("vlan.edit", Verb::ApplyOwn),
+            "vlan.apply_own"
+        );
+        assert_eq!(verb_permission("prop.*.edit", Verb::Edit), "prop.*.edit");
+        assert_eq!(
+            verb_permission("core.role.admin", Verb::Apply),
+            "core.role.admin"
+        );
+        for p in PERMISSIONS {
+            if let Some(resource) = p.name.strip_suffix(".edit") {
+                for verb in [Verb::Apply, Verb::ApplyOwn] {
+                    let applied = verb_permission(p.name, verb);
+                    assert!(permission(&applied).is_some(), "{resource}: {applied}");
+                }
+            }
+        }
+    }
+
+    /// REQ-024-9: `write` gives `edit` and `apply_own`, `propose` gives `edit`, `approve`
+    /// gives every `apply`; the names of spec 018 are renamed first; every retired name is
+    /// refused in a role.
+    #[test]
+    fn retired_verbs_are_replaced_and_refused() {
+        static VLAN_EDIT: Permission = Permission {
+            name: "vlan.edit",
+            summary: "",
+            global_only: false,
+        };
+        static WRITE: Permission = Permission {
+            name: "flow.write",
+            summary: "",
+            global_only: false,
+        };
+        let catalogue: Vec<&Permission> = PERMISSIONS.to_vec();
+        assert_eq!(
+            retired("core.prefix.write", &catalogue),
+            Some(vec![
+                "core.prefix.edit".into(),
+                "core.prefix.apply_own".into()
+            ])
+        );
+        assert_eq!(
+            retired("prop.custom.rack.propose", &catalogue),
+            Some(vec!["prop.custom.rack.edit".into()])
+        );
+        let approve = retired(RETIRED_APPROVE, &catalogue).expect("approve is retired");
+        assert!(approve.contains(&"core.address.apply".to_owned()));
+        assert!(approve.contains(&"prop.*.apply".to_owned()));
+        assert_eq!(retired("core.prefix.edit", &catalogue), None);
+        assert_eq!(retired("core.rbac.read", &catalogue), None);
+        let with_vlan = [&VLAN_EDIT];
+        assert_eq!(
+            retired("vlan.vlan.write", &with_vlan),
+            Some(vec!["vlan.edit".into(), "vlan.apply_own".into()])
+        );
+        for (old, new) in retired_names(&catalogue) {
+            assert!(!valid_role_entry(&old), "{old}");
+            assert!(!new.is_empty(), "{old}");
+        }
+        assert_eq!(catalogue_problems(&[&WRITE]).len(), 1);
     }
 
     /// R3: the table renames each old name once, to a name of the new grammar.
@@ -502,16 +710,19 @@ mod tests {
         assert!(!valid_role_entry("core.nothing.read"));
         assert!(!valid_role_entry("prop.custom.x.delete"));
         assert!(valid_role_entry("prop.custom.x.read"));
+        assert!(valid_role_entry("prop.custom.x.apply_own"));
+        assert!(valid_role_entry("core.draft.admin"));
     }
 
     #[test]
     fn patterns_spare_sensitive_properties() {
-        assert!(grants("prop.*.write", "prop.custom.rack.write", false));
-        assert!(!grants("prop.*.write", "prop.custom.secret.write", true));
-        assert!(!grants("prop.*.write", "prop.custom.rack.read", false));
-        assert!(!grants("prop.*.write", "core.address.write", false));
+        assert!(grants("prop.*.edit", "prop.custom.rack.edit", false));
+        assert!(!grants("prop.*.edit", "prop.custom.secret.edit", true));
+        assert!(!grants("prop.*.edit", "prop.custom.rack.read", false));
+        assert!(!grants("prop.*.edit", "core.address.edit", false));
+        assert!(!grants("prop.*.apply", "prop.custom.rack.apply_own", false));
         assert!(grants("*", "prop.custom.secret.read", true));
         assert!(grants("core.address.read", "core.address.read", false));
-        assert!(!grants("core.address.read", "core.address.write", false));
+        assert!(!grants("core.address.read", "core.address.edit", false));
     }
 }

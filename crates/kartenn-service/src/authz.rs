@@ -175,22 +175,22 @@ mod tests {
     async fn grants_deny_what_they_do_not_cover() {
         let (s, a, b) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3));
         let g = Grants::new()
-            .on(s, "prop.custom.x.write", [a])
-            .everywhere(s, "prop.custom.y.write");
+            .on(s, "prop.custom.x.edit", [a])
+            .everywhere(s, "prop.custom.y.edit");
         assert_eq!(
-            g.authorize_many(&s.into(), "prop.custom.x.write", &[a, b])
+            g.authorize_many(&s.into(), "prop.custom.x.edit", &[a, b])
                 .await
                 .unwrap(),
             vec![b]
         );
         assert!(
-            g.authorize_many(&s.into(), "prop.custom.y.write", &[a, b])
+            g.authorize_many(&s.into(), "prop.custom.y.edit", &[a, b])
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert_eq!(
-            g.authorize_many(&s.into(), "prop.custom.z.write", &[a])
+            g.authorize_many(&s.into(), "prop.custom.z.edit", &[a])
                 .await
                 .unwrap(),
             vec![a]

@@ -61,8 +61,8 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
         .execute(&pool)
         .await;
     assert!(
-        self_validated.is_err(),
-        "REQ-004-21: the author never validates"
+        self_validated.is_ok(),
+        "REQ-024-11: the author applies their own changeset under apply_own"
     );
     let rejected_without_reason =
         sqlx::query("UPDATE changeset SET state = 'rejected' WHERE id = $1")
@@ -73,6 +73,59 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
         rejected_without_reason.is_err(),
         "REQ-004-23: rejection carries a motive"
     );
+    Ok(())
+}
+
+/// Spec 024, migration 0063: the requirements of the changesets pending before it name
+/// edit permissions, those of the other changesets are untouched. Its `UPDATE` is run
+/// again on rows written as before.
+#[kartenn_testing::pg_test]
+async fn pending_requirements_take_the_edit_verb(pool: PgPool) -> sqlx::Result<()> {
+    let migration = include_str!("../../migrations/0063_permission_verbs.sql");
+    let update = &migration[migration.find("UPDATE changeset").expect("the rewrite")..];
+    let author = person(&pool).await?;
+    let object = sqlx::types::Uuid::now_v7();
+    let before = serde_json::json!({
+        "policy": null,
+        "perimeter": [object],
+        "required": [
+            ["core.address.write", [object]],
+            ["prop.custom.rack.write", [object]],
+            ["flow.review", [object]]
+        ]
+    });
+    let pending = changeset(&pool, author, "pending").await?;
+    let decided = changeset(&pool, author, "pending").await?;
+    for id in [pending, decided] {
+        sqlx::query("UPDATE changeset SET required_rights = $2 WHERE id = $1")
+            .bind(id)
+            .bind(&before)
+            .execute(&pool)
+            .await?;
+    }
+    sqlx::query("UPDATE changeset SET state = 'withdrawn' WHERE id = $1")
+        .bind(decided)
+        .execute(&pool)
+        .await?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(update))
+        .execute(&pool)
+        .await?;
+    let required = |id| {
+        sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT required_rights -> 'required' FROM changeset WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&pool)
+    };
+    assert_eq!(
+        required(pending).await?,
+        serde_json::json!([
+            ["core.address.edit", [object]],
+            ["prop.custom.rack.edit", [object]],
+            ["flow.review", [object]]
+        ])
+    );
+    assert_eq!(required(decided).await?, before["required"]);
     Ok(())
 }
 

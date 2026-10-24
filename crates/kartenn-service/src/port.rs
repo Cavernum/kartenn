@@ -205,6 +205,18 @@ pub struct Journal<'a> {
     pub on_behalf_of: Option<Uuid>,
 }
 
+/// The violation that kept a changeset pending when its author asked to apply it (spec
+/// 024, REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct StoredReason {
+    /// The code of its rule.
+    pub code: String,
+    /// Its message.
+    pub message: String,
+    /// The objects concerned.
+    pub objects: Vec<Uuid>,
+}
+
 /// What a pending changeset waits for (004/design, § Approbation et propositions).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Pending {
@@ -212,8 +224,17 @@ pub struct Pending {
     pub policy: Option<Uuid>,
     /// Objects of its operations and of its differential.
     pub perimeter: Vec<Uuid>,
-    /// Write permissions the author lacks, with the objects concerned, for a proposal.
+    /// The edit permissions it requires, with the objects concerned, and the review
+    /// permissions its modules name: whoever applies it needs their application (spec 024,
+    /// REQ-024-11; [`kartenn_core::authz::verb_permission`]).
     pub required: Vec<(String, Vec<Uuid>)>,
+    /// A module requires its review (REQ-016-10): its author does not apply it.
+    #[serde(default)]
+    pub review: bool,
+    /// Why its author could not apply it when asking to (spec 024, REQ-024-13), answered
+    /// again on a replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<StoredReason>,
     /// The author's issuer and groups when submitting (005, REQ-005-22): an approval
     /// checks the author's rights again with them, the groups living in the token.
     #[serde(default)]
@@ -635,8 +656,9 @@ pub trait WriteTx {
         key: &str,
     ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
 
-    /// The roles not delivered with kartenn, in force now, that hold one of `permissions`,
-    /// by key (spec 018, REQ-018-4).
+    /// The roles not delivered with kartenn, in force now, that hold one of `permissions`
+    /// or a property permission of a retired verb (`prop.<key>.write`,
+    /// `prop.<key>.propose`), by key (spec 018, REQ-018-4; spec 024, REQ-024-9).
     fn custom_roles_citing(
         &mut self,
         permissions: &[&str],

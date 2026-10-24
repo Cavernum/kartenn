@@ -39,6 +39,7 @@ impl Fixture {
             operations,
             simulate,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await

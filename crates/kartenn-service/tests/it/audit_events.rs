@@ -29,6 +29,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     }
 }
 
@@ -92,6 +93,14 @@ async fn applied_and_refused_changesets_are_audited_with_their_author(pool: PgPo
     assert_eq!(
         rows,
         vec![
+            // Spec 024, REQ-024-13: submitted, then applied by its author.
+            (
+                "changeset.state.pending".into(),
+                Some(author),
+                "success".into(),
+                Some(changeset),
+                None
+            ),
             (
                 "changeset.state.applied".into(),
                 Some(author),
@@ -187,6 +196,7 @@ async fn refusals_of_rights_and_administration_are_audited(pool: PgPool) {
     assert_eq!(
         names(&pool).await,
         [
+            "changeset.state.pending",
             "changeset.state.applied",
             "policy.approval.changed",
             "property.declaration.changed"

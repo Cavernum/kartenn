@@ -79,7 +79,8 @@ pub(crate) async fn bind(
         "core.prefix.read",
         "core.range.read",
         "core.address.read",
-        "core.address.write",
+        "core.address.edit",
+        "core.address.apply_own",
     ] {
         sqlx::query(
             "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
@@ -153,6 +154,7 @@ async fn unitary<A: Authorizer>(
         operations: vec![operation],
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     let started = Instant::now();
     let outcome = submit_in(

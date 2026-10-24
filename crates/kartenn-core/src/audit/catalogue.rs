@@ -85,7 +85,7 @@ events! {
     // Writes: one event per state of a changeset, which carries the detail (D11).
     CHANGESET_SUBMITTED_PENDING = "changeset.state.pending", Info, Normal, ["kind"], ["REQ-012-8"],
         "API Activity 6003 / Create", "configuration",
-        "Un changeset attend une approbation ou une validation de proposition.";
+        "Un changeset est soumis : il attend son application, ou l'auteur l'applique dans la même requête.";
     CHANGESET_APPLIED = "changeset.state.applied", Info, Normal, ["operations"], ["REQ-012-8"],
         "API Activity 6003 / Update", "configuration",
         "Un changeset a été appliqué.";

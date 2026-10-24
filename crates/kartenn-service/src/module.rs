@@ -637,8 +637,8 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
     fn permissions(&self) -> &'static [&'static Permission] {
         &[]
     }
-    /// The permissions its object types are read and written under, when not
-    /// `<type>.read` and `<type>.write` (several types may share one).
+    /// The permissions its object types are read and edited under, when not
+    /// `<type>.read` and `<type>.edit` (several types may share one).
     fn type_permissions(&self) -> &'static [kartenn_core::authz::TypePermissions] {
         &[]
     }
@@ -680,10 +680,11 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
         &[]
     }
     /// The permission each listed operation requires on the object it writes, in place of
-    /// `<type>.write` (ADR 0026, amendment 3): `(operation, permission)`, the permission
+    /// `<type>.edit` (ADR 0026, amendment 3): `(operation, permission)`, the permission
     /// one of [`Self::permissions`]. It is checked on the same objects, under the same
-    /// scopes, as `<type>.write` would be; an operation not listed requires
-    /// `<type>.write`. None by default.
+    /// scopes, as `<type>.edit` would be, and is its own application (spec 024,
+    /// [`kartenn_core::authz::verb_permission`]); an operation not listed requires
+    /// `<type>.edit`. None by default.
     fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
         &[]
     }
@@ -845,14 +846,14 @@ fn check_jobs_and_events(module: &dyn Module) -> Result<(), RegistryError> {
     Ok(())
 }
 
-/// Each permission `module` puts in place of `<type>.read` or `<type>.write` is one of its
+/// Each permission `module` puts in place of `<type>.read` or `<type>.edit` is one of its
 /// own: for one of its types ([`Module::type_permissions`]), or for one of its operations,
 /// each operation listed once ([`Module::operation_permissions`]) (ADR 0026, amendment 3).
 fn check_operation_permissions(module: &dyn Module) -> Result<(), RegistryError> {
     let declared = |name: &str| module.permissions().iter().any(|p| p.name == name);
     for ty in module.type_permissions() {
         let own_type = module.object_types().iter().any(|t| t.kind == ty.kind);
-        if let Some(permission) = [ty.read, ty.write]
+        if let Some(permission) = [ty.read, ty.edit]
             .into_iter()
             .find(|p| !own_type || !declared(p))
         {
@@ -1040,7 +1041,7 @@ impl ModuleRegistry {
         self.object_types().find(|t| t.kind == kind)
     }
 
-    /// The permission the operation `name` of `module` requires in place of `<type>.write`,
+    /// The permission the operation `name` of `module` requires in place of `<type>.edit`,
     /// if the module declares one (ADR 0026, amendment 3).
     #[must_use]
     pub fn operation_permission(&self, module: &str, name: &str) -> Option<&'static str> {
@@ -1154,6 +1155,7 @@ pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<boo
                 operations: Vec::new(),
                 simulate: false,
                 idempotency_key: None,
+                apply_own: true,
             };
             let objects: Vec<Uuid> = found
                 .reevaluated

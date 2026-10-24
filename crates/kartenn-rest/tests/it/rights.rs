@@ -105,7 +105,10 @@ fn app_as(pool: &PgPool, identity: Uuid) -> Router {
 }
 
 async fn send(app: &Router, request: Request<Body>) -> Response {
-    app.clone().oneshot(common::bearer(request)).await.unwrap()
+    app.clone()
+        .oneshot(common::bearer(common::applied(request)))
+        .await
+        .unwrap()
 }
 
 async fn json_of(response: Response) -> Value {
@@ -183,7 +186,16 @@ async fn a_delegate_binds_without_escalation(pool: PgPool) {
         put_role(&admin, "viewer", &["core.entity.read"]).await,
         StatusCode::OK
     );
-    put_role(&admin, "writer", &["core.entity.read", "core.entity.write"]).await;
+    put_role(
+        &admin,
+        "writer",
+        &[
+            "core.entity.read",
+            "core.entity.edit",
+            "core.entity.apply_own",
+        ],
+    )
+    .await;
     let delegate = app_as(
         &pool,
         person_on(

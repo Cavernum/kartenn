@@ -1013,6 +1013,10 @@ pub struct ChangesetRequest {
     /// author within 24 h returns the first result.
     #[serde(default)]
     pub idempotency_key: Option<String>,
+    /// Apply the changeset once submitted, in the same transaction, when its author may
+    /// (`?apply=own`, spec 024, REQ-024-13); otherwise, or when refused, it stays pending.
+    #[serde(default)]
+    pub apply_own: bool,
 }
 
 const fn enabled() -> bool {

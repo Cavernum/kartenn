@@ -81,10 +81,14 @@ struct Body {
     operations: Vec<OperationDto>,
 }
 
-/// Whether to simulate: `simulate=true|false`, at most once; anything else → 400.
+/// Whether to simulate: `simulate=true|false`, at most once; `apply` is read by
+/// [`apply_own`]; anything else → 400.
 pub(crate) fn simulate(query: Option<&str>) -> Result<bool, Problem> {
     let mut simulate = None;
     for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
+        if name == APPLY {
+            continue;
+        }
         if name != "simulate" {
             return Err(bad(format!("unknown parameter {name}")));
         }
@@ -98,6 +102,30 @@ pub(crate) fn simulate(query: Option<&str>) -> Result<bool, Problem> {
         }
     }
     Ok(simulate.unwrap_or(false))
+}
+
+/// The parameter of a write that applies its changeset when its author may (spec 024,
+/// REQ-024-13).
+pub const APPLY: &str = "apply";
+
+/// Whether a write asks to apply the changeset it submits (`apply=own`, spec 024,
+/// REQ-024-13): `apply` at most once, `own` its only value, anything else → 400; the other
+/// parameters are its route's. Read once for every request by the authentication, into
+/// its [`RequestContext`].
+pub(crate) fn apply_own(query: Option<&str>) -> Result<bool, Problem> {
+    let mut apply = false;
+    for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
+        if name != APPLY {
+            continue;
+        }
+        if value != "own" {
+            return Err(bad("apply must be own"));
+        }
+        if std::mem::replace(&mut apply, true) {
+            return Err(bad("apply is given more than once"));
+        }
+    }
+    Ok(apply)
 }
 
 /// Name of the header of an idempotent submission (draft-ietf-httpapi-idempotency-key).
@@ -595,10 +623,27 @@ pub(crate) struct ChangesetPending {
     /// The counted differential.
     #[schema(value_type = Vec<DiffCountDto>)]
     diff: Value,
+    /// Why its author did not apply it, when the write asked to (`apply=own`, spec 024,
+    /// REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<PendingReason>,
     /// The secret the changeset generated, shown once.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<SecretShown>)]
     secret: Option<Value>,
+}
+
+/// Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct PendingReason {
+    /// The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`
+    /// on some object or effect) or `changeset.approval.self` (a policy holds it, or a
+    /// module requires its review).
+    code: String,
+    /// What holds it; for a lack, each permission lacking.
+    message: String,
+    /// The objects its author lacks the application of.
+    objects: Vec<Uuid>,
 }
 
 /// 202: the changeset held for a decision.
@@ -607,7 +652,7 @@ fn pending(
     kind: &str,
     policy: Option<Uuid>,
     diff: &Value,
-    shown: Option<&Value>,
+    (reason, shown): (Option<&Violation>, Option<&Value>),
 ) -> Response {
     let body = ChangesetPending {
         changeset: summary(changeset),
@@ -615,6 +660,11 @@ fn pending(
         kind: kind.to_owned(),
         policy,
         diff: diff.clone(),
+        reason: reason.map(|v| PendingReason {
+            code: v.rule.id.to_owned(),
+            message: v.message.clone(),
+            objects: v.subjects.clone(),
+        }),
         secret: shown.cloned(),
     };
     linked(
@@ -727,7 +777,7 @@ async fn replayed(api: &Api, changeset: Uuid, answer: &Answer<'_>) -> Result<Res
             &journal.kind,
             journal.policy,
             &journal.diff,
-            None,
+            (journal.reason.as_ref(), None),
         )),
         (_, "applied") => {
             applied(
@@ -812,12 +862,13 @@ pub(crate) async fn answered(
             kind,
             policy,
             diff,
+            reason,
         } => pending(
             changeset,
             kind.as_str(),
             policy,
             &counted(&diff)?,
-            answer.shown,
+            (reason.as_ref(), answer.shown),
         ),
         Outcome::Refused {
             changeset,
@@ -859,8 +910,9 @@ pub(crate) async fn answered(
     Ok(response)
 }
 
-/// `POST /v1/changesets[?simulate=true]` with `{motive, valid_from, valid_to,
-/// operations}`. The problems come in the order of HTTP (REQ-006-22): the authentication
+/// `POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,
+/// operations}`: pending (202), or applied by its author (201) when asked and allowed
+/// (spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication
 /// (layer 6) before the syntax, the syntax (400, 415) before the rules (422).
 #[utoipa::path(
     post,
@@ -869,12 +921,13 @@ pub(crate) async fn answered(
     tag = "changesets",
     params(
         ("simulate" = Option<bool>, Query, description = "Validate and report without writing."),
+        ("apply" = Option<String>, Query, description = "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it."),
         ("Idempotency-Key" = Option<String>, Header, description = "Makes the submission idempotent for 24 h."),
     ),
     request_body = Body,
     responses(
-        (status = 201, description = "Applied.", body = ChangesetApplied),
-        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+        (status = 201, description = "Applied by its author (`apply=own`).", body = ChangesetApplied),
+        (status = 202, description = "Submitted, pending its application.", body = ChangesetPending),
         (status = 200, description = "Simulated.", body = ChangesetSimulated),
     )
 )]
@@ -896,6 +949,7 @@ async fn submit(
         operations: body.operations.into_iter().map(Into::into).collect(),
         simulate,
         idempotency_key,
+        apply_own: context.apply_own,
     };
     submit_answered(&api, &context, &request, &Answer::SUBMISSION).await
 }

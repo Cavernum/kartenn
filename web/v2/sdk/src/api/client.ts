@@ -222,10 +222,16 @@ export function createClient(options: ClientOptions = {}): Client {
     return expand(template, raw.path) + search(query);
   }
 
+  // Spec 024 (REQ-024-13): a write applies its changeset when its author holds `apply_own`,
+  // and stays pending otherwise, unless it names `apply` itself.
   const write =
     (method: string) =>
     (path: string, raw: RawOptions = {}) =>
-      send(method, expand(path, raw.path) + search(raw.query ?? {}), raw);
+      send(
+        method,
+        expand(path, raw.path) + search({ ...raw.query, apply: raw.query?.["apply"] ?? "own" }),
+        raw,
+      );
 
   return {
     get: (path: string, raw: RawOptions = {}) => send("GET", readUrl(path, raw), raw),

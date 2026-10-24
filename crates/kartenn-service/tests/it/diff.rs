@@ -117,6 +117,7 @@ impl Fixture {
             operations,
             simulate,
             idempotency_key: None,
+            apply_own: true,
         }
     }
 
@@ -293,6 +294,7 @@ async fn a_value_from_tomorrow_reaches_the_heirs_in_the_differential(pool: PgPoo
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     let store = &f.store;
     let apply = |request: ChangesetRequest| async move {

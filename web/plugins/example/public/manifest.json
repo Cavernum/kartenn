@@ -34,7 +34,7 @@
       "element": "example-draft-address",
       "object_types": ["prefix"],
       "label": "action.label",
-      "permission": "core.address.write"
+      "permission": "core.address.edit"
     }
   ]
 }

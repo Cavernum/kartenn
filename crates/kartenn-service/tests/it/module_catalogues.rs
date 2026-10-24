@@ -30,6 +30,7 @@ async fn set_role(pool: &PgPool, store: &PgStore, entries: &[&str]) -> Outcome {
         }],
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     submit(store, &Unrestricted, &request, MAX_OPERATIONS)
         .await
@@ -66,10 +67,16 @@ async fn a_role_with_a_module_permission(pool: PgPool) {
     assert!(
         !entries(&pool, "editor")
             .await
-            .contains(&"kit.group.write".to_owned())
+            .contains(&"kit.group.edit".to_owned())
+    );
+    // The approver applies the changesets of others on the objects of the module too.
+    assert!(
+        entries(&pool, "approver")
+            .await
+            .contains(&"kit.group.apply".to_owned())
     );
     assert!(kartenn_core::rules::rule("kit.object.invalid").is_some());
-    assert!(kartenn_core::authz::permission("kit.group.write").is_some());
+    assert!(kartenn_core::authz::permission("kit.group.edit").is_some());
 }
 
 #[kartenn_testing::pg_test]
@@ -152,7 +159,7 @@ fn a_required_permission_must_be_the_module_own() {
         // Absent from the catalogue of the module.
         &[("ask", "req.thing.approve")],
         // A permission of the core, or of another module.
-        &[("ask", "core.address.write")],
+        &[("ask", "core.address.edit")],
         &[("ask", "kit.item.request")],
         // An operation the module does not accept.
         &[("forge", "req.thing.request")],
@@ -169,27 +176,27 @@ fn a_required_permission_must_be_the_module_own() {
         );
     }
     // The permissions of a type, likewise: of the module, for one of its types.
-    let typed = |kind, read, write| {
+    let typed = |kind, read, edit| {
         let types: &'static [kartenn_core::authz::TypePermissions] =
             Box::leak(Box::new([kartenn_core::authz::TypePermissions {
                 kind,
                 read,
-                write,
+                edit,
             }]));
         ModuleRegistry::new(vec![std::sync::Arc::new(Requiring(&[], types))])
     };
     assert!(typed("req.thing", "req.thing.request", "req.thing.request").is_ok());
-    for (kind, read, write) in [
-        ("req.thing", "req.thing.request", "core.address.write"),
+    for (kind, read, edit) in [
+        ("req.thing", "req.thing.request", "core.address.edit"),
         ("req.thing", "kit.item.read", "req.thing.request"),
         ("req.other", "req.thing.request", "req.thing.request"),
     ] {
         assert!(
             matches!(
-                typed(kind, read, write),
+                typed(kind, read, edit),
                 Err(RegistryError::UnknownPermission { .. })
             ),
-            "{kind} {read} {write}"
+            "{kind} {read} {edit}"
         );
     }
 }

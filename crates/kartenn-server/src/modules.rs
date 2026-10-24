@@ -184,21 +184,49 @@ mod tests {
         );
         for name in [
             "flow.read",
-            "machines.write",
+            "machines.edit",
             "vlan.read",
+            "vlan.apply_own",
+            "flow.apply",
             "flow.waiver.grant",
         ] {
             assert!(catalogue.iter().any(|p| p.name == name), "{name}");
         }
     }
 
-    /// R3: each old name is out of the catalogue of the build, each new one in it.
+    /// The retired names of the build and of its modules, with what replaces each (spec
+    /// 018, R3; spec 024, REQ-024-9).
+    fn retired_names() -> Vec<(String, Vec<String>)> {
+        let registry = super::registry().expect("the modules of the build");
+        let catalogue: Vec<_> = kartenn_core::authz::PERMISSIONS
+            .iter()
+            .copied()
+            .chain(registry.permissions())
+            .collect();
+        kartenn_core::authz::retired_names(&catalogue)
+    }
+
+    /// R3, REQ-024-9: each old name is out of the catalogue of the build, each new one in
+    /// it (or a pattern of the properties).
     #[test]
     fn renamed_permissions_target_the_catalogue() {
-        let _registry = super::registry().expect("the modules of the build");
-        for (old, new) in kartenn_core::authz::RENAMED_PERMISSIONS {
-            assert!(kartenn_core::authz::permission(old).is_none(), "{old}");
-            assert!(kartenn_core::authz::permission(new).is_some(), "{new}");
+        for (old, new) in retired_names() {
+            assert!(kartenn_core::authz::permission(&old).is_none(), "{old}");
+            for new in new {
+                assert!(
+                    kartenn_core::authz::permission(&new).is_some() || new.starts_with("prop.*."),
+                    "{old}: {new}"
+                );
+            }
+        }
+        let olds: Vec<String> = retired_names().into_iter().map(|(old, _)| old).collect();
+        for old in [
+            "vlan.vlan.write",
+            "machines.propose",
+            "flow.write",
+            "core.changeset.approve",
+        ] {
+            assert!(olds.iter().any(|o| o == old), "{old}");
         }
     }
 
@@ -206,10 +234,10 @@ mod tests {
     /// names; the reader of the build reads them.
     #[test]
     fn a_module_kind_reads_under_the_short_permission() {
-        use kartenn_core::authz::{READER, type_read_permission, type_write_permission};
+        use kartenn_core::authz::{READER, type_edit_permission, type_read_permission};
         let registry = super::registry().expect("the modules of the build");
         assert_eq!(type_read_permission("machines.machine"), "machines.read");
-        assert_eq!(type_write_permission("machines.machine"), "machines.write");
+        assert_eq!(type_edit_permission("machines.machine"), "machines.edit");
         assert_eq!(type_read_permission("vlan.vlan"), "vlan.read");
         assert_eq!(type_read_permission("flow.flow"), "flow.read");
         let reader = READER.entries_with(&registry.permissions());
@@ -218,16 +246,23 @@ mod tests {
         }
     }
 
-    /// REQ-018-6: no old permission name is left in the repository, outside the renaming
-    /// table, the migration of the custom roles and their tests, and the decision logs.
+    /// REQ-018-6, REQ-024-9: no old permission name is left in the repository, outside the
+    /// renaming table, the migrations, the migration of the custom roles and their tests,
+    /// and the decision logs.
     #[test]
     fn no_old_permission_name_is_left() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        // The table and its tests; the catalogue, which lists the old names.
+        // The table and its tests; the catalogue, which lists the old names; the tests of
+        // the migration of the custom roles, which start from them.
         let exceptions = [
             "crates/kartenn-core/src/authz.rs",
             "docs/spec/permissions.md",
+            "crates/kartenn-service/tests/it/rbac.rs",
+            "crates/kartenn-server/src/modules.rs",
+            // The test of migration 0063, which rewrites old names.
+            "crates/kartenn-store-pg/tests/it/changesets.rs",
         ];
+        let olds = retired_names();
         let mut found = Vec::new();
         for dir in OLD_NAME_FREE {
             visit(&root.join(dir), &mut |path, text| {
@@ -235,11 +270,12 @@ mod tests {
                 if exceptions
                     .iter()
                     .any(|e| relative == std::path::Path::new(e))
+                    || relative.starts_with("crates/kartenn-store-pg/migrations")
                 {
                     return;
                 }
-                for (old, _) in kartenn_core::authz::RENAMED_PERMISSIONS {
-                    if text.contains(old) {
+                for (old, _) in &olds {
+                    if text.contains(old.as_str()) {
                         found.push(format!("{}: {old}", relative.display()));
                     }
                 }

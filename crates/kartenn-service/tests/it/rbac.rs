@@ -72,6 +72,7 @@ impl Tree {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -413,7 +414,7 @@ async fn each_scope_reaches_its_subtree(pool: PgPool) {
     t.bind(Binding::Identity(who.id), reader, "global", None)
         .await;
     assert!(
-        t.allowed(&who, "core.address.write", &OBJECTS)
+        t.allowed(&who, "core.address.edit", &OBJECTS)
             .await
             .is_empty()
     );
@@ -458,14 +459,14 @@ async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
 #[kartenn_testing::pg_test]
 async fn patterns_and_global_permissions(pool: PgPool) {
     let t = Tree::new(&pool).await;
-    let editor = t.role("editor", &["prop.*.write"]).await;
+    let editor = t.role("editor", &["prop.*.edit"]).await;
     let admin = t.role("admin", &["*"]).await;
     let who = person(None, &[]);
     t.bind(Binding::Identity(who.id), editor, "global", None)
         .await;
     let objects = ["10.5.0.7"];
     assert_eq!(
-        t.allowed(&who, "prop.core.site.write", &objects).await,
+        t.allowed(&who, "prop.core.site.edit", &objects).await,
         objects
     );
     // A sensitive property is spared by the pattern (003/P17).
@@ -474,7 +475,7 @@ async fn patterns_and_global_permissions(pool: PgPool) {
         .await
         .unwrap();
     assert!(
-        t.allowed(&who, "prop.core.site.write", &objects)
+        t.allowed(&who, "prop.core.site.edit", &objects)
             .await
             .is_empty()
     );
@@ -693,6 +694,7 @@ impl Tree {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit_in(
             &self.store,
@@ -729,7 +731,14 @@ async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
     let editor = t
         .role(
             "editor",
-            &["core.address.write", "core.prefix.write", "prop.*.write"],
+            &[
+                "core.address.edit",
+                "core.address.apply_own",
+                "core.prefix.edit",
+                "core.prefix.apply_own",
+                "prop.*.edit",
+                "prop.*.apply_own",
+            ],
         )
         .await;
     let lab = t.ids["lab"];
@@ -779,9 +788,9 @@ async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
-async fn a_right_to_propose_makes_a_proposal(pool: PgPool) {
+async fn a_right_to_edit_alone_makes_a_proposal(pool: PgPool) {
     let t = Tree::new(&pool).await;
-    let proposer = t.role("proposer", &["core.address.propose"]).await;
+    let proposer = t.role("proposer", &["core.address.edit"]).await;
     let who = t.identity().await;
     t.bind(Binding::Identity(who.id), proposer, "branch", None)
         .await;
@@ -888,12 +897,22 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
     t.bind(Binding::Identity(root.id), admin, "global", None)
         .await;
     // Outside the catalogue, or a property no one declared (REQ-005-17).
-    for entries in [&["core.nothing.read"][..], &["prop.custom.nowhere.write"]] {
+    for entries in [&["core.nothing.read"][..], &["prop.custom.nowhere.edit"]] {
         let outcome = t.submit_as(&root, vec![set_role("odd", entries)]).await;
         assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{entries:?}");
     }
     // An old name of spec 018, with no alias (REQ-018-3).
     for (old, _) in kartenn_core::authz::RENAMED_PERMISSIONS {
+        let outcome = t.submit_as(&root, vec![set_role("odd", &[old])]).await;
+        assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{old}");
+    }
+    // A retired verb of spec 024, with no alias (REQ-024-9).
+    for old in [
+        "core.address.write",
+        "core.address.propose",
+        "core.changeset.approve",
+        "prop.*.write",
+    ] {
         let outcome = t.submit_as(&root, vec![set_role("odd", &[old])]).await;
         assert_eq!(rules_of(&outcome), ["core.role.invalid"], "{old}");
     }
@@ -924,7 +943,7 @@ async fn a_role_names_known_permissions_only(pool: PgPool) {
                     &[
                         "prop.core.owner.read",
                         "prop.*.read",
-                        "prop.custom.rack.write",
+                        "prop.custom.rack.edit",
                     ],
                 ),
             ],
@@ -1039,6 +1058,70 @@ async fn a_role_read_before_the_rename_keeps_the_old_name(pool: PgPool) {
     assert_eq!(recorded, 1, "the version before the rename, kept as it was");
 }
 
+/// REQ-024-9: the migration job replaces the retired verbs of the custom roles in one
+/// system changeset: `write` gives `edit` and `apply_own`, `propose` gives `edit`,
+/// `core.changeset.approve` every `apply`; a second run submits nothing.
+#[kartenn_testing::pg_test]
+async fn custom_roles_take_the_verbs_of_spec_024_once(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    t.role(
+        "writers",
+        &["core.address.read", "core.address.write", "prop.*.write"],
+    )
+    .await;
+    t.role(
+        "proposers",
+        &["core.prefix.propose", "prop.core.owner.propose"],
+    )
+    .await;
+    t.role("approvers", &["core.changeset.approve"]).await;
+    let outcome = rename_permissions(&t.store, MAX_OPERATIONS).await.unwrap();
+    assert!(
+        matches!(outcome, Some(Outcome::Applied { .. })),
+        "{outcome:?}"
+    );
+    let entries = |key: &'static str| {
+        let pool = pool.clone();
+        async move {
+            kartenn_store_pg::rbac_read::role(&pool, key)
+                .await
+                .unwrap()
+                .unwrap()
+                .entries
+        }
+    };
+    assert_eq!(
+        entries("writers").await,
+        [
+            "core.address.apply_own",
+            "core.address.edit",
+            "core.address.read",
+            "prop.*.apply_own",
+            "prop.*.edit"
+        ]
+    );
+    assert_eq!(
+        entries("proposers").await,
+        ["core.prefix.edit", "prop.core.owner.edit"]
+    );
+    let approvers = entries("approvers").await;
+    for apply in ["core.address.apply", "core.entity.apply", "prop.*.apply"] {
+        assert!(approvers.iter().any(|e| e == apply), "{approvers:?}");
+    }
+    assert!(
+        approvers
+            .iter()
+            .all(|e| e.rsplit('.').next() == Some("apply")),
+        "{approvers:?}"
+    );
+    assert!(
+        rename_permissions(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
 #[kartenn_testing::pg_test]
 async fn an_administrator_binds_and_unbinds(pool: PgPool) {
     let t = Tree::new(&pool).await;
@@ -1115,7 +1198,14 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
             &root,
             vec![
                 set_role("auditor", &["core.address.read"]),
-                set_role("writer", &["core.address.read", "core.address.write"]),
+                set_role(
+                    "writer",
+                    &[
+                        "core.address.read",
+                        "core.address.edit",
+                        "core.address.apply_own",
+                    ],
+                ),
             ],
         )
         .await;
@@ -1177,7 +1267,14 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
         .submit_as(
             &root,
             vec![
-                set_role("writer", &["core.address.read", "core.address.write"]),
+                set_role(
+                    "writer",
+                    &[
+                        "core.address.read",
+                        "core.address.edit",
+                        "core.address.apply_own",
+                    ],
+                ),
                 bind_op(user.id, "writer", branch),
             ],
         )
@@ -1215,7 +1312,7 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
     let outcome = t.submit_as(&root, undo.request.operations).await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     assert_eq!(
-        t.allowed(&user, "core.address.write", &["10.5.0.7"]).await,
+        t.allowed(&user, "core.address.edit", &["10.5.0.7"]).await,
         ["10.5.0.7"]
     );
 }
@@ -1393,7 +1490,12 @@ async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
     let outcome = t.submit_as(&root, vec![new_address(lab, "10.6.0.9")]).await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     // By role: the contractors' changesets wait, whoever they touch.
-    let contractor = t.role("contractor", &["core.address.write"]).await;
+    let contractor = t
+        .role(
+            "contractor",
+            &["core.address.edit", "core.address.apply_own"],
+        )
+        .await;
     let outcome = t
         .submit_as(
             &root,

@@ -49,6 +49,7 @@ _TEMPLATE = re.compile(r"\{([^}]+)\}")
 _REL_CHANGESET = "urn:kartenn:rel:changeset"
 _JSON = "application/json"
 _MERGE_PATCH = "application/merge-patch+json"
+_APPLY = "apply"
 
 
 class Record(dict[str, Any]):
@@ -92,12 +93,23 @@ class Applied:
 @dataclass(frozen=True)
 class Pending:
     """A write held for a decision (202): the changeset to follow, `approval` or
-    `proposal`."""
+    `proposal`, and, when the write asked to apply it (`apply=own`, spec 024), why its
+    author did not: `changeset.apply_own.missing` (a permission lacking) or
+    `changeset.approval.self` (a policy holds it, or a module requires its review)."""
 
     changeset: str | None
     kind: str | None
     body: Record
     link: str | None = None
+
+    @property
+    def reason(self) -> str | None:
+        """The code of the rule that kept it pending when asked to apply it, if any."""
+        reason = self.body.get("reason")
+        if isinstance(reason, dict):
+            code = cast("dict[str, Any]", reason).get("code")
+            return None if code is None else str(code)
+        return None
 
 
 def _changeset_link(response: Response) -> str | None:
@@ -220,8 +232,16 @@ class Context:
         key: str | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> Request:
-        """The request of an operation: path filled, query, `If-Match`, `Idempotency-Key`."""
+        """The request of an operation: path filled, query, `If-Match`, `Idempotency-Key`.
+
+        A write that submits a changeset asks to apply it (`apply=own`, spec 024): applied
+        when its author holds `apply_own`, pending otherwise; `apply=None` submits it only.
+        """
         rest = dict(params or {})
+        if operation.method != "GET" and operation.param(_APPLY) is not None:
+            rest.setdefault(_APPLY, "own")
+        if _APPLY in rest and rest[_APPLY] is None:
+            del rest[_APPLY]
         path = operation.path
         for index, name in enumerate(_TEMPLATE.findall(path)):
             value = _identifier(ref) if index == 0 and ref is not None else rest.pop(name, None)

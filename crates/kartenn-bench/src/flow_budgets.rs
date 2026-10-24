@@ -164,6 +164,7 @@ async fn timed(
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     let started = Instant::now();
     let outcome = submit(store, &Unrestricted, &request, MAX_OPERATIONS).await?;

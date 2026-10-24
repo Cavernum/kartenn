@@ -97,7 +97,11 @@ fn app_as(pool: &PgPool, identity: Uuid) -> Router {
 }
 
 async fn send(app: &Router, request: Request<Body>) -> (StatusCode, Value) {
-    let response = app.clone().oneshot(common::bearer(request)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(common::bearer(common::applied(request)))
+        .await
+        .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     (
@@ -119,7 +123,15 @@ fn get(uri: &str) -> Request<Body> {
 
 #[kartenn_testing::pg_test]
 async fn a_section_is_served_by_pages(pool: PgPool) {
-    let identity = person(&pool, &["core.domain.write", "core.changeset.read"]).await;
+    let identity = person(
+        &pool,
+        &[
+            "core.domain.edit",
+            "core.domain.apply_own",
+            "core.changeset.read",
+        ],
+    )
+    .await;
     let app = app_as(&pool, identity);
     let operations: Vec<Value> = ["a", "b", "c", "d", "e"]
         .iter()
