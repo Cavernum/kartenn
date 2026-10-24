@@ -87,7 +87,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E4",
     title: "Changeset et revue",
     shows:
-      "Différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits, état « en revue ».",
+      "Différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits (action interdite grisée, permission en infobulle, sans encart des droits), état « en revue ».",
     views: [
       {
         id: "relecteur",
@@ -95,9 +95,16 @@ export const MOCKUPS: Mockup[] = [
         description: "Changeset en revue, vu par qui a le droit de valider.",
       },
       {
+        id: "droits",
+        label: "Droit manquant",
+        description:
+          "Vu par un relecteur sans vlan.apply : Valider et Rejeter grisés, la permission en infobulle.",
+      },
+      {
         id: "auteur",
         label: "Auteur",
-        description: "Le même, vu par son auteur : valider est refusé avec son code.",
+        description:
+          "Vu par son auteur : une politique le retient, Valider grisé avec son motif, notice changeset.approval.self.",
       },
       {
         id: "rejet",
