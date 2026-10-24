@@ -556,7 +556,7 @@ tri et filtre de 130 à 260 ms).
 
 | Point | Retenu |
 |---|---|
-| Adaptateur du cache | `@tanstack/vue-query` (`VueQueryPlugin`) sur le `QueryClient` du SDK, dans `@kartenn/ui` |
+| Adaptateur du cache | adaptateur propre sur les observateurs de `@tanstack/query-core` (`useQuery`, `useInfiniteQuery`, `useMutation`, fin à la portée d'effets) et le `QueryClient` du SDK, dans `@kartenn/ui` (ADR 0037, amendée le 2026-10-24 : plus de `@tanstack/vue-query`) |
 | Routeur et préchargement | vue-router ; `meta.queries` ; garde `beforeResolve` qui attend au plus 100 ms |
 | i18n | vue-i18n (W11, build sans compilateur de messages à l'exécution, sans `eval`) |
 | Hôte de plugin | `createApp` par élément, `provide` du contexte et du `QueryClient`, démontage à `disconnectedCallback` |
