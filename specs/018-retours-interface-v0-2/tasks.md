@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-24
 ---
 
 # 018 — Retours d'usage de la v0.2 : tâches
@@ -404,9 +404,23 @@ et la tâche 10 sont à livrer avant les tâches web de la 021 et avant 017-2, 0
 
 ## Clôture
 
-- [ ] 17. Synchronisation : `docs/spec/` (`data.md`, `interfaces.md`, `invariants.md`,
+- [x] 17. Synchronisation : `docs/spec/` (`data.md`, `interfaces.md`, `invariants.md`,
   `regles-noyau.md`, `evenements-audit.md`), amendements des specs 003, 006, 007 (W11),
   008, 009, 010, 012, 017, 022, 023 (design, « Amendements d'autres specs »),
   `specs/README.md` — REQ-018-6 — verify : `spec-keeper` sur la 018 sans écart
   où : design, « Amendements d'autres specs » et « Impact sur la 017 »
   dépend de : 4, 8, 10, 11, 12, 13, 16
+  fait : passe `spec-keeper` (2026-10-24) puis corrections : `interfaces.md` (lignes
+  « Libellés », « Suggestions », « Règles », `default_locale`, `labels` et
+  `update_enum_value` des opérations), `data.md` (colonnes `labels`, `label_revision`,
+  migrations 0060 à 0062, index des listes et des suggestions, renommage des rôles par
+  le job), `invariants.md` (INV-72 à 77, budgets du dictionnaire et des suggestions),
+  `regles-noyau.md` régénéré (`core.role.invalid` : « des libellés »). Amendements
+  écrits : 003 (REQ-003-5, P12), 006 (H22), 007 (W11), 010 (S2, S5, S29), 012 (L8), 017
+  (design, « Amendement — spec 018 », noms et `labels` des formulaires) ; 005, 008, 009,
+  011, 022, 023 et l'ADR 0010 l'étaient par leurs tâches. `evenements-audit.md`
+  inchangé : la 018 n'ajoute aucun événement d'audit (un changement de libellés est un
+  changeset, le renommage des rôles un changeset système), l'événement `labels` est une
+  sorte du flux SSE (022), non de l'audit. Écart noté : REQ-018-20 nomme `bench-core`,
+  la mesure vit dans `bench-http` (tâche 13). Les journaux de décision gardent les
+  anciens noms de permissions.

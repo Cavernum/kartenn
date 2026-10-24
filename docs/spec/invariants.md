@@ -52,6 +52,18 @@ concurrence).
 | INV-66 | L'état et la validité d'un flux sont dérivés (date, synthèse des évaluations, dérogation), jamais stockés ; les évaluations matérialisées sont égales à un recalcul complet après tout changeset (011/REQ-011-5, 11, 24, F4, ADR 0031) | App (`kartenn-flow::state`, `reevaluation`) | `flow/src/state.rs` (un test par état) ; `flow/tests/it/reevaluation.rs` (`the_reevaluation_agrees_with_a_full_recompute`, `acceptance_of_req_011_11_a_container_above_the_source`) |
 | INV-29 | Une méthode non sûre authentifiée par cookie n'est servie que si `Sec-Fetch-Site` (ou, à défaut, `Origin`) la dit de même origine ; aucun secret Basic ni cookie ne circule hors TLS ; un curseur altéré ou signé d'une clé retirée est refusé et les droits sont réévalués à chaque page | App (couches CSRF, transport, curseurs signés) | `rest/tests/csrf.rs`, `authn.rs`, `cursor.rs` ; `auth/src/signed.rs` (`a_retired_key_no_longer_verifies`) |
 
+| INV-72 | Une suggestion (`q`, `/values`) ne montre jamais un objet que l'appelant ne peut lire : elle passe par le prédicat de lecture de la liste ; le dictionnaire de libellés ne sert un espace de données qu'aux lecteurs de sa collection, les valeurs d'une propriété sensible qu'à `prop.<clé>.read` (018/REQ-018-19, 23, R24) | App + prédicat SQL | `machines/tests/it/rest.rs` (`a_suggestion_never_shows_an_unreadable_object`) ; `rest/tests/it/labels.rs` (`a_space_is_served_only_to_its_readers`) |
+
+## Libellés (spec 018, ADR 0040)
+
+| ID | Invariant | Garantie | Test |
+|---|---|---|---|
+| INV-73 | Les corps de l'API sont neutres en langue : clés et `labels` par langue, jamais un libellé résolu ; seule `GET /v1/labels` varie selon la langue, et un ETag d'objet ne dépend pas d'`Accept-Language` (R20, Q-018-4) | App | `rest/tests/it/labels.rs` (`labels_are_negotiated`) |
+| INV-74 | La clé d'une valeur de liste fermée ne change jamais ; changer ses libellés est un changeset (`update_enum_value`) daté et audité (REQ-018-9) | App | `service/tests/it/labels.rs` (`a_value_key_never_changes`, `relabelling_a_value_is_a_changeset`) |
+| INV-75 | Toute table de libellés non vide contient la langue par défaut de l'instance ; chaque libellé a 1 à 200 caractères sans caractère de contrôle, sous une étiquette BCP 47 (`core.label.invalid`) ; tout code compilé a un libellé FR et EN (REQ-018-9, 10) | App | `core/src/labels.rs` (`labels_are_checked`) ; `core/src/code_labels.rs` (`every_code_has_french_and_english_labels`) |
+| INV-76 | La révision des libellés croît à chaque changeset qui écrit une colonne `labels`, dans sa transaction : l'ETag du dictionnaire change avant l'événement `labels`, qui n'est qu'un avis (R22, R23) | Base (ligne `label_revision`) + App | `rest/tests/it/labels.rs` (`the_labels_etag_changes_with_the_revision`) ; `rest/tests/it/events.rs` (`a_label_change_is_pushed_as_a_labels_event`) |
+| INV-77 | Un ancien nom de permission (018, R3) est refusé dans un rôle ; les rôles personnalisés sont migrés une fois ; l'historique et l'audit gardent les noms d'alors (R6) | App | `an_old_permission_name_is_refused`, `custom_roles_take_the_new_names_once`, `no_old_permission_name_is_left` |
+
 ## Performance (D14) — p95 serveur, 10⁶ objets, 3 ans d'historique
 
 Le banc `bench-core` (002/A14) est bloquant par son code de sortie ; il n'y a pas encore
@@ -130,6 +142,15 @@ dans le bruit, et la part de la source, chronométrée à part, est la lecture d
 - contrôle de l'inférence, +1,9 s : les vues du changeset hachaient toutes les origines
   dans les plans personnalisés des premières exécutions, et les origines rafraîchies
   par les valeurs par défaut étaient recalculées par la maintenance.
+
+Dictionnaire de libellés (018/REQ-018-20, `bench-http`) : complet d'une langue
+p95 < 50 ms, revalidation 304 < 10 ms, < 1 Mo ; 2,4 ms, 2,3 ms et 12 060 octets à
+l'échelle de test (2026-10-24). Suggestions par préfixe (018/REQ-018-23, `bench-core`,
+après les modules) : p95 < 50 ms par route (entités, sites, domaines, préfixes,
+adresses, machines, interfaces, clusters, groupes de VLAN, VLAN, valeurs d'une liste
+fermée, règles, et machines lues par le lecteur d'un seul propriétaire) ; au banc réduit
+(2026-10-24) de 0,02 ms (règles) à 8,5 ms (machines), 22,6 ms pour le lecteur d'un
+propriétaire. Pleine échelle à passer pour les deux.
 
 La lecture groupée N9 (016-4) est
 mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).

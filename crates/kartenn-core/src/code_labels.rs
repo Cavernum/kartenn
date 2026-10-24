@@ -316,7 +316,7 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ),
     (
         "core.role.invalid",
-        "A role has a key, a label and entries of the catalogue; an issuer and a group are not empty.",
+        "A role has a key, labels and entries of the catalogue; an issuer and a group are not empty.",
     ),
     (
         "core.rbac.forbidden",

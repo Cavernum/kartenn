@@ -27,6 +27,9 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   et ses opérateurs en gabarit décrit par `x-kartenn` (021/X41).
 - H21 version dans le corps : tout objet lu (par identifiant ou dans la page de sa
   collection) porte sa version en `version`, la part propre de son ETag.
+- H22 libellés et suggestions (spec 018) : corps neutres en langue (`labels`), seul
+  `GET /v1/labels` varie selon la langue ; `q` sur les listes citables, `/values`
+  datées, `GET /v1/rules`.
 
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
@@ -498,6 +501,25 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Additif (H12) : un membre de plus dans des corps ouverts ; aucun alias.
 - Décidé par : orchestrateur de la session (suite de la 022/021, 2026-10-24) ; forme
   (non obligatoire, pages incluses, refus en écriture) : Claude, peu coûteuse à défaire.
+
+## H22 — Libellés, suggestions et règles (amende REQ-006-4, 9, 35 ; spec 018)
+- Constat (2026-10-24) : la 018 (retours d'usage de la v0.2) ajoute au contrat ce que
+  les filtres typés et l'édition en place de la 021 consomment.
+- Décision :
+  - **Libellés** (ADR 0040, 018/R19 à R24) : un corps porte des clés et des `labels`
+    `{langue: texte}`, jamais un libellé résolu ni de champ `label` ; `GET /v1/labels`
+    est la seule route qui varie selon la langue (`lang`, sinon `Accept-Language` ;
+    `Content-Language`, `Vary`) ; `default_locale` aux capacités ; opération
+    `update_enum_value`.
+  - **Suggestions** (Q-018-8 : extension des routes existantes) : `q` (préfixe insensible
+    à la casse, 1 à 100 caractères) déclaré sur les listes citables par une référence,
+    sous leur prédicat de lecture, 20 éléments par défaut ; refusé sur `ranges` et avec
+    `prop.…` ; `/values` rend `{key, valid_from, valid_to}` à `valid_at`, `q` sur la clé
+    et les libellés.
+  - **Règles** : `GET /v1/rules` (`{id, severity, module}`), collection réservée au
+    noyau (`CORE_COLLECTIONS`).
+- Pourquoi : ajouts seulement (H12) ; un client lit les paramètres au contrat (H20).
+- Décidé par : l'utilisateur (spec 018, 2026-10-23) ; forme du contrat : Claude
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,

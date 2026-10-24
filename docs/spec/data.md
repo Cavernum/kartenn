@@ -70,6 +70,18 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   pour chacune (ADR 0017) ; `changeset_diff` pour le
   détail du différentiel ; `expected_source_state` pour la réévaluation des écarts ; la
   vue `carrier_object` (migration 0022) réunit tous les objets porteurs.
+- **Libellés** (spec 018, ADR 0040 ; migrations 0060, 0061) : colonne versionnée
+  `labels jsonb` `{<langue>: <texte>}` (objet JSON, `{}` par défaut) sur
+  `property_declaration`, `property_enum_value` et `role` (et les tables d'objets de la
+  politique, migrations `policy` 0004, 0005) ; la colonne `label` d'un rôle et des objets
+  de la politique a disparu, reprise d'abord comme libellé `fr` (seule langue des données
+  de la v0.2). Une table de libellés non vide contient la langue par défaut
+  (`core.label.invalid`). Les libellés des valeurs d'environnement vivent sur la valeur
+  de liste fermée du noyau (Q-018-7). `label_revision` (une ligne) : révision des
+  libellés stockés, incrémentée dans la transaction de tout changeset qui écrit une
+  colonne `labels` (ce qui ordonne ces changesets entre eux) ; elle entre dans l'ETag du
+  dictionnaire et l'événement `labels`. Les libellés compilés (permissions, règles,
+  problèmes, sortes, états, natures, usages, FR et EN) vivent dans le code, non en base.
 - **Obligations** : portée domaine, type d'objet ou entité ; la portée d'une entité
   couvre les objets dont le `core.owner` résolu est l'entité ou une descendante, et les
   entités de ce sous-arbre (003/P16).
@@ -306,6 +318,14 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   `(domain_id, prefix inet_ops, valid_period)` ; pas d'index `inet_ops` autonome, les
   budgets tenant sans lui (002/A14).
 - Identifiants : UUID v7 (`uuidv7()`, PostgreSQL 18).
+- Listes : une lecture aux assertions courantes lit la table courante seule, dont
+  l'index d'ordre (`*_keyset`) sert la page ; l'union avec l'historique (lecture passée)
+  impose un tri. Suggestions par préfixe (018/REQ-018-23) : index du texte d'un préfixe
+  et d'une adresse en collation `C` (`prefix_text_suggested`,
+  `address_host_suggested`, migration 0062), qui servent `LIKE 'q%'` et l'ordre d'une
+  page de suggestions ; machines : `interface_keyset`, `interface_name_pattern`
+  (`machines` 0004) ; VLAN : `vlan_group_keyset` (`vlan` 0002). Une requête avec `q`
+  se planifie avec sa valeur (instruction non nommée).
 - Registres IANA à usage spécial : embarqués dans le code, chargés par le job de
   migration dans `special_registry`, une copie par version (REQ-002-34) ; un rapport
   liste les objets dont `public` changerait sous une nouvelle version.
@@ -316,4 +336,9 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - Exécutées par un job dédié, jamais au démarrage des instances (D9).
 - Les propriétés déclarées par un module évoluent avec le code du module, synchronisées
   par le job de migration (003/P12).
-- Les rôles livrés (005/K12) sont synchronisés de même, par un changeset de kartenn.
+- Les rôles livrés (005/K12) sont synchronisés de même, par un changeset de kartenn,
+  avec leurs libellés FR/EN ; un libellé qu'un administrateur a posé est gardé
+  (018/REQ-018-11).
+- Les rôles personnalisés citant un nom de permission renommé (018, R3) sont migrés une
+  fois par l'étape `rename_permissions` du job (changeset système : l'ancien nom clos, le
+  nouveau ouvert) ; l'historique et l'audit gardent les anciens noms (R6).
