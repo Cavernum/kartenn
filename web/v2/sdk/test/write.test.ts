@@ -84,6 +84,8 @@ describe("quick edit (REQ-021-16, 24; D-7)", () => {
     );
     expect(result).toEqual({ kind: "applied", changeset: C1, warnings: [] });
     const patch = cache.seen.find((r) => r.method === "PATCH")!;
+    // Applied at once when its author holds `apply_own` (024, REQ-024-13).
+    expect(patch.url).toBe(`/v1/prefixes/${P1}?apply=own`);
     expect(patch.headers.get("If-Match")).toBe('"1.x"');
     expect(patch.headers.get("Content-Type")).toBe("application/merge-patch+json");
     expect(patch.body).toEqual({ value: "10.0.1.0/24", motive: "resize" });
@@ -107,8 +109,33 @@ describe("quick edit (REQ-021-16, 24; D-7)", () => {
         motive: "m",
       }),
     );
-    expect(result).toEqual({ kind: "proposed", changeset: C1, review: "approval" });
+    expect(result).toEqual({ kind: "proposed", changeset: C1, review: "approval", reason: null });
     expect(values).toEqual(["10.0.9.0/24", "10.0.0.0/24"]);
+  });
+
+  it("202 to ?apply=own: proposed with the code of its reason", async () => {
+    for (const code of ["changeset.apply_own.missing", "changeset.approval.self"]) {
+      const reason = { code, message: "held", objects: [P1] };
+      const cache = setup(() =>
+        json(
+          {
+            changeset: { id: C1, href: "h" },
+            state: "pending",
+            kind: "approval",
+            diff: [],
+            reason,
+          },
+          { status: 202 },
+        ),
+      );
+      await cache.queryClient.fetchQuery(cache.options);
+      const result = await cache.writes.quick({
+        key: cache.options.queryKey,
+        patch: { value: "10.0.9.0/24" },
+        motive: "m",
+      });
+      expect(result).toMatchObject({ kind: "proposed", reason: { code } });
+    }
   });
 
   it("412: reads the object again and gives the input back", async () => {

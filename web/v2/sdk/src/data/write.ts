@@ -13,7 +13,7 @@ import type { QueryClient } from "@tanstack/query-core";
 import type { Client } from "../api/client.ts";
 import { ApiProblem, type Violation } from "../api/problem.ts";
 import type { components } from "../api/schema";
-import type { Entry } from "./cache.ts";
+import { FRESHNESS, type Entry } from "./cache.ts";
 import { refsOf } from "./dependents.ts";
 import type { Invalidation } from "./invalidate.ts";
 import { isImmutable, isPresent, type ObjectKey } from "./keys.ts";
@@ -21,7 +21,9 @@ import { collectionOf, qualify } from "./types.ts";
 
 type Applied = components["schemas"]["ChangesetApplied"];
 type Pending = components["schemas"]["ChangesetPending"];
-type Simulated = components["schemas"]["ChangesetSimulated"];
+export type Simulated = components["schemas"]["ChangesetSimulated"];
+/** Why a changeset its author asked to apply stays pending (024, REQ-024-13). */
+export type PendingReason = components["schemas"]["PendingReason"];
 export type Submission = components["schemas"]["Submission"];
 
 /** A quick edit: merge patch members of the object of `key`, and why. */
@@ -35,7 +37,16 @@ export interface QuickWrite {
 
 export type WriteOutcome<I = Record<string, unknown>> =
   | { kind: "applied"; changeset: string | null; warnings: readonly Violation[] }
-  | { kind: "proposed"; changeset: string | null; review: string }
+  /**
+   * Held for a decision; `reason` says why a write that asked to apply (`?apply=own`) did
+   * not: `changeset.apply_own.missing` or `changeset.approval.self` (024, REQ-024-13).
+   */
+  | {
+      kind: "proposed";
+      changeset: string | null;
+      review: string;
+      reason: PendingReason | null;
+    }
   /** The object changed since the read: `current` is read again, `input` given back. */
   | { kind: "conflict"; current: Entry | undefined; input: I; problem: ApiProblem }
   /** Violations by member (`/slug` → `slug`), the others in `general`. */
@@ -73,8 +84,24 @@ export function fieldOf(pointer: string | null | undefined): string | null {
   return match ? match[1]!.replace(/~1/g, "/").replace(/~0/g, "~") : null;
 }
 
+/** The outcome of a write held for a decision. */
+export type Proposed = Extract<WriteOutcome, { kind: "proposed" }>;
+
+/** The outcomes of a write that did not go through. */
+export type Refusal<I> = Exclude<WriteOutcome<I>, { kind: "applied" | "proposed" }>;
+
+/** The outcome of a 202: held for a decision, with the reason when one is given. */
+export function proposedOf(pending: Pending | undefined): Proposed {
+  return {
+    kind: "proposed",
+    changeset: pending?.changeset.id ?? null,
+    review: pending?.kind ?? "approval",
+    reason: pending?.reason ?? null,
+  };
+}
+
 /** The outcome of a refused write. */
-function refused<I>(problem: ApiProblem, input: I): WriteOutcome<I> {
+export function refused<I>(problem: ApiProblem, input: I): Refusal<I> {
   const denied = problem.violations.some((violation) => FORBIDDEN_RULE.test(violation.rule));
   if (problem.status === 403 || denied) return { kind: "forbidden", input, problem };
   if (problem.status === 422 || problem.status === 400) {
@@ -101,6 +128,31 @@ export function fingerprint(value: unknown): string {
   return hash.toString(16).padStart(16, "0");
 }
 
+/** A simulation by `POST`: its report, a 422 being one too (the violations found). */
+export async function simulation(
+  client: Client,
+  url: string,
+  body: unknown,
+  signal: AbortSignal,
+): Promise<Simulated> {
+  try {
+    const answer = await client.request("POST", url, { body, signal });
+    return answer.data as Simulated;
+  } catch (error) {
+    if (error instanceof ApiProblem && error.status === 422) {
+      return {
+        valid: false,
+        violations: [...error.violations],
+        diff: [],
+        sample: [],
+        cascaded: [],
+        sections: [],
+      };
+    }
+    throw error;
+  }
+}
+
 export interface WriteDeps {
   client: Client;
   queryClient: QueryClient;
@@ -116,6 +168,15 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
   function afterApplied(named: { type: string; id: string }[], body: Applied | undefined) {
     const cascaded = (body?.cascaded ?? []).map((c) => ({ type: qualify(c.kind), id: c.id }));
     return invalidation.objects([...named, ...cascaded], body?.changeset.id ?? null);
+  }
+
+  /**
+   * What a changeset of operations applied invalidates: the objects the operations name,
+   * those it cascaded to, and every list (those it creates are new to every list).
+   */
+  function submitted(operations: unknown, body: Applied | undefined): Promise<unknown> {
+    const ids = [...refsOf(operations)];
+    return Promise.all([invalidation.ids(ids), afterApplied([], body), invalidation.lists()]);
   }
 
   const quick = async ({ key, patch, motive, ifMatch }: QuickWrite): Promise<WriteOutcome> => {
@@ -140,18 +201,15 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
       if (optimistic) queryClient.setQueryData<Entry>(key, previous);
     };
     try {
-      const answer = await client.request("PATCH", `${collection}/${encodeURIComponent(id)}`, {
+      // Applied at once when its author holds `apply_own`, held otherwise (024, REQ-024-13).
+      const url = `${collection}/${encodeURIComponent(id)}?apply=own`;
+      const answer = await client.request("PATCH", url, {
         body: { ...patch, motive },
         ifMatch: tag,
       });
       if (answer.status === 202) {
         rollback();
-        const pending = answer.data as Pending | undefined;
-        return {
-          kind: "proposed",
-          changeset: pending?.changeset.id ?? null,
-          review: pending?.kind ?? "approval",
-        };
+        return proposedOf(answer.data as Pending | undefined);
       }
       const applied = answer.data as Applied | undefined;
       await afterApplied([{ type, id }], applied);
@@ -181,30 +239,9 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
     const queryKey = ["simulate", fingerprint(submission)] as const;
     return {
       queryKey,
-      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<Simulated> => {
-        try {
-          const answer = await client.request("POST", "/v1/changesets?simulate=true", {
-            body: submission,
-            signal,
-          });
-          return answer.data as Simulated;
-        } catch (error) {
-          // A 422 of a simulation is a report: the violations of the draft.
-          if (error instanceof ApiProblem && error.status === 422) {
-            return {
-              valid: false,
-              violations: [...error.violations],
-              diff: [],
-              sample: [],
-              cascaded: [],
-              sections: [],
-            };
-          }
-          throw error;
-        }
-      },
-      staleTime: 0,
-      gcTime: 60_000,
+      queryFn: ({ signal }: { signal: AbortSignal }): Promise<Simulated> =>
+        simulation(client, "/v1/changesets?simulate=true", submission, signal),
+      ...FRESHNESS.simulation,
     };
   };
 
@@ -223,18 +260,9 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
           body: submission,
           idempotencyKey,
         });
-        if (answer.status === 202) {
-          const pending = answer.data as Pending | undefined;
-          return {
-            kind: "proposed",
-            changeset: pending?.changeset.id ?? null,
-            review: pending?.kind ?? "approval",
-          };
-        }
+        if (answer.status === 202) return proposedOf(answer.data as Pending | undefined);
         const applied = answer.data as Applied | undefined;
-        // The objects the operations name; those they create are new to every list.
-        const ids = [...refsOf(submission.operations)];
-        await Promise.all([invalidation.ids(ids), afterApplied([], applied), invalidation.lists()]);
+        await submitted(submission.operations, applied);
         return {
           kind: "applied",
           changeset: applied?.changeset.id ?? null,
@@ -253,7 +281,7 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
     }
   };
 
-  return { quick, simulate, submit };
+  return { quick, simulate, submit, submitted };
 }
 
 export type Writes = ReturnType<typeof createWrites>;
