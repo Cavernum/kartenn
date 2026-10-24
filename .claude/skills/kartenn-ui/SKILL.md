@@ -99,21 +99,21 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
 | `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
 | `Tabs` | Tabs (activation manuelle) | ◐ |
-| `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée avec son motif | ◐ |
+| `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
-| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface, redimensionnable (Window Splitter) | ☐ |
-| `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ☐ |
-| `Toolbar` | Toolbar ; actions repliées dans « … » | ☐ |
-| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés | ☐ |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) | ● |
+| `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
+| `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
+| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés (virtualisation au-delà de 50 × 50 à venir) | ● |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
-| `Tooltip`, `Popover` | Tooltip ; Dialog non modal | ☐ |
+| `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
-| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri et filtre de colonne | ◐ |
+| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier (virtualisation et édition à venir) | ◐ |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` ; `alert` ; `status` | ◐ |
-| `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`) ; `status` | ◐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
+| `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls`) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
 
@@ -148,6 +148,12 @@ Version exacte épinglée ; toute montée repasse les scripts clavier et le parc
 - Ligne focalisée démontée par la molette : la garder montée.
 - Nom accessible d'une ligne = tout son contenu : `aria-label` court, détail par
   `aria-describedby`.
+- `DropdownMenuItem` écrit `aria-disabled` d'après sa prop `disabled`, qui sort aussi
+  l'entrée des flèches : une entrée refusée garde `disabled` faux, `aria-disabled` posé par
+  la directive de `Menu`, et `select` annulé.
+- Tests au clavier : pas d'horloge figée (`page.clock.setFixedTime`) ; Vue ignore un
+  événement daté de l'instant où le gestionnaire d'un ancêtre a été posé, et une horloge
+  figée rend tous les instants égaux (`e2e/visual/clavier.spec.ts`).
 
 ## 7. Clichés à éviter (brief)
 

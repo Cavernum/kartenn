@@ -322,13 +322,67 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
 
 ## P3 — Maquettes révisées
 
-- [ ] 10. Composants : `SidePanel`, `CommitForm`, `SplitButton`, `Toolbar` repliable,
+- [x] 10. Composants : `SidePanel`, `CommitForm`, `SplitButton`, `Toolbar` repliable,
   `Tooltip` des actions grisées, `MatrixGrid` ; `DataGrid` en grille unique (subgrid),
   tri, filtre, squelettes animés — REQ-024-19, 20, 23, 25, 26 — verify : catalogue,
   captures aux quatre largeurs, axe
   - où : `web/v2/ui/src/components/` ; prototype de référence
     `/tmp/…/scratchpad/proto-panneaux/PanneauxProto.vue` (hors dépôt, à reprendre
     proprement) ; design « E »
+  - Résultat : nouveaux `SidePanel`, `CommitForm`, `SplitButton` (`SplitAction`),
+    `Toolbar` (`ToolbarAction`, `foldActions`), `Tooltip` (`useTooltip`), `MatrixGrid`
+    (`MatrixAxis`, `MatrixCell`), aide `moveInGrid` (`internal/gridKeys.ts`) ; `Button`,
+    `IconButton` et entrées de `Menu` prennent `forbidden` (permission) et `reason` ;
+    `DataGrid` en une grille (lignes en `subgrid`, en-tête collant dans le même conteneur),
+    tri (`v-model:sort`, `nextSort`), filtre (`filtered`, événement `filter`), navigation
+    au clavier (`v-model:active`, `activate`), chargement (`loading`, squelettes dans les
+    cellules) ; `Skeleton` animé d'un reflet (immobile sous mouvement réduit), variante
+    `cell` ; `Drawer` modal seulement ; `DraftCounter` bascule et menu des brouillons
+    (`DraftSummary`) ; E5 passe au `SidePanel`. Pages de catalogue et captures 1280 × 800
+    par état ; `e2e/visual/clavier.spec.ts` (motifs APG au clavier) et
+    `e2e/visual/layout.spec.ts` (bords gauches en-tête/cellule et absence de défilement
+    horizontal à 1440, 1280, 1024 et 768 px, en-têtes collants) ; tests Vitest
+    `components-024.test.ts` ; inventaire du skill à jour.
+  - Choix tranchés (10) :
+    - Infobulle écrite par kartenn (`useTooltip`, bulle téléportée dans la couche des
+      surimpressions, placée par CSSOM) plutôt que le `Tooltip` de Reka : celui-ci n'écrit
+      `aria-describedby` que bulle ouverte et l'écrase sur l'enfant ; la bulle reste dans
+      le document, cachée, pour que la description tienne. Délai de 300 ms au survol,
+      immédiate au focus, Échap la ferme sans fermer la couche autour, survolable (1.4.13),
+      fermée au défilement ; `z-index` `--k-z-toast` pour passer au-dessus d'un dialogue.
+    - Action refusée : `forbidden` (« Il faut `<permission>` », permission en chasse fixe)
+      ou `reason` (phrase de l'hôte, politique) ; dans un menu, l'entrée garde le focus
+      des flèches, son motif est sa description (texte caché) et une bulle décorative à
+      côté d'elle ; le motif n'est plus imprimé sous le libellé.
+    - `SidePanel` : positionné en absolu dans un conteneur que l'hôte positionne, la
+      surface en `isolation: isolate` ; bornes 320–720 px, pas de 16 px, Début et Fin aux
+      bornes, glisser au pointeur ; pas d'Entrée de repli (facultative dans l'APG) ; le
+      pied (`footer`, avec l'onglet actif) porte simulation, motif et action ; ombre
+      `--k-shadow-overlay` (ajouté à `FLOATING`).
+    - `CommitForm` : le résumé est un `TextField`, la description un `textarea` du même
+      dessin ; résumé requis vide à la soumission → erreur « Le résumé est obligatoire. »
+      et focus rendu ; le raccourci est montré par le `SplitButton`, pas par le
+      formulaire ; ⌘+Entrée vaut Ctrl+Entrée.
+    - `SplitButton` : l'action choisie interdite rend le bouton lui-même refusé avec le
+      même motif ; pas d'entrée radio (`menuitemradio`) : le bouton dit l'action choisie.
+    - `Toolbar` : largeurs mesurées une fois toutes les actions dans la barre, remesurées
+      quand la liste change ; repli par priorité croissante puis de la fin ; le bouton
+      « … » est un `Menu` ; une action désactivée nativement sort du parcours des flèches.
+    - `DataGrid` : tri sans retour à « aucun » (ascendant puis alternance) ; le filtre est
+      tenu par l'hôte, la grille ne fait que le demander (Alt+Bas, clic sur l'entonnoir)
+      et le montrer (`filtered`, mot caché « filtrée ») ; Entrée sur une cellule émet
+      `activate`.
+    - `MatrixGrid` : le coin est l'entrée de la grille ; première colonne
+      `minmax(--k-size-col-md, max-content)`, colonnes `minmax(--k-size-col-sm, 1fr)` ;
+      la virtualisation au-delà de 50 × 50 (design, ligne 34) reste à faire avec l'écran
+      qui en a besoin.
+    - Reflet du `Skeleton` : durée `2 × --k-duration-spin` (pas de nouveau jeton), image
+      et animation retirées sous mouvement réduit.
+    - Catalogue : un état `wide` a une piste `minmax(0, 1fr)` (une table large défilait la
+      page à 768 px) ; les scripts clavier ouvrent les pages sans horloge figée (Vue ignore
+      un événement daté de l'instant où le gestionnaire d'un ancêtre a été posé).
+    - E5 : le `Drawer` non modal devient le `SidePanel` (onglets Détail et Brouillon, pied
+      provisoire) ; la maquette complète du pied revient à la tâche 11.
 - [ ] 11. Maquettes E1 à E10 reprises, maquette de l'accueil ajoutée, captures 1440,
   1280, 1024, 768 px — REQ-024-21, 22, 24, 27, 28, 29 — verify : `k-web2-check`,
   revues `ui-reviewer` et `a11y-auditor`
