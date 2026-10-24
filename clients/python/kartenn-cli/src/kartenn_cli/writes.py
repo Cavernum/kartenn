@@ -288,7 +288,7 @@ def changeset_operation(  # noqa: PLR0913, PLR0917 - a write, whole
 
     The contract names no such correspondence: the core keeps the operations of its
     schema `Operation` (`create_<x>`, `update_<x>`, `close` of a `kind`), a module its
-    own `<module>.<operation>`. A write without one is refused (`client.dry-run-unavailable`).
+    own `<module>.<operation>`. A write without one is refused (`client.no-changeset-operation`).
     """
     from kartenn.changesets import operation_kinds  # noqa: PLC0415
 
@@ -307,7 +307,7 @@ def changeset_operation(  # noqa: PLR0913, PLR0917 - a write, whole
         if op is not None and op in kinds:
             return {"op": op, **reference, **members}
     raise CliError(
-        "client.dry-run-unavailable", t("write.no_operation", resource=resource.name, verb=verb)
+        "client.no-changeset-operation", t("write.no_operation", resource=resource.name, verb=verb)
     )
 
 
@@ -543,10 +543,10 @@ class _Write(VerbCommand):
     ) -> None:
         """The same write with `?simulate=true` (spec 024, REQ-024-17): nothing is
         written; exit 8 when it would be refused. A write that submits no changeset is
-        refused (`client.dry-run-unavailable`)."""
+        refused (`client.simulate-unsupported`)."""
         if not self.operation.simulate:
             raise CliError(
-                "client.dry-run-unavailable",
+                "client.simulate-unsupported",
                 t("write.no_simulation", resource=self.resource.name, verb=self.verb),
             )
         sent = {"motive": t("simulation.motive"), **content} if self.takes_motive else content
