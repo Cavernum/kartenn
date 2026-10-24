@@ -106,6 +106,14 @@ async fn an_instance_starts_on_the_url_of_its_file(pool: PgPool) {
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+    // The log file is written by a background thread: the audit event can land before it,
+    // and a kill would then lose lines still buffered.
+    for _ in 0..50 {
+        if std::fs::metadata(&log).is_ok_and(|m| m.len() > 0) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     instance.kill().unwrap();
     let out = instance.wait_with_output().unwrap();
     assert!(started, "the instance starts on the URL of its file");
