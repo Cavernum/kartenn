@@ -327,8 +327,12 @@ sequenceDiagram
   (`GET /v1/property-declarations`) s'y ajoutent à l'exécution, avec leurs listes fermées
   (016). `FilterPicker` (020) reçoit ce modèle ; les suggestions passent par le cache.
 - **Libellés** (spec 018) : les objets ne portent que des clés ; le dictionnaire
-  `GET /v1/labels` (négocié par `Accept-Language`) est une requête du cache à clé
-  `['v1', 'labels', langue, révision]`, invalidée par l'événement `labels` du flux ;
+  `GET /v1/labels?lang=<langue>` (paramètre prioritaire sur `Accept-Language`, 018) est une
+  requête du cache à clé `['v1', 'labels', langue]`, jamais périmée (`staleTime` infini),
+  invalidée par l'événement `labels` du flux quand la révision qu'il nomme diffère de
+  celle du dictionnaire gardé (relecture en `If-None-Match`) *(précisé à la réalisation,
+  2026-10-24 : la révision n'entre pas dans la clé, sans quoi les écrans abonnés à
+  l'ancienne clé ne verraient pas la nouvelle)* ;
   `label(kind, key, locale)` cherche le dictionnaire, puis le catalogue
   (`labels.<kind>.<key>` du shell ou du plugin), puis rend la clé ; `KeyLabel` (020)
   affiche le résultat et garde la clé accessible ; les codes restent toujours visibles.
@@ -369,6 +373,20 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 - **Version** : l'égalité « déjà à jour » se teste sur le champ `version` du corps, jamais
   sur l'ETag (opaque, 006/H19) ; sans `version` dans le corps, invalidation sans
   condition (relecture en `If-None-Match`, 304 si rien n'a changé).
+- **Relevé de `version` par ressource** (tâche 3, contrat `openapi-v1.json` du
+  2026-10-24) :
+
+  | Ressources | `version` dans le corps | Effet côté client |
+  |---|---|---|
+  | objets du cœur (entités, sites, domaines, préfixes, plages, adresses) | non | invalidation sans condition, relecture en `If-None-Match` |
+  | objets des modules (VLAN, machines, politique, flux), changesets | non | idem |
+  | `Capabilities`, `Module`, `UiPlugin` | oui, mais version du logiciel, pas une révision | jamais comparée : ces lectures n'ont pas de clé d'objet |
+
+  La comparaison n'est faite que sur une clé d'objet (`keys.object`) ; elle s'appliquera
+  sans changement de code le jour où un corps d'objet portera sa révision. Les références
+  d'un corps sont relevées par tout membre `id` qui porte un UUID, à toute profondeur
+  (résumés `Summary`, `Reference`, `ObjectRef`, éléments embarqués, éléments d'une liste) :
+  les identifiants d'objet sont des UUID uniques entre types, l'index se passe donc du type.
 
 ### Préchargement (REQ-021-22)
 

@@ -2,6 +2,17 @@
 # until the cutover commit. Packages appear with their tasks (020, 021).
 packages:
   - tools
+  - sdk
   - ui
   - shell
   - e2e
+
+# No install script runs: vue-demi (under @tanstack/vue-query) would only switch its entry
+# to Vue 2, and its default entry is Vue 3.
+allowBuilds:
+  vue-demi: false
+
+# openapi-typescript 7 declares TypeScript ^5 and generates the same types under 6.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: "6"

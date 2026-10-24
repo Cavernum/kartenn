@@ -46,8 +46,13 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `devenv.nix` `scripts.k-web-check`, `scripts.k-web-e2e` (vers les lignes 494 et 533) ;
     `web/e2e/kartenn.toml`, `web/e2e/serve.sh`
   - dépend de : —
+  - en cours : espace, lockfile, `ui`, `shell`, `e2e`, lint, étape de `ci.sh` et commandes
+    devenv faits avec la 020 (2026-10-23) ; paquet `sdk` copié le 2026-10-24 (1.0.0, MPL-2.0,
+    `LICENSE`, contrat généré depuis `web/v2/sdk/scripts/gen.mjs`, test du paquet sur
+    `tools/notices.ts`) ; `tokens` retiré du SDK (les jetons sont ceux de `@kartenn/ui`).
+    Reste : `plugins`, configuration de test de kartenn-server sur les builds de `web/v2/`.
 
-- [ ] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
+- [x] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le
   client existant avec `If-None-Match` et réutilisation sur 304, fraîcheur par famille ;
   `SDK_VERSION` 1.0.0 — REQ-021-21, 25 — verify : Vitest : clés normalisées (ordre des
@@ -57,7 +62,19 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `dated.ts` ; `web/sdk/src/index.ts` (exports) ; `web/sdk/package.json` ; design
     § « Clés et fraîcheur »
   - dépend de : 25
-- [ ] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/` (`keys.ts`, `cache.ts`, `types.ts`,
+    `filters.ts`) ; `@tanstack/query-core` épinglé en 5.102.4 (version de deux mois).
+    Choix notés : les fabriques de requêtes s'appellent `reads` (`object`, `list`, `read`,
+    `sub`, `subPages`) pour ne pas heurter le type `queries` du contrat ; une liste se lit
+    page à page seulement (`read` la refuse : mêmes formes de clé) ; une clé d'objet porte le
+    type qualifié (`core.prefix`, celui du flux), une liste le chemin de sa collection, et la
+    table type → collection (cœur et modules de première partie, `registerType` pour un
+    tiers) vit dans le SDK ; les dates d'une clé sont celles du contexte sauf sur un chemin
+    non daté (présent) ; `client.request` lit par URL sans date du contexte, 304 compris ;
+    `ApiProblem.code` rend le slug. Modèle de filtres (`filterModel`, `parseFilters`,
+    `filterSearch`) et type `FiltersOf<P>` tirés du contrat généré. Vitest :
+    `test/cache.test.ts`, `test/filters.test.ts`.
+- [x] 3. Dépendants et version : extraction des références `{type, id}` d'un corps
   (schémas de résumé du contrat), index `id → clés`, comparaison sur `version` ; relevé,
   par ressource, de la présence de `version` dans le corps — REQ-021-23 — verify : Vitest
   sur des corps du contrat (préfixe avec résumé de domaine, fiche de machine) ; tableau
@@ -66,7 +83,14 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `crates/kartenn-rest/src/dated.rs` (`ETag::record`, `own_version`) pour la règle
     serveur ; 006/H19
   - dépend de : 2
-- [ ] 4. Écritures : `write.quick` (annulation des lectures de la clé, optimisme au
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/dependents.ts` (`refsOf`, `versionOf`, index
+    `Dependents` tenu par les notifications du cache, oubli à l'éviction) et
+    `invalidate.ts` (objets, listes de leur type, dépendants ; `truncated` par type, relu
+    sans `If-None-Match` ; jamais `as_of`). Relevé consigné dans le design (§ « Clés et
+    fraîcheur ») : aucun corps d'objet du contrat ne porte `version` aujourd'hui, la
+    relecture conditionnelle fait donc tout le travail. Choix noté : l'index est par
+    identifiant seul (UUID uniques entre types). Vitest : `test/dependents.test.ts`.
+- [x] 4. Écritures : `write.quick` (annulation des lectures de la clé, optimisme au
   présent, retour arrière, issues `applied`/`proposed`/`conflict`/`invalid`/`forbidden`),
   invalidation de ses propres écritures (objets de la réponse, collections, dépendants) ;
   `draft.add` inchangé — REQ-021-16, 24 — verify : Vitest : 200, 202 (jamais
@@ -75,6 +99,19 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `web/shell/src/edit/submit.ts` (logique actuelle de la modification rapide) ;
     `web/sdk/src/draft.ts`, `host.ts` ; `web/sdk/src/api/problem.ts`
   - dépend de : 3
+  - fait le 2026-10-24 : `web/v2/sdk/src/data/write.ts`, singletons dans
+    `src/instance.ts`. `write.quick` : annulation des lectures de la clé, optimisme par
+    *merge patch* (RFC 7396) au présent seulement, retour arrière sur 202, 403, 422 et
+    échec ; 412 relit la clé et rend `current` avec la saisie ; refus sous `as_of`
+    (exception), `If-Match` pris de l'entrée du cache. Après 200 : objet, cascades, listes
+    du type et dépendants invalidés. Choix notés : une sixième issue `failed` (réseau ou
+    autre problème) ; 422 dont une règle refuse pour droits (`*.forbidden`) rendu
+    `forbidden` comme dans l'ancien shell ; violations groupées par membre (`fieldOf`).
+    Client du changeset d'un brouillon : `changesets.simulate` (requête `['simulate',
+    empreinte]`, `staleTime` 0, `gcTime` 1 min, 422 rendu comme rapport) et
+    `changesets.submit` (clé d'idempotence fournie, 409 retenté cinq fois, objets nommés et
+    toutes les listes invalidés) ; le stockage IndexedDB du brouillon reste au shell
+    (tâche 14). `draft.add` inchangé. Vitest : `test/write.test.ts`.
 - [ ] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
   doublons, reconnexion avec attente croissante et `last_event_id`), un flux par
   navigateur (`navigator.locks` + `BroadcastChannel`, repli par onglet), repli sans flux
@@ -85,6 +122,21 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : 022 design § « Contrat consommé par les clients », § « Doublons » ;
     `web/shell/src/draft/tab.ts` (`BroadcastChannel` existant) ; `web/sdk/src/context.ts`
   - dépend de : 3 ; 022-9, 022-10 (point d'accès servi)
+  - en cours : SDK fait le 2026-10-24 — `web/v2/sdk/src/events/stream.ts` (`EventStream` :
+    verrou `kartenn-events`, relais `BroadcastChannel`, repli par onglet, curseur repris en
+    `last_event_id`, coupure laissée au navigateur, fermeture → `GET /v1/capabilities`
+    puis réouverture à attente doublée plafonnée à 60 s et tirée au hasard, rien sur 401
+    avant `restartEvents()`, doublons par identité sur une fenêtre de 1 000) et
+    `events/apply.ts` (contrat de la 022 amendé) ; `startData()` de `@kartenn/sdk/host`
+    (montage du cache, ouverture, flux rendu sur `pagehide` persistant, tout revalidé sur
+    `pageshow` persistant) ; `refetchOnWindowFocus` et `refetchOnReconnect` actifs
+    seulement sans flux ouvert ; API `events.subscribe`, `state`, `onState`. Choix
+    notés : chaque `ready` invalide tout (pas seulement le premier) ; identité d'un
+    `changeset` = changeset et état ; l'onglet détenteur relaie aussi l'état du flux.
+    Vitest (`test/events.test.ts`) : `EventSource` simulé, élection entre trois contextes
+    simulés, reprise par un autre onglet, doublons, 401 puis réouverture, attente
+    croissante, effets sur le cache, cycle bfcache. Reste : parcours à deux navigateurs et
+    à trois onglets, après la configuration serveur de la tâche 25 et un premier écran.
 - [x] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
   invalidation des vues qui montrent l'objet, relecture en `If-None-Match` sans `version`
   — verify : paragraphe amendé, marqué « *amendé par la 021* »
@@ -98,6 +150,12 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `web/shell/src/router.ts` ; `web/shell/src/plugins/loader.ts` (`modulepreload`)
     ; `web/shell/src/data/recent.ts`
   - dépend de : 2
+  - en cours : partie SDK faite le 2026-10-24 — `web/v2/sdk/src/data/prefetch.ts` :
+    `prefetch.intent(cible, requêtes)` (survol tenu 60 ms, focus immédiat, sortie avant le
+    délai sans lecture), `prefetch.guard(requêtes)` (≤ 100 ms, `ready` ou `timeout`),
+    `prefetch.prefetch` (lectures et listes). Vitest : `test/prefetch.test.ts`. Reste au
+    shell : `KLink`, `meta.queries` des routes et garde `beforeResolve`, page suivante à
+    l'approche de la fin, enfants survolés, `modulepreload` des plugins, parcours et banc.
 - [ ] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
   avec empreinte) ; manifeste `ui`, `framework`, `space`, `go` validés côté serveur et
   publiés dans `ui_plugins` (ajout additif) ; plages vérifiées au chargement ; adaptateur
@@ -109,6 +167,17 @@ aucun en parallèle sur `@kartenn/ui` (020).
     (`Manifest`, `sdk_range`), `capabilities.rs` ; `crates/kartenn-rest/src/web.rs`
     (`import_map`, `csp`) ; `web/sdk/src/semver.ts` ; `web/shell/src/plugins/loader.ts`
   - dépend de : 2 ; 020-4
+  - en cours : adaptateur Vue écrit le 2026-10-24, provisoirement dans
+    `web/v2/shell/src/data/query.ts` (`@kartenn/ui` étant en chantier par la 020) :
+    `installData(app)` (`VueQueryPlugin` sur le `QueryClient` du SDK), `useLabel`,
+    `useLocale`, `useEventsState` ; `@tanstack/vue-query` épinglé en 5.102.4 comme
+    `query-core`, script d'installation de `vue-demi` refusé (`allowBuilds`, entrée Vue 3
+    par défaut). Constat : passé tel quel, le client du cœur n'est jamais observé par
+    vue-query (ses composables ne s'abonnent que si le client porte la ref
+    `isRestoring`) ; l'adaptateur la pose, test `shell/test/data.test.ts` en garde.
+    Pas encore branché dans `main.ts` (le cadre, tâche 9, appellera `installData` et
+    `startData`). Reste : déplacement dans `@kartenn/ui`, import map, manifeste, `commands`,
+    `shortcuts`.
 
 ## P1 bis — Côté serveur (avant les écrans)
 
@@ -243,6 +312,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/i18n/index.ts` (traduction des problèmes),
     `admin/WriteOutcome.vue`
   - dépend de : 11
+  - en cours : partie SDK faite le 2026-10-24 (avec la P1) — `web/v2/sdk/src/data/labels.ts`,
+    `label(space, key, lang?)`, `labelDictionary(lang)`, `lookup` (valeur d'une liste
+    fermée en `<propriété>/<valeur>`), catalogue imbriqué `labels.<space>.<key>`, puis la
+    clé ; `ApiProblem.code`. La route `GET /v1/labels` (018) n'étant pas encore au contrat
+    de `main`, lecture par URL (`reads.byUrl`) et Vitest sur un serveur simulé
+    (`test/labels.test.ts`). Reste : `KeyLabel`, rendu des erreurs, parcours.
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau et page du brouillon — REQ-021-6, 10, 11 —
   verify : parcours `changesets`, `draft` réécrits ; captures E4, E5
