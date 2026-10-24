@@ -48,6 +48,8 @@ BASE: dict[str, tuple[str, ...]] = {
     ),
     "api spec": ("openapi",),
     "capabilities": ("capabilities",),
+    # The counters of the home page (spec 024).
+    "stats": ("stats",),
     # The stream of the 022 (`GET /v1/events`).
     "watch": ("events",),
     "health": ("live", "ready"),

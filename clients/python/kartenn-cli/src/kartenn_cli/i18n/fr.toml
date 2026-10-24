@@ -347,6 +347,7 @@ paginate = "Toutes les pages, un élément par ligne."
 [tools]
 capabilities = "Capacités du serveur : version, modules, limites."
 health = "Sondes de santé du serveur (live, ready)."
+stats = "Compteurs de l'accueil : objets, changesets, attente, anomalies, modules."
 healthy = "{probe} : {status}"
 stubs = "Stubs de types du serveur pour les vérificateurs (pyright, mypy)."
 stubs_generate = "Écrire <out>/kartenn_server/__init__.pyi."
