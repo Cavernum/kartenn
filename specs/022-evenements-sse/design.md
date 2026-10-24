@@ -280,8 +280,9 @@ cliente et commandes `watch`), qui le reprendront.
 - **Ouverture** : ouvrir le flux **avant** de charger les données ; à `ready`, tout
   invalider une fois (ce qui a été lu avant `ready` peut être périmé).
 - **`changes`** : pour chaque objet, invalider la requête de l'objet (`[type, id]`) si
-  la `version` lue dans son corps diffère de `changeset` (jamais l'ETag, opaque et
-  composite depuis 006/H19 ; sans `version`, relire en `If-None-Match`), les requêtes
+  la `version` lue dans son corps (membre servi depuis 006/H21) diffère de `changeset`
+  (jamais l'ETag, opaque et composite depuis 006/H19 ; sans `version`, relire en
+  `If-None-Match`), les requêtes
   qui montrent cet objet (résumés de liés, fiches composites), et les listes de son type
   (*amendé par la 021, 2026-10-23*) ; `truncated` :
   invalider toutes les requêtes des `types` (et domaines) nommés et les relire sans

@@ -292,9 +292,28 @@ fn tags(list: &str) -> Vec<&str> {
     }
 }
 
-/// The response of the read of an object: `body` as JSON, its composite strong `ETag`
-/// of `version` and of the bytes served (REQ-006-14, 006/H19), 304 when `If-None-Match`
-/// names it.
+/// The member of the body of an object that states its own version (REQ-006-14,
+/// 006/H19): the changeset that last wrote the object or its properties, the first part
+/// of its `ETag`, what a client compares with the revision of an event (022).
+pub const VERSION: &str = "version";
+
+/// `body` as a JSON object with its own version `version` as [`VERSION`]; a body that
+/// is not an object is left as it is.
+///
+/// # Panics
+///
+/// Never: a value made of serialisable JSON members serialises.
+pub fn with_version(body: &impl serde::Serialize, version: Uuid) -> serde_json::Value {
+    let mut value = serde_json::to_value(body).expect("JSON values serialise");
+    if let serde_json::Value::Object(members) = &mut value {
+        members.insert(VERSION.to_owned(), version.to_string().into());
+    }
+    value
+}
+
+/// The response of the read of an object: `body` as JSON with its own version as
+/// [`VERSION`], its composite strong `ETag` of `version` and of the bytes served
+/// (REQ-006-14, 006/H19), 304 when `If-None-Match` names it.
 ///
 /// # Panics
 ///
@@ -305,7 +324,7 @@ pub fn respond_object(
     version: Uuid,
     body: &impl serde::Serialize,
 ) -> Response {
-    let bytes = serde_json::to_vec(body).expect("JSON values serialise");
+    let bytes = serde_json::to_vec(&with_version(body, version)).expect("JSON values serialise");
     let etag = ETag::record(version, &bytes);
     let response = ([(header::CONTENT_TYPE, "application/json")], bytes);
     respond(request, moment, &etag, response)

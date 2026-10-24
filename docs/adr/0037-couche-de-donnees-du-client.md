@@ -57,7 +57,8 @@ Décisions D7 (amendée), D8, D10, D11 ; ADR 0005, 0018, 0022 ; 007/W8 à W10, W
    - *repli sans flux* : revalidation au retour sur l'onglet, à la reconnexion et au
      retour du bfcache.
    La comparaison « révision connue = révision de l'événement » se fait sur la `version`
-   lue dans le corps de l'objet, jamais sur l'ETag (composite depuis 006/H19).
+   lue dans le corps de l'objet (servie depuis 006/H21), jamais sur l'ETag (composite
+   depuis 006/H19) ; un corps sans `version` est relu en `If-None-Match`.
 6. **Optimisme au présent seulement** (D-7) : une modification rapide au présent met à
    jour le cache avant la réponse, annule les lectures en cours de la clé et revient en
    arrière sur erreur. Une réponse **202** (revue requise) remplace l'état optimiste par

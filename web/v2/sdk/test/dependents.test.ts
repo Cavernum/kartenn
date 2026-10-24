@@ -18,8 +18,9 @@ const A1 = "00000000-0000-4000-8000-0000000000c1";
 const S1 = "00000000-0000-4000-8000-0000000000e1";
 const PAST = { asOf: "2026-01-01T00:00:00Z" };
 
-const prefix = (id: string): Prefix => ({
+const prefix = (id: string, version = "c0"): Prefix => ({
   id,
+  version,
   value: "10.0.0.0/24",
   nature: "network",
   point_to_point: false,
@@ -56,9 +57,9 @@ describe("references of a body (REQ-021-23)", () => {
     expect(refsOf(card)).toEqual(new Set([M1, S1, I1, A1]));
   });
 
-  it("reads the version of a body, absent from the objects of the contract today", () => {
-    expect(versionOf({ version: "c1" })).toBe("c1");
-    expect(versionOf(prefix(P1))).toBeNull();
+  it("reads the version an object body states (006/H19), null when it states none", () => {
+    expect(versionOf(prefix(P1, "c1"))).toBe("c1");
+    expect(versionOf({ id: P1 })).toBeNull();
     expect(versionOf(null)).toBeNull();
   });
 });
@@ -98,13 +99,23 @@ describe("invalidation by object (REQ-021-23, 24)", () => {
 
   it("leaves an object whose version is already the revision", async () => {
     const { queryClient, reads, invalidation, stale } = setup({
-      [`/v1/prefixes/${P1}`]: { ...prefix(P1), version: "c1" },
+      [`/v1/prefixes/${P1}`]: prefix(P1, "c1"),
     });
     const p1 = reads.object("core.prefix", P1, null);
     await queryClient.fetchQuery(p1);
     await invalidation.objects([{ type: "prefix", id: P1 }], "c1");
     expect(stale(p1.queryKey)).toBe(false);
     await invalidation.objects([{ type: "prefix", id: P1 }], "c2");
+    expect(stale(p1.queryKey)).toBe(true);
+  });
+
+  it("reads again an object whose body states no version", async () => {
+    const { queryClient, reads, invalidation, stale } = setup({
+      [`/v1/prefixes/${P1}`]: { id: P1 },
+    });
+    const p1 = reads.object("core.prefix", P1, null);
+    await queryClient.fetchQuery(p1);
+    await invalidation.objects([{ type: "prefix", id: P1 }], "c1");
     expect(stale(p1.queryKey)).toBe(true);
   });
 

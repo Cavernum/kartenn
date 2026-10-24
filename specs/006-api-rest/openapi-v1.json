@@ -97,6 +97,12 @@
           "value": {
             "description": "Canonical address (REQ-002-6).",
             "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -1180,6 +1186,12 @@
           "slug": {
             "description": "Slug, unique among the living clusters.",
             "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -1704,6 +1716,12 @@
           "slug": {
             "description": "Slug.",
             "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -2189,6 +2207,12 @@
               "string",
               "null"
             ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           },
           "waived": {
             "description": "Whether a waiver covers the date.",
@@ -2986,6 +3010,12 @@
           },
           "name": {
             "description": "Its name, unique on its machine.",
+            "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
             "type": "string"
           },
           "vlan": {
@@ -4709,6 +4739,12 @@
                 "type": "null"
               }
             ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -4827,6 +4863,12 @@
                 "type": "null"
               }
             ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -5577,6 +5619,12 @@
           },
           "slug": {
             "description": "Slug.",
+            "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
             "type": "string"
           }
         },
@@ -7671,6 +7719,12 @@
               "string",
               "null"
             ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -8020,6 +8074,12 @@
           },
           "value": {
             "description": "Canonical CIDR (REQ-002-6).",
+            "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
             "type": "string"
           }
         },
@@ -8430,6 +8490,12 @@
           "usage": {
             "$ref": "#/components/schemas/RangeUsage",
             "description": "Usage."
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
@@ -9776,6 +9842,12 @@
             "description": "`active`, `reserved` or `deprecated`.",
             "type": "string"
           },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
           "vid": {
             "description": "VID, 1 to 4094, unique in the group.",
             "format": "int32",
@@ -9887,6 +9959,12 @@
           },
           "slug": {
             "description": "Slug, unique among the living groups.",
+            "type": "string"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
             "type": "string"
           },
           "vid_max": {

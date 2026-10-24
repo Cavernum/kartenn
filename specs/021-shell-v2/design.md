@@ -374,16 +374,17 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   sur l'ETag (opaque, 006/H19) ; sans `version` dans le corps, invalidation sans
   condition (relecture en `If-None-Match`, 304 si rien n'a changé).
 - **Relevé de `version` par ressource** (tâche 3, contrat `openapi-v1.json` du
-  2026-10-24) :
+  2026-10-24, mis à jour par 006/H21 le même jour) :
 
   | Ressources | `version` dans le corps | Effet côté client |
   |---|---|---|
-  | objets du cœur (entités, sites, domaines, préfixes, plages, adresses) | non | invalidation sans condition, relecture en `If-None-Match` |
-  | objets des modules (VLAN, machines, politique, flux), changesets | non | idem |
+  | objets du cœur (entités, sites, domaines, préfixes, plages, adresses), lus par identifiant ou en page | oui (006/H21) | objet déjà à la révision de l'événement laissé tel quel, sinon relu en `If-None-Match` |
+  | objets des modules (VLAN, machines, politique, flux) | oui (006/H21) | idem |
+  | changesets, objet montré ailleurs (historique, explication) | non | invalidation sans condition, relecture en `If-None-Match` |
   | `Capabilities`, `Module`, `UiPlugin` | oui, mais version du logiciel, pas une révision | jamais comparée : ces lectures n'ont pas de clé d'objet |
 
-  La comparaison n'est faite que sur une clé d'objet (`keys.object`) ; elle s'appliquera
-  sans changement de code le jour où un corps d'objet portera sa révision. Les références
+  La comparaison n'est faite que sur une clé d'objet (`keys.object`) ; un corps sans
+  `version` (serveur antérieur à 006/H21) est relu en `If-None-Match`. Les références
   d'un corps sont relevées par tout membre `id` qui porte un UUID, à toute profondeur
   (résumés `Summary`, `Reference`, `ObjectRef`, éléments embarqués, éléments d'une liste) :
   les identifiants d'objet sont des UUID uniques entre types, l'index se passe donc du type.
@@ -597,8 +598,8 @@ tri et filtre de 130 à 260 ms).
 - **Reka UI** : contournements de comportements non documentés (020, REQ-020-33) ; une
   montée de version de Reka casse au plus des scripts clavier, jamais un écran en silence.
 - **Contrat 022 et ETag composite** : la comparaison sur `version` suppose ce champ dans
-  les corps ; à vérifier sur chaque ressource (tâche 3) ; à défaut, relecture
-  conditionnelle (304), plus coûteuse mais correcte.
+  les corps : servi par tout objet depuis 006/H21 ; à défaut, relecture conditionnelle
+  (304), plus coûteuse mais correcte.
 - **Poids** : framework et `@kartenn/ui` comptés dans les 300 Ko ; mesuré dès la phase 2.
 - **Raccourcis et technologies d'assistance** : revue `a11y-auditor` avec un lecteur
   d'écran en mode navigation, pas seulement axe.

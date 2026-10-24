@@ -218,6 +218,53 @@ pub async fn version(
         .await
 }
 
+/// The versions of the objects `ids` valid at `valid_at`, as asserted at `as_of`, as
+/// [`version`] gives each one: the `version` member of the objects of a page (006/H19).
+/// The objects absent then are absent from the map.
+///
+/// # Errors
+///
+/// Database errors.
+#[tracing::instrument(name = "SELECT versions", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT versions",
+))]
+pub async fn versions(
+    pool: &PgPool,
+    ids: &[Uuid],
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<std::collections::HashMap<Uuid, Uuid>> {
+    if ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let mut parts = Vec::with_capacity(OBJECT_TABLES.len());
+    for table in OBJECT_TABLES {
+        let relation = snapshot(table, &["id", "changeset_id"]).map_err(|e| sql_err(&e))?;
+        parts.push(format!(
+            "SELECT x.id, x.changeset_id FROM {relation} x WHERE x.id = ANY($3)"
+        ));
+    }
+    let current = if as_of.is_none() {
+        "v.changeset_id"
+    } else {
+        "NULL::uuid"
+    };
+    let sql = format!(
+        "SELECT r.id, coalesce({current}, r.changeset_id) FROM ({}) r(id, changeset_id) \
+         LEFT JOIN object_version v ON v.object_id = r.id",
+        parts.join(" UNION ALL "),
+    );
+    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(AssertSqlSafe(sql))
+        .bind(valid_at)
+        .bind(as_of)
+        .bind(ids)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().collect())
+}
+
 /// The time of the database (`now()`), against which the dates of a read are checked.
 ///
 /// # Errors

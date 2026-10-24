@@ -453,6 +453,7 @@ async fn list_groups(
     )
     .await?;
     let items: Vec<GroupDto> = rows.into_iter().map(group_dto).collect();
+    let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
@@ -538,6 +539,7 @@ async fn list_vlans(
     )
     .await?;
     let items: Vec<VlanDto> = rows.into_iter().map(vlan_dto).collect();
+    let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

@@ -580,3 +580,17 @@ routeur complet, sauf mention « vrai TCP ».
   relancé (un SHA-256 de quelques centaines d'octets par lecture, sérialisation
   inchangée) ; l'ETag d'un changeset (son état) n'est pas concerné : sa lecture ne
   répond jamais 304
+- [x] 29. La version d'un objet dans son corps (H21) : membre `version` (part propre de
+  l'ETag) dans toute lecture par identifiant et dans les pages des collections d'objets,
+  noyau et modules, déclaré au contrat par le kit ; contrat, `web/sdk`, `web/v2/sdk`
+  régénérés — REQ-006-14 — verify : `version` = part propre de l'ETag = changeset de la
+  dernière écriture, le même dans la page ; `PATCH` qui l'écrit → 422
+  où : `rest/src/dated.rs` (`VERSION`, `with_version`, `respond_object`),
+  `rest/src/kit.rs` (`versioned`), `store-pg/src/read.rs` (`versions`),
+  `rest/src/openapi.rs` (`object_versions`), `rest/src/resources.rs` (`read_only`),
+  listes de `objects.rs`, `vlan`, `machines`, `flow`, `policy` ; test
+  `rest/tests/it/resources.rs` (`the_body_states_the_own_version`)
+  choix : membre non obligatoire au schéma (le même schéma montre l'objet sans version
+  dans l'historique et les explications) ; un flux en revue d'une page ne porte pas de
+  version (il montre l'état proposé) ; une requête de plus par page (`object_version` par
+  clé primaire au présent) ; banc non relancé

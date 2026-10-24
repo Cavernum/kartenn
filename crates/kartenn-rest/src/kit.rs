@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::changesets::{Answer, Location, Pointers, idempotency_key, period, submit_answered};
 pub use crate::cursor::{Page, PageParams, next_href, respond_page};
-pub use crate::dated::{Dates, DatesParams, ETag, Moment, respond, respond_object};
+pub use crate::dated::{Dates, DatesParams, ETag, Moment, VERSION, respond, respond_object};
 pub use crate::filter::{ListQuery, collection};
 pub use crate::objects::{Api, Target};
 use crate::objects::{audited, gate_target};
@@ -125,6 +125,40 @@ pub async fn version(api: &Api, id: Uuid, moment: &Moment) -> Result<Option<Uuid
     read::version(&api.pool, id, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))
+}
+
+/// `items`, the objects of a page, each with its own version as `version` (REQ-006-14,
+/// 006/H19), the one its read by identifier states: one read for the page. An item
+/// without an `id`, or absent at `moment`, is left as it is.
+///
+/// # Errors
+///
+/// The database unavailable.
+///
+/// # Panics
+///
+/// Never: a value made of serialisable JSON members serialises.
+pub async fn versioned<T: serde::Serialize>(
+    api: &Api,
+    moment: &Moment,
+    items: &[T],
+) -> Result<Vec<Value>, Problem> {
+    let items: Vec<Value> = items
+        .iter()
+        .map(|item| serde_json::to_value(item).expect("JSON values serialise"))
+        .collect();
+    let id = |item: &Value| item.get("id").and_then(Value::as_str)?.parse::<Uuid>().ok();
+    let ids: Vec<Uuid> = items.iter().filter_map(id).collect();
+    let versions = read::versions(&api.pool, &ids, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?;
+    Ok(items
+        .into_iter()
+        .map(|item| match id(&item).and_then(|id| versions.get(&id)) {
+            Some(version) => crate::dated::with_version(&item, *version),
+            None => item,
+        })
+        .collect())
 }
 
 /// The kind of the pipeline of `ty`.

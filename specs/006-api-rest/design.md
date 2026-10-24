@@ -288,6 +288,13 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   l'historique est celui connu alors : versions assertées à `as_of`, et une version
   retirée après `as_of` rendue avec `asserted_to` `null` — rien de postérieur ne
   transparaît, la réponse au passé figé reste immuable (REQ-006-6) (006-12e).
+- **Version dans le corps (H21)** : tout objet du noyau ou d'un module, lu par
+  identifiant ou dans la page de sa collection, porte `version` (UUID du dernier
+  changeset qui l'a écrit, lui ou ses propriétés ; la part propre de l'ETag). Le kit
+  l'ajoute (`dated::with_version` dans `respond_object`, `kit::versioned` pour une page,
+  une requête `read::versions` par page) et l'assemblage du contrat le déclare
+  (`readOnly`, non obligatoire : le même schéma montre l'objet ailleurs sans version).
+  Un `PATCH` du noyau qui l'écrit → 422.
 - Membres réservés des corps d'écriture : `motive` (obligatoire), `valid_from`,
   `valid_to` ; jamais confondus avec des champs de l'objet (le noyau n'a aucun champ de
   ce nom ; un test du contrat le garantit).
