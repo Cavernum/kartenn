@@ -44,6 +44,9 @@ pub struct RequestContext {
     /// (`?apply=own`, spec 024, REQ-024-13): a write sets
     /// [`crate::ChangesetRequest::apply_own`] from it.
     pub apply_own: bool,
+    /// The request asks to simulate the changeset it submits (`?simulate=true`, spec 024,
+    /// REQ-024-17): nothing is written, the answer is the simulation.
+    pub simulate: bool,
 }
 
 impl RequestContext {
@@ -77,6 +80,7 @@ impl RequestContext {
             groups: Vec::new(),
             on_behalf_of: None,
             apply_own: false,
+            simulate: false,
         }
     }
 
@@ -90,6 +94,7 @@ impl RequestContext {
             groups: Vec::new(),
             on_behalf_of: None,
             apply_own: false,
+            simulate: false,
         }
     }
 

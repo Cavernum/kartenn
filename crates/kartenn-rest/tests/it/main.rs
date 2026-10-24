@@ -31,6 +31,7 @@ mod quota;
 mod resources;
 mod rights;
 mod sessions;
+mod simulated;
 mod socle;
 mod suggestions;
 mod transport;
