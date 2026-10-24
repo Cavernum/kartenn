@@ -1,0 +1,8 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "ko — État ko":
+      - text: En échec
+      - code: ko
+      - text: ""

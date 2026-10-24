@@ -1,0 +1,12 @@
+- main:
+  - region "Grid":
+    - heading "Grid" [level=1]
+    - paragraph: "Motif : — (grille de mise en page)"
+    - figure "columns-3 — Trois colonnes égales":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4 Bloc 5 Bloc 6
+      - code: columns-3
+      - text: ""
+    - figure "auto — Autant de panneaux que la largeur en tient":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4 Bloc 5 Bloc 6
+      - code: auto
+      - text: ""

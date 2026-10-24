@@ -1,0 +1,34 @@
+- main:
+  - region "DiffList":
+    - heading "DiffList" [level=1]
+    - paragraph: "Motif : liste groupée par objet, Disclosure"
+    - figure "collapsed — Un objet replié":
+      - 'heading /modifié : Serveurs de bases \d+\.\d+\.2\.0\/\d+ 3/ [level=3]':
+        - 'button /modifié : Serveurs de bases \d+\.\d+\.2\.0\/\d+ 3/':
+          - text: ""
+          - code: /\d+\.\d+\.2\.0\/\d+/
+          - text: ""
+      - 'heading /ajouté : Invités \d+\.\d+\.\d+\.\d+\/\d+ 2/ [level=3]':
+        - 'button /ajouté : Invités \d+\.\d+\.\d+\.\d+\/\d+ 2/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "ajouté : Préfixe"
+          - insertion: "/après : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+        - listitem:
+          - text: "ajouté : Environnement"
+          - insertion: "après : Développement"
+      - 'heading /anomalie : Supervision \d+\.\d+\.\d+\.\d+\/\d+ 1/ [level=3]':
+        - 'button /anomalie : Supervision \d+\.\d+\.\d+\.\d+\/\d+ 1/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "anomalie : Chevauchement"
+          - deletion: "/avant : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+          - insertion: "/après : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+      - code: collapsed
+      - text: ""

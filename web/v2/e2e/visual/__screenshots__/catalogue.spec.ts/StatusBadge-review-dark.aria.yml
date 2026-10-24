@@ -1,0 +1,8 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "review — État review":
+      - text: En revue
+      - code: review
+      - text: ""

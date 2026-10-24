@@ -1,0 +1,6 @@
+- main:
+  - alertdialog "Appliquer le changeset ?":
+    - heading "Appliquer le changeset ?" [level=2]
+    - paragraph: Les modifications seront visibles de tous.
+    - button "Annuler"
+    - button "Appliquer"

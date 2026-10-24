@@ -1,0 +1,8 @@
+- main:
+  - region "Skeleton":
+    - heading "Skeleton" [level=1]
+    - paragraph: "Motif : aria-busy"
+    - figure "rows — Lignes de table (hauteur de ligne)":
+      - status: Chargement
+      - code: rows
+      - text: ""

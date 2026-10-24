@@ -1,0 +1,39 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - figure "loading-children — Chargement des enfants d'un nœud":
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ \(chargement des enfants\) Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+ \(chargement des enfants\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row "chargement des enfants" [level=3]:
+            - gridcell "chargement des enfants"
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 %/ [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+      - code: loading-children
+      - text: ""

@@ -1,0 +1,56 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - figure "move-states — Déplacement en attente (à sa place d'origine), déplacement refusé":
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Bases \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(déplacement en attente\) Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(déplacement en attente\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ Production \d+ %/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ \(déplacement refusé\) Développement 3 %/ [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+ \(déplacement refusé\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+              - status:
+                - text: Parent déduit de l'inclusion.
+                - button "Copier tree.derived-parent":
+                  - text: ""
+                  - code: tree.derived-parent
+                - status
+            - gridcell "Développement"
+            - gridcell "3 %"
+      - code: move-states
+      - text: ""

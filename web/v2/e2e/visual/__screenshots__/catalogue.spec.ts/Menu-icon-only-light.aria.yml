@@ -1,0 +1,8 @@
+- main:
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - figure "icon-only — Bouton-icône (lignes, barres d'outils)":
+      - button "Actions sur le préfixe"
+      - code: icon-only
+      - text: ""

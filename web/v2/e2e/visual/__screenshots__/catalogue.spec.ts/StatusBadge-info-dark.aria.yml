@@ -1,0 +1,8 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "info — État info":
+      - text: Planifié
+      - code: info
+      - text: ""

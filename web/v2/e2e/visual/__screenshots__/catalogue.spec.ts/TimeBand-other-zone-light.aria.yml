@@ -1,0 +1,12 @@
+- main:
+  - region "TimeBand":
+    - heading "TimeBand" [level=1]
+    - paragraph: "Motif : role=status, bouton de retour au présent"
+    - figure "other-zone — Autre fuseau nommé":
+      - status:
+        - text: Lecture au
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: (America/Montreal)
+      - button "Revenir au présent"
+      - code: other-zone
+      - text: ""

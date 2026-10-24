@@ -1,0 +1,8 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "all — Les six états côte à côte":
+      - text: Conforme À vérifier En échec En revue Planifié Brouillon
+      - code: all
+      - text: ""

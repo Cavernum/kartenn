@@ -22,9 +22,15 @@ test("the catalogue raises no CSP violation and loads nothing from elsewhere", a
   const pages = await page
     .locator("main a")
     .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
+  test.setTimeout(300_000);
   for (const path of ["/_ui", ...pages]) {
     for (const query of ["?mode=light", "?mode=dark&densite=confortable"]) {
       await open(page, `${path}${query}`);
+      // States shown alone (open layers: dialogs, menus, palette) are visited too.
+      const alone = await page
+        .locator("[data-isolated] a")
+        .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
+      for (const href of alone) await open(page, new URL(href).pathname + new URL(href).search);
     }
   }
 

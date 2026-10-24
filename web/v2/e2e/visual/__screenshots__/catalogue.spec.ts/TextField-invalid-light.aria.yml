@@ -1,0 +1,11 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Préfixe
+      - textbox "Préfixe" [invalid]: /\d+\.\d+\.\d+\.\d+\/\d+/
+      - paragraph: Adresse hors de l'espace IPv4.
+      - paragraph: Notation CIDR.
+      - code: invalid
+      - text: ""

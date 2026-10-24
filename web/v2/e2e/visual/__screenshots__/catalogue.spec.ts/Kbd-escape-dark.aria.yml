@@ -1,0 +1,8 @@
+- main:
+  - region "Kbd":
+    - heading "Kbd" [level=1]
+    - paragraph: "Motif : — (kbd imbriqués d'une combinaison)"
+    - figure "escape — Échap":
+      - text: ""
+      - code: escape
+      - text: ""

@@ -1,0 +1,6 @@
+- main:
+  - dialog "Palette de commandes":
+    - heading "Palette de commandes" [level=2]
+    - paragraph: Rechercher une commande, un objet, une page
+    - combobox "Palette de commandes"
+    - status: Aucun résultat

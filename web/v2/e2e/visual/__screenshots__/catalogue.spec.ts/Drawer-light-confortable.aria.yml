@@ -1,0 +1,21 @@
+- main:
+  - region "Drawer":
+    - heading "Drawer" [level=1]
+    - paragraph: "Motif : région complementary (non modal) ou Dialog (modal)"
+    - figure "non-modal — Panneau du brouillon, non modal, à côté de la surface":
+      - complementary "Brouillon":
+        - heading "Brouillon" [level=2]
+        - button "Fermer"
+        - paragraph: 3 opérations, non soumises.
+        - paragraph: /Brouillon \d+\.\d+\.2\.0\/\d+/
+        - paragraph: /Brouillon \d+\.\d+\.2\.0\/\d+/
+        - paragraph: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+        - button "Abandonner"
+        - button "Soumettre"
+      - code: non-modal
+      - text: ""
+    - figure "modal — Modal, sur le côté de la page":
+      - link "Voir l'état modal seul":
+        - /url: /_ui/c/Drawer?mode=light&densite=confortable&etat=modal
+      - code: modal
+      - text: ""

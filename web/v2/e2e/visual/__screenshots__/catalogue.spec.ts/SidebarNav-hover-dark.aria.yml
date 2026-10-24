@@ -1,0 +1,49 @@
+- main:
+  - region "SidebarNav":
+    - heading "SidebarNav" [level=1]
+    - paragraph: "Motif : Disclosure dans un repère navigation"
+    - figure "hover — Survol d'une entrée":
+      - navigation "Navigation principale":
+        - text: kartenn
+        - button "Rechercher"
+        - button "Référentiel" [expanded]
+        - list:
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - button "Changesets" [expanded]
+        - list:
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - button "Réseau" [expanded]
+        - list:
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - button "Administration" [expanded]
+        - list:
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale" [expanded]
+      - code: hover
+      - text: ""

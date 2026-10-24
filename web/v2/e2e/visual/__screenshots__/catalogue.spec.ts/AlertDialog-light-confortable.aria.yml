@@ -1,0 +1,14 @@
+- main:
+  - region "AlertDialog":
+    - heading "AlertDialog" [level=1]
+    - paragraph: "Motif : Alert Dialog (focus sur Annuler)"
+    - figure "destructive — Confirmation destructive":
+      - link "Voir l'état destructive seul":
+        - /url: /_ui/c/AlertDialog?mode=light&densite=confortable&etat=destructive
+      - code: destructive
+      - text: ""
+    - figure "confirm — Confirmation simple":
+      - link "Voir l'état confirm seul":
+        - /url: /_ui/c/AlertDialog?mode=light&densite=confortable&etat=confirm
+      - code: confirm
+      - text: ""

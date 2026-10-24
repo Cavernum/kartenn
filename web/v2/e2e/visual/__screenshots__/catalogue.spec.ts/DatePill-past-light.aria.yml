@@ -1,0 +1,10 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button (ouvre le choix de la période)"
+    - 'figure "past — Hors présent : couleurs de la bande, fuseau nommé"':
+      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+      - code: past
+      - text: ""

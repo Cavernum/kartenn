@@ -1,0 +1,16 @@
+- main:
+  - region "Cluster":
+    - heading "Cluster" [level=1]
+    - paragraph: "Motif : — (mise en page en rangée)"
+    - figure "gap-2 — Écart 8 px (défaut)":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4
+      - code: gap-2
+      - text: ""
+    - figure "gap-1 — Écart 4 px":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4
+      - code: gap-1
+      - text: ""
+    - figure "end — Alignés à la fin":
+      - text: Bloc 1 Bloc 2 Bloc 3 Bloc 4
+      - code: end
+      - text: ""

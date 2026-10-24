@@ -1,0 +1,44 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - figure "applied — Filtre appliqué":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - code: applied
+      - text: ""
+    - figure "mono — Valeur en chasse fixe":
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - code: mono
+      - text: ""
+    - figure "draft — Brouillon de filtre (valeur à choisir)":
+      - button "Responsable contient (en brouillon)"
+      - button "Retirer le filtre Responsable contient"
+      - code: draft
+      - text: ""
+    - 'figure "invalid — Invalide : motif dit aux technologies d''assistance"':
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - text: /Longueur de préfixe hors de 0 à \d+\./
+      - code: invalid
+      - text: ""
+    - figure "hover — Survol":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible sur le bouton de retrait":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - code: focus
+      - text: ""
+    - figure "row — Une rangée de filtres":
+      - button "Environnement est Production"
+      - button "Retirer le filtre Environnement est Production"
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button "Responsable contient (en brouillon)"
+      - button "Retirer le filtre Responsable contient"
+      - code: row
+      - text: ""

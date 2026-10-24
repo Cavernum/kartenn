@@ -1,0 +1,8 @@
+- main:
+  - region "IconButton":
+    - heading "IconButton" [level=1]
+    - paragraph: "Motif : Button (nom accessible obligatoire)"
+    - figure "primary — Principal":
+      - button "Créer"
+      - code: primary
+      - text: ""

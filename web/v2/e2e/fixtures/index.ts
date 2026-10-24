@@ -27,10 +27,12 @@ export async function snap(page: Page, state: string): Promise<void> {
 /**
  * No axe-core violation for WCAG 2.0 to 2.2, A and AA (REQ-020-28). `preload: false`: axe
  * copies the sheets into `<style>` elements, which the CSP refuses (as in web/e2e).
+ * `disabled`: rules left out, each with its reason at the call.
  */
-export async function expectAccessible(page: Page): Promise<void> {
+export async function expectAccessible(page: Page, disabled: string[] = []): Promise<void> {
   const results = await new AxeBuilder({ page })
     .options({ preload: false })
+    .disableRules(disabled)
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(

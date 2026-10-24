@@ -1,0 +1,62 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - figure "rest — Au repos, avec aide":
+      - text: Nom
+      - textbox "Nom"
+      - paragraph: Visible dans les listes.
+      - code: rest
+      - text: ""
+    - figure "placeholder — Vide, avec icône et exemple":
+      - text: Recherche
+      - searchbox "Recherche"
+      - code: placeholder
+      - text: ""
+    - figure "mono — Chasse fixe (préfixe), obligatoire":
+      - text: Préfixe (obligatoire)
+      - textbox "Préfixe (obligatoire)": /\d+\.\d+\.2\.0\/\d+/
+      - code: mono
+      - text: ""
+    - figure "hover — Survol":
+      - text: Nom
+      - textbox "Nom": Serveurs de bases
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - text: Nom
+      - textbox "Nom": Serveurs de bases
+      - code: focus
+      - text: ""
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Préfixe
+      - textbox "Préfixe" [invalid]: /\d+\.\d+\.\d+\.\d+\/\d+/
+      - paragraph: Adresse hors de l'espace IPv4.
+      - paragraph: Notation CIDR.
+      - code: invalid
+      - text: ""
+    - figure "pending — En attente (vérification en cours)":
+      - text: Préfixe
+      - textbox "Préfixe": /\d+\.\d+\.\d+\.\d+\/\d+/
+      - code: pending
+      - text: ""
+    - figure "readonly — Lecture seule":
+      - text: Identifiant
+      - textbox "Identifiant": 01JD4K7Q9V2M8X3N5P6R7S8T9W
+      - code: readonly
+      - text: ""
+    - figure "disabled — Désactivé":
+      - text: Nom
+      - textbox "Nom" [disabled]: Serveurs de bases
+      - code: disabled
+      - text: ""
+    - figure /small — Petit \(\d+ px en compacte\), étiquette cachée/:
+      - text: Filtrer
+      - textbox "Filtrer"
+      - code: small
+      - text: ""
+    - figure /large — Grand \(\d+ px en compacte\)/:
+      - text: Nom
+      - textbox "Nom": Serveurs de bases
+      - code: large
+      - text: ""

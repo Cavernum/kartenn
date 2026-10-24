@@ -1,0 +1,8 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : — (pastille et libellé)"
+    - figure "labelled — Pastille et libellé":
+      - text: Production
+      - code: labelled
+      - text: ""

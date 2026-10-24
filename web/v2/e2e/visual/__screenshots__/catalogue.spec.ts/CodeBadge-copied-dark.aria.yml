@@ -1,0 +1,11 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - figure "copied — Copié (annoncé)":
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: copied
+      - text: ""

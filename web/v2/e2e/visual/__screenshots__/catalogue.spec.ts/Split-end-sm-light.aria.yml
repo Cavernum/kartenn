@@ -1,0 +1,8 @@
+- main:
+  - region "Split":
+    - heading "Split" [level=1]
+    - paragraph: "Motif : — (côté de largeur fixe et partie principale)"
+    - figure /end-sm — Côté à la fin, \d+ px/:
+      - text: Principal Côté
+      - code: end-sm
+      - text: ""

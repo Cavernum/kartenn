@@ -1,0 +1,8 @@
+- main:
+  - region "DraftCounter":
+    - heading "DraftCounter" [level=1]
+    - paragraph: "Motif : Button (aria-expanded du panneau)"
+    - figure "pending — Opérations en brouillon":
+      - button /Brouillon \( \d+ \)/
+      - code: pending
+      - text: ""

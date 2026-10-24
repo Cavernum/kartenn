@@ -98,6 +98,12 @@ const BORDER_WIDTH =
   /^(border(-(block|inline|top|right|bottom|left)(-(start|end))?)?(-width)?|outline(-width)?)$/;
 const DIMENSION =
   /(?<![\w-])(-?\d*\.?\d+)(px|rem|em|ex|ch|lh|rlh|vw|vh|vmin|vmax|vi|vb|svh|lvh|dvh|cqi|cqb|pt|pc|cm|mm|in|q|ms|s|deg|rad|turn|fr)(?![\w-])/gi;
+const insideKeyframes = (node) => {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent.type === "atrule" && /keyframes$/i.test(parent.name)) return true;
+  }
+  return false;
+};
 const rawLength = createPlugin(rawLengthName, (primary) => (root, result) => {
   if (!validateOptions(result, rawLengthName, { actual: primary, possible: [true] })) return;
   root.walkDecls((decl) => {
@@ -108,6 +114,9 @@ const rawLength = createPlugin(rawLengthName, (primary) => (root, result) => {
       if (Number(number) === 0) continue;
       if (match === "1px" && BORDER_WIDTH.test(decl.prop)) continue;
       if (unit.toLowerCase() === "fr" && /^grid-template/.test(decl.prop)) continue;
+      // The angle of a keyframe (the turn of a loading indicator) is geometry, not a value
+      // of the design.
+      if (/^(deg|rad|turn)$/i.test(unit) && insideKeyframes(decl)) continue;
       report({
         ruleName: rawLengthName,
         result,

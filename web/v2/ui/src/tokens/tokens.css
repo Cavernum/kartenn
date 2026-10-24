@@ -36,6 +36,14 @@
     --k-band-bg: #fff4dc;
     --k-band-fg: #6b4400;
 
+    /* Interaction: hover and press of a neutral control, hover of a filled one */
+    --k-hover: color-mix(in oklab, var(--k-text) 6%, var(--k-surface));
+    --k-active: color-mix(in oklab, var(--k-text) 11%, var(--k-surface));
+    --k-accent-hover: color-mix(in oklab, var(--k-accent) 86%, var(--k-text));
+    --k-danger: var(--k-state-ko-fg);
+    --k-danger-fg: var(--k-accent-fg);
+    --k-danger-hover: color-mix(in oklab, var(--k-state-ko-fg) 86%, var(--k-text));
+
     /* States (REQ-020-7): the value, its soft background and its border */
     --k-state-ok-fg: #147942;
     --k-state-warn-fg: #9d5800;
@@ -97,6 +105,7 @@
     --k-shadow-overlay: 0 4px 12px rgb(16 24 40 / 0.12), 0 1px 3px rgb(16 24 40 / 0.08);
     --k-shadow-modal: 0 12px 32px rgb(16 24 40 / 0.18);
     --k-shadow-inset-accent: inset var(--k-focus-width) 0 0 var(--k-accent);
+    --k-scrim: rgb(16 24 40 / 0.36);
 
     /* Stacking order of the floating layers */
     --k-z-sticky: 10;
@@ -141,13 +150,33 @@
     --k-icon-size-lg: 20px;
     --k-icon-stroke: 1.5;
 
+    /* Sizes of the layout and of the floating layers (design « Tailles ») */
+    --k-size-sidebar: 208px;
+    --k-size-sidebar-collapsed: 48px;
+    --k-size-status-bar: 40px;
+    --k-size-panel-sm: 240px;
+    --k-size-panel-md: 320px;
+    --k-size-panel-lg: 420px;
+    --k-size-dialog-sm: 400px;
+    --k-size-dialog-md: 560px;
+    --k-size-dialog-lg: 720px;
+    --k-size-menu-min: 180px;
+    --k-size-tooltip-max: 280px;
+    --k-size-field: 240px;
+    --k-size-col-xs: 56px;
+    --k-size-col-sm: 96px;
+    --k-size-col-md: 160px;
+    --k-size-col-lg: 240px;
+
     /* Motion (REQ-020-11) */
     --k-duration-instant: 0ms;
     --k-duration-fade: 80ms;
     --k-duration-short: 120ms;
     --k-duration-medium: 200ms;
+    --k-duration-spin: 900ms;
     --k-ease-standard: cubic-bezier(0.2, 0, 0, 1);
     --k-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    --k-ease-linear: linear;
   }
 
   /* Dark mode: the system's, unless the user forced light (REQ-020-3). The two blocks
@@ -188,6 +217,7 @@
         0 0 0 1px var(--k-border-strong), 0 4px 12px rgb(16 24 40 / 0.24),
         0 1px 3px rgb(16 24 40 / 0.16);
       --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
+      --k-scrim: rgb(0 0 0 / 0.56);
     }
   }
 
@@ -226,6 +256,7 @@
       0 0 0 1px var(--k-border-strong), 0 4px 12px rgb(16 24 40 / 0.24),
       0 1px 3px rgb(16 24 40 / 0.16);
     --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
+    --k-scrim: rgb(0 0 0 / 0.56);
   }
 
   /* Comfortable density (REQ-020-2) */
@@ -247,6 +278,7 @@
     :root {
       --k-duration-short: 0ms;
       --k-duration-medium: 0ms;
+      --k-duration-spin: 0ms;
     }
   }
 }

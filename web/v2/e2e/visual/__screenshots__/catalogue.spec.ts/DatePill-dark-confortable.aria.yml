@@ -1,0 +1,24 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button (ouvre le choix de la période)"
+    - figure "present — Présent":
+      - button "Présent"
+      - code: present
+      - text: ""
+    - 'figure "past — Hors présent : couleurs de la bande, fuseau nommé"':
+      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+      - code: past
+      - text: ""
+    - figure "hover — Survol":
+      - button "Présent"
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+      - code: focus
+      - text: ""

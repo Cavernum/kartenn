@@ -1,0 +1,214 @@
+- main:
+  - region "SidebarNav":
+    - heading "SidebarNav" [level=1]
+    - paragraph: "Motif : Disclosure dans un repère navigation"
+    - figure "expanded — Dépliée, entrée active, compteurs":
+      - navigation "Navigation principale":
+        - text: kartenn
+        - button "Rechercher"
+        - button "Référentiel" [expanded]
+        - list:
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - button "Changesets" [expanded]
+        - list:
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - button "Réseau" [expanded]
+        - list:
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - button "Administration" [expanded]
+        - list:
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale" [expanded]
+      - code: expanded
+      - text: ""
+    - figure "group-closed — Un espace replié":
+      - navigation "Navigation principale":
+        - text: kartenn
+        - button "Rechercher"
+        - button "Référentiel" [expanded]
+        - list:
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - button "Changesets"
+        - button "Réseau" [expanded]
+        - list:
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - button "Administration" [expanded]
+        - list:
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale" [expanded]
+      - code: group-closed
+      - text: ""
+    - figure "collapsed — Repliée en icônes (noms gardés pour les technologies d'assistance)":
+      - navigation "Navigation principale":
+        - button "Rechercher"
+        - list "Référentiel":
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - list "Changesets":
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - list "Réseau":
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - list "Administration":
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale"
+      - code: collapsed
+      - text: ""
+    - figure "hover — Survol d'une entrée":
+      - navigation "Navigation principale":
+        - text: kartenn
+        - button "Rechercher"
+        - button "Référentiel" [expanded]
+        - list:
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - button "Changesets" [expanded]
+        - list:
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - button "Réseau" [expanded]
+        - list:
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - button "Administration" [expanded]
+        - list:
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale" [expanded]
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - navigation "Navigation principale":
+        - text: kartenn
+        - button "Rechercher"
+        - button "Référentiel" [expanded]
+        - list:
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - button "Changesets" [expanded]
+        - list:
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - button "Réseau" [expanded]
+        - list:
+          - listitem:
+            - link "VLAN":
+              - /url: /x/vlan
+        - button "Administration" [expanded]
+        - list:
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale" [expanded]
+      - code: focus
+      - text: ""

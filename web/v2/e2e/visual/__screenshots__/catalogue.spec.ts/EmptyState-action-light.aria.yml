@@ -1,0 +1,9 @@
+- main:
+  - region "EmptyState":
+    - heading "EmptyState" [level=1]
+    - paragraph: "Motif : — (une phrase et une action)"
+    - figure "action — Une phrase et une action":
+      - paragraph: Aucun préfixe dans ce domaine.
+      - button "Créer"
+      - code: action
+      - text: ""

@@ -1,0 +1,83 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import type { CatalogueEntry } from "../../catalogue.ts";
+import SidebarNav from "./SidebarNav.vue";
+import type { SidebarGroup } from "./sidebar.ts";
+
+/** The spaces of spec 021 (« Cadre »), shortened. */
+const groups: SidebarGroup[] = [
+  {
+    id: "referential",
+    label: "Référentiel",
+    entries: [
+      { id: "home", label: "Accueil", icon: "house", to: "/" },
+      { id: "domains", label: "Domaines", icon: "domain", to: "/domains" },
+      { id: "prefixes", label: "Préfixes", icon: "prefix", to: "/prefixes" },
+      { id: "addresses", label: "Adresses", icon: "address", to: "/addresses" },
+      { id: "anomalies", label: "Anomalies", icon: "triangle-alert", to: "/anomalies", badge: 4 },
+    ],
+  },
+  {
+    id: "changes",
+    label: "Changesets",
+    entries: [
+      { id: "changesets", label: "Changesets", icon: "changeset", to: "/changesets" },
+      {
+        id: "proposals",
+        label: "À instruire",
+        icon: "git-pull-request",
+        to: "/proposals",
+        badge: 2,
+      },
+      { id: "draft", label: "Brouillon", icon: "draft", to: "/draft" },
+    ],
+  },
+  {
+    id: "network",
+    label: "Réseau",
+    entries: [{ id: "vlans", label: "VLAN", icon: "vlan", to: "/x/vlan" }],
+  },
+  {
+    id: "admin",
+    label: "Administration",
+    entries: [{ id: "admin", label: "Administration", icon: "settings", to: "/admin" }],
+  },
+];
+
+export default {
+  component: SidebarNav,
+  pattern: "Disclosure dans un repère navigation",
+  states: [
+    {
+      name: "expanded",
+      description: "Dépliée, entrée active, compteurs",
+      props: { brand: "kartenn", groups, active: "prefixes" },
+    },
+    {
+      name: "group-closed",
+      description: "Un espace replié",
+      props: { brand: "kartenn", groups, active: "prefixes", closed: ["changes"] },
+    },
+    {
+      name: "collapsed",
+      description: "Repliée en icônes (noms gardés pour les technologies d'assistance)",
+      props: { brand: "kartenn", groups, active: "prefixes", collapsed: true },
+    },
+    {
+      name: "hover",
+      description: "Survol d'une entrée",
+      props: { brand: "kartenn", groups, active: "prefixes" },
+      interaction: "hover",
+      target: "a[href='/addresses']",
+    },
+    {
+      name: "focus",
+      description: "Focus visible",
+      props: { brand: "kartenn", groups, active: "prefixes" },
+      interaction: "focus",
+      target: "a[href='/domains']",
+    },
+  ],
+} satisfies CatalogueEntry;

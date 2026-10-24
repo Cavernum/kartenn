@@ -232,24 +232,83 @@ emploient.
 Composants rendus avec leurs jetons et leurs états visuels, sans tout le comportement
 clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
 
-- [ ] 10. Version visuelle : `Stack`, `Cluster`, `Grid`, `Split`, `Button`,
+- [x] 10. Version visuelle : `Stack`, `Cluster`, `Grid`, `Split`, `Button`,
   `IconButton`, `TextField`, `Kbd`, `StatusBadge`, `KeyLabel`, `EnvChip`, `CodeBadge` —
   REQ-020-16, 17, 21, 22 — verify : pages de catalogue et capture d'alignement (bouton,
   champ, pastille, bouton-icône côte à côte)
   - où : design § « Inventaire » (lignes 1 à 4, 22 à 24, 28) ; `web/v2/ui/src/components/`
   - dépend de : 9
-- [ ] 11. Version visuelle : `SidebarNav`, `Breadcrumb`, `DatePill`, `DraftCounter`,
+  - fait : `Stack`, `Cluster`, `Grid`, `Split` (écart `data-k-gap` sur l'échelle, feuille
+    commune `components/shared.css` avec l'indicateur `k-spinner`), `Button` (quatre
+    variantes, trois tailles, icône, raccourci `Kbd` + `aria-keyshortcuts`, occupé =
+    `aria-disabled` + `aria-busy`, bascule `aria-pressed`), `IconButton` (nom obligatoire
+    au typage), `TextField` (étiquette, aide et erreur par `aria-describedby`, lecture
+    seule, en attente, chasse fixe, étiquette cachée), `Kbd` (`kbd` imbriqués, noms de
+    touches dans la langue), `StatusBadge`, `KeyLabel`, `EnvChip`, `CodeBadge` (copie,
+    annonce `status`, nom = contenu) ; `i18n.ts` (`setLocale`, `t`), `clipboard.ts`,
+    `fixtures/` (blocs de documentation RFC 5737/3849) ; catalogue : états avec `slot`,
+    `demo`, `interaction` (survol, focus, appui joués avant la capture), `wide`, `isolated` ;
+    captures : un état par mode, plus chaque page en densité confortable (choix de Claude :
+    les quatre combinaisons par état doublaient la durée du projet `visual`, déjà ≈ 20 min
+    sous charge) ; état `alignment` de `Button` (bouton, champ, bouton-icône, pastilles par
+    taille). Jetons ajoutés (design, « Couleurs », « Mouvement », « Tailles ») :
+    `--k-hover`, `--k-active`, `--k-accent-hover`, `--k-danger*`, `--k-scrim`,
+    `--k-duration-spin`, `--k-ease-linear`, `--k-size-*`. Lint : un angle d'images clés
+    (`rotate(1turn)`) est permis ; test `sheets.test.ts` : toute propriété lue existe.
+    Infobulle de `IconButton`, clé en infobulle et copie de `KeyLabel` : version complète
+    (tâches 16 et 24).
+- [x] 11. Version visuelle : `SidebarNav`, `Breadcrumb`, `DatePill`, `DraftCounter`,
   `TimeBand`, `Tabs`, `Menu`, `Drawer`, `Dialog`, `CommandPalette` — REQ-020-16 —
   verify : pages de catalogue, captures
   - où : design § « Inventaire » (lignes 10 à 13, 17 à 19, 27) ; écran de la direction
     « Ardoise » (barre latérale, barre d'état, bande)
   - dépend de : 10
-- [ ] 12. Version visuelle : `DataGrid`, `TreeGrid`, `FilterChip`, `DiffList`,
+  - fait : `SidebarNav` (espaces en Disclosure, entrée active, compteurs, repliée en
+    icônes avec les noms gardés, `[` en `aria-keyshortcuts`), `Breadcrumb` (dernier élément
+    `aria-current`, clés en chasse fixe), `DatePill`, `DraftCounter`, `TimeBand`
+    (`formatInstant` : langue et fuseau nommé), `Tabs` (Reka, activation manuelle, onglets
+    de plugin en chargement et en erreur dits en mots), `Menu` (Reka DropdownMenu, bouton
+    et menu en un composant, raccourcis à droite, entrée désactivée avec motif), `Dialog`,
+    `AlertDialog` (Reka, focus sur Annuler), `Drawer` (non modal = `aside` qui pousse la
+    surface ; modal = Reka Dialog), `CommandPalette` (Combobox `position="inline"` dans un
+    Dialog, sans Viewport ; Reka laissait `aria-controls` vide : identifiant posé par
+    nous). `provideLink` (liens du routeur) et `providePortalTarget` (le catalogue garde les
+    couches dans `main`, pour les instantanés ARIA). Choix de Claude : `MenuButton` n'est
+    pas un composant à part (le menu porte son bouton) ; les couches modales sont des états
+    `isolated`, vérifiés par axe sur leur page sans la règle `aria-hidden-focus` (Reka cache
+    le reste par `aria-hidden` et piège le focus) ; le parcours CSP visite ces états.
+- [x] 12. Version visuelle : `DataGrid`, `TreeGrid`, `FilterChip`, `DiffList`,
   `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` (données statiques, sans
   virtualisation) — REQ-020-16, 19, 20, 23 — verify : pages de catalogue, captures
   (ligne en brouillon, en revue, cellule invalide)
   - où : design § « Inventaire » (lignes 6, 20, 21, 25, 26, 29) ; `web/v2/ui/src/fixtures/`
   - dépend de : 11
+  - fait : `DataGrid` (maison : `grid`, lignes et colonnes comptées et indexées, en-têtes
+    `aria-sort`, tabindex itinérant, sélection, états de cellule `pending`, `draft`,
+    `review`, erreur avec motif et code, états de ligne, éditeur en place ; gabarit
+    `--k-grid-columns` en jetons, commun à l'en-tête et aux lignes, posé par CSSOM),
+    `TreeGrid` (`flatten` : `aria-level`, `aria-setsize`, `aria-posinset`,
+    `aria-expanded` ; états brouillon, enfants en chargement, cible acceptée ou refusée,
+    déplacement en attente ou refusé avec motif et code ; garde `misplaced` hors
+    production, REQ-020-32), `FilterChip`, `DiffList` (signe, mot caché, `del`/`ins`),
+    `Skeleton`, `EmptyState`, `ErrorState` (code et `Request-Id` copiables), `InlineAlert`.
+    API de la version complète déjà posée (contrat d'édition, `ParentMode`, `MoveCheck`) ;
+    virtualisation, clavier, édition et déplacements : tâches 25 et 26. `Tree` (Reka) :
+    tâche 26.
+  - revues des tâches 10 à 12 (`ui-reviewer`, `a11y-auditor`, sur captures et code) :
+    corrigés — bulle d'erreur de cellule coupée (côté selon la colonne, une ligne) ;
+    ligne sélectionnée, en brouillon, en revue marquées autrement que par la teinte
+    (liseré, icône, mot caché) ; option active de la palette et du menu avec liseré ;
+    barre latérale (libellés tronqués, nom fixe du bouton de repli avec `aria-expanded`,
+    `aria-keyshortcuts` de la palette, compteurs gardés repliée) ; focus initial d'un
+    dialogue sur son premier champ ; pas d'`aria-describedby` sans description ; retour du
+    focus à la fermeture du tiroir non modal ; motif d'un filtre invalide visible et lié,
+    filtre en brouillon dit en mots ; alerte de `ErrorState` réduite à la phrase ; mot du
+    squelette en `status` ; `aria-selected` de l'arbre seulement s'il sélectionne. Restent
+    pour P4 : une alerte par cellule en erreur (fragile), annonce de `TimeBand` et
+    `DraftCounter` au lecteur d'écran, alerte de `InlineAlert` qui contient les codes.
+    À arbitrer (maquettes, tâche 15) : rayon plein de `DatePill`, barre latérale sombre
+    en mode clair, motif d'une entrée de menu désactivée sur deux lignes.
 - [ ] 13. Maquettes E1 à E5 (référentiel, fiche d'un préfixe, liste d'adresses, changeset
   et revue, brouillon) en clair et en sombre — REQ-020-25 — verify : captures de
   référence ; revue `ui-reviewer` contre le brief, écarts listés ; poids de la

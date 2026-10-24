@@ -1,0 +1,11 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "variants — Les quatre variantes, au repos":
+      - button "primary"
+      - button "secondary"
+      - button "ghost"
+      - button "danger"
+      - code: variants
+      - text: ""

@@ -1,0 +1,8 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "pressed — Bouton bascule enfoncé (aria-pressed)":
+      - button "Filtres" [pressed]
+      - code: pressed
+      - text: ""

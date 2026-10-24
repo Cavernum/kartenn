@@ -1,0 +1,8 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - figure "secondary-icon — Secondaire avec icône":
+      - button "Ajouter un préfixe"
+      - code: secondary-icon
+      - text: ""

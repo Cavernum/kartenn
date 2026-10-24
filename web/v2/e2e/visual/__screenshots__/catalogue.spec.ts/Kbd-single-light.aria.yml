@@ -1,0 +1,8 @@
+- main:
+  - region "Kbd":
+    - heading "Kbd" [level=1]
+    - paragraph: "Motif : — (kbd imbriqués d'une combinaison)"
+    - figure "single — Une touche (filtre de la vue)":
+      - text: /
+      - code: single
+      - text: ""

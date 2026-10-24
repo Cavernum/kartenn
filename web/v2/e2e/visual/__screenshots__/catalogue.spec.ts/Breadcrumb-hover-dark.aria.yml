@@ -1,0 +1,13 @@
+- main:
+  - region "Breadcrumb":
+    - heading "Breadcrumb" [level=1]
+    - paragraph: "Motif : Breadcrumb (aria-current=page)"
+    - figure "hover — Survol d'un lien":
+      - navigation "Fil d'Ariane":
+        - list:
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem: À instruire
+      - code: hover
+      - text: ""

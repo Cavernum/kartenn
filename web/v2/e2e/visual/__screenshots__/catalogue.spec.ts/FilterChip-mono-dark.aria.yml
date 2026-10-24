@@ -1,0 +1,9 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - figure "mono — Valeur en chasse fixe":
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - code: mono
+      - text: ""

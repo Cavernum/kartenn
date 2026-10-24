@@ -10,11 +10,31 @@
 
 import type { Component } from "vue";
 
-/** One state of a component: a stable name (part of its URL and capture) and its props. */
+/**
+ * One state of a component: a stable name (part of its URL and capture) and its props;
+ * `slot` fills the default slot with text; `demo` renders a composition instead of the
+ * component alone (layouts, a button beside a field, an open menu with its trigger);
+ * `interaction` shows a state that only the pointer or the keyboard reach.
+ */
 export interface CatalogueState {
   name: string;
   description: string;
   props: Record<string, unknown>;
+  slot?: string;
+  demo?: Component;
+  /**
+   * An interaction the capture performs before shooting, on the first focusable element
+   * of the state (or `target`, a selector inside it): hover, keyboard focus, press.
+   */
+  interaction?: "hover" | "focus" | "press";
+  target?: string;
+  /** The state takes the whole width of the page (layouts, grids, bars). */
+  wide?: boolean;
+  /**
+   * Shown alone only (`?etat=`): an open modal layer would trap the focus of the whole
+   * page. The page of all states links to it.
+   */
+  isolated?: boolean;
 }
 
 /** The declaration of a component in the catalogue. */

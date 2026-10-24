@@ -1,0 +1,12 @@
+- main:
+  - dialog "Nouveau préfixe":
+    - heading "Nouveau préfixe" [level=2]
+    - button "Fermer"
+    - paragraph: Le préfixe rejoint le brouillon ; rien n'est appliqué avant validation.
+    - text: Préfixe (obligatoire)
+    - textbox "Préfixe (obligatoire)": /\d+\.\d+\.\d+\.\d+\/\d+/
+    - text: Nom
+    - textbox "Nom"
+    - paragraph: Visible dans les listes.
+    - button "Annuler"
+    - button "Créer"

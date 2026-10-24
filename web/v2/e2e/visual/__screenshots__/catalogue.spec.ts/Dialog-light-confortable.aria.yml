@@ -1,0 +1,14 @@
+- main:
+  - region "Dialog":
+    - heading "Dialog" [level=1]
+    - paragraph: "Motif : Dialog (Modal)"
+    - 'figure "open — Ouvert : titre, description, formulaire, actions"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/Dialog?mode=light&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - figure "small — Petit, sans description":
+      - link "Voir l'état small seul":
+        - /url: /_ui/c/Dialog?mode=light&densite=confortable&etat=small
+      - code: small
+      - text: ""

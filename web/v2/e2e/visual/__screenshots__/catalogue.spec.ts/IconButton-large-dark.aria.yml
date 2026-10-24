@@ -1,0 +1,8 @@
+- main:
+  - region "IconButton":
+    - heading "IconButton" [level=1]
+    - paragraph: "Motif : Button (nom accessible obligatoire)"
+    - figure /large — Grand \(\d+ px en compacte\)/:
+      - button "Fermer"
+      - code: large
+      - text: ""

@@ -1,0 +1,8 @@
+- main:
+  - region "Skeleton":
+    - heading "Skeleton" [level=1]
+    - paragraph: "Motif : aria-busy"
+    - figure "block — Bloc (panneau)":
+      - status: Chargement
+      - code: block
+      - text: ""

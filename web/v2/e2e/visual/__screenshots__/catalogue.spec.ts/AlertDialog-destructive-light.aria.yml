@@ -1,0 +1,6 @@
+- main:
+  - alertdialog "Abandonner le brouillon ?":
+    - heading "Abandonner le brouillon ?" [level=2]
+    - paragraph: /Les \d+ opérations en brouillon seront perdues\./
+    - button "Annuler"
+    - button "Abandonner"

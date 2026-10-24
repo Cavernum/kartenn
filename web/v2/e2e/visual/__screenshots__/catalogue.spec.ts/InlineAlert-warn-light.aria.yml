@@ -1,0 +1,10 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "warn — Avertissement":
+      - status:
+        - paragraph: Trois adresses sont hors du préfixe.
+        - text: Elles restent visibles dans la liste des anomalies.
+      - code: warn
+      - text: ""

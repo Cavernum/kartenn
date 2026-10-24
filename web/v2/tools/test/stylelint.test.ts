@@ -83,6 +83,13 @@ describe("stylelint", () => {
     ]);
   });
 
+  it("lets a keyframe turn, nowhere else", async () => {
+    const spin =
+      "@layer components {\n  @keyframes k-spin {\n    to {\n      transform: rotate(1turn);\n    }\n  }\n}\n";
+    expect(await rules(spin)).toEqual([]);
+    expect(await rules(layer("transform: rotate(1turn);"))).toEqual(["kartenn/raw-length"]);
+  });
+
   it("lets the floating components cast their shadow", async () => {
     const sheet = layer("box-shadow: var(--k-shadow-overlay);");
     expect(await rules(sheet, "ui/src/components/Menu/Menu.css")).toEqual([]);

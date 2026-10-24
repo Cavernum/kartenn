@@ -1,0 +1,9 @@
+- main:
+  - region "EmptyState":
+    - heading "EmptyState" [level=1]
+    - paragraph: "Motif : — (une phrase et une action)"
+    - figure "filtered — Vide par les filtres, sans action":
+      - paragraph: Aucun résultat pour ces filtres.
+      - paragraph: Retirez un filtre ou élargissez la période.
+      - code: filtered
+      - text: ""

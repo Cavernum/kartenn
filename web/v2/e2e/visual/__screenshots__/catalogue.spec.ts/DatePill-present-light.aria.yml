@@ -1,0 +1,8 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button (ouvre le choix de la période)"
+    - figure "present — Présent":
+      - button "Présent"
+      - code: present
+      - text: ""

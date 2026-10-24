@@ -1,0 +1,9 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - figure "mono — Chasse fixe (préfixe), obligatoire":
+      - text: Préfixe (obligatoire)
+      - textbox "Préfixe (obligatoire)": /\d+\.\d+\.2\.0\/\d+/
+      - code: mono
+      - text: ""

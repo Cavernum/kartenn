@@ -1,0 +1,8 @@
+- main:
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - figure "closed — Fermé":
+      - button "Actions"
+      - code: closed
+      - text: ""
