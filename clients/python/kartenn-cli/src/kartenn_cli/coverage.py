@@ -22,6 +22,12 @@ EXCLUDED: dict[str, str] = {
     "login_issuers": "login page of the web; the CLI reads the native clients (A5)",
     "query_verdicts": "QUERY twin of show_verdicts; policy check sends short filters by GET",
     "labels": "dictionary of the 018, read by the tables of the CLI (`client.labels()`, T15)",
+    # Spec 024: a draft is composed in the interface or by the library (`kn.drafts`).
+    "create_draft": "a draft is composed in the interface or by the library (`kn.drafts`)",
+    "update_draft": "a draft is composed in the interface or by the library (`kn.drafts`)",
+    "add_draft_operations": "a draft is composed in the interface or by the library",
+    "simulate_draft": "simulated by the interface while it is composed",
+    "take_over_draft": "an action of the administration, rare (`kartenn api`)",
 }
 
 # Commands of the base, written by hand, and the operations they reach.
@@ -46,6 +52,8 @@ BASE: dict[str, tuple[str, ...]] = {
         "cancel_import",
         "list_imports",
     ),
+    # The drafts kept by the server (spec 024).
+    "drafts": ("list_drafts", "get_draft", "submit_draft", "delete_draft"),
     "api spec": ("openapi",),
     "capabilities": ("capabilities",),
     # The stream of the 022 (`GET /v1/events`).

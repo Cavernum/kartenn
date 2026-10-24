@@ -224,6 +224,22 @@ section = "Section of a module (policy.combinations)."
 property = "Property key."
 follow = "Follow a pending changeset until its decision."
 
+[drafts]
+help = "List, read, submit, delete one's drafts kept by the server."
+deleted = "Draft {id} deleted."
+
+[drafts.list]
+help = "One's drafts, the most recently modified first (without their operations)."
+
+[drafts.show]
+help = "Read a draft: title, motive, operations."
+
+[drafts.submit]
+help = "Submit a draft: its changeset is created, the draft deleted; refused, it stays."
+
+[drafts.delete]
+help = "Delete a draft."
+
 [edit]
 help = "Change the object in $VISUAL or $EDITOR, then send the difference (Merge Patch, If-Match).\n{path}  ({operation})"
 short = "Change in the editor (YAML)."

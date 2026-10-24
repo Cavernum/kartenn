@@ -37,6 +37,7 @@ STATIC: dict[str, tuple[str, str, str]] = {
     "config": ("kartenn_cli.config", "config_group", "tools"),
     "completion": ("kartenn_cli.complete", "completion_command", "tools"),
     "changeset": ("kartenn_cli.changeset", "changeset_group", "writes"),
+    "drafts": ("kartenn_cli.drafts", "drafts_group", "writes"),
     "import": ("kartenn_cli.importing", "import_command", "writes"),
     "api": ("kartenn_cli.api", "api_command", "tools"),
     "capabilities": ("kartenn_cli.api", "capabilities_command", "tools"),
@@ -48,7 +49,7 @@ STATIC: dict[str, tuple[str, str, str]] = {
     "watch": ("kartenn_cli.watch", "watch_command", "tools"),
 }
 # Static commands shown with their help in the root help; the others by name only.
-STATIC_DESCRIBED = frozenset({"api", "changeset", "import"})
+STATIC_DESCRIBED = frozenset({"api", "changeset", "drafts", "import"})
 SECTIONS = ("core", "writes", "modules", "rights", "tools", "others")
 _LAST: dict[str, Runtime] = {}
 

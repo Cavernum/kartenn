@@ -378,6 +378,36 @@ def test_actions_on_a_changeset_of_the_server(served: FakeServer) -> None:
     assert kartenn("changeset", "proposals").stdout == "[]\n"
 
 
+DRAFT = "0190d000-0000-7000-8000-000000000001"
+
+
+def test_drafts_of_the_server(served: FakeServer) -> None:
+    """Spec 024: `kartenn drafts list|show|submit|delete`."""
+    summary = {"id": DRAFT, "title": "Lot 3", "operation_count": 1, "version": 2}
+    draft = {**summary, "reason": {"summary": "m"}, "operations": [{"op": "create_domain"}]}
+    served.route("GET", "/v1/drafts", {"items": [summary]})
+    served.route(
+        "GET", "/v1/drafts/{id}", httpx2.Response(200, json=draft, headers={"ETag": '"2"'})
+    )
+    listed = kartenn("drafts", "list", "-o", "json")
+    assert json.loads(listed.stdout) == [summary]
+    shown = kartenn("drafts", "show", DRAFT, "-o", "json")
+    assert json.loads(shown.stdout)["operations"] == [{"op": "create_domain"}]
+    served.route("POST", "/v1/drafts/{id}/submission", httpx2.Response(202, json=PENDING))
+    submitted = kartenn("drafts", "submit", DRAFT, "--submit-only", "-o", "json")
+    assert submitted.exit_code == 0, submitted.output
+    sent = served.seen[-1]
+    assert sent.headers["if-match"] == '"2"'
+    assert "apply" not in sent.url.params
+    assert kartenn("drafts", "submit", DRAFT, "--require-applied").exit_code == 10
+    assert served.seen[-1].url.params["apply"] == "own"
+    served.route("DELETE", "/v1/drafts/{id}", httpx2.Response(204))
+    deleted = kartenn("drafts", "delete", DRAFT)
+    assert deleted.exit_code == 0, deleted.output
+    assert DRAFT in deleted.stdout
+    assert served.seen[-1].headers["if-match"] == '"2"'
+
+
 # Editor -------------------------------------------------------------------------------
 
 

@@ -224,6 +224,22 @@ section = "Section d'un module (policy.combinations)."
 property = "Clé de propriété."
 follow = "Suivre un changeset en attente jusqu'à sa décision."
 
+[drafts]
+help = "Lister, lire, soumettre, supprimer ses brouillons gardés par le serveur."
+deleted = "Brouillon {id} supprimé."
+
+[drafts.list]
+help = "Ses brouillons, les plus récemment modifiés d'abord (sans leurs opérations)."
+
+[drafts.show]
+help = "Lire un brouillon : titre, motif, opérations."
+
+[drafts.submit]
+help = "Soumettre un brouillon : son changeset est créé, le brouillon supprimé ; refusé, il reste."
+
+[drafts.delete]
+help = "Supprimer un brouillon."
+
 [edit]
 help = "Modifier l'objet dans $VISUAL ou $EDITOR, puis envoyer la différence (Merge Patch, If-Match).\n{path}  ({operation})"
 short = "Modifier dans l'éditeur (YAML)."

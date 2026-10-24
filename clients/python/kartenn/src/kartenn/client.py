@@ -27,6 +27,7 @@ from kartenn.auth.basic import BasicAuth, Secret
 from kartenn.auth.bearer import BearerToken
 from kartenn.auth.oidc_native import Issuer, OidcNative
 from kartenn.auth.store import MemoryStore
+from kartenn.drafts import AsyncDrafts, Drafts
 from kartenn.labels import invalidating
 from kartenn.profiles import Profile, read_profile
 from kartenn.resources import AsyncResource, Context, Resource
@@ -280,6 +281,11 @@ class Client:
         """An existing changeset, by its identifier or as read."""
         return changesets.ChangesetHandle(changesets.existing(self._context, ref), self.run)
 
+    @property
+    def drafts(self) -> Drafts:
+        """The drafts of the caller, kept by the server (spec 024)."""
+        return Drafts(self._context, self.run)
+
     def import_session(
         self,
         source: str,
@@ -472,6 +478,11 @@ class AsyncClient:
 
     def changeset_of(self, ref: object) -> changesets.AsyncChangesetHandle:
         return changesets.AsyncChangesetHandle(changesets.existing(self._context, ref), self.run)
+
+    @property
+    def drafts(self) -> AsyncDrafts:
+        """The drafts of the caller, kept by the server (spec 024)."""
+        return AsyncDrafts(self._context, self.run)
 
     def import_session(
         self,
