@@ -61,8 +61,8 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
         .execute(&pool)
         .await;
     assert!(
-        self_validated.is_err(),
-        "REQ-004-21: the author never validates"
+        self_validated.is_ok(),
+        "REQ-024-11: the author applies their own changeset under apply_own"
     );
     let rejected_without_reason =
         sqlx::query("UPDATE changeset SET state = 'rejected' WHERE id = $1")

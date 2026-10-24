@@ -91,6 +91,7 @@ impl Kit {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -595,6 +596,7 @@ impl Kit {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(
             &self.store,
@@ -631,10 +633,16 @@ async fn an_operation_requires_the_permission_its_module_declares(pool: PgPool) 
     assert_eq!(actors.on_behalf_of, None);
     assert_eq!(actors.validator, None);
     // Another permission of the module does not stand in for it.
-    let writer = k.reader(&["kit.group.write"], "entity", "branch").await;
+    let writer = k
+        .reader(
+            &["kit.group.edit", "kit.group.apply_own"],
+            "entity",
+            "branch",
+        )
+        .await;
     let refused = k.submit_by(&writer, request(k.ids["g-branch"])).await;
     assert_eq!(rules(&refused), ["core.object.forbidden"]);
-    // The declared permission out of scope: refused as `<type>.write` would be.
+    // The declared permission out of scope: refused as `<type>.edit` would be.
     let elsewhere = k.reader(&["kit.item.request"], "entity", "vendor").await;
     let refused = k.submit_by(&elsewhere, request(k.ids["g-branch"])).await;
     assert_eq!(rules(&refused), ["core.object.forbidden"]);

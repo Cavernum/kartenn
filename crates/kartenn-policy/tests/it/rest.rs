@@ -182,6 +182,7 @@ async fn call(
     body: Option<Value>,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMapLite, Value) {
+    let uri = kartenn_testing::applied_by_author(method.as_str(), uri);
     let mut request = Request::builder()
         .method(method)
         .uri(uri)

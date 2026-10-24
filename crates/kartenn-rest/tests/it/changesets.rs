@@ -28,9 +28,9 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-/// A person who reads domains and prefixes everywhere and may `verb` them: `write` or
-/// only `propose`.
-async fn writer(pool: &PgPool, verb: &str) -> Uuid {
+/// A person who reads domains and prefixes everywhere and may `verbs` them: `edit` and
+/// `apply_own`, or only `edit` (spec 024).
+async fn writer(pool: &PgPool, verbs: &[&str]) -> Uuid {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
     )
@@ -40,19 +40,19 @@ async fn writer(pool: &PgPool, verb: &str) -> Uuid {
     let role = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO role (id, key, labels, valid_period, changeset_id)
-         VALUES ($1, 'writer', jsonb_build_object('fr', 'writer'), tstzrange(now() - interval '1 day', NULL),
+         VALUES ($1, $2, jsonb_build_object('fr', 'writer'), tstzrange(now() - interval '1 day', NULL),
                  gen_random_uuid())",
     )
     .bind(role)
+    .bind(format!("writer_{}", verbs.join("_")))
     .execute(pool)
     .await
     .unwrap();
-    for permission in [
-        "core.domain.read".to_owned(),
-        format!("core.domain.{verb}"),
-        "core.prefix.read".to_owned(),
-        format!("core.prefix.{verb}"),
-    ] {
+    let mut permissions = vec!["core.domain.read".to_owned(), "core.prefix.read".to_owned()];
+    for verb in verbs {
+        permissions.extend([format!("core.domain.{verb}"), format!("core.prefix.{verb}")]);
+    }
+    for permission in permissions {
         sqlx::query(
             "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
              VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
@@ -78,11 +78,16 @@ async fn writer(pool: &PgPool, verb: &str) -> Uuid {
 }
 
 async fn app(pool: &PgPool) -> Router {
-    app_of(pool, "write").await
+    app_of(pool, OWN).await
 }
 
-async fn app_of(pool: &PgPool, verb: &str) -> Router {
-    app_as(pool, writer(pool, verb).await)
+/// Edit and apply one's own changesets: what `write` gave.
+const OWN: &[&str] = &["edit", "apply_own"];
+/// Edit only: what `propose` gave.
+const EDIT: &[&str] = &["edit"];
+
+async fn app_of(pool: &PgPool, verbs: &[&str]) -> Router {
+    app_as(pool, writer(pool, verbs).await)
 }
 
 /// Another person with the roles of `of`.
@@ -143,7 +148,7 @@ fn submission(uri: &str, content_type: &str, body: impl Into<Body>) -> Request<B
 }
 
 async fn send(app: &Router, request: Request<Body>) -> Response {
-    app.clone().oneshot(request).await.unwrap()
+    app.clone().oneshot(common::applied(request)).await.unwrap()
 }
 
 async fn json_of(response: Response) -> Value {
@@ -211,8 +216,8 @@ async fn an_applied_changeset_answers_201_with_its_link(pool: PgPool) {
 
 #[kartenn_testing::pg_test]
 async fn a_proposal_answers_202_with_its_link(pool: PgPool) {
-    // REQ-004-41: an author who may only propose makes a pending changeset.
-    let app = app_of(&pool, "propose").await;
+    // REQ-024-10: an author who may only edit makes a pending changeset.
+    let app = app_of(&pool, EDIT).await;
     let pending = send(
         &app,
         common::bearer(submission(
@@ -236,6 +241,58 @@ async fn a_proposal_answers_202_with_its_link(pool: PgPool) {
         )
     );
     assert_eq!(domains(&pool).await, 0);
+}
+
+/// Spec 024, REQ-024-10, 13: without `apply=own`, pending even for who may apply it; with
+/// it, applied (201) when allowed, pending (202) with the reason otherwise, never lost; an
+/// `apply` other than `own` is refused.
+#[kartenn_testing::pg_test]
+async fn apply_own_applies_or_falls_back_to_pending(pool: PgPool) {
+    let maintainer = app(&pool).await;
+    let editor = app_of(&pool, EDIT).await;
+    let post = |app: &Router, uri: &'static str, prefix: &'static str| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(common::bearer(submission(
+                    uri,
+                    "application/json",
+                    lab(&[prefix]).to_string(),
+                )))
+                .await
+                .unwrap();
+            let status = response.status();
+            (status, json_of(response).await)
+        }
+    };
+    let (status, body) = post(&maintainer, "/v1/changesets?apply=none", "10.0.0.0/24").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = post(&maintainer, "/v1/changesets", "10.0.0.0/24").await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["state"], "pending");
+    assert!(body.get("reason").is_none(), "{body}");
+    let (status, body) = post(&editor, "/v1/changesets?apply=own", "10.2.0.0/24").await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["state"], "pending");
+    assert_eq!(body["reason"]["code"], "changeset.approval.self");
+    let id: Uuid = body["changeset"]["id"].as_str().unwrap().parse().unwrap();
+    let (state, audited): (String, Vec<String>) = (
+        sqlx::query_scalar("SELECT state FROM changeset WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        sqlx::query_scalar("SELECT name FROM audit.event WHERE changeset_id = $1 ORDER BY seq")
+            .bind(id)
+            .fetch_all(&pool)
+            .await
+            .unwrap(),
+    );
+    assert_eq!(state, "pending", "the changeset is kept");
+    assert_eq!(audited, ["changeset.state.pending"]);
+    let (status, body) = post(&maintainer, "/v1/changesets?apply=own", "10.1.0.0/24").await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["state"], "applied");
 }
 
 #[kartenn_testing::pg_test]
@@ -399,7 +456,7 @@ async fn parts(response: Response) -> (StatusCode, Option<String>, Option<String
 
 #[kartenn_testing::pg_test]
 async fn a_replay_answers_the_first_response_byte_for_byte(pool: PgPool) {
-    let author = writer(&pool, "write").await;
+    let author = writer(&pool, OWN).await;
     let app = app_as(&pool, author);
     let body = lab(&["10.0.0.0/24"]);
     let first = parts(send(&app, keyed("k-1", &body)).await).await;
@@ -469,7 +526,7 @@ async fn a_replay_of_a_refusal_answers_the_same_problem(pool: PgPool) {
 
 #[kartenn_testing::pg_test]
 async fn a_replay_of_a_proposal_answers_202(pool: PgPool) {
-    let proposer = app_of(&pool, "propose").await;
+    let proposer = app_of(&pool, EDIT).await;
     let first = parts(send(&proposer, keyed("p", &lab(&["10.0.0.0/24"]))).await).await;
     assert_eq!(first.0, StatusCode::ACCEPTED);
     let replay = parts(send(&proposer, keyed("p", &lab(&["10.0.0.0/24"]))).await).await;

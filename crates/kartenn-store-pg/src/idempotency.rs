@@ -27,6 +27,8 @@ pub struct Journaled {
     pub diff: serde_json::Value,
     /// Closures added by a cascade, in the order of the expansion (REQ-004-26).
     pub cascaded: Vec<(ObjectKind, Uuid)>,
+    /// Why its author could not apply it when asking to (spec 024, REQ-024-13).
+    pub reason: Option<Violation>,
 }
 
 fn field<'a>(
@@ -105,20 +107,30 @@ pub async fn journaled(pool: &PgPool, id: Uuid) -> Result<Option<Journaled>, Sto
         serde_json::Value,
         serde_json::Value,
         serde_json::Value,
+        Option<serde_json::Value>,
     );
     let row: Option<Row> = sqlx::query_as(
-        "SELECT state, kind, policy_id, violations, anomalies, diff_summary, cascaded
+        "SELECT state, kind, policy_id, violations, anomalies, diff_summary, cascaded,
+                required_rights -> 'reason'
          FROM changeset WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(pool)
     .await
     .map_err(store_err)?;
-    let Some((state, kind, policy, errors, warnings, diff, cascaded)) = row else {
+    let Some((state, kind, policy, errors, warnings, diff, cascaded, reason)) = row else {
         return Ok(None);
     };
     let mut found = violations(&errors)?;
     found.extend(violations(&warnings)?);
+    let reason = reason
+        .filter(|r| !r.is_null())
+        .map(serde_json::from_value::<(String, Vec<Uuid>)>)
+        .transpose()
+        .map_err(store_err)?
+        .map(|(message, objects)| {
+            Violation::new(&rules::APPROVAL_SELF, message).with_subjects(objects)
+        });
     Ok(Some(Journaled {
         state,
         kind,
@@ -126,6 +138,7 @@ pub async fn journaled(pool: &PgPool, id: Uuid) -> Result<Option<Journaled>, Sto
         violations: found,
         diff,
         cascaded: closures(&cascaded)?,
+        reason,
     }))
 }
 

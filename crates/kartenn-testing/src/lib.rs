@@ -417,6 +417,27 @@ async fn retry(conn: &mut PgConnection, sql: &str) -> Result<(), sqlx::Error> {
     }
 }
 
+/// The URI of a request of a test: a write (`POST`, `PUT`, `PATCH`, `DELETE`) asks to
+/// apply its changeset (`apply=own`, spec 024, REQ-024-13) unless it names `apply`
+/// itself; the tests write as authors who apply their own changesets when they may.
+#[must_use]
+pub fn applied_by_author(method: &str, uri: &str) -> String {
+    let write = matches!(
+        method.to_ascii_uppercase().as_str(),
+        "POST" | "PUT" | "PATCH" | "DELETE"
+    );
+    let query = uri.split_once('?').map_or("", |(_, q)| q);
+    if !write
+        || query
+            .split('&')
+            .any(|p| p == "apply" || p.starts_with("apply="))
+    {
+        return uri.to_owned();
+    }
+    let separator = if uri.contains('?') { '&' } else { '?' };
+    format!("{uri}{separator}apply=own")
+}
+
 fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
     bytes.iter().fold(String::new(), |mut s, b| {

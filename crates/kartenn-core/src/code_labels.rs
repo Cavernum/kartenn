@@ -8,32 +8,82 @@ use crate::labels::CodeLabel;
 /// English summaries of the permissions of the core, by name.
 pub static PERMISSIONS_EN: &[(&str, &str)] = &[
     ("core.entity.read", "Read the entities."),
-    ("core.entity.write", "Create, change or close an entity."),
-    ("core.entity.propose", "Propose a change of an entity."),
+    (
+        "core.entity.edit",
+        "Create, change or close an entity in a changeset and submit it.",
+    ),
+    (
+        "core.entity.apply",
+        "Apply or reject the changeset of someone else that touches an entity.",
+    ),
+    (
+        "core.entity.apply_own",
+        "Apply one's own changeset that touches an entity.",
+    ),
     ("core.site.read", "Read the sites."),
-    ("core.site.write", "Create, change or close a site."),
-    ("core.site.propose", "Propose a change of a site."),
+    (
+        "core.site.edit",
+        "Create, change or close a site in a changeset and submit it.",
+    ),
+    (
+        "core.site.apply",
+        "Apply or reject the changeset of someone else that touches a site.",
+    ),
+    (
+        "core.site.apply_own",
+        "Apply one's own changeset that touches a site.",
+    ),
     ("core.domain.read", "Read the addressing domains."),
     (
-        "core.domain.write",
-        "Create, change or close an addressing domain.",
+        "core.domain.edit",
+        "Create, change or close an addressing domain in a changeset and submit it.",
     ),
     (
-        "core.domain.propose",
-        "Propose a change of an addressing domain.",
+        "core.domain.apply",
+        "Apply or reject the changeset of someone else that touches an addressing domain.",
+    ),
+    (
+        "core.domain.apply_own",
+        "Apply one's own changeset that touches an addressing domain.",
     ),
     ("core.prefix.read", "Read the prefixes."),
-    ("core.prefix.write", "Create, change or close a prefix."),
-    ("core.prefix.propose", "Propose a change of a prefix."),
-    ("core.range.read", "Read the ranges."),
-    ("core.range.write", "Create, change or close a range."),
-    ("core.range.propose", "Propose a change of a range."),
-    ("core.address.read", "Read the addresses."),
-    ("core.address.write", "Create, change or close an address."),
-    ("core.address.propose", "Propose a change of an address."),
     (
-        "core.changeset.approve",
-        "Approve a pending changeset that touches the scope.",
+        "core.prefix.edit",
+        "Create, change or close a prefix in a changeset and submit it.",
+    ),
+    (
+        "core.prefix.apply",
+        "Apply or reject the changeset of someone else that touches a prefix.",
+    ),
+    (
+        "core.prefix.apply_own",
+        "Apply one's own changeset that touches a prefix.",
+    ),
+    ("core.range.read", "Read the ranges."),
+    (
+        "core.range.edit",
+        "Create, change or close a range in a changeset and submit it.",
+    ),
+    (
+        "core.range.apply",
+        "Apply or reject the changeset of someone else that touches a range.",
+    ),
+    (
+        "core.range.apply_own",
+        "Apply one's own changeset that touches a range.",
+    ),
+    ("core.address.read", "Read the addresses."),
+    (
+        "core.address.edit",
+        "Create, change or close an address in a changeset and submit it.",
+    ),
+    (
+        "core.address.apply",
+        "Apply or reject the changeset of someone else that touches an address.",
+    ),
+    (
+        "core.address.apply_own",
+        "Apply one's own changeset that touches an address.",
     ),
     (
         "core.changeset.read",
@@ -80,6 +130,10 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
     (
         "core.observability.admin",
         "Change the filter of a technical output at run time.",
+    ),
+    (
+        "core.draft.admin",
+        "Read, delete or hand over to someone else the draft of a person.",
     ),
 ];
 
@@ -292,11 +346,11 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ),
     (
         "changeset.approval.self",
-        "The author neither approves nor rejects their own changeset.",
+        "The author applies their own changeset only under the apply_own permissions, when no approval policy holds it and no module requires its review; they never reject it.",
     ),
     (
         "changeset.approval.forbidden",
-        "The approver holds the approval over the whole scope, or the write rights of a proposal.",
+        "Whoever applies or rejects the changeset of someone else holds the apply permission of everything it touches.",
     ),
     (
         "core.review.operation",
@@ -337,7 +391,7 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ),
     (
         "core.object.forbidden",
-        "Creating, changing or closing an object needs the write permission of its kind on the object (or the proposal one, which makes the changeset a proposal).",
+        "Creating, changing or closing an object needs the edit permission of its kind on the object.",
     ),
     (
         "core.label.invalid",

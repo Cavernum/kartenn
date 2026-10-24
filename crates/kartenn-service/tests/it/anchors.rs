@@ -57,6 +57,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(&self.store, authorizer, &request, MAX_OPERATIONS)
             .await
@@ -402,7 +403,9 @@ async fn the_owner_is_resolved_and_guarded(pool: PgPool) {
     // them, the manoeuvre is refused, even with the right to close the prefix (005).
     assert!(
         f.refused_as(
-            &Grants::new().everywhere(f.author, "core.prefix.write"),
+            &Grants::new()
+                .everywhere(f.author, "core.prefix.edit")
+                .everywhere(f.author, "core.prefix.apply_own"),
             vec![close(ObjectKind::Prefix, taken)]
         )
         .await

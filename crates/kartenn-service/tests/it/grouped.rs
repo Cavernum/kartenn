@@ -185,6 +185,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -337,6 +338,7 @@ async fn an_admin_enum_reads_in_batch_and_takes_a_module_obligation(pool: PgPool
                 operations,
                 simulate: false,
                 idempotency_key: None,
+                apply_own: true,
             };
             submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
                 .await

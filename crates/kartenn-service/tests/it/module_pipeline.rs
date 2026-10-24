@@ -28,6 +28,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     }
 }
 
@@ -221,13 +222,13 @@ async fn module_write_needs_its_permission(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(rules(&outcome), ["core.object.forbidden"]);
-    // `<type>.propose` makes it a proposal.
-    let proposer = Grants::new().everywhere(author, "dummy.thing.propose");
+    // `<type>.edit` alone makes it a proposal (spec 024, REQ-024-10).
+    let proposer = Grants::new().everywhere(author, "dummy.thing.edit");
     let outcome = submit(&store, &proposer, &thing("proposed"), MAX_OPERATIONS)
         .await
         .unwrap();
     assert!(matches!(outcome, Outcome::Pending { .. }), "{outcome:?}");
-    let writer = Grants::new().everywhere(author, "dummy.thing.write");
+    let writer = proposer.everywhere(author, "dummy.thing.apply_own");
     let outcome = submit(&store, &writer, &thing("granted"), MAX_OPERATIONS)
         .await
         .unwrap();
@@ -655,7 +656,9 @@ async fn nullify_policy_unassigns(pool: PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    let only_domains = Grants::new().everywhere(author, "core.domain.write");
+    let only_domains = Grants::new()
+        .everywhere(author, "core.domain.edit")
+        .everywhere(author, "core.domain.apply_own");
     let outcome = submit(
         &store,
         &only_domains,

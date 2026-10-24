@@ -95,8 +95,12 @@ permissions! {
         "Demander un flux sans lire ses extrémités, et lire ses propres demandes.";
     FLOW_REVIEW = "flow.review", "Instruire une demande de flux.";
     WAIVER_GRANT = "flow.waiver.grant", "Accorder une dérogation à un flux refusé.";
-    FLOW_WRITE = "flow.write",
-        "Écrire directement un flux (maintenance), avec la lecture de ses deux extrémités.";
+    FLOW_EDIT = "flow.edit",
+        "Écrire directement un flux (maintenance) dans un changeset et le soumettre, avec la lecture de ses deux extrémités.";
+    FLOW_APPLY = "flow.apply",
+        "Appliquer ou rejeter le changeset d'un autre qui écrit directement un flux.";
+    FLOW_APPLY_OWN = "flow.apply_own",
+        "Appliquer son propre changeset qui écrit directement un flux.";
 }
 
 /// The flow registry module (spec 011).
@@ -141,7 +145,7 @@ impl Module for Flows {
     }
     fn operation_permissions(&self) -> &'static [(&'static str, &'static str)] {
         // REQ-011-17, F12: requesting needs no read of the endpoints; the direct write of
-        // maintenance (`register`, `update`) is `flow.write`, the default.
+        // maintenance (`register`, `update`) is `flow.edit`, the default.
         &[
             ("request", "flow.request"),
             ("waive", "flow.waiver.grant"),

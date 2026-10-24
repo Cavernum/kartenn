@@ -56,7 +56,7 @@ static OPERATIONS: &[OperationType] = &[
         name: "create_item",
         defines: Some("kit.item"),
     },
-    // An item created under `kit.item.request` rather than `kit.item.write` (ADR 0026,
+    // An item created under `kit.item.request` rather than `kit.item.edit` (ADR 0026,
     // amendment 3).
     OperationType {
         name: "request_item",
@@ -69,9 +69,19 @@ static GROUP_READ: Permission = Permission {
     summary: "Lire les groupes du kit.",
     global_only: false,
 };
-static GROUP_WRITE: Permission = Permission {
-    name: "kit.group.write",
+static GROUP_EDIT: Permission = Permission {
+    name: "kit.group.edit",
     summary: "Créer ou modifier un groupe du kit.",
+    global_only: false,
+};
+static GROUP_APPLY: Permission = Permission {
+    name: "kit.group.apply",
+    summary: "Appliquer le changeset d'un autre sur un groupe du kit.",
+    global_only: false,
+};
+static GROUP_APPLY_OWN: Permission = Permission {
+    name: "kit.group.apply_own",
+    summary: "Appliquer son changeset sur un groupe du kit.",
     global_only: false,
 };
 static ITEM_READ: Permission = Permission {
@@ -84,7 +94,14 @@ static ITEM_REQUEST: Permission = Permission {
     summary: "Demander un élément du kit.",
     global_only: false,
 };
-static PERMISSIONS: &[&Permission] = &[&GROUP_READ, &GROUP_WRITE, &ITEM_READ, &ITEM_REQUEST];
+static PERMISSIONS: &[&Permission] = &[
+    &GROUP_READ,
+    &GROUP_EDIT,
+    &GROUP_APPLY,
+    &GROUP_APPLY_OWN,
+    &ITEM_READ,
+    &ITEM_REQUEST,
+];
 
 /// Who stood behind the changeset that wrote each object, as the module read it.
 static ACTORS: Mutex<Vec<(Uuid, ModuleActors)>> = Mutex::new(Vec::new());

@@ -123,9 +123,11 @@ impl Env {
         self.person(
             &[
                 "vlan.group.read",
-                "vlan.group.write",
+                "vlan.group.edit",
+                "vlan.group.apply_own",
                 "vlan.read",
-                "vlan.write",
+                "vlan.edit",
+                "vlan.apply_own",
                 "core.prefix.read",
             ],
             None,
@@ -184,6 +186,7 @@ async fn call(
     body: Option<(&str, Value)>,
     headers: &[(&str, String)],
 ) -> (StatusCode, axum::http::HeaderMap, Value) {
+    let uri = kartenn_testing::applied_by_author(method, uri);
     let mut request = Request::builder().method(method).uri(uri).header(
         header::AUTHORIZATION,
         HeaderValue::from_static("Bearer test"),
@@ -494,7 +497,12 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
         .await;
     let writer = env
         .person(
-            &["vlan.group.read", "vlan.read", "vlan.write"],
+            &[
+                "vlan.group.read",
+                "vlan.read",
+                "vlan.edit",
+                "vlan.apply_own",
+            ],
             Some(("entity", acme)),
         )
         .await;

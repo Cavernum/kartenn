@@ -130,11 +130,13 @@ macro_rules! permissions {
 permissions! {
     PERMISSIONS;
     GROUP_READ = "vlan.group.read", "Lire les groupes de VLAN.";
-    GROUP_WRITE = "vlan.group.write", "Créer, modifier ou clore un groupe de VLAN.";
-    GROUP_PROPOSE = "vlan.group.propose", "Proposer un changement d'un groupe de VLAN.";
+    GROUP_EDIT = "vlan.group.edit", "Créer, modifier ou clore un groupe de VLAN dans un changeset et le soumettre.";
+    GROUP_APPLY = "vlan.group.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un groupe de VLAN.";
+    GROUP_APPLY_OWN = "vlan.group.apply_own", "Appliquer son propre changeset qui touche un groupe de VLAN.";
     VLAN_READ = "vlan.read", "Lire les VLAN.";
-    VLAN_WRITE = "vlan.write", "Créer, modifier ou clore un VLAN.";
-    VLAN_PROPOSE = "vlan.propose", "Proposer un changement d'un VLAN.";
+    VLAN_EDIT = "vlan.edit", "Créer, modifier ou clore un VLAN dans un changeset et le soumettre.";
+    VLAN_APPLY = "vlan.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un VLAN.";
+    VLAN_APPLY_OWN = "vlan.apply_own", "Appliquer son propre changeset qui touche un VLAN.";
 }
 
 /// The VLAN module (spec 008).

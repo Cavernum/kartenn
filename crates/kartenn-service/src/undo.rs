@@ -201,6 +201,8 @@ pub async fn inverse<S: Store>(
             operations,
             simulate: false,
             idempotency_key: None,
+            // Spec 024, REQ-024-13: applied by its author who may, pending otherwise.
+            apply_own: true,
         },
         conflicts,
         rbac_conflicts,

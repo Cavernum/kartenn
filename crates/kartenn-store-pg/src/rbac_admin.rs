@@ -107,7 +107,7 @@ pub(crate) async fn custom_roles_citing(
          JOIN role_permission p ON p.role_id = r.id AND p.valid_period @> now()
          WHERE r.valid_period @> now() AND NOT r.builtin
          GROUP BY r.key, r.labels
-         HAVING bool_or(p.permission = ANY($1))
+         HAVING bool_or(p.permission = ANY($1) OR p.permission ~ '^prop\\..+\\.(write|propose)$')
          ORDER BY r.key",
     )
     .bind(permissions)

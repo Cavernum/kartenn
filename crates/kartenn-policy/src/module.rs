@@ -418,11 +418,11 @@ static TYPE_PERMISSIONS: &[TypePermissions] = &[
     typed(INFERENCE_RULE, "policy.inference.admin"),
 ];
 
-const fn typed(kind: &'static str, write: &'static str) -> TypePermissions {
+const fn typed(kind: &'static str, edit: &'static str) -> TypePermissions {
     TypePermissions {
         kind,
         read: "policy.catalogue.read",
-        write,
+        edit,
     }
 }
 

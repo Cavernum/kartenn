@@ -17,8 +17,14 @@ use sqlx::types::time::OffsetDateTime;
 
 use crate::requests::{Env, REQUEST, flow, grants, later, policy, proposal, refusals, rules};
 
-/// What the author of an extension holds: the direct write, and the anchor it prolongs.
-pub(crate) const WRITE: &[&str] = &["flow.write", "prop.core.owner.write"];
+/// What the author of an extension holds: the direct write, and the anchor it prolongs,
+/// applied by itself (spec 024).
+pub(crate) const WRITE: &[&str] = &[
+    "flow.edit",
+    "flow.apply_own",
+    "prop.core.owner.edit",
+    "prop.core.owner.apply_own",
+];
 const DAY: i64 = 24 * 3600;
 
 /// The rule « prod to prod » allowed under reserve (a pattern, REQ-010-32): its flows are
@@ -161,14 +167,15 @@ pub(crate) async fn parties(env: &Env) -> (Uuid, Uuid, Uuid, Grants) {
     let authorizer = WRITE
         .iter()
         .fold(grants(requester, REQUEST), |g, p| g.everywhere(extender, p));
-    // The reviewer holds the writes of the proposals it validates (REQ-004-42).
+    // The reviewer applies the proposals it validates (spec 024, REQ-024-11).
     let authorizer = [
         "flow.review",
         "flow.waiver.grant",
-        "core.changeset.approve",
         "flow.request",
-        "flow.write",
-        "prop.core.owner.write",
+        "flow.edit",
+        "flow.apply",
+        "prop.core.owner.edit",
+        "prop.core.owner.apply",
     ]
     .iter()
     .fold(authorizer, |g, p| g.everywhere(reviewer, p));

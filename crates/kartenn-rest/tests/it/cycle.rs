@@ -98,7 +98,10 @@ fn app_as(pool: &PgPool, identity: Uuid) -> Router {
 }
 
 async fn send(app: &Router, request: Request<Body>) -> Response {
-    app.clone().oneshot(common::bearer(request)).await.unwrap()
+    app.clone()
+        .oneshot(common::bearer(common::applied(request)))
+        .await
+        .unwrap()
 }
 
 async fn json_of(response: Response) -> Value {
@@ -362,7 +365,7 @@ async fn reading_needs_core_changeset_read(pool: PgPool) {
     let (_, creation) = domain(&app, &pool, "lab").await;
     let reader = app_as(
         &pool,
-        person(&pool, &["core.domain.read", "core.domain.write"]).await,
+        person(&pool, &["core.domain.read", "core.domain.edit"]).await,
     );
     for uri in [
         format!("/v1/changesets/{creation}"),
@@ -590,7 +593,7 @@ async fn the_proposals_are_those_the_caller_may_validate(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let proposer = app_as(
         &pool,
-        person(&pool, &["core.domain.read", "core.domain.propose"]).await,
+        person(&pool, &["core.domain.read", "core.domain.edit"]).await,
     );
     let outsider = app_as(&pool, person(&pool, &["core.domain.read"]).await);
     let (status, body) = submit(&proposer, json!([{"op": "create_domain", "slug": "lab"}])).await;
@@ -602,7 +605,7 @@ async fn the_proposals_are_those_the_caller_may_validate(pool: PgPool) {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"], proposal.as_str());
     assert_eq!(items[0]["state"], "pending");
-    assert_eq!(items[0]["required"][0]["permission"], "core.domain.write");
+    assert_eq!(items[0]["required"][0]["permission"], "core.domain.edit");
 
     for app in [&proposer, &outsider] {
         let listed = json_of(send(app, get("/v1/proposals")).await).await;

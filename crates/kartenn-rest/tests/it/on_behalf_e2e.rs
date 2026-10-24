@@ -163,6 +163,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         }
     }
 
@@ -237,7 +238,11 @@ impl Fixture {
     }
 
     async fn call(&self, request: Request<Body>) -> Response {
-        self.app.clone().oneshot(request).await.unwrap()
+        self.app
+            .clone()
+            .oneshot(crate::common::applied(request))
+            .await
+            .unwrap()
     }
 
     async fn denied(&self) -> i64 {
@@ -301,7 +306,8 @@ async fn a_service_account_writes_for_its_requester_through_the_real_authenticat
             &[
                 "core.identity.act_on_behalf",
                 "core.entity.read",
-                "core.entity.write",
+                "core.entity.edit",
+                "core.entity.apply_own",
             ],
         )
         .await;
@@ -372,7 +378,14 @@ async fn a_service_account_writes_for_its_requester_through_the_real_authenticat
 async fn a_service_account_without_the_permission_is_refused_and_audited(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     let (_, basic) = f
-        .service_account("svc-plain", &["core.entity.read", "core.entity.write"])
+        .service_account(
+            "svc-plain",
+            &[
+                "core.entity.read",
+                "core.entity.edit",
+                "core.entity.apply_own",
+            ],
+        )
         .await;
     let before = f.denied().await;
     let response = f
@@ -437,7 +450,8 @@ async fn a_malformed_or_repeated_header_is_a_bad_request(pool: PgPool) {
             &[
                 "core.identity.act_on_behalf",
                 "core.entity.read",
-                "core.entity.write",
+                "core.entity.edit",
+                "core.entity.apply_own",
             ],
         )
         .await;
@@ -474,7 +488,8 @@ async fn the_real_person_logging_in_takes_back_the_requester_record(pool: PgPool
             &[
                 "core.identity.act_on_behalf",
                 "core.entity.read",
-                "core.entity.write",
+                "core.entity.edit",
+                "core.entity.apply_own",
             ],
         )
         .await;

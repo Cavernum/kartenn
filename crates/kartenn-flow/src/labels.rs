@@ -15,8 +15,16 @@ pub(crate) static ENGLISH: English = English {
         ("flow.review", "Review a flow request."),
         ("flow.waiver.grant", "Grant a waiver to a denied flow."),
         (
-            "flow.write",
-            "Write a flow directly (maintenance), with the read of its two endpoints.",
+            "flow.edit",
+            "Write a flow directly (maintenance) in a changeset and submit it, with the read of its two endpoints.",
+        ),
+        (
+            "flow.apply",
+            "Apply or reject the changeset of someone else that writes a flow directly.",
+        ),
+        (
+            "flow.apply_own",
+            "Apply one's own changeset that writes a flow directly.",
         ),
     ],
     rules: &[

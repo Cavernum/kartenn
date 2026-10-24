@@ -55,8 +55,8 @@ Sévérités fixées par la spécification (002/A4).
 | `changeset.operation.conflict` | erreur | Une opération qui précise la version attendue d'un objet échoue si la version courante diffère. | REQ-004-11 | 004/design |
 | `changeset.state.not_pending` | erreur | Seul un changeset en attente peut être validé, rejeté ou retiré. | REQ-004-19, REQ-004-24 | 004/design |
 | `changeset.state.not_author` | erreur | Seul l'auteur retire son changeset en attente. | REQ-004-23 | 004/design |
-| `changeset.approval.self` | erreur | L'auteur ne valide ni ne rejette son propre changeset. | REQ-004-21, REQ-004-42 | 004/C1 |
-| `changeset.approval.forbidden` | erreur | Le valideur détient l'approbation sur tout le périmètre, ou les droits d'écriture d'une proposition. | REQ-004-21, REQ-004-42 | 004/C1, C7 |
+| `changeset.approval.self` | erreur | L'auteur n'applique son propre changeset que sous les permissions `apply_own`, quand aucune politique d'approbation ne le retient et qu'aucun module n'exige sa revue ; il ne le rejette pas. | REQ-024-11, REQ-024-12 | 024/M7 |
+| `changeset.approval.forbidden` | erreur | Qui applique ou rejette le changeset d'un autre détient la permission apply de tout ce qu'il touche. | REQ-024-11 | 024/M7 |
 | `core.review.operation` | erreur | Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition. | REQ-016-11 | 016/G12 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `core.approval_policy.trigger` | erreur | Un déclencheur de politique nomme une mesure déclarée par un module du build. | REQ-016-7 | 016/G3 |
@@ -67,7 +67,7 @@ Sévérités fixées par la spécification (002/A4).
 | `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
 | `core.role.unknown` | erreur | Une liaison désigne un rôle en vigueur. | REQ-005-25 | 005/K6 |
 | `core.binding.requester` | erreur | Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un. | REQ-016-12 | 016/G10 |
-| `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'écriture de sa sorte sur l'objet (ou de proposition, qui fait du changeset une proposition). | REQ-005-22 | 005/K12 |
+| `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet. | REQ-005-22 | 005/K12 |
 | `core.label.invalid` | erreur | Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut. | REQ-018-9 | 018/R7, R9, RFC 5646 §2.1 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |
 

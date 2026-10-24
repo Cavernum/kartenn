@@ -40,6 +40,10 @@ pub struct RequestContext {
     /// The requester a service account acts for (`Kartenn-On-Behalf-Of`, REQ-016-12):
     /// named in every event of the request and on its changeset; never a source of rights.
     pub on_behalf_of: Option<Uuid>,
+    /// The request asks to apply the changeset it submits when its author may
+    /// (`?apply=own`, spec 024, REQ-024-13): a write sets
+    /// [`crate::ChangesetRequest::apply_own`] from it.
+    pub apply_own: bool,
 }
 
 impl RequestContext {
@@ -72,6 +76,7 @@ impl RequestContext {
             correlation: Correlation::default(),
             groups: Vec::new(),
             on_behalf_of: None,
+            apply_own: false,
         }
     }
 
@@ -84,6 +89,7 @@ impl RequestContext {
             correlation: Correlation::default(),
             groups: Vec::new(),
             on_behalf_of: None,
+            apply_own: false,
         }
     }
 

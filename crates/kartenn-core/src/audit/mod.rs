@@ -496,7 +496,7 @@ mod tests {
         let person = Uuid::now_v7();
         let event = AuditEvent::new(&AUTHZ_DENIED, Actor::person(person), Outcome::Denied, at)
             .unwrap()
-            .detail("permission", "prop.custom.env.write")
+            .detail("permission", "prop.custom.env.edit")
             .unwrap()
             .target("prefix", [Uuid::nil()])
             .source(Source {
@@ -513,7 +513,7 @@ mod tests {
         assert_eq!(json["criticality"], "high");
         assert_eq!(json["occurred_at"], "2003-10-11T22:14:15.003000Z");
         assert_eq!(json["actor"]["id"], person.to_string());
-        assert_eq!(json["details"]["permission"], "prop.custom.env.write");
+        assert_eq!(json["details"]["permission"], "prop.custom.env.edit");
         assert!(jcs::canonical(&json).is_ok());
     }
 

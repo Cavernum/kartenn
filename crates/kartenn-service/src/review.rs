@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use kartenn_core::authz::{Verb, verb_permission};
 use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
@@ -13,7 +14,7 @@ use crate::declarations::SYSTEM_AUTHOR;
 use crate::expected::Sources;
 use crate::module::{EndContext, Ending, ModuleRegistry};
 use crate::operations::{ChangesetRequest, ModuleOperation, Operation};
-use crate::pipeline::{APPROVE_PERMISSION, Mode, Outcome, PendingKind, Planned, RequestError, run};
+use crate::pipeline::{Mode, Outcome, PendingKind, Planned, RequestError, run};
 use crate::port::{ApprovalPolicy, DiffCount, PendingChangeset, Store, StoreError, WriteTx};
 
 /// What a changeset shows to the approval policies.
@@ -218,10 +219,21 @@ fn kind(found: &PendingChangeset) -> PendingKind {
     }
 }
 
-/// Whether `validator` may decide a pending changeset: the approval permission on its
-/// perimeter for an approval, the write permissions it requires for a proposal.
-/// Whether `subject` could decide `found` (REQ-004-41, 42): not its author, and every
-/// right it requires held; the event stream tells them its state (spec 022, REQ-022-17).
+/// Whether its author may apply `found` at all (spec 024, REQ-024-12): held by no policy,
+/// reviewed by no module.
+fn self_applicable(found: &PendingChangeset) -> Result<(), &'static str> {
+    if kind(found) == PendingKind::Approval {
+        Err("an approval policy holds it")
+    } else if found.pending.review {
+        Err("a module requires its review by someone else")
+    } else {
+        Ok(())
+    }
+}
+
+/// Whether `subject` could apply `found` (spec 024, REQ-024-11, 12): someone else under
+/// `apply` of everything it requires, its author under `apply_own` when no policy holds
+/// it; the event stream tells them its state (spec 022, REQ-022-17).
 ///
 /// # Errors
 ///
@@ -231,33 +243,38 @@ pub async fn may_validate<A: Authorizer>(
     found: &PendingChangeset,
     subject: &Subject,
 ) -> Result<bool, StoreError> {
-    Ok(found.request.author != subject.id
-        && may_decide(authorizer, found, subject).await?.is_empty())
+    if found.request.author == subject.id && self_applicable(found).is_err() {
+        return Ok(false);
+    }
+    Ok(may_decide(authorizer, found, subject).await?.is_empty())
 }
 
+/// The objects `validator` lacks the application of: `apply` of each permission the
+/// changeset requires for someone else, `apply_own` for its author (spec 024, M7). A
+/// changeset that records no requirement (journaled before spec 024) is decided by none:
+/// its perimeter is refused, and it is validated by the pipeline alone.
 async fn may_decide<A: Authorizer>(
     authorizer: &A,
     found: &PendingChangeset,
     validator: &Subject,
 ) -> Result<Vec<Uuid>, StoreError> {
-    match kind(found) {
-        PendingKind::Approval => {
-            authorizer
-                .authorize_many(validator, APPROVE_PERMISSION, &found.pending.perimeter)
-                .await
-        }
-        PendingKind::Proposal => {
-            let mut denied = Vec::new();
-            for (permission, objects) in &found.pending.required {
-                denied.extend(
-                    authorizer
-                        .authorize_many(validator, permission, objects)
-                        .await?,
-                );
-            }
-            Ok(denied)
-        }
+    if found.pending.required.is_empty() {
+        return Ok(found.pending.perimeter.clone());
     }
+    let verb = if found.request.author == validator.id {
+        Verb::ApplyOwn
+    } else {
+        Verb::Apply
+    };
+    let mut denied = Vec::new();
+    for (permission, objects) in &found.pending.required {
+        denied.extend(
+            authorizer
+                .authorize_many(validator, &verb_permission(permission, verb), objects)
+                .await?,
+        );
+    }
+    Ok(denied)
 }
 
 /// Validates a pending changeset (REQ-004-21, 22, 42): its operations run again on the
@@ -331,13 +348,16 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
             violations: vec![violation],
         });
     }
+    let authored = found.request.operations.len();
     found.request.operations.extend(operations);
     let validator_id = validator.id;
-    if found.request.author == validator_id {
-        let error = refused(
-            &rules::APPROVAL_SELF,
-            format!("{validator} is the author of changeset {id}"),
-            id,
+    // Spec 024, REQ-024-11, 12: its author applies it under `apply_own` (checked by the
+    // pipeline), unless a policy holds it or a module requires its review.
+    if found.request.author == validator_id
+        && let Err(why) = self_applicable(&found)
+    {
+        let error = RequestError::Review(
+            crate::pipeline::self_refused(why, Vec::new()).with_subjects([id]),
         );
         return Err(audited(store, context, error, id).await);
     }
@@ -346,6 +366,7 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
         validator: validator_id,
         kind: kind(&found),
         requester: found.pending.on_behalf_of,
+        authored,
     };
     // An approval checks the author's rights again, with the groups it had when
     // submitting (REQ-005-22).
@@ -627,8 +648,9 @@ pub async fn expire_pending<S: Store>(store: &S) -> Result<Vec<Uuid>, StoreError
     Ok(expired.into_iter().map(|found| found.id).collect())
 }
 
-/// The proposals `maintainer` may validate: every write permission they require is
-/// held (REQ-004-43), oldest first.
+/// The proposals of others `maintainer` may validate: the application of every permission
+/// they require is held (REQ-004-43; spec 024, REQ-024-11), oldest first. Its own pending
+/// changesets are not in this queue of review.
 ///
 /// # Errors
 ///

@@ -56,6 +56,7 @@ async fn a_changeset_is_one_trace_with_its_database_spans(pool: PgPool) {
         }],
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     let outcome = submit(
         &PgStore::new(pool.clone()),

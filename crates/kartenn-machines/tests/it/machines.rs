@@ -95,6 +95,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -238,6 +239,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         let authorizer = PgAuthorizer::new(self.pool.clone()).with_modules(self.registry.clone());
         submit(&self.store, &authorizer, &request, MAX_OPERATIONS)
@@ -366,6 +368,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         }
     }
 
@@ -1021,7 +1024,8 @@ async fn vlan_read_required(pool: PgPool) {
     let writer = [
         "machines.read",
         "machines.interface.read",
-        "machines.interface.write",
+        "machines.interface.edit",
+        "machines.interface.apply_own",
     ];
     // A writer of the interfaces of `acme` who does not read the VLAN.
     let blind = env.granted(acme, &writer).await;
@@ -1044,7 +1048,8 @@ async fn vlan_read_required(pool: PgPool) {
             &[
                 "machines.read",
                 "machines.interface.read",
-                "machines.interface.write",
+                "machines.interface.edit",
+                "machines.interface.apply_own",
                 "vlan.read",
             ],
         )
@@ -1196,12 +1201,13 @@ async fn attach_needs_address_read_only(pool: PgPool) {
             &[
                 "machines.read",
                 "machines.interface.read",
-                "machines.interface.write",
+                "machines.interface.edit",
+                "machines.interface.apply_own",
                 "core.address.read",
             ],
         )
         .await;
-    assert!(!env.reads(system, "core.address.write", seen).await);
+    assert!(!env.reads(system, "core.address.edit", seen).await);
     let applied = env.submit_as(system, vec![attach(e1, seen, true)]).await;
     assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
     let refused = env.submit_as(system, vec![attach(e1, hidden, false)]).await;

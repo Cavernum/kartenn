@@ -119,6 +119,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         match self.run(&request).await {
             Outcome::Applied { changeset, .. } => changeset,

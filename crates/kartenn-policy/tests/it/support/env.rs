@@ -101,6 +101,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         }
     }
 

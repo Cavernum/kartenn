@@ -11,8 +11,13 @@ use kartenn_store_pg::write::PgStore;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-const WRITE: &str = "prop.custom.environment.write";
-const PROPOSE: &str = "prop.custom.environment.propose";
+const EDIT: &str = "prop.custom.environment.edit";
+const OWN: &str = "prop.custom.environment.apply_own";
+
+/// Edit and apply one's own changesets everywhere (spec 024): what `write` gave.
+fn writer(who: Uuid) -> Grants {
+    Grants::new().everywhere(who, EDIT).everywhere(who, OWN)
+}
 
 struct Fixture {
     pool: PgPool,
@@ -123,6 +128,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
+            apply_own: true,
         };
         submit(&self.store, authorizer, &request, MAX_OPERATIONS)
             .await
@@ -136,7 +142,8 @@ impl Fixture {
         ["prefix", "range", "address"]
             .iter()
             .fold(grants.clone(), |g, kind| {
-                g.everywhere(self.contractor, &format!("core.{kind}.write"))
+                g.everywhere(self.contractor, &format!("core.{kind}.edit"))
+                    .everywhere(self.contractor, &format!("core.{kind}.apply_own"))
             })
     }
 
@@ -213,7 +220,7 @@ async fn an_assignment_needs_the_property_right_on_the_object_and_its_effects(po
         sorted(vec![net, addr])
     );
     // The right on the network alone does not cover the address whose value changes.
-    let network_only = Grants::new().on(f.contractor, WRITE, [net]);
+    let network_only = Grants::new().on(f.contractor, EDIT, [net]);
     assert_eq!(
         f.forbidden(
             &network_only,
@@ -222,7 +229,9 @@ async fn an_assignment_needs_the_property_right_on_the_object_and_its_effects(po
         .await,
         vec![addr]
     );
-    let both = Grants::new().on(f.contractor, WRITE, [net, addr]);
+    let both = Grants::new()
+        .on(f.contractor, EDIT, [net, addr])
+        .on(f.contractor, OWN, [net, addr]);
     f.applied(
         &both,
         vec![f.assign(Ref::Id(net), ObjectKind::Prefix, "prod")],
@@ -275,8 +284,8 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
         f.id("10.5.0.2").await,
     ]);
     assert_eq!(f.forbidden(&none, close()).await, below);
-    // With the right to propose only, a proposal (REQ-004-41).
-    let propose = Grants::new().everywhere(f.contractor, PROPOSE);
+    // With the right to edit only, a proposal (spec 024, REQ-024-10).
+    let propose = Grants::new().everywhere(f.contractor, EDIT);
     match f
         .submit(&f.with_objects(&propose), f.contractor, close())
         .await
@@ -284,8 +293,7 @@ async fn structure_changes_need_the_right_only_when_values_change(pool: PgPool) 
         Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Proposal),
         other => panic!("expected a proposal, got {other:?}"),
     }
-    f.applied(&Grants::new().everywhere(f.contractor, WRITE), close())
-        .await;
+    f.applied(&writer(f.contractor), close()).await;
 }
 
 #[kartenn_testing::pg_test]
@@ -307,6 +315,5 @@ async fn new_objects_need_the_direct_right_only(pool: PgPool) {
     };
     let refused = f.forbidden(&Grants::new(), operations()).await;
     assert_eq!(refused.len(), 1, "only the assigned network");
-    f.applied(&Grants::new().everywhere(f.contractor, WRITE), operations())
-        .await;
+    f.applied(&writer(f.contractor), operations()).await;
 }

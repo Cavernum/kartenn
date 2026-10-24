@@ -122,6 +122,7 @@ impl Env {
 }
 
 async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+    let uri = kartenn_testing::applied_by_author(method.as_str(), uri);
     let request = Request::builder()
         .method(method)
         .uri(uri)
@@ -166,9 +167,7 @@ async fn a_request_answers_with_the_flow_and_its_evaluations(pool: PgPool) {
     let env = Env::new(&pool).await;
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
-    let requester = env
-        .granted(&["flow.request", "prop.core.owner.write"])
-        .await;
+    let requester = env.granted(crate::requests::REQUEST).await;
     let app = env.app(requester);
     let (status, answer) = call(
         &app,
@@ -215,9 +214,7 @@ async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
     let env = Env::new(&pool).await;
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
-    let requester = env
-        .granted(&["flow.request", "prop.core.owner.write"])
-        .await;
+    let requester = env.granted(crate::requests::REQUEST).await;
     let (status, answer) = call(
         &env.app(requester),
         Method::POST,
@@ -298,9 +295,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
     let before = instant(&pool).await;
-    let requester = env
-        .granted(&["flow.request", "prop.core.owner.write"])
-        .await;
+    let requester = env.granted(crate::requests::REQUEST).await;
     let app = env.app(requester);
     let (status, answer) = call(
         &app,
@@ -441,9 +436,7 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
     let env = Env::new(&pool).await;
     let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
     let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
-    let requester = env
-        .granted(&["flow.request", "prop.core.owner.write"])
-        .await;
+    let requester = env.granted(crate::requests::REQUEST).await;
     let app = env.app(requester);
     let (status, _) = call(
         &app,
@@ -494,7 +487,7 @@ async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
     let etag = response.headers()[header::ETAG].clone();
     let request = Request::builder()
         .method(Method::PATCH)
-        .uri(format!("/v1/flows/{id}"))
+        .uri(format!("/v1/flows/{id}?apply=own"))
         .header(header::AUTHORIZATION, "Bearer t")
         .header(header::CONTENT_TYPE, kartenn_rest::kit::MERGE_PATCH)
         .header(header::IF_MATCH, etag)

@@ -8,21 +8,42 @@ pub(crate) static ENGLISH: English = English {
     permissions: &[
         ("machines.cluster.read", "Read the clusters."),
         (
-            "machines.cluster.write",
-            "Create, change or close a cluster.",
+            "machines.cluster.edit",
+            "Create, change or close a cluster in a changeset and submit it.",
         ),
-        ("machines.cluster.propose", "Propose a change of a cluster."),
+        (
+            "machines.cluster.apply",
+            "Apply or reject the changeset of someone else that touches a cluster.",
+        ),
+        (
+            "machines.cluster.apply_own",
+            "Apply one's own changeset that touches a cluster.",
+        ),
         ("machines.read", "Read the machines."),
-        ("machines.write", "Create, change or close a machine."),
-        ("machines.propose", "Propose a change of a machine."),
+        (
+            "machines.edit",
+            "Create, change or close a machine in a changeset and submit it.",
+        ),
+        (
+            "machines.apply",
+            "Apply or reject the changeset of someone else that touches a machine.",
+        ),
+        (
+            "machines.apply_own",
+            "Apply one's own changeset that touches a machine.",
+        ),
         ("machines.interface.read", "Read the interfaces."),
         (
-            "machines.interface.write",
-            "Create, change or close an interface.",
+            "machines.interface.edit",
+            "Create, change or close an interface in a changeset and submit it.",
         ),
         (
-            "machines.interface.propose",
-            "Propose a change of an interface.",
+            "machines.interface.apply",
+            "Apply or reject the changeset of someone else that touches an interface.",
+        ),
+        (
+            "machines.interface.apply_own",
+            "Apply one's own changeset that touches an interface.",
         ),
     ],
     rules: &[

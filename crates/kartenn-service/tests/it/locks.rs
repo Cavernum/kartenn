@@ -26,6 +26,7 @@ async fn closing_a_domain_waits_for_its_lock(pool: PgPool) {
         operations,
         simulate: false,
         idempotency_key: None,
+        apply_own: true,
     };
     let created = submit(
         &store,

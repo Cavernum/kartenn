@@ -1,12 +1,16 @@
-//! Rights on properties (spec 003, REQ-003-17, 18; task 003-11; P6, P7).
+//! Rights on a changeset (spec 003, REQ-003-17, 18; spec 005, REQ-005-22; spec 024, M7).
 //!
-//! Every assignment needs `prop.<key>.write` on its object, independently of the right to
-//! modify the object; every existing object whose resolved value the changeset changes,
-//! directly or through the structure, needs the same permission. Rights are asked in
-//! groups, one call per property.
+//! Every object written needs the edit permission of its kind; every assignment needs
+//! `prop.<key>.edit` on its object, independently of the right to modify the object;
+//! every existing object whose resolved value the changeset changes, directly or through
+//! the structure, needs the same permission. Whoever applies the changeset needs, on the
+//! same objects, the matching `apply` (someone else's changeset) or `apply_own` (one's
+//! own): [`kartenn_core::authz::verb_permission`]. Rights are asked in groups, one call
+//! per permission.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use kartenn_core::authz::{Verb, verb_permission};
 use kartenn_core::period::Period;
 use kartenn_core::properties::PropertyKey;
 use kartenn_core::rules::{self, Violation};
@@ -17,26 +21,37 @@ use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
 use crate::port::{DiffCount, StoreError, WriteTx};
 
-/// Write permissions a subject lacks, with the objects concerned.
-pub(crate) type Missing = Vec<(String, Vec<Uuid>)>;
+/// The edit permissions a changeset requires, with the objects concerned: what whoever
+/// applies it needs the application of (spec 024, REQ-024-11).
+pub(crate) type Required = Vec<(String, Vec<Uuid>)>;
 
-/// Checks the rights of `subject` on the assignments and on the effects of the changeset
-/// (its differential); the objects refused are listed per property. When `may_propose`,
-/// a lack covered by `prop.<key>.propose` is returned instead of refused: the changeset
-/// becomes a proposal (REQ-004-41).
+/// Who is checked, and for what (spec 024, M7): the author edits, the one who applies
+/// applies.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Check<'a> {
+    /// The subject whose rights are checked.
+    pub subject: &'a Subject,
+    /// What it does with the changeset.
+    pub verb: Verb,
+}
+
+/// Checks the rights of `check` on the assignments and on the effects of the changeset
+/// (its differential); the objects refused are listed per property. Every edit
+/// permission asked is added to `required` when given.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
+#[allow(clippy::too_many_lines)] // policies, guards, properties, administration, objects
 pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
-    subject: &Subject,
+    check: Check<'_>,
     planned: &[Planned],
     diff: &[DiffCount],
     period: Option<Period>,
-    may_propose: bool,
+    mut required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
-) -> Result<Missing, StoreError> {
-    let mut missing = Missing::new();
-    // An approval policy decides what needs approval: never proposable.
+) -> Result<(), StoreError> {
+    let subject = check.subject;
+    // An approval policy decides what needs approval: administered, whatever the verb.
     let policies: Vec<Uuid> = planned
         .iter()
         .filter_map(|p| match p {
@@ -45,6 +60,9 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         })
         .collect();
     if !policies.is_empty() {
+        if let Some(required) = required.as_deref_mut() {
+            required.push((POLICY_ADMIN.to_owned(), policies.clone()));
+        }
         let denied = authorizer
             .authorize_in(tx, subject, POLICY_ADMIN, &policies)
             .await?;
@@ -58,7 +76,11 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
             );
         }
     }
-    check_guards(tx, authorizer, subject, planned, violations).await?;
+    // A guard reveals a version to whoever writes the changeset; the read of the one who
+    // applies it is not asked.
+    if check.verb == Verb::Edit {
+        check_guards(tx, authorizer, subject, planned, violations).await?;
+    }
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         let assigned = match p {
@@ -96,45 +118,40 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
             continue;
         };
         let objects: Vec<Uuid> = objects.into_iter().collect();
+        let edit = key.edit_permission();
+        let permission = verb_permission(&edit, check.verb);
         let denied = authorizer
-            .authorize_in(tx, subject, &key.write_permission(), &objects)
+            .authorize_in(tx, subject, &permission, &objects)
             .await?;
+        if let Some(required) = required.as_deref_mut() {
+            required.push((edit, objects));
+        }
         if denied.is_empty() {
             continue;
         }
-        if may_propose
-            && authorizer
-                .authorize_in(tx, subject, &key.propose_permission(), &denied)
-                .await?
-                .is_empty()
-        {
-            missing.push((key.write_permission(), denied));
-            continue;
-        }
-        let message = format!("{} object(s) need {}", denied.len(), key.write_permission());
+        let message = format!("{} object(s) need {permission}", denied.len());
         violations
             .push(Violation::new(&rules::PROP_FORBIDDEN_EFFECT, message).with_subjects(denied));
     }
-    crate::rbac::check(tx, authorizer, subject, planned, violations).await?;
-    missing.extend(
-        check_objects(
-            tx,
-            authorizer,
-            subject,
-            planned,
-            Phase::After,
-            may_propose,
-            violations,
-        )
-        .await?,
-    );
-    // A proposal needs every lack covered; a single refusal refuses the changeset.
-    if violations.iter().any(|v| {
-        v.rule.id == rules::PROP_FORBIDDEN_EFFECT.id || v.rule.id == rules::OBJECT_FORBIDDEN.id
-    }) {
-        missing.clear();
-    }
-    Ok(missing)
+    crate::rbac::check(
+        tx,
+        authorizer,
+        subject,
+        planned,
+        required.as_deref_mut(),
+        violations,
+    )
+    .await?;
+    check_objects(
+        tx,
+        authorizer,
+        check,
+        planned,
+        Phase::After,
+        required,
+        violations,
+    )
+    .await
 }
 
 /// A guard reveals the version of an object: it needs the right to read it (006-16); so
@@ -176,18 +193,18 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     Ok(())
 }
 
-/// The permission to write an object of `kind` (005, K12); `<type>.write` for an object of
-/// a module (ADR 0026, clause 5).
-fn write_permission(kind: ObjectKind) -> String {
+/// The permission to edit an object of `kind` (005, K12; spec 024, REQ-024-9);
+/// `<type>.edit` for an object of a module (ADR 0026, clause 5).
+fn edit_permission(kind: ObjectKind) -> String {
     match kind {
-        ObjectKind::Domain => "core.domain.write".into(),
-        ObjectKind::Prefix => "core.prefix.write".into(),
-        ObjectKind::Range => "core.range.write".into(),
-        ObjectKind::Address => "core.address.write".into(),
-        ObjectKind::Entity => "core.entity.write".into(),
-        ObjectKind::Site => "core.site.write".into(),
+        ObjectKind::Domain => "core.domain.edit".into(),
+        ObjectKind::Prefix => "core.prefix.edit".into(),
+        ObjectKind::Range => "core.range.edit".into(),
+        ObjectKind::Address => "core.address.edit".into(),
+        ObjectKind::Entity => "core.entity.edit".into(),
+        ObjectKind::Site => "core.site.edit".into(),
         ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin".into(),
-        ObjectKind::Module(kind) => kartenn_core::authz::type_write_permission(kind.as_str()),
+        ObjectKind::Module(kind) => kartenn_core::authz::type_edit_permission(kind.as_str()),
     }
 }
 
@@ -200,7 +217,7 @@ pub(crate) enum Phase {
     After,
 }
 
-/// The objects `planned` writes in `phase`, by write permission.
+/// The objects `planned` writes in `phase`, by edit permission.
 fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>> {
     let mut out: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
@@ -240,13 +257,13 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
         };
         if let Some((kind, id)) = target {
             // An operation of a module may require its own permission in place of
-            // `<type>.write`, checked on the same object (ADR 0026, amendment 3).
+            // `<type>.edit`, checked on the same object (ADR 0026, amendment 3).
             let permission = match p {
                 Planned::Module {
                     permission: Some(permission),
                     ..
                 } => (*permission).to_owned(),
-                _ => write_permission(kind),
+                _ => edit_permission(kind),
             };
             out.entry(permission).or_default().insert(id);
         }
@@ -254,46 +271,36 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
     out
 }
 
-/// Checks the right of `subject` to write the objects of the changeset in `phase`
-/// (REQ-005-22): `core.<kind>.write` on each, seen from the transaction; when
-/// `may_propose`, a lack covered by `core.<kind>.propose` is returned instead of refused
-/// (the changeset becomes a proposal).
+/// Checks the right of `check` on the objects of the changeset in `phase` (REQ-005-22;
+/// spec 024, REQ-024-10, 11): `core.<kind>.edit` on each for its author, its `apply` or
+/// `apply_own` for whoever applies it, seen from the transaction. Every edit permission
+/// asked is added to `required` when given.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
-    subject: &Subject,
+    check: Check<'_>,
     planned: &[Planned],
     phase: Phase,
-    may_propose: bool,
+    mut required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
-) -> Result<Missing, StoreError> {
-    let mut missing = Missing::new();
-    for (permission, objects) in written(planned, phase) {
+) -> Result<(), StoreError> {
+    for (edit, objects) in written(planned, phase) {
         let objects: Vec<Uuid> = objects.into_iter().collect();
+        let permission = verb_permission(&edit, check.verb);
         let denied = authorizer
-            .authorize_in(tx, subject, &permission, &objects)
+            .authorize_in(tx, check.subject, &permission, &objects)
             .await?;
-        if denied.is_empty() {
-            continue;
+        if let Some(required) = required.as_deref_mut() {
+            required.push((edit, objects));
         }
-        let propose = permission
-            .strip_suffix(".write")
-            .map(|p| format!("{p}.propose"));
-        if may_propose
-            && let Some(propose) = propose
-            && authorizer
-                .authorize_in(tx, subject, &propose, &denied)
-                .await?
-                .is_empty()
-        {
-            missing.push((permission.clone(), denied));
+        if denied.is_empty() {
             continue;
         }
         let message = format!("{} object(s) need {permission}", denied.len());
         violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(denied));
     }
-    Ok(missing)
+    Ok(())
 }
 
 /// Objects of the differential recorded so far, all properties.

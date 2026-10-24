@@ -752,6 +752,8 @@ pub async fn sync_modules<S: Store, A: Authorizer>(
             operations,
             simulate: false,
             idempotency_key: None,
+            // kartenn applies its own synchronisation (spec 024, REQ-024-13).
+            apply_own: true,
         };
         outcomes.push(submit(store, authorizer, &request, max_operations).await?);
     }

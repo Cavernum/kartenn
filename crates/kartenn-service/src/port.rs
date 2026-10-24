@@ -212,8 +212,18 @@ pub struct Pending {
     pub policy: Option<Uuid>,
     /// Objects of its operations and of its differential.
     pub perimeter: Vec<Uuid>,
-    /// Write permissions the author lacks, with the objects concerned, for a proposal.
+    /// The edit permissions it requires, with the objects concerned, and the review
+    /// permissions its modules name: whoever applies it needs their application (spec 024,
+    /// REQ-024-11; [`kartenn_core::authz::verb_permission`]).
     pub required: Vec<(String, Vec<Uuid>)>,
+    /// A module requires its review (REQ-016-10): its author does not apply it.
+    #[serde(default)]
+    pub review: bool,
+    /// Why its author could not apply it when asking to (spec 024, REQ-024-13): the
+    /// message and the objects of its `changeset.approval.self`, answered again on a
+    /// replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<(String, Vec<Uuid>)>,
     /// The author's issuer and groups when submitting (005, REQ-005-22): an approval
     /// checks the author's rights again with them, the groups living in the token.
     #[serde(default)]
@@ -635,8 +645,9 @@ pub trait WriteTx {
         key: &str,
     ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
 
-    /// The roles not delivered with kartenn, in force now, that hold one of `permissions`,
-    /// by key (spec 018, REQ-018-4).
+    /// The roles not delivered with kartenn, in force now, that hold one of `permissions`
+    /// or a property permission of a retired verb (`prop.<key>.write`,
+    /// `prop.<key>.propose`), by key (spec 018, REQ-018-4; spec 024, REQ-024-9).
     fn custom_roles_citing(
         &mut self,
         permissions: &[&str],
