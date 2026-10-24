@@ -205,7 +205,10 @@ write_changelog() {
       if (index($0, "## [" version "]") == 1 && index($0, "à publier") > 0) { skip = 1; next }
     }
     !skip { print }
-  ' CHANGELOG.md | cat -s >CHANGELOG.md.new && mv CHANGELOG.md.new CHANGELOG.md
+  ' CHANGELOG.md | cat -s |
+    # No blank line at the end: the end-of-file-fixer hook would refuse the release commit.
+    awk 'NF { while (blank > 0) { print ""; blank-- } print; next } { blank++ }' \
+      >CHANGELOG.md.new && mv CHANGELOG.md.new CHANGELOG.md
 }
 
 # The fingerprints of the primary keys of .github/release-keys/*.asc.
