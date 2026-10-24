@@ -1,0 +1,44 @@
+- main:
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - figure "wide — Toutes les actions tiennent":
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Exporter"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+      - status
+      - code: wide
+      - text: ""
+    - 'figure /folded — Largeur d''un panneau \(\d+ px\) : la fin de la barre passe dans « … »/':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+        - button "Plus d'actions"
+      - status
+      - code: folded
+      - text: ""
+    - 'figure /narrow — \d+ px : seules les actions prioritaires restent/':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Plus d'actions"
+      - status
+      - code: narrow
+      - text: ""
+    - 'figure "forbidden — Action interdite : focalisable, infobulle « Il faut … »"':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Exporter"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+      - status
+      - code: forbidden
+      - text: ""

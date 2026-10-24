@@ -1,0 +1,12 @@
+- main:
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - 'figure /narrow — \d+ px : seules les actions prioritaires restent/':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Plus d'actions"
+      - status
+      - code: narrow
+      - text: ""

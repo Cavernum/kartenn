@@ -1,0 +1,15 @@
+- main:
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - 'figure /folded — Largeur d''un panneau \(\d+ px\) : la fin de la barre passe dans « … »/':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+        - button "Plus d'actions"
+      - status
+      - code: folded
+      - text: ""

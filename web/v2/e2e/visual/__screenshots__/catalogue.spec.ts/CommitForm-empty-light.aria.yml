@@ -1,0 +1,12 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - figure "empty — Vide, résumé obligatoire":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)"
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: empty
+      - text: ""

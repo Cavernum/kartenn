@@ -1,0 +1,12 @@
+- main:
+  - tooltip "Il faut prefix.delete":
+    - text: ""
+    - code: prefix.delete
+  - region "Tooltip":
+    - heading "Tooltip" [level=1]
+    - paragraph: "Motif : Tooltip (action refusée : aria-disabled, focalisable)"
+    - figure "icon — Bouton-icône interdit au focus":
+      - button "Supprimer" [disabled]
+      - button "Copier"
+      - code: icon
+      - text: ""

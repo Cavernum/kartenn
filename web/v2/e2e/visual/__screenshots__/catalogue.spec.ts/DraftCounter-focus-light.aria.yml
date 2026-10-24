@@ -1,7 +1,7 @@
 - main:
   - region "DraftCounter":
     - heading "DraftCounter" [level=1]
-    - paragraph: "Motif : Button (aria-expanded du panneau)"
+    - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
     - figure "focus — Focus visible":
       - button "Brouillon ( 3 )"
       - code: focus

@@ -1,0 +1,19 @@
+- main:
+  - region "Tooltip":
+    - heading "Tooltip" [level=1]
+    - paragraph: "Motif : Tooltip (action refusée : aria-disabled, focalisable)"
+    - 'figure "forbidden — Bouton interdit au focus : « Il faut prefix.edit »"':
+      - button "Modifier" [disabled]
+      - button "Copier"
+      - code: forbidden
+      - text: ""
+    - figure "icon — Bouton-icône interdit au focus":
+      - button "Supprimer" [disabled]
+      - button "Copier"
+      - code: icon
+      - text: ""
+    - 'figure "reason — Refusé par une politique : la phrase de l''hôte"':
+      - button "Appliquer" [disabled]
+      - button "Copier"
+      - code: reason
+      - text: ""

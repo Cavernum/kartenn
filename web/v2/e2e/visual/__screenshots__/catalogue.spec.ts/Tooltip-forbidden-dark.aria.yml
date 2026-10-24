@@ -1,0 +1,12 @@
+- main:
+  - tooltip "Il faut prefix.edit":
+    - text: ""
+    - code: prefix.edit
+  - region "Tooltip":
+    - heading "Tooltip" [level=1]
+    - paragraph: "Motif : Tooltip (action refusée : aria-disabled, focalisable)"
+    - 'figure "forbidden — Bouton interdit au focus : « Il faut prefix.edit »"':
+      - button "Modifier" [disabled]
+      - button "Copier"
+      - code: forbidden
+      - text: ""

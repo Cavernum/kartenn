@@ -1,0 +1,50 @@
+- main:
+  - region "SidePanel":
+    - heading "SidePanel" [level=1]
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - figure /resized — Redimensionné à \d+ px \(poignée\)/:
+      - button "Brouillon ( 3 )"
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - complementary "Panneau droit":
+        - separator "Redimensionner le panneau"
+        - tablist "Panneau droit":
+          - tab "Détail" [selected]
+          - tab "Brouillon 3"
+        - tabpanel "Détail":
+          - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - paragraph: Supervision · Production
+          - paragraph: "/Occupation : \\d+ %/"
+        - button "Fermer le panneau"
+      - code: resized
+      - text: ""

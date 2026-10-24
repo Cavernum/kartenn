@@ -1,0 +1,18 @@
+- main:
+  - tooltip "Il faut prefix.delete":
+    - text: ""
+    - code: prefix.delete
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - 'figure "forbidden — Action interdite : focalisable, infobulle « Il faut … »"':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Exporter"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+      - status
+      - code: forbidden
+      - text: ""

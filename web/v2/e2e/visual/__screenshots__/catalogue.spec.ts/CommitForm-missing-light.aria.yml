@@ -1,0 +1,13 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - figure "missing — Motif requis manquant (refusé à la soumission)":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)" [invalid]
+      - paragraph: Le résumé est obligatoire.
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: missing
+      - text: ""

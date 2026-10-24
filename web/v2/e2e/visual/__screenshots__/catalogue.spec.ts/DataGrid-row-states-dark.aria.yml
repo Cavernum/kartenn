@@ -1,7 +1,7 @@
 - main:
   - region "DataGrid":
     - heading "DataGrid" [level=1]
-    - paragraph: "Motif : Grid (maison)"
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
     - figure "row-states — Lignes en brouillon et en revue":
       - grid "Préfixes du domaine":
         - rowgroup:
@@ -18,8 +18,8 @@
             - gridcell "Production"
             - gridcell /\d+ %/
             - gridcell "Équipe réseau"
-          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
-            - gridcell /\d+\.\d+\.2\.0\/\d+/
+          - row /\(en brouillon\) \d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\(en brouillon\) \d+\.\d+\.2\.0\/\d+/
             - gridcell "Postes du siège"
             - gridcell "Recette"
             - gridcell /\d+ %/
@@ -30,8 +30,8 @@
             - gridcell "Développement"
             - gridcell /\d+ %/
             - gridcell "Exploitation"
-          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau/:
-            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - row /\(en revue\) \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau/:
+            - gridcell /\(en revue\) \d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "Production"
             - gridcell "3 %"

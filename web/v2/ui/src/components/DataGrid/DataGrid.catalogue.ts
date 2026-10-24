@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { defineComponent, h, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
+import DemoFrame from "../../demo/DemoFrame.vue";
 import { environments, prefixes } from "../../fixtures/index.ts";
 import DataGrid from "./DataGrid.vue";
 import type { CellState, GridColumn } from "./grid.ts";
@@ -11,7 +13,7 @@ const columns: GridColumn[] = [
   { id: "prefix", label: "Préfixe", width: "md", mono: true, sortable: true, filterable: true },
   { id: "label", label: "Libellé", width: "fill", sortable: true },
   { id: "env", label: "Environnement", width: "md", filterable: true },
-  { id: "used", label: "Occupation", width: "sm", align: "end", sortable: true },
+  { id: "used", label: "Occupation", width: "md", align: "end", sortable: true },
   { id: "owner", label: "Responsable", width: "md" },
 ];
 
@@ -36,9 +38,35 @@ const states: Record<string, CellState> = {
 };
 const cellState = (row: Row, column: GridColumn) => states[`${row.prefix}:${column.id}`];
 
+/** The host keeps the filters: Alt+Down (or the funnel) on a header sets or clears one. */
+const filtering = defineComponent({
+  setup() {
+    const filtered = ref<string[]>(["prefix"]);
+    return () =>
+      h(DataGrid as Component, {
+        ...base,
+        filtered: filtered.value,
+        onFilter: (column: string) =>
+          (filtered.value = filtered.value.includes(column)
+            ? filtered.value.filter((c) => c !== column)
+            : [...filtered.value, column]),
+      });
+  },
+});
+
+/** Many rows in a frame of fixed height: the header sticks, head and cells stay aligned. */
+const many = Array.from({ length: 30 }, (_, i) => ({
+  prefix: `192.0.2.${i * 8}/29`,
+  label: LABELS[i % LABELS.length]!,
+  env: environments[i % 3]!.label,
+  used: `${(i * 37) % 101} %`,
+  owner: ["Équipe réseau", "Équipe postes", "Exploitation"][i % 3]!,
+}));
+const sticky = () => h(DemoFrame, () => h(DataGrid as Component, { ...base, rows: many }));
+
 export default {
   component: DataGrid,
-  pattern: "Grid (maison)",
+  pattern: "Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne",
   states: [
     {
       name: "rest",
@@ -66,6 +94,28 @@ export default {
         rowState: (row: Row) =>
           row.prefix === prefixes[1] ? "draft" : row.prefix === prefixes[3] ? "review" : undefined,
       },
+      wide: true,
+    },
+    {
+      name: "loading",
+      description:
+        "Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)",
+      props: { ...base, loading: true },
+      wide: true,
+    },
+    {
+      name: "filtered",
+      description:
+        "Filtre posé sur le préfixe ; Alt+Bas sur un en-tête filtrable demande son filtre",
+      props: {},
+      demo: filtering,
+      wide: true,
+    },
+    {
+      name: "sticky",
+      description: "Trente lignes dans un cadre : l'en-tête reste collé, aligné sur les cellules",
+      props: {},
+      demo: sticky,
       wide: true,
     },
     {

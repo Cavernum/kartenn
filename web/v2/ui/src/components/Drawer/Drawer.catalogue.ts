@@ -32,26 +32,15 @@ const demo: FunctionalComponent = (props) =>
 
 export default {
   component: Drawer,
-  pattern: "région complementary (non modal) ou Dialog (modal)",
+  pattern: "Dialog (modal), sur le côté de la page",
   states: [
     {
-      name: "non-modal",
-      description: "Panneau du brouillon, non modal, à côté de la surface",
-      props: {
-        title: "Brouillon",
-        description: "3 opérations, non soumises.",
-        open: true,
-      },
-      demo,
-    },
-    {
       name: "modal",
-      description: "Modal, sur le côté de la page",
+      description: "Dialogue latéral modal (formulaire long) ; le panneau non modal est SidePanel",
       props: {
         title: "Brouillon",
         description: "3 opérations, non soumises.",
         open: true,
-        modal: true,
       },
       demo,
       isolated: true,

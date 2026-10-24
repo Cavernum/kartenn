@@ -1,0 +1,15 @@
+- main:
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - figure "wide — Toutes les actions tiennent":
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Exporter"
+        - button "Historique"
+        - button "Supprimer" [disabled]
+      - status
+      - code: wide
+      - text: ""

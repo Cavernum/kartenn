@@ -1,0 +1,10 @@
+- main:
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - figure "loading — Action en cours":
+      - button "Appliquer" [disabled]
+      - button "Choisir l'action"
+      - status
+      - code: loading
+      - text: ""

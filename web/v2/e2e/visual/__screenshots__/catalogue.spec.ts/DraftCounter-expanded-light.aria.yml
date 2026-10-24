@@ -1,8 +1,8 @@
 - main:
   - region "DraftCounter":
     - heading "DraftCounter" [level=1]
-    - paragraph: "Motif : Button (aria-expanded du panneau)"
-    - figure "expanded — Panneau ouvert":
+    - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
+    - figure "expanded — Panneau ouvert sur le brouillon":
       - button "Brouillon ( 3 )" [expanded]
       - code: expanded
       - text: ""

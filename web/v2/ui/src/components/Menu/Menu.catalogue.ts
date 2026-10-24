@@ -20,6 +20,7 @@ const items: MenuItem[] = [
   },
   { kind: "separator" },
   { id: "delete", label: "Supprimer", icon: "trash", danger: true },
+  { id: "purge", label: "Purger l'historique", icon: "trash", forbidden: "prefix.purge" },
 ];
 
 export default {
@@ -34,7 +35,8 @@ export default {
     },
     {
       name: "open",
-      description: "Ouvert : raccourci à droite, entrée désactivée avec motif, entrée destructive",
+      description:
+        "Ouvert : raccourci à droite, entrées désactivées (motif, permission) focalisables, entrée destructive",
       props: { label: "Actions", items, defaultOpen: true },
       isolated: true,
     },

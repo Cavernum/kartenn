@@ -1,0 +1,39 @@
+- main:
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - 'figure "apply — Action par défaut : Appliquer"':
+      - button "Appliquer"
+      - button "Choisir l'action"
+      - status
+      - code: apply
+      - text: ""
+    - 'figure "chosen — Action choisie au chevron : Soumettre en revue"':
+      - button "Soumettre en revue"
+      - button "Choisir l'action"
+      - status
+      - code: chosen
+      - text: ""
+    - 'figure "held — Appliquer retenu par une politique : l''action par défaut est la revue"':
+      - button "Soumettre en revue"
+      - button "Choisir l'action"
+      - status
+      - code: held
+      - text: ""
+    - 'figure "forbidden — Action choisie interdite : grisée, focalisable, infobulle « Il faut … »"':
+      - button "Appliquer" [disabled]
+      - button "Choisir l'action"
+      - status
+      - code: forbidden
+      - text: ""
+    - figure "loading — Action en cours":
+      - button "Appliquer" [disabled]
+      - button "Choisir l'action"
+      - status
+      - code: loading
+      - text: ""
+    - 'figure "open — Chevron ouvert : entrée interdite avec son motif"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/SplitButton?mode=dark&densite=confortable&etat=open
+      - code: open
+      - text: ""

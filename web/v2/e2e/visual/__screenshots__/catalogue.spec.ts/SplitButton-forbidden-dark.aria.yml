@@ -1,0 +1,13 @@
+- main:
+  - tooltip "Il faut changeset.apply_own":
+    - text: ""
+    - code: changeset.apply_own
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - 'figure "forbidden — Action choisie interdite : grisée, focalisable, infobulle « Il faut … »"':
+      - button "Appliquer" [disabled]
+      - button "Choisir l'action"
+      - status
+      - code: forbidden
+      - text: ""

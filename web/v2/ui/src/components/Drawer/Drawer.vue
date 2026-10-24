@@ -3,10 +3,9 @@
      file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
 
 <script setup lang="ts">
-// A side panel (design « Inventaire », line 13): non-modal by default, a `complementary`
-// region that takes its place beside the surface and pushes it (the draft panel, never
-// over a cell being edited); modal, a Reka Dialog on the side of the page. Escape closes
-// both while the focus is inside.
+// A side dialog (APG Dialog (Modal); design « Inventaire », line 13): a Reka Dialog on the
+// side of the page, for a long form; the focus is trapped and given back, Escape closes.
+// Modal only: the non-modal panel beside the surface is `SidePanel` (024/M8).
 import {
   DialogClose,
   DialogContent,
@@ -16,7 +15,6 @@ import {
   DialogRoot,
   DialogTitle,
 } from "reka-ui";
-import { nextTick, useId, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
@@ -25,7 +23,6 @@ const props = withDefaults(
   defineProps<{
     title: string;
     description?: string | undefined;
-    modal?: boolean;
     side?: "start" | "end";
     size?: "sm" | "md" | "lg";
   }>(),
@@ -33,35 +30,14 @@ const props = withDefaults(
 );
 const open = defineModel<boolean>("open", { default: false });
 const portal = injectPortalTarget();
-const titleId = useId();
-
-// Non modal: the focus comes back to where it was when the panel opened (WCAG 2.4.3).
-let opener: HTMLElement | null = null;
-watch(open, async (now) => {
-  if (props.modal || typeof document === "undefined") return;
-  if (now) opener = document.activeElement as HTMLElement | null;
-  else {
-    await nextTick();
-    if (document.activeElement === document.body) opener?.focus();
-    opener = null;
-  }
-});
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented) {
-    event.preventDefault();
-    open.value = false;
-  }
-}
 </script>
 
 <template>
-  <DialogRoot v-if="props.modal" v-model:open="open">
+  <DialogRoot v-model:open="open">
     <DialogPortal :to="portal">
       <DialogOverlay class="k-dialog__overlay" />
       <DialogContent
         class="k-drawer"
-        data-modal="true"
         v-bind="props.description ? {} : { 'aria-describedby': undefined }"
         :data-side="props.side"
         :data-size="props.size"
@@ -80,22 +56,6 @@ function onKeydown(event: KeyboardEvent): void {
       </DialogContent>
     </DialogPortal>
   </DialogRoot>
-  <aside
-    v-else-if="open"
-    class="k-drawer"
-    :data-side="props.side"
-    :data-size="props.size"
-    :aria-labelledby="titleId"
-    @keydown="onKeydown"
-  >
-    <header class="k-drawer__header">
-      <h2 :id="titleId" class="k-drawer__title">{{ props.title }}</h2>
-      <IconButton icon="x" :label="t('close')" size="sm" @click="open = false" />
-    </header>
-    <p v-if="props.description" class="k-drawer__description">{{ props.description }}</p>
-    <div class="k-drawer__body"><slot /></div>
-    <footer v-if="$slots.actions" class="k-drawer__actions"><slot name="actions" /></footer>
-  </aside>
 </template>
 
 <style>
@@ -103,16 +63,23 @@ function onKeydown(event: KeyboardEvent): void {
   .k-drawer {
     --k-drawer-size: var(--k-size-panel-lg);
 
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: var(--k-z-modal);
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     inline-size: var(--k-drawer-size);
+    max-inline-size: calc(100% - var(--k-space-12));
     min-block-size: 0;
     color: var(--k-text);
     background-color: var(--k-surface);
     border-inline-start: var(--k-border-width) solid var(--k-border-strong);
+    box-shadow: var(--k-shadow-modal);
   }
 
   .k-drawer[data-side="start"] {
+    inset-inline: 0 auto;
     border-inline-start: 0;
     border-inline-end: var(--k-border-width) solid var(--k-border-strong);
   }
@@ -123,19 +90,6 @@ function onKeydown(event: KeyboardEvent): void {
 
   .k-drawer[data-size="md"] {
     --k-drawer-size: var(--k-size-panel-md);
-  }
-
-  .k-drawer[data-modal] {
-    position: fixed;
-    inset-block: 0;
-    inset-inline-end: 0;
-    z-index: var(--k-z-modal);
-    max-inline-size: calc(100% - var(--k-space-12));
-    box-shadow: var(--k-shadow-modal);
-  }
-
-  .k-drawer[data-modal][data-side="start"] {
-    inset-inline: 0 auto;
   }
 
   .k-drawer__header {

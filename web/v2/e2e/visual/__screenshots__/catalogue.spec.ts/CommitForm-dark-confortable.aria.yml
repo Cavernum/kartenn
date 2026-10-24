@@ -1,0 +1,37 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - figure "empty — Vide, résumé obligatoire":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)"
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: empty
+      - text: ""
+    - figure "prefilled — Motif prérempli (« Appliquer »), modifiable":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Maintenance du référentiel
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: prefilled
+      - text: ""
+    - figure "described — Résumé et description":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Bascule des adresses de la salle B
+      - text: Description (facultative)
+      - textbox "Description (facultative)": Les passerelles changent de plage ; les VIP suivent.
+      - status
+      - code: described
+      - text: ""
+    - figure "missing — Motif requis manquant (refusé à la soumission)":
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)" [invalid]
+      - paragraph: Le résumé est obligatoire.
+      - text: Description (facultative)
+      - textbox "Description (facultative)"
+      - status
+      - code: missing
+      - text: ""

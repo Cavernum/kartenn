@@ -1,0 +1,14 @@
+- main:
+  - menu "Choisir l'action":
+    - menuitem "Appliquer" [disabled]
+    - menuitem "Soumettre en revue"
+    - menuitem "Enregistrer le brouillon"
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - 'figure "open — Chevron ouvert : entrée interdite avec son motif"':
+      - button "Soumettre en revue"
+      - button "Choisir l'action" [expanded]
+      - status
+      - code: open
+      - text: ""

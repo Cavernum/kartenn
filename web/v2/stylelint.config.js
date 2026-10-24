@@ -14,6 +14,7 @@ export const FLOATING = [
   "Dialog",
   "AlertDialog",
   "Drawer",
+  "SidePanel",
   "Toast",
   "CommandPalette",
 ];

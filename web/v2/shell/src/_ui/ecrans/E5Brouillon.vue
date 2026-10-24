@@ -1,17 +1,18 @@
 <script setup lang="ts">
 // E5 — Brouillon (design « Maquettes »; 021, « Cadre » : panneau du brouillon, « Écrans » :
-// Brouillon): the draft panel, non modal, pushing the list it was filled from; operations
+// Brouillon): the draft tab of the right panel (SidePanel, non modal, over the end of the
+// list it was filled from; the footer of the 024 comes with task 11); operations
 // that can be removed; the simulation under way, then with coded violations, then valid;
 // submission with a motive.
 import {
   Button,
   Cluster,
   DataGrid,
-  Drawer,
   Icon,
   IconButton,
   InlineAlert,
   KeyLabel,
+  SidePanel,
   Skeleton,
   StatusBadge,
   Stack,
@@ -26,6 +27,10 @@ import Panneau from "./EcranPanneau.vue";
 import { usageLabel } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
+const panelTabs = [
+  { value: "detail", label: "Détail" },
+  { value: "draft", label: "Brouillon", count: 3 },
+];
 const submitting = props.vue === "soumission";
 const motive = ref(submitting ? "Bascule des VIP de la salle B" : "");
 
@@ -105,82 +110,89 @@ const violations =
       </DataGrid>
     </Panneau>
     <template #drawer>
-      <Drawer :open="true" title="Brouillon" description="3 opérations, non soumises.">
-        <Stack gap="4">
-          <Stack as="ol" gap="2" class="k-ecran-list">
-            <li v-for="op in operations" :key="op.key">
-              <Stack gap="1">
-                <Cluster justify="between" :wrap="false" gap="2">
-                  <Cluster gap="2" :wrap="false">
-                    <Icon name="draft" />
-                    <code>{{ op.key }}</code>
-                    <span>
-                      {{ op.what }}<template v-if="op.before"> : </template>
-                      <del v-if="op.before">{{ op.before }}</del>
-                      <template v-if="op.before"> → </template>
-                      <ins v-if="op.before">{{ op.after }}</ins>
-                      <span v-else class="k-ecran-muted"> ({{ op.after }})</span>
-                    </span>
-                  </Cluster>
-                  <IconButton
-                    icon="x"
-                    size="sm"
-                    :label="`Retirer l'opération « ${op.what} » sur ${op.key}`"
-                  />
-                </Cluster>
-                <InlineAlert
-                  v-if="violations[op.key]"
-                  tone="ko"
-                  :title="`${op.key} : refusée par la simulation`"
-                  :items="[violations[op.key]!]"
-                />
-              </Stack>
-            </li>
-          </Stack>
-          <section aria-labelledby="k-ecran-simulation">
-            <Stack gap="2">
-              <h3 id="k-ecran-simulation" class="k-ecran-subtitle">Simulation</h3>
-              <template v-if="props.vue === 'simulation'">
-                <Cluster gap="2" :wrap="false">
-                  <Icon name="loader-circle" class="k-spinner" />
-                  <span>Simulation en cours des 3 opérations…</span>
-                </Cluster>
-                <Skeleton variant="text" :rows="2" />
-              </template>
-              <p v-else-if="props.vue === 'violations'">
-                <StatusBadge state="ko" label="2 violations" /> Corriger ou retirer les opérations
-                en cause.
-              </p>
-              <InlineAlert v-else tone="ok" title="Simulation valide · 0 violation" />
-            </Stack>
-          </section>
-          <TextField
-            v-model="motive"
-            label="Motif"
-            required
-            hint="Reporté dans l'historique de chaque objet."
-          />
-          <Attributs
-            :items="[
-              { key: 'effect', label: 'Effet au', value: 'présent' },
-              { key: 'review', label: 'Revue', value: 'non requise' },
-            ]"
-          />
-        </Stack>
-        <template #actions>
-          <span v-if="!submitting" class="k-ecran-muted">{{
-            props.vue === "simulation" ? "Simulation en cours" : "2 violations à corriger"
-          }}</span>
-          <Button variant="ghost" icon="trash">Tout abandonner</Button>
-          <Button
-            variant="primary"
-            icon="send"
-            :shortcut="['Control', 'Enter']"
-            :disabled="!submitting"
-            >Soumettre</Button
-          >
+      <SidePanel id="k-ecran-draft" label="Panneau droit" :tabs="panelTabs" tab="draft">
+        <template #detail>
+          <p class="k-ecran-muted">Aucune sélection.</p>
         </template>
-      </Drawer>
+        <template #draft>
+          <Stack gap="4">
+            <Stack as="ol" gap="2" class="k-ecran-list">
+              <li v-for="op in operations" :key="op.key">
+                <Stack gap="1">
+                  <Cluster justify="between" :wrap="false" gap="2">
+                    <Cluster gap="2" :wrap="false">
+                      <Icon name="draft" />
+                      <code>{{ op.key }}</code>
+                      <span>
+                        {{ op.what }}<template v-if="op.before"> : </template>
+                        <del v-if="op.before">{{ op.before }}</del>
+                        <template v-if="op.before"> → </template>
+                        <ins v-if="op.before">{{ op.after }}</ins>
+                        <span v-else class="k-ecran-muted"> ({{ op.after }})</span>
+                      </span>
+                    </Cluster>
+                    <IconButton
+                      icon="x"
+                      size="sm"
+                      :label="`Retirer l'opération « ${op.what} » sur ${op.key}`"
+                    />
+                  </Cluster>
+                  <InlineAlert
+                    v-if="violations[op.key]"
+                    tone="ko"
+                    :title="`${op.key} : refusée par la simulation`"
+                    :items="[violations[op.key]!]"
+                  />
+                </Stack>
+              </li>
+            </Stack>
+            <section aria-labelledby="k-ecran-simulation">
+              <Stack gap="2">
+                <h3 id="k-ecran-simulation" class="k-ecran-subtitle">Simulation</h3>
+                <template v-if="props.vue === 'simulation'">
+                  <Cluster gap="2" :wrap="false">
+                    <Icon name="loader-circle" class="k-spinner" />
+                    <span>Simulation en cours des 3 opérations…</span>
+                  </Cluster>
+                  <Skeleton variant="text" :rows="2" />
+                </template>
+                <p v-else-if="props.vue === 'violations'">
+                  <StatusBadge state="ko" label="2 violations" /> Corriger ou retirer les opérations
+                  en cause.
+                </p>
+                <InlineAlert v-else tone="ok" title="Simulation valide · 0 violation" />
+              </Stack>
+            </section>
+            <TextField
+              v-model="motive"
+              label="Motif"
+              required
+              hint="Reporté dans l'historique de chaque objet."
+            />
+            <Attributs
+              :items="[
+                { key: 'effect', label: 'Effet au', value: 'présent' },
+                { key: 'review', label: 'Revue', value: 'non requise' },
+              ]"
+            />
+          </Stack>
+        </template>
+        <template #footer>
+          <Cluster gap="2" justify="end">
+            <span v-if="!submitting" class="k-ecran-muted">{{
+              props.vue === "simulation" ? "Simulation en cours" : "2 violations à corriger"
+            }}</span>
+            <Button variant="ghost" icon="trash">Tout abandonner</Button>
+            <Button
+              variant="primary"
+              icon="send"
+              :shortcut="['Control', 'Enter']"
+              :disabled="!submitting"
+              >Soumettre</Button
+            >
+          </Cluster>
+        </template>
+      </SidePanel>
     </template>
   </Cadre>
 </template>

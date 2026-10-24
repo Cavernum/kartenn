@@ -1,7 +1,7 @@
 - main:
   - region "DraftCounter":
     - heading "DraftCounter" [level=1]
-    - paragraph: "Motif : Button (aria-expanded du panneau)"
+    - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
     - figure "pending — Opérations en brouillon":
       - button /Brouillon \( \d+ \)/
       - code: pending
@@ -10,11 +10,21 @@
       - button "Brouillon ( 0 )"
       - code: empty
       - text: ""
-    - figure "expanded — Panneau ouvert":
+    - figure "expanded — Panneau ouvert sur le brouillon":
       - button "Brouillon ( 3 )" [expanded]
       - code: expanded
       - text: ""
     - figure "focus — Focus visible":
       - button "Brouillon ( 3 )"
       - code: focus
+      - text: ""
+    - figure "drafts — Avec la liste des brouillons de l'utilisateur (chevron)":
+      - button "Brouillon ( 3 )"
+      - button "Liste des brouillons"
+      - code: drafts
+      - text: ""
+    - figure "drafts-open — Liste des brouillons ouverte":
+      - link "Voir l'état drafts-open seul":
+        - /url: /_ui/c/DraftCounter?mode=light&densite=confortable&etat=drafts-open
+      - code: drafts-open
       - text: ""

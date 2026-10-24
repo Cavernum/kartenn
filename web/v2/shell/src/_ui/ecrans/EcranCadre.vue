@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The frame of the shell for the mock-ups (spec 021, « Cadre »): sidebar of spaces, status
 // bar (breadcrumb, date pill, draft counter, user menu), band out of the present, work
-// surface in panels, draft panel pushing the surface. The real frame is a task of the 021;
+// surface in panels, right panel (SidePanel) over the end of the surface. The real frame is a task of the 021;
 // here it only places components of @kartenn/ui (layout, no look of its own).
 import {
   Breadcrumb,
@@ -92,9 +92,7 @@ const userMenu: MenuItem[] = [
           <h1 class="k-visually-hidden">{{ props.title }}</h1>
           <slot />
         </main>
-        <div v-if="$slots.drawer" id="k-ecran-draft" class="k-ecran__drawer">
-          <slot name="drawer" />
-        </div>
+        <slot name="drawer" />
       </div>
     </div>
     <div id="k-ecran-layers" class="k-ecran__layers"></div>
@@ -151,7 +149,10 @@ const userMenu: MenuItem[] = [
     padding: var(--k-space-2) var(--k-space-4) 0;
   }
 
+  /* The right panel (SidePanel) lies over the end of the surface, which isolates its own
+   * sticky headers below it. */
   .k-ecran__body {
+    position: relative;
     display: flex;
     flex: 1;
     align-items: stretch;
@@ -166,10 +167,7 @@ const userMenu: MenuItem[] = [
     min-inline-size: 0;
     padding: var(--k-space-3);
     scroll-padding-block-start: var(--k-size-status-bar);
-  }
-
-  .k-ecran__drawer {
-    display: flex;
+    isolation: isolate;
   }
 
   .k-ecran__layers {

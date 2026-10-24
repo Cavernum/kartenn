@@ -4,18 +4,25 @@
 
 <script setup lang="ts" generic="R extends Record<string, unknown>">
 // The data grid of kartenn (APG Grid, written by kartenn: Reka has none; design
-// « Inventaire », line 20). Visual version (task 12): the structure of the pattern (grid,
-// rows and cells indexed, sortable headers with `aria-sort`, selection), the states of
-// rows and cells decided by the host (draft, review, pending, error with its code), a cell
-// being edited. Virtualisation, keyboard and editing come with the complete version
-// (task 25); the API is theirs already.
-import { computed } from "vue";
+// « Inventaire », line 20; « Structure avant style »). One CSS grid: the columns are set
+// once on the grid, every row (header included) is a subgrid of it, and the header sticks
+// to the top of the same scroll container: head and cells align by construction, whatever
+// the scroll bar and the elastic columns (REQ-020-34). Keyboard of the pattern (arrows,
+// Home, End, Ctrl+Home, Ctrl+End, Page Up, Page Down) over a roving focus; on a header,
+// Enter or Space sorts (`aria-sort`) and Alt+Down asks for the filter of the column (the
+// host opens it). The states of rows and cells are decided by the host (draft, review,
+// pending, error with its code); loading, the rows are skeletons in the cells.
+// Virtualisation and the editing keys come with the complete version (020, task 25).
+import { computed, nextTick, ref } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
+import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
+import Skeleton from "../Skeleton/Skeleton.vue";
 import TextField from "../TextField/TextField.vue";
 import {
   columnsTemplate,
+  nextSort,
   type CellRef,
   type CellState,
   type GridColumn,
@@ -30,37 +37,52 @@ const props = withDefaults(
     rows: R[];
     /** The field of a row that identifies it. */
     rowKey: keyof R & string;
-    sort?: GridSort | undefined;
     selectable?: boolean;
     selected?: string[];
-    /** The cell that holds the roving focus. */
-    active?: CellRef | undefined;
     editing?: CellRef | undefined;
     cellState?: ((row: R, column: GridColumn) => CellState | undefined) | undefined;
     rowState?: ((row: R) => RowState | undefined) | undefined;
+    /** The columns whose filter is set (the host keeps the filters). */
+    filtered?: string[];
+    /** The rows are coming: skeleton rows in the cells, the grid busy. */
+    loading?: boolean;
+    loadingRows?: number;
   }>(),
   {
-    sort: undefined,
     selected: () => [],
-    active: undefined,
     editing: undefined,
     cellState: undefined,
     rowState: undefined,
+    filtered: () => [],
+    loadingRows: 5,
   },
 );
+/** The sort of the grid; a sortable header changes it. */
+const sort = defineModel<GridSort | undefined>("sort", { default: undefined });
+/** The cell that holds the roving focus (the first header when unset). */
+const active = defineModel<CellRef | undefined>("active", { default: undefined });
+const emit = defineEmits<{
+  /** Alt+Down or a click on the funnel of a filterable header. */
+  filter: [column: string];
+  /** Enter on a cell of the body. */
+  activate: [cell: CellRef];
+}>();
 
+const grid = ref<HTMLElement | null>(null);
 const template = computed(() => ({ "--k-grid-columns": columnsTemplate(props.columns) }));
 const keyOf = (row: R) => String(row[props.rowKey]);
 const isSelected = (row: R) => props.selected.includes(keyOf(row));
 const ariaSort = (column: GridColumn) =>
-  !column.sortable ? undefined : props.sort?.column === column.id ? props.sort.direction : "none";
-const isActive = (row: string, column: string) =>
-  props.active ? props.active.row === row && props.active.column === column : false;
-const tabindex = (row: string, column: string) => {
-  if (props.active) return isActive(row, column) ? 0 : -1;
-  // Without an active cell, the first header is the entry point of the grid.
-  return row === "" && column === props.columns[0]?.id ? 0 : -1;
-};
+  !column.sortable ? undefined : sort.value?.column === column.id ? sort.value.direction : "none";
+const isFiltered = (column: GridColumn) => props.filtered.includes(column.id);
+
+/** The keys of the rows the focus moves over: the header (""), then the body. */
+const rowKeys = computed(() => ["", ...(props.loading ? [] : props.rows.map(keyOf))]);
+const current = computed<CellRef>(
+  () => active.value ?? { row: "", column: props.columns[0]?.id ?? "" },
+);
+const tabindex = (row: string, column: string) =>
+  current.value.row === row && current.value.column === column ? 0 : -1;
 const isEditing = (row: R, column: GridColumn) =>
   props.editing?.row === keyOf(row) && props.editing.column === column.id;
 
@@ -78,17 +100,87 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
   const state = props.cellState?.(row, column);
   return typeof state === "object" ? state : undefined;
 }
+
+function sortBy(column: GridColumn): void {
+  if (column.sortable) sort.value = nextSort(sort.value, column.id);
+}
+
+async function focusActive(): Promise<void> {
+  await nextTick();
+  grid.value
+    ?.querySelector<HTMLElement>(
+      '[role="columnheader"][tabindex="0"], [role="gridcell"][tabindex="0"]',
+    )
+    ?.focus();
+}
+
+/** The cell under `target`, as the grid keys it. */
+function cellOf(target: EventTarget | null): CellRef | null {
+  const cell = (target as HTMLElement | null)?.closest<HTMLElement>("[data-column]");
+  return cell ? { row: cell.dataset.row ?? "", column: cell.dataset.column! } : null;
+}
+
+function onFocusin(event: FocusEvent): void {
+  const cell = cellOf(event.target);
+  if (cell && (cell.row !== current.value.row || cell.column !== current.value.column))
+    active.value = cell;
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  // The editor of a cell keeps its keys.
+  if ((event.target as HTMLElement).closest("input, textarea")) return;
+  const cell = current.value;
+  const column = props.columns.find((c) => c.id === cell.column);
+  if (cell.row === "" && column) {
+    if (event.altKey && event.key === "ArrowDown") {
+      if (column.filterable) emit("filter", column.id);
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      sortBy(column);
+      event.preventDefault();
+      return;
+    }
+  } else if (event.key === "Enter") {
+    emit("activate", cell);
+    event.preventDefault();
+    return;
+  }
+  const from = {
+    row: Math.max(0, rowKeys.value.indexOf(cell.row)),
+    column: Math.max(
+      0,
+      props.columns.findIndex((c) => c.id === cell.column),
+    ),
+  };
+  const to = moveInGrid(
+    from,
+    event,
+    rowKeys.value.length,
+    props.columns.length,
+    isRtl(grid.value!),
+  );
+  if (!to) return;
+  event.preventDefault();
+  active.value = { row: rowKeys.value[to.row]!, column: props.columns[to.column]!.id };
+  void focusActive();
+}
 </script>
 
 <template>
   <div
+    ref="grid"
     class="k-data-grid"
     role="grid"
     :aria-label="props.label"
-    :aria-rowcount="props.rows.length + 1"
+    :aria-rowcount="(props.loading ? props.loadingRows : props.rows.length) + 1"
     :aria-colcount="props.columns.length"
     :aria-multiselectable="props.selectable ? 'true' : undefined"
+    :aria-busy="props.loading ? 'true' : undefined"
     :style="template"
+    @keydown="onKeydown"
+    @focusin="onFocusin"
   >
     <div role="rowgroup" class="k-data-grid__head">
       <div role="row" aria-rowindex="1" class="k-data-grid__row">
@@ -97,29 +189,62 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
           :key="column.id"
           role="columnheader"
           class="k-data-grid__header"
+          :data-column="column.id"
+          data-row=""
           :data-align="column.align"
+          :data-sortable="column.sortable ? 'true' : undefined"
           :aria-colindex="c + 1"
           :aria-sort="ariaSort(column)"
           :tabindex="tabindex('', column.id)"
+          @click="sortBy(column)"
         >
           <span class="k-data-grid__label">{{ column.label }}</span>
           <Icon
             v-if="column.sortable"
             :name="
-              props.sort?.column !== column.id
+              sort?.column !== column.id
                 ? 'arrow-up-down'
-                : props.sort.direction === 'ascending'
+                : sort.direction === 'ascending'
                   ? 'arrow-up'
                   : 'arrow-down'
             "
             class="k-data-grid__sort"
-            :data-active="props.sort?.column === column.id ? 'true' : undefined"
+            :data-active="sort?.column === column.id ? 'true' : undefined"
           />
-          <Icon v-if="column.filterable" name="funnel" class="k-data-grid__filter" />
+          <span
+            v-if="column.filterable"
+            class="k-data-grid__filter"
+            :data-active="isFiltered(column) ? 'true' : undefined"
+            @click.stop="emit('filter', column.id)"
+          >
+            <Icon name="funnel" />
+            <span v-if="isFiltered(column)" class="k-visually-hidden">({{ t("filtered") }})</span>
+          </span>
         </div>
       </div>
     </div>
-    <div role="rowgroup" class="k-data-grid__body">
+    <div v-if="props.loading" role="rowgroup" class="k-data-grid__body">
+      <div
+        v-for="r in props.loadingRows"
+        :key="r"
+        role="row"
+        class="k-data-grid__row"
+        :aria-rowindex="r + 1"
+      >
+        <div
+          v-for="(column, c) in props.columns"
+          :key="column.id"
+          role="gridcell"
+          class="k-data-grid__cell"
+          :data-align="column.align"
+          :aria-colindex="c + 1"
+        >
+          <span v-if="r === 1 && c === 0" class="k-visually-hidden">{{ t("loading") }}</span>
+          <Skeleton variant="cell" :rows="r" :columns="c" />
+        </div>
+      </div>
+    </div>
+    <div v-else role="rowgroup" class="k-data-grid__body">
       <div
         v-for="(row, r) in props.rows"
         :key="keyOf(row)"
@@ -135,6 +260,8 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
           role="gridcell"
           class="k-data-grid__cell"
           :class="{ 'k-mono': column.mono }"
+          :data-row="keyOf(row)"
+          :data-column="column.id"
           :data-align="column.align"
           :data-state="stateOf(row, column)"
           :data-editing="isEditing(row, column) ? 'true' : undefined"
@@ -204,10 +331,15 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
 
 <style>
 @layer components {
+  /* One grid: the columns are set here, once; rows and row groups are subgrids of it. */
   .k-data-grid {
     --k-grid-columns: var(--k-size-col-md);
 
     position: relative;
+    display: grid;
+    grid-template-columns: var(--k-grid-columns);
+    align-content: start;
+    min-inline-size: 0;
     overflow: auto;
     color: var(--k-text);
     background-color: var(--k-surface);
@@ -215,6 +347,15 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
     border-radius: var(--k-radius-md);
   }
 
+  .k-data-grid__head,
+  .k-data-grid__body,
+  .k-data-grid__row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
+  /* The header sticks in the scroll container of the rows (the grid itself). */
   .k-data-grid__head {
     position: sticky;
     inset-block-start: 0;
@@ -222,16 +363,7 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
     background-color: var(--k-surface-sunken);
   }
 
-  /* Head and body share one template and one width. */
-  .k-data-grid__head,
-  .k-data-grid__body {
-    inline-size: max-content;
-    min-inline-size: 100%;
-  }
-
   .k-data-grid__row {
-    display: grid;
-    grid-template-columns: var(--k-grid-columns);
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
@@ -283,6 +415,14 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
     color: var(--k-text-muted);
   }
 
+  .k-data-grid__header[data-sortable] {
+    cursor: pointer;
+  }
+
+  .k-data-grid__header[data-sortable]:hover {
+    color: var(--k-text);
+  }
+
   .k-data-grid__header[data-align="end"],
   .k-data-grid__cell[data-align="end"] {
     justify-content: end;
@@ -294,7 +434,14 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
     outline-offset: calc(var(--k-focus-width) * -1);
   }
 
+  .k-data-grid__label {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .k-data-grid__sort {
+    flex: none;
     color: var(--k-text-muted);
   }
 
@@ -303,8 +450,15 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
   }
 
   .k-data-grid__filter {
+    display: inline-flex;
+    flex: none;
     margin-inline-start: auto;
     color: var(--k-text-muted);
+    cursor: pointer;
+  }
+
+  .k-data-grid__filter[data-active] {
+    color: var(--k-accent);
   }
 
   .k-data-grid__value {

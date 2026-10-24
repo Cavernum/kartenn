@@ -1,0 +1,46 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure "loading — Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Chargement":
+            - gridcell "Chargement"
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+      - code: loading
+      - text: ""

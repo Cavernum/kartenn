@@ -4,13 +4,14 @@
     - menuitem "Modifier"
     - menuitem "Copier l'identifiant"
     - menuitem "Historique"
-    - menuitem "Déplacer vers… Parent déduit de l'inclusion" [disabled]
+    - menuitem "Déplacer vers…" [disabled]
     - separator
     - menuitem "Supprimer"
+    - menuitem "Purger l'historique" [disabled]
   - region "Menu":
     - heading "Menu" [level=1]
     - paragraph: "Motif : Menu Button, Menu"
-    - 'figure "open — Ouvert : raccourci à droite, entrée désactivée avec motif, entrée destructive"':
+    - 'figure "open — Ouvert : raccourci à droite, entrées désactivées (motif, permission) focalisables, entrée destructive"':
       - button "Actions" [expanded]
       - code: open
       - text: ""

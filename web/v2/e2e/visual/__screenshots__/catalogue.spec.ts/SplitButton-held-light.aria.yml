@@ -1,0 +1,10 @@
+- main:
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - 'figure "held — Appliquer retenu par une politique : l''action par défaut est la revue"':
+      - button "Soumettre en revue"
+      - button "Choisir l'action"
+      - status
+      - code: held
+      - text: ""
