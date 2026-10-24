@@ -11,6 +11,36 @@
   # written here (pkgs.writers.writeDash), the devenv scripts (nix/dash-scripts.nix) and
   # scripts/*.sh. A script re-executed under k-heavy names this dash, never `sh`.
   dash = lib.getExe pkgs.dash;
+  # The fontconfig of the Playwright browsers (spec 020, « Régression visuelle »). The
+  # headless shell of playwright-driver is not wrapped: left alone, it reads the fontconfig
+  # of the host (/etc/fonts, ~/.config/fontconfig), whose hinting, antialiasing and fonts
+  # differ from NixOS to the Ubuntu runner of the CI, and so did every glyph of the
+  # captures. This file is the whole configuration: no include, no system directory, the
+  # fallback fonts of fonts.css (Liberation) and DejaVu for the symbols, rendering set
+  # explicitly. web/v2/e2e/playwright.config.ts hands it to the browser.
+  playwrightFonts = pkgs.writeText "kartenn-playwright-fonts.conf" ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+    <fontconfig>
+      <dir>${pkgs.liberation_ttf}/share/fonts</dir>
+      <dir>${pkgs.dejavu_fonts}/share/fonts</dir>
+      <cachedir prefix="xdg">kartenn-playwright-fontconfig</cachedir>
+      <alias binding="same"><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias>
+      <alias binding="same"><family>serif</family><prefer><family>Liberation Serif</family></prefer></alias>
+      <alias binding="same"><family>monospace</family><prefer><family>Liberation Mono</family></prefer></alias>
+      <alias binding="same"><family>Arial</family><prefer><family>Liberation Sans</family></prefer></alias>
+      <alias binding="same"><family>Courier New</family><prefer><family>Liberation Mono</family></prefer></alias>
+      <match target="font">
+        <edit name="antialias" mode="assign"><bool>true</bool></edit>
+        <edit name="hinting" mode="assign"><bool>false</bool></edit>
+        <edit name="hintstyle" mode="assign"><const>hintnone</const></edit>
+        <edit name="autohint" mode="assign"><bool>false</bool></edit>
+        <edit name="rgba" mode="assign"><const>none</const></edit>
+        <edit name="lcdfilter" mode="assign"><const>lcdnone</const></edit>
+        <edit name="embeddedbitmap" mode="assign"><bool>false</bool></edit>
+      </match>
+    </fontconfig>
+  '';
   # Pre-commit hands paths relative to the repository; tools run from the workspace (web/,
   # or web/v2/ for the new shell, spec 021 « Migration »).
   # The toolchain is absolute: pre-commit also runs outside the devenv shell.
@@ -374,6 +404,8 @@ in {
   env.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
   env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+  # Not FONTCONFIG_FILE itself: the shell would impose it on every program started from it.
+  env.KARTENN_PLAYWRIGHT_FONTCONFIG = "${playwrightFonts}";
 
   # Vite dev server, driven through the devenv MCP server (start_process,
   # get_process_logs) rather than a foreground `pnpm dev`. Vite relays /v1 and /plugins
