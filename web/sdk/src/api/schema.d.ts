@@ -1549,7 +1549,7 @@ export interface paths {
     };
     /**
      * `GET /v1/identities/{id}`: the identity, its groups and its effective rights; a
-     *     membership by a group of its issuer is read from its last session.
+     *     membership by a group of its issuer is read from its last login.
      */
     get: operations["show_identity"];
     put?: never;
@@ -5271,10 +5271,16 @@ export interface components {
       bindings: components["schemas"]["HeldBinding"][];
       /**
        * @description Its groups of kartenn, one per membership: `via` is `direct` or the group of its
-       *     issuer, as its last session carried it.
+       *     issuer, as its last login carried it.
        */
       groups: components["schemas"]["GroupOf"][];
-      last_session?: components["schemas"]["LastSession"] | null;
+      /**
+       * @description The groups of its issuer its last login carried, without its date (spec 025,
+       *     Q-025-1; 005/K3); empty for an identity that never logged in. They reveal the
+       *     organisation of the issuer: served, as the whole record, to a reader of the rights
+       *     only; the person reads their own in `GET /v1/me` (`idp_groups`).
+       */
+      last_login_idp_groups: string[];
     };
     /** @description An identity and its state. */
     IdentityItem: {
@@ -5449,13 +5455,6 @@ export interface components {
       spaces: Record<string, never>;
       /** @description The valid time asked for, when one was. */
       valid_at?: string | null;
-    };
-    /** @description The last session of a person (spec 025, Q-025-1). */
-    LastSession: {
-      /** @description Its opening, RFC 3339. */
-      at: string;
-      /** @description The groups of its issuer it carried. */
-      idp_groups: string[];
     };
     /** @description The limits a client must respect. */
     Limits: {

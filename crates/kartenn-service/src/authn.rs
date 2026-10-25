@@ -186,8 +186,9 @@ pub trait Identities: Send + Sync {
         name: &str,
     ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
 
-    /// Records the login of the person `identity` now, with the groups of its issuer its
-    /// session carries (spec 025, Q-025-1): its record shows them.
+    /// Records the groups of its issuer the login of the person `identity` carries, in
+    /// place of the previous ones (spec 025, Q-025-1; 005/K3): its record shows them. The
+    /// date of the login is not kept.
     fn record_login(
         &self,
         identity: Uuid,

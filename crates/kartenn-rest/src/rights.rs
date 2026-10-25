@@ -1715,31 +1715,25 @@ async fn identities(
     .await
 }
 
-/// The last session of a person (spec 025, Q-025-1).
-#[derive(Debug, Serialize, ToSchema)]
-struct LastSession {
-    /// Its opening, RFC 3339.
-    at: String,
-    /// The groups of its issuer it carried.
-    idp_groups: Vec<String>,
-}
-
 /// An identity, its groups of kartenn and its effective rights (spec 025, REQ-025-11).
 #[derive(Debug, Serialize, ToSchema)]
 struct IdentityDetail {
     #[serde(flatten)]
     identity: IdentityItem,
     /// Its groups of kartenn, one per membership: `via` is `direct` or the group of its
-    /// issuer, as its last session carried it.
+    /// issuer, as its last login carried it.
     groups: Vec<GroupOf>,
     /// The bindings that serve it, by the group that gives them.
     bindings: Vec<HeldBinding>,
-    /// Its last session, for a person who logged in; `null` otherwise.
-    last_session: Option<LastSession>,
+    /// The groups of its issuer its last login carried, without its date (spec 025,
+    /// Q-025-1; 005/K3); empty for an identity that never logged in. They reveal the
+    /// organisation of the issuer: served, as the whole record, to a reader of the rights
+    /// only; the person reads their own in `GET /v1/me` (`idp_groups`).
+    last_login_idp_groups: Vec<String>,
 }
 
 /// `GET /v1/identities/{id}`: the identity, its groups and its effective rights; a
-/// membership by a group of its issuer is read from its last session.
+/// membership by a group of its issuer is read from its last login.
 #[utoipa::path(
     get,
     path = "/identities/{id}",
@@ -1789,10 +1783,7 @@ async fn identity(
         identity: identity_item(&found),
         groups,
         bindings,
-        last_session: found.last_login_at.map(|at| LastSession {
-            at: time(at),
-            idp_groups: found.last_login_groups.clone().unwrap_or_default(),
-        }),
+        last_login_idp_groups: found.last_login_groups.clone().unwrap_or_default(),
     })
     .into_response())
 }

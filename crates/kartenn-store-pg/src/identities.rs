@@ -281,14 +281,12 @@ impl Identities for PgStore {
     }
 
     async fn record_login(&self, identity: Uuid, groups: &[String]) -> Result<(), StoreError> {
-        sqlx::query(
-            "UPDATE person SET last_login_at = now(), last_login_groups = $2 WHERE id = $1",
-        )
-        .bind(identity)
-        .bind(groups)
-        .execute(self.pool())
-        .await
-        .map_err(store_err)?;
+        sqlx::query("UPDATE person SET last_login_groups = $2 WHERE id = $1")
+            .bind(identity)
+            .bind(groups)
+            .execute(self.pool())
+            .await
+            .map_err(store_err)?;
         Ok(())
     }
 }

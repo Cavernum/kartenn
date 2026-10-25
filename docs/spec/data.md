@@ -217,9 +217,10 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   connexion par l'émetteur et le sujet qu'il porte, par la fonction
   `kartenn_promote_requester`), émetteur et `sub` pour une personne (une
   identité par couple), nom affiché seul, `disabled_at`, `revoked_after` (sessions
-  ouvertes avant refusées), `last_login_at` et `last_login_groups` (groupes de l'IdP de
-  la dernière connexion, pour la fiche d'identité ; 0069, effacés par la
-  pseudonymisation). Le nom d'un compte de service ou de secours est unique dans
+  ouvertes avant refusées), `last_login_groups` (groupes de l'IdP de la dernière
+  connexion, écrasés à chaque connexion, pour la fiche d'identité ; sans date, qui
+  suivrait l'activité : 005/K3 amendée, 025/Q-025-1 ; 0069, date retirée par 0070 ;
+  effacés par la pseudonymisation). Le nom d'un compte de service ou de secours est unique dans
   sa sorte (migrations 0031, 0032) et sert d'identifiant de connexion.
 - **Bitemporels** (déclencheur de versionnement, ADR 0017) : `role` (clé unique sur la
   période, `builtin` pour les rôles livrés), `role_permission`, `rbac_group` (clé unique

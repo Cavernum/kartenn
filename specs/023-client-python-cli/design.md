@@ -350,7 +350,7 @@ Commandes dérivées, complétées par `kartenn_cli/rights.py` :
   (`set_group`, `close_group`, `add_member`, `remove_member`, `bind`, `unbind`), le groupe
   par sa clé.
 - `kartenn identities get` en table : groupes `clé (via)`, liaisons
-  `rôle (groupe, portée)`, `last_session.at` et `last_session.idp_groups` ; `kartenn me`
+  `rôle (groupe, portée)`, `last_login_idp_groups` (`—` sans connexion) ; `kartenn me`
   ajoute la ligne « Groupes IdP » (`idp_groups`).
 
 #### Sorties (REQ-023-25, 26)

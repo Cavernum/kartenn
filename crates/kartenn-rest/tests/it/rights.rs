@@ -248,8 +248,11 @@ async fn a_delegate_binds_without_escalation(pool: PgPool) {
     let response = send(&delegate, binding("viewer", json!({"kind": "global"}))).await;
     assert_eq!(refused_by(response).await, ["core.rbac.forbidden"]);
 
-    // Nor may it read the administration of the rights.
+    // Nor may it read the administration of the rights, nor the record of an identity
+    // and the groups of its issuer it shows (spec 025, Q-025-1).
     let response = send(&delegate, get(&location)).await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let response = send(&delegate, get(&format!("/v1/identities/{someone}"))).await;
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     // The binding ends by DELETE.
@@ -593,7 +596,7 @@ async fn groups_and_members_are_administered(pool: PgPool) {
     let response = send(&admin, get("/v1/bindings?subject=x")).await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    // The record of the identity: directly, then by the group of its last session.
+    // The record of the identity: directly, then by the group of its last login.
     let record = json_of(send(&admin, get(&format!("/v1/identities/{someone}"))).await).await;
     assert_eq!(
         record["groups"],
@@ -604,23 +607,20 @@ async fn groups_and_members_are_administered(pool: PgPool) {
         record["bindings"],
         json!([{"group": "astreinte", "role": "lecteur", "scope": {"kind": "global"}}])
     );
-    assert_eq!(record["last_session"], Value::Null);
-    sqlx::query(
-        "UPDATE person SET issuer = $2, last_login_at = now(), last_login_groups = '{netops}'
-         WHERE id = $1",
-    )
-    .bind(someone)
-    .bind(issuer)
-    .execute(&pool)
-    .await
-    .unwrap();
+    assert_eq!(record["last_login_idp_groups"], json!([]));
+    sqlx::query("UPDATE person SET issuer = $2, last_login_groups = '{netops}' WHERE id = $1")
+        .bind(someone)
+        .bind(issuer)
+        .execute(&pool)
+        .await
+        .unwrap();
     let record = json_of(send(&admin, get(&format!("/v1/identities/{someone}"))).await).await;
     assert_eq!(
         record["groups"],
         json!([{"key": "astreinte", "via": "direct"}, {"key": "astreinte", "via": "netops"}])
     );
-    assert_eq!(record["last_session"]["idp_groups"], json!(["netops"]));
-    assert!(record["last_session"]["at"].is_string());
+    assert_eq!(record["last_login_idp_groups"], json!(["netops"]));
+    assert!(record.get("last_session").is_none(), "{record}");
 
     // Its labels, in the dictionary, under a new revision.
     let before = json_of(send(&admin, get("/v1/labels?spaces=group&lang=fr")).await).await;
