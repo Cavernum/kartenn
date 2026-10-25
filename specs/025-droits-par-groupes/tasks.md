@@ -163,8 +163,7 @@ Statut : spec **validée le 2026-10-25**.
     - La fiche d'un rôle garde ses permissions éditables et liste ses groupes en lecture.
     - Fixtures dans `donnees.ts` (rôles, groupes, membres, liaisons, identités, comptes),
       émetteur inventé `idp-interne`.
-- [x] 9. Bancs `bench-rbac` à 50 groupes de l'IdP par identité — REQ-025-15 (code ;
-  mesure à pleine échelle à passer)
+- [x] 9. Bancs `bench-rbac` à 50 groupes de l'IdP par identité — REQ-025-15
   - où : `crates/kartenn-bench/src/rbac.rs`.
   - Résultat : `rbac::bind` pose 200 groupes kartenn (`bench-k000`…`bench-k199`) aux
     membres mêlés (une autre identité et un groupe de l'IdP absent du jeton dans chacun) ;
@@ -185,6 +184,11 @@ Statut : spec **validée le 2026-10-25**.
       et groupes kartenn (`bench-r<n>-…`), les domaines liés à tour de rôle, hors des 200.
     - `rbac::group` prend des listes d'identités et de groupes de l'IdP (un groupe aux
       membres mêlés) ; `stats_budgets` suit.
-  - Mesure à pleine échelle : à passer (`K_BENCH_SCALE=full devenv shell -- bench-rbac`).
+  - Mesure à pleine échelle (2026-10-25, `K_BENCH_SCALE=full devenv shell -- bench-rbac`,
+    graine 42) : tous les budgets tenus, p95 avec contrôle d'accès — lecture d'un objet
+    14,4 ms (50), lecture passée 12,4 ms (28,9, relatif), page filtrée de 100 58,9 ms
+    (150), sous-arbre et occupation 13,4 ms (200), changeset unitaire 31,6 ms (200).
+    Décision sur une adresse selon les groupes kartenn résolus (50 groupes de l'IdP au
+    jeton) : 0 → 0,9 ms, 1 → 2,9 ms, 5 → 2,8 ms, 155 → 12,5 ms.
 - [ ] 10. Amendements de texte : 005 (K4, K7, K17, REQ-005-18, 26, 27 renvoient à la
   025), `docs/spec/` (interfaces, invariants, permissions), README des specs.
