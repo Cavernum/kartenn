@@ -75,8 +75,16 @@ nombres en millisecondes ci-dessous sont des choix de kartenn.
 - **[N → K]** Sous `prefers-reduced-motion: reduce` (et sous le réglage « Mouvement réduit »
   de l'application, technique SCR40) : translations et changements d'échelle à 0 ms ;
   fondus d'opacité et de couleur gardés à 80 ms (pas du mouvement au sens de WCAG).
-- **[N]** Le reflet du squelette s'arrête de lui-même au-delà de 5 s ou passe en fond
-  fixe (SC 2.2.2) ; l'actualisation automatique d'une vue peut être suspendue.
+- **[N]** Ce qui bouge seul plus de 5 s doit pouvoir être mis en pause, arrêté ou masqué
+  (SC 2.2.2) ; l'actualisation automatique d'une vue peut être suspendue.
+- **[K]** Le reflet du squelette tourne tant que la zone charge (`infinite`) : arrêté après
+  deux passages, il ne se voyait plus sur une attente un peu longue et passait pour un
+  état figé (revue du 2026-10-25, soir). Le mécanisme d'arrêt que demande le SC 2.2.2 est
+  le réglage : la préférence du système (`prefers-reduced-motion: reduce`) et l'entrée
+  « Mouvement : réduit » du menu de l'utilisateur, accessible à tout moment, qui pose
+  `data-motion="reduce"` ; sous l'un ou l'autre, la barre reste sur son fond fixe, sans
+  reflet. Le reflet est un indicateur de chargement (note 4 du SC : essentiel tant que
+  l'interaction attend les données), une seule règle partagée par tous les squelettes.
 - **[K]** Les durées et courbes sont celles des jetons de la 020 (§ Mouvement) ; les
   sorties sont plus courtes que les entrées ; rien au-delà de 300 ms pour répondre à une
   action.

@@ -250,7 +250,10 @@ d'une transition ; couche active dès sa première image ; pas de `mode="out-in"
 View Transitions (elles bloquent le pointeur, VT1 § 7.1.1) ; transitions CSS
 interruptibles, sans minuterie. Nouveau jeton `--k-duration-slow` (300 ms, 80 ms sous
 mouvement réduit : un fondu de couleur reste permis) ; aucune réponse à une action ne
-dure plus. Le reflet du squelette s'arrête après 5 s sur un fond fixe (WCAG 2.2.2). Le menu
+dure plus. Le reflet du squelette tourne tant que la zone charge ; le mécanisme d'arrêt
+que demande WCAG 2.2.2 (au-delà de 5 s) est le réglage de mouvement réduit, du système ou
+de l'application, sous lequel la barre reste sur son fond fixe (revue du 2026-10-25,
+soir ; note `mouvement-interface.md`, « Implications »). Le menu
 de l'utilisateur gagne « Mouvement : celui du système / réduit » (technique SCR40), qui
 pose `data-motion="reduce"` sur la racine et applique les mêmes jetons que la préférence
 du système.
@@ -288,8 +291,14 @@ la couche se fond en 80 ms sans bouger. Mise en œuvre :
 - **Onglets** : pas de barre glissante ; l'indicateur reste la bordure de l'onglet actif, en
   fondu de couleur (une barre demanderait des positions physiques mesurées et des
   exceptions de lint).
-- **Squelette** : deux passages du reflet (3,6 s), puis `animation-fill-mode: forwards` le
-  laisse hors de la barre ; immobile sous `data-motion="reduce"` comme sous la préférence.
+- **Squelette** (revue du 2026-10-25, soir) : le reflet passe en boucle (`infinite`, 2 ×
+  `--k-duration-spin` par passage, sens inversé en RTL) tant que la zone charge — limité
+  à deux passages, il ne se voyait plus sur une attente un peu longue. Le mécanisme
+  d'arrêt de WCAG 2.2.2 est le réglage : sous la préférence du système ou
+  `data-motion="reduce"` (« Mouvement : réduit »), plus de reflet, le fond fixe reste.
+  Une seule règle, la classe `k-skeleton-fill` de `components/shared.css`, porte fond,
+  reflet et animation pour tout emplacement en chargement (barres et blocs de `Skeleton`,
+  cellules d'un `DataGrid` en chargement) ; aucun composant n'en garde de copie.
 - **Réglage** : `applyMotion("system" | "reduce")` et `currentMotion()` de `@kartenn/ui` ;
   l'entrée « Mouvement » du menu de l'utilisateur de la maquette du cadre bascule entre les
   deux. Le shell réel ne câble encore ni thème ni densité : le réglage l'y rejoindra.
@@ -572,7 +581,7 @@ sont listés.
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
 | 24 | `StatusBadge` | — | les six états | couleur + icône + libellé |
-| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` : barres de 12 px (`--k-space-3`) en `--k-skeleton`, animées d'un reflet `--k-skeleton-sheen` (bande de la moitié de la barre, 2 × `--k-duration-spin`, linéaire), immobiles sous mouvement réduit, remplissage gardé ; aussi dans les cellules d'un `DataGrid` en chargement ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
+| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` : barres de 12 px (`--k-space-3`) en `--k-skeleton`, animées d'un reflet `--k-skeleton-sheen` (bande de la moitié de la barre, 2 × `--k-duration-spin`, linéaire, en boucle tant que la zone charge), immobiles sous mouvement réduit, remplissage gardé ; règle partagée `k-skeleton-fill` ; aussi dans les cellules d'un `DataGrid` en chargement ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
 | 26 | `InlineAlert` | `role="status"` ou `alert` | quatre états | violations sous un formulaire ; option `icon` qui remplace l'icône du ton quand elle en dit plus (cadenas d'un objet en lecture seule), couleur et rôle du ton gardés |
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
@@ -582,7 +591,7 @@ sont listés.
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
 | 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) ; sous 360 px, une barre qui doit replier ne garde que son action principale (`primary`, sinon la plus prioritaire) |
 | 34 | `MatrixGrid` | Grid (données) | cellule active, cellule en brouillon, en revue, croix de survol | en-têtes de lignes et de colonnes de même composant, figés dans les deux sens ; virtualisée dans les deux sens au-delà de 50 × 50 (REQ-020-35) ; croix : la cellule survolée, sinon la cellule active, éclaire sa ligne et sa colonne, en-têtes compris (`data-cross`, fond `--k-hover`, en-têtes en `--k-text`) ; la cellule active garde son liseré d'accent (forme, pas seulement couleur) ; sens du flux (option `axes`) : le coin dit « Destination → » et « Source ↓ » (seul énoncé du sens au repos, quand la croix n'est sur aucune cellule) ; quand la croix est sur une cellule, de petites pointes d'accent (8 × 6 px, pseudo-éléments vides, hors de l'arbre d'accessibilité) sont posées sur des bordures et tracent un seul chemin source → flux → destination : le long de la ligne, sur la bordure de fin de l'en-tête de la ligne source et sur la bordure de début de la cellule montrée, elles pointent vers la grille (de la source vers la cellule) ; le long de la colonne, sur la bordure haute de la cellule montrée et sur la bordure basse de l'en-tête de la colonne destination, elles pointent vers le haut (de la cellule vers la destination) ; la cellule est « de cette source vers cette destination » ; en écriture de droite à gauche, les pointes horizontales sont retournées ; plus aucune flèche dans le texte des en-têtes ; le sens est dit en mots par le nom de la grille et le coin (revue du 2026-10-25) |
-| 35 | `BarChart` | `role="img"` nommé par un résumé, table de données cachée | survol d'une barre (infobulle), série vide | histogramme d'une série dans le temps (une barre par point, ordre de lecture) en SVG maison, sans dépendance ; mesuré par `ResizeObserver`, dessiné en pixels CSS (traits nets, aucune déformation) ; hauteur par jeton ; jetons seulement (`--k-accent`, `--k-border`, `--k-text-muted`), clair et sombre ; résumé (nombre de points, bornes, maximum, dernier) ; valeurs en chiffres tabulaires ; infobulle `decorative` au survol (la table cachée porte les mêmes données) ; ligne de base, graduation du maximum, première et dernière étiquettes (revue du 2026-10-25) |
+| 35 | `BarChart` | `role="img"` nommé par un résumé, table de données cachée (dans une boîte `k-visually-hidden` : sa légende, hors de la boîte de la table, débordait sinon sur le tracé dans certains moteurs, revue du 2026-10-25, soir) | survol d'une barre (infobulle), série vide | histogramme d'une série dans le temps (une barre par point, ordre de lecture) en SVG maison, sans dépendance ; mesuré par `ResizeObserver`, dessiné en pixels CSS (traits nets, aucune déformation) ; hauteur par jeton ; jetons seulement (`--k-accent`, `--k-border`, `--k-text-muted`), clair et sombre ; résumé (nombre de points, bornes, maximum, dernier) ; valeurs en chiffres tabulaires ; infobulle `decorative` au survol (la table cachée porte les mêmes données) ; ligne de base, graduation du maximum, première et dernière étiquettes (revue du 2026-10-25) |
 | 36 | `BarList` | table (en-têtes de ligne, valeurs) | valeur au-delà de l'échelle | barres horizontales d'une distribution (occupation, part) : libellé, barre décorative (`aria-hidden`), valeur ; échelle commune (`max`, sinon la plus grande valeur) ; la valeur est toujours écrite, la barre ne fait que la montrer (revue du 2026-10-25) |
 | 37 | `ExpandableGrid` | Grid (données) + Button qui ouvre un Dialog (Modal) | compacte, agrandie | une liste qui peut être longue (flux qu'un brouillon rend non conformes à la matrice, membres d'un groupe) gardée compacte dans un lieu étroit (panneau, section) : nombre de lignes au-dessus, quelques lignes visibles (`visibleRows`, 5 par défaut) puis la grille défile, colonnes réduites au besoin (`compactColumns`) ; bouton « Agrandir » (`IconButton`, nommé « Agrandir : <libellé> », `aria-haspopup="dialog"`) qui ouvre la même table dans une boîte large (`Dialog` `lg`, `contained`) : toutes les colonnes, tri et filtres partagés (tenus par l'hôte, comme pour `DataGrid`), focus piégé, Échap ferme et rend le focus au bouton ; rien n'est coupé en silence, le reste est à un bouton (revue du 2026-10-25) |
 
