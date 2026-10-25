@@ -172,6 +172,16 @@
     --k-size-col-sm: 96px;
     --k-size-col-md: 160px;
     --k-size-col-lg: 240px;
+    /* Adaptation to the width (design « Adaptation à la largeur »): the least width of a
+     * tile of an intrinsic grid, the target of a main action under a coarse pointer, the
+     * height of the window (dynamic where supported, below), the least width of the work
+     * surface beside the right panel, and the widest that panel may then be (its
+     * container, read where it is used, less that surface). */
+    --k-size-tile-min: clamp(200px, 22vw, 280px);
+    --k-size-target-coarse: 44px;
+    --k-size-viewport: 100vh;
+    --k-size-surface-min: 640px;
+    --k-size-panel-beside: calc(100cqi - var(--k-size-surface-min));
 
     /* Motion (REQ-020-11) */
     --k-duration-instant: 0ms;
@@ -315,5 +325,13 @@
     --k-motion-shift-md: 0px;
     --k-motion-shift-lg: 0px;
     --k-motion-scale: 1;
+  }
+
+  /* The window follows the interface of the browser where it can (CSS Values 4,
+   * § 6.1.2): `dvh`, else the large window above. */
+  @supports (block-size: 100dvh) {
+    :root {
+      --k-size-viewport: 100dvh;
+    }
   }
 }
