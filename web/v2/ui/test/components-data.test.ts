@@ -97,6 +97,18 @@ describe("DataGrid", () => {
     expect(html).toMatch(/<input[^>]*value="Postes"/);
     expect(text(html)).toContain("Libellé — 198.51.100.0/24");
   });
+
+  it("lets the cells of a message column wrap, the others stay on one line", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [columns[0], { ...columns[1], wrap: true }],
+      rows,
+      rowKey: "prefix",
+    });
+    expect(html.match(/data-wrap="true"/g)).toHaveLength(rows.length);
+    expect(html).toMatch(/data-column="label"[^>]*data-wrap="true"/);
+    expect(html).not.toMatch(/data-column="prefix"[^>]*data-wrap/);
+  });
 });
 
 const tree: TreeNode[] = [

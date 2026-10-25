@@ -263,6 +263,7 @@ function onKeydown(event: KeyboardEvent): void {
           :data-row="keyOf(row)"
           :data-column="column.id"
           :data-align="column.align"
+          :data-wrap="column.wrap ? 'true' : undefined"
           :data-state="stateOf(row, column)"
           :data-editing="isEditing(row, column) ? 'true' : undefined"
           :aria-colindex="c + 1"
@@ -465,6 +466,16 @@ function onKeydown(event: KeyboardEvent): void {
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* A message wraps, never clipped: the row grows to hold it. */
+  .k-data-grid__cell[data-wrap] {
+    padding-block: var(--k-space-1);
+    white-space: normal;
+  }
+
+  .k-data-grid__cell[data-wrap] > .k-data-grid__value {
+    overflow-wrap: anywhere;
   }
 
   .k-data-grid__cell[data-state="draft"] {
