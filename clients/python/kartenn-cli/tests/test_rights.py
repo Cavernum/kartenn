@@ -260,7 +260,7 @@ def test_groups_into_the_local_changeset(
     ]
 
 
-def test_an_identity_with_its_groups_and_last_session(
+def test_an_identity_with_its_groups_and_those_of_its_last_login(
     served: FakeServer, snapshot: SnapshotAssertion
 ) -> None:
     identity = {
@@ -279,7 +279,7 @@ def test_an_identity_with_its_groups_and_last_session(
             {"group": "admins", "role": "administrator", "scope": {"kind": "global"}},
             {"group": "admins", "role": "reader", "scope": {"kind": "site", "id": READERS}},
         ],
-        "last_session": {"at": "2026-10-24T08:00:00Z", "idp_groups": ["kartenn-admins", "vpn"]},
+        "last_login_idp_groups": ["kartenn-admins", "vpn"],
     }
     served.route("GET", "/v1/identities/{id}", identity)
     table = kartenn("identities", "get", ALICE, "-o", "table")

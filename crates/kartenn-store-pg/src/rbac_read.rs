@@ -353,14 +353,12 @@ pub struct IdentityRead {
     pub disabled: bool,
     /// Its sessions opened until then are revoked.
     pub revoked_after: Option<OffsetDateTime>,
-    /// The opening of its last session, for a person (spec 025, Q-025-1).
-    pub last_login_at: Option<OffsetDateTime>,
-    /// The groups of its issuer that session carried.
+    /// The groups of its issuer its last login carried, for a person (spec 025, Q-025-1).
     pub last_login_groups: Option<Vec<String>>,
 }
 
 const IDENTITIES: &str = "SELECT id, kind, display_name AS name, issuer,
-            disabled_at IS NOT NULL AS disabled, revoked_after, last_login_at, last_login_groups
+            disabled_at IS NOT NULL AS disabled, revoked_after, last_login_groups
      FROM person";
 
 /// The identities after the identifier `after`, by identifier.

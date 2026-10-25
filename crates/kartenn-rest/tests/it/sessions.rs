@@ -476,16 +476,15 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     );
     assert_eq!(body["global_permissions"], json!(["core.entity.read"]));
     assert_eq!(body["session"]["breakglass"], false);
-    // Spec 025, Q-025-1: the login keeps the groups of the issuer with the identity.
-    let kept: (Option<Vec<String>>, bool) = sqlx::query_as(
-        "SELECT last_login_groups, last_login_at IS NOT NULL FROM person
-         WHERE id = $1",
-    )
-    .bind(Uuid::parse_str(body["identity"].as_str().unwrap()).unwrap())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(kept, (Some(vec!["netops".to_owned()]), true));
+    // Spec 025, Q-025-1: the login keeps the groups of the issuer with the identity, not
+    // its date (005/K3).
+    let kept: (Option<Vec<String>>,) =
+        sqlx::query_as("SELECT last_login_groups FROM person WHERE id = $1")
+            .bind(Uuid::parse_str(body["identity"].as_str().unwrap()).unwrap())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(kept, (Some(vec!["netops".to_owned()]),));
     // Inactivity first: 30 minutes from now.
     let ends = time::OffsetDateTime::parse(
         body["session"]["expires_at"].as_str().unwrap(),

@@ -1,16 +1,15 @@
 # serializer version: 1
-# name: test_an_identity_with_its_groups_and_last_session
+# name: test_an_identity_with_its_groups_and_those_of_its_last_login
   '''
-  href                     /v1/identities/1d000000-0000-7000-8000-000000000001
-  kind                     person
-  name                     Alice Exemple
-  issuer                   https://idp.example.org/realms/interne
-  disabled                 false
-  revoked_after            —
-  groups                   admins, admins (kartenn-admins)
-  bindings                 administrator (admins, global), reader (admins, site 6a000000-0000-7000-8000-000000000002)
-  last_session.at          2026-10-24T08:00:00Z
-  last_session.idp_groups  kartenn-admins, vpn
+  href                   /v1/identities/1d000000-0000-7000-8000-000000000001
+  kind                   person
+  name                   Alice Exemple
+  issuer                 https://idp.example.org/realms/interne
+  disabled               false
+  revoked_after          —
+  groups                 admins, admins (kartenn-admins)
+  bindings               administrator (admins, global), reader (admins, site 6a000000-0000-7000-8000-000000000002)
+  last_login_idp_groups  kartenn-admins, vpn
   
   '''
 # ---

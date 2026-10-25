@@ -3306,27 +3306,24 @@
                 "type": "array"
               },
               "groups": {
-                "description": "Its groups of kartenn, one per membership: `via` is `direct` or the group of its\nissuer, as its last session carried it.",
+                "description": "Its groups of kartenn, one per membership: `via` is `direct` or the group of its\nissuer, as its last login carried it.",
                 "items": {
                   "$ref": "#/components/schemas/GroupOf"
                 },
                 "type": "array"
               },
-              "last_session": {
-                "oneOf": [
-                  {
-                    "$ref": "#/components/schemas/LastSession",
-                    "description": "Its last session, for a person who logged in; `null` otherwise."
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              "last_login_idp_groups": {
+                "description": "The groups of its issuer its last login carried, without its date (spec 025,\nQ-025-1; 005/K3); empty for an identity that never logged in. They reveal the\norganisation of the issuer: served, as the whole record, to a reader of the rights\nonly; the person reads their own in `GET /v1/me` (`idp_groups`).",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               }
             },
             "required": [
               "groups",
-              "bindings"
+              "bindings",
+              "last_login_idp_groups"
             ],
             "type": "object"
           }
@@ -3832,27 +3829,6 @@
           "default_lang",
           "revision",
           "spaces"
-        ],
-        "type": "object"
-      },
-      "LastSession": {
-        "description": "The last session of a person (spec 025, Q-025-1).",
-        "properties": {
-          "at": {
-            "description": "Its opening, RFC 3339.",
-            "type": "string"
-          },
-          "idp_groups": {
-            "description": "The groups of its issuer it carried.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "at",
-          "idp_groups"
         ],
         "type": "object"
       },
@@ -21224,7 +21200,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/identities/{id}`: the identity, its groups and its effective rights; a\nmembership by a group of its issuer is read from its last session.",
+        "summary": "`GET /v1/identities/{id}`: the identity, its groups and its effective rights; a\nmembership by a group of its issuer is read from its last login.",
         "tags": [
           "rights"
         ]

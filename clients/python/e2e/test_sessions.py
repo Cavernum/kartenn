@@ -185,10 +185,10 @@ def test_groups_of_kartenn(cli: Cli) -> None:
     assert [(b["group"], b["role"]) for b in bound] == [("reseau", "reader")]
     shown = cli("groups", "get", "reseau", "-o", "json")
     assert json.loads(shown.out)["members"] == 1
-    # A bearer token opens no session (spec 025, Q-025-1): Alice's card has no last one.
+    # A bearer token is no login (spec 025, Q-025-1): Alice's card shows no group of it.
     alice = json.loads(cli("me", "-o", "json").out)["identity"]
     card = lines(cli("identities", "get", alice, "-o", "table"))
-    assert any(re.fullmatch(r"last_session +—", line) for line in card), card
+    assert any(re.fullmatch(r"last_login_idp_groups +—", line) for line in card), card
     cli("groups", "members", "remove", "reseau", member, "--motive", MOTIVE)
     assert items(cli("groups", "members", "list", "reseau", "-o", "json")) == []
     cli("groups", "close", "reseau", "--motive", MOTIVE)
