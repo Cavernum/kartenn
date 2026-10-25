@@ -283,14 +283,19 @@ export const ACCOUNTS: AdminAccount[] = [
   { name: "audit-annuel", state: "disabled", groups: 0, secrets: 0, lastUse: "2025-12-31 23:10" },
 ];
 
-/** An identity (005): a person known by an IdP, or the break-glass account. */
+/**
+ * An identity (005): a person known by an IdP, or the break-glass account. Its card adds
+ * `last_login_idp_groups` (006; 025, Q-025-1): the groups of the IdP at its last login,
+ * overwritten at each login, without its date (not kept: it would track activity, 005/K3
+ * amended); empty for an identity that never logged in through an IdP.
+ */
 export interface AdminIdentity extends Record<string, unknown> {
   key: string;
   name: string;
   issuer: string;
   state: "active" | "disabled";
   groups: number;
-  lastSession: string;
+  lastLoginIdpGroups: string[];
 }
 const identity = (
   key: string,
@@ -298,16 +303,26 @@ const identity = (
   issuer: string,
   state: "active" | "disabled",
   groups: number,
-  lastSession: string,
-): AdminIdentity => ({ key, name, issuer, state, groups, lastSession });
+  lastLoginIdpGroups: string[],
+): AdminIdentity => ({ key, name, issuer, state, groups, lastLoginIdpGroups });
 export const IDENTITIES: AdminIdentity[] = [
-  identity("camille.martin", "Camille Martin", ISSUER, "active", 2, "2026-01-15 08:47"),
-  identity("lou.bernard", "Lou Bernard", ISSUER, "active", 3, "2026-01-15 09:12"),
-  identity("alex.morel", "Alex Morel", ISSUER, "active", 1, "2026-01-14 17:30"),
-  identity("sam.leroy", "Sam Leroy", ISSUER, "disabled", 1, "2025-12-19 11:02"),
-  identity("noa.petit", "Noa Petit", ISSUER, "active", 0, "—"),
-  identity("secours", "secours", "local", "active", 1, "—"),
+  identity("camille.martin", "Camille Martin", ISSUER, "active", 2, ["reseau", "tous-agents"]),
+  identity("lou.bernard", "Lou Bernard", ISSUER, "active", 3, [
+    "astreinte",
+    "supervision-n1",
+    "tous-agents",
+  ]),
+  identity("alex.morel", "Alex Morel", ISSUER, "active", 1, ["tous-agents"]),
+  identity("sam.leroy", "Sam Leroy", ISSUER, "disabled", 1, ["tous-agents"]),
+  identity("noa.petit", "Noa Petit", ISSUER, "active", 0, []),
+  identity("secours", "secours", "local", "active", 1, []),
 ];
+/** The kartenn group that an IdP group gives, if any (for the card of an identity). */
+export const IDP_GROUP_TARGETS: Record<string, string> = {
+  astreinte: "Astreinte",
+  "supervision-n1": "Équipe supervision",
+  reseau: "Équipe réseau",
+};
 
 /** The groups of the chosen identity, and by which group of its token (null: directly). */
 export const IDENTITY_GROUPS = [
@@ -332,12 +347,3 @@ export const IDENTITY_RIGHTS = [
   },
   { role: "reader", roleLabel: "Lecteur", scope: "Globale", group: "Astreinte" },
 ];
-/** The groups served by the IdP in its last session (025, Q-025-1), and their kartenn group. */
-export const IDENTITY_SESSION = {
-  at: "2026-01-15 09:12",
-  groups: [
-    { name: `${ISSUER} / astreinte`, group: "Astreinte" },
-    { name: `${ISSUER} / supervision-n1`, group: "Équipe supervision" },
-    { name: `${ISSUER} / tous-agents`, group: null },
-  ],
-};

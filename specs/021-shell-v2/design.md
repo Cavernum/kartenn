@@ -255,8 +255,11 @@ ne vide pas l'écran) avec ses trois états.
   - L'identité choisie : état (`StatusBadge`) et actions Désactiver, Révoquer les
     sessions ; en lecture, ses groupes kartenn avec « via » (direct, ou le groupe de l'IdP
     qui l'y fait entrer), ses droits effectifs (rôle, périmètre, groupe qui le donne) et
-    les groupes de l'IdP de sa dernière session, datée, avec le groupe kartenn de chacun
-    (025, Q-025-1 ; aucun sans session).
+    « Groupes de l'IdP lors de sa dernière connexion » (`last_login_idp_groups`), sans
+    date — elle n'est pas gardée, elle suivrait l'activité (005/K3 amendée ; 025,
+    Q-025-1) —, avec le groupe kartenn de chacun ; une identité jamais connectée par un
+    IdP (liste vide) a une ligne d'état vide à la place. La liste des identités n'a pas
+    de colonne de dernière connexion (non servie par `GET /v1/identities`).
   - Le rôle choisi : permissions, une par ligne (libellé à gauche, `CodeBadge` du nom servi
     à droite, action Retirer), « Ajouter une permission » ; puis les groupes qui le
     portent, avec leur périmètre, en lecture.
@@ -310,7 +313,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et pointes de sens de `MatrixGrid` sur les bordures de la croix) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé : comptes, un `InlineAlert` qui dit le nombre de flux qui deviennent non conformes à la matrice, et ces flux en `ExpandableGrid` — source, destination et type de flux (par son libellé) dans le panneau ; service (par sa clé) et code de la règle qui les refuse en plus dans la vue agrandie) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
+| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et pointes de sens de `MatrixGrid` sur les bordures de la croix) ; effet simulé en pied de matrice (cellules de cette matrice sur celles du brouillon, flux non conformes à cette matrice) et dans le panneau du brouillon, qui peut toucher les matrices de plusieurs types de flux (cellules changées avec leur type de flux, source → destination, avant et après ; puis effet simulé : comptes de tout le brouillon, un `InlineAlert` qui dit le nombre de flux qui deviennent non conformes à la matrice de leur type, et ces flux groupés par type de flux — une section titrée par le libellé du type, avec son compte et son `ExpandableGrid`, pour chaque type dont le brouillon change la matrice, aucun flux d'un type non touché ; source et destination dans le panneau, service (par sa clé) et code de la règle qui les refuse en plus dans la vue agrandie, sans colonne de type, redondante dans le groupe) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
 | Règles et motifs | `/x/policy/rules`, `rules/<id>`, `rules/new`, `?tab=patterns` | règles hors matrice et motifs | form | `policy.text.missing` |
 | Catalogue | `/x/policy/catalogue/<collection>/<id>` | objets de référence, une forme pour huit collections | form | `invalid-member` |
 | Inférence | `/x/policy/inference`, `inference/<id>`, `inference/mismatches` | règles qui déduisent un axe, écarts ; aperçu d'une règle (route S36) | form, menu | `policy.inference.conflict`, `policy.inference.mismatch` |

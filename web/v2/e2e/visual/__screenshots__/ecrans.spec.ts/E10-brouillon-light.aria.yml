@@ -31,16 +31,16 @@
       - listitem:
         - link "Matrice":
           - /url: /x/policy/matrix
-      - listitem: applicatif
+      - listitem: application
   - button "Présent"
   - button "Brouillon ( 3 )" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Matrice de politique applicatif" [level=1]
-  - region "Matrice applicatif":
-    - heading "Matrice applicatif" [level=2]
-    - 'button "Type de flux : applicatif"'
+  - region "Matrice Applicatif":
+    - heading "Matrice Applicatif" [level=2]
+    - 'button "Type de flux : Applicatif"'
     - paragraph:
       - text: "À venir :"
       - code: Select
@@ -49,7 +49,7 @@
       - button "3 règles hors vue"
       - button "Simuler le brouillon"
       - button "Exporter"
-    - 'grid "Matrice applicatif : source en ligne, destination en colonne"':
+    - 'grid "Matrice Applicatif : source en ligne, destination en colonne"':
       - rowgroup:
         - row "Source → destination Production Préproduction Recette Intégration Développement":
           - columnheader "Source → destination"
@@ -94,23 +94,45 @@
           - gridcell "Refus par défaut"
           - gridcell "Autoriser"
           - gridcell "Autoriser"
-    - text: /Brouillon · 1 cellule · 1 en revue 1 s'ouvre sous réserve · \d+ non conformes à la matrice · 0 conforme de nouveau/
+    - text: /Brouillon · 1 cellule de cette matrice sur 2 · 1 en revue 1 s'ouvre sous réserve · \d+ non conformes à cette matrice · 0 conforme de nouveau/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Panneau droit":
     - tab "Détail"
     - tab "Brouillon 3" [selected]
   - tabpanel "Brouillon 3":
-    - region "Matrice applicatif":
-      - heading "Matrice applicatif" [level=2]
-      - text: 1 cellule
+    - region "Cellules changées":
+      - heading "Cellules changées" [level=2]
+      - text: 2 cellules
       - list:
         - listitem:
           - text: De Recette vers Production
-          - button "Retirer la cellule Recette → Production"
+          - button "Retirer la cellule Recette → Production de la matrice Applicatif"
+          - term: Type de flux
+          - definition: Applicatif
           - term: État
           - definition:
             - deletion: "avant : Refus par défaut"
+            - insertion: "après : Sous motif"
+          - term: Motif
+          - definition:
+            - insertion:
+              - text: "ajouté :"
+              - button "Copier api-lecture":
+                - text: ""
+                - code: api-lecture
+              - status
+          - term: Libellé
+          - definition:
+            - insertion: "ajouté : Lecture des API de production depuis la recette"
+        - listitem:
+          - text: De Intégration vers Préproduction
+          - button "Retirer la cellule Intégration → Préproduction de la matrice Administratif"
+          - term: Type de flux
+          - definition: Administratif
+          - term: État
+          - definition:
+            - deletion: "avant : Autoriser"
             - insertion: "après : Sous motif"
           - term: Motif
           - definition:
@@ -122,130 +144,89 @@
               - status
           - term: Libellé
           - definition:
-            - insertion: "ajouté : Accès recette vers production"
+            - insertion: "ajouté : Administration de la préproduction par le bastion"
     - region "Effet simulé":
       - heading "Effet simulé" [level=2]
       - term: S'ouvrent sous réserve
-      - definition: "1"
+      - definition: "2"
       - term: Non conformes
       - definition: /\d+/
       - term: Conformes de nouveau
       - definition: "0"
       - status:
-        - paragraph: /\d+ flux deviennent non conformes à la matrice/
-        - text: Ils étaient conformes avant ce brouillon ; la règle qui les refuse est dans la liste.
-      - text: /\d+ lignes/
-      - 'button "Agrandir : Flux non conformes à la matrice après ce brouillon"'
-      - grid "Flux non conformes à la matrice après ce brouillon":
-        - rowgroup:
-          - row "Source Destination Type de flux":
-            - columnheader "Source"
-            - columnheader "Destination"
-            - columnheader "Type de flux"
-        - rowgroup:
-          - row "rece-batch prod-api Applicatif":
-            - gridcell "rece-batch"
-            - gridcell "prod-api"
-            - gridcell "Applicatif"
-          - row "rece-batch prod-files Fichier":
-            - gridcell "rece-batch"
-            - gridcell "prod-files"
-            - gridcell "Fichier"
-          - row "rece-batch prod-db Base de données":
-            - gridcell "rece-batch"
-            - gridcell "prod-db"
-            - gridcell "Base de données"
-          - row "rece-batch prod-bastion Administratif":
-            - gridcell "rece-batch"
-            - gridcell "prod-bastion"
-            - gridcell "Administratif"
-          - row "rece-batch prod-registry Applicatif":
-            - gridcell "rece-batch"
-            - gridcell "prod-registry"
-            - gridcell "Applicatif"
-          - row "rece-ci prod-api Applicatif":
-            - gridcell "rece-ci"
-            - gridcell "prod-api"
-            - gridcell "Applicatif"
-          - row "rece-ci prod-files Fichier":
-            - gridcell "rece-ci"
-            - gridcell "prod-files"
-            - gridcell "Fichier"
-          - row "rece-ci prod-db Base de données":
-            - gridcell "rece-ci"
-            - gridcell "prod-db"
-            - gridcell "Base de données"
-          - row "rece-ci prod-bastion Administratif":
-            - gridcell "rece-ci"
-            - gridcell "prod-bastion"
-            - gridcell "Administratif"
-          - row "rece-ci prod-registry Applicatif":
-            - gridcell "rece-ci"
-            - gridcell "prod-registry"
-            - gridcell "Applicatif"
-          - row "rece-etl prod-api Applicatif":
-            - gridcell "rece-etl"
-            - gridcell "prod-api"
-            - gridcell "Applicatif"
-          - row "rece-etl prod-files Fichier":
-            - gridcell "rece-etl"
-            - gridcell "prod-files"
-            - gridcell "Fichier"
-          - row "rece-etl prod-db Base de données":
-            - gridcell "rece-etl"
-            - gridcell "prod-db"
-            - gridcell "Base de données"
-          - row "rece-etl prod-bastion Administratif":
-            - gridcell "rece-etl"
-            - gridcell "prod-bastion"
-            - gridcell "Administratif"
-          - row "rece-etl prod-registry Applicatif":
-            - gridcell "rece-etl"
-            - gridcell "prod-registry"
-            - gridcell "Applicatif"
-          - row "rece-mon prod-api Applicatif":
-            - gridcell "rece-mon"
-            - gridcell "prod-api"
-            - gridcell "Applicatif"
-          - row "rece-mon prod-files Fichier":
-            - gridcell "rece-mon"
-            - gridcell "prod-files"
-            - gridcell "Fichier"
-          - row "rece-mon prod-db Base de données":
-            - gridcell "rece-mon"
-            - gridcell "prod-db"
-            - gridcell "Base de données"
-          - row "rece-mon prod-bastion Administratif":
-            - gridcell "rece-mon"
-            - gridcell "prod-bastion"
-            - gridcell "Administratif"
-          - row "rece-mon prod-registry Applicatif":
-            - gridcell "rece-mon"
-            - gridcell "prod-registry"
-            - gridcell "Applicatif"
-          - row "rece-web prod-api Applicatif":
-            - gridcell "rece-web"
-            - gridcell "prod-api"
-            - gridcell "Applicatif"
-          - row "rece-web prod-files Fichier":
-            - gridcell "rece-web"
-            - gridcell "prod-files"
-            - gridcell "Fichier"
-          - row "rece-web prod-db Base de données":
-            - gridcell "rece-web"
-            - gridcell "prod-db"
-            - gridcell "Base de données"
-          - row "rece-web prod-bastion Administratif":
-            - gridcell "rece-web"
-            - gridcell "prod-bastion"
-            - gridcell "Administratif"
-          - row "rece-web prod-registry Applicatif":
-            - gridcell "rece-web"
-            - gridcell "prod-registry"
-            - gridcell "Applicatif"
+        - paragraph: /\d+ flux deviennent non conformes à la matrice de leur type/
+        - text: Ils étaient conformes avant ce brouillon. Seuls les types de flux dont il change la matrice sont touchés ; la règle qui refuse chaque flux est dans sa liste.
+      - region "Applicatif":
+        - heading "Applicatif" [level=3]
+        - text: /\d+ non conformes \d+ lignes/
+        - 'button "Agrandir : Flux de type Applicatif non conformes à leur matrice après ce brouillon"'
+        - grid "Flux de type Applicatif non conformes à leur matrice après ce brouillon":
+          - rowgroup:
+            - row "Source Destination":
+              - columnheader "Source"
+              - columnheader "Destination"
+          - rowgroup:
+            - row "rece-batch prod-api":
+              - gridcell "rece-batch"
+              - gridcell "prod-api"
+            - row "rece-batch prod-registry":
+              - gridcell "rece-batch"
+              - gridcell "prod-registry"
+            - row "rece-ci prod-api":
+              - gridcell "rece-ci"
+              - gridcell "prod-api"
+            - row "rece-ci prod-registry":
+              - gridcell "rece-ci"
+              - gridcell "prod-registry"
+            - row "rece-etl prod-api":
+              - gridcell "rece-etl"
+              - gridcell "prod-api"
+            - row "rece-etl prod-registry":
+              - gridcell "rece-etl"
+              - gridcell "prod-registry"
+            - row "rece-mon prod-api":
+              - gridcell "rece-mon"
+              - gridcell "prod-api"
+            - row "rece-mon prod-registry":
+              - gridcell "rece-mon"
+              - gridcell "prod-registry"
+            - row "rece-web prod-api":
+              - gridcell "rece-web"
+              - gridcell "prod-api"
+            - row "rece-web prod-registry":
+              - gridcell "rece-web"
+              - gridcell "prod-registry"
+      - region "Administratif":
+        - heading "Administratif" [level=3]
+        - text: 6 non conformes 6 lignes
+        - 'button "Agrandir : Flux de type Administratif non conformes à leur matrice après ce brouillon"'
+        - grid "Flux de type Administratif non conformes à leur matrice après ce brouillon":
+          - rowgroup:
+            - row "Source Destination":
+              - columnheader "Source"
+              - columnheader "Destination"
+          - rowgroup:
+            - row "inte-ci preprod-app":
+              - gridcell "inte-ci"
+              - gridcell "preprod-app"
+            - row "inte-ci preprod-db":
+              - gridcell "inte-ci"
+              - gridcell "preprod-db"
+            - row "inte-mon preprod-app":
+              - gridcell "inte-mon"
+              - gridcell "preprod-app"
+            - row "inte-mon preprod-db":
+              - gridcell "inte-mon"
+              - gridcell "preprod-db"
+            - row "inte-web preprod-app":
+              - gridcell "inte-web"
+              - gridcell "preprod-app"
+            - row "inte-web preprod-db":
+              - gridcell "inte-web"
+              - gridcell "preprod-db"
     - region "Autres opérations":
       - heading "Autres opérations" [level=2]
-      - text: "2"
+      - text: "1"
       - list "Opérations du brouillon":
         - listitem:
           - code: /\d+\.\d+\.\d+\.\d+/
@@ -254,17 +235,10 @@
           - text: →
           - insertion: VIP
           - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
-        - listitem:
-          - code: /\d+\.\d+\.\d+\.\d+/
-          - text: "Propriétaire :"
-          - deletion: Atelier Nord
-          - text: →
-          - insertion: Atelier Sud
-          - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
   - button "Fermer le panneau"
   - status: Revue requise Simulation valide ; politique « Changements de matrice ».
   - text: Résumé (obligatoire)
-  - textbox "Résumé (obligatoire)": Accès recette vers production
+  - textbox "Résumé (obligatoire)": Accès sous motif, matrices applicatif et administratif
   - text: Description (facultative)
   - textbox "Description (facultative)"
   - button "Soumettre en revue"

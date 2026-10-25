@@ -7,7 +7,8 @@
 // » under each list; the same group edited, its operations waiting in the draft and marked
 // on their rows (024-11); a group whose scope is wider than the user's, its actions refused
 // by reason (025, G5); the builtin group `secours`; an identity, read only for its rights
-// (groups and by which group of its token, effective rights, groups of its last session);
+// (groups and by which group of its token, effective rights, groups of its IdP at its last
+// login, without date: not kept, 025, Q-025-1);
 // a role and its permissions; a new secret of a service account shown once.
 import {
   Button,
@@ -38,7 +39,7 @@ import {
   IDENTITIES,
   IDENTITY_GROUPS,
   IDENTITY_RIGHTS,
-  IDENTITY_SESSION,
+  IDP_GROUP_TARGETS,
   MEMBER_KIND,
   ROLES,
   ROLE_GROUPS,
@@ -242,16 +243,17 @@ const identityColumns: GridColumn[] = [
   { id: "name", label: "Identité", width: "lg", sortable: true, filterable: true },
   { id: "state", label: "État", width: "md", filterable: true },
   { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true, priority: 3 },
-  { id: "issuer", label: "Émetteur", width: "md", mono: true, filterable: true, priority: 2 },
-  {
-    id: "lastSession",
-    label: "Dernière session",
-    width: "fill",
-    mono: true,
-    sortable: true,
-    priority: 2,
-  },
+  { id: "issuer", label: "Émetteur", width: "fill", mono: true, filterable: true, priority: 2 },
 ];
+/**
+ * The chosen identity, and the groups of its IdP at its last login (no date: not kept,
+ * 025, Q-025-1), each with the kartenn group it gives, if any.
+ */
+const chosenIdentity = IDENTITIES.find((i) => i.key === "lou.bernard")!;
+const lastLoginGroups = chosenIdentity.lastLoginIdpGroups.map((name) => ({
+  name: `${chosenIdentity.issuer} / ${name}`,
+  group: IDP_GROUP_TARGETS[name] ?? null,
+}));
 const identitySort = ref<GridSort>({ column: "name", direction: "ascending" });
 const identityActions: ToolbarAction[] = [
   { id: "disable", label: "Désactiver", icon: "lock", priority: 2 },
@@ -596,17 +598,13 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
         <section aria-labelledby="k-ecran-session">
           <Stack gap="2">
             <h3 id="k-ecran-session" class="k-ecran-subtitle">
-              Groupes de l'IdP · {{ IDENTITY_SESSION.groups.length }}
-              <span class="k-ecran-muted k-ecran-poids"
-                >(session du
-                <time class="k-num" :datetime="IDENTITY_SESSION.at.replace(' ', 'T')">{{
-                  IDENTITY_SESSION.at
-                }}</time
-                >)</span
-              >
+              Groupes de l'IdP lors de sa dernière connexion · {{ lastLoginGroups.length }}
             </h3>
-            <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
-              <li v-for="g in IDENTITY_SESSION.groups" :key="g.name">
+            <p v-if="!lastLoginGroups.length" class="k-ecran-muted">
+              Aucun : cette identité ne s'est jamais connectée par un IdP.
+            </p>
+            <ul v-else class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
+              <li v-for="g in lastLoginGroups" :key="g.name">
                 <span class="k-mono"
                   ><template v-for="(part, i) in parts(g.name)" :key="i"
                     ><template v-if="i"> / </template
